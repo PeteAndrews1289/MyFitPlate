@@ -24,7 +24,7 @@ class RecipeImporterService: ObservableObject {
         }
     }
     
-    private let openAI_APIKey = "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"
+    let apiKey = getAPIKey()
 
     func fetchAndParseRecipe(from urlString: String) async -> Result<UserRecipe, ImporterError> {
         let contentResult = await fetchContent(from: urlString)
@@ -119,11 +119,11 @@ class RecipeImporterService: ObservableObject {
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.addValue("Bearer \(openAI_APIKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let requestBody: [String: Any] = [
-            "model": "gpt-3.5-turbo",
+            "model": "gpt-4o-mini",
             "response_format": ["type": "json_object"],
             "messages": [["role": "user", "content": prompt]],
             "temperature": 0.1

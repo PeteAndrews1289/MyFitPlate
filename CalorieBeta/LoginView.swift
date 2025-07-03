@@ -9,43 +9,42 @@ struct LoginView: View {
     @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                
-                Spacer()
+        VStack(spacing: 20) {
+            
+            Spacer()
 
-                Text("Welcome Back!")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .padding(.bottom, 30)
-                
-                VStack(spacing: 16) {
-                    RoundedTextField(placeholder: "Enter your email", text: $email, iconName: "envelope.fill", isEmail: true)
-                    RoundedSecureField(placeholder: "Enter your password", text: $password, iconName: "lock.fill")
-                }
+            Text("Welcome Back!")
+                .appFont(size: 34, weight: .bold)
+                .foregroundColor(.textPrimary)
+                .padding(.bottom, 30)
+            
+            VStack(spacing: 16) {
+                TextField("Enter your email", text: $email)
+                    .textFieldStyle(AppTextFieldStyle(iconName: "envelope.fill"))
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
 
-                if !loginError.isEmpty {
-                    Text(loginError)
-                        .foregroundColor(.red)
-                        .font(.caption)
-                        .padding(.top, 10)
-                }
-
-                Spacer()
-                
-                Button(action: loginUser) {
-                    Text("Login")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(16)
-                }
+                SecureField("Enter your password", text: $password)
+                    .textFieldStyle(AppTextFieldStyle(iconName: "lock.fill"))
             }
-            .padding(.horizontal, 30)
-            .navigationBarHidden(true)
+
+            if !loginError.isEmpty {
+                Text(loginError)
+                    .foregroundColor(.red)
+                    .appFont(size: 12)
+                    .padding(.top, 10)
+            }
+
+            Spacer()
+            
+            Button("Login") {
+                loginUser()
+            }
+            .buttonStyle(PrimaryButtonStyle())
         }
+        .padding(.horizontal, 30)
+        .background(Color.backgroundPrimary.edgesIgnoringSafeArea(.all))
+        .navigationBarHidden(true)
     }
     
     private func loginUser() {

@@ -10,26 +10,24 @@ struct AddMealToPlanView: View {
     var body: some View {
         NavigationView {
             VStack {
-                // This NavigationLink allows the user to create a new recipe
                 NavigationLink(destination: CreateRecipeView(recipeService: recipeService)) {
                     Text("Create New Recipe")
                         .padding()
                         .frame(maxWidth: .infinity)
-                        .background(Color.green) // FIX: Changed color to green
+                        .background(Color.brandSecondary)
                         .foregroundColor(.white)
                         .cornerRadius(10)
                 }
-                .padding(.horizontal)
+                .padding()
 
                 if recipeService.userRecipes.isEmpty {
                     Text("No recipes found. Create one to add it to your plan.")
-                        .foregroundColor(.gray)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                         .padding()
                 }
                 
                 List(recipeService.userRecipes) { recipe in
                     Button(action: {
-                        // When a recipe is selected, create a PlannedMeal with the recipeID
                         let plannedMeal = PlannedMeal(
                             id: UUID().uuidString,
                             mealType: mealType,
@@ -40,10 +38,10 @@ struct AddMealToPlanView: View {
                     }) {
                         VStack(alignment: .leading) {
                             Text(recipe.name)
-                                .font(.headline)
+                                .appFont(size: 17, weight: .semibold)
                             Text("\(recipe.nutritionPerServing.calories, specifier: "%.0f") cal per serving")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
+                                .appFont(size: 15)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
                         }
                     }
                 }

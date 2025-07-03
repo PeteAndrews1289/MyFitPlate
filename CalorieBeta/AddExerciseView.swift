@@ -38,25 +38,30 @@ struct AddExerciseView: View {
             Form {
                 Section(header: Text("Exercise Details")) {
                     TextField("Exercise Name (e.g., Running)", text: $exerciseName)
+                        .textFieldStyle(AppTextFieldStyle(iconName: "figure.walk"))
+
                     HStack {
-                        TextField("Duration (minutes)", text: $duration)
+                        TextField("Duration", text: $duration)
                             .keyboardType(.numberPad)
+                            .textFieldStyle(AppTextFieldStyle(iconName: "clock"))
                         Text("min")
                     }
                     HStack {
                         TextField("Calories Burned", text: $caloriesBurned)
                             .keyboardType(.numberPad)
+                            .textFieldStyle(AppTextFieldStyle(iconName: "flame.fill"))
                         Text("kcal")
                     }
                     DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
                 }
 
-                Button(action: saveExercise) {
-                    Text(isEditing ? "Update Exercise" : "Log Exercise")
-                        .frame(maxWidth: .infinity)
+                Button(isEditing ? "Update Exercise" : "Log Exercise") {
+                    saveExercise()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PrimaryButtonStyle())
                 .disabled(exerciseName.isEmpty || caloriesBurned.isEmpty)
+                .listRowInsets(EdgeInsets())
+                .padding(.vertical)
             }
             .navigationTitle(isEditing ? "Edit Exercise" : "Add Exercise")
             .navigationBarTitleDisplayMode(.inline)

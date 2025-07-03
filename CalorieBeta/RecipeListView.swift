@@ -12,7 +12,6 @@ struct RecipeListView: View {
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
-        // The NavigationView is crucial for NavigationLinks to work.
         NavigationView {
             List {
                 if recipeService.isLoading {
@@ -20,13 +19,13 @@ struct RecipeListView: View {
                         .frame(maxWidth: .infinity)
                 } else if recipeService.userRecipes.isEmpty {
                      Text("No saved recipes yet.\nTap '+' to create one or the import icon to add from a URL.")
+                         .appFont(size: 15)
                          .multilineTextAlignment(.center)
-                         .foregroundColor(.gray)
+                         .foregroundColor(Color(UIColor.secondaryLabel))
                          .frame(maxWidth: .infinity, alignment: .center)
                          .padding(.vertical, 40)
                 } else {
                     ForEach(recipeService.userRecipes) { recipe in
-                        // Each row is now a NavigationLink to the detail view
                         NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
                             RecipeRow(
                                 recipe: recipe,
@@ -48,7 +47,7 @@ struct RecipeListView: View {
                     Button {
                         showingImporterSheet = true
                     } label: {
-                        Image(systemName: "square.and.arrow.down") // Import Icon
+                        Image(systemName: "square.and.arrow.down")
                             .imageScale(.large)
                     }
                 }
@@ -57,7 +56,7 @@ struct RecipeListView: View {
                         self.recipeToEdit = nil
                         showingCreateRecipeSheet = true
                     } label: {
-                        Image(systemName: "plus.circle.fill") // Add New Icon
+                        Image(systemName: "plus.circle.fill")
                             .imageScale(.large)
                     }
                 }
@@ -69,7 +68,6 @@ struct RecipeListView: View {
                  CreateRecipeView(recipeService: recipeService)
             }
             .sheet(isPresented: $showingImporterSheet) {
-                // Present the importer view
                 RecipeImporterView()
                     .environmentObject(recipeService)
             }
@@ -94,8 +92,6 @@ struct RecipeListView: View {
      }
 }
 
-// MARK: - Sub-views for RecipeListView
-
 fileprivate struct RecipeRow: View {
     let recipe: UserRecipe
     @ObservedObject var recipeService: RecipeService
@@ -106,29 +102,27 @@ fileprivate struct RecipeRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text(recipe.name).font(.headline)
+                Text(recipe.name).appFont(size: 17, weight: .semibold)
                 Text("\(recipe.servingSizeDescription) - \(recipe.nutritionPerServing.calories, specifier: "%.0f") cal")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .appFont(size: 15)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
             }
             Spacer()
-            // Edit button stops the navigation link from triggering
             Button(action: {
                 onEdit()
             }) {
                 Image(systemName: "pencil.circle.fill")
-                    .foregroundColor(.gray)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .imageScale(.large)
             }
             .buttonStyle(BorderlessButtonStyle())
             .padding(.trailing, 8)
 
-            // Log button also stops navigation
             Button(action: {
                 showingLogSheet = true
             }) {
                  Image(systemName: "plus.circle.fill")
-                     .foregroundColor(.accentColor)
+                     .foregroundColor(.brandPrimary)
                      .imageScale(.large)
             }
             .buttonStyle(BorderlessButtonStyle())
@@ -173,11 +167,11 @@ fileprivate struct LogRecipeSheetView: View {
                  Section {
                      VStack(alignment: .center, spacing: 8) {
                          Text(recipe.name)
-                             .font(.title2.bold())
+                             .appFont(size: 22, weight: .bold)
                              .multilineTextAlignment(.center)
                          Text("Logging for \(recipe.servingSizeDescription)")
-                             .font(.callout)
-                             .foregroundColor(.gray)
+                             .appFont(size: 15)
+                             .foregroundColor(Color(UIColor.secondaryLabel))
                      }
                      .frame(maxWidth: .infinity)
                      .padding(.vertical, 10)
@@ -185,10 +179,10 @@ fileprivate struct LogRecipeSheetView: View {
                  .listRowBackground(Color.clear)
 
                  Section(header: Text("Nutrition per Serving")) {
-                     HStack { Text("Calories"); Spacer(); Text("\(recipe.nutritionPerServing.calories, specifier: "%.0f") kcal").foregroundColor(.secondary) }
-                     HStack { Text("Protein"); Spacer(); Text("\(recipe.nutritionPerServing.protein, specifier: "%.1f") g").foregroundColor(.secondary) }
-                     HStack { Text("Carbs"); Spacer(); Text("\(recipe.nutritionPerServing.carbs, specifier: "%.1f") g").foregroundColor(.secondary) }
-                     HStack { Text("Fats"); Spacer(); Text("\(recipe.nutritionPerServing.fats, specifier: "%.1f") g").foregroundColor(.secondary) }
+                     HStack { Text("Calories"); Spacer(); Text("\(recipe.nutritionPerServing.calories, specifier: "%.0f") kcal").foregroundColor(Color(UIColor.secondaryLabel)) }
+                     HStack { Text("Protein"); Spacer(); Text("\(recipe.nutritionPerServing.protein, specifier: "%.1f") g").foregroundColor(Color(UIColor.secondaryLabel)) }
+                     HStack { Text("Carbs"); Spacer(); Text("\(recipe.nutritionPerServing.carbs, specifier: "%.1f") g").foregroundColor(Color(UIColor.secondaryLabel)) }
+                     HStack { Text("Fats"); Spacer(); Text("\(recipe.nutritionPerServing.fats, specifier: "%.1f") g").foregroundColor(Color(UIColor.secondaryLabel)) }
                  }
 
                  Section(header: Text("Log Recipe")) {

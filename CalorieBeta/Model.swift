@@ -275,48 +275,8 @@ struct UserAchievementStatus: Identifiable, Codable, Equatable {
 struct CustomCorners: Shape { var corners: UIRectCorner; var radius: CGFloat; func path(in rect: CGRect) -> Path { let path = UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius)); return Path(path.cgPath) } }
 
 
-struct RoundedTextField: View {
-    var placeholder: String
-    @Binding var text: String
-    var iconName: String
-    var isEmail: Bool = false
-    @Environment(\.colorScheme) var colorScheme
 
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: iconName)
-                .foregroundColor(.secondary)
-                .frame(width: 20)
-            
-            TextField(placeholder, text: $text)
-                .keyboardType(isEmail ? .emailAddress : .default)
-                .autocapitalization(isEmail ? .none : .words)
-        }
-        .padding()
-        .background(colorScheme == .dark ? Color(.systemGray5) : Color(.systemGray6))
-        .cornerRadius(16)
-    }
-}
 
-struct RoundedSecureField: View {
-    var placeholder: String
-    @Binding var text: String
-    var iconName: String
-    @Environment(\.colorScheme) var colorScheme
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: iconName)
-                .foregroundColor(.secondary)
-                .frame(width: 20)
-            
-            SecureField(placeholder, text: $text)
-        }
-        .padding()
-        .background(colorScheme == .dark ? Color(.systemGray5) : Color(.systemGray6))
-        .cornerRadius(16)
-    }
-}
 struct FoodEmojiMapper { static let foodEmojiMap: [String: String] = ["hotdog":"🌭","hot dog":"🌭","burger":"🍔","hamburger":"🍔","cheeseburger":"🍔","pizza":"🍕","taco":"🌮","burrito":"🌯","fries":"🍟","sandwich":"🥪","wrap":"🌯","nachos":"🌮","steak":"🥩","chicken":"🍗","fish":"🐟","shrimp":"🍤","prawn":"🍤","egg":"🥚","eggs":"🥚","bacon":"🥓","sausage":"🌭","ham":"🥓","pork":"🥓","beef":"🥩","lamb":"🍖","turkey":"🍗","oyster":"🐚","caviar":"🐟","rice":"🍚","pasta":"🍝","spaghetti":"🍝","ravioli":"🍝","bread":"🍞","toast":"🍞","noodles":"🍜","ramen":"🍜","pho":"🍜","pad thai":"🍜","bagel":"🥯","croissant":"🥐","pretzel":"🥨","bun":"🥐","roll":"🥐","apple":"🍎","banana":"🍌","orange":"🍊","grape":"🍇","strawberry":"🍓","watermelon":"🍉","pear":"🍐","cherry":"🍒","mango":"🥭","pineapple":"🍍","peach":"🍑","kiwi":"🥝","lemon":"🍋","lime":"🍋","blueberry":"🫐","raspberry":"🫐","carrot":"🥕","broccoli":"🥦","tomato":"🍅","potato":"🥔","corn":"🌽","lettuce":"🥬","cucumber":"🥒","onion":"🧅","garlic":"🧄","pepper":"🌶️","mushroom":"🍄","spinach":"🥬","cabbage":"🥬","zucchini":"🥒","eggplant":"🍆","cake":"🍰","carrot cake":"🍰","chocolate cake":"🍰","red velvet cake":"🍰","cheesecake":"🍰","cookie":"🍪","ice cream":"🍦","donut":"🍩","chocolate":"🍫","candy":"🍬","cupcake":"🧁","pie":"🥧","apple pie":"🥧","pudding":"🍮","bread pudding":"🍮","panna cotta":"🍮","waffle":"🧇","pancake":"🥞","coffee":"☕","tea":"🍵","juice":"🍹","beer":"🍺","wine":"🍷","milk":"🥛","cocktail":"🍸","soda":"🥤","water":"💧","sushi":"🍣","sashimi":"🍣","sushi roll":"🍣","curry":"🍛","chicken curry":"🍛","dumpling":"🥟","gyoza":"🥟","samosa":"🥟","egg roll":"🥟","falafel":"🧆","paella":"🍲","tempura":"🍤","cheese":"🧀","grilled cheese":"🧀","peanut":"🥜","popcorn":"🍿","lollipop":"🍭","honey":"🍯","jam":"🍇","butter":"🧈","oil":"🛢️","soup":"🥣","miso soup":"🥣","french onion soup":"🥣","hot and sour soup":"🥣","clam chowder":"🥣","lobster bisque":"🥣","salad":"🥗","greek salad":"🥗","caesar salad":"🥗","caprese salad":"🥗","beet salad":"🥗","fruit salad":"🥗","stew":"🍲","casserole":"🍲","quesadilla":"🌮"]; static func getEmoji(for foodName: String) -> String { let l = foodName.lowercased(); if let e = foodEmojiMap[l] { return e }; if let c = foodEmojiMap.first(where: { l.contains($0.key) }) { return c.value }; let w = l.split(separator: " ").map { String($0) }; if let f = w.first, let m = foodEmojiMap[f] { return m }; return "🍽️" } }
 
 struct ExerciseEmojiMapper {

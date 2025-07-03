@@ -14,45 +14,48 @@ struct SignUpView: View {
     @State private var signUpError = ""
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
+        VStack(spacing: 20) {
+            
+            Spacer()
+
+            Text("Create Your Account")
+                .appFont(size: 34, weight: .bold)
+                .foregroundColor(.textPrimary)
+                .multilineTextAlignment(.center)
+                .padding(.bottom, 30)
+            
+            VStack(spacing: 16) {
+                TextField("Username", text: $username)
+                    .textFieldStyle(AppTextFieldStyle(iconName: "person.fill"))
                 
-                Spacer()
+                TextField("Email", text: $email)
+                    .textFieldStyle(AppTextFieldStyle(iconName: "envelope.fill"))
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
 
-                Text("Create Your Account")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .multilineTextAlignment(.center)
-                    .padding(.bottom, 30)
-                
-                VStack(spacing: 16) {
-                    RoundedTextField(placeholder: "Username", text: $username, iconName: "person.fill")
-                    RoundedTextField(placeholder: "Email", text: $email, iconName: "envelope.fill", isEmail: true)
-                    RoundedSecureField(placeholder: "Password", text: $password, iconName: "lock.fill")
-                    RoundedSecureField(placeholder: "Confirm Password", text: $confirmPassword, iconName: "lock.fill")
-                }
+                SecureField("Password", text: $password)
+                    .textFieldStyle(AppTextFieldStyle(iconName: "lock.fill"))
 
-                if !signUpError.isEmpty {
-                    Text(signUpError)
-                        .foregroundColor(.red)
-                        .font(.caption)
-                        .padding(.top, 10)
-                }
-                Spacer()
-
-                Button(action: signUpUser) {
-                    Text("Join Now")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(16)
-                }
+                SecureField("Confirm Password", text: $confirmPassword)
+                    .textFieldStyle(AppTextFieldStyle(iconName: "lock.fill"))
             }
-            .padding(.horizontal, 30)
-            .navigationBarHidden(true)
+
+            if !signUpError.isEmpty {
+                Text(signUpError)
+                    .foregroundColor(.red)
+                    .appFont(size: 12)
+                    .padding(.top, 10)
+            }
+            Spacer()
+
+            Button("Join Now") {
+                signUpUser()
+            }
+            .buttonStyle(PrimaryButtonStyle())
         }
+        .padding(.horizontal, 30)
+        .background(Color.backgroundPrimary.edgesIgnoringSafeArea(.all))
+        .navigationBarHidden(true)
     }
 
     private func signUpUser() {
@@ -85,10 +88,21 @@ struct SignUpView: View {
                 "calories": 2000,
                 "protein": 150,
                 "fats": 70,
-                "carbs": 250
+                "carbs": 250,
+                "proteinPercentage": 30.0,
+                "carbsPercentage": 50.0,
+                "fatsPercentage": 20.0,
+                "activityLevel": 1.2,
+                "goal": "Maintain",
+                "targetWeight": NSNull(),
+                "waterGoal": 64.0
             ],
             "weight": 150.0,
+            "height": 170.0,
+            "age": 25,
+            "gender": "Male",
             "isFirstLogin": true,
+            "calorieGoalMethod": "mifflinWithActivity",
             "totalAchievementPoints": 0,
             "userLevel": 1
         ]

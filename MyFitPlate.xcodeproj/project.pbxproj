@@ -89,6 +89,8 @@
 		4B71DB932E0B6A98003A0078 /* CalorieWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4B71DB802E0B6A96003A0078 /* CalorieWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4B71DB9C2E0B6B69003A0078 /* SharedDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B71DB9B2E0B6B69003A0078 /* SharedDataManager.swift */; };
 		4B71DBA12E0C4B36003A0078 /* secrets.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 4B71DBA02E0C4B36003A0078 /* secrets.xcconfig */; };
+		4B71DBB12E0CC665003A0078 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B71DBB02E0CC65C003A0078 /* DesignSystem.swift */; };
+		4B71DBBF2E1065FF003A0078 /* AISummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B71DBBE2E1065FF003A0078 /* AISummaryView.swift */; };
 		4B750C772D148F6B002AE2FB /* SetHeightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B750C762D148F5E002AE2FB /* SetHeightView.swift */; };
 		4B999ECB2D80847300930413 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B999ECA2D80846C00930413 /* WelcomeView.swift */; };
 		4B999ECD2D8DC4B000930413 /* OnBoardingSurveyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B999ECC2D8DC4A200930413 /* OnBoardingSurveyView.swift */; };
@@ -221,6 +223,8 @@
 		4B71DB9B2E0B6B69003A0078 /* SharedDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataManager.swift; sourceTree = "<group>"; };
 		4B71DB9D2E0B72BD003A0078 /* CalorieWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CalorieWidgetExtension.entitlements; sourceTree = "<group>"; };
 		4B71DBA02E0C4B36003A0078 /* secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = secrets.xcconfig; sourceTree = "<group>"; };
+		4B71DBB02E0CC65C003A0078 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		4B71DBBE2E1065FF003A0078 /* AISummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISummaryView.swift; sourceTree = "<group>"; };
 		4B750C762D148F5E002AE2FB /* SetHeightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetHeightView.swift; sourceTree = "<group>"; };
 		4B999ECA2D80846C00930413 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		4B999ECC2D8DC4A200930413 /* OnBoardingSurveyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnBoardingSurveyView.swift; sourceTree = "<group>"; };
@@ -249,7 +253,6 @@
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		4B71DB852E0B6A96003A0078 /* CalorieWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4B71DB942E0B6A98003A0078 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = CalorieWidget; sourceTree = "<group>"; };
-		4BA2DB362D42A24500B6BDED /* MLModel */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MLModel; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -319,6 +322,7 @@
 				3EB297882CAEEE2F0093E1B9 /* AddFoodView.swift */,
 				4BF46DDF2DF76A6F0018668F /* AddMealToPlanView.swift */,
 				3EC693E12CBD90B2002222C6 /* AIChatBotView.swift */,
+				4B71DBBE2E1065FF003A0078 /* AISummaryView.swift */,
 				4B619A932D677DB500D6C9A8 /* APIError.swift */,
 				3E676A172CCFE4AD0019DC51 /* AppState.swift */,
 				3EB2977D2CAEEDCA0093E1B9 /* Assets.xcassets */,
@@ -339,6 +343,7 @@
 				4B4694112DC3CB4E006F1F86 /* CustomTabBar.swift */,
 				3EB09F402CC2B0990088C849 /* DailyLogService.swift */,
 				4B46941F2DCE6227006F1F86 /* DetailedInsightsView.swift */,
+				4B71DBB02E0CC65C003A0078 /* DesignSystem.swift */,
 				3EC693DF2CBD712D002222C6 /* FatSecretFoodAPIService.swift */,
 				4B71DB742E08B7AD003A0078 /* FeatureTourView.swift */,
 				3EB09F452CC7F41D0088C849 /* FirestoreSeeder.swift */,
@@ -371,7 +376,6 @@
 				4B4694082DBA9DFB006F1F86 /* MicronutrientProgressView.swift */,
 				4B6046A42DEA0BCC000B4A46 /* MilestoneData.swift */,
 				4BA2DB3B2D42A37B00B6BDED /* MLImageModel.swift */,
-				4BA2DB362D42A24500B6BDED /* MLModel */,
 				3EB297902CAEF0460093E1B9 /* Model.swift */,
 				4B999ECE2D93027200930413 /* NotificationManager.swift */,
 				3EC693CA2CB81F8B002222C6 /* NutritionProgressView.swift */,
@@ -431,9 +435,6 @@
 			);
 			dependencies = (
 				4B71DB922E0B6A98003A0078 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				4BA2DB362D42A24500B6BDED /* MLModel */,
 			);
 			name = MyFitPlate;
 			packageProductDependencies = (
@@ -551,6 +552,7 @@
 				4B444E0B2DF4B6F400C6F094 /* ChallengesView.swift in Sources */,
 				4B4694202DCE622F006F1F86 /* DetailedInsightsView.swift in Sources */,
 				4B4694052DBA898C006F1F86 /* HealthKitManager.swift in Sources */,
+				4B71DBBF2E1065FF003A0078 /* AISummaryView.swift in Sources */,
 				4B71DB772E0AFE41003A0078 /* SleepReportCard.swift in Sources */,
 				4BA2DB3C2D42A38B00B6BDED /* MLImageModel.swift in Sources */,
 				4B6046A32DEA068E000B4A46 /* CircularWeightDisplayView.swift in Sources */,
@@ -601,6 +603,7 @@
 				3EC693CF2CB827F2002222C6 /* UserProfileView.swift in Sources */,
 				4B444E112DF4C5BE00C6F094 /* GroceryListView.swift in Sources */,
 				4B619A982D79EB5200D6C9A8 /* LandingPageView.swift in Sources */,
+				4B71DBB12E0CC665003A0078 /* DesignSystem.swift in Sources */,
 				3EB09F412CC2B0990088C849 /* DailyLogService.swift in Sources */,
 				4B4878E42DF3C964009AB665 /* BannerService.swift in Sources */,
 				3EB2978D2CAEEF830093E1B9 /* LoginView.swift in Sources */,
@@ -804,7 +807,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.5;
-				MARKETING_VERSION = 1.04;
+				MARKETING_VERSION = 1.05;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -858,7 +861,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.5;
-				MARKETING_VERSION = 1.04;
+				MARKETING_VERSION = 1.05;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

@@ -1,12 +1,11 @@
-
 import SwiftUI
 
 struct CircularWeightDisplayView: View {
     @EnvironmentObject var goalSettings: GoalSettings
     
     var currentWeight: Double
-    var lastUpdateDate: Date? 
-    var progress: Double // Percentage 0-1.0
+    var lastUpdateDate: Date?
+    var progress: Double
     var goalWeight: Double?
     var initialWeightForGoal: Double?
 
@@ -30,25 +29,25 @@ struct CircularWeightDisplayView: View {
                 Circle()
                     .stroke(lineWidth: 16)
                     .opacity(0.15)
-                    .foregroundColor(Color.accentColor)
+                    .foregroundColor(Color.brandPrimary)
 
                 Circle()
                     .trim(from: 0.0, to: CGFloat(min(self.progress, 1.0)))
                     .stroke(style: StrokeStyle(lineWidth: 16, lineCap: .round, lineJoin: .round))
-                    .foregroundColor(Color.accentColor)
+                    .foregroundColor(Color.brandPrimary)
                     .rotationEffect(Angle(degrees: 270.0))
                     .animation(.linear(duration: 0.75), value: progress)
 
                 VStack {
                     Text(weightString)
-                        .font(.system(size: 50, weight: .bold))
-                        .foregroundColor(Color.accentColor)
+                        .font(.system(size: 50, weight: .bold, design: .rounded))
+                        .foregroundColor(Color.brandPrimary)
                     Text("lb")
-                        .font(.title3)
-                        .foregroundColor(.gray)
+                        .appFont(size: 20)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                     Text(dateString)
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                 }
             }
             .frame(width: 200, height: 200)
@@ -60,8 +59,8 @@ struct CircularWeightDisplayView: View {
                     Spacer()
                     Text(String(format: "Goal: %.1f lb", gw))
                  }
-                 .font(.caption)
-                 .foregroundColor(.gray)
+                 .appFont(size: 12)
+                 .foregroundColor(Color(UIColor.secondaryLabel))
                  .padding(.horizontal, 40)
             }
         }

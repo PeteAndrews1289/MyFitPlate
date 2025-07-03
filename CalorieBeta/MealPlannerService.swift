@@ -12,46 +12,58 @@ class MealPlannerService: ObservableObject {
         self.recipeService = recipeService
     }
 
-    public func generateAndSaveFullWeekPlan(goals: GoalSettings, preferredFoods: [String], userID: String) async -> Bool {
-        var allDayPlans: [MealPlanDay] = []
-        var mealHistory: [String] = []
 
-        for i in 0..<7 {
-            let targetDate = Calendar.current.date(byAdding: .day, value: i, to: Date())!
-            print("MealPlannerService Debug: Generating plan for Day \(i + 1)...")
+    public func generateAndSaveFullWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], userID: String) async -> Bool {
+            print("MealPlannerService Debug: Starting concurrent meal plan generation for 7 days.")
             
-            guard let singleDayPlan = await generatePlanForSingleDay(
-                date: targetDate,
-                goals: goals,
-                preferredFoods: preferredFoods,
-                mealHistory: mealHistory
-            ) else {
-                print("MealPlannerService Debug: Failed to generate or parse plan for Day \(i + 1). Aborting week generation.")
+            var dailyPlans: [MealPlanDay?] = .init(repeating: nil, count: 7)
+            var mealHistory: [String] = [] // For variety, if needed in the future
+
+            await withTaskGroup(of: (Int, MealPlanDay?).self) { group in
+                for i in 0..<7 {
+                    group.addTask {
+                        let targetDate = Calendar.current.date(byAdding: .day, value: i, to: Date())!
+                        let singleDayPlan = await self.generatePlanForSingleDay(
+                            date: targetDate,
+                            goals: goals,
+                            preferredFoods: preferredFoods,
+                            preferredCuisines: preferredCuisines,
+                            mealHistory: mealHistory
+                        )
+                        // Return the index and the plan so we can re-assemble them in order.
+                        return (i, singleDayPlan)
+                    }
+                }
+                
+                // As each task finishes, add its result to our array.
+                for await (index, plan) in group {
+                    dailyPlans[index] = plan
+                }
+            }
+
+            // Un-optionalize the array and check if all days were generated successfully.
+            let successfullyGeneratedPlans = dailyPlans.compactMap { $0 }
+            
+            if successfullyGeneratedPlans.count < 7 {
+                print("MealPlannerService Debug: Failed to generate all 7 days. Only created \(successfullyGeneratedPlans.count).")
                 return false
             }
             
-            for meal in singleDayPlan.meals {
-                if let mealName = meal.foodItem?.name {
-                    mealHistory.append(mealName)
-                }
-            }
+            // The plans are already in order, so we can now save them.
+            print("MealPlannerService Debug: Successfully generated all 7 day plans. Saving to Firestore.")
             
-            allDayPlans.append(singleDayPlan)
+            // Generate the grocery list from all the collected meal names
+            let allMealNames = successfullyGeneratedPlans.flatMap { $0.meals.compactMap { $0.foodItem?.name } }
+            await generateAndSaveGroceryListFromAI(for: allMealNames, userID: userID)
+            
+            // Save the plans to Firestore
+            await saveFullMealPlan(days: successfullyGeneratedPlans, for: userID)
+
+            return true
         }
-        
-        if allDayPlans.count < 7 {
-            print("MealPlannerService Debug: Failed to generate all 7 days. Only created \(allDayPlans.count).")
-            return false
-        }
 
-        print("MealPlannerService Debug: Successfully generated all 7 day plans. Saving to Firestore.")
-        await saveFullMealPlan(days: allDayPlans, for: userID)
-        await generateAndSaveGroceryListFromAI(for: mealHistory, userID: userID)
-
-        return true
-    }
-
-    private func generatePlanForSingleDay(date: Date, goals: GoalSettings, preferredFoods: [String], mealHistory: [String]) async -> MealPlanDay? {
+    // --- MODIFIED: Added preferredCuisines parameter ---
+    private func generatePlanForSingleDay(date: Date, goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], mealHistory: [String]) async -> MealPlanDay? {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMMM d"
         let dateString = formatter.string(from: date)
@@ -63,10 +75,22 @@ class MealPlannerService: ObservableObject {
             **Variety Requirement:** To ensure variety, please create meals that are different from the ones already generated for previous days. It is acceptable for a meal to be repeated once or twice over the entire week, but avoid daily repetition. Here are the meals generated so far: \(mealList)
             """
         }
+        
+        // --- NEW: Create a prompt section for cuisines ---
+        var cuisinePromptSection = ""
+        // Don't add the cuisine prompt if the user selected "Any" or nothing
+        if !preferredCuisines.isEmpty && !preferredCuisines.contains("Any / No Preference") {
+            cuisinePromptSection = """
+            **Cuisine Influence:** Please draw inspiration from the following cuisines: \(preferredCuisines.joined(separator: ", ")). You can mix them or focus on one per meal.
+            """
+        }
 
+
+        // --- MODIFIED: Added the new cuisine section to the prompt ---
         let prompt = """
         Generate a one-day meal plan for \(dateString) with a Breakfast, Lunch, and Dinner.
         \(historyPromptSection)
+        \(cuisinePromptSection)
         **Primary Goal:** The total nutrition for the day must add up to approximately \(Int(goals.calories ?? 2000)) calories, \(Int(goals.protein))g Protein, \(Int(goals.carbs))g Carbs, and \(Int(goals.fats))g Fats.
         **Allowed Ingredients:** Create meals primarily using this list: \(preferredFoods.joined(separator: ", ")). Common pantry items are also allowed.
         
@@ -108,6 +132,8 @@ class MealPlannerService: ObservableObject {
             return nil
         }
     }
+    
+    // Everything else below here remains the same...
     
     private func parseSingleDayPlan(from text: String) -> [PlannedMeal] {
         var parsedMeals: [PlannedMeal] = []

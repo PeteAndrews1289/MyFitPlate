@@ -47,12 +47,12 @@ struct WaterTrackingCardView: View {
                                 Image(systemName: "lightbulb.fill")
                                     .foregroundColor(.yellow)
                                 Text(insight.title)
-                                    .font(.footnote.weight(.semibold))
-                                    .foregroundColor(.accentColor)
+                                    .appFont(size: 13, weight: .semibold)
+                                    .foregroundColor(.brandPrimary)
                             }
                             Text(insight.message)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .appFont(size: 12)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
                                 .lineLimit(8)
                         }
                         .padding(.bottom, 8)
@@ -60,12 +60,12 @@ struct WaterTrackingCardView: View {
                     
                     VStack(alignment: .leading, spacing: 3) {
                         Text(motivationalQuote.text)
-                            .font(.caption)
+                            .appFont(size: 12)
                             .italic()
                             .lineLimit(3)
                         Text("- \(motivationalQuote.author)")
-                            .font(.caption2)
-                            .foregroundColor(.gray)
+                            .appFont(size: 10)
+                            .foregroundColor(Color(UIColor.tertiaryLabel))
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     Spacer(minLength: 0)
@@ -74,24 +74,23 @@ struct WaterTrackingCardView: View {
                 
                 VStack(alignment: .center, spacing: 5) {
                     Text("Water Intake")
-                        .font(.headline)
+                        .appFont(size: 17, weight: .semibold)
                     
                     Text("\(Int(waterIntake)) / \(Int(waterGoal)) oz")
-                        .font(.caption)
-                        .fontWeight(.medium)
+                        .appFont(size: 12, weight: .medium)
                         .padding(.bottom, 2)
 
                     GeometryReader { geometry in
                         ZStack(alignment: .bottom){
                             Rectangle()
                                 .fill(LinearGradient(
-                                    gradient: Gradient(colors: [.cyan, .blue.opacity(0.7)]),
+                                    gradient: Gradient(colors: [.cyan, Color.brandPrimary.opacity(0.7)]),
                                     startPoint: .bottom, endPoint: .top ))
                                 .frame(height: geometry.size.height * CGFloat(progress))
                                 .animation(.easeInOut(duration: 0.5), value: progress)
                             
                             WaterBottleShape()
-                                .stroke(Color.secondary, lineWidth: 1.5)
+                                .stroke(Color(UIColor.secondaryLabel), lineWidth: 1.5)
                         }
                         .mask(WaterBottleShape())
                         .frame(width: geometry.size.width, height: geometry.size.height)
@@ -105,22 +104,22 @@ struct WaterTrackingCardView: View {
                         } label: {
                             Image(systemName: "minus.circle.fill")
                                 .font(.title2)
-                                .foregroundColor(.blue.opacity(0.7))
+                                .foregroundColor(Color.brandPrimary.opacity(0.7))
                         }
                         .buttonStyle(.plain)
                         .contentShape(Rectangle())
                         .disabled(waterIntake < waterIncrement && waterIntake != 0)
                         
                         Text("\(Int(waterIncrement)) oz")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .appFont(size: 12, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
 
                         Button {
                             adjustWater(by: waterIncrement)
                         } label: {
                             Image(systemName: "plus.circle.fill")
                                 .font(.title2)
-                                .foregroundColor(.blue)
+                                .foregroundColor(.brandPrimary)
                         }
                         .buttonStyle(.plain)
                         .contentShape(Rectangle())

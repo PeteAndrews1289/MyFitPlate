@@ -9,53 +9,84 @@ struct MealPlannerView: View {
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var planForSelectedDate: MealPlanDay?
     @State private var isLoading = false
+    @State private var showingGroceryList = false
+    @State private var showingMealPlanSurvey = false
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                WeekView(selectedDate: $selectedDate)
-                    .padding(.vertical, 10)
-                    .onChange(of: selectedDate) { _ in fetchPlan() }
+        VStack(spacing: 0) {
+            WeekView(selectedDate: $selectedDate)
+                .padding(.vertical, 10)
+                .background(Color.backgroundSecondary)
+                .onChange(of: selectedDate) { _ in fetchPlan() }
 
-                if isLoading {
-                    Spacer()
-                    ProgressView("Loading Plan...")
-                    Spacer()
-                } else if let plan = planForSelectedDate, !plan.meals.isEmpty {
-                    List {
-                        Text("Plan for \(selectedDate, formatter: DateFormatter.longDate)")
-                            .font(.headline).listRowBackground(Color.clear).padding(.bottom, 5)
+            if isLoading {
+                Spacer()
+                ProgressView("Loading Plan...")
+                Spacer()
+            } else if let plan = planForSelectedDate, !plan.meals.isEmpty {
+                List {
+                    Text("Plan for \(selectedDate, formatter: DateFormatter.longDate)")
+                        .appFont(size: 17, weight: .semibold)
+                        .listRowBackground(Color.clear)
+                        .padding(.bottom, 5)
 
-                        ForEach(plan.meals) { meal in
-                            mealSection(for: meal)
-                        }
+                    ForEach(plan.meals) { meal in
+                        mealSection(for: meal)
                     }
-                } else {
-                    Spacer()
-                    Text("No plan found for this day.").font(.headline).foregroundColor(.secondary)
-                    Text("Use the Meal Plan Generator in Settings to create a new plan.").font(.caption).foregroundColor(.gray)
-                    Spacer()
+                }
+                .listStyle(InsetGroupedListStyle())
+            } else {
+                Spacer()
+                Text("No plan found for this day.").appFont(size: 17, weight: .semibold).foregroundColor(Color(UIColor.secondaryLabel))
+                Button("Generate a New Meal Plan") {
+                    showingMealPlanSurvey = true
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .padding()
+                Spacer()
+            }
+        }
+        .background(Color.backgroundPrimary)
+        .navigationTitle("Meal Plan")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: { showingGroceryList = true }) {
+                    Image(systemName: "list.bullet.clipboard")
                 }
             }
-            .navigationTitle("Meal Plan")
-            .onAppear(perform: fetchPlan)
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { showingMealPlanSurvey = true }) {
+                    Image(systemName: "wand.and.stars")
+                }
+            }
         }
+        .tint(.brandPrimary)
+        .sheet(isPresented: $showingGroceryList) {
+            NavigationView {
+                GroceryListView()
+            }
+        }
+        .tint(.brandPrimary)
+        .sheet(isPresented: $showingMealPlanSurvey) {
+            MealPlanSurveyView()
+        }
+        .onAppear(perform: fetchPlan)
     }
     
     @ViewBuilder
     private func mealSection(for meal: PlannedMeal) -> some View {
         Section(header: Text(meal.mealType)) {
-            Text(meal.foodItem?.name ?? "Unnamed Meal").font(.headline)
+            Text(meal.foodItem?.name ?? "Unnamed Meal").appFont(size: 17, weight: .semibold)
             
             if let ingredients = meal.ingredients, !ingredients.isEmpty {
                 ForEach(ingredients, id: \.self) { ingredient in
-                    Text("• \(ingredient)").font(.subheadline)
+                    Text("• \(ingredient)").appFont(size: 15)
                 }
             }
             
             if let instructions = meal.instructions, !instructions.isEmpty {
                 DisclosureGroup("Instructions") {
-                    Text(instructions).font(.callout)
+                    Text(instructions).appFont(size: 15)
                 }
             }
             
@@ -63,7 +94,7 @@ struct MealPlannerView: View {
                 Label("Log with AI Assistant", systemImage: "plus.bubble.fill")
             }
             .buttonStyle(.borderless)
-            .foregroundColor(.accentColor)
+            .foregroundColor(.brandPrimary)
         }
     }
     
@@ -110,10 +141,10 @@ struct WeekView: View {
             HStack(spacing: 15) {
                 ForEach(dates, id: \.self) { date in
                     VStack(spacing: 8) {
-                        Text(dayOfWeek(for: date)).font(.caption).foregroundColor(calendar.isDate(date, inSameDayAs: selectedDate) ? .accentColor : .secondary)
-                        Text(dayOfMonth(for: date)).font(.headline).fontWeight(calendar.isDate(date, inSameDayAs: selectedDate) ? .bold : .regular).padding(10)
-                            .background( Group { if calendar.isDate(date, inSameDayAs: selectedDate) { Circle().fill(Color.accentColor).matchedGeometryEffect(id: "selectedDay", in: animationNamespace) } else { Circle().fill(Color.clear) } } )
-                            .foregroundColor(calendar.isDate(date, inSameDayAs: selectedDate) ? .white : .primary)
+                        Text(dayOfWeek(for: date)).appFont(size: 12).foregroundColor(calendar.isDate(date, inSameDayAs: selectedDate) ? .brandPrimary : Color(UIColor.secondaryLabel))
+                        Text(dayOfMonth(for: date)).appFont(size: 17, weight: .semibold).padding(10)
+                            .background( Group { if calendar.isDate(date, inSameDayAs: selectedDate) { Circle().fill(Color.brandPrimary).matchedGeometryEffect(id: "selectedDay", in: animationNamespace) } else { Circle().fill(Color.clear) } } )
+                            .foregroundColor(calendar.isDate(date, inSameDayAs: selectedDate) ? .white : .textPrimary)
                     }
                     .onTapGesture { withAnimation(.spring()) { selectedDate = date } }
                 }

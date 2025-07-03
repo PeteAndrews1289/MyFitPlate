@@ -31,7 +31,7 @@ struct HorizontalBarChartView: View {
                 .foregroundStyle(.red)
                 .annotation(position: .trailing, alignment: .leading) {
                     Text("\(Int(totalCalories)) / \(Int(caloriesGoal)) cal")
-                        .font(.caption)
+                        .appFont(size: 10)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
@@ -40,10 +40,10 @@ struct HorizontalBarChartView: View {
                     x: .value("Protein", proteinPercentage),
                     y: .value("Type", "Protein")
                 )
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.accentProtein)
                 .annotation(position: .trailing, alignment: .leading) {
                     Text("\(Int(protein)) / \(Int(goal.protein))g")
-                        .font(.caption)
+                        .appFont(size: 10)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
@@ -52,10 +52,10 @@ struct HorizontalBarChartView: View {
                     x: .value("Fats", fatsPercentage),
                     y: .value("Type", "Fats")
                 )
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.accentFats)
                 .annotation(position: .trailing, alignment: .leading) {
                     Text("\(Int(fats)) / \(Int(goal.fats))g")
-                        .font(.caption)
+                        .appFont(size: 10)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
@@ -64,10 +64,10 @@ struct HorizontalBarChartView: View {
                     x: .value("Carbs", carbsPercentage),
                     y: .value("Type", "Carbs")
                 )
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.accentCarbs)
                 .annotation(position: .trailing, alignment: .leading) {
                     Text("\(Int(carbs)) / \(Int(goal.carbs))g")
-                        .font(.caption)
+                        .appFont(size: 10)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
@@ -91,7 +91,7 @@ struct HorizontalBarChartView: View {
 
         } else {
             Text("Loading data...")
-                .foregroundColor(.gray)
+                .foregroundColor(Color(UIColor.secondaryLabel))
                 .frame(height: 200)
                 .padding()
         }

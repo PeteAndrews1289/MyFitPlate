@@ -159,15 +159,15 @@ struct ContentView: View {
      }
 
     private func loadMainUserData() {
-         guard appState.isUserLoggedIn, !shouldShowOnboardingSurvey, isLoadingUserState == false else { return }
-         if let userID = Auth.auth().currentUser?.uid {
-             goalSettings.loadUserGoals(userID: userID) {}
-             dailyLogService.fetchLog(for: userID, date: Date()) { _ in }
-             goalSettings.loadWeightHistory()
-             insightsService.generateAndFetchInsights()
-         }
-         healthKitViewModel.checkAuthorizationStatus()
-    }
+             guard appState.isUserLoggedIn, !shouldShowOnboardingSurvey, isLoadingUserState == false else { return }
+             if let userID = Auth.auth().currentUser?.uid {
+                 goalSettings.loadUserGoals(userID: userID) {}
+                 dailyLogService.fetchLog(for: userID, date: Date()) { _ in }
+                 goalSettings.loadWeightHistory()
+                 insightsService.generateAndFetchInsights()
+             }
+             healthKitViewModel.checkAuthorizationStatus()
+        }
 
     private func requestTrackingPermissionIfNeeded() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {

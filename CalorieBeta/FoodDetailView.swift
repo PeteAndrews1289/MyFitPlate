@@ -7,6 +7,7 @@ struct FoodDetailView: View {
     var date: Date
     var source: String
     var onLogUpdated: () -> Void
+    var onUpdate: ((FoodItem) -> Void)?
 
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -94,19 +95,20 @@ struct FoodDetailView: View {
         )
     }
 
-    init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "log", onLogUpdated: @escaping () -> Void) {
+    init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "log", onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil) {
         self.initialFoodItem = initialFoodItem
         self._dailyLog = dailyLog
         self.date = date
         self.source = source
         self.onLogUpdated = onLogUpdated
+        self.onUpdate = onUpdate
         
         let isEditingLoggedItem = source.starts(with: "log_")
         self._isLoggedItem = State(initialValue: isEditingLoggedItem)
         self._foodName = State(initialValue: initialFoodItem.name)
 
         var initialQuantityString = "1"
-        if isEditingLoggedItem {
+        if isEditingLoggedItem || source == "image_result_edit" {
             let parsed = parseQuantityFromServing(initialFoodItem.servingSize)
             initialQuantityString = String(format: "%g", parsed.qty > 0 ? parsed.qty : 1.0)
         }
@@ -125,9 +127,15 @@ struct FoodDetailView: View {
         ZStack {
             VStack(spacing: 0) {
                 VStack {
-                    Text(FoodEmojiMapper.getEmoji(for: foodName) + " " + foodName).font(.title2).fontWeight(.bold).multilineTextAlignment(.center).padding(.top).padding(.horizontal)
+                    Text(FoodEmojiMapper.getEmoji(for: foodName) + " " + foodName)
+                        .appFont(size: 22, weight: .bold)
+                        .multilineTextAlignment(.center)
+                        .padding(.top)
+                        .padding(.horizontal)
                     Text("Serving: \(adjustedNutrients.servingDescription)")
-                        .font(.subheadline).foregroundColor(.secondary).padding(.bottom, 8)
+                        .appFont(size: 15)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .padding(.bottom, 8)
                 }.padding(.bottom, 5)
                 Divider()
                 Form {
@@ -168,7 +176,7 @@ struct FoodDetailView: View {
                             Spacer()
                             TextField("Quantity", text: $quantity).keyboardType(.decimalPad).textFieldStyle(RoundedBorderTextFieldStyle()).frame(width: 80).multilineTextAlignment(.trailing)
                         }
-                        if !isLoggedItem || source == "recent_tap" || (availableServings.count > 1 && source != "log_swipe_direct_edit_no_picker") {
+                        if !isLoggedItem || source == "recent_tap" || source == "image_result_edit" || (availableServings.count > 1 && source != "log_swipe_direct_edit_no_picker") {
                             if !availableServings.isEmpty {
                                 Menu {
                                     ForEach(availableServings) { option in
@@ -179,35 +187,36 @@ struct FoodDetailView: View {
                                 } label: {
                                     HStack {
                                         Text("Serving Size")
-                                            .foregroundColor(Color(uiColor: .label))
+                                            .foregroundColor(.textPrimary)
                                         Spacer()
                                         Text(selectedServingOption?.description ?? "Select...")
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(Color(UIColor.secondaryLabel))
                                     }
                                 }
-                            } else if !isLoadingDetails { Text("No other serving sizes available.").font(.caption).foregroundColor(.gray) }
+                            } else if !isLoadingDetails { Text("No other serving sizes available.").appFont(size: 12).foregroundColor(Color(UIColor.secondaryLabel)) }
                         } else if let baseNutrients = baseLoggedItemNutrientsPerUnit {
                             Text("Base Serving: \(baseNutrients.description)")
-                                .foregroundColor(.gray)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
                         }
                     }
                 }
-                Button(action: logAdjustedFood) {
-                    Text(isLoggedItem ? "Update Logged Item" : "Add to Log")
-                        .font(.headline).fontWeight(.semibold).foregroundColor(.white).padding().frame(maxWidth: .infinity)
-                        .background(logButtonEnabled ? Color.accentColor : Color.gray).cornerRadius(12)
-                }.disabled(!logButtonEnabled).padding()
+                Button(buttonText()) {
+                    handleButtonAction()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(!logButtonEnabled)
+                .padding()
             }.blur(radius: (isLoadingDetails && !isLoggedItem && source != "recent_tap" && source != "search_result_no_detail_fetch") ? 3 : 0)
             if isLoadingDetails && !isLoggedItem && source != "recent_tap" && source != "search_result_no_detail_fetch" { VStack { ProgressView("Loading Serving Sizes..."); Spacer() }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.black.opacity(0.1)) }
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
-        .navigationTitle(isLoggedItem ? "Edit Logged Item" : "Log Food").navigationBarTitleDisplayMode(.inline)
+        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .navigationTitle(navigationTitleText()).navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: toggleSavedState) {
                     Image(systemName: isSavedAsCustom ? "star.fill" : "star")
-                        .foregroundColor(isSavedAsCustom ? .yellow : .accentColor)
+                        .foregroundColor(isSavedAsCustom ? .yellow : .brandPrimary)
                 }
             }
         }
@@ -216,6 +225,49 @@ struct FoodDetailView: View {
             setupInitialData()
             checkIfSaved()
         }
+    }
+
+    private func buttonText() -> String {
+        if onUpdate != nil {
+            return "Update Item"
+        }
+        return isLoggedItem ? "Update Logged Item" : "Add to Log"
+    }
+
+    private func navigationTitleText() -> String {
+        if onUpdate != nil {
+            return "Edit Item"
+        }
+        return isLoggedItem ? "Edit Logged Item" : "Log Food"
+    }
+
+    private func handleButtonAction() {
+        if let onUpdate = onUpdate {
+            updateItem(onUpdate: onUpdate)
+        } else {
+            logAdjustedFood()
+        }
+    }
+    
+    private func updateItem(onUpdate: (FoodItem) -> Void) {
+        guard let quantityValue = Double(quantity), quantityValue > 0 else { return }
+        
+        let finalNutrients = adjustedNutrients
+        let updatedFoodItem = FoodItem(
+            id: initialFoodItem.id,
+            name: foodName, calories: finalNutrients.calories,
+            protein: finalNutrients.protein, carbs: finalNutrients.carbs, fats: finalNutrients.fats,
+            saturatedFat: finalNutrients.saturatedFat, polyunsaturatedFat: finalNutrients.polyunsaturatedFat, monounsaturatedFat: finalNutrients.monounsaturatedFat,
+            fiber: finalNutrients.fiber,
+            servingSize: finalNutrients.servingDescription, servingWeight: finalNutrients.servingWeightGrams,
+            timestamp: initialFoodItem.timestamp ?? Date(),
+            calcium: finalNutrients.calcium, iron: finalNutrients.iron,
+            potassium: finalNutrients.potassium, sodium: finalNutrients.sodium,
+            vitaminA: finalNutrients.vitaminA, vitaminC: finalNutrients.vitaminC,
+            vitaminD: finalNutrients.vitaminD
+        )
+        onUpdate(updatedFoodItem)
+        dismiss()
     }
 
     private var logButtonEnabled: Bool {
@@ -290,7 +342,7 @@ struct FoodDetailView: View {
     private func setupInitialData() {
         dailyLogService.activelyViewedDate = self.date
 
-        if source.starts(with: "log_") {
+        if source.starts(with: "log_") || source.starts(with: "image_result_edit") {
             let parsedInfo = parseQuantityFromServing(initialFoodItem.servingSize)
             let qtyFactor = parsedInfo.qty > 0 ? parsedInfo.qty : 1.0
             
@@ -419,9 +471,9 @@ struct FoodDetailView: View {
             carbs: foodItem.carbs / qtyFactor,
             fats: foodItem.fats / qtyFactor,
             saturatedFat: foodItem.saturatedFat.map { $0 / qtyFactor },
-            polyunsaturatedFat: foodItem.polyunsaturatedFat.map { $0 / qtyFactor },
-            monounsaturatedFat: foodItem.monounsaturatedFat.map { $0 / qtyFactor },
-            fiber: foodItem.fiber.map { $0 / qtyFactor },
+            polyunsaturatedFat: initialFoodItem.polyunsaturatedFat.map { $0 / qtyFactor },
+            monounsaturatedFat: initialFoodItem.monounsaturatedFat.map { $0 / qtyFactor },
+            fiber: initialFoodItem.fiber.map { $0 / qtyFactor },
             calcium: initialFoodItem.calcium.map { $0 / qtyFactor },
             iron: initialFoodItem.iron.map { $0 / qtyFactor },
             potassium: initialFoodItem.potassium.map { $0 / qtyFactor },
@@ -485,13 +537,13 @@ struct FoodDetailView: View {
 
     @ViewBuilder private func nutrientRow(label: String, value: Double?, unit: String, specifier: String = "%.1f") -> some View {
          if let unwrappedValue = value, unwrappedValue > 0.001 || (specifier == "%.0f" && unwrappedValue >= 0.5) {
-              HStack { Text(label).font(.callout); Spacer(); Text("\(unwrappedValue, specifier: specifier) \(unit)").font(.callout).foregroundColor(.secondary) }
+              HStack { Text(label).appFont(size: 15); Spacer(); Text("\(unwrappedValue, specifier: specifier) \(unit)").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel)) }
          } else {
               EmptyView()
          }
     }
     @ViewBuilder private func nutrientRow(label: String, value: String) -> some View {
-        HStack { Text(label).font(.callout); Spacer(); Text(value).font(.callout).foregroundColor(.secondary) }
+        HStack { Text(label).appFont(size: 15); Spacer(); Text(value).appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel)) }
     }
     private func hideKeyboard() { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
 }

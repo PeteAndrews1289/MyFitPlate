@@ -8,30 +8,23 @@ struct SetWaterGoalView: View {
     var body: some View {
         VStack(spacing: 16) {
             Text("Set Daily Water Goal")
-                .font(.title)
+                .appFont(size: 28, weight: .bold)
                 .padding(.bottom)
 
             HStack {
                 TextField("Goal (oz)", text: $waterGoalInput)
                     .keyboardType(.numberPad)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(8)
+                    .textFieldStyle(AppTextFieldStyle(iconName: nil))
                     .frame(width: 150)
                 Text("oz")
+                    .appFont(size: 17)
             }
 
-            Button(action: {
+            Button("Save") {
                 self.onSave()
-            }) {
-                Text("Save")
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.green)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
             }
-            .padding(.top, 16)
+            .buttonStyle(PrimaryButtonStyle())
+            .padding()
 
             Spacer()
         }

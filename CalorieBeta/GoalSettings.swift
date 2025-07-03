@@ -175,7 +175,17 @@ class GoalSettings: ObservableObject {
     func loadUserGoals(userID: String, completion: @escaping () -> Void = {}) {
         db.collection("users").document(userID).getDocument { [weak self] document, error in
             guard let self = self else { completion(); return }
-            if let doc = document, doc.exists, let data = doc.data() {
+            
+            var shouldUpdateFirestore = false
+            
+            if let doc = document, doc.exists, var data = doc.data() {
+                
+                if data["weight"] == nil { data["weight"] = self.weight; shouldUpdateFirestore = true }
+                if data["height"] == nil { data["height"] = self.height; shouldUpdateFirestore = true }
+                if data["age"] == nil { data["age"] = self.age; shouldUpdateFirestore = true }
+                if data["gender"] == nil { data["gender"] = self.gender; shouldUpdateFirestore = true }
+                if data["calorieGoalMethod"] == nil { data["calorieGoalMethod"] = self.calorieGoalMethod.rawValue; shouldUpdateFirestore = true }
+
                 self.weight = data["weight"] as? Double ?? self.weight
                 self.height = data["height"] as? Double ?? self.height
                 self.age = data["age"] as? Int ?? self.age
@@ -183,20 +193,42 @@ class GoalSettings: ObservableObject {
                 if let methodStr = data["calorieGoalMethod"] as? String {
                     self.calorieGoalMethod = CalorieGoalMethod(rawValue: methodStr) ?? self.calorieGoalMethod
                 }
-                if let goalsMap = data["goals"] as? [String: Any] {
-                    self.proteinPercentage = goalsMap["proteinPercentage"] as? Double ?? self.proteinPercentage
-                    self.carbsPercentage = goalsMap["carbsPercentage"] as? Double ?? self.carbsPercentage
-                    self.fatsPercentage = goalsMap["fatsPercentage"] as? Double ?? self.fatsPercentage
-                    self.activityLevel = goalsMap["activityLevel"] as? Double ?? self.activityLevel
-                    self.goal = goalsMap["goal"] as? String ?? self.goal
-                    self.targetWeight = goalsMap["targetWeight"] as? Double
-                    self.calciumGoal = goalsMap["calciumGoal"] as? Double; self.ironGoal = goalsMap["ironGoal"] as? Double
-                    self.potassiumGoal = goalsMap["potassiumGoal"] as? Double; self.sodiumGoal = goalsMap["sodiumGoal"] as? Double
-                    self.vitaminAGoal = goalsMap["vitaminAGoal"] as? Double; self.vitaminCGoal = goalsMap["vitaminCGoal"] as? Double
-                    self.vitaminDGoal = goalsMap["vitaminDGoal"] as? Double
-                    self.waterGoal = goalsMap["waterGoal"] as? Double ?? self.waterGoal
+                
+                var goalsMap = data["goals"] as? [String: Any] ?? [:]
+                if goalsMap["proteinPercentage"] == nil { goalsMap["proteinPercentage"] = self.proteinPercentage; shouldUpdateFirestore = true }
+                if goalsMap["carbsPercentage"] == nil { goalsMap["carbsPercentage"] = self.carbsPercentage; shouldUpdateFirestore = true }
+                if goalsMap["fatsPercentage"] == nil { goalsMap["fatsPercentage"] = self.fatsPercentage; shouldUpdateFirestore = true }
+                if goalsMap["activityLevel"] == nil { goalsMap["activityLevel"] = self.activityLevel; shouldUpdateFirestore = true }
+                if goalsMap["goal"] == nil { goalsMap["goal"] = self.goal; shouldUpdateFirestore = true }
+                if goalsMap["waterGoal"] == nil { goalsMap["waterGoal"] = self.waterGoal; shouldUpdateFirestore = true }
+
+                self.targetWeight = goalsMap["targetWeight"] as? Double
+                
+                if self.targetWeight == nil {
+                    if let topLevelTargetWeight = data["targetWeight"] as? Double {
+                        self.targetWeight = topLevelTargetWeight
+                        goalsMap["targetWeight"] = topLevelTargetWeight
+                        shouldUpdateFirestore = true
+                    } else if goalsMap["targetWeight"] == nil {
+                        goalsMap["targetWeight"] = NSNull()
+                        shouldUpdateFirestore = true
+                    }
                 }
+                
+                data["goals"] = goalsMap
+
+                self.proteinPercentage = goalsMap["proteinPercentage"] as? Double ?? self.proteinPercentage
+                self.carbsPercentage = goalsMap["carbsPercentage"] as? Double ?? self.carbsPercentage
+                self.fatsPercentage = goalsMap["fatsPercentage"] as? Double ?? self.fatsPercentage
+                self.activityLevel = goalsMap["activityLevel"] as? Double ?? self.activityLevel
+                self.goal = goalsMap["goal"] as? String ?? self.goal
+                self.waterGoal = goalsMap["waterGoal"] as? Double ?? self.waterGoal
             }
+            
+            if shouldUpdateFirestore {
+                self.saveUserGoals(userID: userID)
+            }
+            
             DispatchQueue.main.async {
                 self.recalculateAllGoals()
                 completion()

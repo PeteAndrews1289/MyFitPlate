@@ -19,8 +19,17 @@ class HealthKitManager {
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
             HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
         ]
+        
+        // As per instructions, create a set of HKSampleType to share.
+        let typesToShare: Set<HKSampleType> = [
+            HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed)!,
+            HKQuantityType.quantityType(forIdentifier: .dietaryProtein)!,
+            HKQuantityType.quantityType(forIdentifier: .dietaryCarbohydrates)!,
+            HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal)!
+        ]
 
-        healthStore.requestAuthorization(toShare: nil, read: typesToRead) { success, error in
+        // Pass the new set to the toShare parameter.
+        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
             completion(success, error)
         }
     }
@@ -70,5 +79,53 @@ class HealthKitManager {
             }
         }
         healthStore.execute(query)
+    }
+
+    
+    public func saveNutrition(for foodItem: FoodItem) {
+        
+        guard let energyType = HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed),
+              let proteinType = HKQuantityType.quantityType(forIdentifier: .dietaryProtein),
+              let carbType = HKQuantityType.quantityType(forIdentifier: .dietaryCarbohydrates), // Fixed typo: forIdentifier
+              let fatType = HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal)
+        else {
+            print("Failed to get quantity types.")
+            return
+        }
+
+       
+        let timestamp = foodItem.timestamp ?? Date()
+        
+       
+        var nutrientSamples: [HKQuantitySample] = []
+        
+       
+        let calorieQuantity = HKQuantity(unit: .kilocalorie(), doubleValue: foodItem.calories)
+        let calorieSample = HKQuantitySample(type: energyType, quantity: calorieQuantity, start: timestamp, end: timestamp)
+        nutrientSamples.append(calorieSample)
+        
+        // Protein
+        let proteinQuantity = HKQuantity(unit: .gram(), doubleValue: foodItem.protein)
+        let proteinSample = HKQuantitySample(type: proteinType, quantity: proteinQuantity, start: timestamp, end: timestamp)
+        nutrientSamples.append(proteinSample)
+        
+        // Carbs
+        let carbQuantity = HKQuantity(unit: .gram(), doubleValue: foodItem.carbs)
+        let carbSample = HKQuantitySample(type: carbType, quantity: carbQuantity, start: timestamp, end: timestamp)
+        nutrientSamples.append(carbSample)
+        
+        // Fats
+        let fatQuantity = HKQuantity(unit: .gram(), doubleValue: foodItem.fats)
+        let fatSample = HKQuantitySample(type: fatType, quantity: fatQuantity, start: timestamp, end: timestamp)
+        nutrientSamples.append(fatSample)
+        
+        // Save the array of samples to the HealthStore.
+        healthStore.save(nutrientSamples) { success, error in
+            if success {
+                print("Nutrients saved successfully.")
+            } else if let error = error {
+                print("Failed to save nutrients with error \(error.localizedDescription)")
+            }
+        }
     }
 }

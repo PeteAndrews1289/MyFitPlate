@@ -56,7 +56,7 @@ struct OnboardingSurveyView: View {
         VStack {
             ProgressView(value: Double(currentStep + 1), total: Double(totalSteps))
                 .padding()
-                .tint(Color.accentColor)
+                .tint(Color.brandPrimary)
 
             TabView(selection: $currentStep) {
                 stepView(title: "What's your age?", subtitle: "Your age helps us calculate your metabolic rate.", iconName: "birthday.cake", content: { ageStepView() }).tag(0)
@@ -143,7 +143,7 @@ struct OnboardingSurveyView: View {
             VStack(spacing: 20) {
                 Image(systemName: iconName)
                     .font(.system(size: 50))
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(.brandPrimary)
                     .padding(.bottom, 10)
                 Text(title)
                     .font(.title2.bold())
@@ -171,7 +171,7 @@ struct OnboardingSurveyView: View {
             
             Text(String(format: "%.0f", goalSettings.calories ?? 0))
                 .font(.system(size: 44, weight: .bold))
-                .foregroundColor(Color.accentColor)
+                .foregroundColor(Color.brandPrimary)
             + Text(" kcal/day")
                 .font(.title2)
                 .foregroundColor(.secondary)

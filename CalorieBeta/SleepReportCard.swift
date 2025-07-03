@@ -22,16 +22,11 @@ struct WeeklySleepReport {
 
 struct SleepReportCard: View {
     let report: WeeklySleepReport
-    @Environment(\.colorScheme) var colorScheme
-
-    private var cardBackground: Color {
-        colorScheme == .dark ? Color(.secondarySystemBackground) : Color.white
-    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Weekly Sleep Analysis")
-                .font(.headline)
+                .appFont(size: 17, weight: .semibold)
                 .padding([.top, .leading, .trailing])
             
             HStack(spacing: 16) {
@@ -42,10 +37,10 @@ struct SleepReportCard: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Bedtime Consistency")
-                    .font(.caption.bold())
-                    .foregroundColor(.secondary)
+                    .appFont(size: 12, weight: .bold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                 Text(report.sleepConsistency)
-                    .font(.caption)
+                    .appFont(size: 12)
             }
             .padding(.horizontal)
             
@@ -55,8 +50,7 @@ struct SleepReportCard: View {
                         x: .value("Day", dailyData.weekday),
                         y: .value("Hours", dailyData.timeAsleep / 3600)
                     )
-                    // --- FIX: Changed color to use the app's accent color ---
-                    .foregroundStyle(Color.accentColor.gradient)
+                    .foregroundStyle(Color.brandPrimary.gradient)
                     .cornerRadius(4)
                 }
                 .chartYAxis {
@@ -78,27 +72,24 @@ struct SleepReportCard: View {
                 .padding()
             } else {
                 Text("Not enough sleep data for a weekly chart.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .appFont(size: 12)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(maxWidth: .infinity, minHeight: 150)
             }
         }
         .padding(.bottom)
-        .background(cardBackground)
-        .cornerRadius(15)
-        .shadow(radius: 1)
+        .asCard()
     }
     
     @ViewBuilder
     private func sleepStatBox(value: String, label: String) -> some View {
         VStack {
             Text(value)
-                .font(.title3)
-                .fontWeight(.semibold)
-                .foregroundColor(.accentColor) // Changed from .blue to accentColor
+                .appFont(size: 22, weight: .semibold)
+                .foregroundColor(.brandPrimary)
             Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .appFont(size: 12)
+                .foregroundColor(Color(UIColor.secondaryLabel))
         }
         .frame(maxWidth: .infinity)
     }

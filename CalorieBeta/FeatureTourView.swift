@@ -1,4 +1,3 @@
-
 import SwiftUI
 
 struct FeatureTourView: View {
@@ -13,11 +12,11 @@ struct FeatureTourView: View {
     }
 
     private let features: [FeatureInfo] = [
-        FeatureInfo(iconName: "fork.knife.circle.fill", title: "Effortless Logging", description: "Quickly log meals by searching our database, scanning a barcode, or describing your meal to Maia, your AI assistant.", color: .blue),
-        FeatureInfo(iconName: "photo.fill.on.rectangle.fill", title: "Advanced Tools", description: "Use our AI-powered Recipe Importer to grab recipes from websites, or snap a picture to identify food with your camera.", color: .purple),
-        FeatureInfo(iconName: "chart.bar.xaxis", title: "Detailed Tracking", description: "Go beyond calories. Monitor macros, micronutrients, water intake, and weight progress with detailed charts and reports.", color: .green),
-        FeatureInfo(iconName: "flame.fill", title: "Stay Motivated", description: "Unlock achievements, complete weekly challenges, and level up as you build consistent, healthy habits.", color: .orange),
-        FeatureInfo(iconName: "calendar", title: "Plan Ahead", description: "Let our Meal Plan Generator create a custom 7-day plan based on your goals and food preferences, complete with a grocery list.", color: .teal)
+        FeatureInfo(iconName: "fork.knife.circle.fill", title: "Effortless Logging", description: "Quickly log meals by searching our database, scanning a barcode, or describing your meal to Maia, your AI assistant.", color: .brandPrimary),
+        FeatureInfo(iconName: "photo.fill.on.rectangle.fill", title: "Advanced Tools", description: "Use our AI-powered Recipe Importer to grab recipes from websites, or snap a picture to identify food with your camera.", color: .accentFats),
+        FeatureInfo(iconName: "chart.bar.xaxis", title: "Detailed Tracking", description: "Go beyond calories. Monitor macros, micronutrients, water intake, and weight progress with detailed charts and reports.", color: .accentPositive),
+        FeatureInfo(iconName: "flame.fill", title: "Stay Motivated", description: "Unlock achievements, complete weekly challenges, and level up as you build consistent, healthy habits.", color: .accentCarbs),
+        FeatureInfo(iconName: "calendar", title: "Plan Ahead", description: "Let our Meal Plan Generator create a custom 7-day plan based on your goals and food preferences, complete with a grocery list.", color: .brandSecondary)
     ]
 
     var body: some View {
@@ -34,7 +33,7 @@ struct FeatureTourView: View {
 
             Spacer()
 
-            Button(action: {
+            Button(selection == features.count - 1 ? "Get Started" : "Next") {
                 if selection == features.count - 1 {
                     isPresented = false
                 } else {
@@ -42,15 +41,8 @@ struct FeatureTourView: View {
                         selection += 1
                     }
                 }
-            }) {
-                Text(selection == features.count - 1 ? "Get Started" : "Next")
-                    .fontWeight(.bold)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.accentColor)
-                    .foregroundColor(.white)
-                    .cornerRadius(16)
             }
+            .buttonStyle(PrimaryButtonStyle())
             .padding(.horizontal, 30)
             .padding(.bottom, 40)
         }
@@ -64,12 +56,11 @@ struct FeatureTourView: View {
                 .foregroundColor(feature.color)
             
             Text(feature.title)
-                .font(.largeTitle)
-                .fontWeight(.bold)
+                .appFont(size: 34, weight: .bold)
             
             Text(feature.description)
-                .font(.headline)
-                .foregroundColor(.secondary)
+                .appFont(size: 17, weight: .semibold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 320)
         }

@@ -13,6 +13,7 @@ class DailyLogService: ObservableObject {
     weak var achievementService: AchievementService?
     weak var bannerService: BannerService?
     weak var goalSettings: GoalSettings?
+    private var activeListenerDate: Date?
 
     let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -64,14 +65,12 @@ class DailyLogService: ObservableObject {
         do {
             try ref.setData(from: foodItem, merge: true) { error in
                 if let error = error {
-                    print("Error saving custom food: \(error.localizedDescription)")
                     completion(false)
                 } else {
                     completion(true)
                 }
             }
         } catch {
-            print("Error encoding custom food: \(error.localizedDescription)")
             completion(false)
         }
     }
@@ -99,11 +98,21 @@ class DailyLogService: ObservableObject {
 
     func fetchLog(for userID: String, date: Date, completion: @escaping (Result<DailyLog, Error>) -> Void) {
         let startOfDayForRequestedDate = Calendar.current.startOfDay(for: date)
+
+        if let listeningDate = activeListenerDate, Calendar.current.isDate(listeningDate, inSameDayAs: startOfDayForRequestedDate) {
+            if let log = self.currentDailyLog, Calendar.current.isDate(log.date, inSameDayAs: startOfDayForRequestedDate) {
+                completion(.success(log))
+            }
+            return
+        }
+
         self.activelyViewedDate = startOfDayForRequestedDate
         let dateString = dateFormatter.string(from: startOfDayForRequestedDate)
         let logRef = db.collection("users").document(userID).collection("dailyLogs").document(dateString)
         
         logListener?.remove()
+        
+        self.activeListenerDate = startOfDayForRequestedDate
 
         logListener = logRef.addSnapshotListener { documentSnapshot, error in
             if let error = error {
@@ -171,6 +180,7 @@ class DailyLogService: ObservableObject {
                 }
                 self.updateDailyLog(for: userID, updatedLog: log) { success in
                     if success {
+                        HealthKitManager.shared.saveNutrition(for: itemToAdd)
                         self.addRecentFood(for: userID, foodItem: itemToAdd, source: source)
                         Task { @MainActor in
                             self.bannerService?.showBanner(title: "Success", message: "\(foodItem.name) logged!")
@@ -418,7 +428,6 @@ class DailyLogService: ObservableObject {
             return [:]
         }
     }
-
 
      private func decodeDailyLog(from data: [String: Any], documentID: String) -> DailyLog {
         do {

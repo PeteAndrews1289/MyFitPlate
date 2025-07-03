@@ -57,6 +57,7 @@ struct UserProfileView: View {
             }
             .padding()
         }
+        .background(Color.backgroundPrimary)
         .onAppear {
              if let userID = Auth.auth().currentUser?.uid {
                   goalSettings.loadUserGoals(userID: userID)
@@ -80,40 +81,40 @@ struct UserProfileView: View {
 
     func profileHeader() -> some View {
          VStack(spacing: 8) {
-              Image(systemName: "person.crop.circle").resizable().frame(width: 80, height: 80).foregroundColor(.gray)
+              Image(systemName: "person.crop.circle").resizable().frame(width: 80, height: 80).foregroundColor(Color(UIColor.secondaryLabel))
               Text(goalSettings.gender == "Male" ? "Fitness Journey" : "Wellness Path")
-                  .font(.title2).fontWeight(.bold)
+                  .appFont(size: 22, weight: .bold)
               Text(Auth.auth().currentUser?.email ?? "MyFitPlate User")
-                  .foregroundColor(.gray).font(.caption)
+                  .foregroundColor(Color(UIColor.secondaryLabel)).appFont(size: 12)
           }
     }
 
     func userLevelAndPointsSection() -> some View {
         VStack(spacing: 5) {
             Text(userLevelDisplay)
-                .font(.title3.bold())
-                .foregroundColor(.accentColor)
+                .appFont(size: 20, weight: .bold)
+                .foregroundColor(.brandPrimary)
             ProgressView(value: progressToNextLevel, total: 1.0)
-                .progressViewStyle(LinearProgressViewStyle(tint: .accentColor))
+                .progressViewStyle(LinearProgressViewStyle(tint: .brandPrimary))
                 .scaleEffect(x:1, y:1.5, anchor: .center)
             
             HStack {
                 Text("\(achievementService.userTotalAchievementPoints) pts")
-                    .font(.caption)
+                    .appFont(size: 12)
                 Spacer()
                 if achievementService.userAchievementLevel <= achievementService.levelThresholds.count && pointsToNextLevel > 0 {
                     Text("\(pointsToNextLevel) pts to next level")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                 } else if !achievementService.levelThresholds.isEmpty && achievementService.userAchievementLevel > achievementService.levelThresholds.count - 1  {
                      Text("Max Level!")
-                        .font(.caption)
-                        .foregroundColor(.green)
+                        .appFont(size: 12)
+                        .foregroundColor(.accentPositive)
                 }
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color.backgroundSecondary)
         .cornerRadius(10)
     }
     
@@ -122,18 +123,18 @@ struct UserProfileView: View {
             HStack {
                 Image(systemName: "flame.fill")
                 Text("Weekly Challenges")
-                    .font(.headline)
+                    .appFont(size: 17, weight: .semibold)
                 Spacer()
                 if !achievementService.activeChallenges.isEmpty {
                     Text("\(achievementService.activeChallenges.filter { $0.isCompleted }.count)/\(achievementService.activeChallenges.count)")
-                        .font(.body.weight(.semibold))
+                        .appFont(size: 17, weight: .semibold)
                 }
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.gray)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
             }
-            .foregroundColor(.accentColor)
+            .foregroundColor(.brandPrimary)
             .padding()
-            .background(Color(.secondarySystemBackground))
+            .background(Color.backgroundSecondary)
             .cornerRadius(10)
         }
     }
@@ -145,14 +146,14 @@ struct UserProfileView: View {
     }
     func calorieGoalText() -> String { goalSettings.calories == nil ? "..." : "\(Int(goalSettings.calories ?? 0))" }
     func calculateBMI() -> String { let w = goalSettings.weight * 0.453592; let h = goalSettings.height / 100; guard h > 0 else { return "N/A" }; let bmi = w / (h * h); return String(format: "%.1f", bmi) }
-    func statBox(title: String, subtitle: String) -> some View { VStack { Text(title).font(.title).fontWeight(.bold); Text(subtitle).font(.caption).foregroundColor(.gray) }.frame(maxWidth: .infinity) }
+    func statBox(title: String, subtitle: String) -> some View { VStack { Text(title).appFont(size: 28, weight: .bold); Text(subtitle).appFont(size: 12).foregroundColor(Color(UIColor.secondaryLabel)) }.frame(maxWidth: .infinity) }
 
     func achievementsSection(definitions: [AchievementDefinition], statuses: [String: UserAchievementStatus], isLoading: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Achievements (\(achievementService.unlockedAchievementsCount)/\(definitions.count))")
-                .font(.headline).padding(.bottom, 4)
+                .appFont(size: 17, weight: .semibold).padding(.bottom, 4)
             if isLoading { HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical) }
-            else if definitions.isEmpty { Text("No achievements defined yet.").foregroundColor(.gray).font(.subheadline) }
+            else if definitions.isEmpty { Text("No achievements defined yet.").foregroundColor(Color(UIColor.secondaryLabel)).appFont(size: 15) }
             else {
                  let sortedDefinitions = definitions.sorted { d1, d2 in
                     let s1 = statuses[d1.id]
@@ -187,7 +188,6 @@ struct UserProfileView: View {
 struct AchievementCardView: View {
     let definition: AchievementDefinition
     let status: UserAchievementStatus?
-    @Environment(\.colorScheme) var colorScheme
     var isUnlocked: Bool { status?.isUnlocked ?? false }
     var progress: Double { status?.currentProgress ?? 0.0 }
     var progressFraction: Double { guard definition.criteriaValue > 0 else { return isUnlocked ? 1.0 : 0.0 }; return min(max(0, progress / definition.criteriaValue), 1.0) }
@@ -196,29 +196,28 @@ struct AchievementCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: definition.iconName).font(.title2).foregroundColor(isUnlocked ? .yellow : .gray).frame(width: 30)
-                Text(definition.title).font(.headline).foregroundColor(isUnlocked ? .primary : .secondary).lineLimit(1)
+                Image(systemName: definition.iconName).font(.title2).foregroundColor(isUnlocked ? .yellow : Color(UIColor.secondaryLabel)).frame(width: 30)
+                Text(definition.title).appFont(size: 15, weight: .semibold).foregroundColor(isUnlocked ? .textPrimary : Color(UIColor.secondaryLabel)).lineLimit(1)
                 Spacer()
                 Text("\(definition.pointsValue) pts")
-                    .font(.caption2)
-                    .fontWeight(.bold)
+                    .appFont(size: 10, weight: .bold)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
-                    .background((isUnlocked ? Color.yellow.opacity(0.7) : Color.gray.opacity(0.3)).opacity(colorScheme == .dark ? 0.5 : 1))
+                    .background((isUnlocked ? Color.yellow.opacity(0.7) : Color(UIColor.secondaryLabel).opacity(0.3)))
                     .cornerRadius(5)
-                    .foregroundColor(isUnlocked ? (colorScheme == .dark ? .white.opacity(0.8) : .black.opacity(0.7)) : .secondary)
+                    .foregroundColor(isUnlocked ? .black.opacity(0.7) : Color(UIColor.secondaryLabel))
             }
-            Text(definition.description).font(.caption).foregroundColor(.secondary).frame(minHeight: 30 ,alignment: .top).fixedSize(horizontal: false, vertical: true)
+            Text(definition.description).appFont(size: 12).foregroundColor(Color(UIColor.secondaryLabel)).frame(minHeight: 30 ,alignment: .top).fixedSize(horizontal: false, vertical: true)
             
             if !isUnlocked && definition.criteriaValue > 0 && definition.criteriaType != .featureUsed {
                 VStack(spacing: 2) {
                     ProgressView(value: progressFraction)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .accentColor))
+                        .progressViewStyle(LinearProgressViewStyle(tint: .brandPrimary))
                         .frame(height: 6)
                     if definition.criteriaValue > 1 || (definition.criteriaValue == 1 && progress > 0 && progress < 1 && definition.criteriaType != .featureUsed) {
                         Text(progressText)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .appFont(size: 10)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }.padding(.top, 4)
@@ -227,8 +226,8 @@ struct AchievementCardView: View {
                      Text("Unlocked!")
                      if let date = status?.unlockedDate { Text(date, style: .date) }
                  }
-                 .font(.caption.bold())
-                 .foregroundColor(.green)
+                 .appFont(size: 12, weight: .bold)
+                 .foregroundColor(.accentPositive)
                  .padding(.top, 4)
             } else {
                  Spacer().frame(height: 12)
@@ -237,7 +236,7 @@ struct AchievementCardView: View {
         }
         .padding(12)
         .frame(minHeight: 120)
-        .background(colorScheme == .dark ? Color(.tertiarySystemBackground) : Color(.secondarySystemBackground))
+        .background(Color.backgroundSecondary)
         .cornerRadius(10)
         .opacity(isUnlocked ? 1.0 : (definition.secret && !isUnlocked ? 0.35 : 0.7))
         .overlay(
@@ -249,7 +248,7 @@ struct AchievementCardView: View {
                             Spacer()
                             Image(systemName: "questionmark.diamond.fill")
                                 .font(.system(size: 50))
-                                .foregroundColor(.gray.opacity(0.2))
+                                .foregroundColor(Color(UIColor.secondaryLabel).opacity(0.2))
                                 .padding()
                             Spacer()
                         }

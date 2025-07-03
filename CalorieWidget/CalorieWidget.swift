@@ -61,7 +61,7 @@ struct CalorieWidgetEntryView : View {
         .containerBackground(for: .widget) {
             ZStack {
                 Rectangle().fill(.thickMaterial)
-                Color.black.opacity(0.2)
+                Color.backgroundPrimary.opacity(0.2)
             }
         }
     }
@@ -92,7 +92,7 @@ struct MediumWidgetView: View {
                 Text(String(format: "%.0f", max(0, data.calorieGoal - data.calories)))
                     .font(.title2)
                     .fontWeight(.bold)
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(.brandPrimary)
                 Text("kcal")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -100,9 +100,9 @@ struct MediumWidgetView: View {
             .padding(.leading, 5)
 
             VStack(alignment: .leading, spacing: 8) {
-                MacroBar(label: "Protein", value: data.protein, goal: data.proteinGoal, color: .blue)
-                MacroBar(label: "Carbs", value: data.carbs, goal: data.carbsGoal, color: .orange)
-                MacroBar(label: "Fats", value: data.fats, goal: data.fatGoal, color: .green)
+                MacroBar(label: "Protein", value: data.protein, goal: data.proteinGoal, color: .accentProtein)
+                MacroBar(label: "Carbs", value: data.carbs, goal: data.carbsGoal, color: .accentCarbs)
+                MacroBar(label: "Fats", value: data.fats, goal: data.fatGoal, color: .accentFats)
             }
         }
         .padding()
@@ -124,17 +124,17 @@ struct SmallWidgetView: View {
                 MiniProgressBubble(
                     value: data.protein, goal: data.proteinGoal,
                     percentage: data.proteinGoal > 0 ? (data.protein / data.proteinGoal) : 0,
-                    label: "Protein", color: .blue
+                    label: "Protein", color: .accentProtein
                 )
                 MiniProgressBubble(
                     value: data.fats, goal: data.fatGoal,
                     percentage: data.fatGoal > 0 ? (data.fats / data.fatGoal) : 0,
-                    label: "Fats", color: .green
+                    label: "Fats", color: .accentFats
                 )
                 MiniProgressBubble(
                     value: data.carbs, goal: data.carbsGoal,
                     percentage: data.carbsGoal > 0 ? (data.carbs / data.carbsGoal) : 0,
-                    label: "Carbs", color: .orange
+                    label: "Carbs", color: .accentCarbs
                 )
             }
         }
@@ -157,17 +157,17 @@ struct LargeWidgetView: View {
                 ProgressBubble(
                     value: data.protein, goal: data.proteinGoal,
                     percentage: data.proteinGoal > 0 ? (data.protein / data.proteinGoal) : 0,
-                    label: "Protein", unit: "g", color: .blue
+                    label: "Protein", unit: "g", color: .accentProtein
                 )
                 ProgressBubble(
                     value: data.fats, goal: data.fatGoal,
                     percentage: data.fatGoal > 0 ? (data.fats / data.fatGoal) : 0,
-                    label: "Fats", unit: "g", color: .green
+                    label: "Fats", unit: "g", color: .accentFats
                 )
                 ProgressBubble(
                     value: data.carbs, goal: data.carbsGoal,
                     percentage: data.carbsGoal > 0 ? (data.carbs / data.carbsGoal) : 0,
-                    label: "Carbs", unit: "g", color: .orange
+                    label: "Carbs", unit: "g", color: .accentCarbs
                 )
             }
         }
@@ -230,8 +230,7 @@ struct ProgressBubble: View {
     let label: String
     let unit: String
     let color: Color
-    @Environment(\.colorScheme) var colorScheme
-
+    
     var body: some View {
         VStack {
             ZStack {

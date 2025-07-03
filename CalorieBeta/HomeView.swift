@@ -16,9 +16,6 @@ struct HomeView: View {
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var showingProfileSheet = false
     @State private var showingAddExerciseView = false
-    @State private var showingMealPlanSurvey = false
-    @State private var showingMealPlanner = false
-    @State private var showingGroceryList = false
     
     @State private var exerciseToEdit: LoggedExercise? = nil
     @State private var showingEditExerciseView = false
@@ -37,56 +34,36 @@ struct HomeView: View {
     private var isToday: Bool {
         Calendar.current.isDateInToday(selectedDate)
     }
-    
-    private var containerBackground: Color {
-        colorScheme == .dark ? Color(.secondarySystemBackground) : .white
-    }
 
     var body: some View {
          ZStack {
-            Color(colorScheme == .dark ? .systemBackground : .systemGroupedBackground)
+            Color.backgroundPrimary
                 .edgesIgnoringSafeArea(.all)
 
              ScrollView {
-                 VStack(spacing: 16) {
+                 VStack(spacing: 20) { // Increased spacing between cards
                      dateNavigationView
                      
                      nutritionProgressSection
                      
                      foodDiarySection
                      
-                     if let exercises = dailyLogService.currentDailyLog?.exercises, !exercises.isEmpty {
-                         activityWidget()
-                     }
+                     // The activity widget is now inside the foodDiarySection card
                      
-                     milestoneWidget()
                  }
-                 .padding(.horizontal)
+                 .padding() // Add padding around the whole VStack
                  .padding(.bottom, 100)
              }
              .toolbar {
                  ToolbarItem(placement: .navigationBarLeading) {
                      Text("MyFitPlate")
-                         .font(.headline)
-                         .foregroundColor(.primary.opacity(0.5))
-                         .padding(.leading, 5)
+                         .appFont(size: 17, weight: .semibold)
+                         .foregroundColor(Color(UIColor.secondaryLabel))
                  }
                  ToolbarItem(placement: .navigationBarTrailing) {
                      Menu {
                          Button(action: { self.showingProfileSheet = true }) {
                              Label("Profile", systemImage: "person")
-                         }
-                         
-                         Divider()
-                         
-                         Button(action: { self.showingMealPlanSurvey = true }) {
-                             Label("Weekly Plan Generator", systemImage: "wand.and.stars")
-                         }
-                         Button(action: { self.showingMealPlanner = true }) {
-                             Label("View Meal Plan", systemImage: "calendar")
-                         }
-                         Button(action: { self.showingGroceryList = true }) {
-                             Label("Grocery List", systemImage: "list.bullet.clipboard")
                          }
                          
                          Divider()
@@ -97,7 +74,7 @@ struct HomeView: View {
                      } label: {
                          Image(systemName: "line.3.horizontal")
                              .font(.title2)
-                             .foregroundColor(.gray)
+                             .foregroundColor(Color(UIColor.secondaryLabel))
                      }
                  }
              }
@@ -122,17 +99,6 @@ struct HomeView: View {
                  }
              }
          }
-         .sheet(isPresented: $showingMealPlanSurvey, content: {
-             MealPlanSurveyView()
-         })
-         .sheet(isPresented: $showingMealPlanner, content: {
-             MealPlannerView()
-         })
-         .sheet(isPresented: $showingGroceryList, content: {
-             NavigationView {
-                 GroceryListView()
-             }
-         })
          .onAppear {
             dailyLogService.activelyViewedDate = selectedDate
             fetchLogForSelectedDate()
@@ -154,12 +120,11 @@ struct HomeView: View {
             }) {
                 Image(systemName: "chevron.left.circle.fill")
                     .font(.title2)
-                    .foregroundColor(.secondary.opacity(0.5))
+                    .foregroundColor(Color(UIColor.secondaryLabel).opacity(0.5))
             }
             Spacer()
             Text(selectedDateFormattedString)
-                .font(.headline)
-                .fontWeight(.semibold)
+                .appFont(size: 17, weight: .semibold)
             Spacer()
             Button(action: {
                 self.selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: self.selectedDate)!
@@ -168,7 +133,7 @@ struct HomeView: View {
             }) {
                 Image(systemName: "chevron.right.circle.fill")
                     .font(.title2)
-                    .foregroundColor(isToday ? .secondary.opacity(0.2) : .secondary.opacity(0.5))
+                    .foregroundColor(isToday ? Color(UIColor.secondaryLabel).opacity(0.2) : Color(UIColor.secondaryLabel).opacity(0.5))
             }
             .disabled(isToday)
         }
@@ -176,109 +141,73 @@ struct HomeView: View {
     }
 
     private var nutritionProgressSection: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Nutrition Progress")
+                .appFont(size: 22, weight: .bold)
+                .padding(.horizontal)
+            
             if let currentDailyLog = dailyLogService.currentDailyLog, Calendar.current.isDate(currentDailyLog.date, inSameDayAs: selectedDate) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Nutrition Progress")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .padding(.leading)
-                    NutritionProgressView(dailyLog: currentDailyLog, goal: goalSettings, insight: weeklyInsight)
-                }
-                .padding([.top, .bottom, .trailing])
-                .background(containerBackground)
-                .cornerRadius(15)
-                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+                NutritionProgressView(dailyLog: currentDailyLog, goal: goalSettings, insight: weeklyInsight)
             } else {
-                 VStack {
-                     ProgressView()
-                 }
-                 .frame(maxWidth: .infinity, minHeight: 220)
-                 .background(containerBackground)
-                 .cornerRadius(15)
-                 .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+                 ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 220)
             }
         }
+        .asCard() // Apply the new card style
+    }
+
+    private var foodDiarySection: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            Text("Daily Log")
+                .appFont(size: 22, weight: .bold)
+
+            let currentLogForDisplay = (dailyLogService.currentDailyLog != nil && Calendar.current.isDate(dailyLogService.currentDailyLog!.date, inSameDayAs: selectedDate)) ? dailyLogService.currentDailyLog : nil
+
+            if (currentLogForDisplay?.meals.flatMap({ $0.foodItems }).isEmpty ?? true) && (currentLogForDisplay?.exercises?.isEmpty ?? true) {
+                 Text("No food or exercise logged yet for this day.")
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appFont(size: 15)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                foodDiaryGroupedContent(meals: currentLogForDisplay?.meals ?? [])
+                
+                if let exercises = dailyLogService.currentDailyLog?.exercises, !exercises.isEmpty {
+                    Divider().padding(.vertical, 8)
+                    activityWidget()
+                }
+            }
+        }
+        .asCard() // Apply the new card style
     }
 
     @ViewBuilder
     private func activityWidget() -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
-                Text("Today's Activity")
-                    .font(.title3)
-                    .fontWeight(.semibold)
+                Text("Activity")
+                    .appFont(size: 20, weight: .semibold)
                 Spacer()
                 Button("Add") { showingAddExerciseView = true }
-                    .font(.callout)
+                    .appFont(size: 15, weight: .semibold)
+                    .foregroundColor(.brandPrimary)
             }
 
             let exercises = dailyLogService.currentDailyLog?.exercises ?? []
             
-            if !exercises.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(exercises) { exercise in
-                        SwipeableExerciseRowView(
-                            exercise: exercise,
-                            onDelete: { exerciseID in self.deleteExercise(byID: exerciseID) },
-                            onEdit: { exerciseToEdit in
-                                self.exerciseToEdit = exerciseToEdit
-                                self.showingEditExerciseView = true
-                            }
-                        )
-                    }
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(exercises) { exercise in
+                    SwipeableExerciseRowView(
+                        exercise: exercise,
+                        onDelete: { exerciseID in self.deleteExercise(byID: exerciseID) },
+                        onEdit: { exerciseToEdit in
+                            self.exerciseToEdit = exerciseToEdit
+                            self.showingEditExerciseView = true
+                        }
+                    )
                 }
-                .padding(.top, 4)
-            } else {
-                Text("No workouts logged.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 60, alignment: .center)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding()
-        .background(containerBackground)
-        .cornerRadius(15)
-        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
-    }
-    
-    @ViewBuilder
-    private func milestoneWidget() -> some View {
-        if let initialWt = goalSettings.weightHistory.first?.weight,
-           let targetWt = goalSettings.targetWeight,
-           abs(initialWt - targetWt) > 0.01 {
-            MilestoneView(
-                initialWeight: initialWt,
-                currentWeight: goalSettings.weight,
-                targetWeight: targetWt
-            )
-        }
-    }
-
-    private var foodDiarySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Daily Food Log")
-                .font(.title3)
-                .fontWeight(.semibold)
-                .padding([.top, .leading, .trailing])
-
-            let currentLogForDisplay = (dailyLogService.currentDailyLog != nil && Calendar.current.isDate(dailyLogService.currentDailyLog!.date, inSameDayAs: selectedDate)) ? dailyLogService.currentDailyLog : nil
-
-            if (currentLogForDisplay?.meals.flatMap({ $0.foodItems }).isEmpty ?? true) {
-                 Text("No food logged yet for this day.")
-                    .foregroundColor(.gray)
-                    .font(.caption)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
-            } else {
-                foodDiaryGroupedContent(meals: currentLogForDisplay?.meals ?? [])
             }
         }
-        .padding(.vertical)
-        .background(containerBackground)
-        .cornerRadius(15)
-        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
     }
 
     @ViewBuilder
@@ -288,9 +217,8 @@ struct HomeView: View {
                 if !meal.foodItems.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(meal.name)
-                            .font(.headline)
-                            .padding(.horizontal)
-                        Divider().padding(.horizontal)
+                            .appFont(size: 20, weight: .semibold)
+                        
                         VStack(spacing: 0) {
                             ForEach(meal.foodItems) { foodItem in
                                 SwipeableFoodItemView(
@@ -300,7 +228,6 @@ struct HomeView: View {
                                     onLogUpdated: { },
                                     date: self.selectedDate
                                 )
-                                .padding(.horizontal)
                             }
                         }
                     }
@@ -310,19 +237,24 @@ struct HomeView: View {
     }
 
     private func fetchLogForSelectedDate(completion: @escaping () -> Void = {}) {
-        guard let userID = Auth.auth().currentUser?.uid else { completion(); return }
-        dailyLogService.fetchLog(for: userID, date: selectedDate) { _ in
-            goalSettings.recalculateAllGoals()
-            completion()
+            guard let userID = Auth.auth().currentUser?.uid else {
+                completion()
+                return
+            }
+            
+            dailyLogService.fetchLog(for: userID, date: selectedDate) { [self] _ in
+            
+                self.goalSettings.recalculateAllGoals()
+                
+               
+                if self.isToday {
+                    self.insightsService.generateDailySmartInsight()
+                }
+                
+               
+                completion()
+            }
         }
-    }
-    
-    private func fetchLogForSelectedDate() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
-        dailyLogService.fetchLog(for: userID, date: selectedDate) { _ in
-            goalSettings.recalculateAllGoals()
-        }
-    }
 
     private func deleteFood(byID foodItemID: String) {
         guard let userID = Auth.auth().currentUser?.uid else { return }
@@ -345,7 +277,6 @@ private struct SwipeableExerciseRowView: View {
     let exercise: LoggedExercise
     let onDelete: (String) -> Void
     let onEdit: (LoggedExercise) -> Void
-    @Environment(\.colorScheme) var colorSchemeS
     @State private var offset: CGFloat = 0
     @State private var isSwiped: Bool = false
 
@@ -380,8 +311,8 @@ private struct SwipeableExerciseRowView: View {
                 VStack(alignment: .leading) {
                     HStack {
                         Text(exercise.name)
-                            .font(.subheadline).fontWeight(.medium)
-                            .foregroundColor(colorSchemeS == .dark ? .white : .black)
+                            .appFont(size: 15, weight: .medium)
+                            .foregroundColor(.textPrimary)
                         if exercise.source == "HealthKit" {
                             Image("Apple_Health")
                                 .resizable()
@@ -391,19 +322,19 @@ private struct SwipeableExerciseRowView: View {
                     }
                     if let duration = exercise.durationMinutes, duration > 0 {
                         Text("\(duration) min")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                            .appFont(size: 12)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
                     }
                 }
                 Spacer()
                 Text("\(Int(exercise.caloriesBurned)) cal")
-                    .font(.subheadline)
-                    .foregroundColor(.green)
+                    .appFont(size: 15)
+                    .foregroundColor(.accentPositive)
                     .padding(.trailing, 5)
             }
             .padding(.vertical, 10)
             .padding(.horizontal)
-            .background(Color(.systemGray6).opacity(0.5))
+            .background(Color(UIColor.systemGray6).opacity(0.5))
             .cornerRadius(8)
             .contentShape(Rectangle())
             .offset(x: offset)
@@ -449,7 +380,6 @@ private struct SwipeableFoodItemView: View {
     let onDelete: (String) -> Void
     let onLogUpdated: () -> Void
     let date: Date
-    @Environment(\.colorScheme) var colorSchemeS
     @State private var offset: CGFloat = 0
     @State private var isSwiped: Bool = false
     @State private var showDetailView = false
@@ -458,7 +388,22 @@ private struct SwipeableFoodItemView: View {
         ZStack(alignment: .trailing) {
             NavigationLink(destination: FoodDetailView(initialFoodItem: initialFoodItem, dailyLog: $dailyLog, date: date, source: "log_swipe", onLogUpdated: onLogUpdated ), isActive: $showDetailView) { EmptyView() }.opacity(0)
             if isSwiped { HStack { Spacer(); Button { withAnimation(.easeInOut) { onDelete(initialFoodItem.id); offset = 0; isSwiped = false } } label: { Image(systemName: "trash").foregroundColor(.white).frame(width: 60, height: 50, alignment: .center) }.buttonStyle(PlainButtonStyle()).background(Color.red).contentShape(Rectangle()).cornerRadius(8) }.padding(.vertical, 4).transition(.move(edge: .trailing).combined(with: .opacity)) }
-            HStack { Text(FoodEmojiMapper.getEmoji(for: initialFoodItem.name) + " " + initialFoodItem.name).lineLimit(1).font(.body).foregroundColor(colorSchemeS == .dark ? .white : .black); Spacer(); Text("\(Int(initialFoodItem.calories)) cal").font(.subheadline).foregroundColor(.gray) }.padding(.vertical, 12).padding(.horizontal).background(Color.clear).cornerRadius(8).contentShape(Rectangle()).offset(x: offset)
+            HStack {
+                Text(FoodEmojiMapper.getEmoji(for: initialFoodItem.name) + " " + initialFoodItem.name)
+                    .lineLimit(1)
+                    .appFont(size: 17)
+                    .foregroundColor(.textPrimary)
+                Spacer()
+                Text("\(Int(initialFoodItem.calories)) cal")
+                    .appFont(size: 15)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal)
+            .background(Color.clear)
+            .cornerRadius(8)
+            .contentShape(Rectangle())
+            .offset(x: offset)
             .onTapGesture { if !isSwiped { showDetailView = true } else { withAnimation(.easeInOut) { offset = 0; isSwiped = false } } }
             .gesture( DragGesture().onChanged { value in if value.translation.width < 0 { offset = max(value.translation.width, -70) } else if isSwiped && value.translation.width > 0 { offset = -70 + value.translation.width } }.onEnded { value in withAnimation(.easeInOut) { if value.translation.width < -50 { offset = -70; isSwiped = true } else { offset = 0; isSwiped = false } } } )
         }.padding(.bottom, 4)

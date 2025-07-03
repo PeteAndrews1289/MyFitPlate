@@ -2,7 +2,6 @@ import SwiftUI
 
 struct DetailedInsightsView: View {
     @ObservedObject var insightsService: InsightsService
-    @Environment(\.colorScheme) var colorScheme
     @State private var showShareSheet = false
     @State private var pdfURL: URL?
 
@@ -15,14 +14,13 @@ struct DetailedInsightsView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 50)
                 } else if insightsService.currentInsights.isEmpty {
-                    Text("No specific insights to show for this period based on your logs. Keep logging consistently for more personalized feedback!")
+                    Text("No specific insights to show for this period based on your logs. Log consistently for a few more days to unlock your personalized weekly insights!")
                         .multilineTextAlignment(.center)
-                        .foregroundColor(.gray)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                         .padding()
                 } else {
                     Text("Your Weekly Insights")
-                        .font(.title2)
-                        .fontWeight(.bold)
+                        .appFont(size: 22, weight: .bold)
                         .padding(.bottom, 10)
 
                     ForEach(insightsService.currentInsights) { insight in
@@ -33,13 +31,14 @@ struct DetailedInsightsView: View {
                 Spacer()
                 
                 Text("Insights are generated based on your logged data and general health guidelines. They are not a substitute for professional medical advice. Always consult a healthcare provider for personalized guidance.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .appFont(size: 12)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .multilineTextAlignment(.center)
                     .padding(.top, 20)
             }
             .padding()
         }
+        .background(Color.backgroundPrimary)
         .navigationTitle("Weekly Insights Detail")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -49,6 +48,7 @@ struct DetailedInsightsView: View {
                 }
             }
         }
+        .tint(.brandPrimary)
         .sheet(isPresented: $showShareSheet) {
             if let pdfURL = pdfURL {
                 PDFShareView(activityItems: [pdfURL])
@@ -113,7 +113,6 @@ struct InsightsPDFLayout: View {
 
 struct InsightDetailCard: View {
     let insight: UserInsight
-    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -125,50 +124,17 @@ struct InsightDetailCard: View {
                 
                 VStack(alignment: .leading) {
                     Text(insight.title)
-                        .font(.headline)
-                    if let relatedData = insight.relatedData {
-                        ForEach(relatedData.keys.sorted(), id: \.self) { key in
-                            if key != "sourceName" && key != "sourceURL" {
-                                HStack {
-                                    Text("\(key.capitalized):")
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                    Text(relatedData[key] ?? "")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                    }
+                        .appFont(size: 17, weight: .semibold)
                 }
                 Spacer()
             }
             
             Text(insight.message)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .appFont(size: 15)
+                .foregroundColor(Color(UIColor.secondaryLabel))
                 .padding(.top, 5)
-            
-            if let sourceName = insight.relatedData?["sourceName"],
-               let sourceURLString = insight.relatedData?["sourceURL"],
-               let url = URL(string: sourceURLString) {
-                
-                Divider().padding(.vertical, 4)
-                Link(destination: url) {
-                    HStack {
-                        Text("Source: \(sourceName)")
-                            .font(.caption)
-                        Image(systemName: "link.circle.fill")
-                            .font(.caption)
-                    }
-                    .foregroundColor(.accentColor)
-                }
-            }
         }
-        .padding()
-        .background(colorScheme == .dark ? Color(.secondarySystemBackground) : Color.white)
-        .cornerRadius(12)
-        .shadow(radius: 2)
+        .asCard()
     }
 
     private func iconForCategory(_ category: UserInsight.InsightCategory) -> String {
@@ -191,9 +157,9 @@ struct InsightDetailCard: View {
         switch category {
         case .sleep: return .indigo
         case .hydration: return .blue
-        case .microNutrient, .fiberIntake: return .green
+        case .microNutrient, .fiberIntake: return .accentPositive
         case .saturatedFat: return .pink
-        case .macroBalance: return .orange
+        case .macroBalance: return .accentCarbs
         case .nutritionGeneral: return .purple
         case .consistency, .mealTiming: return .teal
         case .postWorkout: return .cyan

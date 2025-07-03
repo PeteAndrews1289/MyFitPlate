@@ -5,7 +5,7 @@ import FirebaseAuth
 struct GenderButtonPicker: View {
     @Binding var selectedGender: String
     let genders = ["🙋‍♂️ Male", "🙋‍♀️ Female"]
-    let accentColor = Color(red: 61/255, green: 156/255, blue: 86/255)
+    let accentColor = Color.brandPrimary
 
     var body: some View {
         HStack {
@@ -19,15 +19,14 @@ struct GenderButtonPicker: View {
                         .background(
                             (selectedGender == (gender.contains("Male") ? "Male" : "Female")) ?
                                 RoundedRectangle(cornerRadius: 20).fill(accentColor.opacity(0.2)) :
-                                RoundedRectangle(cornerRadius: 20).fill(Color(.systemGray6))
+                                RoundedRectangle(cornerRadius: 20).fill(Color.backgroundSecondary)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 20)
                                 .stroke(selectedGender == (gender.contains("Male") ? "Male" : "Female") ? accentColor : Color.clear, lineWidth: 2)
                         )
-                        .foregroundColor(.primary)
+                        .foregroundColor(.textPrimary)
                         .cornerRadius(20)
-                        .shadow(color: .gray.opacity(0.2), radius: 2, x: 0, y: 1)
                 }
                 .buttonStyle(PlainButtonStyle())
             }
@@ -42,6 +41,7 @@ struct CaloricCalculatorView: View {
     @State private var showSaveConfirmation = false
     
     @State private var calorieInput: String = ""
+    @State private var targetWeightInput: String = ""
 
      private let activityLevelStrings = [
          "Sedentary", "Lightly Active", "Moderately Active", "Very Active", "Extremely Active"
@@ -65,22 +65,41 @@ struct CaloricCalculatorView: View {
      }
 
     private let goals = ["Lose", "Maintain", "Gain"]
-    private let accentColor = Color(red: 61/255, green: 156/255, blue: 86/255)
+    private let accentColor = Color.brandPrimary
 
     var body: some View {
         Form {
             personalInfoSection
             
+            Section(header: Text("Weight Goals")) {
+                HStack {
+                    Text("Current Weight")
+                    Spacer()
+                    TextField("lbs", value: $goalSettings.weight, format: .number)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                }
+                HStack {
+                    Text("Target Weight")
+                    Spacer()
+                    TextField("lbs", text: $targetWeightInput)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                }
+            }
+            
             Section(header: Text("Daily Calorie Goal")) {
                 HStack {
                     TextField("Calories", text: $calorieInput)
                         .keyboardType(.numberPad)
-                        .font(.title.weight(.bold))
+                        .appFont(size: 28, weight: .bold)
                         .foregroundColor(accentColor)
                     
                     Text("kcal")
-                        .font(.body)
-                        .foregroundColor(.secondary)
+                        .appFont(size: 17)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                 }
             }
             
@@ -88,21 +107,17 @@ struct CaloricCalculatorView: View {
 
             citationSection
 
-            Button(action: saveCaloricGoal) {
-                Text("Save Goals")
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
-                    .background(Color.green)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
+            Button("Save Goals") {
+                saveCaloricGoal()
             }
+            .buttonStyle(PrimaryButtonStyle())
             .listRowInsets(EdgeInsets())
-            .buttonStyle(PlainButtonStyle())
+            .padding(.vertical)
 
         }
         .navigationTitle("Calorie Calculator")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear(perform: fetchAndSetCaloricGoal)
+        .onAppear(perform: fetchAndSetGoals)
         .alert(isPresented: $showSaveConfirmation) {
             Alert(title: Text("Success"), message: Text("Your goals have been saved!"), dismissButton: .default(Text("OK")))
         }
@@ -114,8 +129,6 @@ struct CaloricCalculatorView: View {
         .onChange(of: goalSettings.carbsPercentage) { _ in goalSettings.recalculateAllGoals() }
         .onChange(of: goalSettings.fatsPercentage) { _ in goalSettings.recalculateAllGoals() }
         .onChange(of: goalSettings.calories) { newRecommendedCalories in
-            // When an automatic recalculation happens, update the text field
-            // but only if the user isn't currently typing in it.
             if Double(calorieInput) != newRecommendedCalories {
                  calorieInput = String(format: "%.0f", newRecommendedCalories ?? 0)
             }
@@ -155,9 +168,9 @@ struct CaloricCalculatorView: View {
     private var macronutrientSection: some View {
         Section(header: Text("Macronutrient Distribution (%)")) {
             VStack(spacing: 15) {
-                macroSlider(title: "Protein", value: $goalSettings.proteinPercentage, color: .blue)
-                macroSlider(title: "Carbs", value: $goalSettings.carbsPercentage, color: .orange)
-                macroSlider(title: "Fats", value: $goalSettings.fatsPercentage, color: .green)
+                macroSlider(title: "Protein", value: $goalSettings.proteinPercentage, color: .accentProtein)
+                macroSlider(title: "Carbs", value: $goalSettings.carbsPercentage, color: .accentCarbs)
+                macroSlider(title: "Fats", value: $goalSettings.fatsPercentage, color: .accentFats)
             }
              .padding(.vertical, 5)
         }
@@ -167,12 +180,12 @@ struct CaloricCalculatorView: View {
         Section(header: Text("Source Information"), footer: Text("Calorie and macronutrient recommendations are estimates intended for informational purposes. Your actual nutritional needs may vary. Consult with a healthcare professional before making significant changes to your diet or exercise routine.")) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Calorie goals are estimated using the Mifflin-St Jeor equation combined with standard activity level multipliers.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .appFont(size: 12)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                 
                 if let url = URL(string: "https://pubmed.ncbi.nlm.nih.gov/2305711/") {
                     Link("Source: A new predictive equation for resting energy expenditure in healthy individuals. Am J Clin Nutr. 1990.", destination: url)
-                        .font(.caption)
+                        .appFont(size: 12)
                 }
             }
             .padding(.vertical, 5)
@@ -186,19 +199,22 @@ struct CaloricCalculatorView: View {
                  Spacer()
                  Text("\(Int(value.wrappedValue.rounded()))%")
              }
-             .font(.callout)
+             .appFont(size: 15)
 
              Slider(value: value, in: 10...70, step: 5)
                  .tint(color)
          }
      }
 
-    private func fetchAndSetCaloricGoal() {
+    private func fetchAndSetGoals() {
         guard let userID = Auth.auth().currentUser?.uid else {
             return
         }
         goalSettings.loadUserGoals(userID: userID) {
             self.calorieInput = String(format: "%.0f", self.goalSettings.calories ?? 0)
+            if let targetWeight = self.goalSettings.targetWeight {
+                self.targetWeightInput = String(format: "%.1f", targetWeight)
+            }
         }
     }
     
@@ -209,6 +225,10 @@ struct CaloricCalculatorView: View {
         }
         
         goalSettings.calories = calorieValue
+        if let targetWeightValue = Double(targetWeightInput) {
+            goalSettings.targetWeight = targetWeightValue
+        }
+        
         goalSettings.recalculateAllGoals()
         goalSettings.saveUserGoals(userID: userID)
         

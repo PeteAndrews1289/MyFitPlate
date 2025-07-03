@@ -45,7 +45,7 @@ struct NutritionProgressView: View {
              }
             .padding(.horizontal, 8)
             .frame(minHeight: 180)
-            .background(colorScheme == .dark ? Color(.secondarySystemBackground).opacity(0.5) : Color.white.opacity(0.8))
+            .background(Color.backgroundSecondary.opacity(0.8))
             .cornerRadius(12)
             .clipped()
             .gesture( DragGesture().updating($dragOffset) { value, state, _ in state = value.translation.width }.onEnded { value in let swipeDistance = value.translation.width; if abs(swipeDistance) > swipeThreshold { withAnimation(.easeInOut(duration: 0.3)) { if swipeDistance < 0 { goal.nutritionViewIndex = (goal.nutritionViewIndex + 1) % totalViews } else { goal.nutritionViewIndex = (goal.nutritionViewIndex - 1 + totalViews) % totalViews } } } } )
@@ -65,9 +65,9 @@ struct NutritionProgressView: View {
     private func bubblesView(calories: Double, caloriesGoal: Double, caloriesPercentage: Double, protein: Double, proteinGoal: Double, proteinPercentage: Double, fats: Double, fatsGoal: Double, fatsPercentage: Double, carbs: Double, carbsGoal: Double, carbsPercentage: Double) -> some View {
          HStack(spacing: 15) {
              ProgressBubble(value: calories, goal: caloriesGoal, percentage: caloriesPercentage, label: "Calories", unit: "cal", color: .red)
-             ProgressBubble(value: protein, goal: proteinGoal, percentage: proteinPercentage, label: "Protein", unit: "g", color: .blue)
-             ProgressBubble(value: fats, goal: fatsGoal, percentage: fatsPercentage, label: "Fats", unit: "g", color: .green)
-             ProgressBubble(value: carbs, goal: carbsGoal, percentage: carbsPercentage, label: "Carbs", unit: "g", color: .orange)
+             ProgressBubble(value: protein, goal: proteinGoal, percentage: proteinPercentage, label: "Protein", unit: "g", color: .accentProtein)
+             ProgressBubble(value: fats, goal: fatsGoal, percentage: fatsPercentage, label: "Fats", unit: "g", color: .accentFats)
+             ProgressBubble(value: carbs, goal: carbsGoal, percentage: carbsPercentage, label: "Carbs", unit: "g", color: .accentCarbs)
          }.padding(.horizontal, 8).frame(maxWidth: .infinity)
     }
 }
@@ -79,23 +79,31 @@ struct ProgressBubble: View {
     let label: String
     let unit: String
     let color: Color
-    @Environment(\.colorScheme) var colorScheme
-
+    
     var body: some View {
         VStack {
             ZStack {
                 Circle().stroke(lineWidth: 6).opacity(0.2).foregroundColor(color)
-                Circle().trim(from: 0, to: CGFloat(percentage)).stroke(style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round)).foregroundColor(color).rotationEffect(.degrees(-90)).animation(.easeInOut, value: percentage)
+                Circle()
+                    .trim(from: 0, to: CGFloat(percentage))
+                    .stroke(style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                    .foregroundColor(color)
+                    .rotationEffect(Angle(degrees: -90))
+                    .animation(.easeInOut(duration: 0.75), value: percentage) // This line adds the animation
+
                 VStack {
                     Text("\(String(format: "%.0f", value))")
-                        .font(.callout.weight(.medium))
-                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                        .appFont(size: 15, weight: .medium)
+                        .foregroundColor(.textPrimary)
                     Text("/ \(String(format: "%.0f", goal)) \(unit)")
-                         .font(.caption2)
-                        .foregroundColor(.gray)
+                         .appFont(size: 10)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                 }
             }.frame(width: 70, height: 70)
-            Text(label).font(.caption).foregroundColor(colorScheme == .dark ? .white : .black).lineLimit(1)
+            Text(label)
+                .appFont(size: 12)
+                .foregroundColor(.textPrimary)
+                .lineLimit(1)
         }
     }
 }
@@ -108,7 +116,7 @@ private struct DotIndicator: View {
             ForEach(0..<totalDots, id: \.self) { index in
                 Circle()
                     .frame(width: index == goalSettings.nutritionViewIndex ? 10 : 6, height: index == goalSettings.nutritionViewIndex ? 10 : 6)
-                    .foregroundColor(index == goalSettings.nutritionViewIndex ? Color.accentColor : Color.gray.opacity(0.5))
+                    .foregroundColor(index == goalSettings.nutritionViewIndex ? Color.brandPrimary : Color(UIColor.secondaryLabel).opacity(0.5))
                     .onTapGesture {
                         withAnimation(.easeInOut) {
                             goalSettings.nutritionViewIndex = index

@@ -26,14 +26,15 @@ struct RecipeDetailView: View {
                     nutrientRow(label: "Fats", value: String(format: "%.1f g", recipe.nutritionPerServing.fats))
                 } else {
                     Text("Nutritional information has not been calculated. Match all ingredients to see full details.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                 }
             }
             
             Section(header: Text("Ingredients")) {
                 ForEach(recipe.ingredients) { ingredient in
                     Text(ingredient.foodName)
+                        .appFont(size: 15)
                 }
             }
             
@@ -45,10 +46,11 @@ struct RecipeDetailView: View {
                                 .bold()
                             Text(instruction)
                         }
+                        .appFont(size: 15)
                     }
                 } else {
                     Text("No instructions available.")
-                        .foregroundColor(.gray)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                 }
             }
         }
@@ -60,7 +62,8 @@ struct RecipeDetailView: View {
         HStack {
             Text(label)
             Spacer()
-            Text(value).foregroundColor(.secondary)
+            Text(value).foregroundColor(Color(UIColor.secondaryLabel))
         }
+        .appFont(size: 15)
     }
 }

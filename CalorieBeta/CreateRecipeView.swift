@@ -7,7 +7,6 @@ struct ErrorAlert: Identifiable {
     let message: String
 }
 
-// MARK: - CreateRecipeView Main View
 struct CreateRecipeView: View {
     @ObservedObject var recipeService: RecipeService
     var recipeToEdit: UserRecipe?
@@ -17,7 +16,6 @@ struct CreateRecipeView: View {
     @State private var isSaving = false
     @State private var saveError: String? = nil
 
-    // State for managing the ingredient matching flow
     @State private var ingredientToMatch: RecipeIngredient? = nil
     @State private var showingFoodSearchForMatch = false
     @State private var foodItemToAddAsIngredient: FoodItem? = nil
@@ -42,7 +40,7 @@ struct CreateRecipeView: View {
                 nutritionSection
 
                 if let error = saveError {
-                    Text("Error: \(error)").foregroundColor(.red).font(.caption)
+                    Text("Error: \(error)").foregroundColor(.red).appFont(size: 12)
                 }
             }
             .navigationTitle(recipeToEdit == nil ? "Create Recipe" : "Edit Recipe")
@@ -84,8 +82,6 @@ struct CreateRecipeView: View {
         }
     }
 
-    // MARK: - View Sections
-    
     private var recipeDetailsSection: some View {
         Section("Recipe Details") {
             TextField("Recipe Name", text: $recipe.name)
@@ -134,7 +130,7 @@ struct CreateRecipeView: View {
                 }
             } else {
                 Text("No instructions were imported.")
-                    .foregroundColor(.gray)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
     }
@@ -145,7 +141,7 @@ struct CreateRecipeView: View {
             
             if !allMatched && !recipe.ingredients.isEmpty {
                 Text("Tap on orange ingredients to match them with a food item and calculate nutrition.")
-                    .font(.caption)
+                    .appFont(size: 12)
                     .foregroundColor(.orange)
             }
             
@@ -179,8 +175,6 @@ struct CreateRecipeView: View {
         }
     }
     
-    // MARK: - Helper Methods & Actions
-    
     private func deleteIngredient(at offsets: IndexSet) {
         recipe.ingredients.remove(atOffsets: offsets)
         recipe.calculateTotals()
@@ -209,9 +203,9 @@ struct CreateRecipeView: View {
         let numericPart = value.components(separatedBy: CharacterSet.decimalDigits.union(CharacterSet(charactersIn: ".")).inverted).joined()
         if !hideIfZero || (Double(numericPart) ?? 0) > 0.01 {
             HStack {
-                Text(label).font(.callout)
+                Text(label).appFont(size: 15)
                 Spacer()
-                Text(value).font(.callout).foregroundColor(.secondary)
+                Text(value).appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel))
             }
         } else {
             EmptyView()
@@ -219,7 +213,6 @@ struct CreateRecipeView: View {
     }
 }
 
-// MARK: - IngredientRowView Sub-view
 fileprivate struct IngredientRowView: View {
     @Binding var ingredient: RecipeIngredient
     var onTap: () -> Void
@@ -233,22 +226,22 @@ fileprivate struct IngredientRowView: View {
             HStack {
                 VStack(alignment: .leading) {
                     Text(ingredient.foodName)
-                        .font(.headline)
-                        .foregroundColor(isPlaceholder ? .orange : .primary)
+                        .appFont(size: 17, weight: .semibold)
+                        .foregroundColor(isPlaceholder ? .orange : .textPrimary)
                     
                     if isPlaceholder {
                         Text("Tap to match with a food item")
-                            .font(.caption)
+                            .appFont(size: 12)
                             .foregroundColor(.orange)
                     } else {
                         Text("\(ingredient.quantity, specifier: "%g") x \(ingredient.selectedServingDescription ?? "") (\(ingredient.calories, specifier: "%.0f") kcal)")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                            .appFont(size: 12)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
                     }
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.gray)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
             }
             .contentShape(Rectangle())
         }
@@ -256,8 +249,6 @@ fileprivate struct IngredientRowView: View {
     }
 }
 
-
-// MARK: - FoodSearchViewForIngredients Sub-view
 fileprivate struct FoodSearchViewForIngredients: View {
     var initialQuery: String?
     var onSelect: (FoodItem) -> Void
@@ -272,10 +263,9 @@ fileprivate struct FoodSearchViewForIngredients: View {
         VStack(spacing: 0) {
             HStack {
                 TextField("Search food items...", text: $searchQuery)
-                    .padding(10).background(Color(.systemGray6)).cornerRadius(8)
+                    .textFieldStyle(AppTextFieldStyle(iconName: "magnifyingglass"))
                     .onChange(of: searchQuery) { newValue in handleSearchQueryChange(newValue) }
                     .submitLabel(.search).onSubmit { performSearch() }
-                Button(action: performSearch) { Image(systemName: "magnifyingglass").foregroundColor(.white).padding(10).background(Color.accentColor).cornerRadius(8) }
             }.padding()
 
             List {
@@ -283,9 +273,9 @@ fileprivate struct FoodSearchViewForIngredients: View {
                 ForEach(searchResults) { foodItem in
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(foodItem.name).font(.subheadline)
+                            Text(foodItem.name).appFont(size: 15)
                             Text(foodItem.servingSize)
-                                .font(.caption).foregroundColor(.gray)
+                                .appFont(size: 12).foregroundColor(Color(UIColor.secondaryLabel))
                         }
                         Spacer()
                     }
@@ -323,7 +313,6 @@ fileprivate struct FoodSearchViewForIngredients: View {
     private func handleSearchResults(_ result: Result<[FoodItem], Error>) { switch result { case .success(let i): searchResults = i; case .failure(let e): searchResults = []; self.error = ErrorAlert(message: "Search failed: \(e.localizedDescription)") } }
 }
 
-// MARK: - AddIngredientDetailView Sub-view
 fileprivate struct AddIngredientDetailView: View {
     let foodItem: FoodItem
     let originalIngredientString: String
@@ -359,7 +348,7 @@ fileprivate struct AddIngredientDetailView: View {
                  } else {
                      Form {
                          Section("Ingredient") {
-                             Text(foodItem.name).font(.headline)
+                             Text(foodItem.name).appFont(size: 17, weight: .semibold)
                          }
                          Section("Serving Used in Recipe") {
                              HStack {

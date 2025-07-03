@@ -3,7 +3,6 @@ import SwiftUI
 struct WelcomeView: View {
     @State private var showLoginView = false
     @State private var showSignUpView = false
-    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,50 +14,36 @@ struct WelcomeView: View {
                 .frame(width: 140, height: 140)
                 .clipShape(Circle())
                 .padding(.bottom, 20)
+                .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
 
             Text("Welcome to MyFitPlate")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+                .appFont(size: 34, weight: .bold)
+                .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.center)
 
             Text("Track your food, reach your goals.")
-                .font(.headline)
-                .foregroundColor(.secondary)
-                .padding(.top, 4)
+                .appFont(size: 24, weight: .semibold)
+                .foregroundColor(Color(UIColor.secondaryLabel)) // Corrected usage
+                .padding(.top, 8)
             
             Spacer()
             Spacer()
 
             VStack(spacing: 16) {
-                Button(action: { showSignUpView = true }) {
-                    Text("Create an Account")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(16)
+                Button("Create an Account") {
+                    showSignUpView = true
                 }
+                .buttonStyle(PrimaryButtonStyle())
 
-                Button(action: { showLoginView = true }) {
-                    Text("I Already Have an Account")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(colorScheme == .dark ? Color(.systemGray5) : Color.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.accentColor, lineWidth: 2)
-                        )
-                        .foregroundColor(Color.accentColor)
-                        .cornerRadius(16)
+                Button("I Already Have an Account") {
+                    showLoginView = true
                 }
+                .buttonStyle(SecondaryButtonStyle())
             }
             .padding(.horizontal, 30)
             .padding(.bottom, 50)
         }
-        .background(colorScheme == .dark ? Color.black : Color(.systemGray6))
-        .edgesIgnoringSafeArea(.all)
+        .background(Color.backgroundPrimary.edgesIgnoringSafeArea(.all))
         .sheet(isPresented: $showLoginView) {
             LoginView()
         }

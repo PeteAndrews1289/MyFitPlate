@@ -1,5 +1,3 @@
-
-
 import SwiftUI
 
 struct BannerView: View {
@@ -16,9 +14,9 @@ struct BannerView: View {
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text(bannerData.title)
-                                .font(.headline)
+                                .appFont(size: 17, weight: .semibold)
                             Text(bannerData.message)
-                                .font(.subheadline)
+                                .appFont(size: 15)
                         }
                         Spacer()
                     }

@@ -9,41 +9,33 @@ struct SetHeightView: View {
     var body: some View {
         VStack(spacing: 16) {
             Text("Enter Your Height")
-                .font(.title)
+                .appFont(size: 28, weight: .bold)
                 .padding(.bottom)
 
             HStack {
                 VStack {
                     TextField("Feet", text: $feetInput)
                         .keyboardType(.numberPad)
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
+                        .textFieldStyle(AppTextFieldStyle(iconName: nil))
                         .frame(width: 100)
                 }
                 Text("'")
+                    .appFont(size: 28, weight: .semibold)
                 VStack {
                     TextField("Inches", text: $inchesInput)
                         .keyboardType(.numberPad)
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
+                        .textFieldStyle(AppTextFieldStyle(iconName: nil))
                         .frame(width: 100)
                 }
                 Text("\"")
+                    .appFont(size: 28, weight: .semibold)
             }
 
-            Button(action: {
+            Button("Save") {
                 self.onSave()
-            }) {
-                Text("Save")
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.green)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
             }
-            .padding(.top, 16)
+            .buttonStyle(PrimaryButtonStyle())
+            .padding()
 
             Spacer()
         }

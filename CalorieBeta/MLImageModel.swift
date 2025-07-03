@@ -1,120 +1,117 @@
 import Foundation
 import UIKit
-import CoreML
-import Vision
 
-// Defines possible errors that can occur during image recognition with the ML model.
-enum ImageRecognitionError: Error {
-    case modelNotFound // Indicates the ML model could not be loaded.
-    case imageProcessingError // Indicates an issue resizing or processing the image.
-    case predictionError(Error) // Wraps errors from the prediction process.
-    case invalidOutputFormat // Indicates the model output format is unexpected.
+struct AIMealResponse: Codable {
+    let foods: [AIItemResponse]
 }
 
-// This class handles image classification using the MobileNetV3 Food-101 model to identify food items.
+struct AIItemResponse: Codable {
+    let itemName: String
+    let servingSize: String
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fats: Double
+}
+
+enum ImageRecognitionError: Error {
+    case imageProcessingError
+    case invalidOutputFormat
+    case apiError(String)
+    case noData
+}
+
 class MLImageModel {
-    // Stores the CoreML model configured for Vision framework use.
-    private let model: VNCoreMLModel
-    // Array of food categories supported by the Food-101 dataset.
-    private let foodCategories: [String] = Food101Categories.allCases.map { $0.rawValue } // Maps enum cases to string names.
+    private let apiKey = getAPIKey()
 
-    // Initializes the model by loading the MobileNetV3 Food-101 model.
-    init() {
-        do {
-            // Configures the model with default settings.
-            let modelConfig = MLModelConfiguration()
-            // Loads the pre-trained MobileNetV3 Food-101 model (generated class assumed to exist).
-            let coreMLModel = try mobilenetv3_food101_full().model // Accesses the MLModel instance.
-            self.model = try VNCoreMLModel(for: coreMLModel) // Converts to a Vision-compatible model.
-        } catch {
-            fatalError("Failed to load MobileNetV3 Food-101 model: \(error.localizedDescription)") // Terminates if model fails to load.
-        }
-    }
-
-    /// Classifies a food item from an image using the MobileNetV3 Food-101 model.
-    /// - Parameters:
-    ///   - image: The UIImage to classify.
-    ///   - completion: Closure returning a Result with the predicted food name or an error.
-    func classifyImage(image: UIImage, completion: @escaping (Result<String, ImageRecognitionError>) -> Void) {
-        // Resizes the image to 224x224, the required input size for the model.
-        guard let resizedImage = image.resized(toSize: CGSize(width: 224, height: 224)),
-              let ciImage = CIImage(image: resizedImage) else { // Converts to CIImage for Vision.
-            print("❌ Failed to process or resize image to 224x224") // Logs the error.
-            completion(.failure(.imageProcessingError)) // Returns an image processing error.
+    init() {}
+    
+    func estimateNutritionFromImage(image: UIImage, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
+        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+            completion(.failure(ImageRecognitionError.imageProcessingError))
             return
         }
+        let base64Image = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
 
-        // Creates a request handler with the resized image.
-        let requestHandler = VNImageRequestHandler(ciImage: ciImage)
-        // Configures a request to perform classification with the model.
-        let request = VNCoreMLRequest(model: model) { request, error in
-            // Ensures results are available and of the expected type.
-            guard let observations = request.results as? [VNClassificationObservation], !observations.isEmpty else {
-                print("❌ No classification results or error: \(String(describing: error))") // Logs if no results.
-                DispatchQueue.main.async {
-                    completion(.failure(.predictionError(error ?? NSError(domain: "NoResults", code: -1, userInfo: nil))))
-                }
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let prompt = """
+        You are an expert nutritional analysis assistant. Analyze the food in the provided image. Identify EVERY food item on the plate.
+        Your response MUST be a valid JSON object only. The root object must have a single key "foods" which is an array of JSON objects.
+        Each object in the "foods" array must contain these exact keys: "itemName" (string), "servingSize" (string, e.g., "3 cookies" or "1 cup"), "calories" (number), "protein" (number), "carbs" (number), and "fats" (number).
+        If you see multiple of the same item, like 3 cookies, the "itemName" should be "Oreo Cookies" and the "servingSize" should be "3 cookies", with the nutritional values adjusted accordingly.
+        """
+
+        let payload: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                [
+                    "role": "user",
+                    "content": [
+                        ["type": "text", "text": prompt],
+                        ["type": "image_url", "image_url": ["url": base64Image]]
+                    ]
+                ]
+            ],
+            "max_tokens": 1000
+        ]
+
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: payload) else {
+            completion(.failure(ImageRecognitionError.apiError("Failed to serialize request.")))
+            return
+        }
+        request.httpBody = httpBody
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                DispatchQueue.main.async { completion(.failure(error)) }
                 return
             }
 
-            // Extracts the top prediction from the observations.
-            let topPrediction = observations[0]
-            let foodName = topPrediction.identifier // The predicted food category (e.g., "pizza").
-            let confidence = topPrediction.confidence // Confidence score of the prediction.
-
-            print("✅ Predicted food: \(foodName) (confidence: \(confidence))") // Logs the prediction.
-            DispatchQueue.main.async {
-                completion(.success(foodName)) // Returns the food name on the main thread.
+            guard let data = data else {
+                DispatchQueue.main.async { completion(.failure(ImageRecognitionError.noData)) }
+                return
             }
-        }
-
-        // Sets the image scaling option to fill the 224x224 input size.
-        request.imageCropAndScaleOption = .scaleFill
-
-        do {
-            try requestHandler.perform([request]) // Executes the classification request.
-        } catch {
-            print("❌ Failed to perform image classification: \(error.localizedDescription)") // Logs the error.
-            DispatchQueue.main.async {
-                completion(.failure(.predictionError(error))) // Returns a prediction error.
+            
+            do {
+                if let jsonResponse = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let choices = jsonResponse["choices"] as? [[String: Any]],
+                   let firstChoice = choices.first,
+                   let message = firstChoice["message"] as? [String: Any],
+                   let content = message["content"] as? String {
+                    
+                    let cleanedContent = content.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "```json", with: "").replacingOccurrences(of: "```", with: "")
+                    
+                    guard let contentData = cleanedContent.data(using: .utf8) else {
+                        DispatchQueue.main.async { completion(.failure(ImageRecognitionError.invalidOutputFormat)) }
+                        return
+                    }
+                    
+                    let decodedAIResponse = try JSONDecoder().decode(AIMealResponse.self, from: contentData)
+                    
+                    let foodItems = decodedAIResponse.foods.map { item -> FoodItem in
+                        return FoodItem(
+                            id: UUID().uuidString,
+                            name: item.itemName,
+                            calories: item.calories,
+                            protein: item.protein,
+                            carbs: item.carbs,
+                            fats: item.fats,
+                            servingSize: item.servingSize,
+                            servingWeight: 0
+                        )
+                    }
+                    DispatchQueue.main.async { completion(.success(foodItems)) }
+                } else {
+                     DispatchQueue.main.async { completion(.failure(ImageRecognitionError.invalidOutputFormat)) }
+                }
+            } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
             }
-        }
+        }.resume()
     }
-}
-
-// Extends UIImage to add a resizing method for model compatibility.
-extension UIImage {
-    // Resizes the image to a specified size.
-    func resized(toSize size: CGSize) -> UIImage? {
-        UIGraphicsBeginImageContextWithOptions(size, false, 0.0) // Starts a new graphics context.
-        self.draw(in: CGRect(origin: .zero, size: size)) // Draws the image in the new size.
-        let resizedImage = UIGraphicsGetImageFromCurrentImageContext() // Retrieves the resized image.
-        UIGraphicsEndImageContext() // Cleans up the graphics context.
-        return resizedImage // Returns the resized image (optional due to potential failure).
-    }
-}
-
-// Enum for Food-101 categories (you need to define all 101 categories)
-// Represents the 101 food categories from the Food-101 dataset as an enum.
-enum Food101Categories: String, CaseIterable {
-    case apple_pie, baby_back_ribs, baklava, beef_carpaccio, beef_tartare, // ... Add all 101 categories here
-         beef_tongue, beet_salad, beignets, bibimbap, bread_pudding, // Partial list for example
-         breakfast_burrito, bruschetta, caesar_salad, cannoli, caprese_salad,
-         carrot_cake, ceviche, cheesecake, chicken_curry, chicken_quesadilla,
-         chicken_wings, chocolate_cake, chocolate_mousse, churros, clam_chowder,
-         club_sandwich, crab_cakes, creme_brulee, croques_monsieur, deviled_eggs,
-         donuts, dumplings, edamame, eggs_benedict, escargot, falafel, filet_mignon,
-         fish_and_chips, foie_gras, french_fries, french_onion_soup, french_toast,
-         fried_calamari, fried_rice, fruit_salad, garlic_bread, gnocchi, greek_salad,
-         grilled_cheese_sandwich, grilled_salmon, guacamole, gyoza, hamburger,
-         hot_and_sour_soup, hot_dog, huevos_rancheros, hummus, ice_cream, lamb_shanks,
-         lasagna, lobster_bisque, lobster_roll_sandwich, macaroni_and_cheese, macarons,
-         miso_soup, mussels, nachos, omelette, onion_rings, oysters, pad_thai, paella,
-         pancakes, panna_cotta, peking_duck, pho, pizza, pork_chop, pork_gyozas,
-         pulled_pork_sandwich, ramen, ravioli, red_velvet_cake, risotto, samosa,
-         sashimi, scallops, seafood_pasta, shrimp_and_grits, spaghetti_bolognese,
-         spaghetti_carbonara, spring_rolls, steak, strawberry_shortcake, sushi,
-         tacos, takoyaki, tiramisu, tuna_tartare, waffles
-    // Ensure you list all 101 categories from the Food-101 dataset here.
-    // Note: The list is complete as per the Food-101 dataset; ensure all cases are included.
 }

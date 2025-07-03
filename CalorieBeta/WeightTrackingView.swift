@@ -96,8 +96,7 @@ struct WeightTrackingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Text("Weight Tracking")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .appFont(size: 22, weight: .bold)
                     .padding(.horizontal)
                     .padding(.top, 15)
                     .padding(.bottom, 5)
@@ -117,16 +116,17 @@ struct WeightTrackingView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("Weight Goal")
-                                .font(.headline)
+                                .appFont(size: 17, weight: .semibold)
                             Spacer()
                             Button("Edit") {
                                 targetWeightInput = String(format: "%.1f", target)
                                 showingTargetWeightSheet = true
                             }
+                            .tint(.brandPrimary)
                         }
                         
                         ProgressView(value: currentProgress)
-                            .progressViewStyle(LinearProgressViewStyle(tint: Color.accentColor))
+                            .progressViewStyle(LinearProgressViewStyle(tint: Color.brandPrimary))
                             .scaleEffect(x: 1, y: 2, anchor: .center)
                         
                         HStack {
@@ -134,8 +134,8 @@ struct WeightTrackingView: View {
                             Spacer()
                             Text(String(format: "Goal: %.1f lb", target))
                         }
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                         
                         Divider()
                         
@@ -146,7 +146,7 @@ struct WeightTrackingView: View {
                         }
                     }
                     .padding()
-                    .background(Color(.secondarySystemBackground))
+                    .background(Color.backgroundSecondary)
                     .cornerRadius(15)
                     .padding(.horizontal)
                 } else {
@@ -154,22 +154,14 @@ struct WeightTrackingView: View {
                         targetWeightInput = String(format: "%.1f", goalSettings.weight)
                         showingCaloricCalculatorSheet = true
                     }
+                    .buttonStyle(PrimaryButtonStyle())
                     .padding()
-                    .buttonStyle(.borderedProminent)
-                    .padding(.horizontal)
                 }
                 
                 Button(action: { showingWeightEntrySheet = true }) {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Log Current Weight")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.accentColor)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
+                    Label("Log Current Weight", systemImage: "plus")
                 }
+                .buttonStyle(PrimaryButtonStyle())
                 .padding(.horizontal)
 
                 if let initialWt = initialWeightForCurrentGoalPeriod,
@@ -185,7 +177,7 @@ struct WeightTrackingView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Weight History (\(selectedChartTimeframe.displayName))")
-                        .font(.headline)
+                        .appFont(size: 17, weight: .semibold)
                         .padding(.horizontal)
                     
                     Picker("Timeframe", selection: $selectedChartTimeframe.animation()) {
@@ -214,35 +206,35 @@ struct WeightTrackingView: View {
                         .padding(.top, 5)
                     } else {
                         Text("No weight data for this period.")
-                            .foregroundColor(.gray)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
                             .frame(height: 250, alignment: .center)
                             .frame(maxWidth: .infinity)
                     }
                 }
                 .padding()
-                .background(Color(.secondarySystemBackground))
+                .background(Color.backgroundSecondary)
                 .cornerRadius(15)
                 .padding(.horizontal)
                 
                 VStack(alignment: .leading, spacing: 10) {
                      Text("Period Stats")
-                        .font(.headline)
+                        .appFont(size: 17, weight: .semibold)
                         .padding(.horizontal)
 
                     Grid(alignment: .leading, horizontalSpacing: 15, verticalSpacing: 15) {
                         GridRow {
-                            SmallStatCard(title: "Daily Rate", value: chartStats.dailyRate.map { String(format: "%+.2f lb/day", $0) } ?? "N/A", iconName: chartStats.dailyRate.map { $0 == 0 ? "arrow.left.arrow.right" : ($0 < 0 ? "arrow.down.right" : "arrow.up.right") } ?? "scalemass", iconColor: chartStats.dailyRate.map { $0 == 0 ? .gray : ($0 < 0 ? .green : .red) } ?? .gray)
-                            SmallStatCard(title: "Trend", value: chartStats.trend.map { String(format: "%+.1f lb", $0) } ?? "N/A", iconName: chartStats.trend.map { $0 == 0 ? "arrow.left.arrow.right" : ($0 < 0 ? "arrow.down.right" : "arrow.up.right") } ?? "chart.line.uptrend.xyaxis", iconColor: chartStats.trend.map { $0 == 0 ? .gray : ($0 < 0 ? .green : .red) } ?? .gray)
+                            SmallStatCard(title: "Daily Rate", value: chartStats.dailyRate.map { String(format: "%+.2f lb/day", $0) } ?? "N/A", iconName: chartStats.dailyRate.map { $0 == 0 ? "arrow.left.arrow.right" : ($0 < 0 ? "arrow.down.right" : "arrow.up.right") } ?? "scalemass", iconColor: chartStats.dailyRate.map { $0 == 0 ? .gray : ($0 < 0 ? .accentPositive : .red) } ?? .gray)
+                            SmallStatCard(title: "Trend", value: chartStats.trend.map { String(format: "%+.1f lb", $0) } ?? "N/A", iconName: chartStats.trend.map { $0 == 0 ? "arrow.left.arrow.right" : ($0 < 0 ? "arrow.down.right" : "arrow.up.right") } ?? "chart.line.uptrend.xyaxis", iconColor: chartStats.trend.map { $0 == 0 ? .gray : ($0 < 0 ? .accentPositive : .red) } ?? .gray)
                         }
                         GridRow {
                             SmallStatCard(title: "Highest", value: chartStats.highest.map { String(format: "%.1f lb", $0) } ?? "N/A", iconName: "arrow.up.to.line", iconColor: .orange)
-                            SmallStatCard(title: "Lowest", value: chartStats.lowest.map { String(format: "%.1f lb", $0) } ?? "N/A", iconName: "arrow.down.to.line", iconColor: .green)
+                            SmallStatCard(title: "Lowest", value: chartStats.lowest.map { String(format: "%.1f lb", $0) } ?? "N/A", iconName: "arrow.down.to.line", iconColor: .accentPositive)
                         }
                     }
                     .padding(.horizontal)
                 }
                 .padding()
-                .background(Color(.secondarySystemBackground))
+                .background(Color.backgroundSecondary)
                 .cornerRadius(15)
                 .padding(.horizontal)
 
@@ -281,6 +273,7 @@ struct WeightTrackingView: View {
                     }
                 }
             }
+            .tint(.brandPrimary)
         }
         .sheet(isPresented: $showingCaloricCalculatorSheet) {
             CaloricCalculatorView()
@@ -311,13 +304,16 @@ struct WeightTrackingView: View {
     private func confirmDeleteChartEntry(entryID: String) {
         goalSettings.deleteWeightEntry(entryID: entryID) { error in
             if let error = error {
+                // Handle error
             } else {
+                // Handle success
             }
         }
         chartEntryToDeleteID = nil
     }
 }
 
+// RESTORED: StatBox Definition
 struct StatBox: View {
     var value: String
     var label: String
@@ -335,6 +331,7 @@ struct StatBox: View {
     }
 }
 
+// RESTORED: SmallStatCard Definition
 struct SmallStatCard: View {
     var title: String
     var value: String

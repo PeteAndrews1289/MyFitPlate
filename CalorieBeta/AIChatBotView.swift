@@ -19,7 +19,6 @@ struct AIChatbotView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService
     @EnvironmentObject var mealPlannerService: MealPlannerService
-    @Environment(\.colorScheme) var colorScheme
     @State private var showAlert = false
     @State private var alertMessage = ""
     private let bottomScrollID = "bottomInputArea"
@@ -52,30 +51,50 @@ struct AIChatbotView: View {
 
     private var remainingGoalsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Remaining Goals for \(dailyLogService.dateFormatter.string(from: dailyLogService.activelyViewedDate))").font(.title3).fontWeight(.semibold).foregroundColor(colorScheme == .dark ? .white : .black)
-            Text("Calories: \(String(format: "%.0f", remainingCalories)) cal").font(.subheadline).foregroundColor(.gray)
-            Text("Protein: \(String(format: "%.0f", remainingProtein)) g").font(.subheadline).foregroundColor(.gray)
-            Text("Fats: \(String(format: "%.0f", remainingFats)) g").font(.subheadline).foregroundColor(.gray)
-            Text("Carbs: \(String(format: "%.0f", remainingCarbs)) g").font(.subheadline).foregroundColor(.gray)
-        }.padding().background(colorScheme == .dark ? Color(.secondarySystemBackground) : Color.white).cornerRadius(15).shadow(radius: 2)
+            Text("Remaining Goals for \(dailyLogService.dateFormatter.string(from: dailyLogService.activelyViewedDate))")
+                .appFont(size: 20, weight: .semibold)
+                .foregroundColor(.textPrimary)
+            Text("Calories: \(String(format: "%.0f", remainingCalories)) cal").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel))
+            Text("Protein: \(String(format: "%.0f", remainingProtein)) g").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel))
+            Text("Fats: \(String(format: "%.0f", remainingFats)) g").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel))
+            Text("Carbs: \(String(format: "%.0f", remainingCarbs)) g").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel))
+        }
+        .padding()
+        .background(Color.backgroundSecondary)
+        .cornerRadius(15)
+        .shadow(radius: 2)
     }
 
     private var chatHistorySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Chat History").font(.title3).fontWeight(.semibold).foregroundColor(colorScheme == .dark ? .white : .black)
+            Text("Chat History")
+                .appFont(size: 20, weight: .semibold)
+                .foregroundColor(.textPrimary)
             ChatHistoryListView(chatMessages: $chatMessages, onLogRecipe: logRecipe, showAlert: $showAlert, alertMessage: $alertMessage)
                 .frame(maxHeight: 300)
-        }.padding().background(colorScheme == .dark ? Color(.secondarySystemBackground) : Color.white).cornerRadius(15).shadow(radius: 2)
+        }
+        .padding()
+        .background(Color.backgroundSecondary)
+        .cornerRadius(15)
+        .shadow(radius: 2)
     }
 
     private var inputSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                TextField("Ask Maia for nutritional info...", text: $userMessage)
-                    .textFieldStyle(RoundedBorderTextFieldStyle()).padding().submitLabel(.done).onSubmit { sendMessage() }
-                Button(action: sendMessage) { Image(systemName: "paperplane.fill").font(.title2).padding().foregroundColor(.white) }.disabled(isLoading || userMessage.isEmpty).background(Color.accentColor).clipShape(Circle())
-            }.padding().background(colorScheme == .dark ? Color(.secondarySystemBackground) : Color.white).cornerRadius(15).shadow(radius: 2)
-        }.id(bottomScrollID)
+        HStack {
+            TextField("Ask Maia for nutritional info...", text: $userMessage)
+                .textFieldStyle(AppTextFieldStyle(iconName: nil))
+                .submitLabel(.done)
+                .onSubmit { sendMessage() }
+            Button(action: sendMessage) {
+                Image(systemName: "paperplane.fill")
+                    .font(.title2)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .frame(width: 50)
+            .disabled(isLoading || userMessage.isEmpty)
+        }
+        .padding(.horizontal)
+        .id(bottomScrollID)
     }
 
     var body: some View {
@@ -87,15 +106,15 @@ struct AIChatbotView: View {
                     inputSection
                     
                     Text("AI-generated content may be inaccurate. Nutritional information is an estimate and not a substitute for professional medical advice.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .appFont(size: 10)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                         .padding(.top, 10)
                 }
                 .padding(.vertical)
             }
-            .background(colorScheme == .dark ? Color(.systemBackground) : Color.white)
+            .background(Color.backgroundPrimary)
             .navigationTitle("Maia")
             .onTapGesture { hideKeyboard() }
             .onAppear {
@@ -169,7 +188,7 @@ struct AIChatbotView: View {
         
         messagesForAPI.append(["role": "user", "content": message])
 
-        let requestBody: [String: Any] = ["model": "gpt-3.5-turbo", "messages": messagesForAPI, "max_tokens": 1000, "temperature": 0.5]
+        let requestBody: [String: Any] = ["model": "gpt-4o-mini", "messages": messagesForAPI, "max_tokens": 1000, "temperature": 0.5]
         guard let httpBody = try? JSONSerialization.data(withJSONObject: requestBody) else { completion("Error: Failed to serialize request."); isLoading = false; return }
         request.httpBody = httpBody
         URLSession.shared.dataTask(with: request) { data, response, error in
@@ -346,7 +365,6 @@ struct ChatMessage: Identifiable, Codable, Equatable { let id: UUID; let text: S
 struct ChatBubble: View {
      let message: ChatMessage
      let onLogRecipe: (String) -> Void
-     @Environment(\.colorScheme) var colorScheme
      @Binding var showAlert: Bool
      @Binding var alertMessage: String
      private let canBeLogged: Bool
@@ -364,17 +382,25 @@ struct ChatBubble: View {
              HStack {
                  if message.isUser { Spacer() }
                  Text(message.text)
-                     .padding().background(message.isUser ? Color.accentColor : Color.gray.opacity(0.2)).cornerRadius(12)
-                     .foregroundColor(message.isUser ? .white : (colorScheme == .dark ? .white : .black))
+                     .padding()
+                     .background(message.isUser ? Color.brandPrimary : Color.backgroundSecondary)
+                     .cornerRadius(12)
+                     .foregroundColor(message.isUser ? .white : .textPrimary)
                      .frame(maxWidth: 300, alignment: message.isUser ? .trailing : .leading)
                  if !message.isUser { Spacer() }
-             }.padding(message.isUser ? .leading : .trailing, 40)
+             }
+             .padding(message.isUser ? .leading : .trailing, 40)
              
              HStack {
                  if canBeLogged {
                      Button(action: { onLogRecipe(message.text) }) {
-                         Text("Log Food").font(.caption).fontWeight(.semibold).padding(.vertical, 4).padding(.horizontal, 8)
-                             .background(Color.accentColor).foregroundColor(.white).cornerRadius(8)
+                         Text("Log Food")
+                            .appFont(size: 12, weight: .semibold)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8)
+                            .background(Color.brandPrimary)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
                      }
                  }
              }

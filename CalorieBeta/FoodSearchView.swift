@@ -49,8 +49,9 @@ struct FoodSearchView: View {
                     myFoodsSection
                 }
             }
+            .background(Color.backgroundPrimary.edgesIgnoringSafeArea(.all))
             .navigationTitle("Add Food")
-            .navigationBarItems(leading: Button("Cancel") { dismiss() })
+            .navigationBarItems(leading: Button("Cancel") { dismiss() }.foregroundColor(.brandPrimary))
             .sheet(isPresented: $showingAddFoodManually) {
                 AddFoodView { newFood in
                     if let userID = Auth.auth().currentUser?.uid {
@@ -89,7 +90,7 @@ struct FoodSearchView: View {
         VStack {
             HStack {
                 TextField("Search for food...", text: $searchQuery)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .textFieldStyle(AppTextFieldStyle(iconName: "magnifyingglass"))
                     .keyboardType(.default)
                     .onChange(of: searchQuery) { newValue in
                         handleSearchQueryChange(newValue)
@@ -97,10 +98,7 @@ struct FoodSearchView: View {
                 Button(action: { showingBarcodeScanner = true }) {
                     Image(systemName: "barcode.viewfinder")
                         .font(.title2)
-                }
-                Button(action: searchByQuery) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.title2)
+                        .foregroundColor(.brandPrimary)
                 }
             }
             .padding()
@@ -111,10 +109,12 @@ struct FoodSearchView: View {
             } else if searchResults.isEmpty && !searchQuery.isEmpty {
                 VStack(spacing: 15) {
                     Text("No results found for '\(searchQuery)'")
-                        .foregroundColor(.gray)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                     Button("Add Food Manually") {
                         showingAddFoodManually = true
                     }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .padding(.horizontal, 40)
                 }
                 .padding(.top, 50)
                 Spacer()
@@ -125,13 +125,15 @@ struct FoodSearchView: View {
                     }) {
                         VStack(alignment: .leading) {
                             Text(foodItem.name)
-                                .fontWeight(.medium)
+                                .appFont(size: 15, weight: .medium)
                             Text(foodItem.servingSize)
-                                .font(.caption)
-                                .foregroundColor(.gray)
+                                .appFont(size: 12)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
                         }
                     }
+                    .foregroundColor(.textPrimary) // This line fixes the color issue
                 }
+                .listStyle(InsetGroupedListStyle())
             }
         }
     }
@@ -142,7 +144,7 @@ struct FoodSearchView: View {
                 ProgressView()
             } else if recentFoodItems.isEmpty {
                 Text("No recent foods logged.")
-                    .foregroundColor(.gray)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .padding(.top, 50)
                 Spacer()
             } else {
@@ -152,13 +154,15 @@ struct FoodSearchView: View {
                     }) {
                         VStack(alignment: .leading) {
                             Text(foodItem.name)
-                                .fontWeight(.medium)
+                                .appFont(size: 15, weight: .medium)
                             Text(foodItem.servingSize)
-                                .font(.caption)
-                                .foregroundColor(.gray)
+                                .appFont(size: 12)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
                         }
                     }
+                    .foregroundColor(.textPrimary) // This line fixes the color issue
                 }
+                 .listStyle(InsetGroupedListStyle())
             }
         }
     }
@@ -169,11 +173,11 @@ struct FoodSearchView: View {
                 ProgressView()
             } else if myFoodItems.isEmpty {
                 Text("You haven't saved any custom foods yet.")
-                    .foregroundColor(.gray)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .padding(.top, 50)
                 Text("Tap the star icon on a food's detail page to save it here.")
-                    .font(.caption)
-                    .foregroundColor(.gray)
+                    .appFont(size: 12)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                 Spacer()
@@ -184,13 +188,15 @@ struct FoodSearchView: View {
                     }) {
                         VStack(alignment: .leading) {
                             Text(foodItem.name)
-                                .fontWeight(.medium)
+                                .appFont(size: 15, weight: .medium)
                             Text(foodItem.servingSize)
-                                .font(.caption)
-                                .foregroundColor(.gray)
+                                .appFont(size: 12)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
                         }
                     }
+                    .foregroundColor(.textPrimary) // This line fixes the color issue
                 }
+                 .listStyle(InsetGroupedListStyle())
             }
         }
     }

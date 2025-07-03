@@ -47,37 +47,40 @@ struct SettingsView: View {
                                 .frame(width: 20, height: 20)
                         } else if healthKitViewModel.isAuthorized {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
+                                .foregroundColor(.accentPositive)
                         }
                     }
                 }
-                .foregroundColor(Color(uiColor: .label))
+                .foregroundColor(.textPrimary)
                 .disabled(healthKitViewModel.isSyncing)
 
                 if !healthKitViewModel.isAuthorized {
                     if let hkError = healthKitViewModel.authError {
                         Text(hkError)
-                            .font(.caption)
+                            .appFont(size: 12)
                             .foregroundColor(.red)
                     } else {
                         Text("Connect to sync workouts and activity.")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                            .appFont(size: 12)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
                     }
                 }
             }
 
             Section(header: Text("Account")) {
                 Button("Set New Calorie/Macro Goals") { showCaloricCalculator = true }
+                    .foregroundColor(.brandPrimary)
                 Button("Set Height") {
                     let currentHeight = goalSettings.getHeightInFeetAndInches()
                     feetInput = "\(currentHeight.feet)"; inchesInput = "\(currentHeight.inches)"
                     showHeightEditor = true
                 }
+                .foregroundColor(.brandPrimary)
                 Button("Set New Daily Water Goal") {
                     waterGoalInput = String(format: "%.0f", goalSettings.waterGoal)
                     showingWaterGoalSheet = true
                 }
+                .foregroundColor(.brandPrimary)
                 Picker("Calorie Goal Method", selection: $goalSettings.calorieGoalMethod) {
                     ForEach(CalorieGoalMethod.allCases) { method in Text(method.rawValue).tag(method) }
                 }
@@ -98,6 +101,7 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Done") { showSettings = false } } }
+        .tint(.brandPrimary)
         .sheet(isPresented: $showCaloricCalculator) { CaloricCalculatorView().environmentObject(goalSettings) }
         .sheet(isPresented: $showHeightEditor) { SetHeightView(feetInput: $feetInput, inchesInput: $inchesInput, onSave: {
              if let feet = Int(feetInput), let inches = Int(inchesInput) {

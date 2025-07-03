@@ -7,29 +7,21 @@ struct CurrentWeightView: View {
     @State private var weight = ""
     @Environment(\.dismiss) var dismiss
 
-    // Define the accent color using the values from your assets
-    private let accentGreen = Color(red: 0.263, green: 0.679, blue: 0.436)
-
     var body: some View {
         Form {
             Section(header: Text("Current Weight")) {
                 TextField("Enter your weight (lbs)", text: $weight)
                     .keyboardType(.decimalPad)
+                    .textFieldStyle(AppTextFieldStyle(iconName: nil))
             }
 
-            Button(action: {
+            Button("Save Weight") {
                 saveWeight()
                 dismiss()
-            }) {
-                Text("Save Weight")
-                    .font(.title2)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(accentGreen) // Use the defined accentGreen
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
             }
+            .buttonStyle(PrimaryButtonStyle())
             .padding(.top)
+            .listRowInsets(EdgeInsets())
         }
         .navigationTitle("Current Weight")
         .onAppear {
