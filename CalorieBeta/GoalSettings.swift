@@ -35,6 +35,11 @@ class GoalSettings: ObservableObject {
     @Published var calorieGoalMethod: CalorieGoalMethod = .mifflinWithActivity { didSet { recalculateAllGoals() } }
     @Published var waterGoal: Double = 64.0
 
+    @Published var suggestionProteins: [String] = ["Chicken", "Beef", "Fish"]
+    @Published var suggestionCuisines: [String] = ["Any"]
+    @Published var suggestionCarbs: [String] = ["Rice", "Potatoes", "Pasta"]
+    @Published var suggestionVeggies: [String] = ["Broccoli", "Bell Peppers"]
+
     private let db = Firestore.firestore()
     private var weightHistoryListener: ListenerRegistration?
     private var cancellables = Set<AnyCancellable>()
@@ -215,6 +220,11 @@ class GoalSettings: ObservableObject {
                     }
                 }
                 
+                self.suggestionProteins = goalsMap["suggestionProteins"] as? [String] ?? self.suggestionProteins
+                self.suggestionCuisines = goalsMap["suggestionCuisines"] as? [String] ?? self.suggestionCuisines
+                self.suggestionCarbs = goalsMap["suggestionCarbs"] as? [String] ?? self.suggestionCarbs
+                self.suggestionVeggies = goalsMap["suggestionVeggies"] as? [String] ?? self.suggestionVeggies
+                
                 data["goals"] = goalsMap
 
                 self.proteinPercentage = goalsMap["proteinPercentage"] as? Double ?? self.proteinPercentage
@@ -247,7 +257,9 @@ class GoalSettings: ObservableObject {
                 "activityLevel": self.activityLevel, "goal": self.goal, "targetWeight": self.targetWeight ?? NSNull(),
                 "calciumGoal": self.calciumGoal ?? NSNull(), "ironGoal": self.ironGoal ?? NSNull(), "potassiumGoal": self.potassiumGoal ?? NSNull(),
                 "sodiumGoal": self.sodiumGoal ?? NSNull(), "vitaminAGoal": self.vitaminAGoal ?? NSNull(), "vitaminCGoal": self.vitaminCGoal ?? NSNull(),
-                "vitaminDGoal": self.vitaminDGoal ?? NSNull(), "waterGoal": self.waterGoal
+                "vitaminDGoal": self.vitaminDGoal ?? NSNull(), "waterGoal": self.waterGoal,
+                "suggestionProteins": self.suggestionProteins, "suggestionCuisines": self.suggestionCuisines,
+                "suggestionCarbs": self.suggestionCarbs, "suggestionVeggies": self.suggestionVeggies
             ]
             let userData:[String:Any] = [
                 "goals": goalsDict, "height": self.height, "age": self.age, "gender": self.gender, "isFirstLogin": false,

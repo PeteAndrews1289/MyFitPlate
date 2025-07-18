@@ -1,15 +1,19 @@
 import Foundation
 import AVFoundation
 
-class TTSManager: NSObject, ObservableObject {
+class TTSManager: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     static let shared = TTSManager()
 
-    private var audioPlayer: AVAudioPlayer?
-    private let fallbackSynth = AVSpeechSynthesizer()
+    private let speechSynthesizer = AVSpeechSynthesizer()
     @Published var isSpeaking: Bool = false
+    @Published var mouthShape: String = "mouth_neutral"
+    private var bestVoice: AVSpeechSynthesisVoice?
 
     override init() {
         super.init()
+        self.speechSynthesizer.delegate = self
+        self.bestVoice = findBestVoice()
+        
         let audioSession = AVAudioSession.sharedInstance()
         do {
             try audioSession.setCategory(.playback, mode: .default)
@@ -19,94 +23,64 @@ class TTSManager: NSObject, ObservableObject {
         }
     }
     
+    private func findBestVoice() -> AVSpeechSynthesisVoice? {
+        let voices = AVSpeechSynthesisVoice.speechVoices()
+        
+        let premiumVoices = voices.filter { $0.language == "en-US" && $0.quality == .premium }
+        if let voice = premiumVoices.first { return voice }
+        
+        let enhancedVoices = voices.filter { $0.language == "en-US" && $0.quality == .enhanced }
+        if let voice = enhancedVoices.first { return voice }
+
+        return AVSpeechSynthesisVoice(language: "en-US")
+    }
+    
     func speak(_ text: String) {
         stopSpeaking()
-        isSpeaking = true
         
-        speakWithGoogle(text: text) { [weak self] success in
-            guard let self = self else { return }
-            if !success {
-                self.speakWithAVSpeech(text)
-            }
-            let estimatedDuration = Double(text.count) * 0.06
-            DispatchQueue.main.asyncAfter(deadline: .now() + estimatedDuration) {
-                 if self.isSpeaking { self.isSpeaking = false }
-            }
-        }
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = self.bestVoice
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95
+        utterance.pitchMultiplier = 1.05
+        utterance.volume = 1.0
+        
+        self.speechSynthesizer.speak(utterance)
     }
 
     func stopSpeaking() {
-        if audioPlayer?.isPlaying ?? false {
-            audioPlayer?.stop()
+        if speechSynthesizer.isSpeaking {
+            speechSynthesizer.stopSpeaking(at: .immediate)
         }
-        if fallbackSynth.isSpeaking {
-            fallbackSynth.stopSpeaking(at: .immediate)
+        DispatchQueue.main.async {
+            self.isSpeaking = false
+            self.mouthShape = "mouth_neutral"
         }
-        if isSpeaking {
-             isSpeaking = false
+    }
+    
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async {
+            self.isSpeaking = true
         }
     }
 
-    private func speakWithGoogle(text: String, completion: @escaping (Bool) -> Void) {
-        let apiKey = getAPIKey()
-        guard !apiKey.isEmpty, apiKey != "YOUR_API_KEY" else {
-            completion(false)
-            return
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async {
+            self.isSpeaking = false
+            self.mouthShape = "mouth_neutral"
         }
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, willSpeakRangeOfSpeechString characterRange: NSRange, utterance: AVSpeechUtterance) {
+        let word = (utterance.speechString as NSString).substring(with: characterRange).lowercased()
         
-        let url = URL(string: "https://texttospeech.googleapis.com/v1/text:synthesize?key=\(apiKey)")!
-
-        let body: [String: Any] = [
-            "input": ["text": text],
-            "voice": ["languageCode": "en-US", "name": "en-US-Neural2-F"],
-            "audioConfig": ["audioEncoding": "MP3"]
-        ]
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
-        URLSession.shared.dataTask(with: request) { data, _, error in
-            if let error = error {
-                DispatchQueue.main.async { completion(false) }
-                return
-            }
-            guard let data = data,
-                  let response = try? JSONDecoder().decode(GoogleTTSResponse.self, from: data),
-                  let audioData = Data(base64Encoded: response.audioContent) else {
-                DispatchQueue.main.async { completion(false) }
-                return
-            }
-
-            DispatchQueue.main.async {
-                self.play(audioData)
-                completion(true)
-            }
-        }.resume()
-    }
-
-    private func speakWithAVSpeech(_ text: String) {
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = 0.5
-        utterance.pitchMultiplier = 1.0
-        utterance.volume = 1.0
-        fallbackSynth.speak(utterance)
-    }
-
-    private func play(_ data: Data) {
-        do {
-            self.audioPlayer = try AVAudioPlayer(data: data)
-            self.audioPlayer?.play()
-        } catch {
-            DispatchQueue.main.async {
-                self.isSpeaking = false
+        DispatchQueue.main.async {
+            if word.contains("o") || word.contains("u") || word.contains("w") {
+                self.mouthShape = "mouth_o"
+            } else if word.contains("a") || word.contains("e") || word.contains("i") {
+                self.mouthShape = "mouth_open"
+            } else {
+                self.mouthShape = "mouth_neutral"
             }
         }
     }
-}
-
-struct GoogleTTSResponse: Codable {
-    let audioContent: String
 }

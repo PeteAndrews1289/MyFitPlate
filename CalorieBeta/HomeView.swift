@@ -9,7 +9,9 @@ struct HomeView: View {
     @EnvironmentObject var mealPlannerService: MealPlannerService
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var insightsService: InsightsService
+    @EnvironmentObject var spotlightManager: SpotlightManager
     @Environment(\.colorScheme) var colorScheme
+
     @Binding var navigateToProfile: Bool
     @Binding var showSettings: Bool
 
@@ -20,6 +22,21 @@ struct HomeView: View {
     @State private var exerciseToEdit: LoggedExercise? = nil
     @State private var showingEditExerciseView = false
     @State private var weeklyInsight: UserInsight?
+
+    @State private var mealSuggestion: MealSuggestion? = nil
+    @State private var showingSuggestionDetail = false
+    @State private var showingSuggestionPreferences = false
+
+    @State private var tourSpotlightIDs: [String] = []
+    @State private var currentSpotlightIndex: Int = 0
+    @State private var showingSpotlightTour = false
+    
+    private let spotlightOrder = ["nutritionProgress", "waterTracker", "dailyLog"]
+    private let spotlightContent: [String: (title: String, text: String)] = [
+        "nutritionProgress": ("Daily Progress", "This area shows your real-time progress for calories, macros, and micronutrients. Swipe left or right to see different views!"),
+        "waterTracker": ("Water Intake", "Quickly log your water intake here. The bottle will fill up as you get closer to your daily goal."),
+        "dailyLog": ("Your Daily Log", "All of your logged food and exercise will appear here. Swipe any item to edit or delete it.")
+    ]
 
     private var selectedDateFormattedString: String {
         let formatter = DateFormatter()
@@ -37,53 +54,122 @@ struct HomeView: View {
 
     var body: some View {
          ZStack {
-            Color.backgroundPrimary
-                .edgesIgnoringSafeArea(.all)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 20) {
+                        dateNavigationView
+                            .padding(.horizontal)
+                        
+                        nutritionProgressSection
+                            .padding(.horizontal)
+                            .id("nutritionProgress")
+                        
+                        if isToday {
+                            MealSuggestionCardView(
+                                suggestion: mealSuggestion,
+                                onGenerate: {
+                                    Task {
+                                        self.mealSuggestion = await insightsService.generateSingleMealSuggestion()
+                                    }
+                                },
+                                onTap: {
+                                    if mealSuggestion != nil {
+                                        showingSuggestionDetail = true
+                                    } else {
+                                        showingSuggestionPreferences = true
+                                    }
+                                },
+                                onPrefs: {
+                                    showingSuggestionPreferences = true
+                                },
+                                isLoading: insightsService.isGeneratingSuggestion
+                            )
+                            .padding(.horizontal)
+                        }
+                        
+                        if let currentDailyLog = dailyLogService.currentDailyLog, Calendar.current.isDate(currentDailyLog.date, inSameDayAs: selectedDate) {
+                            
+                         
+                            let insightToShow = insightsService.isLoadingInsights ? nil : weeklyInsight
+                            
+                            WaterTrackingCardView(date: currentDailyLog.date, insight: insightToShow)
+                                .asCard()
+                                .featureSpotlight(isActive: isSpotlightActive(for: "waterTracker"))
+                                .id("waterTracker")
+                                .padding(.horizontal)
+                        }
+                        
+                        foodDiarySection
+                            .padding(.horizontal)
+                            .id("dailyLog")
+                    }
+                    .padding(.top)
+                    .padding(.bottom, 120)
+                }
+                .onChange(of: currentSpotlightIndex) { newIndex in
+                    if showingSpotlightTour && newIndex < tourSpotlightIDs.count {
+                        let spotlightID = tourSpotlightIDs[newIndex]
+                        withAnimation {
+                            proxy.scrollTo(spotlightID, anchor: .center)
+                        }
+                    }
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Text("MyFitPlate")
+                        .appFont(size: 17, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button(action: { self.showingProfileSheet = true }) {
+                            Label("Profile", systemImage: "person")
+                        }
+                        Divider()
+                        Button(action: { self.showSettings = true }) {
+                            Label("Settings", systemImage: "gearshape")
+                        }
+                    } label: {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.title2)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                }
+            }
 
-             ScrollView {
-                 VStack(spacing: 20) { // Increased spacing between cards
-                     dateNavigationView
-                     
-                     nutritionProgressSection
-                     
-                     foodDiarySection
-                     
-                     // The activity widget is now inside the foodDiarySection card
-                     
-                 }
-                 .padding() // Add padding around the whole VStack
-                 .padding(.bottom, 100)
-             }
-             .toolbar {
-                 ToolbarItem(placement: .navigationBarLeading) {
-                     Text("MyFitPlate")
-                         .appFont(size: 17, weight: .semibold)
-                         .foregroundColor(Color(UIColor.secondaryLabel))
-                 }
-                 ToolbarItem(placement: .navigationBarTrailing) {
-                     Menu {
-                         Button(action: { self.showingProfileSheet = true }) {
-                             Label("Profile", systemImage: "person")
-                         }
-                         
-                         Divider()
-                         
-                         Button(action: { self.showSettings = true }) {
-                             Label("Settings", systemImage: "gearshape")
-                         }
-                     } label: {
-                         Image(systemName: "line.3.horizontal")
-                             .font(.title2)
-                             .foregroundColor(Color(UIColor.secondaryLabel))
-                     }
-                 }
+            if showingSpotlightTour {
+                Color.black.opacity(0.6).ignoresSafeArea()
+                    .onTapGesture(perform: advanceTour)
+                    .transition(.opacity)
+
+                if currentSpotlightIndex < tourSpotlightIDs.count {
+                    let currentID = tourSpotlightIDs[currentSpotlightIndex]
+                    if let content = spotlightContent[currentID] {
+                        SpotlightTextView(
+                            content: content,
+                            currentIndex: currentSpotlightIndex,
+                            total: tourSpotlightIDs.count,
+                            position: .bottom,
+                            onNext: advanceTour
+                        )
+                    }
+                }
+            }
+         }
+         .sheet(isPresented: $showingSuggestionDetail) {
+             if let suggestion = mealSuggestion {
+                 MealSuggestionDetailView(suggestion: suggestion, onLog: logMealSuggestion)
              }
          }
-         .sheet(isPresented: $showingProfileSheet, content: {
+         .sheet(isPresented: $showingSuggestionPreferences) {
+             SuggestionPreferencesView(goalSettings: goalSettings)
+         }
+         .sheet(isPresented: $showingProfileSheet) {
              NavigationView {
                  UserProfileView()
              }
-         })
+         }
          .sheet(isPresented: $showingAddExerciseView) {
              AddExerciseView { newExercise in
                  if let userID = Auth.auth().currentUser?.uid {
@@ -99,16 +185,73 @@ struct HomeView: View {
                  }
              }
          }
-         .onAppear {
-            dailyLogService.activelyViewedDate = selectedDate
-            fetchLogForSelectedDate()
-            if isToday {
-                healthKitViewModel.checkAuthorizationStatus()
-            }
-         }
+         .onAppear(perform: onHomeViewAppear)
          .onReceive(insightsService.$currentInsights) { insights in
              self.weeklyInsight = insights.first
          }
+    }
+    
+    private func logMealSuggestion(_ suggestion: MealSuggestion) {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        
+        let foodItem = FoodItem(
+            id: UUID().uuidString,
+            name: suggestion.mealName,
+            calories: suggestion.calories,
+            protein: suggestion.protein,
+            carbs: suggestion.carbs,
+            fats: suggestion.fats,
+            servingSize: "1 serving (AI Suggestion)",
+            servingWeight: 0,
+            timestamp: Date()
+        )
+        
+        dailyLogService.addFoodToCurrentLog(for: userID, foodItem: foodItem, source: "ai_suggestion")
+        
+        withAnimation {
+            self.mealSuggestion = nil
+        }
+    }
+    
+    private func onHomeViewAppear() {
+        dailyLogService.activelyViewedDate = selectedDate
+        fetchLogForSelectedDate()
+        if isToday {
+            healthKitViewModel.checkAuthorizationStatus()
+        }
+        
+        let needed = spotlightOrder.filter { !spotlightManager.isShown(id: $0) }
+        if !needed.isEmpty {
+            self.tourSpotlightIDs = needed
+            self.currentSpotlightIndex = 0
+            withAnimation {
+                self.showingSpotlightTour = true
+            }
+        }
+    }
+    
+    private func isSpotlightActive(for id: String) -> Bool {
+        guard showingSpotlightTour, !tourSpotlightIDs.isEmpty, currentSpotlightIndex < tourSpotlightIDs.count else {
+            return false
+        }
+        return tourSpotlightIDs[currentSpotlightIndex] == id
+    }
+    
+    private func advanceTour() {
+        if currentSpotlightIndex < tourSpotlightIDs.count - 1 {
+            withAnimation {
+                currentSpotlightIndex += 1
+            }
+        } else {
+            finishTour()
+        }
+    }
+    
+    private func finishTour() {
+        withAnimation {
+            showingSpotlightTour = false
+        }
+        tourSpotlightIDs.forEach { spotlightManager.markAsShown(id: $0) }
     }
 
     private var dateNavigationView: some View {
@@ -153,7 +296,8 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity, minHeight: 220)
             }
         }
-        .asCard() // Apply the new card style
+        .asCard()
+        .featureSpotlight(isActive: isSpotlightActive(for: "nutritionProgress"))
     }
 
     private var foodDiarySection: some View {
@@ -178,7 +322,8 @@ struct HomeView: View {
                 }
             }
         }
-        .asCard() // Apply the new card style
+        .asCard()
+        .featureSpotlight(isActive: isSpotlightActive(for: "dailyLog"))
     }
 
     @ViewBuilder
@@ -246,12 +391,10 @@ struct HomeView: View {
             
                 self.goalSettings.recalculateAllGoals()
                 
-               
                 if self.isToday {
                     self.insightsService.generateDailySmartInsight()
                 }
                 
-               
                 completion()
             }
         }
@@ -406,6 +549,7 @@ private struct SwipeableFoodItemView: View {
             .offset(x: offset)
             .onTapGesture { if !isSwiped { showDetailView = true } else { withAnimation(.easeInOut) { offset = 0; isSwiped = false } } }
             .gesture( DragGesture().onChanged { value in if value.translation.width < 0 { offset = max(value.translation.width, -70) } else if isSwiped && value.translation.width > 0 { offset = -70 + value.translation.width } }.onEnded { value in withAnimation(.easeInOut) { if value.translation.width < -50 { offset = -70; isSwiped = true } else { offset = 0; isSwiped = false } } } )
-        }.padding(.bottom, 4)
+        }
+        .padding(.bottom, 4)
     }
 }

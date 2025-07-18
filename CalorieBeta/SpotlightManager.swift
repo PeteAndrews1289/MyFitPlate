@@ -19,6 +19,11 @@ class SpotlightManager: ObservableObject {
         saveShownSpotlights()
     }
     
+    func resetSpotlights() {
+        shownSpotlightIDs.removeAll()
+        UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+    }
+    
     private func loadShownSpotlights() {
         let savedIDs = UserDefaults.standard.stringArray(forKey: userDefaultsKey) ?? []
         self.shownSpotlightIDs = Set(savedIDs)

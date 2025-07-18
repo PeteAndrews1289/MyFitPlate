@@ -104,7 +104,7 @@ struct WaterTrackingCardView: View {
                         } label: {
                             Image(systemName: "minus.circle.fill")
                                 .font(.title2)
-                                .foregroundColor(Color.brandPrimary.opacity(0.7))
+                                .foregroundColor(.brandPrimary)
                         }
                         .buttonStyle(.plain)
                         .contentShape(Rectangle())

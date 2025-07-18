@@ -2,6 +2,37 @@ import Foundation
 import FirebaseFirestore
 import SwiftUI
 
+struct UserInsight: Identifiable, Decodable, Equatable {
+    let id = UUID()
+    var title: String
+    var message: String
+    var category: InsightCategory
+    var priority: Int = 0
+    
+    private enum CodingKeys: String, CodingKey {
+        case title, message, category, priority
+    }
+    
+    enum InsightCategory: String, Codable, Equatable, CaseIterable {
+        case nutritionGeneral, hydration, macroBalance, microNutrient, mealTiming, consistency, postWorkout, foodVariety, positiveReinforcement, sugarAwareness, fiberIntake, saturatedFat, smartSuggestion, sleep, calorieFluctuation, weekendTrends, exerciseSynergy
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try container.decode(String.self, forKey: .title)
+        message = try container.decode(String.self, forKey: .message)
+        category = (try? container.decode(InsightCategory.self, forKey: .category)) ?? .nutritionGeneral
+        priority = (try? container.decode(Int.self, forKey: .priority)) ?? 0
+    }
+
+    init(title: String, message: String, category: InsightCategory, priority: Int = 0) {
+        self.title = title
+        self.message = message
+        self.category = category
+        self.priority = priority
+    }
+}
+
 struct PlannedMeal: Identifiable, Codable {
     let id: String
     let mealType: String

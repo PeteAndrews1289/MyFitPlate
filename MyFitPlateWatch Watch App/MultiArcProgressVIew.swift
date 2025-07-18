@@ -46,10 +46,3 @@ struct ArcShape: Shape {
     }
 }
 
-#Preview {
-    GeometryReader { geometry in
-        MultiArcProgressView(progress1: 0.75, progress2: 0.5, progress3: 0.3)
-            
-    }
-    
-}

@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct MaiaAvatarView: View {
-    @Binding var mouthShape: String
     @ObservedObject var ttsManager: TTSManager
 
     var body: some View {
@@ -10,11 +9,12 @@ struct MaiaAvatarView: View {
                 .resizable()
                 .scaledToFit()
             
-            Image(mouthShape)
+            Image(ttsManager.mouthShape)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 25, height: 25)
                 .offset(y: 15)
+                .animation(.easeInOut(duration: 0.1), value: ttsManager.mouthShape)
         }
         .frame(width: 100, height: 100)
         .scaleEffect(ttsManager.isSpeaking ? 1.05 : 1.0)

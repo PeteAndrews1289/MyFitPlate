@@ -97,9 +97,7 @@ struct WeightTrackingView: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text("Weight Tracking")
                     .appFont(size: 22, weight: .bold)
-                    .padding(.horizontal)
                     .padding(.top, 15)
-                    .padding(.bottom, 5)
                 
                 CircularWeightDisplayView(
                     currentWeight: goalSettings.weight,
@@ -109,8 +107,6 @@ struct WeightTrackingView: View {
                     initialWeightForGoal: initialWeightForCurrentGoalPeriod
                 )
                 .environmentObject(goalSettings)
-                .padding(.horizontal)
-
 
                 if let target = goalSettings.targetWeight, let initial = initialWeightForCurrentGoalPeriod {
                     VStack(alignment: .leading, spacing: 12) {
@@ -148,21 +144,18 @@ struct WeightTrackingView: View {
                     .padding()
                     .background(Color.backgroundSecondary)
                     .cornerRadius(15)
-                    .padding(.horizontal)
                 } else {
                     Button("Set Target Weight & Goals") {
                         targetWeightInput = String(format: "%.1f", goalSettings.weight)
                         showingCaloricCalculatorSheet = true
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .padding()
                 }
                 
                 Button(action: { showingWeightEntrySheet = true }) {
                     Label("Log Current Weight", systemImage: "plus")
                 }
-                .buttonStyle(PrimaryButtonStyle())
-                .padding(.horizontal)
+                .buttonStyle(SecondaryButtonStyle())
 
                 if let initialWt = initialWeightForCurrentGoalPeriod,
                    let targetWt = goalSettings.targetWeight,
@@ -173,7 +166,6 @@ struct WeightTrackingView: View {
                         targetWeight: targetWt
                     )
                 }
-
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Weight History (\(selectedChartTimeframe.displayName))")
@@ -214,7 +206,6 @@ struct WeightTrackingView: View {
                 .padding()
                 .background(Color.backgroundSecondary)
                 .cornerRadius(15)
-                .padding(.horizontal)
                 
                 VStack(alignment: .leading, spacing: 10) {
                      Text("Period Stats")
@@ -236,11 +227,10 @@ struct WeightTrackingView: View {
                 .padding()
                 .background(Color.backgroundSecondary)
                 .cornerRadius(15)
-                .padding(.horizontal)
-
 
                 Spacer()
             }
+            .padding(.horizontal)
             .padding(.bottom, 30)
         }
         .sheet(isPresented: $showingWeightEntrySheet) {
@@ -304,16 +294,13 @@ struct WeightTrackingView: View {
     private func confirmDeleteChartEntry(entryID: String) {
         goalSettings.deleteWeightEntry(entryID: entryID) { error in
             if let error = error {
-                // Handle error
             } else {
-                // Handle success
             }
         }
         chartEntryToDeleteID = nil
     }
 }
 
-// RESTORED: StatBox Definition
 struct StatBox: View {
     var value: String
     var label: String
@@ -331,7 +318,6 @@ struct StatBox: View {
     }
 }
 
-// RESTORED: SmallStatCard Definition
 struct SmallStatCard: View {
     var title: String
     var value: String

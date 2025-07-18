@@ -3,52 +3,20 @@ import Combine
 import FirebaseAuth
 import HealthKit
 
-struct UserInsight: Identifiable, Decodable, Equatable {
-    let id = UUID()
-    var title: String
-    var message: String
-    var category: InsightCategory
-    var priority: Int = 0
-    
-    
-    private enum CodingKeys: String, CodingKey {
-        case title, message, category, priority
-    }
-    
-  
-    enum InsightCategory: String, Codable, Equatable, CaseIterable {
-        case nutritionGeneral, hydration, macroBalance, microNutrient, mealTiming, consistency, postWorkout, foodVariety, positiveReinforcement, sugarAwareness, fiberIntake, saturatedFat, smartSuggestion, sleep
-    }
-    
-   
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        title = try container.decode(String.self, forKey: .title)
-        message = try container.decode(String.self, forKey: .message)
-        category = (try? container.decode(InsightCategory.self, forKey: .category)) ?? .nutritionGeneral
-        priority = (try? container.decode(Int.self, forKey: .priority)) ?? 0
-    }
-
-  
-    init(title: String, message: String, category: InsightCategory, priority: Int = 0) {
-        self.title = title
-        self.message = message
-        self.category = category
-        self.priority = priority
-    }
-}
-
 @MainActor
 class InsightsService: ObservableObject {
     @Published var currentInsights: [UserInsight] = []
     @Published var smartSuggestion: UserInsight? = nil
     @Published var isLoadingInsights: Bool = false
+    @Published var isGeneratingSuggestion: Bool = false
 
     private let dailyLogService: DailyLogService
     private let goalSettings: GoalSettings
     private weak var healthKitViewModel: HealthKitViewModel?
     private var analysisTask: Task<Void, Never>? = nil
     private var cancellables = Set<AnyCancellable>()
+    
+    private var lastWeeklyInsightFetch: Date?
 
     init(dailyLogService: DailyLogService, goalSettings: GoalSettings, healthKitViewModel: HealthKitViewModel) {
         self.dailyLogService = dailyLogService
@@ -61,6 +29,90 @@ class InsightsService: ObservableObject {
                 self?.generateAndFetchInsights()
             }
             .store(in: &cancellables)
+    }
+
+    func generateSingleMealSuggestion() async -> MealSuggestion? {
+        self.isGeneratingSuggestion = true
+        
+        let prompt = createMealSuggestionPrompt()
+        
+        guard let responseString = await fetchAIResponse(prompt: prompt) else {
+            self.isGeneratingSuggestion = false
+            return nil
+        }
+        
+        guard let jsonData = responseString.data(using: .utf8) else {
+            self.isGeneratingSuggestion = false
+            return nil
+        }
+        
+        let suggestion = try? JSONDecoder().decode(MealSuggestion.self, from: jsonData)
+        
+        self.isGeneratingSuggestion = false
+        return suggestion
+    }
+    
+    private func createMealSuggestionPrompt() -> String {
+        let remainingCalories = max(0, (goalSettings.calories ?? 2000) - (dailyLogService.currentDailyLog?.totalCalories() ?? 0))
+        let remainingProtein = max(0, goalSettings.protein - (dailyLogService.currentDailyLog?.totalMacros().protein ?? 0))
+        let remainingCarbs = max(0, goalSettings.carbs - (dailyLogService.currentDailyLog?.totalMacros().carbs ?? 0))
+        let remainingFats = max(0, goalSettings.fats - (dailyLogService.currentDailyLog?.totalMacros().fats ?? 0))
+        
+        let hour = Calendar.current.component(.hour, from: Date())
+        let mealType: String
+        switch hour {
+            case 4..<11: mealType = "breakfast"
+            case 11..<16: mealType = "lunch"
+            case 16..<21: mealType = "dinner"
+            default: mealType = "snack"
+        }
+
+        let proteinPrefs = goalSettings.suggestionProteins.isEmpty ? "any" : goalSettings.suggestionProteins.joined(separator: ", ")
+        let carbPrefs = goalSettings.suggestionCarbs.isEmpty ? "any" : goalSettings.suggestionCarbs.joined(separator: ", ")
+        let veggiePrefs = goalSettings.suggestionVeggies.isEmpty ? "any" : goalSettings.suggestionVeggies.joined(separator: ", ")
+        let cuisinePrefs = (goalSettings.suggestionCuisines.isEmpty || goalSettings.suggestionCuisines.contains("Any")) ? "any" : goalSettings.suggestionCuisines.joined(separator: ", ")
+
+        return """
+        You are Maia, a helpful nutrition coach. The user needs a suggestion for their next meal, which is likely \(mealType).
+        
+        Their remaining goals for today are:
+        - Calories: \(Int(remainingCalories))
+        - Protein: \(Int(remainingProtein))g
+        - Carbs: \(Int(remainingCarbs))g
+        - Fats: \(Int(remainingFats))g
+
+        User Preferences:
+        - Proteins: \(proteinPrefs)
+        - Carbs: \(carbPrefs)
+        - Veggies: \(veggiePrefs)
+        - Cuisines: \(cuisinePrefs)
+
+        RULES:
+        1. Generate a single, simple, healthy meal idea that fits the user's remaining nutritional targets AND their preferences.
+        2. **Prioritize Variety**: Do NOT suggest common items like 'quinoa' or 'chicken breast' unless they are explicitly listed in the user's preferences. Use a diverse range of ingredients.
+        3. Your response MUST be a valid JSON object. Do not include any other text.
+        4. The JSON object must have these exact keys: "mealName" (string), "calories" (number), "protein" (number), "carbs" (number), "fats" (number), "ingredients" (an array of strings), "instructions" (a single string with newlines).
+        
+        Example Response (if user likes Fish and Potatoes):
+        {
+            "mealName": "Sheet Pan Cod with Roasted Potatoes and Green Beans",
+            "calories": 480,
+            "protein": 35,
+            "carbs": 40,
+            "fats": 20,
+            "ingredients": [
+                "1 cod fillet (6 oz)",
+                "1 medium potato, cubed",
+                "1 cup green beans",
+                "1 tbsp olive oil",
+                "1 tsp paprika",
+                "Salt and pepper to taste"
+            ],
+            "instructions": "1. Preheat oven to 400°F (200°C).\\n2. Toss potatoes and green beans with olive oil, paprika, salt, and pepper on a baking sheet. Roast for 10 minutes.\\n3. Add the cod fillet to the pan, season, and bake for another 12-15 minutes until the fish is flaky and potatoes are tender."
+        }
+
+        JSON-ONLY RESPONSE:
+        """
     }
 
     func generateDailySmartInsight() {
@@ -111,6 +163,12 @@ class InsightsService: ObservableObject {
     }
 
     func generateAndFetchInsights(forLastDays days: Int = 7) {
+        guard !isLoadingInsights else { return }
+
+        if let lastFetch = lastWeeklyInsightFetch, !currentInsights.isEmpty, Calendar.current.isDateInToday(lastFetch) {
+            return
+        }
+        
         guard let userID = Auth.auth().currentUser?.uid else { return }
         
         let sleepData = self.healthKitViewModel?.sleepSamples ?? []
@@ -136,17 +194,12 @@ class InsightsService: ObservableObject {
             case .success(let logs):
                 if logs.count < 3 {
                     let noDataInsight = [UserInsight(title: "More Data Needed", message: "Log consistently for a few more days to unlock your personalized weekly insights!", category: .nutritionGeneral, priority: 100)]
-                    await handleInsightsError(message: nil, insights: noDataInsight, isLoading: false)
+                    await handleInsightsResult(insights: noDataInsight, error: nil)
                     return
                 }
                 
                 let aiInsights = await generateAIInsights(for: logs, sleepSamples: sleepData, goals: goalSettings)
-                
-                if aiInsights.isEmpty {
-                    await handleInsightsError(message: "Could not generate AI insights at this time. Please try again later.")
-                } else {
-                    await handleInsightsError(message: nil, insights: aiInsights, isLoading: false)
-                }
+                await handleInsightsResult(insights: aiInsights, error: aiInsights.isEmpty ? "Could not generate AI insights at this time." : nil)
 
             case .failure(let error):
                 await handleInsightsError(message: "Could not analyze data: \(error.localizedDescription)")
@@ -154,35 +207,49 @@ class InsightsService: ObservableObject {
         }
     }
     
+    private func handleInsightsResult(insights: [UserInsight], error: String?) {
+        self.isLoadingInsights = false
+        if let errorMessage = error {
+            self.currentInsights = [UserInsight(title: "Insight Error", message: errorMessage, category: .nutritionGeneral)]
+        } else {
+            self.currentInsights = insights
+            self.lastWeeklyInsightFetch = Date()
+        }
+    }
+    
     private func generateAIInsights(for logs: [DailyLog], sleepSamples: [HKCategorySample], goals: GoalSettings) async -> [UserInsight] {
         let prompt = createAIPrompt(logs: logs, sleepSamples: sleepSamples, goals: goals)
         
-        guard let responseString = await fetchAIResponse(prompt: prompt) else {
-            return []
-        }
-        
+        guard let responseString = await fetchAIResponse(prompt: prompt) else { return [] }
         guard let jsonData = responseString.data(using: .utf8) else { return [] }
         
         do {
             let insightsResponse = try JSONDecoder().decode([String: [UserInsight]].self, from: jsonData)
-            if let insights = insightsResponse["insights"] {
-                 return insights.sorted { $0.priority > $1.priority }
-            }
-           return []
+            return insightsResponse["insights"] ?? []
         } catch {
-            print("AI Insight Decoding Error: \(error)")
             let fallbackInsight = UserInsight(title: "Today's Tip", message: responseString, category: .smartSuggestion)
             return [fallbackInsight]
         }
     }
 
     private func createAIPrompt(logs: [DailyLog], sleepSamples: [HKCategorySample], goals: GoalSettings) -> String {
-        let avgCalories = logs.map { $0.totalCalories() }.reduce(0, +) / Double(logs.count)
-        let avgProtein = logs.map { $0.totalMacros().protein }.reduce(0, +) / Double(logs.count)
-        let avgCarbs = logs.map { $0.totalMacros().carbs }.reduce(0, +) / Double(logs.count)
-        let avgFats = logs.map { $0.totalMacros().fats }.reduce(0, +) / Double(logs.count)
-        let daysWithExercise = logs.filter { !($0.exercises?.isEmpty ?? true) }.count
-
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "EEEE"
+        
+        var dailyDataStrings: [String] = []
+        for log in logs {
+            let day = dateFormatter.string(from: log.date)
+            let macros = log.totalMacros()
+            let fiber = log.totalFiber()
+            let exerciseCal = (log.totalCaloriesBurnedFromHealthKitWorkouts() + log.totalCaloriesBurnedFromManualExercises())
+            let exerciseString = exerciseCal > 0 ? ", Exercise Burn: \(Int(exerciseCal))" : ""
+            
+            dailyDataStrings.append(
+                "- \(day): Cals: \(Int(log.totalCalories())), P: \(Int(macros.protein))g, C: \(Int(macros.carbs))g, F: \(Int(macros.fats))g, Fiber: \(Int(fiber))g\(exerciseString)"
+            )
+        }
+        let dailySummary = dailyDataStrings.joined(separator: "\n")
+        
         var sleepSummary = "No sleep data available."
         if !sleepSamples.isEmpty {
             let asleepStates: [HKCategoryValueSleepAnalysis] = [.asleepCore, .asleepDeep, .asleepREM, .asleep]
@@ -191,10 +258,10 @@ class InsightsService: ObservableObject {
             let numberOfNights = Set(sleepSamples.map { Calendar.current.startOfDay(for: $0.startDate) }).count
             if numberOfNights > 0 {
                 let averageSleepHours = (totalAsleep / Double(numberOfNights)) / 3600
-                sleepSummary = String(format: "Average sleep: %.1f hours per night.", averageSleepHours)
+                sleepSummary = String(format: "Average sleep over \(numberOfNights) night(s): %.1f hours per night.", averageSleepHours)
             }
         }
-        
+
         let userGoals = """
         User's Goals:
         - Calorie Target: \(Int(goals.calories ?? 0)) kcal
@@ -203,34 +270,30 @@ class InsightsService: ObservableObject {
         - Fats Target: \(Int(goals.fats))g
         - Weight Goal: \(goals.goal)
         """
-        
-        let weeklySummary = """
-        Weekly Data Summary:
-        - Logged Days: \(logs.count)
-        - Average daily calories consumed: \(Int(avgCalories)) kcal
-        - Average daily protein: \(Int(avgProtein))g
-        - Average daily carbs: \(Int(avgCarbs))g
-        - Average daily fats: \(Int(avgFats))g
-        - Days with logged exercise: \(daysWithExercise) out of \(logs.count)
-        - \(sleepSummary)
-        """
 
         return """
-        You are an expert fitness and nutrition coach for an app called MyFitPlate.
-        Your tone is encouraging, insightful, and positive.
-        Analyze the following user data summary and generate 3 to 5 personalized insights.
+        You are Maia, an expert fitness and nutrition coach for the app MyFitPlate.
+        Your tone is encouraging, insightful, actionable, and positive.
+        Analyze the following user data and generate 3 to 5 personalized insights.
         
         RULES:
         1.  Your response MUST be a valid JSON object.
-        2.  The root object must have a single key called "insights" which is a JSON array of objects.
-        3.  Each object in the "insights" array must have four keys: "title" (string), "message" (string), "category" (string), and "priority" (number from 1-100).
+        2.  The root object must have a single key "insights" which is a JSON array of objects.
+        3.  Each object in the "insights" array must have keys: "title" (string), "message" (string), "category" (string), "priority" (number from 1-100).
         4.  The "category" must be one of the following exact strings: \(UserInsight.InsightCategory.allCases.map { $0.rawValue }.joined(separator: ", ")).
-        5.  Find interesting connections between the data. For example, if protein is low and exercise is high, suggest post-workout nutrition. If calories are high on days after poor sleep, point that out.
-        6.  Do not be generic. Use the numbers from the data to make the insights specific and personal. Give actionable advice.
+        5.  **Be Specific & Actionable:** Instead of "Eat more protein," say "Your protein intake on Wednesday was 30g below your goal. Adding a serving of Greek yogurt to your breakfast can help close that gap."
+        6.  **Find Connections:** Look for patterns. Did poor sleep on Tuesday lead to higher calorie intake on Wednesday? Do they eat fewer carbs on days they exercise? Mention these connections.
+        7.  **Positive Reinforcement:** ALWAYS start with at least one positive insight highlighting something the user did well.
+        8.  **Identify Opportunities:** Find 1-2 key areas for improvement and provide concrete, easy-to-follow advice.
         
         DATA TO ANALYZE:
         \(userGoals)
-        \(weeklySummary)
+        
+        Daily Log Summary for the past week:
+        \(dailySummary)
+        
+        Sleep Summary:
+        \(sleepSummary)
 
         JSON-ONLY RESPONSE:
         """
@@ -239,7 +302,6 @@ class InsightsService: ObservableObject {
     private func fetchAIResponse(prompt: String) async -> String? {
         let apiKey = getAPIKey()
         guard !apiKey.isEmpty, apiKey != "YOUR_API_KEY" else {
-            print("API Key is missing or invalid.")
             return nil
         }
         
@@ -262,26 +324,21 @@ class InsightsService: ObservableObject {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                print("AI API Error: Invalid response from server. Status: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
-                return nil
-            }
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
             
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                let choices = json["choices"] as? [[String: Any]], let firstChoice = choices.first,
                let message = firstChoice["message"] as? [String: Any], let content = message["content"] as? String {
                 return content
             }
-        } catch {
-            print("AI API Fetch Error: \(error)")
-        }
+        } catch { }
         return nil
     }
 
-    private func handleInsightsError(message: String?, insights: [UserInsight]? = nil, isLoading: Bool? = nil) async {
+    private func handleInsightsError(message: String?, isLoading: Bool? = nil) async {
         if let isLoading = isLoading { self.isLoadingInsights = isLoading }
         if let message = message { self.currentInsights = [UserInsight(title: "Insight Error", message: message, category: .nutritionGeneral)] }
-        if let insights = insights { self.currentInsights = insights }
+        self.isLoadingInsights = false
     }
 
     private func fetchLogsForAnalysis(userID: String, startDate: Date, endDate: Date) async -> Result<[DailyLog], Error> {

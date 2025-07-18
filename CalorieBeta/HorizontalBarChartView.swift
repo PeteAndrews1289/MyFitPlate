@@ -1,99 +1,83 @@
 import SwiftUI
-import Charts
+
+
+struct MacroProgressRow: View {
+    let label: String
+    let value: Double
+    let goal: Double
+    let unit: String
+    let color: Color
+
+    private var progress: Double {
+    
+        return goal > 0 ? (value / goal) : 0
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .appFont(size: 14, weight: .medium)
+                Spacer()
+                Text("\(Int(value)) / \(Int(goal)) \(unit)")
+                    .appFont(size: 12, weight: .regular)
+                    .foregroundColor(.secondary)
+            }
+            
+            ProgressView(value: progress)
+                .progressViewStyle(LinearProgressViewStyle(tint: color))
+                .scaleEffect(x: 1, y: 2, anchor: .center)
+        }
+    }
+}
+
+
 
 struct HorizontalBarChartView: View {
     var dailyLog: DailyLog
     @ObservedObject var goal: GoalSettings
 
     var body: some View {
-        if let caloriesGoal = goal.calories {
-            let totalCalories = max(0, dailyLog.totalCalories())
+      
+        if goal.calories != nil {
             let totalMacros = dailyLog.totalMacros()
-            let protein = max(0, totalMacros.protein)
-            let fats = max(0, totalMacros.fats)
-            let carbs = max(0, totalMacros.carbs)
-
-            let proteinGoal = max(goal.protein, 1)
-            let fatsGoal = max(goal.fats, 1)
-            let carbsGoal = max(goal.carbs, 1)
-            let effectiveCaloriesGoal = max(caloriesGoal, 1)
-
-            let caloriesPercentage = min((totalCalories / effectiveCaloriesGoal) * 100, 100)
-            let proteinPercentage = min((protein / proteinGoal) * 100, 100)
-            let fatsPercentage = min((fats / fatsGoal) * 100, 100)
-            let carbsPercentage = min((carbs / carbsGoal) * 100, 100)
-
-            Chart {
-                BarMark(
-                    x: .value("Calories", caloriesPercentage),
-                    y: .value("Type", "Calories")
+            
+            VStack(spacing: 16) {
+                MacroProgressRow(
+                    label: "Calories",
+                    value: dailyLog.totalCalories(),
+                    goal: goal.calories ?? 1,
+                    unit: "kcal",
+                    color: .red
                 )
-                .foregroundStyle(.red)
-                .annotation(position: .trailing, alignment: .leading) {
-                    Text("\(Int(totalCalories)) / \(Int(caloriesGoal)) cal")
-                        .appFont(size: 10)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-
-                BarMark(
-                    x: .value("Protein", proteinPercentage),
-                    y: .value("Type", "Protein")
+                MacroProgressRow(
+                    label: "Protein",
+                    value: totalMacros.protein,
+                    goal: goal.protein,
+                    unit: "g",
+                    color: .accentProtein
                 )
-                .foregroundStyle(Color.accentProtein)
-                .annotation(position: .trailing, alignment: .leading) {
-                    Text("\(Int(protein)) / \(Int(goal.protein))g")
-                        .appFont(size: 10)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-
-                BarMark(
-                    x: .value("Fats", fatsPercentage),
-                    y: .value("Type", "Fats")
+                MacroProgressRow(
+                    label: "Fats",
+                    value: totalMacros.fats,
+                    goal: goal.fats,
+                    unit: "g",
+                    color: .accentFats
                 )
-                .foregroundStyle(Color.accentFats)
-                .annotation(position: .trailing, alignment: .leading) {
-                    Text("\(Int(fats)) / \(Int(goal.fats))g")
-                        .appFont(size: 10)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-
-                BarMark(
-                    x: .value("Carbs", carbsPercentage),
-                    y: .value("Type", "Carbs")
+                MacroProgressRow(
+                    label: "Carbs",
+                    value: totalMacros.carbs,
+                    goal: goal.carbs,
+                    unit: "g",
+                    color: .accentCarbs
                 )
-                .foregroundStyle(Color.accentCarbs)
-                .annotation(position: .trailing, alignment: .leading) {
-                    Text("\(Int(carbs)) / \(Int(goal.carbs))g")
-                        .appFont(size: 10)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
             }
-            .chartXAxis {
-                AxisMarks(position: .bottom) { value in
-                    AxisTick()
-                    AxisValueLabel()
-                }
-            }
-            .chartXAxisLabel("Percentage of Goal (%)", position: .bottom, alignment: .center, spacing: 10)
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisTick()
-                    AxisValueLabel(horizontalSpacing: 5)
-                }
-            }
-            .chartXScale(domain: 0...100)
-            .frame(height: 200)
-            .padding()
-
+            .padding(.vertical)
+            
         } else {
-            Text("Loading data...")
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .frame(height: 200)
-                .padding()
+           
+            ProgressView("Loading Goals...")
+                .frame(height: 180)
         }
     }
 }

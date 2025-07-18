@@ -55,9 +55,6 @@ struct NutritionProgressView: View {
                 .padding(.top, -4)
                 .padding(.bottom, 4)
 
-            WaterTrackingCardView(date: dailyLog.date, insight: insight)
-                .padding(.horizontal)
-
         }.padding(.bottom, 8)
     }
 
@@ -89,7 +86,7 @@ struct ProgressBubble: View {
                     .stroke(style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
                     .foregroundColor(color)
                     .rotationEffect(Angle(degrees: -90))
-                    .animation(.easeInOut(duration: 0.75), value: percentage) // This line adds the animation
+                    .animation(.easeInOut(duration: 0.75), value: percentage)
 
                 VStack {
                     Text("\(String(format: "%.0f", value))")

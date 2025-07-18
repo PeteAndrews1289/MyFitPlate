@@ -27,20 +27,37 @@ struct ReportsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            // Added consistent vertical spacing and horizontal padding
+            VStack(alignment: .leading, spacing: 16) {
                 headerSection
-                insightsActionSection
                 
-                NavigationLink(destination: WeightTrackingView()) {
-                    Label("View Weight Tracking", systemImage: "chart.xyaxis.line")
-                        .appFont(size: 17, weight: .semibold)
+                if viewModel.isLoading {
+                    ProgressView("Loading Reports...")
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 50)
+                } else if let errorMessage = viewModel.errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 50)
+                } else if !viewModel.calorieTrend.isEmpty {
+                     reportsContentSection
+                } else {
+                    // Centered "No food" message
+                    VStack {
+                        Spacer()
+                        Text("No food or exercise logged in the selected period.")
+                            .multilineTextAlignment(.center)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 50)
                 }
-                .buttonStyle(PrimaryButtonStyle())
                 
-                reportsContentSection
                 Spacer()
             }
-            .padding()
+            .padding(.horizontal)
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("Reports")
@@ -70,7 +87,8 @@ struct ReportsView: View {
                 HStack {
                     Image(systemName: "sparkles")
                         .foregroundColor(.brandPrimary)
-                    Text(insight.title)
+                    // Corrected to lowercase "have a great day!"
+                    Text(insight.title.lowercased() == "have a great day!" ? "Have a Great Day!" : insight.title)
                         .appFont(size: 17, weight: .semibold)
                 }
                 Text(insight.message)
@@ -81,6 +99,13 @@ struct ReportsView: View {
         }
         
         timeframeSelectorAndPickers
+        
+        insightsActionSection
+        
+        NavigationLink(destination: WeightTrackingView()) {
+            Label("View Weight Tracking", systemImage: "chart.xyaxis.line")
+        }
+        .buttonStyle(SecondaryButtonStyle())
     }
 
     @ViewBuilder
@@ -89,8 +114,7 @@ struct ReportsView: View {
             insightsService.generateAndFetchInsights(forLastDays: 7)
             showingDetailedInsights = true
         } label: {
-            Label("Generate Weekly Insights", systemImage: "sparkles.square.filled.on.square")
-                .appFont(size: 17, weight: .semibold)
+            Label("Generate Weekly Insights", systemImage: "wand.and.stars")
         }
         .buttonStyle(PrimaryButtonStyle())
         
@@ -101,27 +125,16 @@ struct ReportsView: View {
     
     @ViewBuilder
     private var reportsContentSection: some View {
-        if viewModel.isLoading {
-            ProgressView("Loading Reports...")
-                .frame(maxWidth: .infinity)
-                .padding(.top, 20)
-        } else if let errorMessage = viewModel.errorMessage {
-            Text(errorMessage)
-                .foregroundColor(.red)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding()
-        } else {
-            VStack(spacing: 20) {
-                summaryCard
-                if let sleepReport = viewModel.weeklySleepReport {
-                    SleepReportCard(report: sleepReport)
-                }
-                calorieChartCard
-                macroChartCard
-                micronutrientReportCard
-                mealDistributionCard
-                citationSection
+        VStack(spacing: 16) {
+            summaryCard
+            if let sleepReport = viewModel.weeklySleepReport {
+                SleepReportCard(report: sleepReport)
             }
+            calorieChartCard
+            macroChartCard
+            micronutrientReportCard
+            mealDistributionCard
+            citationSection
         }
     }
 
@@ -133,20 +146,32 @@ struct ReportsView: View {
                 }
             }
             .pickerStyle(SegmentedPickerStyle())
-            .padding(.bottom, selectedTimeframe == .custom ? 0 : 10)
-
+            
             if selectedTimeframe == .custom {
-                VStack(alignment: .leading, spacing: 10) {
-                    DatePicker("Start Date", selection: $customStartDate, in: ...customEndDate, displayedComponents: .date)
-                    DatePicker("End Date", selection: $customEndDate, in: customStartDate..., displayedComponents: .date)
+                VStack(spacing: 12) {
+                    // Used a Grid to make the DatePickers align correctly
+                    Grid(alignment: .leading) {
+                        GridRow {
+                            Text("Start Date").gridColumnAlignment(.leading)
+                            DatePicker("Start Date", selection: $customStartDate, in: ...customEndDate, displayedComponents: .date)
+                                .labelsHidden()
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                        GridRow {
+                            Text("End Date").gridColumnAlignment(.leading)
+                            DatePicker("End Date", selection: $customEndDate, in: customStartDate..., displayedComponents: .date)
+                                .labelsHidden()
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    }
+                    
+                    // Conformed button style
                     Button("View Custom Report") {
                         fetchDataForCurrentSelection()
                     }
-                    .padding(.top, 5)
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(PrimaryButtonStyle())
                 }
-                .padding(.vertical, 10)
+                .padding(.top, 10)
                 .transition(.asymmetric(insertion: .scale(scale: 0.95).combined(with: .opacity), removal: .opacity))
                 .animation(.easeInOut(duration: 0.2), value: selectedTimeframe)
             }
@@ -181,37 +206,37 @@ struct ReportsView: View {
     }
 
     @ViewBuilder private var summaryCard: some View {
-            if let summary = viewModel.summary {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("\(summary.timeframe) Averages")
-                        .appFont(size: 17, weight: .semibold)
-                    Text("Based on \(summary.daysLogged) day(s) logged")
-                        .appFont(size: 12)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .padding(.bottom, 5)
+        if let summary = viewModel.summary {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("\(summary.timeframe) Averages")
+                    .appFont(size: 17, weight: .semibold)
+                Text("Based on \(summary.daysLogged) day(s) logged")
+                    .appFont(size: 12)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .padding(.bottom, 5)
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
-                        averageStatBox(value: summary.averageCalories, label: "Calories", unit: "cal", goal: goalSettings.calories)
-                        averageStatBox(value: summary.averageProtein, label: "Protein", unit: "g", goal: goalSettings.protein)
-                        averageStatBox(value: summary.averageCarbs, label: "Carbs", unit: "g", goal: goalSettings.carbs)
-                        averageStatBox(value: summary.averageFats, label: "Fats", unit: "g", goal: goalSettings.fats)
-                    }
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
+                    averageStatBox(value: summary.averageCalories, label: "Calories", unit: "cal", goal: goalSettings.calories)
+                    averageStatBox(value: summary.averageProtein, label: "Protein", unit: "g", goal: goalSettings.protein)
+                    averageStatBox(value: summary.averageCarbs, label: "Carbs", unit: "g", goal: goalSettings.carbs)
+                    averageStatBox(value: summary.averageFats, label: "Fats", unit: "g", goal: goalSettings.fats)
                 }
-                .asCard()
             }
+            .asCard()
         }
+    }
 
     @ViewBuilder private func averageStatBox(value: Double, label: String, unit: String, goal: Double?) -> some View {
-           VStack(alignment: .leading) {
-               Text(label).appFont(size: 12).foregroundColor(Color(UIColor.secondaryLabel))
-               Text("\(value, specifier: "%.0f") \(unit)").appFont(size: 22, weight: .medium)
-               if let g = goal, g > 0 {
-                   let pct = (value / g) * 100
-                   Text("Goal: \(g, specifier: "%.0f") (\(pct, specifier: "%.0f")%)").appFont(size: 10).foregroundColor(Color(UIColor.secondaryLabel))
-               }
+       VStack(alignment: .leading) {
+           Text(label).appFont(size: 12).foregroundColor(Color(UIColor.secondaryLabel))
+           Text("\(value, specifier: "%.0f") \(unit)").appFont(size: 22, weight: .medium)
+           if let g = goal, g > 0 {
+               let pct = (value / g) * 100
+               Text("Goal: \(g, specifier: "%.0f") (\(pct, specifier: "%.0f")%)").appFont(size: 10).foregroundColor(Color(UIColor.secondaryLabel))
            }
-           .frame(maxWidth: .infinity, alignment: .leading)
        }
+       .frame(maxWidth: .infinity, alignment: .leading)
+    }
     
     @ViewBuilder private var calorieChartCard: some View {
         VStack(alignment: .leading) {

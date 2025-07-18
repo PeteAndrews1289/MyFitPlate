@@ -7,6 +7,9 @@ struct SettingsView: View {
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var achievementService: AchievementService
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
+    @EnvironmentObject var spotlightManager: SpotlightManager
+    @EnvironmentObject var dailyLogService: DailyLogService
+
     @Binding var showSettings: Bool
     
     @State private var showingSignOutAlert = false
@@ -17,6 +20,7 @@ struct SettingsView: View {
     @State private var inchesInput: String = ""
     @State private var showingWaterGoalSheet = false
     @State private var waterGoalInput: String = ""
+    @State private var showingResetTourConfirmation = false
 
     var body: some View {
         List {
@@ -89,6 +93,13 @@ struct SettingsView: View {
                   }
             }
             
+            Section(header: Text("Feature Tour")) {
+                Button("Reset Feature Tour") {
+                    showingResetTourConfirmation = true
+                }
+                .foregroundColor(.brandPrimary)
+            }
+            
             Section(header: Text("About")) {
                 NavigationLink("Health Disclaimers & Sources", destination: HealthDisclaimerView())
             }
@@ -121,13 +132,21 @@ struct SettingsView: View {
                     } else {
                         currentLog.waterTracker = WaterTracker(totalOunces: 0, goalOunces: goalValue, date: currentLog.date)
                     }
-                    if let userID = Auth.auth().currentUser?.uid { goalSettings.dailyLogService?.updateDailyLog(for: userID, updatedLog: currentLog) }
+                    if let userID = Auth.auth().currentUser?.uid { dailyLogService.updateDailyLog(for: userID, updatedLog: currentLog) }
                 }
             }
             showingWaterGoalSheet = false
         }).environmentObject(goalSettings) }
         .alert("Sign Out", isPresented: $showingSignOutAlert, actions: { Button("Cancel", role: .cancel) {}; Button("Sign Out", role: .destructive) { appState.signOut() } }, message: { Text("Are you sure you want to sign out?") })
         .alert("Delete Account", isPresented: $showingDeleteAccountAlert, actions: { Button("Cancel", role: .cancel) {}; Button("Delete", role: .destructive) { deleteUserAccount() } }, message: { Text("Are you sure you want to delete your account? This action cannot be undone.") })
+        .alert("Reset Tour?", isPresented: $showingResetTourConfirmation) {
+            Button("Reset", role: .destructive) {
+                spotlightManager.resetSpotlights()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will show you all the introductory feature highlights again.")
+        }
     }
 
     private func deleteUserAccount() {
