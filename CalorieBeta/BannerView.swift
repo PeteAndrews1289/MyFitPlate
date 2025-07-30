@@ -1,54 +1,13 @@
+
 import SwiftUI
+import GoogleMobileAds
 
 struct BannerView: View {
-    @Binding var banner: BannerData?
-    
     var body: some View {
-        VStack {
-            if let bannerData = banner {
-                VStack {
-                    HStack {
-                        Image(systemName: bannerData.iconName)
-                            .font(.title2)
-                            .foregroundColor(bannerData.iconColor)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(bannerData.title)
-                                .appFont(size: 17, weight: .semibold)
-                            Text(bannerData.message)
-                                .appFont(size: 15)
-                        }
-                        Spacer()
-                    }
-                    .foregroundColor(.white)
-                    .padding(12)
-                    .background(Color.black.opacity(0.8))
-                    .cornerRadius(12)
-                }
-                .padding()
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        withAnimation {
-                            self.banner = nil
-                        }
-                    }
-                }
-                .onTapGesture {
-                     withAnimation {
-                         self.banner = nil
-                     }
-                }
-            }
-            Spacer()
-        }
-        .animation(.easeInOut, value: banner)
+        Text("Banner Ad Placeholder")
+            .frame(height: 50)
+            .frame(maxWidth: .infinity)
+            .background(Color.gray.opacity(0.2))
+            .cornerRadius(8)
     }
-}
-
-struct BannerData: Equatable {
-    var title: String
-    var message: String
-    var iconName: String = "checkmark.circle.fill"
-    var iconColor: Color = .green
 }

@@ -14,6 +14,10 @@ struct ChatMessage: Identifiable, Codable, Equatable {
 }
 
 struct ChatBubble: View {
+    @Environment(\.colorScheme) var colorScheme
+    var bgGreen = Color(red: 16/255, green: 20/255, blue: 21/255)
+    var tbGreen = Color(red: 28/255, green: 40/255, blue: 38/255)
+    
     let message: ChatMessage
     let onLogRecipe: (String) -> Void
     let onSpeak: (String) -> Void
@@ -34,27 +38,44 @@ struct ChatBubble: View {
         VStack(alignment: message.isUser ? .trailing : .leading, spacing: 8) {
             HStack {
                 if message.isUser { Spacer() }
-                
-                Text(message.text)
-                    .padding()
-                    .background(message.isUser ? Color.brandPrimary : Color.backgroundSecondary)
-                    .cornerRadius(12)
-                    .foregroundColor(message.isUser ? .white : .textPrimary)
-                    .frame(maxWidth: 300, alignment: message.isUser ? .trailing : .leading)
+                VStack(alignment: !message.isUser ? .leading : .trailing) {
+                    if !message.isUser {
+                        Text("Maia")
+                            .padding()
+                            .background(Circle().fill(colorScheme == .dark ? bgGreen : Color.backgroundSecondary ))
+                            .padding(.leading, -6)
+                    }
+                    
+                    if message.isUser {
+                        Text("You")
+                            .padding()
+                            .background(Circle().fill(Color.brandPrimary))
+                            .foregroundColor(colorScheme == .dark ? .black : .white)
+                            .padding(.trailing, -3)
+                    }
+                    
+                    Text(message.text)
+                        .padding()
+                        .background(message.isUser ? Color.brandPrimary : Color.backgroundSecondary)
+                        .cornerRadius(12)
+                        .foregroundColor(message.isUser ? .white : .textPrimary)
+                        .frame(maxWidth: 300, alignment: message.isUser ? .trailing : .leading)
+                }
 
                 if !message.isUser { Spacer() }
             }
             .padding(message.isUser ? .leading : .trailing, 40)
             
             HStack(spacing: 12) {
-                 if message.isUser { Spacer() }
-                 if !message.isUser {
-                     Button(action: { onSpeak(message.text) }) {
-                         Image(systemName: "speaker.wave.2.fill")
-                             .appFont(size: 12, weight: .semibold)
-                             .foregroundColor(.brandPrimary)
-                     }
-                 }
+                if message.isUser { Spacer() }
+                if !message.isUser {
+                    Button(action: { onSpeak(message.text) }) {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .appFont(size: 12, weight: .semibold)
+                            .foregroundColor(.brandPrimary)
+                            .padding(.bottom, 10)
+                    }
+                }
                 if canBeLogged {
                     Button(action: { onLogRecipe(message.text) }) {
                         Text("Log Food")
@@ -81,17 +102,27 @@ private struct ChatHistoryListView: View {
     @Binding var alertMessage: String
 
     var body: some View {
-        ScrollView {
-            ScrollViewReader { proxy in
+        ScrollViewReader { proxy in
+            ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(chatMessages) { message in
-                        ChatBubble(message: message, onLogRecipe: onLogRecipe, onSpeak: onSpeak, showAlert: $showAlert, alertMessage: $alertMessage)
-                            .id(message.id)
+                        ChatBubble(
+                            message: message,
+                            onLogRecipe: onLogRecipe,
+                            onSpeak: onSpeak,
+                            showAlert: $showAlert,
+                            alertMessage: $alertMessage
+                        )
+                        .id(message.id)
                     }
                 }
-                .onChange(of: chatMessages) { _ in
+                .padding()
+                .padding(.bottom, 120)
+                .onChange(of: chatMessages) {
                     if let lastId = chatMessages.last?.id {
-                        withAnimation { proxy.scrollTo(lastId, anchor: .bottom) }
+                        withAnimation {
+                            proxy.scrollTo(lastId, anchor: .bottom)
+                        }
                     }
                 }
                 .onAppear {
@@ -110,36 +141,100 @@ struct AIChatbotView: View {
     @State private var isLoading = false
     @Binding var selectedTab: Int
     var chatContext: String?
-
+    
+    var bgGreen = Color(red: 16/255, green: 20/255, blue: 21/255)
+    
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService
     @EnvironmentObject var mealPlannerService: MealPlannerService
-    @EnvironmentObject var spotlightManager: SpotlightManager
     
+    @Environment(\.colorScheme) var colorScheme
     @StateObject private var ttsManager = TTSManager.shared
     
     @State private var showAlert = false
     @State private var alertMessage = ""
-    private let bottomScrollID = "bottomInputArea"
-    
-    @State private var tourSpotlightIDs: [String] = []
-    @State private var currentSpotlightIndex: Int = 0
-    @State private var showingSpotlightTour = false
-    
-    private let spotlightOrder = ["remainingGoals", "chatHistory", "inputSection"]
-    private let spotlightContent: [String: (title: String, text: String)] = [
-        "remainingGoals": ("Context-Aware", "Maia knows your remaining goals for the day and uses this information to provide better recommendations."),
-        "chatHistory": ("Conversation History", "Your conversation with Maia will appear here. You can log food directly from her responses."),
-        "inputSection": ("Ask Anything!", "Type here to ask Maia for nutritional info (e.g., 'how much protein in chicken breast?') or to ask for a recipe.")
-    ]
 
-    private let displayDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
+    var body: some View {
+        ZStack {
+            Color.backgroundPrimary.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                ChatHistoryListView(
+                    chatMessages: $chatMessages,
+                    onLogRecipe: logRecipe,
+                    onSpeak: ttsManager.speak,
+                    showAlert: $showAlert,
+                    alertMessage: $alertMessage
+                )
+                
+                if isLoading {
+                    ProgressView().padding(10)
+                }
+
+                ZStack {
+                    ChatBoxShape()
+                        .fill(colorScheme == .dark ? bgGreen : Color.backgroundSecondary)
+                        .shadow(color: .black.opacity(0.1), radius: 5, y: -2)
+
+                    HStack(spacing: 15) {
+                        TextField("Ask Maia anything...", text: $userMessage, axis: .vertical)
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(colorScheme == .dark ? Color(white: 0.2) : Color.white)
+                            .clipShape(Capsule())
+                            .onSubmit(sendMessage)
+                        
+                        Button(action: sendMessage) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.largeTitle)
+                                .foregroundColor(.brandPrimary)
+                        }
+                        .disabled(userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+                    }
+                    .padding(.horizontal, 30)
+                    .padding(.bottom, 20)
+                }
+                .frame(height: 120)
+            }
+        }
+        .navigationTitle("Maia")
+        .navigationBarTitleDisplayMode(.inline)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .onTapGesture {
+            hideKeyboard()
+        }
+        .onAppear(perform: setupView)
+        .onDisappear(perform: saveMessages)
+        .onReceive(appState.$pendingChatPrompt) { prompt in
+            if let prompt = prompt {
+                userMessage = prompt
+                sendMessage()
+                appState.pendingChatPrompt = nil
+            }
+        }
+        .alert(isPresented: $showAlert) {
+            Alert(title: Text("Notification"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
+        }
+    }
+    
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    private func setupView() {
+        loadMessages()
+        if let userID = Auth.auth().currentUser?.uid {
+            dailyLogService.fetchLog(for: userID, date: dailyLogService.activelyViewedDate) { _ in }
+        }
+        if chatMessages.isEmpty {
+            let welcomeMessage = "Hello! I’m Maia, your personal nutrition assistant. How can I assist you right now?"
+            let initialMessage = ChatMessage(id: UUID(), text: welcomeMessage, isUser: false)
+            chatMessages.append(initialMessage)
+        }
+    }
 
     private var remainingCalories: Double {
         let logDate = dailyLogService.activelyViewedDate
@@ -148,18 +243,21 @@ struct AIChatbotView: View {
         let goal = goalSettings.calories ?? 2000
         return max(0, goal - total)
     }
+    
     private var remainingProtein: Double {
         let logDate = dailyLogService.activelyViewedDate
         let relevantLog = dailyLogService.currentDailyLog != nil && Calendar.current.isDate(dailyLogService.currentDailyLog!.date, inSameDayAs: logDate) ? dailyLogService.currentDailyLog : nil
         let total = relevantLog?.totalMacros().protein ?? 0
         return max(0, goalSettings.protein - total)
     }
+    
     private var remainingFats: Double {
         let logDate = dailyLogService.activelyViewedDate
         let relevantLog = dailyLogService.currentDailyLog != nil && Calendar.current.isDate(dailyLogService.currentDailyLog!.date, inSameDayAs: logDate) ? dailyLogService.currentDailyLog : nil
         let total = relevantLog?.totalMacros().fats ?? 0
         return max(0, goalSettings.fats - total)
     }
+    
     private var remainingCarbs: Double {
         let logDate = dailyLogService.activelyViewedDate
         let relevantLog = dailyLogService.currentDailyLog != nil && Calendar.current.isDate(dailyLogService.currentDailyLog!.date, inSameDayAs: logDate) ? dailyLogService.currentDailyLog : nil
@@ -167,181 +265,18 @@ struct AIChatbotView: View {
         return max(0, goalSettings.carbs - total)
     }
 
-    private var remainingGoalsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Remaining Goals for \(displayDateFormatter.string(from: dailyLogService.activelyViewedDate))")
-                .appFont(size: 20, weight: .semibold)
-                .foregroundColor(.textPrimary)
-            Text("Calories: \(String(format: "%.0f", remainingCalories)) cal").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel))
-            Text("Protein: \(String(format: "%.0fg", remainingProtein))").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel))
-            Text("Fats: \(String(format: "%.0fg", remainingFats))").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel))
-            Text("Carbs: \(String(format: "%.0fg", remainingCarbs))").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel))
-        }
-        .padding()
-        .background(Color.backgroundSecondary)
-        .cornerRadius(15)
-        .shadow(radius: 2)
-    }
-
-    private var chatHistorySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Chat History")
-                .appFont(size: 20, weight: .semibold)
-                .foregroundColor(.textPrimary)
-            ChatHistoryListView(chatMessages: $chatMessages, onLogRecipe: logRecipe, onSpeak: ttsManager.speak, showAlert: $showAlert, alertMessage: $alertMessage)
-                .frame(maxHeight: 300)
-        }
-        .padding()
-        .background(Color.backgroundSecondary)
-        .cornerRadius(15)
-        .shadow(radius: 2)
-    }
-
-    private var inputSection: some View {
-        HStack {
-            TextField("Ask Maia for nutritional info...", text: $userMessage)
-                .textFieldStyle(AppTextFieldStyle(iconName: nil))
-                .submitLabel(.done)
-                .onSubmit { sendMessage() }
-            Button(action: sendMessage) {
-                Image(systemName: "paperplane.fill")
-                    .font(.title2)
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .frame(width: 50)
-            .disabled(isLoading || userMessage.isEmpty)
-        }
-        .padding(.horizontal)
-        .id(bottomScrollID)
-    }
-
-    var body: some View {
-        ZStack {
-            ScrollViewReader { outerProxy in
-                ScrollView {
-                    VStack(spacing: 16) {
-                        remainingGoalsSection
-                            .featureSpotlight(isActive: isSpotlightActive(for: "remainingGoals"))
-                            .id("remainingGoals")
-                        
-                        chatHistorySection
-                            .featureSpotlight(isActive: isSpotlightActive(for: "chatHistory"))
-                            .id("chatHistory")
-                        
-                        inputSection
-                            .featureSpotlight(isActive: isSpotlightActive(for: "inputSection"))
-                            .id("inputSection")
-                        
-                        Text("AI-generated content may be inaccurate. Nutritional information is an estimate and not a substitute for professional medical advice.")
-                            .appFont(size: 10)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                            .padding(.top, 10)
-                    }
-                    .padding(.vertical)
-                }
-                .background(Color.backgroundPrimary)
-                .navigationTitle("Maia")
-                .onTapGesture { hideKeyboard() }
-                .onAppear {
-                    loadMessages()
-
-                    if let userID = Auth.auth().currentUser?.uid {
-                        dailyLogService.fetchLog(for: userID, date: dailyLogService.activelyViewedDate) { _ in }
-                    }
-                    
-                    if chatMessages.isEmpty {
-                        let welcomeMessage = """
-                        Hello! I'm Maia, your personal nutrition assistant.
-
-                        You can ask me for:
-                        - Nutritional info for any food (e.g., "calories in an apple")
-                        - A recipe with nutrition estimates (e.g., "healthy chicken breast recipe")
-
-                        How can I help you today?
-                        """
-                        let initialMessage = ChatMessage(id: UUID(), text: welcomeMessage, isUser: false)
-                        chatMessages.append(initialMessage)
-                    }
-                    
-                    outerProxy.scrollTo(bottomScrollID, anchor: .bottom)
-                    startTourIfNeeded()
-                }
-                .onDisappear(perform: saveMessages)
-                .onReceive(appState.$pendingChatPrompt) { prompt in
-                    if let prompt = prompt {
-                        userMessage = prompt
-                        sendMessage()
-                        appState.pendingChatPrompt = nil
-                    }
-                }
-                .alert(isPresented: $showAlert) { Alert(title: Text("Notification"), message: Text(alertMessage), dismissButton: .default(Text("OK"))) }
-            }
-            
-            if showingSpotlightTour {
-                Color.black.opacity(0.5).ignoresSafeArea()
-                    .onTapGesture(perform: advanceTour)
-                    .transition(.opacity)
-
-                if !tourSpotlightIDs.isEmpty && currentSpotlightIndex < tourSpotlightIDs.count {
-                    let currentID = tourSpotlightIDs[currentSpotlightIndex]
-                    if let content = spotlightContent[currentID] {
-                        SpotlightTextView(
-                            content: content,
-                            currentIndex: currentSpotlightIndex,
-                            total: tourSpotlightIDs.count,
-                            position: .top,
-                            onNext: advanceTour
-                        )
-                    }
-                }
-            }
-        }
-    }
-    
-    private func isSpotlightActive(for id: String) -> Bool {
-        guard showingSpotlightTour, !tourSpotlightIDs.isEmpty, currentSpotlightIndex < tourSpotlightIDs.count else {
-            return false
-        }
-        return tourSpotlightIDs[currentSpotlightIndex] == id
-    }
-    
-    private func advanceTour() {
-        if currentSpotlightIndex < tourSpotlightIDs.count - 1 {
-            withAnimation {
-                currentSpotlightIndex += 1
-            }
-        } else {
-            finishTour()
-        }
-    }
-    
-    private func startTourIfNeeded() {
-        let needed = spotlightOrder.filter { !spotlightManager.isShown(id: $0) }
-        if !needed.isEmpty {
-            self.tourSpotlightIDs = needed
-            self.currentSpotlightIndex = 0
-            withAnimation {
-                self.showingSpotlightTour = true
-            }
-        }
-    }
-    
-    private func finishTour() {
-        withAnimation {
-            showingSpotlightTour = false
-        }
-        tourSpotlightIDs.forEach { spotlightManager.markAsShown(id: $0) }
-    }
-
     func sendMessage() {
-        guard !userMessage.isEmpty else { return }
-        let userMsg = ChatMessage(id: UUID(), text: userMessage, isUser: true)
+        let trimmedMessage = userMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedMessage.isEmpty else { return }
+        
+        let userMsg = ChatMessage(id: UUID(), text: trimmedMessage, isUser: true)
         chatMessages.append(userMsg)
+        
         let msgToSend = userMessage
         userMessage = ""
         isLoading = true
+        hideKeyboard()
+
         fetchGPT3Response(for: msgToSend) { aiResponse in
             let aiMsg = ChatMessage(id: UUID(), text: aiResponse, isUser: false)
             chatMessages.append(aiMsg)
@@ -351,9 +286,8 @@ struct AIChatbotView: View {
 
     func fetchGPT3Response(for message: String, completion: @escaping (String) -> Void) {
         let apiKey = getAPIKey()
-        guard apiKey != "YOUR_API_KEY", !apiKey.isEmpty else {
+        guard !apiKey.isEmpty, apiKey != "wtv" else {
             completion("Error: API Key missing.")
-            isLoading = false
             return
         }
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
@@ -393,27 +327,40 @@ struct AIChatbotView: View {
         let requestBody: [String: Any] = ["model": "gpt-4o-mini", "messages": messagesForAPI, "max_tokens": 1000, "temperature": 0.5]
         guard let httpBody = try? JSONSerialization.data(withJSONObject: requestBody) else {
             completion("Error: Failed to serialize request.")
-            isLoading = false
             return
         }
         request.httpBody = httpBody
-        URLSession.shared.dataTask(with: request) { data, response, error in
+
+        URLSession.shared.dataTask(with: request) { data, _, error in
             DispatchQueue.main.async {
-                if let error = error { completion("Error: Network failed - \(error.localizedDescription)"); return }
-                guard let data = data else { completion("Error: No data."); return }
+                isLoading = false
+                if let error = error {
+                    completion("Error: Network failed - \(error.localizedDescription)")
+                    return
+                }
+                guard let data = data else {
+                    completion("Error: No data.")
+                    return
+                }
                 do {
                     if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        if let errDict = json["error"] as? [String: Any], let errMsg = errDict["message"] as? String { completion("Error: \(errMsg)") }
-                        else if let choices = json["choices"] as? [[String: Any]], let first = choices.first, let msg = first["message"] as? [String: Any], let content = msg["content"] as? String {
+                        if let errDict = json["error"] as? [String: Any], let errMsg = errDict["message"] as? String {
+                            completion("Error: \(errMsg)")
+                        } else if let choices = json["choices"] as? [[String: Any]], let first = choices.first, let msg = first["message"] as? [String: Any], let content = msg["content"] as? String {
                             completion(content.trimmingCharacters(in: .whitespacesAndNewlines))
+                        } else {
+                            completion("Error: Invalid API response.")
                         }
-                        else { completion("Error: Invalid API response.") }
-                    } else { completion("Error: Cannot parse response.") }
-                } catch { completion("Error: Failed to parse response - \(error.localizedDescription)") }
+                    } else {
+                        completion("Error: Cannot parse response.")
+                    }
+                } catch {
+                    completion("Error: Failed to parse response - \(error.localizedDescription)")
+                }
             }
         }.resume()
     }
-    
+
     private func extractFoodName(from aiResponse: String) -> String {
         let lines = aiResponse.split(separator: "\n", maxSplits: 5, omittingEmptySubsequences: true).map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
         let patterns = ["recipe for\\s+(.*?)(?:\\s*\\(.*?\\))?[:\n]", "estimate for\\s+(.*?)(?:\\s*\\(.*?\\))?[:\n]", "details for\\s+(.*?)(?:\\s*\\(.*?\\))?[:\n]", "for\\s+(.*?)(?:\\s*\\(.*?\\))?[:\n]"]
@@ -438,16 +385,16 @@ struct AIChatbotView: View {
             }
         }
         if let firstLine = lines.first?.trimmingCharacters(in: .whitespacesAndNewlines) {
-             let commonGreetings = ["sure!", "okay,", "alright,", "certainly,", "great!", "got it,", "no problem,", "here's a", "here is a"]
-             let lowerFirstLine = firstLine.lowercased()
-             var potentialTitle = firstLine
-             if commonGreetings.contains(where: { lowerFirstLine.starts(with: $0) }) {
-                 for greeting in commonGreetings {
-                     if lowerFirstLine.starts(with: greeting) {
-                         potentialTitle = String(potentialTitle.dropFirst(greeting.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-                         break
-                     }
-                 }
+            let commonGreetings = ["sure!", "okay,", "alright,", "certainly,", "great!", "got it,", "no problem,", "here's a", "here is a"]
+            let lowerFirstLine = firstLine.lowercased()
+            var potentialTitle = firstLine
+            if commonGreetings.contains(where: { lowerFirstLine.starts(with: $0) }) {
+                for greeting in commonGreetings {
+                    if lowerFirstLine.starts(with: greeting) {
+                        potentialTitle = String(potentialTitle.dropFirst(greeting.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                        break
+                    }
+                }
             }
             if let colonIndex = potentialTitle.firstIndex(of: ":") { potentialTitle = String(potentialTitle[..<colonIndex]) }
             potentialTitle = potentialTitle.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ":-–")))
@@ -483,11 +430,10 @@ struct AIChatbotView: View {
             let regex = try NSRegularExpression(pattern: "\(nutrient):\\s*([\\d.]+)", options: .caseInsensitive)
             let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
             if let match = regex.firstMatch(in: text, options: [], range: nsRange),
-               let range = Range(match.range(at: 1), in: text) {
+                let range = Range(match.range(at: 1), in: text) {
                 return Double(text[range])
             }
-        } catch {
-        }
+        } catch {}
         return nil
     }
     
@@ -508,22 +454,16 @@ struct AIChatbotView: View {
     }
 
     private func determineMealType() -> String { let h = Calendar.current.component(.hour, from: Date()); switch h { case 0..<4: return "Snack"; case 4..<11: return "Breakfast"; case 11..<16: return "Lunch"; case 16..<21: return "Dinner"; default: return "Snack" } }
-    private func hideKeyboard() { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
     
     private func loadMessages() {
-        guard let userID = Auth.auth().currentUser?.uid else {
-            self.chatMessages = []
-            return
-        }
+        guard let userID = Auth.auth().currentUser?.uid else { return }
         let key = "chatHistory_\(userID)"
         if let data = UserDefaults.standard.data(forKey: key),
            let decodedMessages = try? JSONDecoder().decode([ChatMessage].self, from: data) {
             self.chatMessages = decodedMessages
-        } else {
-            self.chatMessages = []
         }
     }
-    
+
     private func saveMessages() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         let key = "chatHistory_\(userID)"

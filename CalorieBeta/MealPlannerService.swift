@@ -13,11 +13,11 @@ class MealPlannerService: ObservableObject {
     }
 
 
-    public func generateAndSaveFullWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], userID: String) async -> Bool {
+    public func generateAndSaveFullWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String], userID: String) async -> Bool {
             print("MealPlannerService Debug: Starting concurrent meal plan generation for 7 days.")
             
             var dailyPlans: [MealPlanDay?] = .init(repeating: nil, count: 7)
-            var mealHistory: [String] = [] // For variety, if needed in the future
+            var mealHistory: [String] = []
 
             await withTaskGroup(of: (Int, MealPlanDay?).self) { group in
                 for i in 0..<7 {
@@ -28,20 +28,18 @@ class MealPlannerService: ObservableObject {
                             goals: goals,
                             preferredFoods: preferredFoods,
                             preferredCuisines: preferredCuisines,
+                            preferredSnacks: preferredSnacks,
                             mealHistory: mealHistory
                         )
-                        // Return the index and the plan so we can re-assemble them in order.
                         return (i, singleDayPlan)
                     }
                 }
                 
-                // As each task finishes, add its result to our array.
                 for await (index, plan) in group {
                     dailyPlans[index] = plan
                 }
             }
 
-            // Un-optionalize the array and check if all days were generated successfully.
             let successfullyGeneratedPlans = dailyPlans.compactMap { $0 }
             
             if successfullyGeneratedPlans.count < 7 {
@@ -49,21 +47,17 @@ class MealPlannerService: ObservableObject {
                 return false
             }
             
-            // The plans are already in order, so we can now save them.
             print("MealPlannerService Debug: Successfully generated all 7 day plans. Saving to Firestore.")
             
-            // Generate the grocery list from all the collected meal names
             let allMealNames = successfullyGeneratedPlans.flatMap { $0.meals.compactMap { $0.foodItem?.name } }
             await generateAndSaveGroceryListFromAI(for: allMealNames, userID: userID)
             
-            // Save the plans to Firestore
             await saveFullMealPlan(days: successfullyGeneratedPlans, for: userID)
 
             return true
         }
 
-    // --- MODIFIED: Added preferredCuisines parameter ---
-    private func generatePlanForSingleDay(date: Date, goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], mealHistory: [String]) async -> MealPlanDay? {
+    private func generatePlanForSingleDay(date: Date, goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String], mealHistory: [String]) async -> MealPlanDay? {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMMM d"
         let dateString = formatter.string(from: date)
@@ -76,21 +70,26 @@ class MealPlannerService: ObservableObject {
             """
         }
         
-        // --- NEW: Create a prompt section for cuisines ---
         var cuisinePromptSection = ""
-        // Don't add the cuisine prompt if the user selected "Any" or nothing
         if !preferredCuisines.isEmpty && !preferredCuisines.contains("Any / No Preference") {
             cuisinePromptSection = """
             **Cuisine Influence:** Please draw inspiration from the following cuisines: \(preferredCuisines.joined(separator: ", ")). You can mix them or focus on one per meal.
             """
         }
+        
+        var snackPromptSection = ""
+        if !preferredSnacks.isEmpty {
+            snackPromptSection = """
+            **Snack Preference:** The user enjoys snacks like \(preferredSnacks.joined(separator: ", ")). Please include one snack in the plan that aligns with these preferences.
+            """
+        }
 
 
-        // --- MODIFIED: Added the new cuisine section to the prompt ---
         let prompt = """
-        Generate a one-day meal plan for \(dateString) with a Breakfast, Lunch, and Dinner.
+        Generate a one-day meal plan for \(dateString) with a Breakfast, Lunch, Dinner, and one Snack.
         \(historyPromptSection)
         \(cuisinePromptSection)
+        \(snackPromptSection)
         **Primary Goal:** The total nutrition for the day must add up to approximately \(Int(goals.calories ?? 2000)) calories, \(Int(goals.protein))g Protein, \(Int(goals.carbs))g Carbs, and \(Int(goals.fats))g Fats.
         **Allowed Ingredients:** Create meals primarily using this list: \(preferredFoods.joined(separator: ", ")). Common pantry items are also allowed.
         
@@ -118,6 +117,12 @@ class MealPlannerService: ObservableObject {
         - [Ingredient Name] - [Quantity] [Unit]
         Instructions:
         1. [Detailed Step-by-Step Instructions]
+        
+        Snack: [Snack Name]
+        Ingredients:
+        - [Ingredient Name] - [Quantity] [Unit]
+        Instructions:
+        1. [Detailed Step-by-Step Instructions]
         """
         
         guard let aiResponse = await fetchAIResponse(prompt: prompt) else { return nil }
@@ -125,19 +130,17 @@ class MealPlannerService: ObservableObject {
         
         let meals = parseSingleDayPlan(from: aiResponse)
         
-        if meals.count == 3 {
+        if meals.count >= 3 {
             return MealPlanDay(id: self.dateString(for: date), date: Timestamp(date: date), meals: meals)
         } else {
-            print("MealPlannerService Debug: Parsing failed for \(dateString). Found \(meals.count) meals instead of 3.")
+            print("MealPlannerService Debug: Parsing failed for \(dateString). Found \(meals.count) meals instead of 3+.")
             return nil
         }
     }
     
-    // Everything else below here remains the same...
-    
     private func parseSingleDayPlan(from text: String) -> [PlannedMeal] {
         var parsedMeals: [PlannedMeal] = []
-        let mealTypes = ["Breakfast", "Lunch", "Dinner"]
+        let mealTypes = ["Breakfast", "Lunch", "Dinner", "Snack"]
         var lastMealEndIndex = text.startIndex
 
         for i in 0..<mealTypes.count {
@@ -300,7 +303,6 @@ class MealPlannerService: ObservableObject {
                 var quantity: Double = 1
                 var unit = "item"
                 
-                // Regex to find patterns like "Item Name (Quantity Unit)"
                 let pattern = #"^(.+?)\s*\(([\d\.]+)\s*(.*?)\)$"#
                 if let match = itemString.range(of: pattern, options: .regularExpression) {
                     let parts = itemString.capturedGroups(with: pattern)
@@ -310,7 +312,6 @@ class MealPlannerService: ObservableObject {
                         unit = parts[2].trimmingCharacters(in: .whitespaces)
                     }
                 } else if let fallbackMatch = itemString.range(of: #"^(.+?)\s*\((.*?)\)$"#, options: .regularExpression) {
-                    // Fallback for patterns like "Item Name (a few)"
                     let parts = itemString.capturedGroups(with: #"^(.+?)\s*\((.*?)\)$"#)
                     if parts.count == 2 {
                         name = parts[0].trimmingCharacters(in: .whitespaces)

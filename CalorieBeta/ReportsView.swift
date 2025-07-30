@@ -27,7 +27,6 @@ struct ReportsView: View {
 
     var body: some View {
         ScrollView {
-            // Added consistent vertical spacing and horizontal padding
             VStack(alignment: .leading, spacing: 16) {
                 headerSection
                 
@@ -44,7 +43,6 @@ struct ReportsView: View {
                 } else if !viewModel.calorieTrend.isEmpty {
                      reportsContentSection
                 } else {
-                    // Centered "No food" message
                     VStack {
                         Spacer()
                         Text("No food or exercise logged in the selected period.")
@@ -87,7 +85,6 @@ struct ReportsView: View {
                 HStack {
                     Image(systemName: "sparkles")
                         .foregroundColor(.brandPrimary)
-                    // Corrected to lowercase "have a great day!"
                     Text(insight.title.lowercased() == "have a great day!" ? "Have a Great Day!" : insight.title)
                         .appFont(size: 17, weight: .semibold)
                 }
@@ -100,12 +97,19 @@ struct ReportsView: View {
         
         timeframeSelectorAndPickers
         
-        insightsActionSection
-        
-        NavigationLink(destination: WeightTrackingView()) {
-            Label("View Weight Tracking", systemImage: "chart.xyaxis.line")
+        VStack(spacing: 12) {
+            insightsActionSection
+            
+            NavigationLink(destination: WeightTrackingView()) {
+                Label("View Weight Tracking", systemImage: "chart.xyaxis.line")
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            
+            NavigationLink(destination: CycleTrackingView()) {
+                Label("View Cycle Tracking", systemImage: "timer.circle")
+            }
+            .buttonStyle(SecondaryButtonStyle())
         }
-        .buttonStyle(SecondaryButtonStyle())
     }
 
     @ViewBuilder
@@ -130,6 +134,9 @@ struct ReportsView: View {
             if let sleepReport = viewModel.weeklySleepReport {
                 SleepReportCard(report: sleepReport)
             }
+            if let workoutReport = viewModel.weeklyWorkoutReport {
+                WorkoutReportCard(report: workoutReport)
+            }
             calorieChartCard
             macroChartCard
             micronutrientReportCard
@@ -149,7 +156,6 @@ struct ReportsView: View {
             
             if selectedTimeframe == .custom {
                 VStack(spacing: 12) {
-                    // Used a Grid to make the DatePickers align correctly
                     Grid(alignment: .leading) {
                         GridRow {
                             Text("Start Date").gridColumnAlignment(.leading)
@@ -165,7 +171,6 @@ struct ReportsView: View {
                         }
                     }
                     
-                    // Conformed button style
                     Button("View Custom Report") {
                         fetchDataForCurrentSelection()
                     }

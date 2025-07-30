@@ -109,9 +109,9 @@ struct MainTabView: View {
                     .featureSpotlight(isActive: showingSpotlightTour)
                 }
                 
-                if isSearchingAfterScan || isProcessingImage {
+                if isSearchingAfterScan {
                     Color.black.opacity(0.5).edgesIgnoringSafeArea(.all)
-                    ProgressView(isProcessingImage ? "Analyzing Image..." : "Searching...")
+                    ProgressView("Searching...")
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .foregroundColor(.white)
                         .scaleEffect(1.5)
@@ -197,6 +197,10 @@ struct MainTabView: View {
                     position: .top,
                     onNext: finishTour
                 )
+            }
+            
+            if isProcessingImage {
+                ImageProcessingView()
             }
         }
     }

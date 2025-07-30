@@ -10,6 +10,7 @@ struct HomeView: View {
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var insightsService: InsightsService
     @EnvironmentObject var spotlightManager: SpotlightManager
+    @EnvironmentObject var cycleService: CycleTrackingService
     @Environment(\.colorScheme) var colorScheme
 
     @Binding var navigateToProfile: Bool
@@ -31,6 +32,8 @@ struct HomeView: View {
     @State private var currentSpotlightIndex: Int = 0
     @State private var showingSpotlightTour = false
     
+    @State private var showingWorkoutRoutines = false
+    
     private let spotlightOrder = ["nutritionProgress", "waterTracker", "dailyLog"]
     private let spotlightContent: [String: (title: String, text: String)] = [
         "nutritionProgress": ("Daily Progress", "This area shows your real-time progress for calories, macros, and micronutrients. Swipe left or right to see different views!"),
@@ -51,14 +54,29 @@ struct HomeView: View {
     private var isToday: Bool {
         Calendar.current.isDateInToday(selectedDate)
     }
+    
+    private var showCycleCard: Bool {
+        return cycleService.cycleSettings.typicalCycleLength > 0 && goalSettings.gender == "Female"
+    }
 
     var body: some View {
          ZStack {
+            NavigationLink(destination: WorkoutRoutinesView(), isActive: $showingWorkoutRoutines) { EmptyView() }
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 20) {
                         dateNavigationView
                             .padding(.horizontal)
+                        
+                        if showCycleCard {
+                            if cycleService.isLoadingInsight {
+                                ProgressView()
+                                    .padding()
+                            } else if let insight = cycleService.aiInsight {
+                                CycleInsightCard(insight: insight)
+                                    .padding(.horizontal)
+                            }
+                        }
                         
                         nutritionProgressSection
                             .padding(.horizontal)
@@ -117,9 +135,15 @@ struct HomeView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Text("MyFitPlate")
-                        .appFont(size: 17, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                    HStack {
+                        Text("MyFitPlate")
+                            .appFont(size: 17, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                        
+                        Button(action: { showingWorkoutRoutines = true }) {
+                            Image(systemName: "dumbbell.fill")
+                        }
+                    }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
@@ -218,6 +242,7 @@ struct HomeView: View {
         fetchLogForSelectedDate()
         if isToday {
             healthKitViewModel.checkAuthorizationStatus()
+            cycleService.fetchAIInsight()
         }
         
         let needed = spotlightOrder.filter { !spotlightManager.isShown(id: $0) }

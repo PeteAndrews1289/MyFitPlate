@@ -10,14 +10,14 @@ struct MealPlanSurveyView: View {
     @State private var selectedProteins: Set<ProteinChoice> = [.chicken]
     @State private var selectedCarbs: Set<CarbChoice> = [.rice]
     @State private var selectedVeggies: Set<VeggieChoice> = [.broccoli, .bellPeppers, .onions]
+    @State private var selectedSnacks: Set<SnackChoice> = [.yogurt, .fruit]
     
-   
     @State private var selectedCuisines: Set<CuisineChoice> = []
 
-   
     @State private var customProtein: String = ""
     @State private var customCarb: String = ""
     @State private var customVeggies: String = ""
+    @State private var customSnack: String = ""
     
     @State private var isLoading = false
     @State private var showAlert = false
@@ -27,7 +27,7 @@ struct MealPlanSurveyView: View {
     enum ProteinChoice: String, CaseIterable, Identifiable { case chicken, beef, fish, tofu, eggs; var id: Self { self } }
     enum CarbChoice: String, CaseIterable, Identifiable { case rice, quinoa, sweetPotato = "Sweet Potato", pasta, bread; var id: Self { self } }
     enum VeggieChoice: String, CaseIterable, Identifiable { case broccoli, spinach, bellPeppers = "Bell Peppers", onions, carrots, zucchini; var id: Self { self } }
-    
+    enum SnackChoice: String, CaseIterable, Identifiable { case yogurt, nuts, fruit, proteinBar = "Protein Bar"; var id: Self { self } }
   
     enum CuisineChoice: String, CaseIterable, Identifiable {
         case any = "Any / No Preference"
@@ -57,8 +57,12 @@ struct MealPlanSurveyView: View {
                         TextField("Custom veggies (e.g., Asparagus)", text: $customVeggies)
                     }
                     
-                    // --- NEW: Cuisine selection section ---
-                    Section(header: Text("Step 4: Add Cuisine Influence (Optional)")) {
+                    Section(header: Text("Step 4: Choose Your Snacks (Optional)")) {
+                        List { ForEach(SnackChoice.allCases) { multiSelectRow(item: $0, selection: $selectedSnacks) } }
+                        TextField("Custom snack (e.g., Rice Cakes)", text: $customSnack)
+                    }
+                    
+                    Section(header: Text("Step 5: Add Cuisine Influence (Optional)")) {
                         List {
                             ForEach(CuisineChoice.allCases) { cuisine in
                                 Button(action: {
@@ -93,12 +97,13 @@ struct MealPlanSurveyView: View {
                 
                 if isLoading {
                     Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
-                    VStack {
-                        ProgressView("Generating 7-Day Plan...")
+                    VStack(spacing: 16) {
+                        ProgressView()
                             .scaleEffect(1.5)
+                        Text("Generating 7-Day Plan...")
+                            .multilineTextAlignment(.center)
                         Text("This may take a moment.")
                             .appFont(size: 12)
-                            .padding(.top)
                     }
                     .padding(30)
                     .background(Color.black.opacity(0.8))
@@ -112,7 +117,6 @@ struct MealPlanSurveyView: View {
         }
     }
     
-    // --- NEW: Logic to handle cuisine selection ---
     private func toggleCuisineSelection(_ cuisine: CuisineChoice) {
         if cuisine == .any {
             if selectedCuisines.contains(.any) {
@@ -121,7 +125,7 @@ struct MealPlanSurveyView: View {
                 selectedCuisines = [.any]
             }
         } else {
-            selectedCuisines.remove(.any) // Remove "Any" if a specific cuisine is chosen
+            selectedCuisines.remove(.any)
             if selectedCuisines.contains(cuisine) {
                 selectedCuisines.remove(cuisine)
             } else {
@@ -151,7 +155,6 @@ struct MealPlanSurveyView: View {
         isLoading = true
         alertMessage = ""
         
-        // Collect preferred foods
         var foodList = selectedProteins.map { $0.rawValue }
         if !customProtein.isEmpty { foodList.append(customProtein) }
         foodList.append(contentsOf: selectedCarbs.map { $0.rawValue })
@@ -159,8 +162,9 @@ struct MealPlanSurveyView: View {
         foodList.append(contentsOf: selectedVeggies.map { $0.rawValue })
         if !customVeggies.isEmpty { foodList.append(customVeggies) }
         
-        // --- NEW: Collect preferred cuisines ---
         let cuisineList = selectedCuisines.map { $0.rawValue }
+        let snackList = selectedSnacks.map { $0.rawValue } + (customSnack.isEmpty ? [] : [customSnack])
+
 
         Task {
             guard let userID = Auth.auth().currentUser?.uid else {
@@ -168,11 +172,11 @@ struct MealPlanSurveyView: View {
                 return
             }
             
-            // --- NEW: Pass cuisines to the service ---
             let success = await mealPlannerService.generateAndSaveFullWeekPlan(
                 goals: goalSettings,
                 preferredFoods: foodList,
-                preferredCuisines: cuisineList, // Pass the new list
+                preferredCuisines: cuisineList,
+                preferredSnacks: snackList,
                 userID: userID
             )
             

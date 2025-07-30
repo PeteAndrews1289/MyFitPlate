@@ -2,6 +2,86 @@ import Foundation
 import FirebaseFirestore
 import SwiftUI
 
+enum ExerciseType: String, Codable, CaseIterable {
+    case strength = "Strength"
+    case cardio = "Cardio"
+    case flexibility = "Flexibility"
+}
+
+struct WorkoutProgram: Identifiable, Codable {
+    @DocumentID var id: String?
+    var userID: String
+    var name: String
+    var dateCreated: Timestamp
+    var routines: [WorkoutRoutine]
+    var startDate: Timestamp?
+    var daysOfWeek: [Int]?
+    var currentProgressIndex: Int? = 0
+}
+
+struct WorkoutRoutine: Identifiable, Codable, Hashable {
+    var id: String = UUID().uuidString
+    var userID: String
+    var name: String
+    var dateCreated: Timestamp
+    var exercises: [RoutineExercise] = []
+    var notes: String?
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: WorkoutRoutine, rhs: WorkoutRoutine) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+struct RoutineExercise: Identifiable, Codable{
+    var id: String = UUID().uuidString
+    var name: String
+    var type: ExerciseType = .strength
+    var sets: [ExerciseSet] = []
+    var notes: String?
+    var restTimeInSeconds: Int = 60
+    var alternatives: [String]?
+}
+
+struct ExerciseSet: Identifiable, Codable{
+    var id: String = UUID().uuidString
+    var isCompleted: Bool = false
+    var target: String?
+    var previousPerformance: String?
+    var isWarmup: Bool = false
+    
+    var reps: Int = 0
+    var weight: Double = 0.0
+    var distance: Double = 0.0
+    var durationInSeconds: Int = 0
+}
+
+struct WorkoutSessionLog: Identifiable, Codable {
+    @DocumentID var id: String?
+    var date: Timestamp
+    var routineID: String
+    var completedExercises: [CompletedExercise]
+}
+
+struct CompletedExercise: Identifiable, Codable {
+    var id: String = UUID().uuidString
+    var exerciseName: String
+    var sets: [CompletedSet]
+    var date: Date {
+        return Date()
+    }
+}
+
+struct CompletedSet: Identifiable, Codable {
+    var id: String = UUID().uuidString
+    var reps: Int
+    var weight: Double
+    var distance: Double?
+    var durationInSeconds: Int?
+}
+
 struct UserInsight: Identifiable, Decodable, Equatable {
     let id = UUID()
     var title: String
@@ -133,6 +213,36 @@ struct RecipeIngredient: Codable, Identifiable, Hashable {
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (lhs: RecipeIngredient, rhs: RecipeIngredient) -> Bool { lhs.id == rhs.id }
+}
+
+enum MenstrualPhase: String, CaseIterable, Identifiable {
+    case menstrual, follicular, ovulatory, luteal
+    var id: Self { self }
+}
+
+struct CycleSettings: Codable {
+    var typicalCycleLength: Int = 28
+    var typicalPeriodLength: Int = 5
+}
+
+struct CycleDay {
+    let date: Date
+    let cycleDayNumber: Int
+    let phase: MenstrualPhase
+}
+
+struct AIInsight: Codable {
+    struct TrainingFocus: Codable {
+        let title: String
+        let description: String
+    }
+    let phaseTitle: String
+    let phaseDescription: String
+    let trainingFocus: TrainingFocus
+    let hormonalState: String
+    let energyLevel: String
+    let nutritionTip: String
+    let symptomTip: String
 }
 
 struct UserRecipe: Codable, Identifiable {

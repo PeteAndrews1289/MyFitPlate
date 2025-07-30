@@ -19,7 +19,7 @@ struct MacroProgressRow: View {
                 Text(label)
                     .appFont(size: 14, weight: .medium)
                 Spacer()
-                Text("\(Int(value)) / \(Int(goal)) \(unit)")
+                Text("\(String(format: "%.0f", value)) / \(String(format: "%.0f", goal)) \(unit)")
                     .appFont(size: 12, weight: .regular)
                     .foregroundColor(.secondary)
             }
@@ -47,7 +47,7 @@ struct HorizontalBarChartView: View {
                     label: "Calories",
                     value: dailyLog.totalCalories(),
                     goal: goal.calories ?? 1,
-                    unit: "kcal",
+                    unit: "cal",
                     color: .red
                 )
                 MacroProgressRow(

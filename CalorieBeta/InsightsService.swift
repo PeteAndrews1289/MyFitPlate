@@ -236,6 +236,9 @@ class InsightsService: ObservableObject {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "EEEE"
         
+        let hasExerciseData = logs.contains { ($0.exercises?.count ?? 0) > 0 }
+        let insightCount = hasExerciseData ? 7 : 6
+        
         var dailyDataStrings: [String] = []
         for log in logs {
             let day = dateFormatter.string(from: log.date)
@@ -274,7 +277,7 @@ class InsightsService: ObservableObject {
         return """
         You are Maia, an expert fitness and nutrition coach for the app MyFitPlate.
         Your tone is encouraging, insightful, actionable, and positive.
-        Analyze the following user data and generate 3 to 5 personalized insights.
+        Analyze the following user data and generate \(insightCount) personalized insights.
         
         RULES:
         1.  Your response MUST be a valid JSON object.
@@ -284,7 +287,7 @@ class InsightsService: ObservableObject {
         5.  **Be Specific & Actionable:** Instead of "Eat more protein," say "Your protein intake on Wednesday was 30g below your goal. Adding a serving of Greek yogurt to your breakfast can help close that gap."
         6.  **Find Connections:** Look for patterns. Did poor sleep on Tuesday lead to higher calorie intake on Wednesday? Do they eat fewer carbs on days they exercise? Mention these connections.
         7.  **Positive Reinforcement:** ALWAYS start with at least one positive insight highlighting something the user did well.
-        8.  **Identify Opportunities:** Find 1-2 key areas for improvement and provide concrete, easy-to-follow advice.
+        8.  **Fitness Insight Requirement:** If the user has logged exercise, you MUST include at least one fitness-related insight (e.g., post-workout nutrition, consistency, timing). Use the "postWorkout" or "exerciseSynergy" category.
         
         DATA TO ANALYZE:
         \(userGoals)
@@ -342,10 +345,6 @@ class InsightsService: ObservableObject {
     }
 
     private func fetchLogsForAnalysis(userID: String, startDate: Date, endDate: Date) async -> Result<[DailyLog], Error> {
-        return await withCheckedContinuation { continuation in
-            dailyLogService.fetchDailyHistory(for: userID, startDate: startDate, endDate: endDate) { result in
-                continuation.resume(returning: result)
-            }
-        }
+        return await dailyLogService.fetchDailyHistory(for: userID, startDate: startDate, endDate: endDate)
     }
 }

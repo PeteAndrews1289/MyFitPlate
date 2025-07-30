@@ -78,6 +78,7 @@ struct CalorieBetaApp: App {
     @StateObject var mealPlannerService: MealPlannerService
     @StateObject var healthKitViewModel: HealthKitViewModel
     @StateObject var spotlightManager: SpotlightManager
+    @StateObject var cycleService: CycleTrackingService
     
     @StateObject var connectivityManager = WatchConnectivityManager()
 
@@ -95,6 +96,7 @@ struct CalorieBetaApp: App {
         let insightsSvc = InsightsService(dailyLogService: logService, goalSettings: goalsSvc, healthKitViewModel: hkViewModel)
         let plannerService = MealPlannerService(recipeService: recipes)
         let spotlightMgr = SpotlightManager()
+        let cycleSvc = CycleTrackingService()
 
         _dailyLogService = StateObject(wrappedValue: logService)
         _goalSettings = StateObject(wrappedValue: goalsSvc)
@@ -107,12 +109,14 @@ struct CalorieBetaApp: App {
         _mealPlannerService = StateObject(wrappedValue: plannerService)
         _bannerService = StateObject(wrappedValue: bannerSvc)
         _spotlightManager = StateObject(wrappedValue: spotlightMgr)
+        _cycleService = StateObject(wrappedValue: cycleSvc)
         
         logService.goalSettings = goalsSvc
         logService.bannerService = bannerSvc
         logService.achievementService = achieveService
         achieveService.setupDependencies(dailyLogService: logService, goalSettings: goalsSvc, bannerService: bannerSvc)
         hkViewModel.setup(dailyLogService: logService)
+        cycleSvc.setupDependencies(goalSettings: goalsSvc, dailyLogService: logService)
         
         Task { await MobileAds.shared.start() }
     }
@@ -132,6 +136,7 @@ struct CalorieBetaApp: App {
                 .environmentObject(healthKitViewModel)
                 .environmentObject(connectivityManager)
                 .environmentObject(spotlightManager)
+                .environmentObject(cycleService)
                 .preferredColorScheme(appState.isDarkModeEnabled ? .dark : .light)
         }
     }
@@ -168,7 +173,7 @@ struct ContentView: View {
                     sendNutritionToWatchIfNeeded()
                 }
             
-            BannerView(banner: $bannerService.currentBanner)
+            NotificationBanner(banner: $bannerService.currentBanner)
         }
         .sheet(isPresented: $shouldShowFeatureTour) {
             FeatureTourView(isPresented: $shouldShowFeatureTour)

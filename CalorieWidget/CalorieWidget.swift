@@ -67,7 +67,6 @@ struct CalorieWidgetEntryView : View {
     }
 }
 
-@main
 struct CalorieWidget: Widget {
     let kind: String = "CalorieWidget"
 
@@ -78,6 +77,74 @@ struct CalorieWidget: Widget {
         .configurationDisplayName("Daily Summary")
         .description("Track your daily calories and macros.")
         .supportedFamilies([.systemLarge, .systemMedium, .systemSmall])
+    }
+}
+
+@main
+struct CalorieWidgetBundle: WidgetBundle {
+    var body: some Widget {
+        CalorieWidget()
+        WorkoutLiveActivity()
+    }
+}
+
+struct WorkoutLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: WorkoutActivityAttributes.self) { context in
+            VStack(alignment: .leading) {
+                Text(context.attributes.workoutName)
+                    .font(.headline)
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Time")
+                            .font(.caption)
+                        Text(Date(timeIntervalSinceReferenceDate: context.state.elapsedTime), style: .timer)
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                    }
+                    Spacer()
+                    VStack(alignment: .leading) {
+                        Text("Calories")
+                            .font(.caption)
+                        Text("\(Int(context.state.caloriesBurned))")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                    }
+                }
+            }
+            .padding()
+            .activityBackgroundTint(Color.black.opacity(0.8))
+            .activitySystemActionForegroundColor(Color.white)
+
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    Text(context.attributes.workoutName)
+                        .font(.headline)
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                     Image(systemName: "flame.fill")
+                        .foregroundColor(.orange)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    HStack {
+                        Text(Date(timeIntervalSinceReferenceDate: context.state.elapsedTime), style: .timer)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Label("\(Int(context.state.caloriesBurned)) cal", systemImage: "flame.fill")
+                            .fontWeight(.medium)
+                    }
+                    .font(.subheadline)
+                }
+            } compactLeading: {
+                Image(systemName: "figure.walk")
+            } compactTrailing: {
+                Text(Date(timeIntervalSinceReferenceDate: context.state.elapsedTime), style: .timer)
+                    .frame(width: 40)
+            } minimal: {
+                 Image(systemName: "flame.fill")
+            }
+        }
     }
 }
 
@@ -240,7 +307,7 @@ struct ProgressBubble: View {
                     Text("\(String(format: "%.0f", value))")
                         .font(.body.weight(.medium))
                     Text("/ \(String(format: "%.0f", goal)) \(unit)")
-                         .font(.caption2)
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                 }
             }

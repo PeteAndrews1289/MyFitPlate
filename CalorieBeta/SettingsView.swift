@@ -9,6 +9,7 @@ struct SettingsView: View {
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var dailyLogService: DailyLogService
+    @EnvironmentObject var cycleService: CycleTrackingService
 
     @Binding var showSettings: Bool
     
@@ -21,6 +22,8 @@ struct SettingsView: View {
     @State private var showingWaterGoalSheet = false
     @State private var waterGoalInput: String = ""
     @State private var showingResetTourConfirmation = false
+    @State private var showCycleSettings = false
+
 
     var body: some View {
         List {
@@ -137,6 +140,14 @@ struct SettingsView: View {
             }
             showingWaterGoalSheet = false
         }).environmentObject(goalSettings) }
+        .sheet(isPresented: $showCycleSettings) {
+            NavigationView {
+                CycleSettingsView(cycleSettings: $cycleService.cycleSettings)
+                    .navigationBarItems(trailing: Button("Done") {
+                        showCycleSettings = false
+                    })
+            }
+        }
         .alert("Sign Out", isPresented: $showingSignOutAlert, actions: { Button("Cancel", role: .cancel) {}; Button("Sign Out", role: .destructive) { appState.signOut() } }, message: { Text("Are you sure you want to sign out?") })
         .alert("Delete Account", isPresented: $showingDeleteAccountAlert, actions: { Button("Cancel", role: .cancel) {}; Button("Delete", role: .destructive) { deleteUserAccount() } }, message: { Text("Are you sure you want to delete your account? This action cannot be undone.") })
         .alert("Reset Tour?", isPresented: $showingResetTourConfirmation) {

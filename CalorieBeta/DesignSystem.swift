@@ -1,7 +1,6 @@
 import SwiftUI
 
-// MARK: - Typography
-// We create a custom view modifier for fonts to make them easy to use.
+
 struct AppFont: ViewModifier {
     var size: CGFloat
     var weight: Font.Weight
@@ -18,7 +17,6 @@ extension View {
 }
 
 
-// MARK: - Reusable Components (View Modifiers & Styles)
 
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -40,7 +38,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
-// Secondary (Outlined) Button Style
+
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

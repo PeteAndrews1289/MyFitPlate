@@ -46,6 +46,7 @@ class ReportsViewModel: ObservableObject {
     @Published var mealDistributionData: [MealDistributionDataPoint] = []
     @Published var reportSpecificInsight: UserInsight? = nil
     @Published var weeklySleepReport: WeeklySleepReport? = nil
+    @Published var weeklyWorkoutReport: WorkoutReport? = nil
     @Published var isLoading: Bool = false
     @Published var errorMessage: String? = nil
 
@@ -127,10 +128,8 @@ class ReportsViewModel: ObservableObject {
     private func formatTimeInterval(_ interval: TimeInterval) -> String {
         guard interval > 0 else { return "0h 0m" }
 
-        // First, round the total seconds to the nearest minute.
         let totalMinutes = Int(round(interval / 60.0))
         
-        // Then, calculate hours and the remaining minutes from the rounded total.
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
         
@@ -189,20 +188,18 @@ class ReportsViewModel: ObservableObject {
             }
         }
         
-        dailyLogService.fetchDailyHistory(for: userID, startDate: effectiveStartDate, endDate: effectiveEndDate) { [weak self] (result: Result<[DailyLog], Error>) in
-            guard let self = self else { return }
-            Task { @MainActor in
-                self.isLoading = false
-                switch result {
-                case .success(let logs):
-                    if logs.isEmpty {
-                        self.errorMessage = "No data available for the selected period."
-                    } else {
-                        self.processLogs(logs: logs, timeframeName: timeframeNameForSummary, totalDaysInPeriod: daysInPeriodForSummary)
-                    }
-                case .failure(let e):
-                    self.errorMessage = "Error fetching report data: \(e.localizedDescription)"
+        Task {
+            let result = await dailyLogService.fetchDailyHistory(for: userID, startDate: effectiveStartDate, endDate: effectiveEndDate)
+            isLoading = false
+            switch result {
+            case .success(let logs):
+                if logs.isEmpty {
+                    self.errorMessage = "No data available for the selected period."
+                } else {
+                    self.processLogs(logs: logs, timeframeName: timeframeNameForSummary, totalDaysInPeriod: daysInPeriodForSummary)
                 }
+            case .failure(let e):
+                self.errorMessage = "Error fetching report data: \(e.localizedDescription)"
             }
         }
     }
@@ -223,6 +220,22 @@ class ReportsViewModel: ObservableObject {
         var mealCals: [String: Double] = [:]
         var tmpCalT=[DateValuePoint](), tmpProtT=[DateValuePoint](), tmpCarbT=[DateValuePoint](), tmpFatT=[DateValuePoint]()
 
+        let allExercises = validLogs.flatMap { $0.exercises ?? [] }
+        if !allExercises.isEmpty {
+            let totalWorkouts = allExercises.count
+            let totalCaloriesBurned = allExercises.reduce(0) { $0 + $1.caloriesBurned }
+            let frequency = Dictionary(grouping: allExercises, by: { $0.name }).mapValues { $0.count }
+            let mostFrequent = frequency.max { a, b in a.value < b.value }?.key ?? "N/A"
+            
+            self.weeklyWorkoutReport = WorkoutReport(
+                totalWorkouts: totalWorkouts,
+                totalCaloriesBurned: totalCaloriesBurned,
+                mostFrequentWorkout: mostFrequent
+            )
+        } else {
+            self.weeklyWorkoutReport = nil
+        }
+        
         for log in validLogs {
             let c = log.totalCalories(); let mac = log.totalMacros(); let mic = log.totalMicronutrients()
             totCals += c; totProt += mac.protein; totCarb += mac.carbs; totFat += mac.fats

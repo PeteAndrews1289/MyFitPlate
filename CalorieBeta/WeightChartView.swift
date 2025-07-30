@@ -34,7 +34,6 @@ struct WeightChartView: UIViewRepresentable {
         let chartView = DGCharts.LineChartView()
         chartView.delegate = context.coordinator
         
-        // General Chart Styling
         chartView.rightAxis.enabled = false
         chartView.legend.enabled = false
         chartView.animate(xAxisDuration: 0.5)
@@ -42,14 +41,14 @@ struct WeightChartView: UIViewRepresentable {
         chartView.highlightPerTapEnabled = true
         chartView.highlightPerDragEnabled = false
         
-        // X-Axis Styling
         let xAxis = chartView.xAxis
         xAxis.labelPosition = .bottom
         xAxis.drawGridLinesEnabled = false
         xAxis.valueFormatter = DateValueFormatter()
-        xAxis.granularity = 1
+        xAxis.granularityEnabled = true
+        xAxis.labelCount = 6
+        xAxis.forceLabelsEnabled = true
         
-        // Y-Axis Styling
         let yAxis = chartView.leftAxis
         yAxis.drawGridLinesEnabled = true
         yAxis.gridColor = UIColor.systemGray4.withAlphaComponent(0.5)
@@ -85,7 +84,9 @@ struct WeightChartView: UIViewRepresentable {
             return
         }
 
-        let dataEntries = weightHistory.map { record -> ChartDataEntry in
+        let sortedHistory = weightHistory.sorted { $0.date < $1.date }
+
+        let dataEntries = sortedHistory.map { record -> ChartDataEntry in
             let dateValue = record.date.timeIntervalSince1970
             let weightValue = record.weight
             return ChartDataEntry(x: dateValue, y: weightValue, data: record.id as Any?)
@@ -94,26 +95,22 @@ struct WeightChartView: UIViewRepresentable {
         let lineDataSet = LineChartDataSet(entries: dataEntries, label: "Weight")
         let brandColor = UIColor(Color.brandPrimary)
         
-        // Line Styling
         lineDataSet.mode = .cubicBezier
         lineDataSet.lineWidth = 2.5
         lineDataSet.colors = [brandColor]
         
-        // Data Point Styling
         lineDataSet.drawCirclesEnabled = true
         lineDataSet.circleRadius = 4
         lineDataSet.circleColors = [brandColor]
         lineDataSet.circleHoleColor = UIColor(Color.backgroundSecondary)
         lineDataSet.circleHoleRadius = 2
         
-        // Fill Gradient
         lineDataSet.drawFilledEnabled = true
         let gradientColors = [brandColor.withAlphaComponent(0.3).cgColor, UIColor.clear.cgColor]
         if let gradient = CGGradient(colorsSpace: nil, colors: gradientColors as CFArray, locations: nil) {
             lineDataSet.fill = LinearGradientFill(gradient: gradient, angle: 90.0)
         }
         
-        // Disable drawing values on the chart
         lineDataSet.drawValuesEnabled = false
         
         let lineData = LineChartData(dataSet: lineDataSet)

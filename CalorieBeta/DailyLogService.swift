@@ -407,7 +407,7 @@ class DailyLogService: ObservableObject {
         }
     }
     
-    func fetchDailyHistory(for userID: String, startDate: Date? = nil, endDate: Date? = nil, completion: @escaping (Result<[DailyLog], Error>) -> Void) {
+    func fetchDailyHistory(for userID: String, startDate: Date? = nil, endDate: Date? = nil) async -> Result<[DailyLog], Error> {
         var query: Query = db.collection("users").document(userID).collection("dailyLogs")
         let queryStartDate = startDate.map { Calendar.current.startOfDay(for: $0) }
         let queryEndDate = endDate.map { Calendar.current.startOfDay(for: $0) }
@@ -418,7 +418,14 @@ class DailyLogService: ObservableObject {
             query = query.whereField("date", isLessThan: Timestamp(date: endOfQueryDay))
         }
         query = query.order(by: "date", descending: true)
-        query.getDocuments { snapshot, error in if let e = error { completion(.failure(e)); return }; let logs: [DailyLog] = snapshot?.documents.compactMap { d in self.decodeDailyLog(from: d.data(), documentID: d.documentID) } ?? []; completion(.success(logs)) }
+
+        do {
+            let snapshot = try await query.getDocuments()
+            let logs: [DailyLog] = snapshot.documents.compactMap { d in self.decodeDailyLog(from: d.data(), documentID: d.documentID) }
+            return .success(logs)
+        } catch {
+            return .failure(error)
+        }
     }
 
     private func encodeDailyLog(_ log: DailyLog) -> [String: Any] {
