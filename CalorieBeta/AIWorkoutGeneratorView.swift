@@ -14,6 +14,8 @@ struct AIWorkoutGeneratorView: View {
     
     @State private var isLoading = false
     @State private var generatedProgram: WorkoutProgram?
+    @State private var showErrorAlert = false
+    @State private var errorMessage = ""
 
     var body: some View {
         NavigationView {
@@ -49,13 +51,18 @@ struct AIWorkoutGeneratorView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                        
+
+                        Text("⚠️ Always consult a qualified healthcare professional before beginning any new exercise program.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
                         Button {
                             generatePlan()
                         } label: {
                             Label("Generate Program with AI", systemImage: "sparkles")
                         }
                         .disabled(isLoading || goal.isEmpty)
+                        .accessibilityIdentifier("generateProgramButton")
                     }
                 }
             }
@@ -68,6 +75,11 @@ struct AIWorkoutGeneratorView: View {
                     }
                 }
             )
+            .alert("Generation Error", isPresented: $showErrorAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
         }
     }
     
@@ -75,7 +87,12 @@ struct AIWorkoutGeneratorView: View {
         isLoading = true
         Task {
             let program = await workoutService.generateAIWorkoutPlan(goal: goal, daysPerWeek: daysPerWeek, details: details)
-            self.generatedProgram = program
+            if let program = program {
+                self.generatedProgram = program
+            } else {
+                self.errorMessage = "Unable to generate a program. Please try again."
+                self.showErrorAlert = true
+            }
             isLoading = false
         }
     }

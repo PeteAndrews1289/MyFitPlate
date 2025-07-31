@@ -6,7 +6,8 @@ struct AppFont: ViewModifier {
     var weight: Font.Weight
 
     func body(content: Content) -> some View {
-        content.font(.system(size: size, weight: weight, design: .rounded))
+        content
+            .font(.system(size: size, weight: weight, design: .rounded, relativeTo: .body))
     }
 }
 

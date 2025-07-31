@@ -80,8 +80,11 @@ class AppState: ObservableObject {
 
 // Global helper function to read the API key from the project's configuration.
 func getAPIKey() -> String {
+    if let envKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"], !envKey.isEmpty {
+        return envKey
+    }
     guard let key = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String else {
-        fatalError("OpenAI API Key not set in Info.plist")
+        fatalError("OpenAI API Key not set in Info.plist or environment")
     }
     return key
 }

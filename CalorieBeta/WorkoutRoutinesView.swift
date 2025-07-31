@@ -8,6 +8,8 @@ struct WorkoutRoutinesView: View {
     @State private var routineToPlay: WorkoutRoutine?
     @State private var showingAIGenerator = false
     @State private var showingProgramList = false
+    @State private var pendingRoutine: WorkoutRoutine?
+    @State private var showHealthDisclaimer = false
 
     private var nextWorkoutInfo: (program: WorkoutProgram, routine: WorkoutRoutine, title: String)? {
         guard let program = workoutService.activeProgram,
@@ -39,7 +41,8 @@ struct WorkoutRoutinesView: View {
                         program: program,
                         nextWorkout: (routine: routine, title: title),
                         onStartWorkout: {
-                            self.routineToPlay = routine
+                            self.pendingRoutine = routine
+                            self.showHealthDisclaimer = true
                         }
                     )
                 } else if workoutService.activeProgram != nil {
@@ -84,21 +87,32 @@ struct WorkoutRoutinesView: View {
         .onAppear {
             workoutService.fetchRoutinesAndPrograms()
         }
+        .alert("Health Notice", isPresented: $showHealthDisclaimer) {
+            Button("Cancel", role: .cancel) { pendingRoutine = nil }
+            Button("Continue") {
+                routineToPlay = pendingRoutine
+                pendingRoutine = nil
+            }
+        } message: {
+            Text("Consult a medical professional before beginning any new exercise program.")
+        }
         .fullScreenCover(item: $routineToPlay) { routine in
-            WorkoutPlayerView(routine: routine) {
+            WorkoutPlayerView(
+                routine: routine,
+                workoutService: workoutService,
+                goalSettings: goalSettings,
+                dailyLogService: dailyLogService
+            ) {
                 if let program = workoutService.activeProgram, var currentIndex = program.currentProgressIndex {
                     currentIndex += 1
                     var mutableProgram = program
                     mutableProgram.currentProgressIndex = currentIndex
-                    
+
                     Task {
                         await workoutService.saveProgram(mutableProgram)
                     }
                 }
             }
-            .environmentObject(goalSettings)
-            .environmentObject(dailyLogService)
-            .environmentObject(workoutService)
         }
         .sheet(isPresented: $showingAIGenerator) {
             AIWorkoutGeneratorView()

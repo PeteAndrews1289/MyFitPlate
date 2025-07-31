@@ -4,6 +4,8 @@ import FirebaseFirestore
 struct ProgramDetailView: View {
     @State var program: WorkoutProgram
     @EnvironmentObject var workoutService: WorkoutService
+    @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject var dailyLogService: DailyLogService
     @State private var routineToPlay: WorkoutRoutine?
 
     private var calendarWorkoutMap: [Date: WorkoutRoutine] {
@@ -107,7 +109,12 @@ struct ProgramDetailView: View {
         }
         .navigationTitle(program.name)
         .fullScreenCover(item: $routineToPlay) { routine in
-            WorkoutPlayerView(routine: routine) {
+            WorkoutPlayerView(
+                routine: routine,
+                workoutService: workoutService,
+                goalSettings: goalSettings,
+                dailyLogService: dailyLogService
+            ) {
                 if let currentIndex = program.currentProgressIndex {
                     program.currentProgressIndex = currentIndex + 1
                     Task {
