@@ -243,7 +243,33 @@ class AchievementService: ObservableObject {
         if shouldCheck("macro_master") { let pMet = abs(macros.protein - goals.protein) <= 10.0; let cMet = abs(macros.carbs - goals.carbs) <= 20.0; let fMet = abs(macros.fats - goals.fats) <= 5.0; if pMet && cMet && fMet { unlockAchievement(userID: userID, achievementID: "macro_master") } }
         if shouldCheck("hydration_hero"), let tracker = dailyLog.waterTracker { if tracker.totalOunces >= tracker.goalOunces { unlockAchievement(userID: userID, achievementID: "hydration_hero") } }
     }
-    private func checkLoggingStreakAchievement(userID: String) { }
+    private func checkLoggingStreakAchievement(userID: String) {
+        guard let logService = dailyLogService else { return }
+
+        let startDate = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+
+        Task {
+            let result = await logService.fetchDailyHistory(for: userID, startDate: startDate, endDate: Date())
+            guard case .success(let logs) = result else { return }
+
+            let loggedDates: Set<Date> = Set(logs.map { Calendar.current.startOfDay(for: $0.date) })
+            var streak = 0
+            var checkDate = Calendar.current.startOfDay(for: Date())
+            for _ in 0..<7 {
+                if loggedDates.contains(checkDate) {
+                    streak += 1
+                } else { break }
+                guard let previous = Calendar.current.date(byAdding: .day, value: -1, to: checkDate) else { break }
+                checkDate = previous
+            }
+
+            updateProgress(userID: userID, achievementID: "log_streak_3", progress: Double(min(streak, 3)))
+            updateProgress(userID: userID, achievementID: "log_streak_7", progress: Double(min(streak, 7)))
+
+            if streak >= 3 { unlockAchievement(userID: userID, achievementID: "log_streak_3") }
+            if streak >= 7 { unlockAchievement(userID: userID, achievementID: "log_streak_7") }
+        }
+    }
     private func checkWeightChangeAchievement(userID: String, goals: GoalSettings) { let id = "first_5_lbs"; guard shouldCheck(id), let def = getDefinition(id: id), let firstW = goals.weightHistory.first else { return }; let initialW = firstW.weight; let currentW = goals.weight; let change = abs(currentW - initialW); updateProgress(userID: userID, achievementID: id, progress: change); if change >= def.criteriaValue { unlockAchievement(userID: userID, achievementID: id) } }
     private func checkTargetWeightAchievement(userID: String, goals: GoalSettings) { let id = "target_reached"; guard shouldCheck(id), let def = getDefinition(id: id), let target = goals.targetWeight else { return }; let current = goals.weight; if abs(current - target) <= 0.5 { unlockAchievement(userID: userID, achievementID: id) } }
     
