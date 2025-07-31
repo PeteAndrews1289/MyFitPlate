@@ -113,13 +113,8 @@ class RestTimer: ObservableObject {
 
 struct WorkoutPlayerView: View {
     @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var dailyLogService: DailyLogService
-    @EnvironmentObject var goalSettings: GoalSettings
-    @EnvironmentObject var workoutService: WorkoutService
     
-    @State private var routine: WorkoutRoutine
-    @StateObject private var restTimer = RestTimer()
-    @StateObject private var totalWorkoutTimer: TotalWorkoutTimer
+    @StateObject private var viewModel: WorkoutPlayerViewModel
     
     @State private var showingNoteEditor = false
     @State private var noteText = ""
@@ -129,7 +124,6 @@ struct WorkoutPlayerView: View {
     @State private var showingHistoryFor: RoutineExercise?
     @State private var showingPlateCalculator = false
     
-    @State private var previousPerformance: [String: CompletedExercise] = [:]
     
     @AppStorage("isAutoRestTimerEnabled") private var isAutoRestTimerEnabled = false
     
@@ -141,9 +135,8 @@ struct WorkoutPlayerView: View {
     
     var onWorkoutComplete: () -> Void
 
-    init(routine: WorkoutRoutine, onWorkoutComplete: @escaping () -> Void) {
-        _routine = State(initialValue: routine)
-        _totalWorkoutTimer = StateObject(wrappedValue: TotalWorkoutTimer(routineId: routine.id))
+    init(routine: WorkoutRoutine, workoutService: WorkoutService, goalSettings: GoalSettings, dailyLogService: DailyLogService, onWorkoutComplete: @escaping () -> Void) {
+        _viewModel = StateObject(wrappedValue: WorkoutPlayerViewModel(routine: routine, workoutService: workoutService, goalSettings: goalSettings, dailyLogService: dailyLogService))
         self.onWorkoutComplete = onWorkoutComplete
     }
     
@@ -151,14 +144,14 @@ struct WorkoutPlayerView: View {
         ZStack {
             VStack(spacing: 0) {
                 HStack {
-                    Text(totalWorkoutTimer.formattedTime())
+                    Text(viewModel.totalWorkoutTimer.formattedTime())
                         .padding(8)
                         .background(.thinMaterial)
                         .cornerRadius(8)
                     
                     Spacer()
                     
-                    Text(routine.name)
+                    Text(viewModel.routine.name)
                         .appFont(size: 18, weight: .bold)
                     
                     Spacer()
@@ -172,12 +165,12 @@ struct WorkoutPlayerView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        ForEach($routine.exercises) { $exercise in
+                        ForEach($viewModel.routine.exercises) { $exercise in
                             ExerciseCardView(
                                 exercise: $exercise,
-                                restTimer: restTimer,
+                                restTimer: viewModel.restTimer,
                                 isAutoRestEnabled: $isAutoRestTimerEnabled,
-                                previousPerformance: previousPerformance[exercise.name],
+                                previousPerformance: viewModel.previousPerformance[exercise.name],
                                 onAddNote: {
                                     self.exerciseForNote = $exercise
                                     self.noteText = $exercise.wrappedValue.notes ?? PinnedNotesManager.shared.getPinnedNote(for: $exercise.wrappedValue.name) ?? ""
@@ -192,16 +185,16 @@ struct WorkoutPlayerView: View {
                                 }
                             )
                         }
-                        .onMove(perform: moveExercise)
-                        
+                        .onMove(perform: viewModel.moveExercise)
+
                         Button("Mark Workout as Complete") {
-                            logAllCompletedExercises()
-                            restTimer.stop()
-                            totalWorkoutTimer.stop()
+                            viewModel.logAllCompletedExercises()
+                            viewModel.stopTimers()
                             onWorkoutComplete()
                             dismiss()
                         }
                         .buttonStyle(PrimaryButtonStyle())
+                        .accessibilityIdentifier("completeWorkoutButton")
                         .padding(.top)
                     }
                     .padding()
@@ -218,7 +211,6 @@ struct WorkoutPlayerView: View {
                 .padding()
             }
             .blur(radius: showingNoteEditor ? 20 : 0)
-            .onAppear(perform: loadPreviousPerformance)
 
             if showingNoteEditor {
                 Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
@@ -246,12 +238,11 @@ struct WorkoutPlayerView: View {
         }
         .navigationBarHidden(true)
         .onAppear {
-            totalWorkoutTimer.start()
+            viewModel.startTimers()
+            viewModel.loadPreviousPerformance()
         }
         .onDisappear {
-            Task {
-                try? await workoutService.saveRoutine(routine)
-            }
+            Task { await viewModel.saveRoutine() }
         }
         .sheet(item: $swappableExercise) { wrapper in
             SwapExerciseView(exercise: wrapper.binding)
@@ -264,62 +255,6 @@ struct WorkoutPlayerView: View {
         }
     }
     
-    private func loadPreviousPerformance() {
-        Task {
-            for exercise in routine.exercises {
-                if let performance = await workoutService.fetchPreviousPerformance(for: exercise.name) {
-                    previousPerformance[exercise.name] = performance
-                }
-            }
-        }
-    }
-    
-    private func moveExercise(from source: IndexSet, to destination: Int) {
-        routine.exercises.move(fromOffsets: source, toOffset: destination)
-    }
-    
-    private func logAllCompletedExercises() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
-        
-        let completedExercisesForLog = routine.exercises.compactMap { exercise -> CompletedExercise? in
-            let completedSets = exercise.sets.filter { $0.isCompleted }.map {
-                CompletedSet(reps: $0.reps, weight: $0.weight, distance: $0.distance, durationInSeconds: $0.durationInSeconds)
-            }
-            return completedSets.isEmpty ? nil : CompletedExercise(exerciseName: exercise.name, sets: completedSets)
-        }
-        
-        if !completedExercisesForLog.isEmpty {
-            let sessionLog = WorkoutSessionLog(
-                date: Timestamp(date: Date()),
-                routineID: routine.id,
-                completedExercises: completedExercisesForLog
-            )
-            Task {
-                await workoutService.saveWorkoutSessionLog(sessionLog)
-            }
-        }
-
-        for exercise in routine.exercises {
-            let completedSets = exercise.sets.filter { $0.isCompleted }
-            if completedSets.isEmpty { continue }
-            
-            let totalCaloriesBurned = completedSets.reduce(0.0) { partialResult, set in
-                let bodyweightKg = goalSettings.weight * 0.453592
-                return partialResult + (5.0 * 3.5 * bodyweightKg) / 200
-            }
-
-            if totalCaloriesBurned > 0 {
-                let loggedExercise = LoggedExercise(
-                    name: exercise.name,
-                    durationMinutes: nil,
-                    caloriesBurned: totalCaloriesBurned,
-                    date: Date(),
-                    source: "routine"
-                )
-                dailyLogService.addExerciseToLog(for: userID, exercise: loggedExercise)
-            }
-        }
-    }
 }
 
 struct ExerciseCardView: View {
