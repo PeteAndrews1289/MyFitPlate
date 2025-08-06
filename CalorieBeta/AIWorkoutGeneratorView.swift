@@ -14,8 +14,7 @@ struct AIWorkoutGeneratorView: View {
     
     @State private var isLoading = false
     @State private var generatedProgram: WorkoutProgram?
-    @State private var showErrorAlert = false
-    @State private var errorMessage = ""
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationView {
@@ -31,6 +30,13 @@ struct AIWorkoutGeneratorView: View {
                     })
                 } else {
                     Form {
+                        if let errorMessage = errorMessage {
+                            Section {
+                                Text(errorMessage)
+                                    .foregroundColor(.red)
+                            }
+                        }
+
                         Section(header: Text("Primary Goal")) {
                             TextField("e.g., Build muscle, lose weight...", text: $goal)
                             Text("Tell Maia what your overall goal is, like building muscle, losing weight, increasing flexibility, or improving running for example.")
@@ -51,18 +57,13 @@ struct AIWorkoutGeneratorView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-
-                        Text("⚠️ Always consult a qualified healthcare professional before beginning any new exercise program.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
+                        
                         Button {
                             generatePlan()
                         } label: {
                             Label("Generate Program with AI", systemImage: "sparkles")
                         }
                         .disabled(isLoading || goal.isEmpty)
-                        .accessibilityIdentifier("generateProgramButton")
                     }
                 }
             }
@@ -75,25 +76,21 @@ struct AIWorkoutGeneratorView: View {
                     }
                 }
             )
-            .alert("Generation Error", isPresented: $showErrorAlert) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(errorMessage)
-            }
         }
     }
     
     private func generatePlan() {
         isLoading = true
+        errorMessage = nil
         Task {
-            let program = await workoutService.generateAIWorkoutPlan(goal: goal, daysPerWeek: daysPerWeek, details: details)
-            if let program = program {
-                self.generatedProgram = program
-            } else {
-                self.errorMessage = "Unable to generate a program. Please try again."
-                self.showErrorAlert = true
-            }
+            let result = await workoutService.generateAIWorkoutPlan(goal: goal, daysPerWeek: daysPerWeek, details: details)
             isLoading = false
+            switch result {
+            case .success(let program):
+                self.generatedProgram = program
+            case .failure(let error):
+                self.errorMessage = error.localizedDescription
+            }
         }
     }
 }
@@ -120,6 +117,33 @@ struct GeneratedProgramPreviewView: View {
             Button("Save Program", action: onSave)
                 .buttonStyle(PrimaryButtonStyle())
                 .padding()
+        }
+    }
+}
+
+struct WeekDaySelector: View {
+    @Binding var selectedDays: [Int]
+    private let days = ["S", "M", "T", "W", "T", "F", "S"]
+
+    var body: some View {
+        HStack {
+            ForEach(0..<7) { index in
+                let day = index + 1
+                Text(days[index])
+                    .fontWeight(.bold)
+                    .foregroundColor(selectedDays.contains(day) ? .white : .primary)
+                    .frame(width: 35, height: 35)
+                    .background(
+                        Circle().fill(selectedDays.contains(day) ? Color.brandPrimary : Color.gray.opacity(0.2))
+                    )
+                    .onTapGesture {
+                        if let index = selectedDays.firstIndex(of: day) {
+                            selectedDays.remove(at: index)
+                        } else {
+                            selectedDays.append(day)
+                        }
+                    }
+            }
         }
     }
 }

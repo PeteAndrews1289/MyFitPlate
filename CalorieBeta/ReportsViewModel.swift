@@ -3,6 +3,14 @@ import Charts
 import FirebaseAuth
 import HealthKit
 
+struct MealScore {
+    let grade: String
+    let summary: String
+    let color: Color
+
+    static let noScore = MealScore(grade: "N/A", summary: "Log a full day of meals to get your score.", color: .gray)
+}
+
 struct ReportSummary: Identifiable {
     let id = UUID()
     let timeframe: String
@@ -38,6 +46,7 @@ struct MealDistributionDataPoint: Identifiable {
 @MainActor
 class ReportsViewModel: ObservableObject {
     @Published var summary: ReportSummary? = nil
+    @Published var mealScore: MealScore? = nil
     @Published var calorieTrend: [DateValuePoint] = []
     @Published var proteinTrend: [DateValuePoint] = []
     @Published var carbTrend: [DateValuePoint] = []
@@ -127,12 +136,9 @@ class ReportsViewModel: ObservableObject {
 
     private func formatTimeInterval(_ interval: TimeInterval) -> String {
         guard interval > 0 else { return "0h 0m" }
-
         let totalMinutes = Int(round(interval / 60.0))
-        
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        
         return "\(hours)h \(minutes)m"
     }
 
@@ -189,7 +195,10 @@ class ReportsViewModel: ObservableObject {
         }
         
         Task {
+            async let mealScoreTask = fetchAndCalculateYesterdaysMealScore(userID: userID, goals: goals)
             let result = await dailyLogService.fetchDailyHistory(for: userID, startDate: effectiveStartDate, endDate: effectiveEndDate)
+            self.mealScore = await mealScoreTask
+            
             isLoading = false
             switch result {
             case .success(let logs):
@@ -284,5 +293,64 @@ class ReportsViewModel: ObservableObject {
             message: "Your highest calorie day in this period was \(dateString), with a total of \(String(format: "%.0f", highestCalorieLog.totalCalories())) calories logged.",
             category: .smartSuggestion
         )
+    }
+    
+    private func fetchAndCalculateYesterdaysMealScore(userID: String, goals: GoalSettings) async -> MealScore {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let result = await dailyLogService.fetchDailyHistory(for: userID, startDate: yesterday, endDate: yesterday)
+        
+        if case .success(let logs) = result, let yesterdaysLog = logs.first {
+            return calculateMealScore(for: yesterdaysLog, goals: goals)
+        }
+        return .noScore
+    }
+    
+    private func calculateMealScore(for log: DailyLog, goals: GoalSettings) -> MealScore {
+        guard let calorieGoal = goals.calories, calorieGoal > 0 else {
+            return .noScore
+        }
+
+        var score = 100.0
+        var feedback: [String] = []
+
+        let calorieDiff = abs(log.totalCalories() - calorieGoal)
+        if calorieDiff > 250 {
+            score -= 20
+            feedback.append("your calories were off target")
+        } else if calorieDiff > 100 {
+            score -= 10
+        }
+
+        let macros = log.totalMacros()
+        let proteinDiff = abs(macros.protein - goals.protein)
+        if proteinDiff > 20 {
+            score -= 15
+            feedback.append("your protein was low")
+        }
+
+        let fiber = log.totalMicronutrients().fiber
+        if fiber < 20 {
+            score -= 15
+            feedback.append("you could use more fiber")
+        }
+        
+        let grade: String
+        let color: Color
+        switch score {
+            case 90...: grade = "A+"; color = .accentPositive
+            case 80..<90: grade = "A-"; color = .accentPositive
+            case 70..<80: grade = "B"; color = .yellow
+            case 60..<70: grade = "C"; color = .orange
+            default: grade = "D"; color = .red
+        }
+        
+        let summary: String
+        if feedback.isEmpty {
+            summary = "Excellent work! You hit all your major targets."
+        } else {
+            summary = "Good effort! It looks like " + feedback.joined(separator: ", ") + "."
+        }
+
+        return MealScore(grade: grade, summary: summary, color: color)
     }
 }

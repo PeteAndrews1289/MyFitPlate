@@ -31,6 +31,8 @@ class GoalSettings: ObservableObject {
     @Published var vitaminAGoal: Double?
     @Published var vitaminCGoal: Double?
     @Published var vitaminDGoal: Double?
+    @Published var vitaminB12Goal: Double?
+    @Published var folateGoal: Double?
     
     @Published var calorieGoalMethod: CalorieGoalMethod = .mifflinWithActivity { didSet { recalculateAllGoals() } }
     @Published var waterGoal: Double = 64.0
@@ -175,6 +177,8 @@ class GoalSettings: ObservableObject {
         switch age {
             case 0...70: vitaminDGoal = 15; case 71...: vitaminDGoal = 20; default: vitaminDGoal = 15
         }
+        vitaminB12Goal = 2.4
+        folateGoal = 400
     }
     
     func loadUserGoals(userID: String, completion: @escaping () -> Void = {}) {
@@ -257,7 +261,7 @@ class GoalSettings: ObservableObject {
                 "activityLevel": self.activityLevel, "goal": self.goal, "targetWeight": self.targetWeight ?? NSNull(),
                 "calciumGoal": self.calciumGoal ?? NSNull(), "ironGoal": self.ironGoal ?? NSNull(), "potassiumGoal": self.potassiumGoal ?? NSNull(),
                 "sodiumGoal": self.sodiumGoal ?? NSNull(), "vitaminAGoal": self.vitaminAGoal ?? NSNull(), "vitaminCGoal": self.vitaminCGoal ?? NSNull(),
-                "vitaminDGoal": self.vitaminDGoal ?? NSNull(), "waterGoal": self.waterGoal,
+                "vitaminDGoal": self.vitaminDGoal ?? NSNull(), "waterGoal": self.waterGoal, "vitaminB12Goal": self.vitaminB12Goal ?? NSNull(), "folateGoal": self.folateGoal ?? NSNull(),
                 "suggestionProteins": self.suggestionProteins, "suggestionCuisines": self.suggestionCuisines,
                 "suggestionCarbs": self.suggestionCarbs, "suggestionVeggies": self.suggestionVeggies
             ]

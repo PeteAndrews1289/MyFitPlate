@@ -1,25 +1,6 @@
 import SwiftUI
 import FirebaseAuth
 
-enum WeightChartTimeframe: String, CaseIterable, Identifiable {
-    case week = "W"
-    case month = "M"
-    case threeMonths = "3M"
-    case year = "Y"
-    case allTime = "All"
-    var id: String { self.rawValue }
-
-    var displayName: String {
-        switch self {
-        case .week: return "Last 7 Days"
-        case .month: return "Last 30 Days"
-        case .threeMonths: return "Last 3 Months"
-        case .year: return "Last Year"
-        case .allTime: return "All Time"
-        }
-    }
-}
-
 struct WeightTrackingView: View {
     @EnvironmentObject var goalSettings: GoalSettings
     @State private var showingWeightEntrySheet = false
@@ -33,6 +14,13 @@ struct WeightTrackingView: View {
     @State private var chartEntryToDeleteID: String? = nil
     @State private var chartEntryToDeleteDetails: String = ""
 
+    private var numberFormatter: NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
+        formatter.maximumFractionDigits = 1
+        return formatter
+    }
 
     private var currentProgress: Double {
         goalSettings.calculateWeightProgress().map { $0 / 100.0 } ?? 0.0
@@ -91,7 +79,6 @@ struct WeightTrackingView: View {
          return formatter
      }()
 
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -115,7 +102,7 @@ struct WeightTrackingView: View {
                                 .appFont(size: 17, weight: .semibold)
                             Spacer()
                             Button("Edit") {
-                                targetWeightInput = String(format: "%.1f", target)
+                                targetWeightInput = numberFormatter.string(from: NSNumber(value: target)) ?? ""
                                 showingTargetWeightSheet = true
                             }
                             .tint(.brandPrimary)
@@ -126,9 +113,9 @@ struct WeightTrackingView: View {
                             .scaleEffect(x: 1, y: 2, anchor: .center)
                         
                         HStack {
-                            Text(String(format: "Initial: %.1f lb", initial))
+                            Text("Initial: \(numberFormatter.string(from: NSNumber(value: initial)) ?? "") lb")
                             Spacer()
-                            Text(String(format: "Goal: %.1f lb", target))
+                            Text("Goal: \(numberFormatter.string(from: NSNumber(value: target)) ?? "") lb")
                         }
                         .appFont(size: 12)
                         .foregroundColor(Color(UIColor.secondaryLabel))
@@ -146,7 +133,7 @@ struct WeightTrackingView: View {
                     .cornerRadius(15)
                 } else {
                     Button("Set Target Weight & Goals") {
-                        targetWeightInput = String(format: "%.1f", goalSettings.weight)
+                        targetWeightInput = numberFormatter.string(from: NSNumber(value: goalSettings.weight)) ?? ""
                         showingCaloricCalculatorSheet = true
                     }
                     .buttonStyle(PrimaryButtonStyle())
@@ -187,7 +174,7 @@ struct WeightTrackingView: View {
                             onEntrySelected: { entryId in
                                  if let entry = goalSettings.weightHistory.first(where: { $0.id == entryId }) {
                                      self.chartEntryToDeleteID = entryId
-                                     let weightString = String(format: "%.1f", entry.weight)
+                                     let weightString = numberFormatter.string(from: NSNumber(value: entry.weight)) ?? ""
                                      let dateString = alertItemFormatter.string(from: entry.date)
                                      self.chartEntryToDeleteDetails = "\(weightString) lbs on \(dateString)"
                                      self.showingChartDeleteAlert = true
@@ -218,8 +205,8 @@ struct WeightTrackingView: View {
                             SmallStatCard(title: "Trend", value: chartStats.trend.map { String(format: "%+.1f lb", $0) } ?? "N/A", iconName: chartStats.trend.map { $0 == 0 ? "arrow.left.arrow.right" : ($0 < 0 ? "arrow.down.right" : "arrow.up.right") } ?? "chart.line.uptrend.xyaxis", iconColor: chartStats.trend.map { $0 == 0 ? .gray : ($0 < 0 ? .accentPositive : .red) } ?? .gray)
                         }
                         GridRow {
-                            SmallStatCard(title: "Highest", value: chartStats.highest.map { String(format: "%.1f lb", $0) } ?? "N/A", iconName: "arrow.up.to.line", iconColor: .orange)
-                            SmallStatCard(title: "Lowest", value: chartStats.lowest.map { String(format: "%.1f lb", $0) } ?? "N/A", iconName: "arrow.down.to.line", iconColor: .accentPositive)
+                            SmallStatCard(title: "Highest", value: chartStats.highest.map { (numberFormatter.string(from: NSNumber(value: $0)) ?? "") + " lb" } ?? "N/A", iconName: "arrow.up.to.line", iconColor: .orange)
+                            SmallStatCard(title: "Lowest", value: chartStats.lowest.map { (numberFormatter.string(from: NSNumber(value: $0)) ?? "") + " lb" } ?? "N/A", iconName: "arrow.down.to.line", iconColor: .accentPositive)
                         }
                     }
                     .padding(.horizontal)
@@ -284,9 +271,9 @@ struct WeightTrackingView: View {
         .onAppear {
             goalSettings.loadWeightHistory()
             if let target = goalSettings.targetWeight {
-                targetWeightInput = String(format: "%.1f", target)
+                targetWeightInput = numberFormatter.string(from: NSNumber(value: target)) ?? ""
             } else {
-                 targetWeightInput = String(format: "%.1f", goalSettings.weight)
+                 targetWeightInput = numberFormatter.string(from: NSNumber(value: goalSettings.weight)) ?? ""
             }
         }
     }
@@ -294,7 +281,9 @@ struct WeightTrackingView: View {
     private func confirmDeleteChartEntry(entryID: String) {
         goalSettings.deleteWeightEntry(entryID: entryID) { error in
             if let error = error {
+                
             } else {
+                
             }
         }
         chartEntryToDeleteID = nil

@@ -5,12 +5,20 @@ struct CycleInsightCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // Swapped Text elements for better hierarchy
+            Text(insight.phaseTitle)
+                .appFont(size: 20, weight: .semibold)
+                .foregroundColor(.accentPositive)
+            Text(insight.phaseDescription)
+                .appFont(size: 14)
+            
+            Divider()
+
             VStack(alignment: .leading) {
                 Text("Training Focus")
                     .appFont(size: 12).foregroundColor(.secondary)
                 Text(insight.trainingFocus.title)
-                    .appFont(size: 20, weight: .semibold)
-                    .foregroundColor(.accentPositive)
+                    .appFont(size: 16, weight: .medium)
                 Text(insight.trainingFocus.description)
                     .appFont(size: 14)
             }

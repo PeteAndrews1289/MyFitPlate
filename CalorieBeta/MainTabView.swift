@@ -19,6 +19,7 @@ struct MainTabView: View {
     @State private var showingAddExerciseView = false
     @State private var showingRecipeListView = false
     @State private var showingFoodSearch = false
+    @State private var showingAITextLog = false
     
     @State private var showingImagePicker = false
     @State private var isProcessingImage = false
@@ -86,6 +87,7 @@ struct MainTabView: View {
                             ("Search Food", "magnifyingglass", { self.showingFoodSearch = true }),
                             ("Scan Barcode", "barcode.viewfinder", { self.showingBarcodeScanner = true }),
                             ("Log with Camera", "camera.fill", { self.showingImagePicker = true }),
+                            ("Describe Your Meal", "text.bubble.fill", { self.showingAITextLog = true }),
                             ("Add Food Manually", "plus.circle", { self.showingAddFoodView = true }),
                             ("Log Exercise", "figure.walk", { self.showingAddExerciseView = true }),
                             ("Log Recipe/Meal", "list.clipboard", { self.showingRecipeListView = true })
@@ -164,6 +166,9 @@ struct MainTabView: View {
                         onLogUpdated: { self.scannedFoodItem = nil }
                     )
                 }
+            }
+            .sheet(isPresented: $showingAITextLog) {
+                AITextLogView()
             }
             .sheet(isPresented: $showingAddExerciseView) { AddExerciseView { newExercise in if let userID = Auth.auth().currentUser?.uid { dailyLogService.addExerciseToLog(for: userID, exercise: newExercise) } } }
             .sheet(isPresented: $showingRecipeListView) { RecipeListView() }

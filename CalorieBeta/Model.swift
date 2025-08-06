@@ -128,6 +128,32 @@ struct MealPlanDay: Identifiable, Codable {
     var meals: [PlannedMeal]
 }
 
+enum ReportTimeframe: String, CaseIterable, Identifiable {
+    case week = "Last 7 Days"
+    case month = "Last 30 Days"
+    case custom = "Custom Range"
+    var id: String { self.rawValue }
+}
+
+enum WeightChartTimeframe: String, CaseIterable, Identifiable {
+    case week = "W"
+    case month = "M"
+    case threeMonths = "3M"
+    case year = "Y"
+    case allTime = "All"
+    var id: String { self.rawValue }
+
+    var displayName: String {
+        switch self {
+        case .week: return "Last 7 Days"
+        case .month: return "Last 30 Days"
+        case .threeMonths: return "Last 3 Months"
+        case .year: return "Last Year"
+        case .allTime: return "All Time"
+        }
+    }
+}
+
 struct GroceryListItem: Identifiable, Codable, Equatable {
     let id = UUID()
     var name: String
@@ -178,6 +204,8 @@ struct ServingSizeOption: Identifiable, Hashable {
     let vitaminA: Double?
     let vitaminC: Double?
     let vitaminD: Double?
+    let vitaminB12: Double?
+    let folate: Double?
     func hash(into hasher: inout Hasher) { hasher.combine(description); hasher.combine(servingWeightGrams) }
     static func == (lhs: ServingSizeOption, rhs: ServingSizeOption) -> Bool { lhs.description == rhs.description && lhs.servingWeightGrams == rhs.servingWeightGrams }
 }
@@ -209,6 +237,8 @@ struct RecipeIngredient: Codable, Identifiable, Hashable {
     var vitaminA: Double?
     var vitaminC: Double?
     var vitaminD: Double?
+    var vitaminB12: Double?
+    var folate: Double?
     var originalImportedString: String?
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -274,6 +304,8 @@ struct UserRecipe: Codable, Identifiable {
         var vitaminA: Double? = 0
         var vitaminC: Double? = 0
         var vitaminD: Double? = 0
+        var vitaminB12: Double? = 0
+        var folate: Double? = 0
     }
 
     mutating func calculateTotals() {
@@ -287,22 +319,25 @@ struct UserRecipe: Codable, Identifiable {
         var totalSatF: Double = 0; var totalPolyF: Double = 0; var totalMonoF: Double = 0; var totalFib: Double = 0
         var totalCa: Double = 0; var totalFe: Double = 0; var totalK: Double = 0; var totalNa: Double = 0
         var totalVa: Double = 0; var totalVc: Double = 0; var totalVd: Double = 0
+        var totalVb12: Double = 0; var totalFol: Double = 0
 
         for ingredient in ingredients {
             totalCals += ingredient.calories; totalP += ingredient.protein; totalC += ingredient.carbs; totalF += ingredient.fats
             totalSatF += ingredient.saturatedFat ?? 0; totalPolyF += ingredient.polyunsaturatedFat ?? 0; totalMonoF += ingredient.monounsaturatedFat ?? 0; totalFib += ingredient.fiber ?? 0
             totalCa += ingredient.calcium ?? 0; totalFe += ingredient.iron ?? 0; totalK += ingredient.potassium ?? 0; totalNa += ingredient.sodium ?? 0
             totalVa += ingredient.vitaminA ?? 0; totalVc += ingredient.vitaminC ?? 0; totalVd += ingredient.vitaminD ?? 0
+            totalVb12 += ingredient.vitaminB12 ?? 0; totalFol += ingredient.folate ?? 0
         }
 
-        totalNutrition = RecipeNutrition(calories: totalCals, protein: totalP, carbs: totalC, fats: totalF, saturatedFat: totalSatF, polyunsaturatedFat: totalPolyF, monounsaturatedFat: totalMonoF, fiber: totalFib, calcium: totalCa, iron: totalFe, potassium: totalK, sodium: totalNa, vitaminA: totalVa, vitaminC: totalVc, vitaminD: totalVd)
+        totalNutrition = RecipeNutrition(calories: totalCals, protein: totalP, carbs: totalC, fats: totalF, saturatedFat: totalSatF, polyunsaturatedFat: totalPolyF, monounsaturatedFat: totalMonoF, fiber: totalFib, calcium: totalCa, iron: totalFe, potassium: totalK, sodium: totalNa, vitaminA: totalVa, vitaminC: totalVc, vitaminD: totalVd, vitaminB12: totalVb12, folate: totalFol)
 
         if totalServings > 0 {
             nutritionPerServing = RecipeNutrition(
                 calories: totalCals / totalServings, protein: totalP / totalServings, carbs: totalC / totalServings, fats: totalF / totalServings,
                 saturatedFat: totalSatF / totalServings, polyunsaturatedFat: totalPolyF / totalServings, monounsaturatedFat: totalMonoF / totalServings, fiber: totalFib / totalServings,
                 calcium: totalCa / totalServings, iron: totalFe / totalServings, potassium: totalK / totalServings, sodium: totalNa / totalServings,
-                vitaminA: totalVa / totalServings, vitaminC: totalVc / totalServings, vitaminD: totalVd / totalServings
+                vitaminA: totalVa / totalServings, vitaminC: totalVc / totalServings, vitaminD: totalVd / totalServings,
+                vitaminB12: totalVb12 / totalServings, folate: totalFol / totalServings
             )
         } else {
             nutritionPerServing = RecipeNutrition()
@@ -333,9 +368,11 @@ struct FoodItem: Codable, Identifiable, Hashable {
     var vitaminA: Double?
     var vitaminC: Double?
     var vitaminD: Double?
+    var vitaminB12: Double?
+    var folate: Double?
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (lhs: FoodItem, rhs: FoodItem) -> Bool { lhs.id == rhs.id }
-    enum CodingKeys: String, CodingKey { case id, name, calories, protein, carbs, fats, saturatedFat, polyunsaturatedFat, monounsaturatedFat, fiber, servingSize, servingWeight, timestamp, calcium, iron, potassium, sodium, vitaminA, vitaminC, vitaminD }
+    enum CodingKeys: String, CodingKey { case id, name, calories, protein, carbs, fats, saturatedFat, polyunsaturatedFat, monounsaturatedFat, fiber, servingSize, servingWeight, timestamp, calcium, iron, potassium, sodium, vitaminA, vitaminC, vitaminD, vitaminB12, folate }
 }
 struct Meal: Codable, Identifiable, Equatable { var id: String = UUID().uuidString; var name: String; var foodItems: [FoodItem]; static func == (lhs: Meal, rhs: Meal) -> Bool { lhs.id == rhs.id && lhs.name == rhs.name && lhs.foodItems == rhs.foodItems } }
 struct WaterTracker: Codable, Equatable { var totalOunces: Double; var goalOunces: Double; var date: Date; init(totalOunces: Double, goalOunces: Double = 64.0, date: Date) { self.totalOunces = totalOunces; self.goalOunces = goalOunces; self.date = date } }
@@ -360,8 +397,7 @@ struct DailyLog: Codable, Identifiable, Equatable {
 
     func totalCalories() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.calories } }
     func totalMacros() -> (protein: Double, fats: Double, carbs: Double) { let p = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.protein }; let f = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.fats }; let c = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.carbs }; return (p, f, c) }
-    func totalMicronutrients() -> (calcium: Double, iron: Double, potassium: Double, sodium: Double, vitaminA: Double, vitaminC: Double, vitaminD: Double ) { var ca=0.0, fe=0.0, k=0.0, na=0.0, va=0.0, vc=0.0, vd=0.0; for meal in meals { for item in meal.foodItems { ca += item.calcium ?? 0; fe += item.iron ?? 0; k += item.potassium ?? 0; na += item.sodium ?? 0; va += item.vitaminA ?? 0; vc += item.vitaminC ?? 0; vd += item.vitaminD ?? 0 } }; return (ca, fe, k, na, va, vc, vd) }
-    func totalFiber() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + ($1.fiber ?? 0) } }
+    func totalMicronutrients() -> (calcium: Double, iron: Double, potassium: Double, sodium: Double, vitaminA: Double, vitaminC: Double, vitaminD: Double, vitaminB12: Double, folate: Double, fiber: Double ) { var ca=0.0, fe=0.0, k=0.0, na=0.0, va=0.0, vc=0.0, vd=0.0, vb12=0.0, fol=0.0, fib=0.0; for meal in meals { for item in meal.foodItems { ca += item.calcium ?? 0; fe += item.iron ?? 0; k += item.potassium ?? 0; na += item.sodium ?? 0; va += item.vitaminA ?? 0; vc += item.vitaminC ?? 0; vd += item.vitaminD ?? 0; vb12 += item.vitaminB12 ?? 0; fol += item.folate ?? 0; fib += item.fiber ?? 0 } }; return (ca, fe, k, na, va, vc, vd, vb12, fol, fib) }
     func totalSaturatedFat() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + ($1.saturatedFat ?? 0) } }
     func totalPolyunsaturatedFat() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + ($1.polyunsaturatedFat ?? 0) } }
     func totalMonounsaturatedFat() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + ($1.monounsaturatedFat ?? 0) } }

@@ -13,10 +13,55 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     let isUser: Bool
 }
 
+// MARK: - SuggestionButtonsView
+struct SuggestionButtonsView: View {
+    var onSelect: (String) -> Void
+    
+    let suggestions = [
+        "What's a healthy, high-protein snack?",
+        "Give me a recipe for a simple dinner.",
+        "How can I reduce my sugar intake?",
+        "Log 1 apple and a handful of almonds."
+    ]
+    
+    private let columns: [GridItem] = [
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12)
+    ]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Try asking...")
+                .appFont(size: 16, weight: .semibold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .padding(.horizontal)
+                .padding(.bottom, 5)
+
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(suggestions, id: \.self) { suggestion in
+                    Button(action: { onSelect(suggestion) }) {
+                        Text(suggestion)
+                            .appFont(size: 14, weight: .medium)
+                            .foregroundColor(.textPrimary)
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .padding(10)
+                            .background(Color.backgroundSecondary.opacity(0.5))
+                            .cornerRadius(12)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
+}
+
+
+// MARK: - ChatBubble
 struct ChatBubble: View {
     @Environment(\.colorScheme) var colorScheme
     var bgGreen = Color(red: 16/255, green: 20/255, blue: 21/255)
-    var tbGreen = Color(red: 28/255, green: 40/255, blue: 38/255)
     
     let message: ChatMessage
     let onLogRecipe: (String) -> Void
@@ -94,6 +139,7 @@ struct ChatBubble: View {
     }
 }
 
+// MARK: - ChatHistoryListView
 private struct ChatHistoryListView: View {
     @Binding var chatMessages: [ChatMessage]
     var onLogRecipe: (String) -> Void
@@ -117,24 +163,24 @@ private struct ChatHistoryListView: View {
                     }
                 }
                 .padding()
-                .padding(.bottom, 120)
-                .onChange(of: chatMessages) {
-                    if let lastId = chatMessages.last?.id {
-                        withAnimation {
-                            proxy.scrollTo(lastId, anchor: .bottom)
-                        }
-                    }
-                }
-                .onAppear {
-                    if let lastId = chatMessages.last?.id {
+            }
+            .onChange(of: chatMessages) {
+                if let lastId = chatMessages.last?.id {
+                    withAnimation {
                         proxy.scrollTo(lastId, anchor: .bottom)
                     }
+                }
+            }
+            .onAppear {
+                if let lastId = chatMessages.last?.id {
+                    proxy.scrollTo(lastId, anchor: .bottom)
                 }
             }
         }
     }
 }
 
+// MARK: - AIChatbotView
 struct AIChatbotView: View {
     @State private var userMessage = ""
     @State private var chatMessages: [ChatMessage] = []
@@ -157,55 +203,58 @@ struct AIChatbotView: View {
     @State private var alertMessage = ""
 
     var body: some View {
-        ZStack {
-            Color.backgroundPrimary.ignoresSafeArea()
+        VStack(spacing: 0) {
+            ChatHistoryListView(
+                chatMessages: $chatMessages,
+                onLogRecipe: logRecipe,
+                onSpeak: ttsManager.speak,
+                showAlert: $showAlert,
+                alertMessage: $alertMessage
+            )
+            .onTapGesture { hideKeyboard() }
 
             VStack(spacing: 0) {
-                ChatHistoryListView(
-                    chatMessages: $chatMessages,
-                    onLogRecipe: logRecipe,
-                    onSpeak: ttsManager.speak,
-                    showAlert: $showAlert,
-                    alertMessage: $alertMessage
-                )
+                if chatMessages.count <= 1 && !isLoading {
+                    SuggestionButtonsView { prompt in
+                        userMessage = prompt
+                        sendMessage()
+                    }
+                    .padding(.vertical, 10)
+                }
                 
                 if isLoading {
                     ProgressView().padding(10)
                 }
 
-                ZStack {
-                    ChatBoxShape()
-                        .fill(colorScheme == .dark ? bgGreen : Color.backgroundSecondary)
-                        .shadow(color: .black.opacity(0.1), radius: 5, y: -2)
-
-                    HStack(spacing: 15) {
-                        TextField("Ask Maia anything...", text: $userMessage, axis: .vertical)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(colorScheme == .dark ? Color(white: 0.2) : Color.white)
-                            .clipShape(Capsule())
-                            .onSubmit(sendMessage)
-                        
-                        Button(action: sendMessage) {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.largeTitle)
-                                .foregroundColor(.brandPrimary)
-                        }
-                        .disabled(userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+                HStack(spacing: 15) {
+                    TextField("Ask Maia anything...", text: $userMessage, axis: .vertical)
+                        .textFieldStyle(PlainTextFieldStyle())
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(colorScheme == .dark ? Color(white: 0.2) : Color.white)
+                        .clipShape(Capsule())
+                        .onSubmit(sendMessage)
+                    
+                    Button(action: sendMessage) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(.brandPrimary)
                     }
-                    .padding(.horizontal, 30)
-                    .padding(.bottom, 20)
+                    .disabled(userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
                 }
-                .frame(height: 120)
+                .padding(.horizontal)
+                .padding(.top, 10)
+                .padding(.bottom, UIApplication.shared.windows.first?.safeAreaInsets.bottom ?? 0)
             }
+            .background(
+                ChatBoxShape()
+                    .fill(colorScheme == .dark ? bgGreen : Color.backgroundSecondary)
+                    .shadow(color: .black.opacity(0.1), radius: 5, y: -2)
+            )
         }
+        .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("Maia")
         .navigationBarTitleDisplayMode(.inline)
-        .ignoresSafeArea(.keyboard, edges: .bottom)
-        .onTapGesture {
-            hideKeyboard()
-        }
         .onAppear(perform: setupView)
         .onDisappear(perform: saveMessages)
         .onReceive(appState.$pendingChatPrompt) { prompt in
@@ -430,7 +479,7 @@ struct AIChatbotView: View {
             let regex = try NSRegularExpression(pattern: "\(nutrient):\\s*([\\d.]+)", options: .caseInsensitive)
             let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
             if let match = regex.firstMatch(in: text, options: [], range: nsRange),
-                let range = Range(match.range(at: 1), in: text) {
+               let range = Range(match.range(at: 1), in: text) {
                 return Double(text[range])
             }
         } catch {}

@@ -555,7 +555,7 @@ private struct SwipeableFoodItemView: View {
     var body: some View {
         ZStack(alignment: .trailing) {
             NavigationLink(destination: FoodDetailView(initialFoodItem: initialFoodItem, dailyLog: $dailyLog, date: date, source: "log_swipe", onLogUpdated: onLogUpdated ), isActive: $showDetailView) { EmptyView() }.opacity(0)
-            if isSwiped { HStack { Spacer(); Button { withAnimation(.easeInOut) { onDelete(initialFoodItem.id); offset = 0; isSwiped = false } } label: { Image(systemName: "trash").foregroundColor(.white).frame(width: 60, height: 50, alignment: .center) }.buttonStyle(PlainButtonStyle()).background(Color.red).contentShape(Rectangle()).cornerRadius(8) }.padding(.vertical, 4).transition(.move(edge: .trailing).combined(with: .opacity)) }
+            if isSwiped { HStack { Spacer(); Button { withAnimation(.easeInOut) { onDelete(initialFoodItem.id); offset = 0; isSwiped = false } } label: { Image(systemName: "trash").foregroundColor(.white).frame(width: 60, height: 50, alignment: .center) }.buttonStyle(PlainButtonStyle()).background(Color.red).contentShape(Rectangle()).cornerRadius(8) }.padding(.vertical, 2).transition(.move(edge: .trailing).combined(with: .opacity)) }
             HStack {
                 Text(FoodEmojiMapper.getEmoji(for: initialFoodItem.name) + " " + initialFoodItem.name)
                     .lineLimit(1)
@@ -566,7 +566,7 @@ private struct SwipeableFoodItemView: View {
                     .appFont(size: 15)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
-            .padding(.vertical, 12)
+            .padding(.vertical, 8)
             .padding(.horizontal)
             .background(Color.clear)
             .cornerRadius(8)
@@ -575,6 +575,6 @@ private struct SwipeableFoodItemView: View {
             .onTapGesture { if !isSwiped { showDetailView = true } else { withAnimation(.easeInOut) { offset = 0; isSwiped = false } } }
             .gesture( DragGesture().onChanged { value in if value.translation.width < 0 { offset = max(value.translation.width, -70) } else if isSwiped && value.translation.width > 0 { offset = -70 + value.translation.width } }.onEnded { value in withAnimation(.easeInOut) { if value.translation.width < -50 { offset = -70; isSwiped = true } else { offset = 0; isSwiped = false } } } )
         }
-        .padding(.bottom, 4)
+        .padding(.bottom, 1)
     }
 }

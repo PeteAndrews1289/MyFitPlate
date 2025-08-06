@@ -14,7 +14,6 @@ struct AIItemResponse: Codable {
     let fats: Double
 }
 
-// Add this new struct for the nutrition label data
 struct NutritionLabelData: Decodable {
     let foodName: String
     let calories: Double
@@ -27,14 +26,24 @@ enum ImageRecognitionError: Error, LocalizedError {
     case imageProcessingError
     case invalidOutputFormat
     case apiError(String)
+    case networkError(Error)
+    case decodingError(Error)
     case noData
 
     var errorDescription: String? {
         switch self {
-        case .imageProcessingError: return "There was an error processing the image."
-        case .invalidOutputFormat: return "The data from the AI was in an unexpected format."
-        case .apiError(let message): return message
-        case .noData: return "No data was returned from the analysis."
+        case .imageProcessingError:
+            return "There was an issue preparing your image for analysis. Please try again."
+        case .invalidOutputFormat:
+            return "The analysis returned data in an unexpected format. The AI may be unable to process this image."
+        case .apiError(let message):
+            return "An error occurred during analysis: \(message)"
+        case .networkError(let error):
+            return "A network error occurred: \(error.localizedDescription)"
+        case .decodingError(let error):
+            return "There was a problem processing the data from the server: \(error.localizedDescription)"
+        case .noData:
+            return "No data was returned from the analysis. The image might not be clear enough."
         }
     }
 }
@@ -43,8 +52,7 @@ class MLImageModel {
     private let apiKey = getAPIKey()
 
     init() {}
-    
-    // This is the new function specifically for parsing nutrition labels.
+
     func parseNutritionLabel(from image: UIImage, completion: @escaping (Result<NutritionLabelData, Error>) -> Void) {
         guard let imageData = image.jpegData(compressionQuality: 0.7) else {
             completion(.failure(ImageRecognitionError.imageProcessingError))
@@ -81,14 +89,14 @@ class MLImageModel {
         ]
 
         guard let httpBody = try? JSONSerialization.data(withJSONObject: payload) else {
-            completion(.failure(ImageRecognitionError.apiError("Failed to serialize request.")))
+            completion(.failure(ImageRecognitionError.apiError("Failed to serialize the request.")))
             return
         }
         request.httpBody = httpBody
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
-                DispatchQueue.main.async { completion(.failure(error)) }
+                DispatchQueue.main.async { completion(.failure(ImageRecognitionError.networkError(error))) }
                 return
             }
 
@@ -117,12 +125,11 @@ class MLImageModel {
                      DispatchQueue.main.async { completion(.failure(ImageRecognitionError.invalidOutputFormat)) }
                 }
             } catch {
-                DispatchQueue.main.async { completion(.failure(error)) }
+                DispatchQueue.main.async { completion(.failure(ImageRecognitionError.decodingError(error))) }
             }
         }.resume()
     }
 
-    // This function remains for your other feature (analyzing a meal photo)
     func estimateNutritionFromImage(image: UIImage, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
         guard let imageData = image.jpegData(compressionQuality: 0.7) else {
             completion(.failure(ImageRecognitionError.imageProcessingError))
@@ -137,10 +144,37 @@ class MLImageModel {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let prompt = """
-        You are an expert nutritional analysis assistant. Analyze the food in the provided image. Identify EVERY food item on the plate.
-        Your response MUST be a valid JSON object only. The root object must have a single key "foods" which is an array of JSON objects.
-        Each object in the "foods" array must contain these exact keys: "itemName" (string), "servingSize" (string, e.g., "3 cookies" or "1 cup"), "calories" (number), "protein" (number), "carbs" (number), and "fats" (number).
-        If you see multiple of the same item, like 3 cookies, the "itemName" should be "Oreo Cookies" and the "servingSize" should be "3 cookies", with the nutritional values adjusted accordingly.
+        You are an expert nutritional analysis assistant. Analyze the food in the provided image. Your primary task is to identify every food item, estimate its quantity, and provide a nutritional breakdown for that estimated amount.
+
+        RULES:
+        1.  Your response MUST be a valid JSON object only. Do not include any introductory text or summaries.
+        2.  The root object must have a single key "foods" which is an array of JSON objects.
+        3.  For each object in the "foods" array:
+            -   **Estimate Quantity**: First, estimate the amount of the food item. Use common units like grams (g), ounces (oz), cups, or countable units (e.g., "3 cookies", "2 slices"). This estimation is the most critical step.
+            -   **Provide Nutrition for the Estimate**: All nutritional values MUST reflect the estimated quantity.
+            -   **JSON Keys**: Each object must contain these exact keys: "itemName" (string), "servingSize" (string, e.g., "approx. 6 oz" or "1.5 cups"), "calories" (number), "protein" (number), "carbs" (number), and "fats" (number).
+        
+        Example: If you see a piece of salmon and some rice, your response should be structured like this, with the nutrition calculated for the specific weights you estimate:
+        {
+            "foods": [
+                {
+                    "itemName": "Grilled Salmon",
+                    "servingSize": "approx. 5 oz",
+                    "calories": 290,
+                    "protein": 40,
+                    "carbs": 0,
+                    "fats": 13
+                },
+                {
+                    "itemName": "White Rice",
+                    "servingSize": "approx. 1 cup",
+                    "calories": 205,
+                    "protein": 4,
+                    "carbs": 45,
+                    "fats": 0.5
+                }
+            ]
+        }
         """
 
         let payload: [String: Any] = [
@@ -158,14 +192,14 @@ class MLImageModel {
         ]
 
         guard let httpBody = try? JSONSerialization.data(withJSONObject: payload) else {
-            completion(.failure(ImageRecognitionError.apiError("Failed to serialize request.")))
+            completion(.failure(ImageRecognitionError.apiError("Failed to serialize the request.")))
             return
         }
         request.httpBody = httpBody
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
-                DispatchQueue.main.async { completion(.failure(error)) }
+                DispatchQueue.main.async { completion(.failure(ImageRecognitionError.networkError(error))) }
                 return
             }
 
@@ -207,7 +241,7 @@ class MLImageModel {
                      DispatchQueue.main.async { completion(.failure(ImageRecognitionError.invalidOutputFormat)) }
                 }
             } catch {
-                DispatchQueue.main.async { completion(.failure(error)) }
+                DispatchQueue.main.async { completion(.failure(ImageRecognitionError.decodingError(error))) }
             }
         }.resume()
     }

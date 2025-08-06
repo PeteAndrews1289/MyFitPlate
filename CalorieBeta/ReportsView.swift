@@ -2,13 +2,6 @@ import SwiftUI
 import Charts
 import FirebaseAuth
 
-enum ReportTimeframe: String, CaseIterable, Identifiable {
-    case week = "Last 7 Days"
-    case month = "Last 30 Days"
-    case custom = "Custom Range"
-    var id: String { self.rawValue }
-}
-
 struct ReportsView: View {
     @StateObject private var viewModel: ReportsViewModel
     @EnvironmentObject var goalSettings: GoalSettings
@@ -20,6 +13,14 @@ struct ReportsView: View {
     @State private var customEndDate: Date = Date()
     
     @State private var showingDetailedInsights = false
+
+    private var numberFormatter: NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
+        formatter.maximumFractionDigits = 0
+        return formatter
+    }
 
     init(dailyLogService: DailyLogService) {
         _viewModel = StateObject(wrappedValue: ReportsViewModel(dailyLogService: dailyLogService))
@@ -131,6 +132,9 @@ struct ReportsView: View {
     private var reportsContentSection: some View {
         VStack(spacing: 16) {
             summaryCard
+            if let score = viewModel.mealScore {
+                MealScoreCard(score: score)
+            }
             if let sleepReport = viewModel.weeklySleepReport {
                 SleepReportCard(report: sleepReport)
             }
@@ -232,12 +236,18 @@ struct ReportsView: View {
     }
 
     @ViewBuilder private func averageStatBox(value: Double, label: String, unit: String, goal: Double?) -> some View {
+       let formattedValue = numberFormatter.string(from: NSNumber(value: value)) ?? ""
+       let valueText = "\(formattedValue) \(unit)"
+       
        VStack(alignment: .leading) {
            Text(label).appFont(size: 12).foregroundColor(Color(UIColor.secondaryLabel))
-           Text("\(value, specifier: "%.0f") \(unit)").appFont(size: 22, weight: .medium)
+           Text(valueText)
+                .appFont(size: 22, weight: .medium)
            if let g = goal, g > 0 {
                let pct = (value / g) * 100
-               Text("Goal: \(g, specifier: "%.0f") (\(pct, specifier: "%.0f")%)").appFont(size: 10).foregroundColor(Color(UIColor.secondaryLabel))
+               let goalText = "Goal: \(numberFormatter.string(from: NSNumber(value: g)) ?? "") (\(String(format: "%.0f", pct))%)"
+               Text(goalText)
+                    .appFont(size: 10).foregroundColor(Color(UIColor.secondaryLabel))
            }
        }
        .frame(maxWidth: .infinity, alignment: .leading)
@@ -252,11 +262,12 @@ struct ReportsView: View {
                         .foregroundStyle(Color.brandPrimary)
                         .interpolationMethod(.catmullRom)
                     if let goal = goalSettings.calories {
+                        let formattedGoal = numberFormatter.string(from: NSNumber(value: goal)) ?? ""
                         RuleMark(y: .value("Goal", goal))
                             .foregroundStyle(Color(UIColor.secondaryLabel))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [3]))
                             .annotation(position: .top, alignment: .leading) {
-                                Text("Goal: \(goal, specifier: "%.0f")")
+                                Text("Goal: \(formattedGoal)")
                                     .appFont(size: 10).foregroundColor(Color(UIColor.secondaryLabel))
                             }
                     }

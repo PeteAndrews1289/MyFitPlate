@@ -4,8 +4,6 @@ import FirebaseFirestore
 struct ProgramDetailView: View {
     @State var program: WorkoutProgram
     @EnvironmentObject var workoutService: WorkoutService
-    @EnvironmentObject var goalSettings: GoalSettings
-    @EnvironmentObject var dailyLogService: DailyLogService
     @State private var routineToPlay: WorkoutRoutine?
 
     private var calendarWorkoutMap: [Date: WorkoutRoutine] {
@@ -109,12 +107,7 @@ struct ProgramDetailView: View {
         }
         .navigationTitle(program.name)
         .fullScreenCover(item: $routineToPlay) { routine in
-            WorkoutPlayerView(
-                routine: routine,
-                workoutService: workoutService,
-                goalSettings: goalSettings,
-                dailyLogService: dailyLogService
-            ) {
+            WorkoutPlayerView(routine: routine) {
                 if let currentIndex = program.currentProgressIndex {
                     program.currentProgressIndex = currentIndex + 1
                     Task {
@@ -126,7 +119,7 @@ struct ProgramDetailView: View {
     }
 }
 
-struct CalendarView: View {
+private struct CalendarView: View {
     let workoutMap: [Date: WorkoutRoutine]
     @Binding var routineToPlay: WorkoutRoutine?
     @State private var month: Date = Date()
@@ -231,33 +224,5 @@ struct CalendarView: View {
     private func isSameDay(_ date1: Date, _ date2: Date) -> Bool {
         guard date1 != Date.distantPast, date2 != Date.distantPast else { return false }
         return Calendar.current.isDate(date1, inSameDayAs: date2)
-    }
-}
-
-
-struct WeekDaySelector: View {
-    @Binding var selectedDays: [Int]
-    private let days = ["S", "M", "T", "W", "T", "F", "S"]
-
-    var body: some View {
-        HStack {
-            ForEach(0..<7) { index in
-                let day = index + 1
-                Text(days[index])
-                    .fontWeight(.bold)
-                    .foregroundColor(selectedDays.contains(day) ? .white : .primary)
-                    .frame(width: 35, height: 35)
-                    .background(
-                        Circle().fill(selectedDays.contains(day) ? Color.brandPrimary : Color.gray.opacity(0.2))
-                    )
-                    .onTapGesture {
-                        if let index = selectedDays.firstIndex(of: day) {
-                            selectedDays.remove(at: index)
-                        } else {
-                            selectedDays.append(day)
-                        }
-                    }
-            }
-        }
     }
 }

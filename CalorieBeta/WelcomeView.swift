@@ -21,9 +21,9 @@ struct WelcomeView: View {
                 .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.center)
 
-            Text("Track your food, reach your goals.")
-                .appFont(size: 24, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel)) // Corrected usage
+            Text("Your journey to a healthier lifestyle starts here.")
+                .appFont(size: 18, weight: .regular)
+                .foregroundColor(Color(UIColor.secondaryLabel))
                 .padding(.top, 8)
             
             Spacer()

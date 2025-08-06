@@ -36,7 +36,7 @@ struct FoodDetailView: View {
         calories: Double, protein: Double, carbs: Double, fats: Double,
         saturatedFat: Double?, polyunsaturatedFat: Double?, monounsaturatedFat: Double?,
         fiber: Double?, calcium: Double?, iron: Double?, potassium: Double?, sodium: Double?,
-        vitaminA: Double?, vitaminC: Double?, vitaminD: Double?,
+        vitaminA: Double?, vitaminC: Double?, vitaminD: Double?, vitaminB12: Double?, folate: Double?,
         servingDescription: String, servingWeightGrams: Double
     ) {
         guard let quantityValue = Double(quantity), quantityValue > 0, let currentSelectedServing = selectedServingOption else {
@@ -60,6 +60,8 @@ struct FoodDetailView: View {
                 vitaminA: initialFoodItem.vitaminA.map { $0 / initialQtyFactor },
                 vitaminC: initialFoodItem.vitaminC.map { $0 / initialQtyFactor },
                 vitaminD: initialFoodItem.vitaminD.map { $0 / initialQtyFactor },
+                vitaminB12: initialFoodItem.vitaminB12.map { $0 / initialQtyFactor },
+                folate: initialFoodItem.folate.map { $0 / initialQtyFactor },
                 servingDescription: baseDesc,
                 servingWeightGrams: initialFoodItem.servingWeight / initialQtyFactor
             )
@@ -90,6 +92,8 @@ struct FoodDetailView: View {
             vitaminA: currentSelectedServing.vitaminA.map { $0 * factor },
             vitaminC: currentSelectedServing.vitaminC.map { $0 * factor },
             vitaminD: currentSelectedServing.vitaminD.map { $0 * factor },
+            vitaminB12: currentSelectedServing.vitaminB12.map { $0 * factor },
+            folate: currentSelectedServing.folate.map { $0 * factor },
             servingDescription: finalDescription,
             servingWeightGrams: finalWeight
         )
@@ -167,6 +171,8 @@ struct FoodDetailView: View {
                                 nutrientRow(label: "Vitamin A", value: nutrients.vitaminA, unit: "mcg", specifier: "%.0f")
                                 nutrientRow(label: "Vitamin C", value: nutrients.vitaminC, unit: "mg", specifier: "%.0f")
                                 nutrientRow(label: "Vitamin D", value: nutrients.vitaminD, unit: "mcg", specifier: "%.0f")
+                                nutrientRow(label: "Vitamin B12", value: nutrients.vitaminB12, unit: "mcg", specifier: "%.1f")
+                                nutrientRow(label: "Folate", value: nutrients.folate, unit: "mcg", specifier: "%.0f")
                             }
                         }
                     }
@@ -264,7 +270,8 @@ struct FoodDetailView: View {
             calcium: finalNutrients.calcium, iron: finalNutrients.iron,
             potassium: finalNutrients.potassium, sodium: finalNutrients.sodium,
             vitaminA: finalNutrients.vitaminA, vitaminC: finalNutrients.vitaminC,
-            vitaminD: finalNutrients.vitaminD
+            vitaminD: finalNutrients.vitaminD,
+            vitaminB12: finalNutrients.vitaminB12, folate: finalNutrients.folate
         )
         onUpdate(updatedFoodItem)
         dismiss()
@@ -295,7 +302,8 @@ struct FoodDetailView: View {
             fiber: finalNutrients.fiber, servingSize: finalNutrients.servingDescription, servingWeight: finalNutrients.servingWeightGrams,
             timestamp: nil, calcium: finalNutrients.calcium, iron: finalNutrients.iron,
             potassium: finalNutrients.potassium, sodium: finalNutrients.sodium, vitaminA: finalNutrients.vitaminA,
-            vitaminC: finalNutrients.vitaminC, vitaminD: finalNutrients.vitaminD
+            vitaminC: finalNutrients.vitaminC, vitaminD: finalNutrients.vitaminD,
+            vitaminB12: finalNutrients.vitaminB12, folate: finalNutrients.folate
         )
         
         dailyLogService.saveCustomFood(for: userID, foodItem: itemToSave) { success in
@@ -363,7 +371,9 @@ struct FoodDetailView: View {
                 sodium: initialFoodItem.sodium.map { $0 / qtyFactor },
                 vitaminA: initialFoodItem.vitaminA.map { $0 / qtyFactor },
                 vitaminC: initialFoodItem.vitaminC.map { $0 / qtyFactor },
-                vitaminD: initialFoodItem.vitaminD.map { $0 / qtyFactor }
+                vitaminD: initialFoodItem.vitaminD.map { $0 / qtyFactor },
+                vitaminB12: initialFoodItem.vitaminB12.map { $0 / qtyFactor },
+                folate: initialFoodItem.folate.map { $0 / qtyFactor }
             )
             self.availableServings = [singleUnitNutrients]
             self.selectedServingID = singleUnitNutrients.id
@@ -391,7 +401,9 @@ struct FoodDetailView: View {
                 sodium: initialFoodItem.sodium.map { $0 / loggedQty },
                 vitaminA: initialFoodItem.vitaminA.map { $0 / loggedQty },
                 vitaminC: initialFoodItem.vitaminC.map { $0 / loggedQty },
-                vitaminD: initialFoodItem.vitaminD.map { $0 / loggedQty }
+                vitaminD: initialFoodItem.vitaminD.map { $0 / loggedQty },
+                vitaminB12: initialFoodItem.vitaminB12.map { $0 / loggedQty },
+                folate: initialFoodItem.folate.map { $0 / loggedQty }
             )
             self.availableServings = [singleUnitNutrients]
             self.selectedServingID = singleUnitNutrients.id
@@ -417,7 +429,9 @@ struct FoodDetailView: View {
                 sodium: initialFoodItem.sodium,
                 vitaminA: initialFoodItem.vitaminA,
                 vitaminC: initialFoodItem.vitaminC,
-                vitaminD: initialFoodItem.vitaminD
+                vitaminD: initialFoodItem.vitaminD,
+                vitaminB12: initialFoodItem.vitaminB12,
+                folate: initialFoodItem.folate
             )
             self.availableServings = [baseServingOption]
             self.selectedServingID = baseServingOption.id
@@ -433,24 +447,24 @@ struct FoodDetailView: View {
             isLoadingDetails = true; errorLoading = nil
             foodAPIService.fetchFoodDetails(foodId: initialFoodItem.id) { result in
                 DispatchQueue.main.async {
-                     self.isLoadingDetails = false
-                     switch result {
-                     case .success(let (foodInfo, servings)):
-                         self.foodName = foodInfo.name
-                         self.availableServings = servings.isEmpty ? [self.createFallbackServing(from: foodInfo)] : servings
-                         if let matchingServing = self.availableServings.first(where: { $0.description == self.initialFoodItem.servingSize && $0.servingWeightGrams == self.initialFoodItem.servingWeight }) {
-                             self.selectedServingID = matchingServing.id
-                         } else if let firstServing = self.availableServings.first {
-                             self.selectedServingID = firstServing.id
-                         } else {
-                             self.selectedServingID = nil
-                             self.errorLoading = "No servings found for item."
-                         }
-                     case .failure(let error):
+                    self.isLoadingDetails = false
+                    switch result {
+                    case .success(let (foodInfo, servings)):
+                        self.foodName = foodInfo.name
+                        self.availableServings = servings.isEmpty ? [self.createFallbackServing(from: foodInfo)] : servings
+                        if let matchingServing = self.availableServings.first(where: { $0.description == self.initialFoodItem.servingSize && $0.servingWeightGrams == self.initialFoodItem.servingWeight }) {
+                            self.selectedServingID = matchingServing.id
+                        } else if let firstServing = self.availableServings.first {
+                            self.selectedServingID = firstServing.id
+                        } else {
+                            self.selectedServingID = nil
+                            self.errorLoading = "No servings found for item."
+                        }
+                    case .failure(let error):
                         errorLoading = error.localizedDescription;
                         self.availableServings = [self.createFallbackServing(from: self.initialFoodItem)]
                         self.selectedServingID = self.availableServings.first?.id
-                     }
+                    }
                 }
             }
         } else if availableServings.isEmpty {
@@ -480,7 +494,9 @@ struct FoodDetailView: View {
             sodium: initialFoodItem.sodium.map { $0 / qtyFactor },
             vitaminA: initialFoodItem.vitaminA.map { $0 / qtyFactor },
             vitaminC: initialFoodItem.vitaminC.map { $0 / qtyFactor },
-            vitaminD: initialFoodItem.vitaminD.map { $0 / qtyFactor }
+            vitaminD: initialFoodItem.vitaminD.map { $0 / qtyFactor },
+            vitaminB12: initialFoodItem.vitaminB12.map { $0 / qtyFactor },
+            folate: initialFoodItem.folate.map { $0 / qtyFactor }
         )
     }
 
@@ -498,16 +514,16 @@ struct FoodDetailView: View {
             case "search_result": itemSourceToLog = "api"
             case "image_result": itemSourceToLog = "image_scan"
             case "recent_tap":
-                 let parsedInfo = parseQuantityFromServing(initialFoodItem.servingSize)
-                 if initialFoodItem.id.count < 20 && !initialFoodItem.id.contains("-") && !parsedInfo.baseDesc.lowercased().contains("recipe") && !parsedInfo.baseDesc.lowercased().contains("ai est.") {
-                      itemSourceToLog = "api_recent"
-                 } else if parsedInfo.baseDesc.lowercased().contains("recipe") {
-                     itemSourceToLog = "recipe_recent"
-                 } else if parsedInfo.baseDesc.lowercased().contains("ai est.") || initialFoodItem.name.lowercased().contains("ai logged") {
-                      itemSourceToLog = "ai_recent"
-                 } else {
-                     itemSourceToLog = "manual_recent"
-                 }
+                let parsedInfo = parseQuantityFromServing(initialFoodItem.servingSize)
+                if initialFoodItem.id.count < 20 && !initialFoodItem.id.contains("-") && !parsedInfo.baseDesc.lowercased().contains("recipe") && !parsedInfo.baseDesc.lowercased().contains("ai est.") {
+                    itemSourceToLog = "api_recent"
+                } else if parsedInfo.baseDesc.lowercased().contains("recipe") {
+                    itemSourceToLog = "recipe_recent"
+                } else if parsedInfo.baseDesc.lowercased().contains("ai est.") || initialFoodItem.name.lowercased().contains("ai logged") {
+                    itemSourceToLog = "ai_recent"
+                } else {
+                    itemSourceToLog = "manual_recent"
+                }
             default: itemSourceToLog = self.source
             }
         }
@@ -523,7 +539,8 @@ struct FoodDetailView: View {
             calcium: finalNutrients.calcium, iron: finalNutrients.iron,
             potassium: finalNutrients.potassium, sodium: finalNutrients.sodium,
             vitaminA: finalNutrients.vitaminA, vitaminC: finalNutrients.vitaminC,
-            vitaminD: finalNutrients.vitaminD
+            vitaminD: finalNutrients.vitaminD,
+            vitaminB12: finalNutrients.vitaminB12, folate: finalNutrients.folate
         )
         
         if isLoggedItem {
@@ -536,11 +553,11 @@ struct FoodDetailView: View {
     }
 
     @ViewBuilder private func nutrientRow(label: String, value: Double?, unit: String, specifier: String = "%.1f") -> some View {
-         if let unwrappedValue = value, unwrappedValue > 0.001 || (specifier == "%.0f" && unwrappedValue >= 0.5) {
-              HStack { Text(label).appFont(size: 15); Spacer(); Text("\(unwrappedValue, specifier: specifier) \(unit)").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel)) }
-         } else {
-              EmptyView()
-         }
+        if let unwrappedValue = value, unwrappedValue > 0.001 || (specifier == "%.0f" && unwrappedValue >= 0.5) {
+            HStack { Text(label).appFont(size: 15); Spacer(); Text("\(unwrappedValue, specifier: specifier) \(unit)").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel)) }
+        } else {
+            EmptyView()
+        }
     }
     @ViewBuilder private func nutrientRow(label: String, value: String) -> some View {
         HStack { Text(label).appFont(size: 15); Spacer(); Text(value).appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel)) }

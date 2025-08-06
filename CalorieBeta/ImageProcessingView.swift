@@ -1,4 +1,3 @@
-
 import SwiftUI
 
 struct ImageProcessingView: View {
@@ -22,6 +21,13 @@ struct ImageProcessingView: View {
                 Text("\(Int(progress * 100))%")
                     .appFont(size: 16, weight: .semibold)
                     .foregroundColor(.white.opacity(0.8))
+                
+                // Added Disclaimer
+                Text("Beta Feature: Results may not be 100% accurate.")
+                    .appFont(size: 12)
+                    .foregroundColor(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                    .padding(.top)
             }
             .padding(40)
             .background(.ultraThinMaterial)

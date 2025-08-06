@@ -2,6 +2,30 @@ import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 
+enum WorkoutServiceError: Error, LocalizedError {
+    case userNotLoggedIn
+    case networkError(Error)
+    case firestoreError(Error)
+    case decodingError(Error)
+    case apiError(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .userNotLoggedIn:
+            return "You must be logged in to perform this action."
+        case .networkError:
+            return "Could not connect to the server. Please check your internet connection."
+        case .firestoreError(let error):
+            return "An error occurred with the database: \(error.localizedDescription)"
+        case .decodingError:
+            return "There was an issue processing the response from the server."
+        case .apiError(let message):
+            return message
+        }
+    }
+}
+
+
 @MainActor
 class WorkoutService: ObservableObject {
     @Published var userRoutines: [WorkoutRoutine] = []
@@ -50,7 +74,6 @@ class WorkoutService: ObservableObject {
         do {
             try await programsCollectionRef(for: userID).document(program.id ?? UUID().uuidString).setData(from: programToSave)
         } catch {
-            print("Error saving program: \(error.localizedDescription)")
         }
     }
     
@@ -61,7 +84,7 @@ class WorkoutService: ObservableObject {
 
     func saveRoutine(_ routine: WorkoutRoutine) async throws {
         guard let userID = Auth.auth().currentUser?.uid else {
-            throw NSError(domain: "WorkoutServiceError", code: -1, userInfo: [NSLocalizedDescriptionKey: "User not logged in."])
+            throw WorkoutServiceError.userNotLoggedIn
         }
         var routineToSave = routine
         routineToSave.userID = userID
@@ -69,8 +92,7 @@ class WorkoutService: ObservableObject {
         do {
             try routinesCollectionRef(for: userID).document(routine.id).setData(from: routineToSave, merge: true)
         } catch {
-            print("Error saving routine: \(error.localizedDescription)")
-            throw error
+            throw WorkoutServiceError.firestoreError(error)
         }
     }
 
@@ -84,7 +106,6 @@ class WorkoutService: ObservableObject {
         do {
             try sessionLogsCollectionRef(for: userID).addDocument(from: log)
         } catch {
-            print("Error saving workout session log: \(error.localizedDescription)")
         }
     }
     
@@ -105,7 +126,6 @@ class WorkoutService: ObservableObject {
             return filteredLogs
             
         } catch {
-            print("Error fetching workout history: \(error.localizedDescription)")
             return []
         }
     }
@@ -123,12 +143,11 @@ class WorkoutService: ObservableObject {
             }
             return nil
         } catch {
-            print("Error fetching previous performance: \(error.localizedDescription)")
             return nil
         }
     }
 
-    func generateAIWorkoutPlan(goal: String, daysPerWeek: Int, details: String) async -> WorkoutProgram? {
+    func generateAIWorkoutPlan(goal: String, daysPerWeek: Int, details: String) async -> Result<WorkoutProgram, WorkoutServiceError> {
         let detailsString = details.isEmpty ? "No additional details provided." : details
         
         let prompt = """
@@ -139,40 +158,35 @@ class WorkoutService: ObservableObject {
 
         RULES:
         - Your response MUST be a valid JSON object.
-        - **Critical Safety Guardrail**: You MUST tailor the intensity and volume of the program to the user's fitness level. If the user does not specify a fitness level, assume they are a beginner and start with very low intensity.
+        - **Critical Safety Guardrail**: You MUST tailor the intensity and volume of the program to the user's fitness level. If you do not know the user's fitness level, assume they are a beginner.
         - **Guardrail**: If the user's goal is unrelated to fitness, respond with a JSON where 'programName' is a polite refusal and 'routines' is an empty array.
         - The root object must have keys: "programName" and "routines".
         - Each routine object needs a "name" and an "exercises" array.
         - Each exercise object must have a "name", "type", "sets" array, and "alternatives" array.
         - The "type" key MUST be one of three strings: "Strength", "Cardio", or "Flexibility".
-        - The "alternatives" array should contain 2 suitable replacement exercises that target the same muscle group and are not duplicates of other primary exercises in the plan.
+        - The "alternatives" array should contain 2 suitable replacement exercises.
         - Each set object must have a single key: "target".
-
-        **Strength Program Rules**:
-        - If the user's goal is strength or muscle building, adhere to these specific rules.
-        - Each routine must have 5-6 exercises.
-        - Each exercise must have exactly 3 sets.
-        - For heavy compound exercises (like squats, deadlifts, bench press), the 'target' for each set must be in the '5-8 reps' range.
-        - For accessory or isolation exercises (like bicep curls, leg extensions), the 'target' must be in the '8-12 reps' range.
-
-        **Cardio/Flexibility Rules**:
-        - For "Cardio" exercises, the target should be a duration or distance (e.g., "target": "Run 2 miles").
-        - For "Flexibility" exercises, the target should be a duration to hold a pose (e.g., "target": "Hold for 30 seconds").
         """
 
-        guard let responseString = await fetchAIResponse(prompt: prompt) else { return nil }
-        guard let jsonData = responseString.data(using: .utf8) else { return nil }
+        let responseResult = await fetchAIResponse(prompt: prompt)
 
-        do {
-            let decodedResponse = try JSONDecoder().decode(AIProgramResponse.self, from: jsonData)
-            if decodedResponse.routines.isEmpty {
-                return WorkoutProgram(userID: "", name: decodedResponse.programName, dateCreated: Timestamp(date: Date()), routines: [])
+        switch responseResult {
+        case .success(let responseString):
+            guard let jsonData = responseString.data(using: .utf8) else {
+                return .failure(.decodingError(NSError(domain: "WorkoutService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Could not convert AI response to data."])))
             }
-            let program = mapResponseToProgram(decodedResponse)
-            return program
-        } catch {
-            print("Error decoding AI workout plan: \(error)")
-            return nil
+            do {
+                let decodedResponse = try JSONDecoder().decode(AIProgramResponse.self, from: jsonData)
+                if decodedResponse.routines.isEmpty {
+                    return .failure(.apiError(decodedResponse.programName))
+                }
+                let program = mapResponseToProgram(decodedResponse)
+                return .success(program)
+            } catch {
+                return .failure(.decodingError(error))
+            }
+        case .failure(let error):
+            return .failure(error)
         }
     }
 
@@ -192,7 +206,7 @@ class WorkoutService: ObservableObject {
         return WorkoutProgram(id: UUID().uuidString, userID: userID, name: response.programName, dateCreated: Timestamp(date: Date()), routines: routines)
     }
     
-    private func fetchAIResponse(prompt: String) async -> String? {
+    private func fetchAIResponse(prompt: String) async -> Result<String, WorkoutServiceError> {
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -212,12 +226,13 @@ class WorkoutService: ObservableObject {
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let choices = json["choices"] as? [[String: Any]], let firstChoice = choices.first,
                let message = firstChoice["message"] as? [String: Any], let content = message["content"] as? String {
-                return content
+                return .success(content)
+            } else {
+                return .failure(.decodingError(NSError(domain: "WorkoutService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON response from AI."])))
             }
         } catch {
-            print("AI fetch error: \(error.localizedDescription)")
+            return .failure(.networkError(error))
         }
-        return nil
     }
     
     func detachListener(){

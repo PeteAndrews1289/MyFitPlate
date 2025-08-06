@@ -1,13 +1,11 @@
 import SwiftUI
 
-
 struct AppFont: ViewModifier {
     var size: CGFloat
     var weight: Font.Weight
 
     func body(content: Content) -> some View {
-        content
-            .font(.system(size: size, weight: weight, design: .rounded, relativeTo: .body))
+        content.font(.system(size: size, weight: weight, design: .rounded))
     }
 }
 
@@ -16,8 +14,6 @@ extension View {
         self.modifier(AppFont(size: size, weight: weight))
     }
 }
-
-
 
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -30,15 +26,14 @@ struct PrimaryButtonStyle: ButtonStyle {
             .cornerRadius(16)
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
-            .onChange(of: configuration.isPressed) { isPressed in
-                if isPressed {
+            .onChange(of: configuration.isPressed) { newValue in
+                if newValue {
                     let haptic = UIImpactFeedbackGenerator(style: .medium)
                     haptic.impactOccurred()
                 }
             }
     }
 }
-
 
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -58,7 +53,6 @@ struct SecondaryButtonStyle: ButtonStyle {
     }
 }
 
-
 struct AppTextFieldStyle: TextFieldStyle {
     let iconName: String?
     
@@ -72,7 +66,7 @@ struct AppTextFieldStyle: TextFieldStyle {
             configuration
         }
         .padding()
-        .background(Color("ControlBackground")) 
+        .background(Color("ControlBackground"))
         .cornerRadius(16)
     }
 }

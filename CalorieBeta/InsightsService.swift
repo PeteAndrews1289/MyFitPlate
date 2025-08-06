@@ -243,12 +243,12 @@ class InsightsService: ObservableObject {
         for log in logs {
             let day = dateFormatter.string(from: log.date)
             let macros = log.totalMacros()
-            let fiber = log.totalFiber()
+            let micros = log.totalMicronutrients()
             let exerciseCal = (log.totalCaloriesBurnedFromHealthKitWorkouts() + log.totalCaloriesBurnedFromManualExercises())
             let exerciseString = exerciseCal > 0 ? ", Exercise Burn: \(Int(exerciseCal))" : ""
             
             dailyDataStrings.append(
-                "- \(day): Cals: \(Int(log.totalCalories())), P: \(Int(macros.protein))g, C: \(Int(macros.carbs))g, F: \(Int(macros.fats))g, Fiber: \(Int(fiber))g\(exerciseString)"
+                "- \(day): Cals: \(Int(log.totalCalories())), P: \(Int(macros.protein))g, C: \(Int(macros.carbs))g, F: \(Int(macros.fats))g, Fiber: \(Int(micros.fiber))g\(exerciseString)"
             )
         }
         let dailySummary = dailyDataStrings.joined(separator: "\n")

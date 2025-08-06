@@ -122,6 +122,10 @@
 		4B999ECB2D80847300930413 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B999ECA2D80846C00930413 /* WelcomeView.swift */; };
 		4B999ECD2D8DC4B000930413 /* OnBoardingSurveyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B999ECC2D8DC4A200930413 /* OnBoardingSurveyView.swift */; };
 		4B999ECF2D93027A00930413 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B999ECE2D93027200930413 /* NotificationManager.swift */; };
+		4BA12D412E43EE6900E55716 /* AITextLogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA12D402E43EE6900E55716 /* AITextLogService.swift */; };
+		4BA12D432E43EE7900E55716 /* AITextLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA12D422E43EE7900E55716 /* AITextLogView.swift */; };
+		4BA12D452E43EF3F00E55716 /* AITextResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA12D442E43EF3F00E55716 /* AITextResultsView.swift */; };
+		4BA12D472E43EF9C00E55716 /* MealScoreCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA12D462E43EF9C00E55716 /* MealScoreCard.swift */; };
 		4BA2DB3C2D42A38B00B6BDED /* MLImageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA2DB3B2D42A37B00B6BDED /* MLImageModel.swift */; };
 		4BA2DB3E2D42A74800B6BDED /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA2DB3D2D42A74300B6BDED /* ImagePicker.swift */; };
 		4BB4628F2E1EE8AB007CCA8A /* MyFitPlateWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 4BB462822E1EE8AA007CCA8A /* MyFitPlateWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -305,6 +309,10 @@
 		4B999ECA2D80846C00930413 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		4B999ECC2D8DC4A200930413 /* OnBoardingSurveyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnBoardingSurveyView.swift; sourceTree = "<group>"; };
 		4B999ECE2D93027200930413 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		4BA12D402E43EE6900E55716 /* AITextLogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AITextLogService.swift; sourceTree = "<group>"; };
+		4BA12D422E43EE7900E55716 /* AITextLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AITextLogView.swift; sourceTree = "<group>"; };
+		4BA12D442E43EF3F00E55716 /* AITextResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AITextResultsView.swift; sourceTree = "<group>"; };
+		4BA12D462E43EF9C00E55716 /* MealScoreCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealScoreCard.swift; sourceTree = "<group>"; };
 		4BA2DB3B2D42A37B00B6BDED /* MLImageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLImageModel.swift; sourceTree = "<group>"; };
 		4BA2DB3D2D42A74300B6BDED /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 		4BB462822E1EE8AA007CCA8A /* MyFitPlateWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MyFitPlateWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -431,6 +439,9 @@
 				4BF46DDF2DF76A6F0018668F /* AddMealToPlanView.swift */,
 				3EC693E12CBD90B2002222C6 /* AIChatBotView.swift */,
 				4B71DBBE2E1065FF003A0078 /* AISummaryView.swift */,
+				4BA12D402E43EE6900E55716 /* AITextLogService.swift */,
+				4BA12D422E43EE7900E55716 /* AITextLogView.swift */,
+				4BA12D442E43EF3F00E55716 /* AITextResultsView.swift */,
 				4B15AD202E3592A700F0A0BB /* AIWorkoutGeneratorView.swift */,
 				4B619A932D677DB500D6C9A8 /* APIError.swift */,
 				3E676A172CCFE4AD0019DC51 /* AppState.swift */,
@@ -493,6 +504,7 @@
 				4B444E0C2DF4C3A800C6F094 /* MealPlannerService.swift */,
 				4B444E0E2DF4C3DA00C6F094 /* MealPlannerView.swift */,
 				4BF46DDD2DF74ED30018668F /* MealPlanSurveyView.swift */,
+				4BA12D462E43EF9C00E55716 /* MealScoreCard.swift */,
 				4B727FA22E28030D00874936 /* MealSuggestionCardView.swift */,
 				4B727FA42E280C0400874936 /* MealSuggestionDetailView.swift */,
 				4B4694082DBA9DFB006F1F86 /* MicronutrientProgressView.swift */,
@@ -734,6 +746,7 @@
 				4B15AD1F2E358F1A00F0A0BB /* PlateCalculatorView.swift in Sources */,
 				4BA2DB3C2D42A38B00B6BDED /* MLImageModel.swift in Sources */,
 				4B6046A32DEA068E000B4A46 /* CircularWeightDisplayView.swift in Sources */,
+				4BA12D412E43EE6900E55716 /* AITextLogService.swift in Sources */,
 				4B4694162DCD0AE9006F1F86 /* RecipeService.swift in Sources */,
 				3EB297912CAEF0460093E1B9 /* Model.swift in Sources */,
 				4B4878E02DF3C737009AB665 /* HealthDisclaimerView.swift in Sources */,
@@ -789,6 +802,7 @@
 				4B3C8CB42DE0B56E007D24FA /* WaterBottleUI.swift in Sources */,
 				4BE7685A2D51040E00EAF4C8 /* FoodDetailView.swift in Sources */,
 				4B727F9D2E26B41C00874936 /* TTSManager.swift in Sources */,
+				4BA12D472E43EF9C00E55716 /* MealScoreCard.swift in Sources */,
 				3EB2977C2CAEEDC90093E1B9 /* HomeView.swift in Sources */,
 				3EC693CF2CB827F2002222C6 /* UserProfileView.swift in Sources */,
 				4B444E112DF4C5BE00C6F094 /* GroceryListView.swift in Sources */,
@@ -814,6 +828,7 @@
 				3E676A182CCFE4AD0019DC51 /* AppState.swift in Sources */,
 				4B15AD152E3165A500F0A0BB /* CycleTrackingService.swift in Sources */,
 				4B7053FD2D5E4C0F001D9C1C /* ManualFoodEntryView.swift in Sources */,
+				4BA12D452E43EF3F00E55716 /* AITextResultsView.swift in Sources */,
 				4B727FAD2E2FD69A00874936 /* WorkoutService.swift in Sources */,
 				3EB297952CAEF34A0093E1B9 /* SignUpView.swift in Sources */,
 				3E7821052CBEC38A007E219A /* CalorieLogView.swift in Sources */,
@@ -823,6 +838,7 @@
 				3EB09F4F2CCBFFE60088C849 /* WeightTrackingViewController.swift in Sources */,
 				3E78210D2CC18259007E219A /* CurrentWeightView.swift in Sources */,
 				4B999ECB2D80847300930413 /* WelcomeView.swift in Sources */,
+				4BA12D432E43EE7900E55716 /* AITextLogView.swift in Sources */,
 				4B15AD2B2E37F46800F0A0BB /* ExerciseHistoryView.swift in Sources */,
 				4B4694102DC3CA80006F1F86 /* ReportsView.swift in Sources */,
 				4B999ECF2D93027A00930413 /* NotificationManager.swift in Sources */,

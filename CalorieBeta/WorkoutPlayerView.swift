@@ -113,8 +113,13 @@ class RestTimer: ObservableObject {
 
 struct WorkoutPlayerView: View {
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var dailyLogService: DailyLogService
+    @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject var workoutService: WorkoutService
     
-    @StateObject private var viewModel: WorkoutPlayerViewModel
+    @State private var routine: WorkoutRoutine
+    @StateObject private var restTimer = RestTimer()
+    @StateObject private var totalWorkoutTimer: TotalWorkoutTimer
     
     @State private var showingNoteEditor = false
     @State private var noteText = ""
@@ -124,6 +129,7 @@ struct WorkoutPlayerView: View {
     @State private var showingHistoryFor: RoutineExercise?
     @State private var showingPlateCalculator = false
     
+    @State private var previousPerformance: [String: CompletedExercise] = [:]
     
     @AppStorage("isAutoRestTimerEnabled") private var isAutoRestTimerEnabled = false
     
@@ -135,8 +141,9 @@ struct WorkoutPlayerView: View {
     
     var onWorkoutComplete: () -> Void
 
-    init(routine: WorkoutRoutine, workoutService: WorkoutService, goalSettings: GoalSettings, dailyLogService: DailyLogService, onWorkoutComplete: @escaping () -> Void) {
-        _viewModel = StateObject(wrappedValue: WorkoutPlayerViewModel(routine: routine, workoutService: workoutService, goalSettings: goalSettings, dailyLogService: dailyLogService))
+    init(routine: WorkoutRoutine, onWorkoutComplete: @escaping () -> Void) {
+        _routine = State(initialValue: routine)
+        _totalWorkoutTimer = StateObject(wrappedValue: TotalWorkoutTimer(routineId: routine.id))
         self.onWorkoutComplete = onWorkoutComplete
     }
     
@@ -144,14 +151,14 @@ struct WorkoutPlayerView: View {
         ZStack {
             VStack(spacing: 0) {
                 HStack {
-                    Text(viewModel.totalWorkoutTimer.formattedTime())
+                    Text(totalWorkoutTimer.formattedTime())
                         .padding(8)
                         .background(.thinMaterial)
                         .cornerRadius(8)
                     
                     Spacer()
                     
-                    Text(viewModel.routine.name)
+                    Text(routine.name)
                         .appFont(size: 18, weight: .bold)
                     
                     Spacer()
@@ -165,12 +172,12 @@ struct WorkoutPlayerView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        ForEach($viewModel.routine.exercises) { $exercise in
+                        ForEach($routine.exercises) { $exercise in
                             ExerciseCardView(
                                 exercise: $exercise,
-                                restTimer: viewModel.restTimer,
+                                restTimer: restTimer,
                                 isAutoRestEnabled: $isAutoRestTimerEnabled,
-                                previousPerformance: viewModel.previousPerformance[exercise.name],
+                                previousPerformance: previousPerformance[exercise.name],
                                 onAddNote: {
                                     self.exerciseForNote = $exercise
                                     self.noteText = $exercise.wrappedValue.notes ?? PinnedNotesManager.shared.getPinnedNote(for: $exercise.wrappedValue.name) ?? ""
@@ -185,16 +192,16 @@ struct WorkoutPlayerView: View {
                                 }
                             )
                         }
-                        .onMove(perform: viewModel.moveExercise)
-
+                        .onMove(perform: moveExercise)
+                        
                         Button("Mark Workout as Complete") {
-                            viewModel.logAllCompletedExercises()
-                            viewModel.stopTimers()
+                            logAllCompletedExercises()
+                            restTimer.stop()
+                            totalWorkoutTimer.stop()
                             onWorkoutComplete()
                             dismiss()
                         }
                         .buttonStyle(PrimaryButtonStyle())
-                        .accessibilityIdentifier("completeWorkoutButton")
                         .padding(.top)
                     }
                     .padding()
@@ -211,6 +218,7 @@ struct WorkoutPlayerView: View {
                 .padding()
             }
             .blur(radius: showingNoteEditor ? 20 : 0)
+            .onAppear(perform: loadPreviousPerformance)
 
             if showingNoteEditor {
                 Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
@@ -238,11 +246,12 @@ struct WorkoutPlayerView: View {
         }
         .navigationBarHidden(true)
         .onAppear {
-            viewModel.startTimers()
-            viewModel.loadPreviousPerformance()
+            totalWorkoutTimer.start()
         }
         .onDisappear {
-            Task { await viewModel.saveRoutine() }
+            Task {
+                try? await workoutService.saveRoutine(routine)
+            }
         }
         .sheet(item: $swappableExercise) { wrapper in
             SwapExerciseView(exercise: wrapper.binding)
@@ -255,9 +264,65 @@ struct WorkoutPlayerView: View {
         }
     }
     
+    private func loadPreviousPerformance() {
+        Task {
+            for exercise in routine.exercises {
+                if let performance = await workoutService.fetchPreviousPerformance(for: exercise.name) {
+                    previousPerformance[exercise.name] = performance
+                }
+            }
+        }
+    }
+    
+    private func moveExercise(from source: IndexSet, to destination: Int) {
+        routine.exercises.move(fromOffsets: source, toOffset: destination)
+    }
+    
+    private func logAllCompletedExercises() {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        
+        let completedExercisesForLog = routine.exercises.compactMap { exercise -> CompletedExercise? in
+            let completedSets = exercise.sets.filter { $0.isCompleted }.map {
+                CompletedSet(reps: $0.reps, weight: $0.weight, distance: $0.distance, durationInSeconds: $0.durationInSeconds)
+            }
+            return completedSets.isEmpty ? nil : CompletedExercise(exerciseName: exercise.name, sets: completedSets)
+        }
+        
+        if !completedExercisesForLog.isEmpty {
+            let sessionLog = WorkoutSessionLog(
+                date: Timestamp(date: Date()),
+                routineID: routine.id,
+                completedExercises: completedExercisesForLog
+            )
+            Task {
+                await workoutService.saveWorkoutSessionLog(sessionLog)
+            }
+        }
+
+        for exercise in routine.exercises {
+            let completedSets = exercise.sets.filter { $0.isCompleted }
+            if completedSets.isEmpty { continue }
+            
+            let totalCaloriesBurned = completedSets.reduce(0.0) { partialResult, set in
+                let bodyweightKg = goalSettings.weight * 0.453592
+                return partialResult + (5.0 * 3.5 * bodyweightKg) / 200
+            }
+
+            if totalCaloriesBurned > 0 {
+                let loggedExercise = LoggedExercise(
+                    name: exercise.name,
+                    durationMinutes: nil,
+                    caloriesBurned: totalCaloriesBurned,
+                    date: Date(),
+                    source: "routine"
+                )
+                dailyLogService.addExerciseToLog(for: userID, exercise: loggedExercise)
+            }
+        }
+    }
 }
 
-struct ExerciseCardView: View {
+private struct ExerciseCardView: View {
     @Binding var exercise: RoutineExercise
     @ObservedObject var restTimer: RestTimer
     @Binding var isAutoRestEnabled: Bool
@@ -466,7 +531,7 @@ private struct SwapExerciseView: View {
     }
 }
 
-struct StrengthSetRow: View {
+private struct StrengthSetRow: View {
     @Binding var set: ExerciseSet
     let setIndex: Int
     var previousSet: CompletedSet?
@@ -552,7 +617,7 @@ struct StrengthSetRow: View {
     }
 }
 
-struct CardioSetRow: View {
+private struct CardioSetRow: View {
     @Binding var set: ExerciseSet
     let setIndex: Int
 
@@ -601,7 +666,7 @@ struct CardioSetRow: View {
     }
 }
 
-struct FlexibilitySetRow: View {
+private struct FlexibilitySetRow: View {
     @Binding var set: ExerciseSet
     let setIndex: Int
 

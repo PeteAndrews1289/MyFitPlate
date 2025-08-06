@@ -11,7 +11,7 @@ struct NutritionProgressView: View {
 
     @GestureState private var dragOffset: CGFloat = 0
     private let swipeThreshold: CGFloat = 50
-    private let totalViews = 3
+    private let totalViews = 4
 
     var body: some View {
         let totalCalories = max(0, dailyLog.totalCalories())
@@ -32,12 +32,15 @@ struct NutritionProgressView: View {
             ZStack {
                  switch goal.nutritionViewIndex {
                  case 0:
+                    summaryView(calories: totalCalories, caloriesGoal: caloriesGoal, caloriesPercentage: caloriesPercentage, protein: protein, proteinGoal: proteinGoal, fats: fats, fatsGoal: fatsGoal, carbs: carbs, carbsGoal: carbsGoal)
+                        .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+                 case 1:
                      bubblesView(calories: totalCalories, caloriesGoal: caloriesGoal, caloriesPercentage: caloriesPercentage, protein: protein, proteinGoal: proteinGoal, proteinPercentage: proteinPercentage, fats: fats, fatsGoal: fatsGoal, fatsPercentage: fatsPercentage, carbs: carbs, carbsGoal: carbsGoal, carbsPercentage: carbsPercentage)
                      .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-                 case 1:
+                 case 2:
                      HorizontalBarChartView(dailyLog: dailyLog, goal: goal)
                       .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-                 case 2:
+                 case 3:
                      MicronutrientProgressView(dailyLog: dailyLog, goalSettings: goal)
                          .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
                  default: EmptyView()
@@ -59,12 +62,56 @@ struct NutritionProgressView: View {
     }
 
     @ViewBuilder
+    private func summaryView(calories: Double, caloriesGoal: Double, caloriesPercentage: Double, protein: Double, proteinGoal: Double, fats: Double, fatsGoal: Double, carbs: Double, carbsGoal: Double) -> some View {
+        HStack(spacing: 16) {
+            VStack {
+                Text("Calories")
+                    .appFont(size: 14, weight: .medium)
+                ProgressBubble(
+                    value: calories,
+                    goal: caloriesGoal,
+                    percentage: caloriesPercentage,
+                    label: "",
+                    unit: "cal",
+                    color: .red
+                )
+            }
+            
+            VStack(spacing: 12) {
+                MacroProgressRow(
+                    label: "Protein",
+                    value: protein,
+                    goal: proteinGoal,
+                    unit: "g",
+                    color: .accentProtein
+                )
+                MacroProgressRow(
+                    label: "Carbs",
+                    value: carbs,
+                    goal: carbsGoal,
+                    unit: "g",
+                    color: .accentCarbs
+                )
+                MacroProgressRow(
+                    label: "Fats",
+                    value: fats,
+                    goal: fatsGoal,
+                    unit: "g",
+                    color: .accentFats
+                )
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 120)
+    }
+
+    @ViewBuilder
     private func bubblesView(calories: Double, caloriesGoal: Double, caloriesPercentage: Double, protein: Double, proteinGoal: Double, proteinPercentage: Double, fats: Double, fatsGoal: Double, fatsPercentage: Double, carbs: Double, carbsGoal: Double, carbsPercentage: Double) -> some View {
          HStack(spacing: 15) {
-             ProgressBubble(value: calories, goal: caloriesGoal, percentage: caloriesPercentage, label: "Calories", unit: "cal", color: .red)
-             ProgressBubble(value: protein, goal: proteinGoal, percentage: proteinPercentage, label: "Protein", unit: "g", color: .accentProtein)
-             ProgressBubble(value: fats, goal: fatsGoal, percentage: fatsPercentage, label: "Fats", unit: "g", color: .accentFats)
-             ProgressBubble(value: carbs, goal: carbsGoal, percentage: carbsPercentage, label: "Carbs", unit: "g", color: .accentCarbs)
+             ProgressBubble(value: calories, goal: caloriesGoal, percentage: caloriesPercentage, label: "Calories", unit: "cal", color: .red, isSmall: true)
+             ProgressBubble(value: protein, goal: proteinGoal, percentage: proteinPercentage, label: "Protein", unit: "g", color: .accentProtein, isSmall: true)
+             ProgressBubble(value: fats, goal: fatsGoal, percentage: fatsPercentage, label: "Fats", unit: "g", color: .accentFats, isSmall: true)
+             ProgressBubble(value: carbs, goal: carbsGoal, percentage: carbsPercentage, label: "Carbs", unit: "g", color: .accentCarbs, isSmall: true)
          }.padding(.horizontal, 8).frame(maxWidth: .infinity)
     }
 }
@@ -76,38 +123,43 @@ struct ProgressBubble: View {
     let label: String
     let unit: String
     let color: Color
+    var isSmall: Bool = false
     
     var body: some View {
         VStack {
             ZStack {
-                Circle().stroke(lineWidth: 6).opacity(0.2).foregroundColor(color)
+                Circle().stroke(lineWidth: isSmall ? 6 : 10).opacity(0.15).foregroundColor(color)
                 Circle()
                     .trim(from: 0, to: CGFloat(percentage))
-                    .stroke(style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                    .stroke(style: StrokeStyle(lineWidth: isSmall ? 6 : 10, lineCap: .round, lineJoin: .round))
                     .foregroundColor(color)
                     .rotationEffect(Angle(degrees: -90))
                     .animation(.easeInOut(duration: 0.75), value: percentage)
 
                 VStack {
                     Text("\(String(format: "%.0f", value))")
-                        .appFont(size: 15, weight: .medium)
+                        .appFont(size: isSmall ? 15 : 24, weight: isSmall ? .medium : .bold)
                         .foregroundColor(.textPrimary)
-                    Text("/ \(String(format: "%.0f", goal)) \(unit)")
-                         .appFont(size: 10)
+                    Text("/ \(String(format: "%.0f", goal)) \(isSmall ? unit : "")")
+                         .appFont(size: isSmall ? 10 : 12)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
-            }.frame(width: 70, height: 70)
-            Text(label)
-                .appFont(size: 12)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
+            }
+            .frame(width: isSmall ? 70 : 100, height: isSmall ? 70 : 100)
+            
+            if !label.isEmpty {
+                Text(label)
+                    .appFont(size: 12)
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(1)
+            }
         }
     }
 }
 
 private struct DotIndicator: View {
     @ObservedObject var goalSettings: GoalSettings
-    let totalDots: Int = 3
+    let totalDots: Int = 4
     var body: some View {
         HStack(spacing: 8) {
             ForEach(0..<totalDots, id: \.self) { index in

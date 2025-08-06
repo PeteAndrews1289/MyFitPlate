@@ -31,11 +31,11 @@ struct FatSecretServing: Decodable {
     let saturatedFat: String?; let polyunsaturatedFat: String?; let monounsaturatedFat: String?; let fiber: String?
     let servingDescription: String?; let metricServingAmount: String?; let metricServingUnit: String?
     let calcium: String?; let iron: String?; let potassium: String?; let sodium: String?
-    let vitamin_a: String?; let vitamin_c: String?; let vitamin_d: String?
-    enum CodingKeys: String, CodingKey { case calories, protein, carbohydrate, fat, calcium, iron, potassium, sodium, vitamin_a, vitamin_c, vitamin_d; case saturatedFat = "saturated_fat"; case polyunsaturatedFat = "polyunsaturated_fat"; case monounsaturatedFat = "monounsaturated_fat"; case fiber; case servingDescription = "serving_description"; case metricServingAmount = "metric_serving_amount"; case metricServingUnit = "metric_serving_unit" }
+    let vitamin_a: String?; let vitamin_c: String?; let vitamin_d: String?; let vitamin_b12: String?; let folate: String?
+    enum CodingKeys: String, CodingKey { case calories, protein, carbohydrate, fat, calcium, iron, potassium, sodium, vitamin_a, vitamin_c, vitamin_d, vitamin_b12, folate; case saturatedFat = "saturated_fat"; case polyunsaturatedFat = "polyunsaturated_fat"; case monounsaturatedFat = "monounsaturated_fat"; case fiber; case servingDescription = "serving_description"; case metricServingAmount = "metric_serving_amount"; case metricServingUnit = "metric_serving_unit" }
 
     private func parseDouble(from string: String?) -> Double { guard let s = string?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty, s.lowercased() != "n/a" else { return 0.0 }; let cleaned = s.replacingOccurrences(of: ",", with: ".").replacingOccurrences(of: "<", with: "").replacingOccurrences(of: ">", with: ""); return Double(cleaned) ?? 0.0 }
-    func parsedNutrient(_ key: CodingKeys) -> Double { switch key { case .calories: return parseDouble(from: calories); case .protein: return parseDouble(from: protein); case .carbohydrate: return parseDouble(from: carbohydrate); case .fat: return parseDouble(from: fat); case .saturatedFat: return parseDouble(from: saturatedFat); case .polyunsaturatedFat: return parseDouble(from: polyunsaturatedFat); case .monounsaturatedFat: return parseDouble(from: monounsaturatedFat); case .fiber: return parseDouble(from: fiber); case .calcium: return parseDouble(from: calcium); case .iron: return parseDouble(from: iron); case .potassium: return parseDouble(from: potassium); case .sodium: return parseDouble(from: sodium); case .vitamin_a: return parseDouble(from: vitamin_a); case .vitamin_c: return parseDouble(from: vitamin_c); case .vitamin_d: return parseDouble(from: vitamin_d); default: return 0.0 } }
+    func parsedNutrient(_ key: CodingKeys) -> Double { switch key { case .calories: return parseDouble(from: calories); case .protein: return parseDouble(from: protein); case .carbohydrate: return parseDouble(from: carbohydrate); case .fat: return parseDouble(from: fat); case .saturatedFat: return parseDouble(from: saturatedFat); case .polyunsaturatedFat: return parseDouble(from: polyunsaturatedFat); case .monounsaturatedFat: return parseDouble(from: monounsaturatedFat); case .fiber: return parseDouble(from: fiber); case .calcium: return parseDouble(from: calcium); case .iron: return parseDouble(from: iron); case .potassium: return parseDouble(from: potassium); case .sodium: return parseDouble(from: sodium); case .vitamin_a: return parseDouble(from: vitamin_a); case .vitamin_c: return parseDouble(from: vitamin_c); case .vitamin_d: return parseDouble(from: vitamin_d); case .vitamin_b12: return parseDouble(from: vitamin_b12); case .folate: return parseDouble(from: folate); default: return 0.0 } }
     var parsedServingWeightGrams: Double? { guard let amountStr = metricServingAmount, let unit = metricServingUnit?.lowercased(), let amount = Double(amountStr), amount > 0 else { return nil }; if unit == "g" { return amount }; if unit == "ml" { return amount }; if unit == "oz" { return amount * 28.3495 }; if unit == "fl oz" { return amount * 29.5735 }; return nil }
     var displayDescription: String { servingDescription ?? "Serving" }
 }
@@ -52,7 +52,7 @@ class FatSecretFoodAPIService {
         
         URLSession.shared.dataTask(with: request) { data, _, error in
             defer { self.barcodeCache.remove(barcode) }
-            if let error = error { completion(.failure(error)); return }
+            if let error = error { completion(.failure(APIError.networkError(error))); return }
             guard let data = data else { completion(.failure(APIError.noData)); return }
             
             do {
@@ -67,7 +67,7 @@ class FatSecretFoodAPIService {
                         }
                     }
                 } else {
-                    completion(.failure(APIError.noData))
+                    completion(.failure(APIError.apiError("No food item found for this barcode.")))
                 }
             } catch {
                 completion(.failure(APIError.decodingError(error)))
@@ -80,14 +80,14 @@ class FatSecretFoodAPIService {
         let request = URLRequest(url: url)
         
         URLSession.shared.dataTask(with: request) { data, _, error in
-            if let error = error { print("❌ Detail fetch error for \(foodId): \(error)"); completion(.failure(error)); return }
-            guard let data = data else { print("❌ No data received for \(foodId)."); completion(.failure(APIError.noData)); return }
+            if let error = error { completion(.failure(APIError.networkError(error))); return }
+            guard let data = data else { completion(.failure(APIError.noData)); return }
             
             do {
                 let decodedResponse = try JSONDecoder().decode(FatSecretFoodResponse.self, from: data)
-                guard let food = decodedResponse.food else { print("❌ No food object decoded for \(foodId)."); completion(.failure(APIError.noData)); return }
+                guard let food = decodedResponse.food else { completion(.failure(APIError.noData)); return }
 
-                guard !food.servings.serving.isEmpty else { print("❌ No serving data found for \(foodId)."); completion(.failure(APIError.noData)); return }
+                guard !food.servings.serving.isEmpty else { completion(.failure(APIError.apiError("No serving information was found for this item."))); return }
 
                 var availableServings: [ServingSizeOption] = []
                 for serving in food.servings.serving {
@@ -108,7 +108,9 @@ class FatSecretFoodAPIService {
                         sodium: serving.parsedNutrient(.sodium) > 0 ? serving.parsedNutrient(.sodium) : nil,
                         vitaminA: serving.parsedNutrient(.vitamin_a) > 0 ? serving.parsedNutrient(.vitamin_a) : nil,
                         vitaminC: serving.parsedNutrient(.vitamin_c) > 0 ? serving.parsedNutrient(.vitamin_c) : nil,
-                        vitaminD: serving.parsedNutrient(.vitamin_d) > 0 ? serving.parsedNutrient(.vitamin_d) : nil
+                        vitaminD: serving.parsedNutrient(.vitamin_d) > 0 ? serving.parsedNutrient(.vitamin_d) : nil,
+                        vitaminB12: serving.parsedNutrient(.vitamin_b12) > 0 ? serving.parsedNutrient(.vitamin_b12) : nil,
+                        folate: serving.parsedNutrient(.folate) > 0 ? serving.parsedNutrient(.folate) : nil
                     )
                     availableServings.append(option)
                 }
@@ -130,13 +132,14 @@ class FatSecretFoodAPIService {
                     sodium: baseServing.parsedNutrient(.sodium) > 0 ? baseServing.parsedNutrient(.sodium) : nil,
                     vitaminA: baseServing.parsedNutrient(.vitamin_a) > 0 ? baseServing.parsedNutrient(.vitamin_a) : nil,
                     vitaminC: baseServing.parsedNutrient(.vitamin_c) > 0 ? baseServing.parsedNutrient(.vitamin_c) : nil,
-                    vitaminD: baseServing.parsedNutrient(.vitamin_d) > 0 ? baseServing.parsedNutrient(.vitamin_d) : nil
+                    vitaminD: baseServing.parsedNutrient(.vitamin_d) > 0 ? baseServing.parsedNutrient(.vitamin_d) : nil,
+                    vitaminB12: baseServing.parsedNutrient(.vitamin_b12) > 0 ? baseServing.parsedNutrient(.vitamin_b12) : nil,
+                    folate: baseServing.parsedNutrient(.folate) > 0 ? baseServing.parsedNutrient(.folate) : nil
                 )
                 
                 completion(.success((foodInfo: baseFoodItem, availableServings: availableServings)))
                 
             } catch {
-                print("❌ Detail decoding Error for \(foodId): \(error)")
                 completion(.failure(APIError.decodingError(error)))
             }
         }.resume()
@@ -146,8 +149,8 @@ class FatSecretFoodAPIService {
         guard let url = URL(string: "\(proxyURL)/search?query=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") else { completion(.success([])); return }
         let request = URLRequest(url: url)
         URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error { completion(.failure(error)); return }
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { completion(.success([])); return }
+            if let error = error { completion(.failure(APIError.networkError(error))); return }
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { completion(.failure(APIError.apiError("Received an invalid server response."))); return }
             guard let data = data else { completion(.failure(APIError.noData)); return }
             do {
                 let decodedResponse = try JSONDecoder().decode(FatSecretResponse.self, from: data)
@@ -171,7 +174,8 @@ class FatSecretFoodAPIService {
             saturatedFat: 0, polyunsaturatedFat: 0, monounsaturatedFat: 0, fiber: 0,
             servingSize: fatSecretFoodItem.foodDescription ?? "Tap to see details", servingWeight: 0, timestamp: nil,
             calcium: nil, iron: nil, potassium: nil, sodium: nil,
-            vitaminA: nil, vitaminC: nil, vitaminD: nil
+            vitaminA: nil, vitaminC: nil, vitaminD: nil,
+            vitaminB12: nil, folate: nil
         )
     }
 }
