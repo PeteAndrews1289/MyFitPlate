@@ -10,6 +10,7 @@ struct SettingsView: View {
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var cycleService: CycleTrackingService
+    @EnvironmentObject var recipeService: RecipeService
 
     @Binding var showSettings: Bool
     
@@ -23,7 +24,8 @@ struct SettingsView: View {
     @State private var waterGoalInput: String = ""
     @State private var showingResetTourConfirmation = false
     @State private var showCycleSettings = false
-
+    @State private var migrationStatusMessage = ""
+    @State private var showingMigrationAlert = false
 
     var body: some View {
         List {
@@ -60,18 +62,6 @@ struct SettingsView: View {
                 }
                 .foregroundColor(.textPrimary)
                 .disabled(healthKitViewModel.isSyncing)
-
-                if !healthKitViewModel.isAuthorized {
-                    if let hkError = healthKitViewModel.authError {
-                        Text(hkError)
-                            .appFont(size: 12)
-                            .foregroundColor(.red)
-                    } else {
-                        Text("Connect to sync workouts and activity.")
-                            .appFont(size: 12)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-                }
             }
 
             Section(header: Text("Account")) {
@@ -96,17 +86,6 @@ struct SettingsView: View {
                   }
             }
             
-            Section(header: Text("Feature Tour")) {
-                Button("Reset Feature Tour") {
-                    showingResetTourConfirmation = true
-                }
-                .foregroundColor(.brandPrimary)
-            }
-            
-            Section(header: Text("About")) {
-                NavigationLink("Health Disclaimers & Sources", destination: HealthDisclaimerView())
-            }
-
             Section {
                 Button("Sign Out", role: .destructive) { showingSignOutAlert = true }
                 Button("Delete Account", role: .destructive) { showingDeleteAccountAlert = true }
@@ -140,26 +119,7 @@ struct SettingsView: View {
             }
             showingWaterGoalSheet = false
         }).environmentObject(goalSettings) }
-        .sheet(isPresented: $showCycleSettings) {
-            NavigationView {
-                CycleSettingsView(cycleSettings: $cycleService.cycleSettings)
-                    .navigationBarItems(trailing: Button("Done") {
-                        showCycleSettings = false
-                    })
-            }
-        }
         .alert("Sign Out", isPresented: $showingSignOutAlert, actions: { Button("Cancel", role: .cancel) {}; Button("Sign Out", role: .destructive) { appState.signOut() } }, message: { Text("Are you sure you want to sign out?") })
-        .alert("Delete Account", isPresented: $showingDeleteAccountAlert, actions: { Button("Cancel", role: .cancel) {}; Button("Delete", role: .destructive) { deleteUserAccount() } }, message: { Text("Are you sure you want to delete your account? This action cannot be undone.") })
-        .alert("Reset Tour?", isPresented: $showingResetTourConfirmation) {
-            Button("Reset", role: .destructive) {
-                spotlightManager.resetSpotlights()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This will show you all the introductory feature highlights again.")
-        }
-    }
-
-    private func deleteUserAccount() {
+        .alert("Delete Account", isPresented: $showingDeleteAccountAlert, actions: { Button("Cancel", role: .cancel) {}; Button("Delete", role: .destructive) { } }, message: { Text("Are you sure you want to delete your account? This action cannot be undone.") })
     }
 }

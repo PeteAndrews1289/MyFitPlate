@@ -1,448 +1,188 @@
 import SwiftUI
-import FirebaseAuth
-import FirebaseFirestore
-
-struct ErrorAlert: Identifiable {
-    let id = UUID()
-    let message: String
-}
 
 struct CreateRecipeView: View {
-    @ObservedObject var recipeService: RecipeService
-    var recipeToEdit: UserRecipe?
     @Environment(\.dismiss) var dismiss
-
+    @ObservedObject var recipeService: RecipeService
     @State private var recipe: UserRecipe
-    @State private var isSaving = false
-    @State private var saveError: String? = nil
-
-    @State private var ingredientToMatch: RecipeIngredient? = nil
-    @State private var showingFoodSearchForMatch = false
-    @State private var foodItemToAddAsIngredient: FoodItem? = nil
-    @State private var showingAddIngredientDetail = false
+    
+    @State private var ingredientText: String = ""
+    @State private var newInstruction: String = ""
+    @State private var showingIngredientSheet = false
+    @State private var ingredientToEdit: Binding<RecipeIngredient>?
+    
+    private var isEditMode: Bool
     
     init(recipeService: RecipeService, recipeToEdit: UserRecipe? = nil) {
         self.recipeService = recipeService
-        self.recipeToEdit = recipeToEdit
         if let existingRecipe = recipeToEdit {
             _recipe = State(initialValue: existingRecipe)
+            self.isEditMode = true
         } else {
-            _recipe = State(initialValue: UserRecipe(userID: Auth.auth().currentUser?.uid ?? "", name: ""))
+            _recipe = State(initialValue: UserRecipe(userID: "", name: ""))
+            self.isEditMode = false
         }
     }
 
     var body: some View {
         NavigationView {
             Form {
-                recipeDetailsSection
-                ingredientsSection
-                instructionsSection
-                nutritionSection
+                Section(header: Text("Recipe Details")) {
+                    TextField("Recipe Name", text: $recipe.name)
+                    
+                    Stepper(value: $recipe.totalServings, in: 1...100, step: 1.0) {
+                        Text("Servings: \(recipe.totalServings, specifier: "%.1f")")
+                    }
+                }
 
-                if let error = saveError {
-                    Text("Error: \(error)").foregroundColor(.red).appFont(size: 12)
+                Section(header: Text("Ingredients"), footer: Text("Add ingredients one per line. You can use natural language, e.g., '1 cup of flour' or '2 large eggs'.").appFont(size: 12)) {
+                    TextEditor(text: $ingredientText)
+                        .frame(height: 150)
+                        .onChange(of: ingredientText) { _ in
+                            parseIngredientsFromText()
+                        }
+                    
+                    if !recipe.ingredients.isEmpty {
+                        ForEach($recipe.ingredients) { $ingredient in
+                            IngredientRowView(ingredient: $ingredient)
+                                .onTapGesture {
+                                    self.ingredientToEdit = $ingredient
+                                    self.showingIngredientSheet = true
+                                }
+                        }
+                        .onDelete(perform: deleteIngredient)
+                    }
+                }
+                
+                Section(header: Text("Instructions")) {
+                    ForEach(Array(recipe.instructions?.enumerated() ?? [].enumerated()), id: \.offset) { index, instruction in
+                        HStack {
+                            Text("\(index + 1).")
+                                .bold()
+                            Text(instruction)
+                        }
+                    }
+                    .onDelete(perform: deleteInstruction)
+                    
+                    HStack {
+                        TextField("Add new step", text: $newInstruction, onCommit: addInstruction)
+                        Button(action: addInstruction) {
+                            Image(systemName: "plus.circle.fill")
+                        }
+                        .disabled(newInstruction.isEmpty)
+                    }
+                }
+                
+                Section(header: Text("Nutrition Per Serving")) {
+                    if recipe.ingredients.contains(where: { $0.foodId == nil }) {
+                        Text("Enter all ingredients to calculate nutrition.")
+                            .appFont(size: 14)
+                            .foregroundColor(.orange)
+                    } else if recipe.ingredients.isEmpty {
+                        Text("Add ingredients to see nutrition info.")
+                            .appFont(size: 14)
+                            .foregroundColor(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Calories: \(recipe.nutritionPerServing.calories, specifier: "%.0f") kcal")
+                            Text("Protein: \(recipe.nutritionPerServing.protein, specifier: "%.1f") g")
+                            Text("Carbs: \(recipe.nutritionPerServing.carbs, specifier: "%.1f") g")
+                            Text("Fats: \(recipe.nutritionPerServing.fats, specifier: "%.1f") g")
+                        }
+                        .appFont(size: 15)
+                    }
                 }
             }
-            .navigationTitle(recipeToEdit == nil ? "Create Recipe" : "Edit Recipe")
+            .navigationTitle(isEditMode ? "Edit Recipe" : "Create Recipe")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveRecipe() }
-                    .disabled(recipe.name.isEmpty || recipe.ingredients.isEmpty || isSaving)
+                    Button("Save") {
+                        recipeService.saveRecipe(recipe) { result in
+                            if case .success = result {
+                                dismiss()
+                            }
+                        }
+                    }
+                    .disabled(recipe.name.isEmpty || recipe.ingredients.isEmpty)
                 }
             }
-            .onAppear {
-                print("\n--- CreateRecipeView: Appeared ---")
-                print("Recipe being edited: \(recipeToEdit?.name ?? "A New Recipe")")
-                print("Initial state of recipe in view:")
-                dump(recipe)
-            }
-            .sheet(isPresented: $showingFoodSearchForMatch) {
-                let initialQuery = ingredientToMatch?.originalImportedString ?? ingredientToMatch?.foodName
-                ingredientSearchSheet(initialQuery: initialQuery)
-            }
-            .sheet(isPresented: $showingAddIngredientDetail, onDismiss: { foodItemToAddAsIngredient = nil } ) {
-                if let foodItem = foodItemToAddAsIngredient {
-                    AddIngredientDetailView(
-                        foodItem: foodItem,
-                        originalIngredientString: ingredientToMatch?.originalImportedString ?? foodItem.name,
-                        onAdd: { newOrMatchedIngredient in
-                            if let ingredientToMatchID = ingredientToMatch?.id,
-                               let index = recipe.ingredients.firstIndex(where: { $0.id == ingredientToMatchID }) {
-                                recipe.ingredients[index] = newOrMatchedIngredient
-                            } else {
-                                recipe.ingredients.append(newOrMatchedIngredient)
-                            }
-                            recipe.calculateTotals()
+            .sheet(isPresented: $showingIngredientSheet) {
+                if let binding = ingredientToEdit {
+                    FoodDetailView(
+                        initialFoodItem: foodItem(from: binding.wrappedValue),
+                        dailyLog: .constant(nil),
+                        source: "recipe_ingredient_edit",
+                        onLogUpdated: {},
+                        onUpdate: { updatedFoodItem in
+                            updateIngredient(from: updatedFoodItem, for: binding)
+                            ingredientToEdit = nil
                         }
                     )
                 }
             }
+            .onAppear(perform: setupInitialIngredientText)
         }
     }
 
-    private var recipeDetailsSection: some View {
-        Section("Recipe Details") {
-            TextField("Recipe Name", text: $recipe.name)
-            HStack {
-                Text("Makes")
-                TextField("Number", value: $recipe.totalServings, format: .number)
-                    .keyboardType(.decimalPad)
-                    .frame(width: 80)
-                    .multilineTextAlignment(.trailing)
-                    .onChange(of: recipe.totalServings) { _ in recipe.calculateTotals() }
-                Spacer()
-                TextField("Serving Size Desc (e.g., 'bowl')", text: $recipe.servingSizeDescription)
-                    .multilineTextAlignment(.trailing)
-            }
+    private func setupInitialIngredientText() {
+        ingredientText = recipe.ingredients.map { $0.originalImportedString ?? $0.foodName }.joined(separator: "\n")
+    }
+
+    private func parseIngredientsFromText() {
+        let lines = ingredientText.split(separator: "\n", omittingEmptySubsequences: true).map { String($0) }
+        let parsedIngredients = IngredientParser.parseMultiple(lines)
+        
+        recipe.ingredients = parsedIngredients.map { parsed in
+            RecipeIngredient(
+                foodName: parsed.name,
+                quantity: parsed.quantity,
+                selectedServingDescription: parsed.unit,
+                calories: 0,
+                protein: 0,
+                carbs: 0,
+                fats: 0,
+                originalImportedString: parsed.originalString
+            )
         }
     }
-    
-    private var ingredientsSection: some View {
-        Section(header: Text("Ingredients (\(recipe.ingredients.count))")) {
-            ForEach($recipe.ingredients) { $ingredient in
-                IngredientRowView(ingredient: $ingredient) {
-                    self.ingredientToMatch = ingredient
-                    self.showingFoodSearchForMatch = true
-                }
-            }
-            .onDelete(perform: deleteIngredient)
-            
-            Button {
-                self.ingredientToMatch = nil
-                self.showingFoodSearchForMatch = true
-            } label: {
-                Label("Add Ingredient", systemImage: "plus")
-            }
-        }
-    }
-    
-    private var instructionsSection: some View {
-        Section("Instructions") {
-            if let instructions = recipe.instructions, !instructions.isEmpty {
-                ForEach(Array(instructions.enumerated()), id: \.offset) { index, instruction in
-                    HStack(alignment: .top) {
-                        Text("\(index + 1).")
-                            .bold()
-                        Text(instruction)
-                    }
-                }
-            } else {
-                Text("No instructions were imported.")
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
-        }
-    }
-    
-    private var nutritionSection: some View {
-        Section("Nutrition Per Serving") {
-            let allMatched = !recipe.ingredients.contains { $0.foodId == nil }
-            
-            if !allMatched && !recipe.ingredients.isEmpty {
-                Text("Tap on orange ingredients to match them with a food item and calculate nutrition.")
-                    .appFont(size: 12)
-                    .foregroundColor(.orange)
-            }
-            
-            nutrientRow(label: "Calories", value: String(format: "%.0f kcal", recipe.nutritionPerServing.calories))
-            nutrientRow(label: "Protein", value: String(format: "%.1f g", recipe.nutritionPerServing.protein))
-            nutrientRow(label: "Carbs", value: String(format: "%.1f g", recipe.nutritionPerServing.carbs))
-            nutrientRow(label: "Fats", value: String(format: "%.1f g", recipe.nutritionPerServing.fats))
-        }
-    }
-    
-    private func ingredientSearchSheet(initialQuery: String?) -> some View {
-        NavigationView {
-            FoodSearchViewForIngredients(initialQuery: initialQuery) { selectedFoodItem in
-                self.foodItemToAddAsIngredient = selectedFoodItem
-                self.showingFoodSearchForMatch = false
-                
-                if self.ingredientToMatch == nil {
-                    self.ingredientToMatch = RecipeIngredient(foodName: selectedFoodItem.name, quantity: 1, selectedServingDescription: "", calories: 0, protein: 0, carbs: 0, fats: 0)
-                }
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.showingAddIngredientDetail = true
-                }
-            }
-            .navigationTitle("Search Ingredient")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showingFoodSearchForMatch = false }
-                }
-            }
-        }
-    }
-    
+
     private func deleteIngredient(at offsets: IndexSet) {
         recipe.ingredients.remove(atOffsets: offsets)
+        setupInitialIngredientText()
+    }
+    
+    private func addInstruction() {
+        guard !newInstruction.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        if recipe.instructions == nil {
+            recipe.instructions = []
+        }
+        recipe.instructions?.append(newInstruction)
+        newInstruction = ""
+    }
+
+    private func deleteInstruction(at offsets: IndexSet) {
+        recipe.instructions?.remove(atOffsets: offsets)
+    }
+
+    private func foodItem(from ingredient: RecipeIngredient) -> FoodItem {
+        return FoodItem(id: ingredient.foodId ?? UUID().uuidString, name: ingredient.foodName, calories: ingredient.calories, protein: ingredient.protein, carbs: ingredient.carbs, fats: ingredient.fats, saturatedFat: ingredient.saturatedFat, polyunsaturatedFat: ingredient.polyunsaturatedFat, monounsaturatedFat: ingredient.monounsaturatedFat, fiber: ingredient.fiber, servingSize: ingredient.selectedServingDescription ?? "1 serving", servingWeight: ingredient.selectedServingWeightGrams ?? 0, calcium: ingredient.calcium, iron: ingredient.iron, potassium: ingredient.potassium, sodium: ingredient.sodium, vitaminA: ingredient.vitaminA, vitaminC: ingredient.vitaminC, vitaminD: ingredient.vitaminD, vitaminB12: ingredient.vitaminB12, folate: ingredient.folate)
+    }
+    
+    private func updateIngredient(from foodItem: FoodItem, for binding: Binding<RecipeIngredient>) {
+        var updatedIngredient = binding.wrappedValue
+        updatedIngredient.foodId = foodItem.id
+        updatedIngredient.foodName = foodItem.name
+        updatedIngredient.calories = foodItem.calories
+        updatedIngredient.protein = foodItem.protein
+        updatedIngredient.carbs = foodItem.carbs
+        updatedIngredient.fats = foodItem.fats
+        updatedIngredient.selectedServingDescription = foodItem.servingSize
+        updatedIngredient.selectedServingWeightGrams = foodItem.servingWeight
+        
+        binding.wrappedValue = updatedIngredient
         recipe.calculateTotals()
     }
-    
-    private func saveRecipe() {
-        isSaving = true
-        saveError = nil
-        if let userID = Auth.auth().currentUser?.uid {
-            recipe.userID = userID
-            if recipeToEdit == nil { recipe.id = nil }
-            recipeService.saveRecipe(recipe) { result in
-                isSaving = false
-                switch result {
-                case .success: dismiss()
-                case .failure(let error): saveError = error.localizedDescription
-                }
-            }
-        } else {
-            saveError = "User not logged in."
-            isSaving = false
-        }
-    }
-    
-    @ViewBuilder private func nutrientRow(label: String, value: String, hideIfZero: Bool = false) -> some View {
-        let numericPart = value.components(separatedBy: CharacterSet.decimalDigits.union(CharacterSet(charactersIn: ".")).inverted).joined()
-        if !hideIfZero || (Double(numericPart) ?? 0) > 0.01 {
-            HStack {
-                Text(label).appFont(size: 15)
-                Spacer()
-                Text(value).appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel))
-            }
-        } else {
-            EmptyView()
-        }
-    }
-}
-
-fileprivate struct IngredientRowView: View {
-    @Binding var ingredient: RecipeIngredient
-    var onTap: () -> Void
-
-    private var isPlaceholder: Bool {
-        ingredient.foodId == nil
-    }
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(ingredient.foodName)
-                        .appFont(size: 17, weight: .semibold)
-                        .foregroundColor(isPlaceholder ? .orange : .textPrimary)
-                    
-                    if isPlaceholder {
-                        Text("Tap to match with a food item")
-                            .appFont(size: 12)
-                            .foregroundColor(.orange)
-                    } else {
-                        Text("\(ingredient.quantity, specifier: "%g") x \(ingredient.selectedServingDescription ?? "") (\(ingredient.calories, specifier: "%.0f") kcal)")
-                            .appFont(size: 12)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
-
-fileprivate struct FoodSearchViewForIngredients: View {
-    var initialQuery: String?
-    var onSelect: (FoodItem) -> Void
-    @State private var searchQuery = ""
-    @State private var searchResults: [FoodItem] = []
-    @State private var isLoading = false
-    @State private var debounceTimer: Timer?
-    @State private var error: ErrorAlert? = nil
-    private let foodAPIService = FatSecretFoodAPIService()
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                TextField("Search food items...", text: $searchQuery)
-                    .textFieldStyle(AppTextFieldStyle(iconName: "magnifyingglass"))
-                    .onChange(of: searchQuery) { newValue in handleSearchQueryChange(newValue) }
-                    .submitLabel(.search).onSubmit { performSearch() }
-            }.padding()
-
-            List {
-                if isLoading { ProgressView().frame(maxWidth: .infinity) }
-                ForEach(searchResults) { foodItem in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(foodItem.name).appFont(size: 15)
-                            Text(foodItem.servingSize)
-                                .appFont(size: 12).foregroundColor(Color(UIColor.secondaryLabel))
-                        }
-                        Spacer()
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onSelect(foodItem)
-                    }
-                }
-            }
-            .listStyle(.plain)
-            .alert(item: $error) { errorAlert in Alert(title: Text("Error"), message: Text(errorAlert.message), dismissButton: .default(Text("OK"))) }
-        }
-        .onAppear {
-            if let query = initialQuery {
-                let parsed = IngredientParser.parse(query)
-                searchQuery = parsed.name
-                performSearch()
-            }
-        }
-        .onDisappear { debounceTimer?.invalidate() }
-    }
-
-    private func handleSearchQueryChange(_ newValue: String) { debounceTimer?.invalidate(); let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines); guard !trimmed.isEmpty else { searchResults = []; isLoading = false; return }; debounceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in self.performSearch() } }
-    private func performSearch() {
-        let query = self.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { searchResults = []; isLoading = false; return }
-        isLoading = true
-        foodAPIService.fetchFoodByQuery(query: query) { result in
-            DispatchQueue.main.async {
-                self.isLoading = false
-                self.handleSearchResults(result)
-            }
-        }
-    }
-    private func handleSearchResults(_ result: Result<[FoodItem], Error>) { switch result { case .success(let i): searchResults = i; case .failure(let e): searchResults = []; self.error = ErrorAlert(message: "Search failed: \(e.localizedDescription)") } }
-}
-
-fileprivate struct AddIngredientDetailView: View {
-    let foodItem: FoodItem
-    let originalIngredientString: String
-    let onAdd: (RecipeIngredient) -> Void
-    @Environment(\.dismiss) var dismiss
-
-    @State private var availableServings: [ServingSizeOption] = []
-    @State private var selectedServingID: UUID? = nil
-    @State private var quantity: String = "1"
-    @State private var isLoadingDetails: Bool = false
-    @State private var errorLoading: String? = nil
-
-    private let foodAPIService = FatSecretFoodAPIService()
-
-     private var selectedServingOption: ServingSizeOption? {
-         guard let selectedID = selectedServingID else { return nil }
-         return availableServings.first { $0.id == selectedID }
-     }
-
-     private var addButtonEnabled: Bool {
-          selectedServingOption != nil && (Double(quantity) ?? 0) > 0
-      }
-
-    var body: some View {
-         NavigationView {
-             VStack {
-                 if isLoadingDetails {
-                     ProgressView("Loading serving sizes...")
-                 } else if let error = errorLoading {
-                     Text("Error: \(error)").foregroundColor(.red).padding()
-                 } else if availableServings.isEmpty {
-                     Text("No specific serving sizes found for this item. Cannot add.").padding()
-                 } else {
-                     Form {
-                         Section("Ingredient") {
-                             Text(foodItem.name).appFont(size: 17, weight: .semibold)
-                         }
-                         Section("Serving Used in Recipe") {
-                             HStack {
-                                 Text("Quantity")
-                                 TextField("e.g., 1.5", text: $quantity)
-                                     .keyboardType(.decimalPad)
-                                     .multilineTextAlignment(.trailing)
-                             }
-                             Picker("Serving Size", selection: $selectedServingID) {
-                                 ForEach(availableServings) { option in
-                                     Text(option.description).tag(option.id as UUID?)
-                                 }
-                             }
-                             .pickerStyle(.menu)
-                         }
-                     }
-                 }
-                 Spacer()
-             }
-             .navigationTitle("Add Ingredient")
-             .navigationBarTitleDisplayMode(.inline)
-             .toolbar {
-                 ToolbarItem(placement: .cancellationAction) {
-                     Button("Cancel") { dismiss() }
-                 }
-                 ToolbarItem(placement: .confirmationAction) {
-                     Button("Add") { addIngredientAction() }
-                     .disabled(!addButtonEnabled || availableServings.isEmpty)
-                 }
-             }
-             .onAppear(perform: setupView)
-         }
-    }
-
-    private func setupView() {
-        let parsed = IngredientParser.parse(originalIngredientString)
-        self.quantity = String(format: "%g", parsed.quantity)
-        fetchServingDetails(preferredUnit: parsed.unit)
-    }
-
-    private func fetchServingDetails(preferredUnit: String) {
-         isLoadingDetails = true
-         errorLoading = nil
-         foodAPIService.fetchFoodDetails(foodId: foodItem.id) { result in
-             DispatchQueue.main.async {
-                 isLoadingDetails = false
-                 switch result {
-                 case .success(let (_, servings)):
-                     self.availableServings = servings
-                     if let bestMatch = servings.first(where: { $0.description.lowercased().contains(preferredUnit) }) {
-                         self.selectedServingID = bestMatch.id
-                     } else if let firstServing = servings.first {
-                         self.selectedServingID = firstServing.id
-                     } else {
-                         errorLoading = "No serving sizes found."
-                     }
-                 case .failure(let error):
-                     errorLoading = error.localizedDescription
-                 }
-             }
-         }
-     }
-
-     private func addIngredientAction() {
-         guard let selectedOption = selectedServingOption,
-               let quantityValue = Double(quantity), quantityValue > 0 else {
-             return
-         }
-
-         let factor = quantityValue
-         let finalIngredient = RecipeIngredient(
-             foodId: foodItem.id,
-             foodName: foodItem.name,
-             quantity: quantityValue,
-             selectedServingDescription: selectedOption.description,
-             selectedServingWeightGrams: selectedOption.servingWeightGrams,
-             calories: selectedOption.calories * factor,
-             protein: selectedOption.protein * factor,
-             carbs: selectedOption.carbs * factor,
-             fats: selectedOption.fats * factor,
-             saturatedFat: selectedOption.saturatedFat.map { $0 * factor },
-             polyunsaturatedFat: selectedOption.polyunsaturatedFat.map { $0 * factor },
-             monounsaturatedFat: selectedOption.monounsaturatedFat.map { $0 * factor },
-             fiber: selectedOption.fiber.map { $0 * factor },
-             calcium: selectedOption.calcium.map { $0 * factor },
-             iron: selectedOption.iron.map { $0 * factor },
-             potassium: selectedOption.potassium.map { $0 * factor },
-             sodium: selectedOption.sodium.map { $0 * factor },
-             vitaminA: selectedOption.vitaminA.map { $0 * factor },
-             vitaminC: selectedOption.vitaminC.map { $0 * factor },
-             vitaminD: selectedOption.vitaminD.map { $0 * factor },
-             originalImportedString: originalIngredientString
-         )
-         onAdd(finalIngredient)
-         dismiss()
-     }
 }

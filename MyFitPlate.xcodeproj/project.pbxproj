@@ -126,6 +126,7 @@
 		4BA12D432E43EE7900E55716 /* AITextLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA12D422E43EE7900E55716 /* AITextLogView.swift */; };
 		4BA12D452E43EF3F00E55716 /* AITextResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA12D442E43EF3F00E55716 /* AITextResultsView.swift */; };
 		4BA12D472E43EF9C00E55716 /* MealScoreCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA12D462E43EF9C00E55716 /* MealScoreCard.swift */; };
+		4BA12D7A2E5658E600E55716 /* IngredientRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA12D792E5658E600E55716 /* IngredientRowView.swift */; };
 		4BA2DB3C2D42A38B00B6BDED /* MLImageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA2DB3B2D42A37B00B6BDED /* MLImageModel.swift */; };
 		4BA2DB3E2D42A74800B6BDED /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA2DB3D2D42A74300B6BDED /* ImagePicker.swift */; };
 		4BB4628F2E1EE8AB007CCA8A /* MyFitPlateWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 4BB462822E1EE8AA007CCA8A /* MyFitPlateWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -313,6 +314,7 @@
 		4BA12D422E43EE7900E55716 /* AITextLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AITextLogView.swift; sourceTree = "<group>"; };
 		4BA12D442E43EF3F00E55716 /* AITextResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AITextResultsView.swift; sourceTree = "<group>"; };
 		4BA12D462E43EF9C00E55716 /* MealScoreCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealScoreCard.swift; sourceTree = "<group>"; };
+		4BA12D792E5658E600E55716 /* IngredientRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientRowView.swift; sourceTree = "<group>"; };
 		4BA2DB3B2D42A37B00B6BDED /* MLImageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLImageModel.swift; sourceTree = "<group>"; };
 		4BA2DB3D2D42A74300B6BDED /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 		4BB462822E1EE8AA007CCA8A /* MyFitPlateWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MyFitPlateWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -493,6 +495,7 @@
 				4BA2DB3D2D42A74300B6BDED /* ImagePicker.swift */,
 				4B15AD1C2E33D05D00F0A0BB /* ImageProcessingView.swift */,
 				3EB297982CAEF8D40093E1B9 /* Info.plist */,
+				4BA12D792E5658E600E55716 /* IngredientRowView.swift */,
 				4B46941D2DCE5C3C006F1F86 /* InsightsService.swift */,
 				3E676A292CE3C76D0019DC51 /* JoinGroupConfirmationView.swift */,
 				4B619A972D79EB4C00D6C9A8 /* LandingPageView.swift */,
@@ -845,6 +848,7 @@
 				3EC693DE2CB83BDC002222C6 /* GoalSettings.swift in Sources */,
 				3EC693E02CBD712D002222C6 /* FatSecretFoodAPIService.swift in Sources */,
 				3EC693CB2CB81F8B002222C6 /* NutritionProgressView.swift in Sources */,
+				4BA12D7A2E5658E600E55716 /* IngredientRowView.swift in Sources */,
 				4B619A942D677DBC00D6C9A8 /* APIError.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

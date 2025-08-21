@@ -65,7 +65,6 @@ class TotalWorkoutTimer: ObservableObject {
     }
 }
 
-
 class RestTimer: ObservableObject {
     @Published var timeRemaining: TimeInterval = 0
     private var timer: Timer?
@@ -110,12 +109,12 @@ class RestTimer: ObservableObject {
     }
 }
 
-
 struct WorkoutPlayerView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var workoutService: WorkoutService
+    @EnvironmentObject var achievementService: AchievementService
     
     @State private var routine: WorkoutRoutine
     @StateObject private var restTimer = RestTimer()
@@ -296,6 +295,7 @@ struct WorkoutPlayerView: View {
             )
             Task {
                 await workoutService.saveWorkoutSessionLog(sessionLog)
+                achievementService.checkWorkoutCountAchievements(userID: userID)
             }
         }
 

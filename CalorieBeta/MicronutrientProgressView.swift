@@ -9,14 +9,17 @@ struct MicronutrientProgressView: View {
         ("calcium", "Calcium", "mg"),
         ("iron", "Iron", "mg"),
         ("potassium", "Potassium", "mg"),
+        ("sodium", "Sodium", "mg"),
+        ("fiber", "Fiber", "g"),
         ("vitaminA", "Vitamin A", "mcg"),
         ("vitaminC", "Vitamin C", "mg"),
         ("vitaminD", "Vitamin D", "mcg"),
         ("vitaminB12", "Vitamin B12", "mcg"),
-        ("folate", "Folate", "mcg"),
-        ("fiber", "Fiber", "g"),
-        ("sodium", "Sodium", "mg")
+        ("magnesium", "Magnesium", "mg"),
+        ("zinc", "Zinc", "mg"),
+        ("folate", "Folate", "mcg")
     ]
+
 
     private let columns: [GridItem] = [
         GridItem(.flexible(), spacing: 16),
@@ -55,7 +58,7 @@ struct MicronutrientProgressView: View {
          }
     }
 
-    private func getIntake(for key: String, from totals: (calcium: Double, iron: Double, potassium: Double, sodium: Double, vitaminA: Double, vitaminC: Double, vitaminD: Double, vitaminB12: Double, folate: Double, fiber: Double)) -> Double {
+    private func getIntake(for key: String, from totals: (calcium: Double, iron: Double, potassium: Double, sodium: Double, vitaminA: Double, vitaminC: Double, vitaminD: Double, vitaminB12: Double, folate: Double, fiber: Double, magnesium: Double, phosphorus: Double, zinc: Double, copper: Double, manganese: Double, selenium: Double, vitaminB1: Double, vitaminB2: Double, vitaminB3: Double, vitaminB5: Double, vitaminB6: Double, vitaminE: Double, vitaminK: Double)) -> Double {
          switch key {
              case "calcium": return totals.calcium
              case "iron": return totals.iron
@@ -67,22 +70,49 @@ struct MicronutrientProgressView: View {
              case "vitaminB12": return totals.vitaminB12
              case "folate": return totals.folate
              case "fiber": return totals.fiber
+             case "magnesium": return totals.magnesium
+             case "phosphorus": return totals.phosphorus
+             case "zinc": return totals.zinc
+             case "copper": return totals.copper
+             case "manganese": return totals.manganese
+             case "selenium": return totals.selenium
+             case "vitaminB1": return totals.vitaminB1
+             case "vitaminB2": return totals.vitaminB2
+             case "vitaminB3": return totals.vitaminB3
+             case "vitaminB5": return totals.vitaminB5
+             case "vitaminB6": return totals.vitaminB6
+             case "vitaminE": return totals.vitaminE
+             case "vitaminK": return totals.vitaminK
              default: return 0
          }
     }
 
     private func getGoal(for key: String) -> Double {
+        // You can expand this with accurate DRI values later
         switch key {
-            case "calcium": return max(goalSettings.calciumGoal ?? 1, 1)
-            case "iron": return max(goalSettings.ironGoal ?? 1, 1)
-            case "potassium": return max(goalSettings.potassiumGoal ?? 1, 1)
+            case "calcium": return max(goalSettings.calciumGoal ?? 1000, 1)
+            case "iron": return max(goalSettings.ironGoal ?? 18, 1)
+            case "potassium": return max(goalSettings.potassiumGoal ?? 3500, 1)
             case "sodium": return goalSettings.sodiumGoal ?? 2300
-            case "vitaminA": return max(goalSettings.vitaminAGoal ?? 1, 1)
-            case "vitaminC": return max(goalSettings.vitaminCGoal ?? 1, 1)
-            case "vitaminD": return max(goalSettings.vitaminDGoal ?? 1, 1)
-            case "vitaminB12": return max(goalSettings.vitaminB12Goal ?? 1, 1)
-            case "folate": return max(goalSettings.folateGoal ?? 1, 1)
+            case "vitaminA": return max(goalSettings.vitaminAGoal ?? 900, 1)
+            case "vitaminC": return max(goalSettings.vitaminCGoal ?? 90, 1)
+            case "vitaminD": return max(goalSettings.vitaminDGoal ?? 20, 1)
+            case "vitaminB12": return max(goalSettings.vitaminB12Goal ?? 2.4, 1)
+            case "folate": return max(goalSettings.folateGoal ?? 400, 1)
             case "fiber": return 25
+            case "magnesium": return 400
+            case "phosphorus": return 700
+            case "zinc": return 11
+            case "copper": return 900
+            case "manganese": return 2.3
+            case "selenium": return 55
+            case "vitaminB1": return 1.2
+            case "vitaminB2": return 1.3
+            case "vitaminB3": return 16
+            case "vitaminB5": return 5
+            case "vitaminB6": return 1.3
+            case "vitaminE": return 15
+            case "vitaminK": return 120
             default: return 1
         }
     }
@@ -106,7 +136,7 @@ struct MicronutrientRow: View {
                     .fontWeight(.medium)
                     .foregroundColor(getPercentageColor())
             }
-            CustomProgressBar(value: progress, isSodium: isSodium)
+            CustomProgressBar(value: min(progress, 1.0), isSodium: isSodium)
                 .frame(height: 8)
         }
     }

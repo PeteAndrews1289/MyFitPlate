@@ -68,6 +68,9 @@ struct ReportsView: View {
             if healthKitViewModel.isAuthorized {
                 viewModel.processSleepData(samples: healthKitViewModel.sleepSamples)
             }
+            if let userID = Auth.auth().currentUser?.uid {
+                viewModel.fetchMealScoreHistory(for: userID)
+            }
         }
         .onChange(of: selectedTimeframe) { newValue in
             if newValue != .custom {
@@ -106,10 +109,12 @@ struct ReportsView: View {
             }
             .buttonStyle(SecondaryButtonStyle())
             
-            NavigationLink(destination: CycleTrackingView()) {
-                Label("View Cycle Tracking", systemImage: "timer.circle")
+            if goalSettings.gender == "Female" {
+                NavigationLink(destination: CycleTrackingView()) {
+                    Label("View Cycle Tracking", systemImage: "timer.circle")
+                }
+                .buttonStyle(SecondaryButtonStyle())
             }
-            .buttonStyle(SecondaryButtonStyle())
         }
     }
 
@@ -134,6 +139,9 @@ struct ReportsView: View {
             summaryCard
             if let score = viewModel.mealScore {
                 MealScoreCard(score: score)
+            }
+            if !viewModel.mealScoreHistory.isEmpty {
+                mealScoreHistoryCard
             }
             if let sleepReport = viewModel.weeklySleepReport {
                 SleepReportCard(report: sleepReport)
@@ -251,6 +259,31 @@ struct ReportsView: View {
            }
        }
        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private var mealScoreHistoryCard: some View {
+        VStack(alignment: .leading) {
+            Text("Meal Score Trend").appFont(size: 17, weight: .semibold).padding(.bottom, 5)
+            Chart(viewModel.mealScoreHistory) { dp in
+                LineMark(x: .value("Date", dp.date, unit: .day), y: .value("Score", dp.value))
+                    .foregroundStyle(Color.brandPrimary)
+                    .interpolationMethod(.catmullRom)
+                PointMark(x: .value("Date", dp.date, unit: .day), y: .value("Score", dp.value))
+                    .foregroundStyle(Color.brandPrimary)
+                    .symbolSize(10)
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day)) { _ in
+                    AxisTick()
+                    AxisValueLabel(format: .dateTime.month().day(), centered: false)
+                }
+            }
+            .chartYScale(domain: 0...100)
+            .chartYAxis { AxisMarks(preset: .aligned, position: .leading) }
+            .chartYAxisLabel("Score", position: .leading, alignment: .center, spacing: 10)
+            .frame(height: 200)
+        }
+        .asCard()
     }
     
     @ViewBuilder private var calorieChartCard: some View {

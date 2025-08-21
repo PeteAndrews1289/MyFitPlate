@@ -54,29 +54,15 @@ struct HomeView: View {
     private var isToday: Bool {
         Calendar.current.isDateInToday(selectedDate)
     }
-    
-    private var showCycleCard: Bool {
-        return cycleService.cycleSettings.typicalCycleLength > 0 && goalSettings.gender == "Female"
-    }
 
     var body: some View {
-         ZStack {
+          ZStack {
             NavigationLink(destination: WorkoutRoutinesView(), isActive: $showingWorkoutRoutines) { EmptyView() }
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 20) {
                         dateNavigationView
                             .padding(.horizontal)
-                        
-                        if showCycleCard {
-                            if cycleService.isLoadingInsight {
-                                ProgressView()
-                                    .padding()
-                            } else if let insight = cycleService.aiInsight {
-                                CycleInsightCard(insight: insight)
-                                    .padding(.horizontal)
-                            }
-                        }
                         
                         nutritionProgressSection
                             .padding(.horizontal)
@@ -107,7 +93,6 @@ struct HomeView: View {
                         
                         if let currentDailyLog = dailyLogService.currentDailyLog, Calendar.current.isDate(currentDailyLog.date, inSameDayAs: selectedDate) {
                             
-                         
                             let insightToShow = insightsService.isLoadingInsights ? nil : weeklyInsight
                             
                             WaterTrackingCardView(date: currentDailyLog.date, insight: insightToShow)
@@ -180,39 +165,39 @@ struct HomeView: View {
                     }
                 }
             }
-         }
-         .sheet(isPresented: $showingSuggestionDetail) {
-             if let suggestion = mealSuggestion {
-                 MealSuggestionDetailView(suggestion: suggestion, onLog: logMealSuggestion)
-             }
-         }
-         .sheet(isPresented: $showingSuggestionPreferences) {
-             SuggestionPreferencesView(goalSettings: goalSettings)
-         }
-         .sheet(isPresented: $showingProfileSheet) {
-             NavigationView {
-                 UserProfileView()
-             }
-         }
-         .sheet(isPresented: $showingAddExerciseView) {
-             AddExerciseView { newExercise in
-                 if let userID = Auth.auth().currentUser?.uid {
-                     self.dailyLogService.addExerciseToLog(for: userID, exercise: newExercise)
-                 }
-             }
-         }
-         .sheet(item: $exerciseToEdit) { exerciseToEdit in
-             AddExerciseView(exerciseToEdit: exerciseToEdit) { updatedExercise in
-                 if let userID = Auth.auth().currentUser?.uid {
-                     self.dailyLogService.deleteExerciseFromLog(for: userID, exerciseID: exerciseToEdit.id)
-                     self.dailyLogService.addExerciseToLog(for: userID, exercise: updatedExercise)
-                 }
-             }
-         }
-         .onAppear(perform: onHomeViewAppear)
-         .onReceive(insightsService.$currentInsights) { insights in
-             self.weeklyInsight = insights.first
-         }
+          }
+          .sheet(isPresented: $showingSuggestionDetail) {
+              if let suggestion = mealSuggestion {
+                  MealSuggestionDetailView(suggestion: suggestion, onLog: logMealSuggestion)
+              }
+          }
+          .sheet(isPresented: $showingSuggestionPreferences) {
+              SuggestionPreferencesView(goalSettings: goalSettings)
+          }
+          .sheet(isPresented: $showingProfileSheet) {
+              NavigationView {
+                  UserProfileView()
+              }
+          }
+          .sheet(isPresented: $showingAddExerciseView) {
+              AddExerciseView { newExercise in
+                  if let userID = Auth.auth().currentUser?.uid {
+                      self.dailyLogService.addExerciseToLog(for: userID, exercise: newExercise)
+                  }
+              }
+          }
+          .sheet(item: $exerciseToEdit) { exerciseToEdit in
+              AddExerciseView(exerciseToEdit: exerciseToEdit) { updatedExercise in
+                  if let userID = Auth.auth().currentUser?.uid {
+                      self.dailyLogService.deleteExerciseFromLog(for: userID, exerciseID: exerciseToEdit.id)
+                      self.dailyLogService.addExerciseToLog(for: userID, exercise: updatedExercise)
+                  }
+              }
+          }
+          .onAppear(perform: onHomeViewAppear)
+          .onReceive(insightsService.$currentInsights) { insights in
+              self.weeklyInsight = insights.first
+          }
     }
     
     private func logMealSuggestion(_ suggestion: MealSuggestion) {
@@ -317,7 +302,7 @@ struct HomeView: View {
             if let currentDailyLog = dailyLogService.currentDailyLog, Calendar.current.isDate(currentDailyLog.date, inSameDayAs: selectedDate) {
                 NutritionProgressView(dailyLog: currentDailyLog, goal: goalSettings, insight: weeklyInsight)
             } else {
-                 ProgressView()
+                ProgressView()
                     .frame(maxWidth: .infinity, minHeight: 220)
             }
         }
@@ -333,7 +318,7 @@ struct HomeView: View {
             let currentLogForDisplay = (dailyLogService.currentDailyLog != nil && Calendar.current.isDate(dailyLogService.currentDailyLog!.date, inSameDayAs: selectedDate)) ? dailyLogService.currentDailyLog : nil
 
             if (currentLogForDisplay?.meals.flatMap({ $0.foodItems }).isEmpty ?? true) && (currentLogForDisplay?.exercises?.isEmpty ?? true) {
-                 Text("No food or exercise logged yet for this day.")
+                Text("No food or exercise logged yet for this day.")
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .appFont(size: 15)
                     .frame(maxWidth: .infinity, alignment: .center)
