@@ -19,6 +19,7 @@ struct HomeView: View {
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var showingProfileSheet = false
     @State private var showingAddExerciseView = false
+    @State private var showingAddJournalView = false
     
     @State private var exerciseToEdit: LoggedExercise? = nil
     @State private var showingEditExerciseView = false
@@ -105,6 +106,9 @@ struct HomeView: View {
                         foodDiarySection
                             .padding(.horizontal)
                             .id("dailyLog")
+
+                        journalSection
+                            .padding(.horizontal)
                     }
                     .padding(.top)
                     .padding(.bottom, 120)
@@ -115,34 +119,6 @@ struct HomeView: View {
                         withAnimation {
                             proxy.scrollTo(spotlightID, anchor: .center)
                         }
-                    }
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    HStack {
-                        Text("MyFitPlate")
-                            .appFont(size: 17, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                        
-                        Button(action: { showingWorkoutRoutines = true }) {
-                            Image(systemName: "dumbbell.fill")
-                        }
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button(action: { self.showingProfileSheet = true }) {
-                            Label("Profile", systemImage: "person")
-                        }
-                        Divider()
-                        Button(action: { self.showSettings = true }) {
-                            Label("Settings", systemImage: "gearshape")
-                        }
-                    } label: {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.title2)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
                     }
                 }
             }
@@ -166,6 +142,34 @@ struct HomeView: View {
                 }
             }
           }
+          .toolbar {
+              ToolbarItem(placement: .navigationBarLeading) {
+                  HStack {
+                      Text("MyFitPlate")
+                          .appFont(size: 17, weight: .semibold)
+                          .foregroundColor(Color(UIColor.secondaryLabel))
+                      
+                      Button(action: { showingWorkoutRoutines = true }) {
+                          Image(systemName: "dumbbell.fill")
+                      }
+                  }
+              }
+              ToolbarItem(placement: .navigationBarTrailing) {
+                  Menu {
+                      Button(action: { self.showingProfileSheet = true }) {
+                          Label("Profile", systemImage: "person")
+                      }
+                      Divider()
+                      Button(action: { self.showSettings = true }) {
+                          Label("Settings", systemImage: "gearshape")
+                      }
+                  } label: {
+                      Image(systemName: "line.3.horizontal")
+                          .font(.title2)
+                          .foregroundColor(Color(UIColor.secondaryLabel))
+                  }
+              }
+          }
           .sheet(isPresented: $showingSuggestionDetail) {
               if let suggestion = mealSuggestion {
                   MealSuggestionDetailView(suggestion: suggestion, onLog: logMealSuggestion)
@@ -185,6 +189,9 @@ struct HomeView: View {
                       self.dailyLogService.addExerciseToLog(for: userID, exercise: newExercise)
                   }
               }
+          }
+          .sheet(isPresented: $showingAddJournalView) {
+              JournalView()
           }
           .sheet(item: $exerciseToEdit) { exerciseToEdit in
               AddExerciseView(exerciseToEdit: exerciseToEdit) { updatedExercise in
@@ -336,6 +343,71 @@ struct HomeView: View {
         .featureSpotlight(isActive: isSpotlightActive(for: "dailyLog"))
     }
 
+    private var journalSection: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            HStack {
+                Text("AI Journal")
+                    .appFont(size: 22, weight: .bold)
+                Spacer()
+                Button("Add Entry") {
+                    showingAddJournalView = true
+                }
+                .appFont(size: 15, weight: .semibold)
+                .foregroundColor(.brandPrimary)
+            }
+
+            if let entries = dailyLogService.currentDailyLog?.journalEntries, !entries.isEmpty {
+                List {
+                    ForEach(entries) { entry in
+                        HStack(spacing: 8) {
+                            Text(JournalEmojiMapper.getEmoji(for: entry.category))
+                                .font(.title3)
+                            
+                            VStack(alignment: .leading) {
+                                Text(entry.text)
+                                    .appFont(size: 15, weight: .medium)
+                                    .foregroundColor(.textPrimary)
+                                    .lineLimit(2)
+                                
+                                Text(entry.category)
+                                    .appFont(size: 12)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear) // *** ADDED THIS LINE ***
+                    }
+                    .onDelete(perform: deleteJournalEntry)
+                    .listRowSeparator(.hidden)
+                }
+                .listStyle(.plain)
+                .frame(height: CGFloat(entries.count) * 60)
+                .padding(.top, -5)
+                .background(Color.clear) // This background(Color.clear) is for the List itself
+                
+            } else {
+                Text("No journal entries for this day.")
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appFont(size: 15)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            }
+        }
+        .asCard()
+    }
+    
+    private func deleteJournalEntry(at offsets: IndexSet) {
+        guard let userID = Auth.auth().currentUser?.uid,
+              let allEntries = dailyLogService.currentDailyLog?.journalEntries else { return }
+        
+        let entriesToDelete = offsets.map { allEntries[$0] }
+        
+        for entry in entriesToDelete {
+            dailyLogService.deleteJournalEntry(for: userID, entry: entry)
+        }
+    }
+
     @ViewBuilder
     private func activityWidget() -> some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -426,6 +498,7 @@ struct HomeView: View {
     }
 }
 
+// These private subviews remain unchanged
 private struct SwipeableExerciseRowView: View {
     let exercise: LoggedExercise
     let onDelete: (String) -> Void

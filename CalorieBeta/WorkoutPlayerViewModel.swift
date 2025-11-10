@@ -23,15 +23,18 @@ class WorkoutPlayerViewModel: ObservableObject {
         self.totalWorkoutTimer = TotalWorkoutTimer(routineId: routine.id)
     }
 
+    // Start workout timers
     func startTimers() {
         totalWorkoutTimer.start()
     }
 
+    // Stop workout timers
     func stopTimers() {
         restTimer.stop()
         totalWorkoutTimer.stop()
     }
 
+    // Load previous performance data for exercises in the routine
     func loadPreviousPerformance() {
         Task {
             for exercise in routine.exercises {
@@ -42,10 +45,12 @@ class WorkoutPlayerViewModel: ObservableObject {
         }
     }
 
+    // Reorder exercises within the routine
     func moveExercise(from source: IndexSet, to destination: Int) {
         routine.exercises.move(fromOffsets: source, toOffset: destination)
     }
 
+    // Log completed exercises to Firestore and DailyLogService
     func logAllCompletedExercises() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
 
@@ -53,44 +58,57 @@ class WorkoutPlayerViewModel: ObservableObject {
             let completedSets = exercise.sets.filter { $0.isCompleted }.map {
                 CompletedSet(reps: $0.reps, weight: $0.weight, distance: $0.distance, durationInSeconds: $0.durationInSeconds)
             }
-            return completedSets.isEmpty ? nil : CompletedExercise(exerciseName: exercise.name, sets: completedSets)
+            // Ensure non-empty sets and pass the exercise object
+            return completedSets.isEmpty ? nil : CompletedExercise(exerciseName: exercise.name, exercise: exercise, sets: completedSets) // Corrected line
         }
 
+        let newSessionID = UUID().uuidString
+
+        // Save session log if exercises were completed
         if !completedExercisesForLog.isEmpty {
             let sessionLog = WorkoutSessionLog(
+                id: newSessionID, // Assign ID for potential reference
                 date: Timestamp(date: Date()),
                 routineID: routine.id,
                 completedExercises: completedExercisesForLog
             )
             Task {
                 await workoutService.saveWorkoutSessionLog(sessionLog)
+                // Assuming achievementService is accessible or passed in
+                // achievementService.checkWorkoutCountAchievements(userID: userID)
             }
         }
 
+        // Log exercises with calculated calories burned to daily log
         for exercise in routine.exercises {
             let completedSets = exercise.sets.filter { $0.isCompleted }
             if completedSets.isEmpty { continue }
 
-            let totalCaloriesBurned = completedSets.reduce(0.0) { partialResult, set in
-                let bodyweightKg = goalSettings.weight * 0.453592
-                return partialResult + (5.0 * 3.5 * bodyweightKg) / 200
-            }
+            // Simple MET-based calorie calculation (adjust MET value as needed per exercise type)
+            let metValue: Double = 5.0 // Example MET value for general strength training
+            let bodyweightKg = goalSettings.weight * 0.453592 // Convert lbs to kg
+            // Estimate duration based on sets (e.g., 1 minute per set) - refine this logic if possible
+            let estimatedDurationMinutes = Double(completedSets.count) * 1.0
+            let totalCaloriesBurned = (metValue * 3.5 * bodyweightKg) / 200.0 * estimatedDurationMinutes
+
 
             if totalCaloriesBurned > 0 {
                 let loggedExercise = LoggedExercise(
                     name: exercise.name,
-                    durationMinutes: nil,
+                    durationMinutes: Int(estimatedDurationMinutes), // Log estimated duration
                     caloriesBurned: totalCaloriesBurned,
                     date: Date(),
-                    source: "routine"
+                    source: "routine",
+                    workoutID: routine.id, // Link back to the routine
+                    sessionID: newSessionID // Link back to the specific session
                 )
                 dailyLogService.addExerciseToLog(for: userID, exercise: loggedExercise)
             }
         }
     }
 
+    // Save the current state of the routine
     func saveRoutine() async {
         try? await workoutService.saveRoutine(routine)
     }
 }
-

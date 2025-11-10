@@ -28,8 +28,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { newValue in
                 if newValue {
-                    let haptic = UIImpactFeedbackGenerator(style: .medium)
-                    haptic.impactOccurred()
+                    HapticManager.instance.feedback(.medium)
                 }
             }
     }
@@ -50,6 +49,11 @@ struct SecondaryButtonStyle: ButtonStyle {
             )
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
+            .onChange(of: configuration.isPressed){ newValue in
+                if newValue {
+                    HapticManager.instance.feedback(.light)
+                }
+            }
     }
 }
 

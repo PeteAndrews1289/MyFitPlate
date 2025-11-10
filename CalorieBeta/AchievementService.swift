@@ -48,6 +48,7 @@ class AchievementService: ObservableObject {
             self.fetchUserStatuses(userID: userID)
             self.listenToUserProfile(userID: userID)
             self.listenToActiveChallenges(for: userID)
+            self.generateWeeklyChallenges(for: userID)
         }
     }
     
@@ -322,8 +323,7 @@ class AchievementService: ObservableObject {
             awardPointsAndCheckLevel(userID: userID, points: def.pointsValue)
             
             bannerService?.showBanner(title: "Achievement Unlocked!", message: def.title, iconName: def.iconName, iconColor: .yellow)
-            let haptic = UINotificationFeedbackGenerator()
-            haptic.notificationOccurred(.success)
+            HapticManager.instance.notification(.success)
         }
     }
     

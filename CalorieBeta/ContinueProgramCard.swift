@@ -4,9 +4,37 @@ struct ContinueProgramCard: View {
     let program: WorkoutProgram
     let nextWorkout: (routine: WorkoutRoutine, title: String)
     let onStartWorkout: () -> Void
+    
+    // Access all necessary services
+    @EnvironmentObject var workoutService: WorkoutService
+    @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject var dailyLogService: DailyLogService
+    @EnvironmentObject var achievementService: AchievementService
+    
+    // State to control navigation
+    @State private var showingProgramDetail = false
+    @State private var showingProgramList = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            
+            // Hidden NavigationLinks that are triggered by the menu buttons
+            NavigationLink(
+                destination: ProgramDetailView(program: program)
+                    // Inject all services into the destination view
+                    .environmentObject(workoutService)
+                    .environmentObject(goalSettings)
+                    .environmentObject(dailyLogService)
+                    .environmentObject(achievementService),
+                isActive: $showingProgramDetail
+            ) { EmptyView() }
+            
+            NavigationLink(
+                destination: ProgramListView(workoutService: workoutService),
+                isActive: $showingProgramList
+            ) { EmptyView() }
+
+            
             Text("Continue Program")
                 .appFont(size: 17, weight: .semibold)
                 .foregroundColor(.secondary)
@@ -19,8 +47,12 @@ struct ContinueProgramCard: View {
                     Spacer()
                     Menu {
                         Button("View Program Details") {
+                            // Triggers the first NavigationLink
+                            showingProgramDetail = true
                         }
-                        Button("Change Program", role: .destructive) {
+                        Button("Change Program") {
+                            // Triggers the second NavigationLink
+                            showingProgramList = true
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle.fill")

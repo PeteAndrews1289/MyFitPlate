@@ -2,8 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-7662518342313720~4521360591</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -17,6 +15,8 @@
 	<string>Your workout and activity data is used to improve the accuracy of your daily calorie and exercise tracking.</string>
 	<key>OPENAI_API_KEY</key>
 	<string>$(OPENAI_API_KEY)</string>
+	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
+	<false/>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>This app updates your Health data to keep your calorie and exercise information synchronized.</string>
 	<key>SKAdNetworkItems</key>

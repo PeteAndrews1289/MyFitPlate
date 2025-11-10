@@ -1,188 +1,175 @@
 import SwiftUI
+import FirebaseAuth
 
 struct CreateRecipeView: View {
     @Environment(\.dismiss) var dismiss
-    @ObservedObject var recipeService: RecipeService
-    @State private var recipe: UserRecipe
+    @EnvironmentObject var recipeService: RecipeService
+    @EnvironmentObject var dailyLogService: DailyLogService
     
-    @State private var ingredientText: String = ""
-    @State private var newInstruction: String = ""
-    @State private var showingIngredientSheet = false
-    @State private var ingredientToEdit: Binding<RecipeIngredient>?
+    @State private var recipeName = ""
+    @State private var ingredients: [FoodItem] = []
+    @State private var instructions = ""
+    @State private var showingFoodSearch = false
+    @State private var creationMode: CreationMode = .ai
+    @State private var aiDescription = ""
+    @State private var isLoading = false
+
+    enum CreationMode: String, CaseIterable, Identifiable {
+        case ai = "AI"
+        case manual = "Manual"
+        var id: Self { self }
+    }
     
-    private var isEditMode: Bool
-    
-    init(recipeService: RecipeService, recipeToEdit: UserRecipe? = nil) {
-        self.recipeService = recipeService
-        if let existingRecipe = recipeToEdit {
-            _recipe = State(initialValue: existingRecipe)
-            self.isEditMode = true
-        } else {
-            _recipe = State(initialValue: UserRecipe(userID: "", name: ""))
-            self.isEditMode = false
+    private var totalNutrition: Nutrition {
+        ingredients.reduce(Nutrition.zero) { partialResult, item in
+            return Nutrition(
+                calories: partialResult.calories + item.calories,
+                protein: partialResult.protein + item.protein,
+                carbs: partialResult.carbs + item.carbs,
+                fats: partialResult.fats + item.fats,
+                saturatedFat: (partialResult.saturatedFat ?? 0) + (item.saturatedFat ?? 0),
+                polyunsaturatedFat: (partialResult.polyunsaturatedFat ?? 0) + (item.polyunsaturatedFat ?? 0),
+                monounsaturatedFat: (partialResult.monounsaturatedFat ?? 0) + (item.monounsaturatedFat ?? 0),
+                fiber: (partialResult.fiber ?? 0) + (item.fiber ?? 0),
+                calcium: (partialResult.calcium ?? 0) + (item.calcium ?? 0),
+                iron: (partialResult.iron ?? 0) + (item.iron ?? 0),
+                potassium: (partialResult.potassium ?? 0) + (item.potassium ?? 0),
+                sodium: (partialResult.sodium ?? 0) + (item.sodium ?? 0),
+                vitaminA: (partialResult.vitaminA ?? 0) + (item.vitaminA ?? 0),
+                vitaminC: (partialResult.vitaminC ?? 0) + (item.vitaminC ?? 0),
+                vitaminD: (partialResult.vitaminD ?? 0) + (item.vitaminD ?? 0),
+                vitaminB12: (partialResult.vitaminB12 ?? 0) + (item.vitaminB12 ?? 0),
+                folate: (partialResult.folate ?? 0) + (item.folate ?? 0)
+            )
         }
     }
 
     var body: some View {
         NavigationView {
-            Form {
-                Section(header: Text("Recipe Details")) {
-                    TextField("Recipe Name", text: $recipe.name)
-                    
-                    Stepper(value: $recipe.totalServings, in: 1...100, step: 1.0) {
-                        Text("Servings: \(recipe.totalServings, specifier: "%.1f")")
+            ZStack {
+                Form {
+                    Picker("Creation Mode", selection: $creationMode) {
+                        ForEach(CreationMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
                     }
-                }
+                    .pickerStyle(SegmentedPickerStyle())
 
-                Section(header: Text("Ingredients"), footer: Text("Add ingredients one per line. You can use natural language, e.g., '1 cup of flour' or '2 large eggs'.").appFont(size: 12)) {
-                    TextEditor(text: $ingredientText)
-                        .frame(height: 150)
-                        .onChange(of: ingredientText) { _ in
-                            parseIngredientsFromText()
-                        }
-                    
-                    if !recipe.ingredients.isEmpty {
-                        ForEach($recipe.ingredients) { $ingredient in
-                            IngredientRowView(ingredient: $ingredient)
-                                .onTapGesture {
-                                    self.ingredientToEdit = $ingredient
-                                    self.showingIngredientSheet = true
-                                }
-                        }
-                        .onDelete(perform: deleteIngredient)
-                    }
-                }
-                
-                Section(header: Text("Instructions")) {
-                    ForEach(Array(recipe.instructions?.enumerated() ?? [].enumerated()), id: \.offset) { index, instruction in
-                        HStack {
-                            Text("\(index + 1).")
-                                .bold()
-                            Text(instruction)
-                        }
-                    }
-                    .onDelete(perform: deleteInstruction)
-                    
-                    HStack {
-                        TextField("Add new step", text: $newInstruction, onCommit: addInstruction)
-                        Button(action: addInstruction) {
-                            Image(systemName: "plus.circle.fill")
-                        }
-                        .disabled(newInstruction.isEmpty)
-                    }
-                }
-                
-                Section(header: Text("Nutrition Per Serving")) {
-                    if recipe.ingredients.contains(where: { $0.foodId == nil }) {
-                        Text("Enter all ingredients to calculate nutrition.")
-                            .appFont(size: 14)
-                            .foregroundColor(.orange)
-                    } else if recipe.ingredients.isEmpty {
-                        Text("Add ingredients to see nutrition info.")
-                            .appFont(size: 14)
-                            .foregroundColor(.secondary)
+                    if creationMode == .ai {
+                        aiSection
                     } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Calories: \(recipe.nutritionPerServing.calories, specifier: "%.0f") kcal")
-                            Text("Protein: \(recipe.nutritionPerServing.protein, specifier: "%.1f") g")
-                            Text("Carbs: \(recipe.nutritionPerServing.carbs, specifier: "%.1f") g")
-                            Text("Fats: \(recipe.nutritionPerServing.fats, specifier: "%.1f") g")
-                        }
-                        .appFont(size: 15)
+                        manualSection
                     }
                 }
-            }
-            .navigationTitle(isEditMode ? "Edit Recipe" : "Create Recipe")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                .navigationTitle("Create Recipe")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                    ToolbarItem(placement: .primaryAction) { Button("Save", action: saveRecipe).disabled(isSaveDisabled) }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        recipeService.saveRecipe(recipe) { result in
-                            if case .success = result {
-                                dismiss()
-                            }
-                        }
-                    }
-                    .disabled(recipe.name.isEmpty || recipe.ingredients.isEmpty)
-                }
-            }
-            .sheet(isPresented: $showingIngredientSheet) {
-                if let binding = ingredientToEdit {
-                    FoodDetailView(
-                        initialFoodItem: foodItem(from: binding.wrappedValue),
-                        dailyLog: .constant(nil),
-                        source: "recipe_ingredient_edit",
-                        onLogUpdated: {},
-                        onUpdate: { updatedFoodItem in
-                            updateIngredient(from: updatedFoodItem, for: binding)
-                            ingredientToEdit = nil
-                        }
+                .sheet(isPresented: $showingFoodSearch) {
+                    FoodSearchView(
+                        dailyLog: $dailyLogService.currentDailyLog,
+                        onFoodItemLogged: nil,
+                        onFoodItemSelected: addIngredient,
+                        searchContext: "recipe_ingredient"
                     )
                 }
+                
+                if isLoading {
+                    Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
+                    ProgressView("Creating Recipe...")
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(1.5)
+                        .padding().background(Color.black.opacity(0.8)).cornerRadius(10)
+                }
             }
-            .onAppear(perform: setupInitialIngredientText)
         }
     }
 
-    private func setupInitialIngredientText() {
-        ingredientText = recipe.ingredients.map { $0.originalImportedString ?? $0.foodName }.joined(separator: "\n")
-    }
-
-    private func parseIngredientsFromText() {
-        let lines = ingredientText.split(separator: "\n", omittingEmptySubsequences: true).map { String($0) }
-        let parsedIngredients = IngredientParser.parseMultiple(lines)
-        
-        recipe.ingredients = parsedIngredients.map { parsed in
-            RecipeIngredient(
-                foodName: parsed.name,
-                quantity: parsed.quantity,
-                selectedServingDescription: parsed.unit,
-                calories: 0,
-                protein: 0,
-                carbs: 0,
-                fats: 0,
-                originalImportedString: parsed.originalString
-            )
+    private var aiSection: some View {
+        Section(header: Text("Describe Your Recipe"), footer: Text("Describe the meal and the AI will generate the ingredients, instructions, and nutritional information for you.")) {
+            TextEditor(text: $aiDescription)
+                .frame(height: 200).padding(4).background(Color(.systemGray6)).cornerRadius(8)
         }
     }
 
-    private func deleteIngredient(at offsets: IndexSet) {
-        recipe.ingredients.remove(atOffsets: offsets)
-        setupInitialIngredientText()
-    }
-    
-    private func addInstruction() {
-        guard !newInstruction.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        if recipe.instructions == nil {
-            recipe.instructions = []
+    private var manualSection: some View {
+        Group {
+            Section(header: Text("Recipe Details")) {
+                TextField("Recipe Name", text: $recipeName)
+            }
+            
+            if !ingredients.isEmpty {
+                Section(header: Text("Total Nutrition")) {
+                    HStack {
+                        Text("Calories").appFont(size: 14, weight: .semibold)
+                        Spacer()
+                        Text("\(totalNutrition.calories, specifier: "%.0f") kcal").foregroundColor(.secondary)
+                    }
+                    HStack {
+                        Text("Macros (P/C/F)").appFont(size: 14, weight: .semibold)
+                        Spacer()
+                        Text("\(totalNutrition.protein, specifier: "%.0f")g / \(totalNutrition.carbs, specifier: "%.0f")g / \(totalNutrition.fats, specifier: "%.0f")g").foregroundColor(.secondary)
+                    }
+                }
+            }
+
+            Section(header: Text("Ingredients")) {
+                ForEach(ingredients) { ingredient in
+                    VStack(alignment: .leading) {
+                        Text(ingredient.name).appFont(size: 16, weight: .medium)
+                        Text("Cals: \(ingredient.calories, specifier: "%.0f"), P: \(ingredient.protein, specifier: "%.0f")g, C: \(ingredient.carbs, specifier: "%.0f")g, F: \(ingredient.fats, specifier: "%.0f")g")
+                            .appFont(size: 12).foregroundColor(.secondary)
+                    }
+                }
+                .onDelete(perform: removeIngredient)
+                
+                Button(action: { showingFoodSearch = true }) {
+                    Label("Add Ingredient", systemImage: "plus")
+                }
+            }
+
+            Section(header: Text("Instructions")) {
+                TextEditor(text: $instructions)
+                    .frame(height: 200)
+            }
         }
-        recipe.instructions?.append(newInstruction)
-        newInstruction = ""
     }
 
-    private func deleteInstruction(at offsets: IndexSet) {
-        recipe.instructions?.remove(atOffsets: offsets)
+    private func addIngredient(foodItem: FoodItem) {
+        ingredients.append(foodItem)
+        showingFoodSearch = false
     }
 
-    private func foodItem(from ingredient: RecipeIngredient) -> FoodItem {
-        return FoodItem(id: ingredient.foodId ?? UUID().uuidString, name: ingredient.foodName, calories: ingredient.calories, protein: ingredient.protein, carbs: ingredient.carbs, fats: ingredient.fats, saturatedFat: ingredient.saturatedFat, polyunsaturatedFat: ingredient.polyunsaturatedFat, monounsaturatedFat: ingredient.monounsaturatedFat, fiber: ingredient.fiber, servingSize: ingredient.selectedServingDescription ?? "1 serving", servingWeight: ingredient.selectedServingWeightGrams ?? 0, calcium: ingredient.calcium, iron: ingredient.iron, potassium: ingredient.potassium, sodium: ingredient.sodium, vitaminA: ingredient.vitaminA, vitaminC: ingredient.vitaminC, vitaminD: ingredient.vitaminD, vitaminB12: ingredient.vitaminB12, folate: ingredient.folate)
+    private func removeIngredient(at offsets: IndexSet) {
+        ingredients.remove(atOffsets: offsets)
     }
-    
-    private func updateIngredient(from foodItem: FoodItem, for binding: Binding<RecipeIngredient>) {
-        var updatedIngredient = binding.wrappedValue
-        updatedIngredient.foodId = foodItem.id
-        updatedIngredient.foodName = foodItem.name
-        updatedIngredient.calories = foodItem.calories
-        updatedIngredient.protein = foodItem.protein
-        updatedIngredient.carbs = foodItem.carbs
-        updatedIngredient.fats = foodItem.fats
-        updatedIngredient.selectedServingDescription = foodItem.servingSize
-        updatedIngredient.selectedServingWeightGrams = foodItem.servingWeight
-        
-        binding.wrappedValue = updatedIngredient
-        recipe.calculateTotals()
+
+    private var isSaveDisabled: Bool {
+        if creationMode == .ai {
+            return aiDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } else {
+            return recipeName.isEmpty || ingredients.isEmpty || instructions.isEmpty
+        }
+    }
+
+    private func saveRecipe() {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        isLoading = true
+
+        Task {
+            if creationMode == .ai {
+                _ = await recipeService.createRecipeFromAI(description: aiDescription, userID: userID)
+            } else {
+                let ingredientNames = ingredients.map { $0.name }
+                let instructionSteps = instructions.split(separator: "\n").map(String.init)
+                let recipe = Recipe(name: recipeName, ingredients: ingredientNames, instructions: instructionSteps, nutrition: totalNutrition)
+                try? await recipeService.saveRecipe(recipe, for: userID)
+            }
+            
+            isLoading = false
+            dismiss()
+        }
     }
 }

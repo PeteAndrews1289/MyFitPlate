@@ -4,6 +4,7 @@ import FirebaseAuth
 import AppTrackingTransparency
 import GoogleMobileAds
 import WatchConnectivity
+import FirebaseAnalytics
 
 class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var isReachable: Bool = false
@@ -84,6 +85,7 @@ struct CalorieBetaApp: App {
 
     init() {
         FirebaseApp.configure()
+        Analytics.setAnalyticsCollectionEnabled(true)
         
         let bannerSvc = BannerService()
         let logService = DailyLogService()
@@ -118,7 +120,8 @@ struct CalorieBetaApp: App {
         hkViewModel.setup(dailyLogService: logService)
         cycleSvc.setupDependencies(goalSettings: goalsSvc, dailyLogService: logService)
         
-        Task { await MobileAds.shared.start() }
+        //Task { await MobileAds.shared.start() }
+        NotificationManager.shared.clearNotificationBadge()
     }
 
     var body: some Scene {
@@ -138,6 +141,16 @@ struct CalorieBetaApp: App {
                 .environmentObject(spotlightManager)
                 .environmentObject(cycleService)
                 .preferredColorScheme(appState.isDarkModeEnabled ? .dark : .light)
+                .onAppear {
+                    NotificationManager.shared.requestAuthorization { granted in
+                        if granted {
+                            print("✅ Notification permission granted.")
+                            NotificationManager.shared.scheduleCalendarNotification(.dailyLogReminder(hour: 20, minute: 00))
+                        } else {
+                            print("ℹ️ Notification permission denied.")
+                        }
+                    }
+                }
         }
     }
 }
@@ -159,9 +172,13 @@ struct ContentView: View {
         ZStack {
             mainContent
                 .onAppear(perform: {
-                    checkUserStatusAndFirstLogin()
-                    sendNutritionToWatchIfNeeded()
-                })
+                if let marketingVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                print("✅ Current Marketing Version is: \(marketingVersion)")
+                               }
+                               
+                checkUserStatusAndFirstLogin()
+                sendNutritionToWatchIfNeeded()
+                           })
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                     requestTrackingPermissionIfNeeded()
                     handleAppDidBecomeActive()

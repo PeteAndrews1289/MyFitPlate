@@ -1,55 +1,42 @@
 import SwiftUI
 
-// This view will display the new, advanced workout analytics.
 struct WorkoutAnalyticsCardView: View {
     let analytics: WorkoutAnalytics
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Weekly Workout Analysis")
-                .appFont(size: 17, weight: .semibold)
-
-            HStack(spacing: 16) {
-                workoutStatBox(value: String(format: "%.0f", analytics.totalVolume), label: "Total Volume (lbs)")
-            }
-            .padding(.horizontal)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Personal Records This Week")
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-
-                if analytics.personalRecords.isEmpty {
-                    Text("No new personal records set in the logged workouts this week.")
-                        .appFont(size: 14)
-                } else {
-                    ForEach(analytics.personalRecords.sorted(by: <), id: \.key) { exercise, record in
-                        HStack {
-                            Text(exercise)
-                                .appFont(size: 14, weight: .medium)
-                            Spacer()
-                            Text(record)
-                                .appFont(size: 14)
-                                .foregroundColor(.accentPositive)
-                        }
-                    }
+        VStack(alignment: .leading, spacing: 15) {
+            Text("Workout Analysis")
+                .appFont(size: 20, weight: .bold)
+            
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Total Volume")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("\(Int(analytics.totalVolume)) lbs")
+                        .appFont(size: 18, weight: .semibold)
+                }
+                Spacer()
+                VStack(alignment: .leading) {
+                    Text("New PRs")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("\(analytics.personalRecords.count)")
+                        .appFont(size: 18, weight: .semibold)
                 }
             }
-            .padding(.horizontal)
+            .padding()
+            .background(Color.backgroundSecondary)
+            .cornerRadius(10)
+            
+            Divider()
+            
+            // Use the new, specific view for the insights list
+            WorkoutInsightListView(insights: analytics.aiInsights)
         }
-        .asCard()
-    }
-
-    @ViewBuilder
-    private func workoutStatBox(value: String, label: String) -> some View {
-        VStack {
-            Text(value)
-                .appFont(size: 22, weight: .semibold)
-                .foregroundColor(.brandPrimary)
-            Text(label)
-                .appFont(size: 12)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-        }
-        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color.backgroundPrimary)
+        .cornerRadius(15)
+        .shadow(radius: 3)
     }
 }

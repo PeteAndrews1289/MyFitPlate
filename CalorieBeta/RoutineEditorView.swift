@@ -3,203 +3,203 @@ import FirebaseFirestore
 import FirebaseAuth
 
 struct RoutineEditorView: View {
-    @Environment(\.dismiss) private var dismiss
-    
     @ObservedObject var workoutService: WorkoutService
-    var routine: WorkoutRoutine?
+    var onSave: (WorkoutRoutine) -> Void
     
-    @State private var name: String = ""
-    @State private var exercises: [RoutineExercise] = []
-    
-    @State private var showingSetInput = false
-    @State private var exerciseIndex: Int? = nil
-    @State private var newSetReps: Int = 0
-    @State private var newSetWeight: Double = 0.0
-    
-    @State private var setIndex: Int? = nil
-    
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var editableRoutine: WorkoutRoutine
     @State private var showingExercisePicker = false
-    @State private var exerciseList: [String] = [
-        "Bodyweight Push-ups", "Bodyweight Squats", "Bodyweight Lunges", "Bodyweight Planks", "Bodyweight Pull-ups", "Bodyweight Chin-ups", "Bodyweight Dips", "Bodyweight Burpees", "Bodyweight Sit-ups", "Bodyweight Crunches", "Bodyweight Leg Raises", "Bodyweight Glute Bridges", "Bodyweight Hip Thrusts", "Bodyweight Calf Raises", "Dumbbell Bench Press", "Dumbbell Incline Press", "Dumbbell Overhead Press", "Dumbbell Arndold Press", "Dumbbell Chest Fly", "Dumbbell Reverse Fly", "Dumbbell Bent-over Row", "Dumbbell Renegade Row", "Dumbbell Bicep Curl", "Dumbbell Hammer Curl", "Dumbbell Concentration Curl", "Dumbbell Triceps Extension", "Dumbbell Triceps Kickbacks", "Dumbbell Goblet Squat", "Dumbbell Front Squat", "Dumbbell Lunges", "Dumbbell Romanian Deadlift", "Dumbbell Lateral Raises", "Dumbbell Shrugs", "Barbell Back Squat", "Barbell Front Squat", "Barbell Zercher Squat", "Barbell Conventional Deadlift", "Barbell Sumo Deadlift", "Barbell Romanian Deadlift", "Barbell Bench Press", "Barbell Overhead Press", "Barbell Push Press", "Barbell Bent-over Row", "Barbell Pendlay Row", "Barbell Bicep Curl", "Barbell Hip Thrust", "Barbell Good Mornings", "Cable Lat Pulldowns", "Cable Rows", "Cable Chest Fly", "Cable Crossover", "Cable Triceps Pushdowns", "Cable Bicep Curls", "Cable Face Pulls", "Cable Crunches", "Cable Wood Chops", "Cable Leg Kickbacks", "Cable Lateral Raises", "Kettlebell Swings", "Kettlebell Goblet Squats", "Kettlebell Turkish Get-ups", "Kettlebell Snatches", "Leg Press Machine", "Leg Extension Machine", "Leg Curl Machine", "Hack Squat Machine", "Calf Raise Machine", "Assisted Pull-up Machine", "Assisted Dip Machine", "Back Extension Bench", "Hyperextension Bench", "Abdominal Crunch Machine", "Medicine Ball Slams", "Medicine Ball Russian Twists", "Medicine Wall Balls"]
+    @State private var exerciseToEdit: RoutineExercise?
+
+    init(workoutService: WorkoutService, routine: WorkoutRoutine, onSave: @escaping (WorkoutRoutine) -> Void) {
+        self.workoutService = workoutService
+        self._editableRoutine = State(initialValue: routine)
+        self.onSave = onSave
+    }
     
     var body: some View {
-        Form {
-            Section(header: Text("Routine Info")){
-                TextField("Routine Name", text: $name)
-            }
-            Section(header: Text("Exercises")){
-                ForEach(exercises.indices, id: \.self) { index in
-                    DisclosureGroup(exercises[index].name){
-                        Stepper("Rest Time: \(exercises[index].restTimeInSeconds)s", value: $exercises[index].restTimeInSeconds, in: 0...300, step: 15)
-                        ForEach(exercises[index].sets.indices, id: \.self){ sIndex in
-                            let set = exercises[index].sets[sIndex]
-                            HStack{
-                                Text("Reps: \(set.reps)")
-                                Spacer()
-                                Text("Weight: \(set.weight, specifier: "%.1f") lbs")
-                                Spacer()
-                                Button(role: .destructive){
-                                    deleteSet(at: index, setIndex: sIndex)
-                                } label: {
-                                    Image(systemName: "trash")
+        NavigationView {
+            Form {
+                Section(header: Text("Routine Name")){
+                    TextField("e.g., Push Day, Leg Day", text: $editableRoutine.name)
+                }
+                
+                Section(header: Text("Exercises")){
+                    ForEach(editableRoutine.exercises) { exercise in
+                        Button(action: {
+                            self.exerciseToEdit = exercise
+                        }) {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(exercise.name)
+                                        .appFont(size: 16, weight: .medium)
+                                    Text("\(exercise.targetSets) sets x \(exercise.targetReps) reps")
+                                        .appFont(size: 12)
+                                        .foregroundColor(.secondary)
                                 }
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                exerciseIndex = index
-                                setIndex = sIndex
-                                let set = exercises[index].sets[sIndex]
-                                newSetReps = set.reps
-                                newSetWeight = set.weight
-                                showingSetInput = true
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                     .font(.caption.weight(.bold))
+                                     .foregroundColor(.secondary.opacity(0.5))
                             }
                         }
-                        
-                        Button("Add Set"){
-                            exerciseIndex = index
-                            newSetReps = 0
-                            newSetWeight = 0.0
-                            showingSetInput = true
-                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .onMove(perform: moveExercise)
+                    .onDelete(perform: deleteExercise)
+                    
+                    Button("Add Exercise"){
+                        showingExercisePicker = true
                     }
                 }
-                .onDelete{ indexSet in
-                    if let i = indexSet.first {
-                        exercises.remove(at: i)
+            }
+            .navigationTitle(editableRoutine.name.isEmpty ? "Create Routine" : "Edit Routine")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(editableRoutine)
+                        dismiss()
                     }
-                }
-                Button("Add Exercise"){
-                    showingExercisePicker = true
+                    .disabled(editableRoutine.name.isEmpty)
                 }
             }
-            
-            Section{
-                Button("Save Routine", action: saveRoutine)
-                    .disabled(name.isEmpty || exercises.isEmpty)
-            }
-        }
-        .navigationTitle(routine == nil ? "New Routine" : "Edit Routine")
-        .onAppear {
-            if let routine = routine {
-                self.name = routine.name
-                self.exercises = routine.exercises
-            }
-        }
-        .sheet(isPresented: $showingExercisePicker){
-            ExercisePickerView(exerciseList: exerciseList){ selected in
-                addExercise(named: selected)
-                showingExercisePicker = false
-            }
-        }
-        .sheet(isPresented: $showingSetInput){
-            SetInputView(reps: $newSetReps,
-                         weight: $newSetWeight,
-                         onConfirm: {
-                if let eIndex = exerciseIndex{
-                    let set = ExerciseSet(reps: newSetReps, weight: newSetWeight)
-                    if let sIndex = setIndex {
-                        editSet(at: eIndex, setIndex: sIndex, newSet: set)
-                    }else{
-                        addSet(at: eIndex, newSet: set)
-                    }
-                    showingSetInput = false
-                    exerciseIndex = nil
-                    setIndex = nil
+            .sheet(isPresented: $showingExercisePicker){
+                ExercisePickerView { selectedExerciseName in
+                    addExercise(named: selectedExerciseName)
+                    showingExercisePicker = false
                 }
-            },
-                         onCancel: {
-                            showingSetInput = false
-                        })
+            }
+            .sheet(item: $exerciseToEdit) { exercise in
+                 ExerciseSetEditorView(
+                     exercise: exercise,
+                     onSave: { updatedExercise in
+                         if let index = editableRoutine.exercises.firstIndex(where: { $0.id == updatedExercise.id }) {
+                             editableRoutine.exercises[index] = updatedExercise
+                         }
+                     }
+                 )
+            }
         }
     }
     
     private func addExercise(named name: String){
-        let newExercise = RoutineExercise(name: name)
-        exercises.append(newExercise)
+        var newExercise = RoutineExercise(name: name, targetSets: 3)
+        newExercise.sets = Array(repeating: ExerciseSet(), count: newExercise.targetSets)
+        editableRoutine.exercises.append(newExercise)
     }
     
-    private func addSet(at index: Int, newSet: ExerciseSet){
-        guard exercises.indices.contains(index) else{ return }
-        var exercise = exercises[index]
-        exercise.sets.append(newSet)
-        exercises[index] = exercise
+    private func deleteExercise(at offsets: IndexSet) {
+        editableRoutine.exercises.remove(atOffsets: offsets)
     }
     
-    private func saveRoutine(){
-        guard let userID = Auth.auth().currentUser?.uid else{
-            print("User not logged in.")
-            return
-        }
-        
-        let newRoutine = WorkoutRoutine(
-            id: routine?.id ?? UUID().uuidString,
-            userID: userID,
-            name: name,
-            dateCreated: routine?.dateCreated ?? Timestamp(date: Date()),
-            exercises: exercises)
-        
-        Task {
-            do {
-                try await workoutService.saveRoutine(newRoutine)
-                dismiss()
-            } catch {
-                print("Error saving routine: \(error.localizedDescription)")
-            }
-        }
-    }
-    
-    private func deleteSet(at exerciseIndex: Int, setIndex: Int){
-        guard exercises.indices.contains(exerciseIndex),
-              exercises[exerciseIndex].sets.indices.contains(setIndex) else { return }
-        
-        exercises[exerciseIndex].sets.remove(at: setIndex)
-    }
-    
-    private func editSet(at exerciseIndex: Int, setIndex: Int, newSet: ExerciseSet){
-        guard exercises.indices.contains(exerciseIndex),
-              exercises[exerciseIndex].sets.indices.contains(setIndex) else { return }
-        
-        exercises[exerciseIndex].sets[setIndex] = newSet
+    private func moveExercise(from source: IndexSet, to destination: Int) {
+        editableRoutine.exercises.move(fromOffsets: source, toOffset: destination)
     }
 }
 
-struct ExercisePickerView: View{
-    var exerciseList: [String]
+struct ExerciseSetEditorView: View {
+    @State private var editableExercise: RoutineExercise
+    var onSave: (RoutineExercise) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    init(exercise: RoutineExercise, onSave: @escaping (RoutineExercise) -> Void) {
+        self._editableExercise = State(initialValue: exercise)
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Exercise Configuration")) {
+                    Stepper("Number of Sets: \(editableExercise.targetSets)", value: $editableExercise.targetSets, in: 1...15) { _ in
+                        updateSetCount()
+                    }
+                    HStack {
+                        Text("Target Reps")
+                        Spacer()
+                        TextField("e.g., 8-12", text: $editableExercise.targetReps)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    Stepper("Rest Time: \(editableExercise.restTimeInSeconds)s", value: $editableExercise.restTimeInSeconds, in: 0...300, step: 15)
+                }
+            }
+            .navigationTitle(editableExercise.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(editableExercise)
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func updateSetCount() {
+        let currentSetCount = editableExercise.sets.count
+        let targetSetCount = editableExercise.targetSets
+        
+        if targetSetCount > currentSetCount {
+            let setsToAdd = targetSetCount - currentSetCount
+            for _ in 0..<setsToAdd {
+                editableExercise.sets.append(ExerciseSet())
+            }
+        } else if targetSetCount < currentSetCount {
+            editableExercise.sets.removeLast(currentSetCount - targetSetCount)
+        }
+    }
+}
+
+struct ExercisePickerView: View {
+    @State private var searchText = ""
     var onSelect: (String) -> Void
     
-    var body: some View {
-        NavigationView{
-            List(exerciseList, id: \.self){ exercise in
-                Button(exercise){
-                    onSelect(exercise)
-                }
-            }
-            .navigationTitle("Select Exercise")
-        }
-    }
-}
-
-struct SetInputView: View{
-    @Binding var reps: Int
-    @Binding var weight: Double
-    var onConfirm: () -> Void
-    var onCancel: () -> Void
+    private let categorizedExercises = ExerciseList.categorizedExercises
     
-    var body: some View{
-        NavigationView{
-            Form{
-                Stepper("Reps: \(reps)", value: $reps, in: 0...50)
-                Stepper("Weight: \(weight, specifier: "%.1f") lbs", value: $weight, in: 0...500)
+    private var filteredCategories: [String: [String]] {
+        if searchText.isEmpty {
+            return categorizedExercises
+        }
+        var filtered: [String: [String]] = [:]
+        for (category, exercises) in categorizedExercises {
+            let matchingExercises = exercises.filter { $0.localizedCaseInsensitiveContains(searchText) }
+            if !matchingExercises.isEmpty {
+                filtered[category] = matchingExercises
             }
-            .navigationTitle("New Set")
-            .toolbar{
-                ToolbarItem(placement: .confirmationAction){
-                    Button("Add", action: onConfirm)
-                }
-                ToolbarItem(placement: .cancellationAction){
-                    Button("Cancel", action: onCancel)
+        }
+        return filtered
+    }
+    
+    private var sortedCategoryKeys: [String] {
+        filteredCategories.keys.sorted()
+    }
+
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(sortedCategoryKeys, id: \.self) { category in
+                    Section(header: Text(category)) {
+                        ForEach(filteredCategories[category]!, id: \.self) { exercise in
+                            Button(exercise) {
+                                onSelect(exercise)
+                            }
+                        }
+                    }
                 }
             }
+            .searchable(text: $searchText, prompt: "Search exercises")
+            .navigationTitle("Select Exercise")
+            .navigationBarItems(trailing: Button("Done") {
+            })
         }
     }
 }

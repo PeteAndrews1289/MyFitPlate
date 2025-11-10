@@ -1,4 +1,3 @@
-// CalorieBeta/SimpleToastView.swift
 
 import SwiftUI
 

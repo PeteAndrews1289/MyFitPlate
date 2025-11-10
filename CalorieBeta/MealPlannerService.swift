@@ -13,49 +13,81 @@ class MealPlannerService: ObservableObject {
     }
 
 
-    public func generateAndSaveFullWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String], userID: String) async -> Bool {
-            print("MealPlannerService Debug: Starting concurrent meal plan generation for 7 days.")
-            
-            var dailyPlans: [MealPlanDay?] = .init(repeating: nil, count: 7)
-            var mealHistory: [String] = []
+    public func regenerateSingleMeal(for day: MealPlanDay, mealToReplace: PlannedMeal, goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String], userID: String) async -> PlannedMeal? {
+        let otherMeals = day.meals.filter { $0.id != mealToReplace.id }
+        let otherMealsSummary = otherMeals.compactMap { $0.foodItem?.name }.joined(separator: ", ")
 
-            await withTaskGroup(of: (Int, MealPlanDay?).self) { group in
-                for i in 0..<7 {
-                    group.addTask {
-                        let targetDate = Calendar.current.date(byAdding: .day, value: i, to: Date())!
-                        let singleDayPlan = await self.generatePlanForSingleDay(
-                            date: targetDate,
-                            goals: goals,
-                            preferredFoods: preferredFoods,
-                            preferredCuisines: preferredCuisines,
-                            preferredSnacks: preferredSnacks,
-                            mealHistory: mealHistory
-                        )
-                        return (i, singleDayPlan)
-                    }
-                }
-                
-                for await (index, plan) in group {
-                    dailyPlans[index] = plan
-                }
-            }
+        let prompt = """
+        You are regenerating a single meal for a user's meal plan.
 
-            let successfullyGeneratedPlans = dailyPlans.compactMap { $0 }
-            
-            if successfullyGeneratedPlans.count < 7 {
-                print("MealPlannerService Debug: Failed to generate all 7 days. Only created \(successfullyGeneratedPlans.count).")
-                return false
-            }
-            
-            print("MealPlannerService Debug: Successfully generated all 7 day plans. Saving to Firestore.")
-            
-            let allMealNames = successfullyGeneratedPlans.flatMap { $0.meals.compactMap { $0.foodItem?.name } }
-            await generateAndSaveGroceryListFromAI(for: allMealNames, userID: userID)
-            
-            await saveFullMealPlan(days: successfullyGeneratedPlans, for: userID)
+        **Meal Type Guidance:**
+        - If the meal is **Breakfast**, suggest traditional breakfast items (e.g., oatmeal, eggs, yogurt, smoothies).
+        - If the meal is **Lunch**, suggest items like salads, sandwiches, or wraps.
+        - If the meal is **Dinner**, suggest a complete, cooked meal.
 
-            return true
+        **Regeneration Details:**
+        - The meal to replace is: **\(mealToReplace.mealType)**
+        - Do NOT suggest this meal again: **'\(mealToReplace.foodItem?.name ?? "")'**
+        - The user is already eating: **\(otherMealsSummary)** for their other meals today.
+        - The user's total daily goals are: \(Int(goals.calories ?? 2000)) calories, \(Int(goals.protein))g Protein, \(Int(goals.carbs))g Carbs, and \(Int(goals.fats))g Fats.
+        - The new \(mealToReplace.mealType) should fit nutritionally with the other meals to help the user meet their daily goals.
+        - Use these preferred foods: \(preferredFoods.joined(separator: ", ")).
+        - Use these preferred cuisines: \(preferredCuisines.joined(separator: ", ")).
+        - The response MUST be a valid JSON object for a single meal with keys: "mealType", "mealName", "calories", "protein", "carbs", "fats", "ingredients", "instructions".
+        """
+        
+        guard let aiResponse = await fetchAIResponse(prompt: prompt) else { return nil }
+        
+        do {
+            let meal = try parseSingleMealFromAIResponse(aiResponse)
+            return meal
+        } catch {
+            print("MealPlannerService Debug: JSON Parsing failed for single meal regeneration. Error: \(error)")
+            return nil
         }
+    }
+
+    public func generateAndSaveFullWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String], userID: String) async -> Bool {
+        var dailyPlans: [MealPlanDay?] = .init(repeating: nil, count: 7)
+        var mealHistory: [String] = []
+
+        await withTaskGroup(of: (Int, MealPlanDay?).self) { group in
+            for i in 0..<7 {
+                group.addTask {
+                    let targetDate = Calendar.current.date(byAdding: .day, value: i, to: Date())!
+                    let singleDayPlan = await self.generatePlanForSingleDay(
+                        date: targetDate,
+                        goals: goals,
+                        preferredFoods: preferredFoods,
+                        preferredCuisines: preferredCuisines,
+                        preferredSnacks: preferredSnacks,
+                        mealHistory: mealHistory
+                    )
+                    if let plan = singleDayPlan {
+                        mealHistory.append(contentsOf: plan.meals.compactMap { $0.foodItem?.name })
+                    }
+                    return (i, singleDayPlan)
+                }
+            }
+            
+            for await (index, plan) in group {
+                dailyPlans[index] = plan
+            }
+        }
+
+        let successfullyGeneratedPlans = dailyPlans.compactMap { $0 }
+        
+        if successfullyGeneratedPlans.count < 7 {
+            return false
+        }
+        
+        let allMealNames = successfullyGeneratedPlans.flatMap { $0.meals.compactMap { $0.foodItem?.name } }
+        await generateAndSaveGroceryListFromAI(for: allMealNames, userID: userID)
+        
+        await saveFullMealPlan(days: successfullyGeneratedPlans, for: userID)
+
+        return true
+    }
 
     private func generatePlanForSingleDay(date: Date, goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String], mealHistory: [String]) async -> MealPlanDay? {
         let formatter = DateFormatter()
@@ -65,139 +97,108 @@ class MealPlannerService: ObservableObject {
         var historyPromptSection = ""
         if !mealHistory.isEmpty {
             let mealList = mealHistory.joined(separator: ", ")
-            historyPromptSection = """
-            **Variety Requirement:** To ensure variety, please create meals that are different from the ones already generated for previous days. It is acceptable for a meal to be repeated once or twice over the entire week, but avoid daily repetition. Here are the meals generated so far: \(mealList)
-            """
+            historyPromptSection = "**Variety Requirement:** To ensure variety, create meals that are different from these: \(mealList)."
         }
         
         var cuisinePromptSection = ""
         if !preferredCuisines.isEmpty && !preferredCuisines.contains("Any / No Preference") {
-            cuisinePromptSection = """
-            **Cuisine Influence:** Please draw inspiration from the following cuisines: \(preferredCuisines.joined(separator: ", ")). You can mix them or focus on one per meal.
-            """
+            cuisinePromptSection = "**Cuisine Influence:** Draw inspiration from: \(preferredCuisines.joined(separator: ", "))."
         }
         
         var snackPromptSection = ""
         if !preferredSnacks.isEmpty {
-            snackPromptSection = """
-            **Snack Preference:** The user enjoys snacks like \(preferredSnacks.joined(separator: ", ")). Please include one snack in the plan that aligns with these preferences.
-            """
+            snackPromptSection = "**Snack Preference:** Include one snack that aligns with preferences for \(preferredSnacks.joined(separator: ", "))."
         }
-
 
         let prompt = """
         Generate a one-day meal plan for \(dateString) with a Breakfast, Lunch, Dinner, and one Snack.
+        
+        **Meal Type Guidance:**
+        - For **Breakfast**, suggest traditional breakfast items (e.g., oatmeal, eggs, yogurt, smoothies, whole-wheat toast). Avoid savory lunch/dinner meals like chicken and rice.
+        - For **Lunch**, suggest items like salads, sandwiches, wraps, or light grain bowls.
+        - For **Dinner**, suggest a complete, cooked meal that would typically be considered a main evening meal.
+        - For the **Snack**, suggest something light like fruit, nuts, or a protein bar, depending on the user's preferences.
+
         \(historyPromptSection)
         \(cuisinePromptSection)
         \(snackPromptSection)
-        **Primary Goal:** The total nutrition for the day must add up to approximately \(Int(goals.calories ?? 2000)) calories, \(Int(goals.protein))g Protein, \(Int(goals.carbs))g Carbs, and \(Int(goals.fats))g Fats.
-        **Allowed Ingredients:** Create meals primarily using this list: \(preferredFoods.joined(separator: ", ")). Common pantry items are also allowed.
+        **Primary Goal:** Total nutrition must be approximately \(Int(goals.calories ?? 2000)) calories, \(Int(goals.protein))g Protein, \(Int(goals.carbs))g Carbs, and \(Int(goals.fats))g Fats.
+        **Allowed Ingredients:** Use primarily: \(preferredFoods.joined(separator: ", ")). Common pantry items are also allowed.
         
-        **Response Format:** You MUST follow this format exactly. Do NOT add any conversational text or day numbers.
-        **Ingredient Format:** Every ingredient line MUST be in the format: '- [Ingredient Name] - [Quantity] [Unit]'.
-        **Instruction Format:** Provide clear, step-by-step cooking instructions. Include details like cooking temperatures, times, and methods (e.g., "bake at 400°F for 20 minutes," "sauté until browned").
-
-        Breakfast: [Meal Name]
-        Ingredients:
-        - [Ingredient Name] - [Quantity] [Unit]
-        Instructions:
-        1. Preheat oven to 400°F (200°C).
-        2. Season the main protein with salt and pepper.
-        3. Bake for 20-25 minutes, or until cooked through.
-        4. While the main dish is baking, steam the vegetables until tender-crisp.
-
-        Lunch: [Meal Name]
-        Ingredients:
-        - [Ingredient Name] - [Quantity] [Unit]
-        Instructions:
-        1. [Detailed Step-by-Step Instructions]
-
-        Dinner: [Meal Name]
-        Ingredients:
-        - [Ingredient Name] - [Quantity] [Unit]
-        Instructions:
-        1. [Detailed Step-by-Step Instructions]
-        
-        Snack: [Snack Name]
-        Ingredients:
-        - [Ingredient Name] - [Quantity] [Unit]
-        Instructions:
-        1. [Detailed Step-by-Step Instructions]
+        **Response Format:** You MUST respond with a valid JSON object ONLY.
+        The root object must have a "meals" key, which is an array of meal objects.
+        Each meal object must have these exact keys: "mealType" (string), "mealName" (string), "calories" (number), "protein" (number), "carbs" (number), "fats" (number), "ingredients" (array of strings), "instructions" (array of strings).
+        The "mealType" must be one of "Breakfast", "Lunch", "Dinner", or "Snack".
         """
         
         guard let aiResponse = await fetchAIResponse(prompt: prompt) else { return nil }
-        print("MealPlannerService Debug: AI Response for \(dateString):\n\(aiResponse)")
         
-        let meals = parseSingleDayPlan(from: aiResponse)
-        
-        if meals.count >= 3 {
-            return MealPlanDay(id: self.dateString(for: date), date: Timestamp(date: date), meals: meals)
-        } else {
-            print("MealPlannerService Debug: Parsing failed for \(dateString). Found \(meals.count) meals instead of 3+.")
+        do {
+            let meals = try parsePlanFromAIResponse(aiResponse)
+            if meals.count >= 3 {
+                return MealPlanDay(id: self.dateString(for: date), date: Timestamp(date: date), meals: meals)
+            } else {
+                return nil
+            }
+        } catch {
             return nil
         }
     }
     
-    private func parseSingleDayPlan(from text: String) -> [PlannedMeal] {
-        var parsedMeals: [PlannedMeal] = []
-        let mealTypes = ["Breakfast", "Lunch", "Dinner", "Snack"]
-        var lastMealEndIndex = text.startIndex
-
-        for i in 0..<mealTypes.count {
-            let currentMealType = mealTypes[i]
-            
-            guard let mealStartRange = text.range(of: "\(currentMealType):", options: .caseInsensitive, range: lastMealEndIndex..<text.endIndex) else {
-                continue
-            }
-            
-            let startOfMealContent = mealStartRange.upperBound
-            var endOfMealContent = text.endIndex
-            
-            if (i + 1) < mealTypes.count {
-                let nextMealType = mealTypes[i+1]
-                if let nextMealStartRange = text.range(of: "\(nextMealType):", options: .caseInsensitive, range: startOfMealContent..<text.endIndex) {
-                    endOfMealContent = nextMealStartRange.lowerBound
-                }
-            }
-            
-            lastMealEndIndex = endOfMealContent
-            let mealBlock = String(text[startOfMealContent..<endOfMealContent]).trimmingCharacters(in: .whitespacesAndNewlines)
-            let mealLines = mealBlock.split(whereSeparator: \.isNewline).map { String($0).trimmingCharacters(in: .whitespaces) }
-            
-            let ingredientsIndex = mealLines.firstIndex(where: { $0.lowercased() == "ingredients:" })
-            let instructionsIndex = mealLines.firstIndex(where: { $0.lowercased() == "instructions:" })
-            
-            let nameLines = mealLines[..<(ingredientsIndex ?? mealLines.endIndex)]
-            let mealName = nameLines.joined(separator: "\n").trimmingCharacters(in: .whitespaces)
-            
-            var ingredients: [String] = []
-            if let ingredientsIndex = ingredientsIndex {
-                let ingredientsEndIndex = instructionsIndex ?? mealLines.endIndex
-                let ingredientsStart = mealLines.index(after: ingredientsIndex)
-                if ingredientsStart < ingredientsEndIndex {
-                    ingredients = Array(mealLines[ingredientsStart..<ingredientsEndIndex]).filter { $0.hasPrefix("-") }
-                }
-            }
-
-            var instructions = ""
-            if let instructionsIndex = instructionsIndex {
-                let instructionsStart = mealLines.index(after: instructionsIndex)
-                if instructionsStart < mealLines.endIndex {
-                    instructions = mealLines[instructionsStart...].joined(separator: "\n")
-                }
-            }
-
-            if mealName.isEmpty { continue }
-            
-            print("MealPlannerService Debug: Day \(i + 1) - \(currentMealType): \(mealName)")
-            
-            let foodItem = FoodItem(id: UUID().uuidString, name: mealName, calories: 0, protein: 0, carbs: 0, fats: 0, servingSize: "1 serving", servingWeight: 0)
-            let meal = PlannedMeal(id: UUID().uuidString, mealType: currentMealType, foodItem: foodItem, ingredients: ingredients, instructions: instructions)
-            parsedMeals.append(meal)
-        }
-        return parsedMeals
+    private struct AIPlanResponse: Codable {
+        let meals: [AIMeal]
     }
     
+    private struct AIMeal: Codable {
+        let mealType: String
+        let mealName: String
+        let calories: Double
+        let protein: Double
+        let carbs: Double
+        let fats: Double
+        let ingredients: [String]
+        let instructions: [String]
+    }
+
+    private func parsePlanFromAIResponse(_ jsonString: String) throws -> [PlannedMeal] {
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            throw NSError(domain: "MealPlannerService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert JSON string to data."])
+        }
+        
+        let response = try JSONDecoder().decode(AIPlanResponse.self, from: jsonData)
+        
+        return response.meals.map { aiMeal in
+            let foodItem = FoodItem(id: UUID().uuidString, name: aiMeal.mealName, calories: aiMeal.calories, protein: aiMeal.protein, carbs: aiMeal.carbs, fats: aiMeal.fats, servingSize: "1 serving", servingWeight: 0)
+            return PlannedMeal(id: UUID().uuidString, mealType: aiMeal.mealType, foodItem: foodItem, ingredients: aiMeal.ingredients, instructions: aiMeal.instructions.joined(separator: "\n"))
+        }
+    }
+    
+    private func parseSingleMealFromAIResponse(_ jsonString: String) throws -> PlannedMeal {
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            throw NSError(domain: "MealPlannerService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert JSON string to data."])
+        }
+
+        let aiMeal = try JSONDecoder().decode(AIMeal.self, from: jsonData)
+
+        let foodItem = FoodItem(
+            id: UUID().uuidString,
+            name: aiMeal.mealName,
+            calories: aiMeal.calories,
+            protein: aiMeal.protein,
+            carbs: aiMeal.carbs,
+            fats: aiMeal.fats,
+            servingSize: "1 serving",
+            servingWeight: 0
+        )
+        return PlannedMeal(
+            id: UUID().uuidString,
+            mealType: aiMeal.mealType,
+            foodItem: foodItem,
+            ingredients: aiMeal.ingredients,
+            instructions: aiMeal.instructions.joined(separator: "\n")
+        )
+    }
+
     private func fetchAIResponse(prompt: String) async -> String? {
         guard !apiKey.isEmpty else { return nil }
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
@@ -206,25 +207,18 @@ class MealPlannerService: ObservableObject {
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let requestBody: [String: Any] = [ "model": "gpt-3.5-turbo", "messages": [["role": "user", "content": prompt]], "max_tokens": 1500, "temperature": 0.7 ]
+        let requestBody: [String: Any] = [ "model": "gpt-4o-mini", "messages": [["role": "user", "content": prompt]], "max_tokens": 2048, "temperature": 0.7, "response_format": ["type": "json_object"] ]
         
         request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
         
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                print("MealPlannerService Debug: API call failed with status code: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
-                if let data = try? JSONSerialization.jsonObject(with: data) { print("MealPlannerService Debug: API Error Response: \(data)") }
-                return nil
-            }
+            let (data, _) = try await URLSession.shared.data(for: request)
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let choices = json["choices"] as? [[String: Any]], let firstChoice = choices.first,
                let message = firstChoice["message"] as? [String: Any], let content = message["content"] as? String {
                 return content.trimmingCharacters(in: .whitespacesAndNewlines)
             }
-        } catch {
-            print("MealPlannerService Debug: URLSession error: \(error.localizedDescription)")
-        }
+        } catch { }
         return nil
     }
 
@@ -233,7 +227,7 @@ class MealPlannerService: ObservableObject {
         do {
             let listData = try list.map { try Firestore.Encoder().encode($0) }
             listRef.setData(["items": listData, "lastUpdated": Timestamp(date: Date())], merge: true)
-        } catch { print("Error saving grocery list: \(error)") }
+        } catch { }
     }
 
     public func fetchGroceryList(for userID: String) async -> [GroceryListItem] {
@@ -243,13 +237,11 @@ class MealPlannerService: ObservableObject {
             guard let data = document.data(), let itemsData = data["items"] as? [[String: Any]] else { return [] }
             return itemsData.compactMap { try? Firestore.Decoder().decode(GroceryListItem.self, from: $0) }
         } catch {
-            print("Error fetching grocery list: \(error)")
             return []
         }
     }
 
     private func generateAndSaveGroceryListFromAI(for mealNames: [String], userID: String) async {
-        print("MealPlannerService Debug: Generating grocery list from AI based on meal names.")
         let mealsString = mealNames.joined(separator: ", ")
         
         let prompt = """
@@ -269,17 +261,13 @@ class MealPlannerService: ObservableObject {
         """
         
         guard let aiResponse = await fetchAIResponse(prompt: prompt) else {
-            print("MealPlannerService Debug: Failed to get AI response for grocery list.")
             return
         }
         
         let groceryListItems = parseGroceryList(from: aiResponse)
         
         if !groceryListItems.isEmpty {
-            print("MealPlannerService Debug: Successfully parsed \(groceryListItems.count) items for grocery list.")
             saveGroceryList(groceryListItems, for: userID)
-        } else {
-            print("MealPlannerService Debug: Failed to parse any items from AI grocery list response.")
         }
     }
 
@@ -304,14 +292,14 @@ class MealPlannerService: ObservableObject {
                 var unit = "item"
                 
                 let pattern = #"^(.+?)\s*\(([\d\.]+)\s*(.*?)\)$"#
-                if let match = itemString.range(of: pattern, options: .regularExpression) {
+                if let _ = itemString.range(of: pattern, options: .regularExpression) {
                     let parts = itemString.capturedGroups(with: pattern)
                     if parts.count == 3 {
                         name = parts[0].trimmingCharacters(in: .whitespaces)
                         quantity = Double(parts[1]) ?? 1.0
                         unit = parts[2].trimmingCharacters(in: .whitespaces)
                     }
-                } else if let fallbackMatch = itemString.range(of: #"^(.+?)\s*\((.*?)\)$"#, options: .regularExpression) {
+                } else if let _ = itemString.range(of: #"^(.+?)\s*\((.*?)\)$"#, options: .regularExpression) {
                     let parts = itemString.capturedGroups(with: #"^(.+?)\s*\((.*?)\)$"#)
                     if parts.count == 2 {
                         name = parts[0].trimmingCharacters(in: .whitespaces)
@@ -332,16 +320,6 @@ class MealPlannerService: ObservableObject {
         return items
     }
     
-    private func categorizeIngredient(_ name: String) -> String {
-        let lowercasedName = name.lowercased()
-        if ["chicken", "beef", "fish", "tofu", "eggs", "pork", "lamb", "turkey", "salmon", "shrimp"].contains(where: lowercasedName.contains) { return "Protein" }
-        if ["rice", "quinoa", "potato", "pasta", "bread", "oats", "tortilla"].contains(where: lowercasedName.contains) { return "Carbohydrates" }
-        if ["broccoli", "spinach", "peppers", "onions", "carrots", "zucchini", "lettuce", "tomato", "avocado", "greens"].contains(where: lowercasedName.contains) { return "Produce" }
-        if ["oil", "salt", "pepper", "garlic", "soy sauce", "spices", "herbs", "vinegar"].contains(where: lowercasedName.contains) { return "Pantry" }
-        if ["yogurt", "cheese", "milk"].contains(where: lowercasedName.contains) { return "Dairy" }
-        return "Misc"
-    }
-    
     public func fetchPlan(for date: Date, userID: String) async -> MealPlanDay? {
         let dateString = dateString(for: date); let planRef = db.collection("users").document(userID).collection("mealPlans").document(dateString)
         do { return try await planRef.getDocument(as: MealPlanDay.self) } catch { return nil }
@@ -349,7 +327,7 @@ class MealPlannerService: ObservableObject {
     
     public func savePlan(_ plan: MealPlanDay, for userID: String) async {
         guard let planID = plan.id else { return }; let planRef = db.collection("users").document(userID).collection("mealPlans").document(planID)
-        do { try planRef.setData(from: plan, merge: true) } catch { print("Error saving single meal plan: \(error)") }
+        do { try planRef.setData(from: plan, merge: true) } catch { }
     }
 
     public func saveFullMealPlan(days: [MealPlanDay], for userID: String) async {

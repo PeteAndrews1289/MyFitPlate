@@ -2,188 +2,183 @@ import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 
+@MainActor
 class RecipeService: ObservableObject {
     private let db = Firestore.firestore()
-    private var recipesListener: ListenerRegistration?
-    private let foodAPIService = FatSecretFoodAPIService()
+    private let apiKey = getAPIKey()
+    
+    @Published var userRecipes: [Recipe] = []
+    @Published var isLoading = false
 
-    @Published var userRecipes: [UserRecipe] = []
-    @Published var isLoading: Bool = false
-    @Published var errorMessage: String? = nil
-
-    weak var achievementService: AchievementService?
-
-    private func recipesCollectionRef(for userID: String) -> CollectionReference {
-        return db.collection("users").document(userID).collection("recipes")
-    }
-
-    @MainActor
-    func fetchUserRecipes() {
-        guard let userID = Auth.auth().currentUser?.uid else {
-            errorMessage = "User not logged in."
-            userRecipes = []
-            return
-        }
-
+    func createRecipeFromAI(description: String, userID: String) async -> Recipe? {
         isLoading = true
-        errorMessage = nil
-        recipesListener?.remove()
+        let prompt = """
+        Analyze the recipe description below. Return a structured JSON object with the recipe's name, ingredients, instructions, and a detailed nutritional breakdown per serving.
 
-        recipesListener = recipesCollectionRef(for: userID)
-            .order(by: "name", descending: false)
-            .addSnapshotListener { [weak self] querySnapshot, error in
-                guard let self = self else { return }
-                self.isLoading = false
+        Description: "\(description)"
 
-                if let error = error {
-                    self.errorMessage = "Error fetching recipes: \(error.localizedDescription)"
-                    self.userRecipes = []
-                    return
-                }
+        The JSON object MUST have these exact keys: "name" (string), "ingredients" (array of strings), "instructions" (array of strings), and "nutrition" (an object).
+        The "nutrition" object MUST contain: "calories", "protein", "carbs", "fats", "saturatedFat", "polyunsaturatedFat", "monounsaturatedFat", "fiber", "calcium", "iron", "potassium", "sodium", "vitaminA", "vitaminC", "vitaminD", "vitaminB12", and "folate". All nutritional values should be numbers.
 
-                guard let documents = querySnapshot?.documents else {
-                    self.userRecipes = []
-                    return
-                }
-
-                self.userRecipes = documents.compactMap { document in
-                    try? document.data(as: UserRecipe.self)
-                }
-            }
-    }
-
-    func saveRecipe(_ recipe: UserRecipe, completion: @escaping (Result<Void, Error>) -> Void) {
-        guard let userID = Auth.auth().currentUser?.uid else {
-            completion(.failure(NSError(domain: "App", code: 401, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])))
-            return
+        Example Response:
+        {
+          "name": "Healthy Chicken Salad",
+          "ingredients": ["3 oz cooked chicken breast", "1 tbsp greek yogurt", "1 stalk celery, chopped", "1/4 apple, diced"],
+          "instructions": ["Mix all ingredients in a bowl.", "Serve chilled."],
+          "nutrition": {
+            "calories": 250,
+            "protein": 30,
+            "carbs": 8,
+            "fats": 10,
+            "saturatedFat": 2.1,
+            "polyunsaturatedFat": 3.0,
+            "monounsaturatedFat": 4.5,
+            "fiber": 2.0,
+            "calcium": 45,
+            "iron": 1.1,
+            "potassium": 300,
+            "sodium": 250,
+            "vitaminA": 50,
+            "vitaminC": 5,
+            "vitaminD": 0.2,
+            "vitaminB12": 0.3,
+            "folate": 10
+          }
         }
+        """
 
-        var recipeToSave = recipe
-        recipeToSave.userID = userID
-        recipeToSave.calculateTotals()
-        recipeToSave.updatedAt = Timestamp(date: Date())
-        
-        let collectionRef = recipesCollectionRef(for: userID)
+        guard let aiResponse = await fetchAIResponse(prompt: prompt) else {
+            isLoading = false
+            return nil
+        }
 
         do {
-            if let id = recipeToSave.id, !id.isEmpty {
-                try collectionRef.document(id).setData(from: recipeToSave, merge: true) { error in
-                    if let error = error {
-                        completion(.failure(error))
-                    } else {
-                        completion(.success(()))
-                        Task { @MainActor in
-                            self.achievementService?.checkRecipeCountAchievements(userID: userID)
-                        }
-                    }
-                }
-            } else {
-                var newRecipe = recipeToSave
-                newRecipe.createdAt = Timestamp(date: Date())
-                _ = try collectionRef.addDocument(from: newRecipe) { error in
-                    if let error = error {
-                        completion(.failure(error))
-                    } else {
-                        completion(.success(()))
-                        Task { @MainActor in
-                            self.achievementService?.checkRecipeCountAchievements(userID: userID)
-                        }
-                    }
-                }
+            var recipe = try parseRecipeFromAIResponse(aiResponse)
+            try await saveRecipe(recipe, for: userID)
+            userRecipes.append(recipe)
+            isLoading = false
+            return recipe
+        } catch {
+            print("Error creating or saving AI recipe: \(error)")
+            isLoading = false
+            return nil
+        }
+    }
+    
+    func fetchUserRecipes() async {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        isLoading = true
+        
+        let userRecipesCollection = db.collection("users").document(userID).collection("recipes")
+        
+        do {
+            let snapshot = try await userRecipesCollection.getDocuments()
+            self.userRecipes = snapshot.documents.compactMap { document -> Recipe? in
+                try? document.data(as: Recipe.self)
             }
         } catch {
-            completion(.failure(error))
+            print("Error fetching user recipes: \(error)")
         }
+        
+        isLoading = false
     }
 
-    func deleteRecipe(_ recipe: UserRecipe, completion: @escaping (Error?) -> Void) {
-        guard let userID = Auth.auth().currentUser?.uid else {
-            completion(NSError(domain: "App", code: 401, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"]))
-            return
-        }
-        guard let recipeID = recipe.id else {
-            completion(NSError(domain: "App", code: 400, userInfo: [NSLocalizedDescriptionKey: "Recipe has no ID"]))
-            return
-        }
-        recipesCollectionRef(for: userID).document(recipeID).delete(completion: completion)
-    }
-    
-    func migrateUserRecipesToIncludeMicronutrients(completion: @escaping (String) -> Void) {
-        guard let userID = Auth.auth().currentUser?.uid else {
-            completion("Error: User not logged in.")
-            return
-        }
-
-        let recipesRef = recipesCollectionRef(for: userID)
-        recipesRef.getDocuments { [weak self] snapshot, error in
-            guard let self = self, let documents = snapshot?.documents, error == nil else {
-                completion("Error fetching recipes: \(error?.localizedDescription ?? "Unknown error")")
-                return
-            }
-            
-            let recipesToMigrate = documents.compactMap { try? $0.data(as: UserRecipe.self) }
-            if recipesToMigrate.isEmpty {
-                completion("No recipes to migrate.")
-                return
-            }
-            
-            let group = DispatchGroup()
-            var updatedCount = 0
-            
-            for var recipe in recipesToMigrate {
-                group.enter()
-                Task {
-                    var updatedIngredients: [RecipeIngredient] = []
-                    for ingredient in recipe.ingredients {
-                        if let foodId = ingredient.foodId {
-                            let detailsResult = await self.fetchIngredientDetails(foodId: foodId)
-                            if let newIngredientData = detailsResult {
-                                var updatedIngredient = ingredient
-                                updatedIngredient.fiber = newIngredientData.fiber
-                                updatedIngredient.calcium = newIngredientData.calcium
-                                updatedIngredients.append(updatedIngredient)
-                            } else {
-                                updatedIngredients.append(ingredient)
-                            }
-                        } else {
-                            updatedIngredients.append(ingredient)
-                        }
-                    }
-                    
-                    recipe.ingredients = updatedIngredients
-                    recipe.calculateTotals()
-                    
-                    self.saveRecipe(recipe) { result in
-                        if case .success = result {
-                            updatedCount += 1
-                        }
-                        group.leave()
-                    }
-                }
-            }
-            
-            group.notify(queue: .main) {
-                completion("Migration complete. Updated \(updatedCount) of \(recipesToMigrate.count) recipes.")
-            }
+    func saveRecipe(_ recipe: Recipe, for userID: String) async throws {
+        let userRecipesCollection = db.collection("users").document(userID).collection("recipes")
+        var recipeToSave = recipe
+        
+        // If the recipe already has an ID, use it, otherwise let Firestore generate one.
+        if let id = recipeToSave.id {
+            try userRecipesCollection.document(id).setData(from: recipeToSave)
+        } else {
+            let newDocRef = userRecipesCollection.document()
+            recipeToSave.id = newDocRef.documentID
+            try newDocRef.setData(from: recipeToSave)
         }
     }
     
-    private func fetchIngredientDetails(foodId: String) async -> ServingSizeOption? {
-        return await withCheckedContinuation { continuation in
-            foodAPIService.fetchFoodDetails(foodId: foodId) { result in
-                switch result {
-                case .success(let (_, servings)):
-                    continuation.resume(returning: servings.first)
-                case .failure:
-                    continuation.resume(returning: nil)
-                }
+    func deleteRecipe(recipe: Recipe) async {
+        guard let userID = Auth.auth().currentUser?.uid, let recipeID = recipe.id else { return }
+        
+        do {
+            try await db.collection("users").document(userID).collection("recipes").document(recipeID).delete()
+            if let index = userRecipes.firstIndex(where: { $0.id == recipeID }) {
+                userRecipes.remove(at: index)
             }
+        } catch {
+            print("Error deleting recipe: \(error)")
         }
     }
+    
+    func recipeToFoodItem(recipe: Recipe) -> FoodItem {
+        let nutrition = recipe.nutrition
+        return FoodItem(
+            id: recipe.id ?? UUID().uuidString,
+            name: recipe.name,
+            calories: nutrition.calories,
+            protein: nutrition.protein,
+            carbs: nutrition.carbs,
+            fats: nutrition.fats,
+            saturatedFat: nutrition.saturatedFat,
+            polyunsaturatedFat: nutrition.polyunsaturatedFat,
+            monounsaturatedFat: nutrition.monounsaturatedFat,
+            fiber: nutrition.fiber,
+            servingSize: "1 serving",
+            servingWeight: 0,
+            calcium: nutrition.calcium,
+            iron: nutrition.iron,
+            potassium: nutrition.potassium,
+            sodium: nutrition.sodium,
+            vitaminA: nutrition.vitaminA,
+            vitaminC: nutrition.vitaminC,
+            vitaminD: nutrition.vitaminD,
+            vitaminB12: nutrition.vitaminB12,
+            folate: nutrition.folate
+        )
+    }
 
-    func stopListening() {
-        recipesListener?.remove()
-        recipesListener = nil
-        userRecipes = []
+    private func fetchAIResponse(prompt: String) async -> String? {
+        guard !apiKey.isEmpty else { return nil }
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let requestBody: [String: Any] = [ "model": "gpt-4o-mini", "messages": [["role": "user", "content": prompt]], "max_tokens": 2048, "temperature": 0.3, "response_format": ["type": "json_object"] ]
+        
+        request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let choices = json["choices"] as? [[String: Any]], let firstChoice = choices.first,
+               let message = firstChoice["message"] as? [String: Any], let content = message["content"] as? String {
+                return content.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        } catch { }
+        return nil
+    }
+
+    private struct AIRecipeResponse: Codable {
+        let name: String
+        let ingredients: [String]
+        let instructions: [String]
+        let nutrition: Nutrition
+    }
+
+    private func parseRecipeFromAIResponse(_ jsonString: String) throws -> Recipe {
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            throw NSError(domain: "RecipeService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert JSON string to data."])
+        }
+        
+        let response = try JSONDecoder().decode(AIRecipeResponse.self, from: jsonData)
+        
+        return Recipe(
+            name: response.name,
+            ingredients: response.ingredients,
+            instructions: response.instructions,
+            nutrition: response.nutrition
+        )
     }
 }

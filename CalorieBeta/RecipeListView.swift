@@ -2,225 +2,85 @@ import SwiftUI
 import FirebaseAuth
 
 struct RecipeListView: View {
-    @StateObject private var recipeService = RecipeService()
-    @State private var showingCreateRecipeSheet = false
-    @State private var recipeToEdit: UserRecipe? = nil
-    @State private var showingEditRecipeSheet = false
-    @State private var showingImporterSheet = false
-
+    @EnvironmentObject var recipeService: RecipeService
     @EnvironmentObject var dailyLogService: DailyLogService
     @Environment(\.dismiss) var dismiss
+    
+    @State private var showingCreateRecipeSheet = false
 
     var body: some View {
         NavigationView {
-            List {
-                if recipeService.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
+            ZStack {
+                if recipeService.isLoading && recipeService.userRecipes.isEmpty {
+                    ProgressView("Loading Recipes...")
                 } else if recipeService.userRecipes.isEmpty {
-                     Text("No saved recipes yet.\nTap '+' to create one or the import icon to add from a URL.")
-                         .appFont(size: 15)
-                         .multilineTextAlignment(.center)
-                         .foregroundColor(Color(UIColor.secondaryLabel))
-                         .frame(maxWidth: .infinity, alignment: .center)
-                         .padding(.vertical, 40)
-                } else {
-                    ForEach(recipeService.userRecipes) { recipe in
-                        NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
-                            RecipeRow(
-                                recipe: recipe,
-                                recipeService: recipeService,
-                                onEdit: {
-                                    self.recipeToEdit = recipe
-                                    self.showingEditRecipeSheet = true
-                                }
-                            )
-                            .environmentObject(dailyLogService)
-                        }
+                    VStack {
+                        Text("No saved recipes yet.")
+                            .font(.headline)
+                            .foregroundColor(.gray)
+                        Text("Tap the '+' button to create your first recipe.")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
                     }
-                    .onDelete(perform: deleteRecipe)
+                    .padding(.horizontal)
+                } else {
+                    List {
+                        ForEach(recipeService.userRecipes) { recipe in
+                            NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
+                                RecipeRow(recipe: recipe)
+                            }
+                        }
+                        .onDelete(perform: deleteRecipe)
+                    }
                 }
             }
-            .navigationTitle("My Recipes & Meals")
+            .navigationTitle("My Recipes")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        showingImporterSheet = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.down")
-                            .imageScale(.large)
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        self.recipeToEdit = nil
-                        showingCreateRecipeSheet = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .imageScale(.large)
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: { showingCreateRecipeSheet = true }) {
+                        Image(systemName: "plus")
                     }
                 }
             }
             .onAppear {
-                recipeService.fetchUserRecipes()
-            }
-            .sheet(isPresented: $showingCreateRecipeSheet) {
-                 CreateRecipeView(recipeService: recipeService)
-            }
-            .sheet(isPresented: $showingImporterSheet) {
-                RecipeImporterView()
-                    .environmentObject(recipeService)
-            }
-            .sheet(isPresented: $showingEditRecipeSheet) {
-                if let recipeToEdit = recipeToEdit {
-                    CreateRecipeView(recipeService: recipeService, recipeToEdit: recipeToEdit)
+                Task {
+                    await recipeService.fetchUserRecipes()
                 }
+            }
+            .sheet(isPresented: $showingCreateRecipeSheet, onDismiss: {
+                Task { await recipeService.fetchUserRecipes() }
+            }) {
+                 CreateRecipeView()
             }
         }
     }
-
-     private func deleteRecipe(at offsets: IndexSet) {
-         offsets.forEach { index in
-             guard index < recipeService.userRecipes.count else { return }
-             let recipe = recipeService.userRecipes[index]
-             recipeService.deleteRecipe(recipe) { error in
-                 if let error = error {
-                    print("Error deleting recipe: \(error.localizedDescription)")
-                 }
-             }
-         }
-     }
+    
+    private func deleteRecipe(at offsets: IndexSet) {
+        let recipesToDelete = offsets.map { recipeService.userRecipes[$0] }
+        Task {
+            for recipe in recipesToDelete {
+                await recipeService.deleteRecipe(recipe: recipe)
+            }
+        }
+    }
 }
 
 fileprivate struct RecipeRow: View {
-    let recipe: UserRecipe
-    @ObservedObject var recipeService: RecipeService
-    var onEdit: () -> Void
-    @EnvironmentObject var dailyLogService: DailyLogService
-    @State private var showingLogSheet = false
+    let recipe: Recipe
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading) {
-                Text(recipe.name).appFont(size: 17, weight: .semibold)
-                let nutrition = recipe.nutritionPerServing
-                Text("\(recipe.servingSizeDescription) - \(String(format: "%.0f", nutrition.calories)) cal, P:\(String(format: "%.0f", nutrition.protein))g, C:\(String(format: "%.0f", nutrition.carbs))g, F:\(String(format: "%.0f", nutrition.fats))g")
-                    .appFont(size: 15)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
-            Spacer()
-            Button(action: {
-                onEdit()
-            }) {
-                Image(systemName: "pencil.circle.fill")
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .imageScale(.large)
-            }
-            .buttonStyle(BorderlessButtonStyle())
-            .padding(.trailing, 8)
-
-            Button(action: {
-                showingLogSheet = true
-            }) {
-                 Image(systemName: "plus.circle.fill")
-                     .foregroundColor(.brandPrimary)
-                     .imageScale(.large)
-            }
-            .buttonStyle(BorderlessButtonStyle())
+        VStack(alignment: .leading, spacing: 5) {
+            Text(recipe.name).appFont(size: 17, weight: .semibold)
+            Text("Cals: \(recipe.nutrition.calories, specifier: "%.0f") • P: \(recipe.nutrition.protein, specifier: "%.0f")g • C: \(recipe.nutrition.carbs, specifier: "%.0f")g • F: \(recipe.nutrition.fats, specifier: "%.0f")g")
+                .appFont(size: 14)
+                .foregroundColor(Color(UIColor.secondaryLabel))
         }
-        .contentShape(Rectangle())
-        .sheet(isPresented: $showingLogSheet) {
-            LogRecipeSheetView(recipe: recipe) { quantity in
-                 logRecipe(quantity: quantity)
-                 showingLogSheet = false
-            }
-        }
-    }
-
-    private func logRecipe(quantity: Double) {
-        guard let userID = Auth.auth().currentUser?.uid, quantity > 0 else { return }
-        
-        let nutrition = recipe.nutritionPerServing
-        let loggedItem = FoodItem(
-            id: UUID().uuidString,
-            name: recipe.name,
-            calories: nutrition.calories * quantity,
-            protein: nutrition.protein * quantity,
-            carbs: nutrition.carbs * quantity,
-            fats: nutrition.fats * quantity,
-            saturatedFat: (nutrition.saturatedFat ?? 0) * quantity,
-            polyunsaturatedFat: (nutrition.polyunsaturatedFat ?? 0) * quantity,
-            monounsaturatedFat: (nutrition.monounsaturatedFat ?? 0) * quantity,
-            fiber: (nutrition.fiber ?? 0) * quantity,
-            servingSize: "\(String(format: "%g", quantity)) x \(recipe.servingSizeDescription)",
-            servingWeight: 0,
-            timestamp: Date(),
-            calcium: (nutrition.calcium ?? 0) * quantity,
-            iron: (nutrition.iron ?? 0) * quantity,
-            potassium: (nutrition.potassium ?? 0) * quantity,
-            sodium: (nutrition.sodium ?? 0) * quantity,
-            vitaminA: (nutrition.vitaminA ?? 0) * quantity,
-            vitaminC: (nutrition.vitaminC ?? 0) * quantity,
-            vitaminD: (nutrition.vitaminD ?? 0) * quantity,
-            vitaminB12: (nutrition.vitaminB12 ?? 0) * quantity,
-            folate: (nutrition.folate ?? 0) * quantity
-        )
-        dailyLogService.addFoodToCurrentLog(for: userID, foodItem: loggedItem, source: "recipe")
-    }
-}
-
-fileprivate struct LogRecipeSheetView: View {
-    let recipe: UserRecipe
-    let onLog: (Double) -> Void
-    @Environment(\.dismiss) var dismiss
-    @State private var quantityString: String = "1"
-    
-    var body: some View {
-         NavigationView {
-             Form {
-                 Section {
-                     VStack(alignment: .center, spacing: 8) {
-                         Text(recipe.name)
-                             .appFont(size: 22, weight: .bold)
-                             .multilineTextAlignment(.center)
-                         Text("Logging for \(recipe.servingSizeDescription)")
-                             .appFont(size: 15)
-                             .foregroundColor(Color(UIColor.secondaryLabel))
-                     }
-                     .frame(maxWidth: .infinity)
-                     .padding(.vertical, 10)
-                 }
-                 .listRowBackground(Color.clear)
-
-                 Section(header: Text("Nutrition per Serving")) {
-                     HStack { Text("Calories"); Spacer(); Text("\(recipe.nutritionPerServing.calories, specifier: "%.0f") kcal").foregroundColor(Color(UIColor.secondaryLabel)) }
-                     HStack { Text("Protein"); Spacer(); Text("\(recipe.nutritionPerServing.protein, specifier: "%.1f") g").foregroundColor(Color(UIColor.secondaryLabel)) }
-                     HStack { Text("Carbs"); Spacer(); Text("\(recipe.nutritionPerServing.carbs, specifier: "%.1f") g").foregroundColor(Color(UIColor.secondaryLabel)) }
-                     HStack { Text("Fats"); Spacer(); Text("\(recipe.nutritionPerServing.fats, specifier: "%.1f") g").foregroundColor(Color(UIColor.secondaryLabel)) }
-                 }
-
-                 Section(header: Text("Log Recipe")) {
-                     HStack {
-                         Text("Number of Servings:")
-                         Spacer()
-                         TextField("Quantity", text: $quantityString)
-                             .keyboardType(.decimalPad)
-                             .frame(width: 80)
-                             .textFieldStyle(RoundedBorderTextFieldStyle())
-                             .multilineTextAlignment(.trailing)
-                     }
-                     Button("Log Recipe") {
-                         if let quantity = Double(quantityString), quantity > 0 {
-                             onLog(quantity)
-                         }
-                     }
-                     .buttonStyle(.borderedProminent)
-                     .disabled(Double(quantityString) == nil || (Double(quantityString) ?? 0) <= 0)
-                     .frame(maxWidth: .infinity, alignment: .center)
-                 }
-             }
-             .navigationTitle("Log Recipe").navigationBarTitleDisplayMode(.inline)
-             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-         }
+        .padding(.vertical, 5)
     }
 }

@@ -4,8 +4,17 @@ import FirebaseFirestore
 struct ProgramDetailView: View {
     @State var program: WorkoutProgram
     @EnvironmentObject var workoutService: WorkoutService
-    @State private var routineToPlay: WorkoutRoutine?
-
+    
+    // Services needed for the WorkoutPlayer
+    @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject var dailyLogService: DailyLogService
+    @EnvironmentObject var achievementService: AchievementService
+    
+    // We now use TWO state variables to track what's being played
+    @State private var nextRoutineToPlay: WorkoutRoutine? // This one will increment progress
+    @State private var calendarRoutineToPlay: WorkoutRoutine? // This one will NOT
+    
+    // ... (calendarWorkoutMap computed property remains the same) ...
     private var calendarWorkoutMap: [Date: WorkoutRoutine] {
         guard let startDate = program.startDate?.dateValue(), let daysOfWeek = program.daysOfWeek, !daysOfWeek.isEmpty else { return [:] }
         
@@ -28,6 +37,7 @@ struct ProgramDetailView: View {
         return map
     }
     
+    // ... (nextWorkoutInfo computed property remains the same) ...
     private var nextWorkoutInfo: (routine: WorkoutRoutine, title: String)? {
         guard let progressIndex = program.currentProgressIndex,
               !program.routines.isEmpty,
@@ -51,6 +61,7 @@ struct ProgramDetailView: View {
         return (routine, title)
     }
     
+    // ... (startDateBinding remains the same) ...
     private var startDateBinding: Binding<Date> {
         Binding<Date>(
             get: { self.program.startDate?.dateValue() ?? Date() },
@@ -58,6 +69,7 @@ struct ProgramDetailView: View {
         )
     }
     
+    // ... (daysOfWeekBinding remains the same) ...
     private var daysOfWeekBinding: Binding<[Int]> {
         Binding<[Int]>(
             get: { self.program.daysOfWeek ?? [] },
@@ -81,7 +93,8 @@ struct ProgramDetailView: View {
                 if let (routine, title) = nextWorkoutInfo {
                     Section {
                         Button(action: {
-                            self.routineToPlay = routine
+                            // Set the "next" routine variable
+                            self.nextRoutineToPlay = routine
                         }) {
                             Text(title)
                         }
@@ -95,7 +108,8 @@ struct ProgramDetailView: View {
                 }
                 
                 Section(header: Text("Program Calendar")) {
-                    CalendarView(workoutMap: calendarWorkoutMap, routineToPlay: $routineToPlay)
+                    // Pass the binding for the "calendar" routine
+                    CalendarView(workoutMap: calendarWorkoutMap, routineToPlay: $calendarRoutineToPlay)
                 }
             }
             
@@ -106,8 +120,10 @@ struct ProgramDetailView: View {
             }
         }
         .navigationTitle(program.name)
-        .fullScreenCover(item: $routineToPlay) { routine in
+        // This sheet is for the "Next Workout" button and WILL increment progress
+        .fullScreenCover(item: $nextRoutineToPlay) { routine in
             WorkoutPlayerView(routine: routine) {
+                // This completion handler increments the progress
                 if let currentIndex = program.currentProgressIndex {
                     program.currentProgressIndex = currentIndex + 1
                     Task {
@@ -115,9 +131,24 @@ struct ProgramDetailView: View {
                     }
                 }
             }
+            .environmentObject(goalSettings)
+            .environmentObject(dailyLogService)
+            .environmentObject(workoutService)
+            .environmentObject(achievementService)
+        }
+        // This sheet is for the CALENDAR and will NOT increment progress
+        .fullScreenCover(item: $calendarRoutineToPlay) { routine in
+            WorkoutPlayerView(routine: routine) {
+                // This completion handler is EMPTY. No progress is incremented.
+            }
+            .environmentObject(goalSettings)
+            .environmentObject(dailyLogService)
+            .environmentObject(workoutService)
+            .environmentObject(achievementService)
         }
     }
 }
+
 
 private struct CalendarView: View {
     let workoutMap: [Date: WorkoutRoutine]

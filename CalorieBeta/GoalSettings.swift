@@ -291,10 +291,25 @@ class GoalSettings: ObservableObject {
     
     func updateUserWeight(_ newWeight: Double) {
         guard let userID = Auth.auth().currentUser?.uid else { return }
-        DispatchQueue.main.async { self.weight = newWeight; self.recalculateAllGoals() }
-        let weightData: [String:Any] = ["weight": newWeight, "timestamp": Timestamp(date: Date())]
-        db.collection("users").document(userID).setData(["weight": newWeight], merge: true)
-        db.collection("users").document(userID).collection("weightHistory").addDocument(data: weightData)
+        let currentDate = Date()
+
+        DispatchQueue.main.async {
+            self.weight = newWeight
+            self.recalculateAllGoals()
+        }
+
+        db.collection("users").document(userID).setData(["weight": newWeight], merge: true) { error in
+            if let error = error {
+            }
+        }
+
+        let weightData: [String:Any] = ["weight": newWeight, "timestamp": Timestamp(date: currentDate)]
+        db.collection("users").document(userID).collection("weightHistory").addDocument(data: weightData) { error in
+             if let error = error {
+             }
+        }
+
+        HealthKitManager.shared.saveWeightSample(weightLbs: newWeight, date: currentDate)
     }
     
     func deleteWeightEntry(entryID: String, completion: @escaping (Error?) -> Void) {

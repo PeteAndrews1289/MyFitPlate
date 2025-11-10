@@ -19,13 +19,46 @@ struct WorkoutProgram: Identifiable, Codable {
     var currentProgressIndex: Int? = 0
 }
 
-struct WorkoutRoutine: Identifiable, Codable, Hashable {
-    var id: String = UUID().uuidString
+class WorkoutRoutine: Identifiable, ObservableObject, Codable, Hashable {
+    var id: String
     var userID: String
-    var name: String
+    @Published var name: String
     var dateCreated: Timestamp
-    var exercises: [RoutineExercise] = []
+    @Published var exercises: [RoutineExercise]
     var notes: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, userID, name, dateCreated, exercises, notes
+    }
+
+    init(id: String = UUID().uuidString, userID: String, name: String, dateCreated: Timestamp, exercises: [RoutineExercise] = [], notes: String? = nil) {
+        self.id = id
+        self.userID = userID
+        self.name = name
+        self.dateCreated = dateCreated
+        self.exercises = exercises
+        self.notes = notes
+    }
+
+    required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        userID = try container.decode(String.self, forKey: .userID)
+        name = try container.decode(String.self, forKey: .name)
+        dateCreated = try container.decode(Timestamp.self, forKey: .dateCreated)
+        exercises = try container.decode([RoutineExercise].self, forKey: .exercises)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(userID, forKey: .userID)
+        try container.encode(name, forKey: .name)
+        try container.encode(dateCreated, forKey: .dateCreated)
+        try container.encode(exercises, forKey: .exercises)
+        try container.encodeIfPresent(notes, forKey: .notes)
+    }
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -35,6 +68,8 @@ struct WorkoutRoutine: Identifiable, Codable, Hashable {
         lhs.id == rhs.id
     }
 }
+
+
 struct RoutineExercise: Identifiable, Codable{
     var id: String = UUID().uuidString
     var name: String
@@ -43,6 +78,8 @@ struct RoutineExercise: Identifiable, Codable{
     var notes: String?
     var restTimeInSeconds: Int = 60
     var alternatives: [String]?
+    var targetSets: Int = 3
+    var targetReps: String = "8-12"
 }
 
 struct ExerciseSet: Identifiable, Codable{
@@ -68,6 +105,7 @@ struct WorkoutSessionLog: Identifiable, Codable {
 struct CompletedExercise: Identifiable, Codable {
     var id: String = UUID().uuidString
     var exerciseName: String
+    var exercise: RoutineExercise
     var sets: [CompletedSet]
     var date: Date {
         return Date()
@@ -88,9 +126,10 @@ struct UserInsight: Identifiable, Decodable, Equatable {
     var message: String
     var category: InsightCategory
     var priority: Int = 0
-    
+    var sourceData: String?
+
     private enum CodingKeys: String, CodingKey {
-        case title, message, category, priority
+        case title, message, category, priority, sourceData
     }
     
     enum InsightCategory: String, Codable, Equatable, CaseIterable {
@@ -98,19 +137,28 @@ struct UserInsight: Identifiable, Decodable, Equatable {
     }
     
     init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        title = try container.decode(String.self, forKey: .title)
-        message = try container.decode(String.self, forKey: .message)
-        category = (try? container.decode(InsightCategory.self, forKey: .category)) ?? .nutritionGeneral
-        priority = (try? container.decode(Int.self, forKey: .priority)) ?? 0
-    }
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            title = try container.decode(String.self, forKey: .title)
+            message = try container.decode(String.self, forKey: .message)
+            category = (try? container.decode(InsightCategory.self, forKey: .category)) ?? .nutritionGeneral
+            priority = (try? container.decode(Int.self, forKey: .priority)) ?? 0
+            sourceData = try container.decodeIfPresent(String.self, forKey: .sourceData) // Decode the new property
+        }
 
-    init(title: String, message: String, category: InsightCategory, priority: Int = 0) {
-        self.title = title
-        self.message = message
-        self.category = category
-        self.priority = priority
-    }
+        init(title: String, message: String, category: InsightCategory, priority: Int = 0, sourceData: String? = nil) {
+            self.title = title
+            self.message = message
+            self.category = category
+            self.priority = priority
+            self.sourceData = sourceData
+        }
+}
+
+struct JournalEntry: Codable, Identifiable, Hashable {
+    var id: String = UUID().uuidString
+    var date: Date
+    var text: String
+    var category: String
 }
 
 struct PlannedMeal: Identifiable, Codable {
@@ -419,7 +467,19 @@ struct FoodItem: Codable, Identifiable, Hashable {
 }
 struct Meal: Codable, Identifiable, Equatable { var id: String = UUID().uuidString; var name: String; var foodItems: [FoodItem]; static func == (lhs: Meal, rhs: Meal) -> Bool { lhs.id == rhs.id && lhs.name == rhs.name && lhs.foodItems == rhs.foodItems } }
 struct WaterTracker: Codable, Equatable { var totalOunces: Double; var goalOunces: Double; var date: Date; init(totalOunces: Double, goalOunces: Double = 64.0, date: Date) { self.totalOunces = totalOunces; self.goalOunces = goalOunces; self.date = date } }
-struct LoggedExercise: Codable, Identifiable, Hashable { var id: String = UUID().uuidString; var name: String; var durationMinutes: Int?; var caloriesBurned: Double; var date: Date; var source: String = "manual"; func hash(into hasher: inout Hasher) { hasher.combine(id) }; static func == (lhs: LoggedExercise, rhs: LoggedExercise) -> Bool { lhs.id == rhs.id } }
+struct LoggedExercise: Codable, Identifiable, Hashable {
+    var id: String = UUID().uuidString
+    var name: String
+    var durationMinutes: Int?
+    var caloriesBurned: Double
+    var date: Date
+    var source: String = "manual"
+    var workoutID: String?
+    var sessionID: String?
+
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    static func == (lhs: LoggedExercise, rhs: LoggedExercise) -> Bool { lhs.id == rhs.id }
+}
 
 struct DailyLog: Codable, Identifiable, Equatable {
     var id: String?
@@ -428,14 +488,17 @@ struct DailyLog: Codable, Identifiable, Equatable {
     var totalCaloriesOverride: Double?
     var waterTracker: WaterTracker?
     var exercises: [LoggedExercise]?
+    var journalEntries: [JournalEntry]?
 
-    init(id: String? = nil, date: Date, meals: [Meal], totalCaloriesOverride: Double? = nil, waterTracker: WaterTracker? = nil, exercises: [LoggedExercise]? = nil) {
+
+    init(id: String? = nil, date: Date, meals: [Meal], totalCaloriesOverride: Double? = nil, waterTracker: WaterTracker? = nil, exercises: [LoggedExercise]? = nil, journalEntries: [JournalEntry]? = nil) {
         self.id = id
         self.date = date
         self.meals = meals
         self.totalCaloriesOverride = totalCaloriesOverride
         self.waterTracker = waterTracker
         self.exercises = exercises
+        self.journalEntries = journalEntries
     }
 
     func totalCalories() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.calories } }
@@ -461,16 +524,25 @@ struct DailyLog: Codable, Identifiable, Equatable {
     func totalMonounsaturatedFat() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + ($1.monounsaturatedFat ?? 0) } }
     func totalCaloriesBurnedFromManualExercises() -> Double { return exercises?.filter { $0.source == "manual" }.reduce(0) { $0 + $1.caloriesBurned } ?? 0.0 }
     func totalCaloriesBurnedFromHealthKitWorkouts() -> Double { return exercises?.filter { $0.source == "HealthKit" }.reduce(0) { $0 + $1.caloriesBurned } ?? 0.0 }
-    static func == (lhs: DailyLog, rhs: DailyLog) -> Bool { lhs.id == rhs.id && Calendar.current.isDate(lhs.date, inSameDayAs: rhs.date) && lhs.meals == rhs.meals && lhs.totalCaloriesOverride == rhs.totalCaloriesOverride && lhs.waterTracker == rhs.waterTracker && lhs.exercises == rhs.exercises }
+    static func == (lhs: DailyLog, rhs: DailyLog) -> Bool {
+            lhs.id == rhs.id &&
+            Calendar.current.isDate(lhs.date, inSameDayAs: rhs.date) &&
+            lhs.meals == rhs.meals &&
+            lhs.totalCaloriesOverride == rhs.totalCaloriesOverride &&
+            lhs.waterTracker == rhs.waterTracker &&
+            lhs.exercises == rhs.exercises &&
+            lhs.journalEntries == rhs.journalEntries 
+        }
     
     enum CodingKeys: String, CodingKey {
-        case id
-        case date
-        case meals
-        case totalCaloriesOverride
-        case waterTracker
-        case exercises
-    }
+            case id
+            case date
+            case meals
+            case totalCaloriesOverride
+            case waterTracker
+            case exercises
+            case journalEntries
+        }
 }
 
 enum CalorieGoalMethod: String, CaseIterable, Identifiable, Codable { case dynamicTDEE = "Dynamic (TDEE + Activity)"; case mifflinWithActivity = "Standard (Mifflin + Activity Level)"; var id: String { self.rawValue } }
@@ -491,6 +563,55 @@ struct AchievementDefinition: Identifiable, Hashable {
     let criteriaValue: Double
     let pointsValue: Int
     let secret: Bool = false
+}
+
+struct JournalEmojiMapper {
+    static func getEmoji(for category: String) -> String {
+        switch category.lowercased() {
+        case "recovery":
+            return "🧊" // Ice bath, recovery
+        case "mindfulness":
+            return "🧘" // Meditation, yoga
+        case "flexibility":
+            return "🙆" // Stretching, flexibility
+        case "other":
+            return "📝" // Generic note
+        default:
+            return "📝"
+        }
+    }
+}
+
+struct Nutrition: Codable, Equatable {
+    var calories: Double
+    var protein: Double
+    var carbs: Double
+    var fats: Double
+    var saturatedFat: Double?
+    var polyunsaturatedFat: Double?
+    var monounsaturatedFat: Double?
+    var fiber: Double?
+    var calcium: Double?
+    var iron: Double?
+    var potassium: Double?
+    var sodium: Double?
+    var vitaminA: Double?
+    var vitaminC: Double?
+    var vitaminD: Double?
+    var vitaminB12: Double?
+    var folate: Double?
+    
+    static var zero: Nutrition {
+        Nutrition(calories: 0, protein: 0, carbs: 0, fats: 0)
+    }
+}
+
+struct Recipe: Identifiable, Codable, Equatable {
+    @DocumentID var id: String?
+    let name: String
+    let ingredients: [String]
+    let instructions: [String]
+    let nutrition: Nutrition
 }
 
 struct UserAchievementStatus: Identifiable, Codable, Equatable {

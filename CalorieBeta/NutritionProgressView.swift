@@ -65,13 +65,14 @@ struct NutritionProgressView: View {
     private func summaryView(calories: Double, caloriesGoal: Double, caloriesPercentage: Double, protein: Double, proteinGoal: Double, fats: Double, fatsGoal: Double, carbs: Double, carbsGoal: Double) -> some View {
         HStack(spacing: 16) {
             VStack {
+                // MODIFIED: The "Calories" label is now outside the bubble
                 Text("Calories")
                     .appFont(size: 14, weight: .medium)
                 ProgressBubble(
                     value: calories,
                     goal: caloriesGoal,
                     percentage: caloriesPercentage,
-                    label: "",
+                    label: "", // MODIFIED: Label text is now handled above
                     unit: "cal",
                     color: .red
                 )
@@ -108,6 +109,7 @@ struct NutritionProgressView: View {
     @ViewBuilder
     private func bubblesView(calories: Double, caloriesGoal: Double, caloriesPercentage: Double, protein: Double, proteinGoal: Double, proteinPercentage: Double, fats: Double, fatsGoal: Double, fatsPercentage: Double, carbs: Double, carbsGoal: Double, carbsPercentage: Double) -> some View {
          HStack(spacing: 15) {
+             // MODIFIED: This bubble will now show "Eaten / Goal" since isSmall = true
              ProgressBubble(value: calories, goal: caloriesGoal, percentage: caloriesPercentage, label: "Calories", unit: "cal", color: .red, isSmall: true)
              ProgressBubble(value: protein, goal: proteinGoal, percentage: proteinPercentage, label: "Protein", unit: "g", color: .accentProtein, isSmall: true)
              ProgressBubble(value: fats, goal: fatsGoal, percentage: fatsPercentage, label: "Fats", unit: "g", color: .accentFats, isSmall: true)
@@ -125,6 +127,11 @@ struct ProgressBubble: View {
     let color: Color
     var isSmall: Bool = false
     
+    // NEW: Calculate remaining calories
+    private var remaining: Double {
+        goal - value
+    }
+    
     var body: some View {
         VStack {
             ZStack {
@@ -136,18 +143,37 @@ struct ProgressBubble: View {
                     .rotationEffect(Angle(degrees: -90))
                     .animation(.easeInOut(duration: 0.75), value: percentage)
 
+                // MODIFIED: This VStack now shows different text based on isSmall
                 VStack {
-                    Text("\(String(format: "%.0f", value))")
-                        .appFont(size: isSmall ? 15 : 24, weight: isSmall ? .medium : .bold)
-                        .foregroundColor(.textPrimary)
-                    Text("/ \(String(format: "%.0f", goal)) \(isSmall ? unit : "")")
-                         .appFont(size: isSmall ? 10 : 12)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                    if isSmall {
+                        // Small View: (for macros) - Shows "Eaten"
+                        Text("\(String(format: "%.0f", value))")
+                            .appFont(size: isSmall ? 15 : 24, weight: isSmall ? .medium : .bold)
+                            .foregroundColor(.textPrimary)
+                        Text("/ \(String(format: "%.0f", goal)) \(unit)")
+                             .appFont(size: isSmall ? 10 : 12)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    } else {
+                        // Large View: (for calories) - Shows "Remaining"
+                        Text("\(String(format: "%.0f", remaining))")
+                            .appFont(size: 28, weight: .bold) // Larger font for remaining
+                            .foregroundColor(.textPrimary)
+                        Text("Remaining")
+                            .appFont(size: 12)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
                 }
             }
             .frame(width: isSmall ? 70 : 100, height: isSmall ? 70 : 100)
             
-            if !label.isEmpty {
+            // MODIFIED: Logic for displaying text below the bubble
+            if !isSmall {
+                // Large View: Show "Eaten / Goal" underneath
+                Text("\(String(format: "%.0f", value)) / \(String(format: "%.0f", goal)) \(unit)")
+                     .appFont(size: 12)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            } else if !label.isEmpty {
+                // Small View: Show label (e.g., "Protein") underneath
                 Text(label)
                     .appFont(size: 12)
                     .foregroundColor(.textPrimary)

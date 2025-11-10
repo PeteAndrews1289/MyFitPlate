@@ -1,3 +1,4 @@
+
 import SwiftUI
 
 struct WorkoutInsightListView: View {

@@ -33,21 +33,16 @@ class InsightsService: ObservableObject {
 
     func generateSingleMealSuggestion() async -> MealSuggestion? {
         self.isGeneratingSuggestion = true
-        
         let prompt = createMealSuggestionPrompt()
-        
         guard let responseString = await fetchAIResponse(prompt: prompt) else {
             self.isGeneratingSuggestion = false
             return nil
         }
-        
         guard let jsonData = responseString.data(using: .utf8) else {
             self.isGeneratingSuggestion = false
             return nil
         }
-        
         let suggestion = try? JSONDecoder().decode(MealSuggestion.self, from: jsonData)
-        
         self.isGeneratingSuggestion = false
         return suggestion
     }
@@ -92,26 +87,6 @@ class InsightsService: ObservableObject {
         2. **Prioritize Variety**: Do NOT suggest common items like 'quinoa' or 'chicken breast' unless they are explicitly listed in the user's preferences. Use a diverse range of ingredients.
         3. Your response MUST be a valid JSON object. Do not include any other text.
         4. The JSON object must have these exact keys: "mealName" (string), "calories" (number), "protein" (number), "carbs" (number), "fats" (number), "ingredients" (an array of strings), "instructions" (a single string with newlines).
-        
-        Example Response (if user likes Fish and Potatoes):
-        {
-            "mealName": "Sheet Pan Cod with Roasted Potatoes and Green Beans",
-            "calories": 480,
-            "protein": 35,
-            "carbs": 40,
-            "fats": 20,
-            "ingredients": [
-                "1 cod fillet (6 oz)",
-                "1 medium potato, cubed",
-                "1 cup green beans",
-                "1 tbsp olive oil",
-                "1 tsp paprika",
-                "Salt and pepper to taste"
-            ],
-            "instructions": "1. Preheat oven to 400°F (200°C).\\n2. Toss potatoes and green beans with olive oil, paprika, salt, and pepper on a baking sheet. Roast for 10 minutes.\\n3. Add the cod fillet to the pan, season, and bake for another 12-15 minutes until the fish is flaky and potatoes are tender."
-        }
-
-        JSON-ONLY RESPONSE:
         """
     }
 
@@ -179,14 +154,14 @@ class InsightsService: ObservableObject {
         analysisTask = Task {
             let endDate = Calendar.current.startOfDay(for: Date())
             guard let startDate = Calendar.current.date(byAdding: .day, value: -(days), to: endDate) else {
-                await handleInsightsError(message: "Could not calculate date range for insights.")
+                await self.handleInsightsError(message: "Could not calculate date range for insights.")
                 return
             }
 
-            let result = await fetchLogsForAnalysis(userID: userID, startDate: startDate, endDate: endDate)
+            let result = await self.fetchLogsForAnalysis(userID: userID, startDate: startDate, endDate: endDate)
             
             if Task.isCancelled {
-                await handleInsightsError(message: nil, isLoading: false)
+                await self.handleInsightsError(message: nil, isLoading: false)
                 return
             }
             
@@ -194,15 +169,15 @@ class InsightsService: ObservableObject {
             case .success(let logs):
                 if logs.count < 3 {
                     let noDataInsight = [UserInsight(title: "More Data Needed", message: "Log consistently for a few more days to unlock your personalized weekly insights!", category: .nutritionGeneral, priority: 100)]
-                    await handleInsightsResult(insights: noDataInsight, error: nil)
+                    await self.handleInsightsResult(insights: noDataInsight, error: nil)
                     return
                 }
                 
-                let aiInsights = await generateAIInsights(for: logs, sleepSamples: sleepData, goals: goalSettings)
-                await handleInsightsResult(insights: aiInsights, error: aiInsights.isEmpty ? "Could not generate AI insights at this time." : nil)
+                let aiInsights = await self.generateAIInsights(for: logs, sleepSamples: sleepData, goals: self.goalSettings)
+                await self.handleInsightsResult(insights: aiInsights, error: aiInsights.isEmpty ? "Could not generate AI insights at this time." : nil)
 
             case .failure(let error):
-                await handleInsightsError(message: "Could not analyze data: \(error.localizedDescription)")
+                await self.handleInsightsError(message: "Could not analyze data: \(error.localizedDescription)")
             }
         }
     }
@@ -236,70 +211,103 @@ class InsightsService: ObservableObject {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "EEEE"
         
-        let hasExerciseData = logs.contains { ($0.exercises?.count ?? 0) > 0 }
-        let insightCount = hasExerciseData ? 7 : 6
-        
-        var dailyDataStrings: [String] = []
-        for log in logs {
+        let dailyNutritionSummary = logs.map { log -> String in
             let day = dateFormatter.string(from: log.date)
             let macros = log.totalMacros()
             let micros = log.totalMicronutrients()
-            let exerciseCal = (log.totalCaloriesBurnedFromHealthKitWorkouts() + log.totalCaloriesBurnedFromManualExercises())
-            let exerciseString = exerciseCal > 0 ? ", Exercise Burn: \(Int(exerciseCal))" : ""
-            
-            dailyDataStrings.append(
-                "- \(day): Cals: \(Int(log.totalCalories())), P: \(Int(macros.protein))g, C: \(Int(macros.carbs))g, F: \(Int(macros.fats))g, Fiber: \(Int(micros.fiber))g\(exerciseString)"
-            )
-        }
-        let dailySummary = dailyDataStrings.joined(separator: "\n")
+            return "- \(day): Cals: \(Int(log.totalCalories())), P: \(Int(macros.protein))g, C: \(Int(macros.carbs))g, F: \(Int(macros.fats))g, Fiber: \(Int(micros.fiber))g, Sodium: \(Int(micros.sodium))mg"
+        }.joined(separator: "\n")
         
-        var sleepSummary = "No sleep data available."
-        if !sleepSamples.isEmpty {
-            let asleepStates: [HKCategoryValueSleepAnalysis] = [.asleepCore, .asleepDeep, .asleepREM, .asleep]
-            let asleepRawValues = Set(asleepStates.map { $0.rawValue })
-            let totalAsleep = sleepSamples.filter { asleepRawValues.contains($0.value) }.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) }
-            let numberOfNights = Set(sleepSamples.map { Calendar.current.startOfDay(for: $0.startDate) }).count
-            if numberOfNights > 0 {
-                let averageSleepHours = (totalAsleep / Double(numberOfNights)) / 3600
-                sleepSummary = String(format: "Average sleep over \(numberOfNights) night(s): %.1f hours per night.", averageSleepHours)
-            }
+        let dailyWorkoutSummary = logs.compactMap { log -> String? in
+            guard let exercises = log.exercises, !exercises.isEmpty else { return nil }
+            let day = dateFormatter.string(from: log.date)
+            let totalBurn = exercises.reduce(0) { $0 + $1.caloriesBurned }
+            let exerciseNames = exercises.map { $0.name }.joined(separator: ", ")
+            return "- \(day): Burned \(Int(totalBurn)) calories from \(exerciseNames)."
+        }.joined(separator: "\n")
+        
+        let sleepSummaryByDay = Dictionary(grouping: sleepSamples) {
+            Calendar.current.startOfDay(for: $0.startDate)
+        }.mapValues { samples -> TimeInterval in
+            samples.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) }
         }
 
+        let sleepSummaryString = sleepSummaryByDay.keys.sorted().map { date -> String in
+            let day = dateFormatter.string(from: date)
+            let hours = (sleepSummaryByDay[date] ?? 0) / 3600
+            return "- \(day): \(String(format: "%.1f", hours)) hours"
+        }.joined(separator: "\n")
+
+        let journalSummary = logs.compactMap { log -> String? in
+            guard let entries = log.journalEntries, !entries.isEmpty else { return nil }
+            let day = dateFormatter.string(from: log.date)
+            let entrySummaries = entries.map { "\($0.category): \($0.text)" }.joined(separator: "; ")
+            return "- \(day): \(entrySummaries)"
+        }.joined(separator: "\n")
+        
         let userGoals = """
         User's Goals:
         - Calorie Target: \(Int(goals.calories ?? 0)) kcal
         - Protein Target: \(Int(goals.protein))g
-        - Carbs Target: \(Int(goals.carbs))g
-        - Fats Target: \(Int(goals.fats))g
+        - Fiber Target: 25g
+        - Sodium Limit: 2300mg
         - Weight Goal: \(goals.goal)
         """
 
         return """
-        You are Maia, an expert fitness and nutrition coach for the app MyFitPlate.
-        Your tone is encouraging, insightful, actionable, and positive.
-        Analyze the following user data and generate \(insightCount) personalized insights.
-        
+        You are Maia, an expert fitness and nutrition coach. Your tone is encouraging, insightful, and actionable. Analyze the following user data and generate 7 personalized insights.
+
         RULES:
-        1.  Your response MUST be a valid JSON object.
-        2.  The root object must have a single key "insights" which is a JSON array of objects.
-        3.  Each object in the "insights" array must have keys: "title" (string), "message" (string), "category" (string), "priority" (number from 1-100).
-        4.  The "category" must be one of the following exact strings: \(UserInsight.InsightCategory.allCases.map { $0.rawValue }.joined(separator: ", ")).
+        1.  Your response MUST be a valid JSON object with a single root key "insights".
+        2.  Each insight object must have keys: "title", "message", "category", "priority", and "sourceData".
+        3.  **Source Data (CRITICAL):** For each insight, the "sourceData" key must contain a concise, human-readable string of the specific data points you used. For example, "Wednesday Sleep: 6.1 hours, Thursday Calories: 1950 kcal".
+        4.  **Holistic Insight (CRITICAL):** Generate at least two insights that connect workout data to nutrition OR sleep data. Example: "On Wednesday you had a tough leg day, and followed it up with 8 hours of sleep. This is fantastic for muscle recovery."
         5.  **Be Specific & Actionable:** Instead of "Eat more protein," say "Your protein intake on Wednesday was 30g below your goal. Adding a serving of Greek yogurt to your breakfast can help close that gap."
-        6.  **Find Connections:** Look for patterns. Did poor sleep on Tuesday lead to higher calorie intake on Wednesday? Do they eat fewer carbs on days they exercise? Mention these connections.
-        7.  **Positive Reinforcement:** ALWAYS start with at least one positive insight highlighting something the user did well.
-        8.  **Fitness Insight Requirement:** If the user has logged exercise, you MUST include at least one fitness-related insight (e.g., post-workout nutrition, consistency, timing). Use the "postWorkout" or "exerciseSynergy" category.
+        6.  **Positive Reinforcement:** ALWAYS start with at least one positive insight highlighting something the user did well.
+        7.  **Fitness Insight Requirement:** If the user has logged exercise, you MUST include at least one fitness-related insight.
+        8.  **CATEGORIZE CORRECTLY:** For each insight, you MUST assign a 'category' from this exact list: [\(UserInsight.InsightCategory.allCases.map { $0.rawValue }.joined(separator: ", "))].
         
         DATA TO ANALYZE:
         \(userGoals)
         
-        Daily Log Summary for the past week:
-        \(dailySummary)
+        Daily Nutrition Summary (with Food Quality metrics):
+        \(dailyNutritionSummary)
         
-        Sleep Summary:
-        \(sleepSummary)
+        Daily Workout Summary:
+        \(dailyWorkoutSummary.isEmpty ? "No workouts logged this period." : dailyWorkoutSummary)
+        
+        Daily Sleep Summary:
+        \(sleepSummaryString.isEmpty ? "No sleep data available." : sleepSummaryString)
+        
+        Daily Journal Summary:
+        \(journalSummary.isEmpty ? "No journal entries logged this period." : journalSummary)
 
         JSON-ONLY RESPONSE:
         """
+    }
+    
+    func generateDailyBriefing(for userID: String) async -> (title: String, body: String)? {
+        let wellnessScoreSummary = "Good Recovery"
+        let todaysWorkout = "Leg Day"
+        
+        let prompt = """
+        You are Maia, an encouraging fitness coach. Create a short, motivational "Daily Briefing" push notification.
+
+        Yesterday's Wellness Score resulted in a summary of: "\(wellnessScoreSummary)".
+        Today's planned workout is: "\(todaysWorkout)".
+
+        RULES:
+        1.  The title should be 4-5 words.
+        2.  The body should be 1-2 short, encouraging sentences.
+        3.  Combine the user's recovery status with their plan for the day.
+        4.  Provide ONLY the title and body, separated by a newline. Do not add any other text.
+        """
+        
+        guard let response = await fetchAIResponse(prompt: prompt) else { return nil }
+        let lines = response.split(separator: "\n").map(String.init)
+        guard lines.count >= 2 else { return nil }
+        
+        return (title: lines[0], body: lines[1])
     }
     
     private func fetchAIResponse(prompt: String) async -> String? {

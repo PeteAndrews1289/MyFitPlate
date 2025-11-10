@@ -1,13 +1,18 @@
 import SwiftUI
 
 struct AddFoodView: View {
-    var onFoodLogged: (FoodItem) -> Void
+    @Binding var isPresented: Bool
+    var foodItem: FoodItem?
+    var onFoodLogged: (FoodItem, String) -> Void
 
     @State private var foodName = ""
     @State private var calories = ""
     @State private var protein = ""
     @State private var carbs = ""
     @State private var fats = ""
+    @State private var selectedMeal = "Breakfast"
+    let mealTypes = ["Breakfast", "Lunch", "Dinner", "Snacks"]
+    
     @State private var saturatedFat = ""
     @State private var polyunsaturatedFat = ""
     @State private var monounsaturatedFat = ""
@@ -47,6 +52,14 @@ struct AddFoodView: View {
             NavigationView {
                 VStack {
                     Form {
+                        Section {
+                            Picker("Log to Meal", selection: $selectedMeal) {
+                                ForEach(mealTypes, id: \.self) {
+                                    Text($0)
+                                }
+                            }
+                        }
+                        
                         Section(header: Text("Nutritional Information"), footer: Text("Tap the camera icon to scan a nutrition label automatically.")) {
                             HStack {
                                 TextField("Food Name", text: $foodName)
@@ -112,13 +125,14 @@ struct AddFoodView: View {
                     .padding()
                     .disabled(foodName.isEmpty || calories.isEmpty)
                 }
-                .navigationTitle("Add Food Manually")
+                .navigationTitle(foodItem == nil ? "Add Food Manually" : "Add to Log")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { dismiss() }
                     }
                 }
+                .onAppear(perform: populateFromFoodItem)
                 .sheet(isPresented: $showingImagePicker) {
                     ImagePicker(sourceType: .camera) { image in
                         self.isProcessingLabel = true
@@ -148,6 +162,41 @@ struct AddFoodView: View {
                     .scaleEffect(1.5)
             }
         }
+    }
+
+    private func populateFromFoodItem() {
+        guard let item = foodItem else { return }
+        foodName = item.name
+        calories = String(format: "%.0f", item.calories)
+        protein = String(format: "%.1f", item.protein)
+        carbs = String(format: "%.1f", item.carbs)
+        fats = String(format: "%.1f", item.fats)
+        saturatedFat = String(format: "%.1f", item.saturatedFat ?? 0)
+        polyunsaturatedFat = String(format: "%.1f", item.polyunsaturatedFat ?? 0)
+        monounsaturatedFat = String(format: "%.1f", item.monounsaturatedFat ?? 0)
+        fiber = String(format: "%.1f", item.fiber ?? 0)
+        calcium = String(format: "%.0f", item.calcium ?? 0)
+        iron = String(format: "%.1f", item.iron ?? 0)
+        potassium = String(format: "%.0f", item.potassium ?? 0)
+        sodium = String(format: "%.0f", item.sodium ?? 0)
+        vitaminA = String(format: "%.0f", item.vitaminA ?? 0)
+        vitaminC = String(format: "%.0f", item.vitaminC ?? 0)
+        vitaminD = String(format: "%.0f", item.vitaminD ?? 0)
+        vitaminB12 = String(format: "%.1f", item.vitaminB12 ?? 0)
+        folate = String(format: "%.0f", item.folate ?? 0)
+        magnesium = String(format: "%.0f", item.magnesium ?? 0)
+        phosphorus = String(format: "%.0f", item.phosphorus ?? 0)
+        zinc = String(format: "%.1f", item.zinc ?? 0)
+        copper = String(format: "%.0f", item.copper ?? 0)
+        manganese = String(format: "%.1f", item.manganese ?? 0)
+        selenium = String(format: "%.0f", item.selenium ?? 0)
+        vitaminB1 = String(format: "%.1f", item.vitaminB1 ?? 0)
+        vitaminB2 = String(format: "%.1f", item.vitaminB2 ?? 0)
+        vitaminB3 = String(format: "%.1f", item.vitaminB3 ?? 0)
+        vitaminB5 = String(format: "%.1f", item.vitaminB5 ?? 0)
+        vitaminB6 = String(format: "%.1f", item.vitaminB6 ?? 0)
+        vitaminE = String(format: "%.1f", item.vitaminE ?? 0)
+        vitaminK = String(format: "%.0f", item.vitaminK ?? 0)
     }
 
     private func handleScannedNutrition(_ nutrition: NutritionLabelData) {
@@ -190,7 +239,7 @@ struct AddFoodView: View {
         }
 
         let newFood = FoodItem(
-            id: UUID().uuidString,
+            id: foodItem?.id ?? UUID().uuidString,
             name: foodName,
             calories: caloriesValue,
             protein: Double(protein) ?? 0.0,
@@ -226,7 +275,7 @@ struct AddFoodView: View {
             vitaminK: Double(vitaminK) ?? 0.0
         )
 
-        onFoodLogged(newFood)
+        onFoodLogged(newFood, selectedMeal)
         dismiss()
     }
 }

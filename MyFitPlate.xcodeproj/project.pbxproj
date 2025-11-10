@@ -89,12 +89,25 @@
 		4B4878E02DF3C737009AB665 /* HealthDisclaimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B4878DF2DF3C737009AB665 /* HealthDisclaimerView.swift */; };
 		4B4878E22DF3C950009AB665 /* NotificationBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B4878E12DF3C950009AB665 /* NotificationBanner.swift */; };
 		4B4878E42DF3C964009AB665 /* BannerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B4878E32DF3C964009AB665 /* BannerService.swift */; };
+		4B58D4632EABBA5A00ADFA73 /* ExerciseList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D4622EABBA5A00ADFA73 /* ExerciseList.swift */; };
+		4B58D4652EABBA7800ADFA73 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D4642EABBA7800ADFA73 /* HapticManager.swift */; };
+		4B58D4672EABBAB200ADFA73 /* JournalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D4662EABBAB200ADFA73 /* JournalView.swift */; };
+		4B58D46B2EABBB6F00ADFA73 /* ProgramCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D46A2EABBB6F00ADFA73 /* ProgramCreatorView.swift */; };
+		4B58D46D2EABBBB700ADFA73 /* WellnessScore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D46C2EABBBB700ADFA73 /* WellnessScore.swift */; };
+		4B58D46F2EABBBC000ADFA73 /* WellnessScoreCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D46E2EABBBC000ADFA73 /* WellnessScoreCardView.swift */; };
+		4B58D4712EABBBC900ADFA73 /* WellnessScoreDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D4702EABBBC900ADFA73 /* WellnessScoreDetailView.swift */; };
+		4B58D4752EABBBD700ADFA73 /* WorkoutAnalyticsCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D4742EABBBD700ADFA73 /* WorkoutAnalyticsCardView.swift */; };
+		4B58D4772EABBBDF00ADFA73 /* WorkoutAnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D4762EABBBDF00ADFA73 /* WorkoutAnalyticsService.swift */; };
+		4B58D4792EABBBEA00ADFA73 /* WorkoutInsightListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D4782EABBBEA00ADFA73 /* WorkoutInsightListView.swift */; };
+		4B58D47B2EABBBF000ADFA73 /* WorkoutInsightRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D47A2EABBBEF00ADFA73 /* WorkoutInsightRowView.swift */; };
+		4B58D47D2EABBBF900ADFA73 /* WorkoutPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B58D47C2EABBBF900ADFA73 /* WorkoutPlayerViewModel.swift */; };
 		4B6046A32DEA068E000B4A46 /* CircularWeightDisplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B6046A22DEA068E000B4A46 /* CircularWeightDisplayView.swift */; };
 		4B6046A52DEA0BCC000B4A46 /* MilestoneData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B6046A42DEA0BCC000B4A46 /* MilestoneData.swift */; };
 		4B6046A92DEE1F0E000B4A46 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 4B6046A82DEE1F0E000B4A46 /* FirebaseCrashlytics */; };
 		4B619A942D677DBC00D6C9A8 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B619A932D677DB500D6C9A8 /* APIError.swift */; };
 		4B619A962D6FAADA00D6C9A8 /* HorizontalBarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B619A952D6FAAD000D6C9A8 /* HorizontalBarChartView.swift */; };
 		4B619A982D79EB5200D6C9A8 /* LandingPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B619A972D79EB4C00D6C9A8 /* LandingPageView.swift */; };
+		4B6EB4762EC24522007A13BB /* CalorieTrackingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B6EB4752EC24522007A13BB /* CalorieTrackingView.swift */; };
 		4B7053FD2D5E4C0F001D9C1C /* ManualFoodEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B7053FC2D5E4C05001D9C1C /* ManualFoodEntryView.swift */; };
 		4B7053FF2D5E4CB7001D9C1C /* OpenFoodFactsAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B7053FE2D5E4CA7001D9C1C /* OpenFoodFactsAPIService.swift */; };
 		4B71DB752E08B7AD003A0078 /* FeatureTourView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B71DB742E08B7AD003A0078 /* FeatureTourView.swift */; };
@@ -131,10 +144,8 @@
 		4BA2DB3E2D42A74800B6BDED /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA2DB3D2D42A74300B6BDED /* ImagePicker.swift */; };
 		4BB4628F2E1EE8AB007CCA8A /* MyFitPlateWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 4BB462822E1EE8AA007CCA8A /* MyFitPlateWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4BCCF5062DFC830E00ACC8F4 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4BCCF5052DFC830E00ACC8F4 /* GoogleService-Info.plist */; };
-		4BCCF50C2E01D3FE00ACC8F4 /* RecipeImporterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BCCF50B2E01D3FE00ACC8F4 /* RecipeImporterService.swift */; };
 		4BCCF50F2E01D51400ACC8F4 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 4BCCF50E2E01D51400ACC8F4 /* SwiftSoup */; };
 		4BCCF5112E01DFA400ACC8F4 /* ParsedIngredient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BCCF5102E01DFA400ACC8F4 /* ParsedIngredient.swift */; };
-		4BCCF5132E01E3A500ACC8F4 /* RecipeImporterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BCCF5122E01E3A500ACC8F4 /* RecipeImporterView.swift */; };
 		4BCCF5152E01E65500ACC8F4 /* RecipeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BCCF5142E01E65500ACC8F4 /* RecipeDetailView.swift */; };
 		4BD5F32C2E1D61FB00DF283D /* Spotlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD5F32B2E1D61FB00DF283D /* Spotlight.swift */; };
 		4BD5F32E2E1D621400DF283D /* SpotlightManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD5F32D2E1D621400DF283D /* SpotlightManager.swift */; };
@@ -276,12 +287,25 @@
 		4B4878DF2DF3C737009AB665 /* HealthDisclaimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDisclaimerView.swift; sourceTree = "<group>"; };
 		4B4878E12DF3C950009AB665 /* NotificationBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationBanner.swift; sourceTree = "<group>"; };
 		4B4878E32DF3C964009AB665 /* BannerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BannerService.swift; sourceTree = "<group>"; };
+		4B58D4622EABBA5A00ADFA73 /* ExerciseList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseList.swift; sourceTree = "<group>"; };
+		4B58D4642EABBA7800ADFA73 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		4B58D4662EABBAB200ADFA73 /* JournalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalView.swift; sourceTree = "<group>"; };
+		4B58D46A2EABBB6F00ADFA73 /* ProgramCreatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramCreatorView.swift; sourceTree = "<group>"; };
+		4B58D46C2EABBBB700ADFA73 /* WellnessScore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WellnessScore.swift; sourceTree = "<group>"; };
+		4B58D46E2EABBBC000ADFA73 /* WellnessScoreCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WellnessScoreCardView.swift; sourceTree = "<group>"; };
+		4B58D4702EABBBC900ADFA73 /* WellnessScoreDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WellnessScoreDetailView.swift; sourceTree = "<group>"; };
+		4B58D4742EABBBD700ADFA73 /* WorkoutAnalyticsCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutAnalyticsCardView.swift; sourceTree = "<group>"; };
+		4B58D4762EABBBDF00ADFA73 /* WorkoutAnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutAnalyticsService.swift; sourceTree = "<group>"; };
+		4B58D4782EABBBEA00ADFA73 /* WorkoutInsightListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutInsightListView.swift; sourceTree = "<group>"; };
+		4B58D47A2EABBBEF00ADFA73 /* WorkoutInsightRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutInsightRowView.swift; sourceTree = "<group>"; };
+		4B58D47C2EABBBF900ADFA73 /* WorkoutPlayerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlayerViewModel.swift; sourceTree = "<group>"; };
 		4B5BEDF12E1ED1F600EF366C /* MyFitPlateWatch Watch App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "MyFitPlateWatch Watch App.entitlements"; sourceTree = "<group>"; };
 		4B6046A22DEA068E000B4A46 /* CircularWeightDisplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircularWeightDisplayView.swift; sourceTree = "<group>"; };
 		4B6046A42DEA0BCC000B4A46 /* MilestoneData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneData.swift; sourceTree = "<group>"; };
 		4B619A932D677DB500D6C9A8 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
 		4B619A952D6FAAD000D6C9A8 /* HorizontalBarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorizontalBarChartView.swift; sourceTree = "<group>"; };
 		4B619A972D79EB4C00D6C9A8 /* LandingPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LandingPageView.swift; sourceTree = "<group>"; };
+		4B6EB4752EC24522007A13BB /* CalorieTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalorieTrackingView.swift; sourceTree = "<group>"; };
 		4B7053FC2D5E4C05001D9C1C /* ManualFoodEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualFoodEntryView.swift; sourceTree = "<group>"; };
 		4B7053FE2D5E4CA7001D9C1C /* OpenFoodFactsAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenFoodFactsAPIService.swift; sourceTree = "<group>"; };
 		4B71DB742E08B7AD003A0078 /* FeatureTourView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTourView.swift; sourceTree = "<group>"; };
@@ -319,9 +343,7 @@
 		4BA2DB3D2D42A74300B6BDED /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 		4BB462822E1EE8AA007CCA8A /* MyFitPlateWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MyFitPlateWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4BCCF5052DFC830E00ACC8F4 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
-		4BCCF50B2E01D3FE00ACC8F4 /* RecipeImporterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeImporterService.swift; sourceTree = "<group>"; };
 		4BCCF5102E01DFA400ACC8F4 /* ParsedIngredient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedIngredient.swift; sourceTree = "<group>"; };
-		4BCCF5122E01E3A500ACC8F4 /* RecipeImporterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeImporterView.swift; sourceTree = "<group>"; };
 		4BCCF5142E01E65500ACC8F4 /* RecipeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeDetailView.swift; sourceTree = "<group>"; };
 		4BD5F32B2E1D61FB00DF283D /* Spotlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spotlight.swift; sourceTree = "<group>"; };
 		4BD5F32D2E1D621400DF283D /* SpotlightManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightManager.swift; sourceTree = "<group>"; };
@@ -455,6 +477,7 @@
 				3E78210A2CC0294B007E219A /* CaloricCalculatorView.swift */,
 				3EB2977F2CAEEDCA0093E1B9 /* CalorieBeta.entitlements */,
 				3E7821042CBEC38A007E219A /* CalorieLogView.swift */,
+				4B6EB4752EC24522007A13BB /* CalorieTrackingView.swift */,
 				4B444E0A2DF4B6F400C6F094 /* ChallengesView.swift */,
 				4B15AD2E2E393D2800F0A0BB /* ChatBoxShape.swift */,
 				4B6046A22DEA068E000B4A46 /* CircularWeightDisplayView.swift */,
@@ -471,9 +494,10 @@
 				4B15AD142E3165A500F0A0BB /* CycleTrackingService.swift */,
 				4B15AD162E31670900F0A0BB /* CycleTrackingView.swift */,
 				3EB09F402CC2B0990088C849 /* DailyLogService.swift */,
-				4B46941F2DCE6227006F1F86 /* DetailedInsightsView.swift */,
 				4B71DBB02E0CC65C003A0078 /* DesignSystem.swift */,
+				4B46941F2DCE6227006F1F86 /* DetailedInsightsView.swift */,
 				4B15AD2A2E37F46700F0A0BB /* ExerciseHistoryView.swift */,
+				4B58D4622EABBA5A00ADFA73 /* ExerciseList.swift */,
 				4B15AD262E37E68B00F0A0BB /* ExerciseNoteView.swift */,
 				3EC693DF2CBD712D002222C6 /* FatSecretFoodAPIService.swift */,
 				4B71DB742E08B7AD003A0078 /* FeatureTourView.swift */,
@@ -487,6 +511,7 @@
 				4B444E102DF4C5BE00C6F094 /* GroceryListView.swift */,
 				3E676A272CE3C0AC0019DC51 /* GroupSelectionView.swift */,
 				3E676A252CE3C08D0019DC51 /* GroupService.swift */,
+				4B58D4642EABBA7800ADFA73 /* HapticManager.swift */,
 				4B4878DF2DF3C737009AB665 /* HealthDisclaimerView.swift */,
 				4B4694042DBA8986006F1F86 /* HealthKitManager.swift */,
 				4B3C58252DFB20E9008765DC /* HealthKitViewModel.swift */,
@@ -498,6 +523,7 @@
 				4BA12D792E5658E600E55716 /* IngredientRowView.swift */,
 				4B46941D2DCE5C3C006F1F86 /* InsightsService.swift */,
 				3E676A292CE3C76D0019DC51 /* JoinGroupConfirmationView.swift */,
+				4B58D4662EABBAB200ADFA73 /* JournalView.swift */,
 				4B619A972D79EB4C00D6C9A8 /* LandingPageView.swift */,
 				3EB2978C2CAEEF830093E1B9 /* LoginView.swift */,
 				4B727FA02E26C14600874936 /* MaiaAvatarView.swift */,
@@ -524,11 +550,10 @@
 				4B15AD282E37F29200F0A0BB /* PinnedNotesManager.swift */,
 				4B15AD1E2E358F1A00F0A0BB /* PlateCalculatorView.swift */,
 				3E676A1D2CDBC1FD0019DC51 /* PostRowView.swift */,
+				4B58D46A2EABBB6F00ADFA73 /* ProgramCreatorView.swift */,
 				4B15AD242E3695DB00F0A0BB /* ProgramDetailView.swift */,
 				3EB297802CAEEDCA0093E1B9 /* Preview Content */,
-				4BCCF50B2E01D3FE00ACC8F4 /* RecipeImporterService.swift */,
 				4BCCF5142E01E65500ACC8F4 /* RecipeDetailView.swift */,
-				4BCCF5122E01E3A500ACC8F4 /* RecipeImporterView.swift */,
 				4B4694172DCD1149006F1F86 /* RecipeListView.swift */,
 				4B4694152DCD0AE0006F1F86 /* RecipeService.swift */,
 				4B46940F2DC3CA7A006F1F86 /* ReportsView.swift */,
@@ -554,8 +579,16 @@
 				3EB09F4C2CCBFB310088C849 /* WeightTrackingView.swift */,
 				3EB09F4E2CCBFFE60088C849 /* WeightTrackingViewController.swift */,
 				4B999ECA2D80846C00930413 /* WelcomeView.swift */,
+				4B58D46C2EABBBB700ADFA73 /* WellnessScore.swift */,
+				4B58D46E2EABBBC000ADFA73 /* WellnessScoreCardView.swift */,
+				4B58D4702EABBBC900ADFA73 /* WellnessScoreDetailView.swift */,
+				4B58D4742EABBBD700ADFA73 /* WorkoutAnalyticsCardView.swift */,
+				4B58D4762EABBBDF00ADFA73 /* WorkoutAnalyticsService.swift */,
 				4B727FAA2E2FD64900874936 /* WorkOutComponentApp.swift */,
+				4B58D4782EABBBEA00ADFA73 /* WorkoutInsightListView.swift */,
+				4B58D47A2EABBBEF00ADFA73 /* WorkoutInsightRowView.swift */,
 				4B727FAE2E2FD6A600874936 /* WorkoutPlayerView.swift */,
+				4B58D47C2EABBBF900ADFA73 /* WorkoutPlayerViewModel.swift */,
 				4B15AD2C2E37FDC900F0A0BB /* WorkoutReport.swift */,
 				4B727FB02E2FD6B000874936 /* WorkoutRoutinesView.swift */,
 				4B727FAC2E2FD69A00874936 /* WorkoutService.swift */,
@@ -733,6 +766,7 @@
 			files = (
 				4B15AD252E3695DB00F0A0BB /* ProgramDetailView.swift in Sources */,
 				4B7053FF2D5E4CB7001D9C1C /* OpenFoodFactsAPIService.swift in Sources */,
+				4B58D47B2EABBBF000ADFA73 /* WorkoutInsightRowView.swift in Sources */,
 				4B15AD192E31671700F0A0BB /* CycleInsightCard.swift in Sources */,
 				3E7821092CC02464007E219A /* FoodSearchView.swift in Sources */,
 				4B15AD232E3592BC00F0A0BB /* ContinueProgramCard.swift in Sources */,
@@ -754,6 +788,7 @@
 				3EB297912CAEF0460093E1B9 /* Model.swift in Sources */,
 				4B4878E02DF3C737009AB665 /* HealthDisclaimerView.swift in Sources */,
 				4B15AD292E37F29200F0A0BB /* PinnedNotesManager.swift in Sources */,
+				4B58D4632EABBA5A00ADFA73 /* ExerciseList.swift in Sources */,
 				4B727FAF2E2FD6A600874936 /* WorkoutPlayerView.swift in Sources */,
 				4B727FB12E2FD6B000874936 /* WorkoutRoutinesView.swift in Sources */,
 				3EC693E22CBD90B2002222C6 /* AIChatBotView.swift in Sources */,
@@ -762,6 +797,7 @@
 				4B71DB752E08B7AD003A0078 /* FeatureTourView.swift in Sources */,
 				3EB297932CAEF1300093E1B9 /* SettingsView.swift in Sources */,
 				4B727F9F2E26B43400874936 /* AudioVisualizerView.swift in Sources */,
+				4B58D4672EABBAB200ADFA73 /* JournalView.swift in Sources */,
 				4B3C8CB82DE0BF92007D24FA /* SetWaterGoalView.swift in Sources */,
 				4BA2DB3E2D42A74800B6BDED /* ImagePicker.swift in Sources */,
 				3E676A282CE3C0AC0019DC51 /* GroupSelectionView.swift in Sources */,
@@ -770,12 +806,14 @@
 				3EB09F4D2CCBFB310088C849 /* WeightTrackingView.swift in Sources */,
 				4B46941A2DCD118C006F1F86 /* CreateRecipeView.swift in Sources */,
 				4B750C772D148F6B002AE2FB /* SetHeightView.swift in Sources */,
+				4B6EB4762EC24522007A13BB /* CalorieTrackingView.swift in Sources */,
 				4B46940B2DBBD19A006F1F86 /* AchievementService.swift in Sources */,
 				4B999ECD2D8DC4B000930413 /* OnBoardingSurveyView.swift in Sources */,
 				3E676A242CE3C0080019DC51 /* CreateGroupView.swift in Sources */,
 				3E676A1A2CCFE6AD0019DC51 /* MainTabView.swift in Sources */,
 				4B71DB792E0AFE56003A0078 /* PDFShareView.swift in Sources */,
 				4BF46DE02DF76A6F0018668F /* AddMealToPlanView.swift in Sources */,
+				4B58D4752EABBBD700ADFA73 /* WorkoutAnalyticsCardView.swift in Sources */,
 				3EB2978B2CAEEF250093E1B9 /* BarcodeScannerView.swift in Sources */,
 				4B15AD272E37E68B00F0A0BB /* ExerciseNoteView.swift in Sources */,
 				4BCCF5152E01E65500ACC8F4 /* RecipeDetailView.swift in Sources */,
@@ -794,24 +832,30 @@
 				4B727FA52E280C0400874936 /* MealSuggestionDetailView.swift in Sources */,
 				4B46941C2DCE59BF006F1F86 /* ReportsViewModel.swift in Sources */,
 				4BD5F32E2E1D621400DF283D /* SpotlightManager.swift in Sources */,
+				4B58D46D2EABBBB700ADFA73 /* WellnessScore.swift in Sources */,
 				4B4694142DCA6A1A006F1F86 /* AddExerciseView.swift in Sources */,
 				4B727FA72E280F5000874936 /* SuggestionPreferencesView.swift in Sources */,
-				4BCCF50C2E01D3FE00ACC8F4 /* RecipeImporterService.swift in Sources */,
 				4B15AD2F2E393D2800F0A0BB /* ChatBoxShape.swift in Sources */,
 				4B3C8CB62DE0B636007D24FA /* WaterTrackingCardView.swift in Sources */,
 				3EB2978F2CAEEFAB0093E1B9 /* MainAppView.swift in Sources */,
 				3E676A202CDBC2220019DC51 /* CommentsView.swift in Sources */,
 				3EC693CD2CB823C1002222C6 /* FoodLogView.swift in Sources */,
 				4B3C8CB42DE0B56E007D24FA /* WaterBottleUI.swift in Sources */,
+				4B58D4792EABBBEA00ADFA73 /* WorkoutInsightListView.swift in Sources */,
 				4BE7685A2D51040E00EAF4C8 /* FoodDetailView.swift in Sources */,
 				4B727F9D2E26B41C00874936 /* TTSManager.swift in Sources */,
+				4B58D4772EABBBDF00ADFA73 /* WorkoutAnalyticsService.swift in Sources */,
 				4BA12D472E43EF9C00E55716 /* MealScoreCard.swift in Sources */,
 				3EB2977C2CAEEDC90093E1B9 /* HomeView.swift in Sources */,
 				3EC693CF2CB827F2002222C6 /* UserProfileView.swift in Sources */,
+				4B58D46F2EABBBC000ADFA73 /* WellnessScoreCardView.swift in Sources */,
 				4B444E112DF4C5BE00C6F094 /* GroceryListView.swift in Sources */,
+				4B58D47D2EABBBF900ADFA73 /* WorkoutPlayerViewModel.swift in Sources */,
+				4B58D46B2EABBB6F00ADFA73 /* ProgramCreatorView.swift in Sources */,
 				4B619A982D79EB5200D6C9A8 /* LandingPageView.swift in Sources */,
 				4B15AD1D2E33D05D00F0A0BB /* ImageProcessingView.swift in Sources */,
 				4B15AD132E31659200F0A0BB /* CycleSettingsView.swift in Sources */,
+				4B58D4712EABBBC900ADFA73 /* WellnessScoreDetailView.swift in Sources */,
 				4B71DBB12E0CC665003A0078 /* DesignSystem.swift in Sources */,
 				3EB09F412CC2B0990088C849 /* DailyLogService.swift in Sources */,
 				4BD5F32C2E1D61FB00DF283D /* Spotlight.swift in Sources */,
@@ -827,7 +871,6 @@
 				4B46941E2DCE5C42006F1F86 /* InsightsService.swift in Sources */,
 				4BD5F3322E1D71AB00DF283D /* SpotlightModifier.swift in Sources */,
 				4B727FA92E2FD63800874936 /* RoutineEditorView.swift in Sources */,
-				4BCCF5132E01E3A500ACC8F4 /* RecipeImporterView.swift in Sources */,
 				3E676A182CCFE4AD0019DC51 /* AppState.swift in Sources */,
 				4B15AD152E3165A500F0A0BB /* CycleTrackingService.swift in Sources */,
 				4B7053FD2D5E4C0F001D9C1C /* ManualFoodEntryView.swift in Sources */,
@@ -837,6 +880,7 @@
 				3E7821052CBEC38A007E219A /* CalorieLogView.swift in Sources */,
 				4B4694122DC3CB53006F1F86 /* CustomTabBar.swift in Sources */,
 				3EB297892CAEEE2F0093E1B9 /* AddFoodView.swift in Sources */,
+				4B58D4652EABBA7800ADFA73 /* HapticManager.swift in Sources */,
 				4B71DB9C2E0B6B69003A0078 /* SharedDataManager.swift in Sources */,
 				3EB09F4F2CCBFFE60088C849 /* WeightTrackingViewController.swift in Sources */,
 				3E78210D2CC18259007E219A /* CurrentWeightView.swift in Sources */,
@@ -1042,7 +1086,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.5;
-				MARKETING_VERSION = 1.07;
+				MARKETING_VERSION = 1.14;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1096,7 +1140,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.5;
-				MARKETING_VERSION = 1.07;
+				MARKETING_VERSION = 1.14;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1131,7 +1175,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.13;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.CalorieWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1161,7 +1205,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.13;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.CalorieWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1192,7 +1236,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.13;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1222,7 +1266,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.13;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
