@@ -202,6 +202,7 @@ class InsightsService: ObservableObject {
             let insightsResponse = try JSONDecoder().decode([String: [UserInsight]].self, from: jsonData)
             return insightsResponse["insights"] ?? []
         } catch {
+            print("❌ InsightsService: JSON Decoding Error - \(error)")
             let fallbackInsight = UserInsight(title: "Today's Tip", message: responseString, category: .smartSuggestion)
             return [fallbackInsight]
         }
@@ -312,8 +313,15 @@ class InsightsService: ObservableObject {
     
     private func fetchAIResponse(prompt: String) async -> String? {
         let apiKey = getAPIKey()
-        guard !apiKey.isEmpty, apiKey != "YOUR_API_KEY" else {
+        
+        // DEBUG PRINT: Check if key exists
+        if apiKey.isEmpty {
+            print("❌ InsightsService: API Key is EMPTY.")
             return nil
+        }
+        if apiKey == "YOUR_API_KEY" {
+             print("❌ InsightsService: API Key is default placeholder 'YOUR_API_KEY'.")
+             return nil
         }
         
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
@@ -323,26 +331,42 @@ class InsightsService: ObservableObject {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let requestBody: [String: Any] = [
-            "model": "gpt-4o-mini",
+            "model": "gpt-4o-mini", // Ensure this matches your authorized model
             "messages": [["role": "user", "content": prompt]],
             "temperature": 0.7,
             "response_format": ["type": "json_object"]
         ]
         
-        guard let httpBody = try? JSONSerialization.data(withJSONObject: requestBody) else { return nil }
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: requestBody) else {
+            print("❌ InsightsService: Failed to serialize request body.")
+            return nil
+        }
         request.httpBody = httpBody
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+            if let httpResponse = response as? HTTPURLResponse {
+                // DEBUG PRINT: Check Status Code
+                if httpResponse.statusCode != 200 {
+                    print("❌ InsightsService: HTTP Error \(httpResponse.statusCode)")
+                    if let responseBody = String(data: data, encoding: .utf8) {
+                        print("❌ InsightsService: Response Body: \(responseBody)")
+                    }
+                    return nil
+                }
+            }
             
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                let choices = json["choices"] as? [[String: Any]], let firstChoice = choices.first,
                let message = firstChoice["message"] as? [String: Any], let content = message["content"] as? String {
                 return content
+            } else {
+                print("❌ InsightsService: Failed to parse valid JSON from response.")
             }
-        } catch { }
+        } catch {
+            print("❌ InsightsService: Network Request Failed - \(error.localizedDescription)")
+        }
         return nil
     }
 

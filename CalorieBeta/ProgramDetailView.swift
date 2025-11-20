@@ -10,11 +10,14 @@ struct ProgramDetailView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService
     
-    // We now use TWO state variables to track what's being played
-    @State private var nextRoutineToPlay: WorkoutRoutine? // This one will increment progress
-    @State private var calendarRoutineToPlay: WorkoutRoutine? // This one will NOT
+    @State private var nextRoutineToPlay: WorkoutRoutine?
+    @State private var calendarRoutineToPlay: WorkoutRoutine?
     
-    // ... (calendarWorkoutMap computed property remains the same) ...
+    // High-level comment: State for completed workout checkmarks on the calendar
+    @State private var completedSessions: [Date: Bool] = [:]
+    // High-level comment: State for the routine editor sheet
+    @State private var routineToEdit: WorkoutRoutine?
+    
     private var calendarWorkoutMap: [Date: WorkoutRoutine] {
         guard let startDate = program.startDate?.dateValue(), let daysOfWeek = program.daysOfWeek, !daysOfWeek.isEmpty else { return [:] }
         
@@ -37,7 +40,6 @@ struct ProgramDetailView: View {
         return map
     }
     
-    // ... (nextWorkoutInfo computed property remains the same) ...
     private var nextWorkoutInfo: (routine: WorkoutRoutine, title: String)? {
         guard let progressIndex = program.currentProgressIndex,
               !program.routines.isEmpty,
@@ -61,7 +63,6 @@ struct ProgramDetailView: View {
         return (routine, title)
     }
     
-    // ... (startDateBinding remains the same) ...
     private var startDateBinding: Binding<Date> {
         Binding<Date>(
             get: { self.program.startDate?.dateValue() ?? Date() },
@@ -69,7 +70,6 @@ struct ProgramDetailView: View {
         )
     }
     
-    // ... (daysOfWeekBinding remains the same) ...
     private var daysOfWeekBinding: Binding<[Int]> {
         Binding<[Int]>(
             get: { self.program.daysOfWeek ?? [] },
@@ -93,7 +93,6 @@ struct ProgramDetailView: View {
                 if let (routine, title) = nextWorkoutInfo {
                     Section {
                         Button(action: {
-                            // Set the "next" routine variable
                             self.nextRoutineToPlay = routine
                         }) {
                             Text(title)
@@ -108,22 +107,80 @@ struct ProgramDetailView: View {
                 }
                 
                 Section(header: Text("Program Calendar")) {
-                    // Pass the binding for the "calendar" routine
-                    CalendarView(workoutMap: calendarWorkoutMap, routineToPlay: $calendarRoutineToPlay)
+                    // High-level comment: Pass the completed sessions map to the calendar
+                    CalendarView(
+                        workoutMap: calendarWorkoutMap,
+                        completedSessions: completedSessions,
+                        routineToPlay: $calendarRoutineToPlay
+                    )
                 }
             }
             
+            // High-level comment: This section now allows expanding routines,
+            // editing them, and starting them individually.
             Section(header: Text("Workouts in this Program")) {
-                ForEach(program.routines) { routine in
-                    Text(routine.name)
+                ForEach($program.routines) { $routine in
+                    DisclosureGroup(
+                        content: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(routine.exercises) { exercise in
+                                    Text("- \(exercise.name) (\(exercise.targetSets) sets x \(exercise.targetReps) reps)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.leading)
+                        },
+                        label: {
+                            HStack {
+                                Text(routine.name)
+                                    .appFont(size: 17, weight: .semibold)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                // High-level comment: "Edit" button for quick edits
+                                Button("Edit") {
+                                    self.routineToEdit = routine
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(.blue)
+                                
+                                // High-level comment: "Start" button for any workout
+                                Button("Start") {
+                                    self.calendarRoutineToPlay = routine
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.brandPrimary)
+                            }
+                            .buttonStyle(PlainButtonStyle()) // Prevents the whole row from toggling
+                        }
+                    )
+                    .tint(.primary) // High-level comment: Makes the disclosure arrow use the primary color
                 }
             }
         }
         .navigationTitle(program.name)
-        // This sheet is for the "Next Workout" button and WILL increment progress
+        // High-level comment: This sheet handles editing a routine
+        .sheet(item: $routineToEdit) { routine in
+            RoutineEditorView(
+                workoutService: workoutService,
+                routine: routine,
+                onSave: { updatedRoutine in
+                    // High-level comment: This updates the routine in the local @State
+                    if let index = self.program.routines.firstIndex(where: { $0.id == updatedRoutine.id }) {
+                        self.program.routines[index] = updatedRoutine
+                        // High-level comment: This saves the change to the entire program
+                        Task {
+                            await workoutService.saveProgram(self.program)
+                        }
+                    }
+                }
+            )
+        }
+        // High-level comment: This sheet is for the "Next Workout" button (increments progress)
         .fullScreenCover(item: $nextRoutineToPlay) { routine in
             WorkoutPlayerView(routine: routine) {
-                // This completion handler increments the progress
                 if let currentIndex = program.currentProgressIndex {
                     program.currentProgressIndex = currentIndex + 1
                     Task {
@@ -136,7 +193,7 @@ struct ProgramDetailView: View {
             .environmentObject(workoutService)
             .environmentObject(achievementService)
         }
-        // This sheet is for the CALENDAR and will NOT increment progress
+        // High-level comment: This sheet is for the calendar/individual "Start" buttons (no progress)
         .fullScreenCover(item: $calendarRoutineToPlay) { routine in
             WorkoutPlayerView(routine: routine) {
                 // This completion handler is EMPTY. No progress is incremented.
@@ -146,22 +203,39 @@ struct ProgramDetailView: View {
             .environmentObject(workoutService)
             .environmentObject(achievementService)
         }
+        // High-level comment: Fetches completed session data when the view appears
+        .onAppear {
+            Task {
+                let logs = await workoutService.fetchSessionLogs(for: program)
+                var completedMap: [Date: Bool] = [:]
+                let calendar = Calendar.current
+                for log in logs {
+                    let date = calendar.startOfDay(for: log.date.dateValue())
+                    completedMap[date] = true
+                }
+                self.completedSessions = completedMap
+            }
+        }
     }
 }
 
 
 private struct CalendarView: View {
     let workoutMap: [Date: WorkoutRoutine]
+    // High-level comment: Receives the map of completed session dates
+    let completedSessions: [Date: Bool]
     @Binding var routineToPlay: WorkoutRoutine?
     @State private var month: Date = Date()
     
     private let days = ["S", "M", "T", "W", "T", "F", "S"]
     private let columns = Array(repeating: GridItem(.flexible()), count: 7)
 
+    // High-level comment: Calendar day model now includes completion status
     private struct DayEntry: Identifiable {
         let id = UUID()
         let date: Date
         let workout: WorkoutRoutine?
+        let isCompleted: Bool
     }
 
     var body: some View {
@@ -197,14 +271,24 @@ private struct CalendarView: View {
                             self.routineToPlay = workout
                         }
                     }) {
-                        Text("\(dayOfMonth(dayEntry.date))")
-                            .frame(maxWidth: .infinity)
-                            .padding(8)
-                            .background(
-                                Circle()
-                                    .fill(dayEntry.workout != nil ? Color.brandPrimary.opacity(0.3) : Color.clear)
-                            )
-                            .foregroundColor(isSameDay(dayEntry.date, Date()) ? .brandPrimary : .primary)
+                        // High-level comment: ZStack allows overlaying the checkmark
+                        ZStack {
+                            Text("\(dayOfMonth(dayEntry.date))")
+                                .frame(maxWidth: .infinity)
+                                .padding(8)
+                                .background(
+                                    Circle()
+                                        .fill(dayEntry.workout != nil ? Color.brandPrimary.opacity(0.3) : Color.clear)
+                                )
+                                .foregroundColor(isSameDay(dayEntry.date, Date()) ? .brandPrimary : .primary)
+                            
+                            if dayEntry.isCompleted {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.accentPositive)
+                                    .offset(x: 12, y: -12)
+                            }
+                        }
                     }
                     .disabled(dayEntry.workout == nil)
                 }
@@ -218,6 +302,7 @@ private struct CalendarView: View {
         return formatter
     }
     
+    // High-level comment: Now populates the DayEntry with completion status
     private func daysForMonth() -> [DayEntry] {
         let calendar = Calendar.current
         guard let monthInterval = calendar.dateInterval(of: .month, for: month) else { return [] }
@@ -228,7 +313,8 @@ private struct CalendarView: View {
         let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth)
         if firstWeekday > 1 {
             for _ in 1..<firstWeekday {
-                entries.append(DayEntry(date: Date.distantPast, workout: nil))
+                // High-level comment: Ensure isCompleted is false for empty days
+                entries.append(DayEntry(date: Date.distantPast, workout: nil, isCompleted: false))
             }
         }
 
@@ -238,7 +324,9 @@ private struct CalendarView: View {
                 components.day = day
                 if let date = calendar.date(from: components) {
                     let normalizedDate = calendar.startOfDay(for: date)
-                    entries.append(DayEntry(date: normalizedDate, workout: workoutMap[normalizedDate]))
+                    // High-level comment: Check the completedSessions map for this date
+                    let isCompleted = completedSessions[normalizedDate] ?? false
+                    entries.append(DayEntry(date: normalizedDate, workout: workoutMap[normalizedDate], isCompleted: isCompleted))
                 }
             }
         }

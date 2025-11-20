@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Main view for workout routines and programs
+// High-level comment: Main view for workout routines and programs
 struct WorkoutRoutinesView: View {
     @StateObject private var workoutService = WorkoutService()
     @EnvironmentObject var goalSettings: GoalSettings
@@ -10,9 +10,9 @@ struct WorkoutRoutinesView: View {
     @State private var routineToPlay: WorkoutRoutine?
     @State private var showingAIGenerator = false
     @State private var routineToEdit: WorkoutRoutine?
-    @State private var showingPreBuiltDetail: WorkoutProgram?
+    // High-level comment: The state for the pre-built detail sheet has been removed.
 
-    // Computed property to determine the next workout in the active program
+    // High-level comment: Computed property for the next workout remains unchanged.
     private var nextWorkoutInfo: (program: WorkoutProgram, routine: WorkoutRoutine, title: String)? {
         guard let program = workoutService.activeProgram,
               let progressIndex = program.currentProgressIndex,
@@ -49,7 +49,6 @@ struct WorkoutRoutinesView: View {
                             }
                         )
                         .environmentObject(workoutService)
-                        // Pass all other services
                         .environmentObject(goalSettings)
                         .environmentObject(dailyLogService)
                         .environmentObject(achievementService)
@@ -83,21 +82,24 @@ struct WorkoutRoutinesView: View {
                         .buttonStyle(SecondaryButtonStyle())
                     }
 
-                    // Section: Pre-built Programs
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Pre-built Programs")
-                             .appFont(size: 22, weight: .bold)
-
-                        if workoutService.preBuiltPrograms.isEmpty {
-                            Text("Loading pre-built programs...")
-                                 .appFont(size: 15)
-                                 .foregroundColor(.secondary)
-                                 .padding()
-                        } else {
-                            ForEach(workoutService.preBuiltPrograms, id: \.name) { program in // Use name as ID for prebuilt
-                                preBuiltProgramRow(program)
-                            }
+                    // High-level comment: This section is replaced with a NavigationLink
+                    // to the new PreBuiltProgramsView.
+                    NavigationLink(destination: PreBuiltProgramsView()
+                        .environmentObject(workoutService)
+                        .environmentObject(goalSettings)
+                        .environmentObject(dailyLogService)
+                        .environmentObject(achievementService)
+                    ) {
+                        HStack {
+                            Text("Pre-built Programs")
+                                .appFont(size: 22, weight: .bold)
+                            Spacer()
+                            Image(systemName: "chevron.right")
                         }
+                        .foregroundColor(.primary)
+                        .padding()
+                        .background(Color.backgroundSecondary)
+                        .cornerRadius(15)
                     }
 
                     // Section: User's Manual Routines
@@ -124,7 +126,6 @@ struct WorkoutRoutinesView: View {
 
                     // Section: Link to All User Programs
                     NavigationLink(destination: ProgramListView(workoutService: workoutService)
-                        // Inject services into the ProgramListView
                         .environmentObject(goalSettings)
                         .environmentObject(dailyLogService)
                         .environmentObject(achievementService)
@@ -183,24 +184,12 @@ struct WorkoutRoutinesView: View {
                     }
                 )
             }
-            // Sheet for viewing pre-built program details
-            .sheet(item: $showingPreBuiltDetail) { program in
-                 NavigationView {
-                     ProgramDetailView(program: program)
-                         .environmentObject(workoutService)
-                         // Inject all services into the sheet
-                         .environmentObject(goalSettings)
-                         .environmentObject(dailyLogService)
-                         .environmentObject(achievementService)
-                         .navigationBarItems(trailing: Button("Done") { showingPreBuiltDetail = nil })
-                         .navigationBarTitleDisplayMode(.inline)
-                         .navigationTitle("Program Details")
-                 }
-            }
+            // High-level comment: The .sheet modifier for showing pre-built program
+            // details has been removed and moved to PreBuiltProgramsView.
         }
     }
 
-    // Builder for displaying a single user routine row
+    // High-level comment: This ViewBuilder function for a single routine row is unchanged.
     @ViewBuilder
     private func routineRow(_ routine: WorkoutRoutine) -> some View {
         HStack {
@@ -234,44 +223,16 @@ struct WorkoutRoutinesView: View {
         .background(Color.backgroundSecondary)
         .cornerRadius(15)
     }
-
-    // Builder for displaying a single pre-built program row
-    @ViewBuilder
-    private func preBuiltProgramRow(_ program: WorkoutProgram) -> some View {
-        HStack {
-            VStack(alignment: .leading) {
-                Text(program.name)
-                    .appFont(size: 17, weight: .semibold)
-                Text("\(program.routines.count) routines · \(program.daysOfWeek?.count ?? 0) days/week")
-                    .appFont(size: 12)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-            Button("View") {
-                showingPreBuiltDetail = program
-            }
-            .buttonStyle(.bordered)
-            .tint(.brandSecondary)
-
-             Button("Select") {
-                 Task {
-                     await workoutService.selectPreBuiltProgram(program)
-                 }
-             }
-             .buttonStyle(.borderedProminent)
-             .tint(.brandPrimary)
-        }
-        .padding()
-        .background(Color.backgroundSecondary)
-        .cornerRadius(15)
-    }
+    
+    // High-level comment: This ViewBuilder function is no longer needed here
+    // as it has been moved to PreBuiltProgramsView.
 }
 
-// View listing all user-created workout programs
+
+// High-level comment: This struct for ProgramListView remains unchanged.
 struct ProgramListView: View {
     @ObservedObject var workoutService: WorkoutService
     
-    // Receive the services
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService
@@ -288,7 +249,6 @@ struct ProgramListView: View {
             } else {
                 ForEach(workoutService.userPrograms) { program in
                     NavigationLink(destination: ProgramDetailView(program: program)
-                        // Pass all services to the next view
                         .environmentObject(workoutService)
                         .environmentObject(goalSettings)
                         .environmentObject(dailyLogService)

@@ -2,7 +2,7 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 
-/// Manages the total elapsed time for the workout session.
+// High-level comment: Manages the total elapsed time for the workout session.
 class TotalWorkoutTimer: ObservableObject {
     @Published var totalTimeElapsed: TimeInterval = 0
     private var timer: Timer?
@@ -66,7 +66,7 @@ class TotalWorkoutTimer: ObservableObject {
     }
 }
 
-/// Manages the rest timer between sets.
+// High-level comment: Manages the rest timer between sets.
 class RestTimer: ObservableObject {
     @Published var timeRemaining: TimeInterval = 0
     private var timer: Timer?
@@ -112,7 +112,7 @@ class RestTimer: ObservableObject {
 }
 
 
-/// The main view for actively performing a workout routine.
+// High-level comment: The main view for actively performing a workout routine.
 struct WorkoutPlayerView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -124,29 +124,27 @@ struct WorkoutPlayerView: View {
     @StateObject private var restTimer = RestTimer()
     @StateObject private var totalWorkoutTimer: TotalWorkoutTimer
     
-    // State for the exercise note editor
     @State private var showingNoteEditor = false
     @State private var noteText = ""
     @State private var isNotePinned = false
     @State private var exerciseForNote: Binding<RoutineExercise>?
     
-    // State for other sheets
     @State private var showingHistoryFor: RoutineExercise?
     @State private var showingPlateCalculator = false
     
     @State private var previousPerformance: [String: CompletedExercise] = [:]
     
-    //
-    // KEY LINE 1: The @AppStorage property is defined here in the main view.
-    //
+    // High-level comment: This @AppStorage variable is the source of truth
     @AppStorage("isAutoRestTimerEnabled") private var isAutoRestTimerEnabled = false
     
-    // State for the exercise swap sheet
     struct SwappableExercise: Identifiable {
         let id: String
         let binding: Binding<RoutineExercise>
     }
     @State private var swappableExercise: SwappableExercise?
+    
+    @State private var showingAnalyticsSheet = false
+    @State private var generatedAnalytics: WorkoutAnalytics? = nil
     
     var onWorkoutComplete: () -> Void
 
@@ -187,9 +185,9 @@ struct WorkoutPlayerView: View {
                             ExerciseCardView(
                                 exercise: $exercise,
                                 restTimer: restTimer,
-                                //
-                                // KEY LINE 2: The binding ($isAutoRestTimerEnabled) is passed into the ExerciseCardView.
-                                //
+                                // High-level comment: This is the critical fix.
+                                // We pass the @AppStorage binding ($isAutoRestTimerEnabled)
+                                // to the subview's @Binding (isAutoRestEnabled).
                                 isAutoRestEnabled: $isAutoRestTimerEnabled,
                                 previousPerformance: previousPerformance[exercise.name],
                                 onAddNote: {
@@ -208,13 +206,19 @@ struct WorkoutPlayerView: View {
                         }
                         .onMove(perform: moveExercise) // Allows reordering exercises
                         
-                        // Button to finish the workout
                         Button("Mark Workout as Complete") {
-                            logAllCompletedExercises()
-                            restTimer.stop()
-                            totalWorkoutTimer.stop()
-                            onWorkoutComplete()
-                            dismiss()
+                            guard let sessionLog = logAllCompletedExercises() else {
+                                restTimer.stop()
+                                totalWorkoutTimer.stop()
+                                onWorkoutComplete()
+                                dismiss()
+                                return
+                            }
+                            
+                            Task {
+                                self.generatedAnalytics = await generateWorkoutAnalytics(from: sessionLog)
+                                self.showingAnalyticsSheet = true
+                            }
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .padding(.top)
@@ -233,7 +237,7 @@ struct WorkoutPlayerView: View {
                 }
                 .padding()
             }
-            .blur(radius: showingNoteEditor ? 20 : 0) // Blur background when note editor is active
+            .blur(radius: showingNoteEditor ? 20 : 0)
             .onAppear(perform: loadPreviousPerformance)
 
             // Exercise note editor overlay
@@ -266,7 +270,6 @@ struct WorkoutPlayerView: View {
             totalWorkoutTimer.start()
         }
         .onDisappear {
-            // Save any changes to the routine when the view is dismissed
             Task {
                 try? await workoutService.saveRoutine(routine)
             }
@@ -280,9 +283,16 @@ struct WorkoutPlayerView: View {
         .sheet(isPresented: $showingPlateCalculator) {
             PlateCalculatorView()
         }
+        .sheet(isPresented: $showingAnalyticsSheet, onDismiss: {
+            restTimer.stop()
+            totalWorkoutTimer.stop()
+            onWorkoutComplete()
+            dismiss()
+        }) {
+            WorkoutCompleteAnalyticsView(analytics: generatedAnalytics)
+        }
     }
     
-    /// Fetches the last performance for each exercise in the routine.
     private func loadPreviousPerformance() {
         Task {
             for exercise in routine.exercises {
@@ -293,14 +303,12 @@ struct WorkoutPlayerView: View {
         }
     }
     
-    /// Reorders exercises in the routine list.
     private func moveExercise(from source: IndexSet, to destination: Int) {
         routine.exercises.move(fromOffsets: source, toOffset: destination)
     }
     
-    /// Logs all completed sets to Firestore and the user's daily log.
-    private func logAllCompletedExercises() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+    private func logAllCompletedExercises() -> WorkoutSessionLog? {
+        guard let userID = Auth.auth().currentUser?.uid else { return nil }
         
         let completedExercisesForLog = routine.exercises.compactMap { exercise -> CompletedExercise? in
             let completedSets = exercise.sets.filter { $0.isCompleted }.map {
@@ -309,62 +317,102 @@ struct WorkoutPlayerView: View {
             return completedSets.isEmpty ? nil : CompletedExercise(exerciseName: exercise.name, exercise: exercise, sets: completedSets)
         }
 
+        guard !completedExercisesForLog.isEmpty else { return nil }
+
         let newSessionID = UUID().uuidString
 
-        if !completedExercisesForLog.isEmpty {
-            let sessionLog = WorkoutSessionLog(
-                id: newSessionID,
-                date: Timestamp(date: Date()),
-                routineID: routine.id,
-                completedExercises: completedExercisesForLog
-            )
-            Task {
-                await workoutService.saveWorkoutSessionLog(sessionLog)
-                achievementService.checkWorkoutCountAchievements(userID: userID)
-            }
+        let sessionLog = WorkoutSessionLog(
+            id: newSessionID,
+            date: Timestamp(date: Date()),
+            routineID: routine.id,
+            completedExercises: completedExercisesForLog
+        )
+        Task {
+            await workoutService.saveWorkoutSessionLog(sessionLog)
+            achievementService.checkWorkoutCountAchievements(userID: userID)
         }
+        
+        var totalCaloriesBurned: Double = 0
+        var totalDurationInSeconds: Int = 0
 
         for exercise in routine.exercises {
             let completedSets = exercise.sets.filter { $0.isCompleted }
             if completedSets.isEmpty { continue }
-            
-            // Calculate calories burned for the exercise
-            let totalCaloriesBurned = completedSets.reduce(0.0) { partialResult, set in
-                let bodyweightKg = goalSettings.weight * 0.453592
-                // Estimate 1 minute per set for MET calculation (MET value of 5.0 for general strength training)
-                return partialResult + (5.0 * 3.5 * bodyweightKg) / 200
-            }
 
-            if totalCaloriesBurned > 0 {
-                let loggedExercise = LoggedExercise(
-                    name: exercise.name,
-                    durationMinutes: nil, // Duration is estimated via calories
-                    caloriesBurned: totalCaloriesBurned,
-                    date: Date(),
-                    source: "routine",
-                    workoutID: routine.id,
-                    sessionID: newSessionID
-                )
-                dailyLogService.addExerciseToLog(for: userID, exercise: loggedExercise)
+            switch exercise.type {
+            case .strength:
+                let estimatedDurationMinutes = Double(completedSets.count) * 1.0
+                let bodyweightKg = goalSettings.weight * 0.453592
+                totalCaloriesBurned += (5.0 * 3.5 * bodyweightKg) / 200.0 * estimatedDurationMinutes
+                totalDurationInSeconds += Int(estimatedDurationMinutes * 60)
+                
+            case .cardio:
+                let duration = completedSets.reduce(0) { $0 + $1.durationInSeconds }
+                totalDurationInSeconds += duration
+                let durationMinutes = Double(duration) / 60.0
+                let bodyweightKg = goalSettings.weight * 0.453592
+                totalCaloriesBurned += (8.0 * 3.5 * bodyweightKg) / 200.0 * durationMinutes
+
+            case .flexibility:
+                let duration = completedSets.reduce(0) { $0 + $1.durationInSeconds }
+                totalDurationInSeconds += duration
+                let durationMinutes = Double(duration) / 60.0
+                let bodyweightKg = goalSettings.weight * 0.453592
+                totalCaloriesBurned += (2.5 * 3.5 * bodyweightKg) / 200.0 * durationMinutes
             }
         }
+
+        if totalCaloriesBurned > 0 {
+            let loggedExercise = LoggedExercise(
+                name: routine.name,
+                durationMinutes: totalDurationInSeconds / 60,
+                caloriesBurned: totalCaloriesBurned,
+                date: Date(),
+                source: "routine",
+                workoutID: routine.id,
+                sessionID: newSessionID
+            )
+            dailyLogService.addExerciseToLog(for: userID, exercise: loggedExercise)
+        }
+        
+        return sessionLog
+    }
+    
+    private func generateWorkoutAnalytics(from sessionLog: WorkoutSessionLog) async -> WorkoutAnalytics? {
+        let log = DailyLog(
+            id: sessionLog.id,
+            date: sessionLog.date.dateValue(),
+            meals: [],
+            exercises: [
+                LoggedExercise(
+                    name: routine.name,
+                    caloriesBurned: 0,
+                    date: sessionLog.date.dateValue(),
+                    workoutID: sessionLog.routineID,
+                    sessionID: sessionLog.id
+                )
+            ]
+        )
+        
+        let analyticsService = WorkoutAnalyticsService()
+        return await analyticsService.calculateAnalytics(for: [log], program: nil)
     }
 }
 
-/// A card view for a single exercise in the workout player.
+// High-level comment: A card for a single exercise in the workout player.
 private struct ExerciseCardView: View {
     @Binding var exercise: RoutineExercise
     @ObservedObject var restTimer: RestTimer
-    //
-    // KEY LINE 3: The @Binding property is defined here to receive the variable.
-    //
+    
+    // High-level comment: This @Binding is the fix.
+    // It correctly receives the binding from the parent view.
     @Binding var isAutoRestEnabled: Bool
+    
     var previousPerformance: CompletedExercise?
     var onAddNote: () -> Void
     var onSwap: () -> Void
     var onViewHistory: () -> Void
     
-    /// Displays the pinned note or the session-specific note.
     private var displayedNote: String? {
         if let sessionNote = exercise.notes, !sessionNote.isEmpty {
             return sessionNote
@@ -374,14 +422,12 @@ private struct ExerciseCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Exercise title and options menu
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
                     Text(exercise.name)
                         .appFont(size: 20, weight: .bold)
                     Spacer()
 
-                    // Rest timer display
                     if restTimer.timeRemaining > 0 {
                         Text(restTimer.formattedTime())
                             .appFont(size: 16, weight: .bold)
@@ -398,7 +444,6 @@ private struct ExerciseCardView: View {
                         .tint(.brandPrimary)
                     }
                     
-                    // Exercise options menu
                     Menu {
                         Button("Add Warmup Sets") {
                             let newWarmupSet = ExerciseSet(isWarmup: true)
@@ -408,7 +453,9 @@ private struct ExerciseCardView: View {
                         Button("Swap Exercise", action: onSwap)
                             .disabled(exercise.alternatives?.isEmpty ?? true)
                         Button("View Demo & History", action: onViewHistory)
-                        // This Toggle now correctly uses the $isAutoRestEnabled binding
+                        
+                        // High-level comment: This Toggle now correctly uses the $isAutoRestEnabled
+                        // binding that was passed into this subview.
                         Toggle("Auto-Rest Timer", isOn: $isAutoRestEnabled)
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -416,7 +463,6 @@ private struct ExerciseCardView: View {
                     }
                 }
                 
-                // Display for pinned or session notes
                 if let note = displayedNote {
                     HStack(spacing: 4) {
                         if PinnedNotesManager.shared.isNotePinned(for: exercise.name) {
@@ -434,22 +480,32 @@ private struct ExerciseCardView: View {
                 }
             }
 
-            // Switch to the correct view based on exercise type
             switch exercise.type {
             case .strength:
-                StrengthExerciseView(exercise: $exercise, previousPerformance: previousPerformance, onSetComplete: {
-                    // The closure now correctly reads the 'isAutoRestEnabled' value
-                    if isAutoRestEnabled {
-                        restTimer.start(duration: TimeInterval(exercise.restTimeInSeconds))
+                StrengthExerciseView(
+                    exercise: $exercise,
+                    previousPerformance: previousPerformance,
+                    onSetComplete: { completedIndex in
+                        let nextIndex = completedIndex + 1
+                        if nextIndex < exercise.sets.count {
+                            let completedSet = exercise.sets[completedIndex]
+                            if !exercise.sets[nextIndex].isCompleted && exercise.sets[nextIndex].weight == 0 && exercise.sets[nextIndex].reps == 0 {
+                                exercise.sets[nextIndex].weight = completedSet.weight
+                                exercise.sets[nextIndex].reps = completedSet.reps
+                            }
+                        }
+                        
+                        if isAutoRestEnabled {
+                            restTimer.start(duration: TimeInterval(exercise.restTimeInSeconds))
+                        }
                     }
-                })
+                )
             case .cardio:
                 CardioExerciseView(exercise: $exercise)
             case .flexibility:
                 FlexibilityExerciseView(exercise: $exercise)
             }
 
-            // "Add Set" button for all exercise types
             Button {
                 exercise.sets.append(ExerciseSet())
             } label: {
@@ -463,15 +519,14 @@ private struct ExerciseCardView: View {
     }
 }
 
-/// The view for logging Strength sets (Weight & Reps).
+// High-level comment: View for logging Strength sets (Weight & Reps).
 private struct StrengthExerciseView: View {
     @Binding var exercise: RoutineExercise
     var previousPerformance: CompletedExercise?
-    var onSetComplete: () -> Void
+    var onSetComplete: (Int) -> Void
     
     var body: some View {
         VStack {
-            // Header row
             HStack {
                 Text("SET").frame(minWidth: 25, alignment: .leading)
                 Text("PREVIOUS").frame(maxWidth: .infinity, alignment: .leading)
@@ -482,20 +537,26 @@ private struct StrengthExerciseView: View {
             .appFont(size: 12, weight: .semibold)
             .foregroundColor(.secondary)
 
-            // Rows for each set
             ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
                 StrengthSetRow(
                     set: $exercise.sets[index],
                     setIndex: index + 1,
                     previousSet: previousPerformance?.sets.indices.contains(index) == true ? previousPerformance?.sets[index] : nil,
-                    onComplete: onSetComplete
+                    onComplete: {
+                        onSetComplete(index)
+                    }
                 )
             }
+            .onDelete(perform: deleteStrengthSet)
         }
+    }
+    
+    private func deleteStrengthSet(at offsets: IndexSet) {
+        exercise.sets.remove(atOffsets: offsets)
     }
 }
 
-/// The view for logging Cardio sets (Distance & Time).
+// High-level comment: View for logging Cardio sets (Distance & Time).
 private struct CardioExerciseView: View {
     @Binding var exercise: RoutineExercise
     
@@ -514,11 +575,16 @@ private struct CardioExerciseView: View {
             ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
                 CardioSetRow(set: $exercise.sets[index], setIndex: index + 1)
             }
+            .onDelete(perform: deleteCardioSet)
         }
+    }
+    
+    private func deleteCardioSet(at offsets: IndexSet) {
+        exercise.sets.remove(atOffsets: offsets)
     }
 }
 
-/// The view for logging Flexibility sets (Time).
+// High-level comment: View for logging Flexibility sets (Time).
 private struct FlexibilityExerciseView: View {
     @Binding var exercise: RoutineExercise
     
@@ -536,11 +602,16 @@ private struct FlexibilityExerciseView: View {
             ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
                 FlexibilitySetRow(set: $exercise.sets[index], setIndex: index + 1)
             }
+            .onDelete(perform: deleteFlexibilitySet)
         }
+    }
+    
+    private func deleteFlexibilitySet(at offsets: IndexSet) {
+        exercise.sets.remove(atOffsets: offsets)
     }
 }
 
-/// A view for swapping the current exercise with an alternative.
+// High-level comment: View for swapping the current exercise.
 private struct SwapExerciseView: View {
     @Binding var exercise: RoutineExercise
     @Environment(\.dismiss) var dismiss
@@ -554,15 +625,12 @@ private struct SwapExerciseView: View {
                             let originalName = exercise.name
                             let originalAlternatives = exercise.alternatives ?? []
                             
-                            // Create new sets, blanking out old data
                             let newSets = exercise.sets.map { originalSet -> ExerciseSet in
                                 return ExerciseSet(target: originalSet.target)
                             }
                             
-                            // Perform the swap
                             exercise.name = alternativeName
                             exercise.sets = newSets
-                            // Add the original exercise as an alternative
                             exercise.alternatives = [originalName] + originalAlternatives.filter { $0 != alternativeName }
                             
                             dismiss()
@@ -581,19 +649,18 @@ private struct SwapExerciseView: View {
     }
 }
 
-/// A single interactive row for a strength set.
+// High-level comment: A single interactive row for a strength set.
 private struct StrengthSetRow: View {
     @Binding var set: ExerciseSet
     let setIndex: Int
     var previousSet: CompletedSet?
     var onComplete: () -> Void
     
-    // Local state for the text fields
     @State private var weightInput: String
     @State private var repsInput: String
     @State private var isPersonalBest = false
     
-    private let weightIncrement: Double = 2.5 // Increment for weight steppers
+    private let weightIncrement: Double = 2.5
 
     init(set: Binding<ExerciseSet>, setIndex: Int, previousSet: CompletedSet?, onComplete: @escaping () -> Void) {
         self._set = set
@@ -601,28 +668,24 @@ private struct StrengthSetRow: View {
         self.previousSet = previousSet
         self.onComplete = onComplete
         
-        // Initialize state from the binding
-        self._weightInput = State(initialValue: set.wrappedValue.weight > 0 ? String(format: "%.1f", set.wrappedValue.weight) : "")
+        self._weightInput = State(initialValue: set.wrappedValue.weight > 0 ? String(format: "%g", set.wrappedValue.weight) : "")
         self._repsInput = State(initialValue: set.wrappedValue.reps > 0 ? "\(set.wrappedValue.reps)" : "")
     }
 
     var body: some View {
         HStack {
-            // Set number (e.g., "1" or "W" for warmup)
             Text(set.isWarmup ? "W" : "\(setIndex)")
                 .frame(minWidth: 25, alignment: .leading)
 
-            // Previous set button (Tap-to-fill)
             Button(action: fillFromPrevious) {
-                Text(previousSet != nil ? "\(Int(previousSet!.weight)) lbs x \(previousSet!.reps)" : "No Prior Data")
+                Text(previousSet != nil ? "\(String(format: "%g", previousSet!.weight)) lbs x \(previousSet!.reps)" : "No Prior Data")
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .foregroundColor(previousSet == nil ? .secondary : .brandPrimary) // Make it look tappable
+                    .foregroundColor(previousSet == nil ? .secondary : .brandPrimary)
                     .font(.system(size: 14, weight: .semibold))
             }
             .buttonStyle(.plain)
             .disabled(previousSet == nil)
 
-            // Weight stepper/field
             HStack(spacing: 2) {
                 Button(action: { adjustWeight(by: -weightIncrement) }) {
                     Image(systemName: "minus.circle")
@@ -634,7 +697,6 @@ private struct StrengthSetRow: View {
                     .multilineTextAlignment(.center)
                     .frame(minWidth: 45)
                     .onChange(of: weightInput) {
-                        // Update the binding when text changes
                         let newWeight = Double(weightInput) ?? 0
                         set.weight = newWeight
                         checkIfPersonalBest(newWeight: newWeight, newRps: set.reps)
@@ -646,7 +708,6 @@ private struct StrengthSetRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
 
-            // Reps stepper/field
             HStack(spacing: 2) {
                 Button(action: { adjustReps(by: -1) }) {
                     Image(systemName: "minus.circle")
@@ -658,7 +719,6 @@ private struct StrengthSetRow: View {
                     .multilineTextAlignment(.center)
                     .frame(minWidth: 35)
                     .onChange(of: repsInput) {
-                        // Update the binding when text changes
                         let newReps = Int(repsInput) ?? 0
                         set.reps = newReps
                         checkIfPersonalBest(newWeight: set.weight, newRps: newReps)
@@ -671,7 +731,6 @@ private struct StrengthSetRow: View {
             .frame(maxWidth: .infinity, alignment: .center)
 
 
-            // Checkmark and PR star
             HStack(spacing: 2) {
                 if isPersonalBest {
                     Image(systemName: "star.fill")
@@ -682,7 +741,8 @@ private struct StrengthSetRow: View {
                 Button(action: {
                     set.isCompleted.toggle()
                     if set.isCompleted {
-                        onComplete() // Trigger rest timer if enabled
+                        HapticManager.instance.feedback(.medium)
+                        onComplete()
                     }
                 }) {
                     Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "circle")
@@ -693,26 +753,35 @@ private struct StrengthSetRow: View {
             .frame(width: 30)
         }
         .appFont(size: 14)
-        .foregroundColor(.brandPrimary) // Color for the stepper buttons
+        .foregroundColor(.brandPrimary)
+        .onChange(of: set.weight) { newWeight in
+            let currentInputWeight = Double(weightInput) ?? 0
+            if newWeight != currentInputWeight {
+                weightInput = newWeight > 0 ? String(format: "%g", newWeight) : ""
+            }
+        }
+        .onChange(of: set.reps) { newReps in
+            let currentInputReps = Int(repsInput) ?? 0
+            if newReps != currentInputReps {
+                repsInput = newReps > 0 ? "\(newReps)" : ""
+            }
+        }
     }
     
-    /// Fills the input fields with data from the previous workout.
     private func fillFromPrevious() {
         guard let prev = previousSet else { return }
-        self.weightInput = String(format: "%.1f", prev.weight)
+        self.weightInput = String(format: "%g", prev.weight)
         self.repsInput = "\(prev.reps)"
         HapticManager.instance.feedback(.light)
     }
     
-    /// Modifies the weight input via the stepper buttons.
     private func adjustWeight(by amount: Double) {
         let currentWeight = Double(weightInput) ?? 0
         let newWeight = max(0, currentWeight + amount)
-        self.weightInput = String(format: "%.1f", newWeight)
+        self.weightInput = String(format: "%g", newWeight)
         HapticManager.instance.feedback(.light)
     }
     
-    /// Modifies the rep input via the stepper buttons.
     private func adjustReps(by amount: Int) {
         let currentReps = Int(repsInput) ?? 0
         let newReps = max(0, currentReps + amount)
@@ -720,14 +789,12 @@ private struct StrengthSetRow: View {
         HapticManager.instance.feedback(.light)
     }
     
-    /// Checks if the current set beats the previous performance.
     private func checkIfPersonalBest(newWeight: Double, newRps: Int) {
         guard let previous = previousSet, newRps > 0, newWeight > 0 else {
             isPersonalBest = false
             return
         }
         
-        // Logic for determining a new Personal Record
         if newWeight > previous.weight && newRps >= previous.reps {
             isPersonalBest = true
         } else if newWeight == previous.weight && newRps > previous.reps {
@@ -738,7 +805,7 @@ private struct StrengthSetRow: View {
     }
 }
 
-/// A single interactive row for a cardio set.
+// High-level comment: A single interactive row for a cardio set.
 private struct CardioSetRow: View {
     @Binding var set: ExerciseSet
     let setIndex: Int
@@ -749,7 +816,7 @@ private struct CardioSetRow: View {
     init(set: Binding<ExerciseSet>, setIndex: Int) {
         self._set = set
         self.setIndex = setIndex
-        self._distanceInput = State(initialValue: set.wrappedValue.distance > 0 ? "\(set.wrappedValue.distance)" : "")
+        self._distanceInput = State(initialValue: set.wrappedValue.distance > 0 ? String(format: "%g", set.wrappedValue.distance) : "")
         self._timeInput = State(initialValue: set.wrappedValue.durationInSeconds > 0 ? "\(set.wrappedValue.durationInSeconds / 60)" : "")
     }
 
@@ -788,7 +855,7 @@ private struct CardioSetRow: View {
     }
 }
 
-/// A single interactive row for a flexibility set.
+// High-level comment: A single interactive row for a flexibility set.
 private struct FlexibilitySetRow: View {
     @Binding var set: ExerciseSet
     let setIndex: Int

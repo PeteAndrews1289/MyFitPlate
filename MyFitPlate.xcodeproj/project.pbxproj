@@ -151,6 +151,9 @@
 		4BD5F32E2E1D621400DF283D /* SpotlightManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD5F32D2E1D621400DF283D /* SpotlightManager.swift */; };
 		4BD5F3322E1D71AB00DF283D /* SpotlightModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD5F3312E1D71A400DF283D /* SpotlightModifier.swift */; };
 		4BD5F3342E1D71C100DF283D /* SpotlightTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD5F3332E1D71C100DF283D /* SpotlightTextView.swift */; };
+		4BDA85C72EC252FF001A5903 /* WorkoutAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BDA85C62EC252FF001A5903 /* WorkoutAnalyticsView.swift */; };
+		4BDA85F82EC4001A001A5903 /* WorkoutCompleteAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BDA85F72EC4001A001A5903 /* WorkoutCompleteAnalyticsView.swift */; };
+		4BDA85FA2EC4EB03001A5903 /* PreBuiltProgramsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BDA85F92EC4EB03001A5903 /* PreBuiltProgramsView.swift */; };
 		4BE7685A2D51040E00EAF4C8 /* FoodDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BE768592D51040200EAF4C8 /* FoodDetailView.swift */; };
 		4BF46DDE2DF74ED30018668F /* MealPlanSurveyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF46DDD2DF74ED30018668F /* MealPlanSurveyView.swift */; };
 		4BF46DE02DF76A6F0018668F /* AddMealToPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF46DDF2DF76A6F0018668F /* AddMealToPlanView.swift */; };
@@ -350,6 +353,9 @@
 		4BD5F3312E1D71A400DF283D /* SpotlightModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightModifier.swift; sourceTree = "<group>"; };
 		4BD5F3332E1D71C100DF283D /* SpotlightTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightTextView.swift; sourceTree = "<group>"; };
 		4BD5F38F2E1EC85E00DF283D /* SimpleWatchConnectivity Watch App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SimpleWatchConnectivity Watch App.entitlements"; sourceTree = "<group>"; };
+		4BDA85C62EC252FF001A5903 /* WorkoutAnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutAnalyticsView.swift; sourceTree = "<group>"; };
+		4BDA85F72EC4001A001A5903 /* WorkoutCompleteAnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutCompleteAnalyticsView.swift; sourceTree = "<group>"; };
+		4BDA85F92EC4EB03001A5903 /* PreBuiltProgramsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreBuiltProgramsView.swift; sourceTree = "<group>"; };
 		4BE768592D51040200EAF4C8 /* FoodDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodDetailView.swift; sourceTree = "<group>"; };
 		4BF46DDD2DF74ED30018668F /* MealPlanSurveyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlanSurveyView.swift; sourceTree = "<group>"; };
 		4BF46DDF2DF76A6F0018668F /* AddMealToPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMealToPlanView.swift; sourceTree = "<group>"; };
@@ -550,6 +556,7 @@
 				4B15AD282E37F29200F0A0BB /* PinnedNotesManager.swift */,
 				4B15AD1E2E358F1A00F0A0BB /* PlateCalculatorView.swift */,
 				3E676A1D2CDBC1FD0019DC51 /* PostRowView.swift */,
+				4BDA85F92EC4EB03001A5903 /* PreBuiltProgramsView.swift */,
 				4B58D46A2EABBB6F00ADFA73 /* ProgramCreatorView.swift */,
 				4B15AD242E3695DB00F0A0BB /* ProgramDetailView.swift */,
 				3EB297802CAEEDCA0093E1B9 /* Preview Content */,
@@ -584,6 +591,8 @@
 				4B58D4702EABBBC900ADFA73 /* WellnessScoreDetailView.swift */,
 				4B58D4742EABBBD700ADFA73 /* WorkoutAnalyticsCardView.swift */,
 				4B58D4762EABBBDF00ADFA73 /* WorkoutAnalyticsService.swift */,
+				4BDA85C62EC252FF001A5903 /* WorkoutAnalyticsView.swift */,
+				4BDA85F72EC4001A001A5903 /* WorkoutCompleteAnalyticsView.swift */,
 				4B727FAA2E2FD64900874936 /* WorkOutComponentApp.swift */,
 				4B58D4782EABBBEA00ADFA73 /* WorkoutInsightListView.swift */,
 				4B58D47A2EABBBEF00ADFA73 /* WorkoutInsightRowView.swift */,
@@ -797,6 +806,7 @@
 				4B71DB752E08B7AD003A0078 /* FeatureTourView.swift in Sources */,
 				3EB297932CAEF1300093E1B9 /* SettingsView.swift in Sources */,
 				4B727F9F2E26B43400874936 /* AudioVisualizerView.swift in Sources */,
+				4BDA85F82EC4001A001A5903 /* WorkoutCompleteAnalyticsView.swift in Sources */,
 				4B58D4672EABBAB200ADFA73 /* JournalView.swift in Sources */,
 				4B3C8CB82DE0BF92007D24FA /* SetWaterGoalView.swift in Sources */,
 				4BA2DB3E2D42A74800B6BDED /* ImagePicker.swift in Sources */,
@@ -855,6 +865,7 @@
 				4B619A982D79EB5200D6C9A8 /* LandingPageView.swift in Sources */,
 				4B15AD1D2E33D05D00F0A0BB /* ImageProcessingView.swift in Sources */,
 				4B15AD132E31659200F0A0BB /* CycleSettingsView.swift in Sources */,
+				4BDA85C72EC252FF001A5903 /* WorkoutAnalyticsView.swift in Sources */,
 				4B58D4712EABBBC900ADFA73 /* WellnessScoreDetailView.swift in Sources */,
 				4B71DBB12E0CC665003A0078 /* DesignSystem.swift in Sources */,
 				3EB09F412CC2B0990088C849 /* DailyLogService.swift in Sources */,
@@ -889,6 +900,7 @@
 				4B15AD2B2E37F46800F0A0BB /* ExerciseHistoryView.swift in Sources */,
 				4B4694102DC3CA80006F1F86 /* ReportsView.swift in Sources */,
 				4B999ECF2D93027A00930413 /* NotificationManager.swift in Sources */,
+				4BDA85FA2EC4EB03001A5903 /* PreBuiltProgramsView.swift in Sources */,
 				3EC693DE2CB83BDC002222C6 /* GoalSettings.swift in Sources */,
 				3EC693E02CBD712D002222C6 /* FatSecretFoodAPIService.swift in Sources */,
 				3EC693CB2CB81F8B002222C6 /* NutritionProgressView.swift in Sources */,

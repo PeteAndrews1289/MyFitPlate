@@ -205,7 +205,7 @@ class MLImageModel {
         """
 
         let payload: [String: Any] = [
-            "model": "gpt-4o-mini",
+            "model": "gpt-5.1",
             "messages": [
                 [
                     "role": "user",

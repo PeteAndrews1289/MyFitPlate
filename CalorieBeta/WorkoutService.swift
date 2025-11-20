@@ -65,6 +65,29 @@ class WorkoutService: ObservableObject {
             return .failure(error)
         }
     }
+    
+    func fetchSessionLogs(for program: WorkoutProgram) async -> [WorkoutSessionLog] {
+        guard let userID = Auth.auth().currentUser?.uid else { return [] }
+        let routineIDs = program.routines.map { $0.id }
+        
+        let chunks = routineIDs.chunked(into: 30)
+        var allLogs: [WorkoutSessionLog] = []
+
+        for chunk in chunks {
+            guard !chunk.isEmpty else { continue }
+            do {
+                let snapshot = try await sessionLogsCollectionRef(for: userID)
+                    .whereField("routineID", in: chunk)
+                    .getDocuments()
+                
+                let logs = snapshot.documents.compactMap { try? $0.data(as: WorkoutSessionLog.self) }
+                allLogs.append(contentsOf: logs)
+            } catch {
+                print("Error fetching session log chunk: \(error.localizedDescription)")
+            }
+        }
+        return allLogs
+    }
 
     func fetchRoutinesAndPrograms() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
@@ -206,7 +229,6 @@ class WorkoutService: ObservableObject {
         goalSettings: GoalSettings // Pass the user's goals for context
     ) async -> Result<WorkoutProgram, WorkoutServiceError> {
         
-        // Serialize the app's master exercise list to ensure the AI only picks valid exercises
         let exerciseListJSON: String
         do {
             let jsonData = try JSONEncoder().encode(ExerciseList.categorizedExercises)
@@ -217,7 +239,6 @@ class WorkoutService: ObservableObject {
 
         let detailsString = details.isEmpty ? "No additional details provided." : details
 
-        // Build the new, highly-detailed prompt for the AI
         let prompt = """
         You are an expert kinesiologist and fitness coach. Your task is to create a safe, effective, and well-structured workout program.
 
@@ -271,7 +292,6 @@ class WorkoutService: ObservableObject {
                 return .failure(.decodingError(NSError(domain: "WorkoutService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Could not convert AI response to data."])))
             }
             do {
-                // Handle cases where the AI might politely refuse
                 if responseString.contains("cannot generate") || responseString.contains("unable to") {
                      struct Refusal: Codable { let programName: String }
                      if let refusal = try? JSONDecoder().decode(Refusal.self, from: jsonData) {
@@ -280,7 +300,6 @@ class WorkoutService: ObservableObject {
                      return .failure(.apiError("The AI was unable to generate a plan for this request."))
                 }
                 
-                // Decode the successful JSON response
                 let decodedResponse = try JSONDecoder().decode(AIProgramResponse.self, from: jsonData)
                 if decodedResponse.routines.isEmpty && decodedResponse.programName.contains("cannot") {
                     return .failure(.apiError(decodedResponse.programName))
@@ -288,7 +307,6 @@ class WorkoutService: ObservableObject {
                 let program = mapResponseToProgram(decodedResponse)
                 return .success(program)
             } catch {
-                 // Log errors for debugging
                  print("AI workout decoding error: \(error)")
                  print("--- Failed JSON String ---")
                  print(responseString)
@@ -300,7 +318,6 @@ class WorkoutService: ObservableObject {
         }
     }
     
-    /// Maps the decoded AI response into the app's `WorkoutProgram` model.
     private func mapResponseToProgram(_ response: AIProgramResponse) -> WorkoutProgram {
         guard let userID = Auth.auth().currentUser?.uid else { fatalError("User not logged in.") }
 
@@ -318,7 +335,6 @@ class WorkoutService: ObservableObject {
         return WorkoutProgram(userID: userID, name: response.programName, dateCreated: Timestamp(date: Date()), routines: routines)
     }
 
-    /// Fetches a response from the AI API.
     private func fetchAIResponse(prompt: String) async -> Result<String, WorkoutServiceError> {
         guard !apiKey.isEmpty, apiKey != "YOUR_API_KEY" else {
             return .failure(.apiError("API Key not configured."))
@@ -333,7 +349,7 @@ class WorkoutService: ObservableObject {
             "model": "gpt-4o-mini",
             "response_format": ["type": "json_object"],
             "messages": [["role": "user", "content": prompt]],
-            "max_tokens": 3000 // Increased token limit for a potentially large response
+            "max_tokens": 4000
         ]
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
@@ -362,171 +378,23 @@ class WorkoutService: ObservableObject {
         }
     }
 
-    /// Removes the Firestore listeners
     func detachListener(){
         programListener?.remove()
         routineListener?.remove()
     }
 
-    /// Loads pre-defined workout programs
     private func loadPreBuiltPrograms() {
         var programs: [WorkoutProgram] = []
         let systemUserID = "system_prebuilt"
+        let now = Timestamp(date: Date())
 
-        // Program 1: Beginner Full Body Strength
-        let routineA_Exercises = [
-            RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-            RoutineExercise(name: "Barbell Bench Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-            RoutineExercise(name: "Barbell Bent-over Row", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-            RoutineExercise(name: "Barbell Overhead Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-            RoutineExercise(name: "Plank", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "30 seconds"), count: 3))
-        ]
-        let routineA = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Full Body A", dateCreated: Timestamp(), exercises: routineA_Exercises)
-
-        let routineB_Exercises = [
-            RoutineExercise(name: "Deadlift (Conventional)", type: .strength, sets: [ExerciseSet(target: "5 reps")]),
-            RoutineExercise(name: "Lat Pulldown", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-            RoutineExercise(name: "Lunge (Dumbbell)", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps / side"), count: 3)),
-            RoutineExercise(name: "Dumbbell Row", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 3)),
-            RoutineExercise(name: "Face Pull", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3))
-        ]
-        let routineB = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Full Body B", dateCreated: Timestamp(), exercises: routineB_Exercises)
-
-        let beginnerFB = WorkoutProgram(userID: systemUserID, name: "Beginner Full Body Strength", dateCreated: Timestamp(), routines: [routineA, routineB], daysOfWeek: [2, 4, 6])
-        programs.append(beginnerFB)
-
-        // Program 2: Basic Flexibility
-         let flexExercises = [
-             RoutineExercise(name: "Crunch", type: .flexibility, sets: [ExerciseSet(target: "10 reps")]), // Using an exercise from the list
-             RoutineExercise(name: "Plank", type: .flexibility, sets: [ExerciseSet(target: "30 sec hold")]), // Using an exercise from the list
-             RoutineExercise(name: "Back Extension (Hyperextension)", type: .flexibility, sets: [ExerciseSet(target: "30 sec hold")]), // Using an exercise from the list
-             RoutineExercise(name: "Lunge", type: .flexibility, sets: [ExerciseSet(target: "30 sec / side")]), // Using an exercise from the list
-             RoutineExercise(name: "Lying Leg Curl Machine", type: .flexibility, sets: [ExerciseSet(target: "30 sec / side")]), // Simulating hamstring stretch
-             RoutineExercise(name: "Cable Crossover", type: .flexibility, sets: [ExerciseSet(target: "30 sec hold")]) // Simulating chest stretch
-         ]
-         let flexRoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Daily Flexibility", dateCreated: Timestamp(), exercises: flexExercises)
-         let basicFlex = WorkoutProgram(userID: systemUserID, name: "Basic Flexibility Routine", dateCreated: Timestamp(), routines: [flexRoutine], daysOfWeek: [1,2,3,4,5,6,7])
-        programs.append(basicFlex)
-
-        // Program 3: Simple Push/Pull/Legs Split (3 Days/Week)
-        let pushExercises = [
-            RoutineExercise(name: "Barbell Bench Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "6-10 reps"), count: 3)),
-            RoutineExercise(name: "Dumbbell Shoulder Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-            RoutineExercise(name: "Incline Dumbbell Bench Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-            RoutineExercise(name: "Triceps Pushdown (Cable)", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 3)),
-            RoutineExercise(name: "Dumbbell Lateral Raise", type: .strength, sets: Array(repeating: ExerciseSet(target: "12-15 reps"), count: 3)),
-        ]
-        let pushRoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Push Day", dateCreated: Timestamp(), exercises: pushExercises)
-
-        let pullExercises = [
-            RoutineExercise(name: "Pull-up", type: .strength, sets: Array(repeating: ExerciseSet(target: "AMRAP"), count: 3), alternatives: ["Lat Pulldown", "Machine Chest Press"]), // Machine Chest Press is not a pull, using available list
-            RoutineExercise(name: "Barbell Bent-over Row", type: .strength, sets: Array(repeating: ExerciseSet(target: "6-10 reps"), count: 3)),
-            RoutineExercise(name: "Seated Cable Row", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-            RoutineExercise(name: "Face Pull", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3)),
-            RoutineExercise(name: "Barbell Curl", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-        ]
-        let pullRoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Pull Day", dateCreated: Timestamp(), exercises: pullExercises)
-
-        let legExercises = [
-             RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "6-10 reps"), count: 3)),
-             RoutineExercise(name: "Romanian Deadlift (RDL)", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-             RoutineExercise(name: "Leg Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 3)),
-             RoutineExercise(name: "Lying Leg Curl Machine", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 3)),
-             RoutineExercise(name: "Standing Calf Raise", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 4)),
-        ]
-        let legRoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Leg Day", dateCreated: Timestamp(), exercises: legExercises)
-
-        let simplePPL = WorkoutProgram(userID: systemUserID, name: "Simple Push/Pull/Legs", dateCreated: Timestamp(), routines: [pushRoutine, pullRoutine, legRoutine], daysOfWeek: [2, 4, 6])
-        programs.append(simplePPL)
-
-        // Program 4: Bodyweight Fundamentals (3 Days/Week)
-        let bwExercises = [
-            RoutineExercise(name: "Push-up", type: .strength, sets: Array(repeating: ExerciseSet(target: "AMRAP"), count: 3), alternatives: ["Decline Barbell Bench Press", "Machine Chest Press"]), // Not bodyweight, but from list
-            RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3)), // Not bodyweight
-            RoutineExercise(name: "Lunge (Barbell/Dumbbell)", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-12 reps / side"), count: 3)), // Not bodyweight
-            RoutineExercise(name: "Plank", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "45-60 sec hold"), count: 3)),
-            RoutineExercise(name: "Hip Thrust", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3)), // Not bodyweight
-            RoutineExercise(name: "Back Extension (Hyperextension)", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "10-12 reps / side"), count: 3)), // Simulating Bird Dog
-        ]
-        let bwRoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Bodyweight Circuit", dateCreated: Timestamp(), exercises: bwExercises)
-        let bodyweightBasics = WorkoutProgram(userID: systemUserID, name: "Bodyweight Fundamentals", dateCreated: Timestamp(), routines: [bwRoutine], daysOfWeek: [1, 3, 5])
-        programs.append(bodyweightBasics)
-
-
-        // Program 5: Upper/Lower Split (4 Days/Week)
-        let upperAExercises = [
-             RoutineExercise(name: "Barbell Bench Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "5-8 reps"), count: 3)),
-             RoutineExercise(name: "Barbell Bent-over Row", type: .strength, sets: Array(repeating: ExerciseSet(target: "5-8 reps"), count: 3)),
-             RoutineExercise(name: "Barbell Overhead Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-             RoutineExercise(name: "Lat Pulldown", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-             RoutineExercise(name: "Dumbbell Curl", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 2)),
-             RoutineExercise(name: "Triceps Pushdown (Cable)", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 2)),
-        ]
-        let upperARoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Upper Body A", dateCreated: Timestamp(), exercises: upperAExercises)
-
-        let lowerAExercises = [
-             RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "5-8 reps"), count: 3)),
-             RoutineExercise(name: "Romanian Deadlift (RDL)", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-             RoutineExercise(name: "Leg Extension Machine", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 3)),
-             RoutineExercise(name: "Seated Leg Curl Machine", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 3)),
-             RoutineExercise(name: "Standing Calf Raise", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 4)),
-        ]
-        let lowerARoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Lower Body A", dateCreated: Timestamp(), exercises: lowerAExercises)
-
-        let upperBExercises = [
-             RoutineExercise(name: "Incline Dumbbell Bench Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps"), count: 3)),
-             RoutineExercise(name: "Pull-up", type: .strength, sets: Array(repeating: ExerciseSet(target: "AMRAP"), count: 3), alternatives: ["Lat Pulldown", "Lat Pulldown"]),
-             RoutineExercise(name: "Dumbbell Lateral Raise", type: .strength, sets: Array(repeating: ExerciseSet(target: "12-15 reps"), count: 3)),
-             RoutineExercise(name: "Seated Cable Row", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 3)),
-             RoutineExercise(name: "Hammer Curl", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 2)),
-             RoutineExercise(name: "Overhead Triceps Extension (Dumbbell/Cable)", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 2)),
-        ]
-        let upperBRoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Upper Body B", dateCreated: Timestamp(), exercises: upperBExercises)
-
-        let lowerBExercises = [
-             RoutineExercise(name: "Deadlift (Conventional)", type: .strength, sets: [ExerciseSet(target: "3-5 reps")]),
-             RoutineExercise(name: "Leg Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-15 reps"), count: 3)),
-             RoutineExercise(name: "Bulgarian Split Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "8-12 reps / side"), count: 3)),
-             RoutineExercise(name: "Lying Leg Curl Machine", type: .strength, sets: Array(repeating: ExerciseSet(target: "12-15 reps"), count: 3)),
-             RoutineExercise(name: "Seated Calf Raise", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 4)),
-        ]
-        let lowerBRoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Lower Body B", dateCreated: Timestamp(), exercises: lowerBExercises)
-
-        let upperLower = WorkoutProgram(userID: systemUserID, name: "Upper/Lower Split (4 Days)", dateCreated: Timestamp(), routines: [upperARoutine, lowerARoutine, upperBRoutine, lowerBRoutine], daysOfWeek: [1, 2, 4, 5])
-        programs.append(upperLower)
-
-        // Program 6: Basic Cardio (3 Days/Week)
-        let cardioExercises = [
-             RoutineExercise(name: "Running (Treadmill)", type: .cardio, sets: [ExerciseSet(target: "30 minutes")]),
-        ]
-        let cardioRoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Cardio Session", dateCreated: Timestamp(), exercises: cardioExercises)
-        let basicCardio = WorkoutProgram(userID: systemUserID, name: "Basic Cardio Program", dateCreated: Timestamp(), routines: [cardioRoutine], daysOfWeek: [1, 3, 5])
-        programs.append(basicCardio)
-
-        // Program 7: HIIT (High-Intensity Interval Training) - 2 Days/Week
-        let hiitExercises = [
-            RoutineExercise(name: "Burpees", type: .cardio, sets: Array(repeating: ExerciseSet(target: "30s work / 30s rest"), count: 4)),
-            RoutineExercise(name: "Barbell Back Squat", type: .cardio, sets: Array(repeating: ExerciseSet(target: "30s work / 30s rest"), count: 4)), // Using list item
-            RoutineExercise(name: "Running (Treadmill)", type: .cardio, sets: Array(repeating: ExerciseSet(target: "30s work / 30s rest"), count: 4)), // Simulating High Knees
-            RoutineExercise(name: "Plank", type: .cardio, sets: Array(repeating: ExerciseSet(target: "30s work / 30s rest"), count: 4)), // Simulating Mountain Climbers
-            RoutineExercise(name: "Jump Rope", type: .cardio, sets: Array(repeating: ExerciseSet(target: "30s work / 30s rest"), count: 4)), // Simulating Plank Jacks
-        ]
-        let hiitRoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "HIIT Circuit", dateCreated: Timestamp(), exercises: hiitExercises)
-        let hiitProgram = WorkoutProgram(userID: systemUserID, name: "Quick HIIT Program", dateCreated: Timestamp(), routines: [hiitRoutine], daysOfWeek: [2, 5])
-        programs.append(hiitProgram)
-
-        // Program 8: Yoga Flow (Beginner)
-        let yogaExercises = [
-            RoutineExercise(name: "Plank", type: .flexibility, sets: [ExerciseSet(target: "3-5 rounds")]), // Simulating Sun Salutation
-            RoutineExercise(name: "Lunge (Barbell/Dumbbell)", type: .flexibility, sets: [ExerciseSet(target: "30-60 sec hold / side")]), // Simulating Warrior II
-            RoutineExercise(name: "Romanian Deadlift (RDL)", type: .flexibility, sets: [ExerciseSet(target: "30-60 sec hold / side")]), // Simulating Triangle
-            RoutineExercise(name: "Sit-up", type: .flexibility, sets: [ExerciseSet(target: "60 sec hold")]), // Simulating Child's Pose
-            RoutineExercise(name: "Plank", type: .flexibility, sets: [ExerciseSet(target: "5 minutes")]), // Simulating Savasana
-        ]
-        let yogaRoutine = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Beginner Yoga Flow", dateCreated: Timestamp(), exercises: yogaExercises)
-        let yogaProgram = WorkoutProgram(userID: systemUserID, name: "Beginner Yoga Flow", dateCreated: Timestamp(), routines: [yogaRoutine], daysOfWeek: [3, 6])
-        programs.append(yogaProgram)
-
+        let sl5x5_A = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Workout A", dateCreated: now, exercises: [RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Leg Press", "Goblet Squat"]), RoutineExercise(name: "Barbell Bench Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Dumbbell Bench Press", "Push-up"]), RoutineExercise(name: "Barbell Bent-over Row", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Dumbbell Row", "Seated Cable Row"])])
+        let sl5x5_B = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Workout B", dateCreated: now, exercises: [RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Leg Press", "Goblet Squat"]), RoutineExercise(name: "Barbell Overhead Press (Military Press)", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Dumbbell Shoulder Press", "Arnold Press"]), RoutineExercise(name: "Deadlift (Conventional)", type: .strength, sets: [ExerciseSet(target: "5 reps")], alternatives: ["Sumo Deadlift", "Romanian Deadlift (RDL)"])])
+        programs.append(WorkoutProgram(userID: systemUserID, name: "StrongLifts 5x5", dateCreated: now, routines: [sl5x5_A, sl5x5_B], daysOfWeek: [2, 4, 6]))
+        
+        let bw_A = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Full Body Bodyweight A", dateCreated: now, exercises: [RoutineExercise(name: "Push-up", type: .strength, sets: Array(repeating: ExerciseSet(target: "AMRAP"), count: 3), alternatives: ["Incline Barbell Bench Press"]), RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Goblet Squat"]), RoutineExercise(name: "Plank", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "60 sec hold"), count: 3), alternatives: ["Crunch"]), RoutineExercise(name: "Lunge (Barbell/Dumbbell)", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-12 reps / side"), count: 3), alternatives: ["Bulgarian Split Squat"]), RoutineExercise(name: "Back Extension (Hyperextension)", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Good Mornings"])])
+        let bw_B = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Full Body Bodyweight B", dateCreated: now, exercises: [RoutineExercise(name: "Burpees", type: .cardio, sets: Array(repeating: ExerciseSet(target: "AMRAP in 60s"), count: 3), alternatives: ["Jump Rope"]), RoutineExercise(name: "Hip Thrust", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Good Mornings"]), RoutineExercise(name: "Leg Raise", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Hanging Leg Raise"]), RoutineExercise(name: "Push-up", type: .strength, sets: Array(repeating: ExerciseSet(target: "AMRAP"), count: 3), alternatives: ["Dumbbell Bench Press"]), RoutineExercise(name: "Sit-up", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Crunch"])])
+        programs.append(WorkoutProgram(userID: systemUserID, name: "Beginner Bodyweight", dateCreated: now, routines: [bw_A, bw_B], daysOfWeek: [2, 4, 6]))
 
         self.preBuiltPrograms = programs
     }
@@ -548,6 +416,16 @@ class WorkoutService: ObservableObject {
             var newRoutine = routine
             newRoutine.id = UUID().uuidString
             newRoutine.userID = userID
+            newRoutine.exercises = routine.exercises.map { exercise in
+                var newExercise = exercise
+                newExercise.id = UUID().uuidString
+                newExercise.sets = exercise.sets.map { set in
+                    var newSet = set
+                    newSet.id = UUID().uuidString
+                    return newSet
+                }
+                return newExercise
+            }
             return newRoutine
         }
 
@@ -555,7 +433,14 @@ class WorkoutService: ObservableObject {
     }
 }
 
-/// Structs for decoding the AI's JSON response
+extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0 ..< Swift.min($0 + size, count)])
+        }
+    }
+}
+
 struct AIProgramResponse: Codable {
     let programName: String
     let routines: [AIRoutine]

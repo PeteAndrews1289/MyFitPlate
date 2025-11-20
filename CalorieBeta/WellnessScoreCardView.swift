@@ -6,6 +6,10 @@ struct WellnessScoreCardView: View {
     // The data model containing all the score information.
     let wellnessScore: WellnessScore
     
+    // *** ADDED: Data to pass to the detail sheet ***
+    let mealScore: MealScore?
+    let sleepReport: EnhancedSleepReport?
+    
     // State variable to control showing the detailed pop-up sheet.
     @State private var showDetail = false
 
@@ -73,8 +77,12 @@ struct WellnessScoreCardView: View {
             showDetail = true // Tapping the card sets this to true...
         }
         .sheet(isPresented: $showDetail) {
-            // ...which presents the WellnessScoreDetailView as a pop-up sheet.
-            WellnessScoreDetailView(wellnessScore: wellnessScore)
+            // ...which presents the WellnessScoreDetailView, now passing all data
+            WellnessScoreDetailView(
+                wellnessScore: wellnessScore,
+                mealScore: mealScore,
+                sleepReport: sleepReport
+            )
         }
     }
 }

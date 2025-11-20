@@ -93,9 +93,13 @@ class WorkoutAnalyticsService {
             "On \(($0.date).formatted(date: .abbreviated, time: .omitted)), user ate \(Int($0.totalCalories())) calories, with \(Int($0.totalMacros().protein))g protein."
         }.joined(separator: "\n")
 
+        // *** HIGH-LEVEL COMMENT: ***
+        // The prompt below has been modified to request 8 focused insights
+        // instead of 10 generic ones, and to prioritize actionable, holistic advice.
+        
         // Construct the prompt for the AI
         let prompt = """
-        You are Maia, an expert fitness and nutrition coach for the MyFitPlate app. Your tone is encouraging, insightful, and actionable. Analyze the following user data and generate exactly 10 personalized insights in a JSON format.
+        You are Maia, an expert fitness and nutrition coach for the MyFitPlate app. Your tone is encouraging, insightful, and actionable. Analyze the following user data and generate **exactly 8 high-quality, focused, and actionable** insights in a JSON format.
 
         **User Data:**
         - **Workout Program:** \(program?.name ?? "No active program")
@@ -107,13 +111,19 @@ class WorkoutAnalyticsService {
         \(nutritionSummary.isEmpty ? "No nutrition logged." : nutritionSummary)
 
         **Your Task:**
-        Provide a JSON object with a single root key "insights". The value should be an array of 10 insight objects. Each insight object must have three keys: "title" (string), "message" (string), and "category" (string).
+        Provide a JSON object with a single root key "insights". The value should be an array of **8** insight objects. Each insight object must have three keys: "title" (string), "message" (string), and "category" (string).
 
         **Insight Categories:**
         Use one of the following for the "category" key: "Performance", "Consistency", "Recovery", "Nutrition", "Mindset".
 
-        **CRITICAL**: Ensure the JSON response is valid and contains exactly the requested structure ("insights" array with objects having "title", "message", "category").
+        **CRITICAL Rules:**
+        1. **Holistic & Actionable Insights:** Prioritize insights that are genuinely actionable. You MUST generate at least 3-4 insights that connect multiple data areas (e.g., how sleep impacted a workout, or how nutrition supported recovery).
+        2. **Data-Driven & Specific:** Insights MUST be data-driven. Instead of "Eat more protein," say "Your protein intake on Wednesday was 30g below your goal. Adding a serving of Greek yogurt to your breakfast can help close that gap."
+        3. **Positive Reinforcement:** ALWAYS start with at least one positive insight highlighting something the user did well.
+        4. **Fitness Insight Requirement:** If the user has logged exercise, you MUST include at least one fitness-related insight.
+        5. **JSON Structure:** Ensure the JSON response is valid and contains exactly the requested structure ("insights" array with 8 objects).
         """
+
 
         // Fetch the AI response
         let aiResponse = await fetchAIResponse(prompt: prompt)
@@ -150,7 +160,7 @@ class WorkoutAnalyticsService {
             "model": "gpt-4o-mini",
             "response_format": ["type": "json_object"],
             "messages": [["role": "user", "content": prompt]],
-            "max_tokens": 1500 // Adjust tokens as needed for ~10 insights
+            "max_tokens": 1500 // 1500 is fine for 8 insights
         ]
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)

@@ -143,43 +143,78 @@ struct ReportsView: View {
         }
         .buttonStyle(PrimaryButtonStyle())
         
+        // This NavigationLink must be wrapped to avoid compiling for the widget
+        #if !TARGET_IS_WIDGET_EXTENSION
         NavigationLink(isActive: $showingDetailedInsights) {
             DetailedInsightsView(insightsService: insightsService)
         } label: { EmptyView() }
+        #endif
     }
     
-    // This section now matches the new screenshot layout.
+    // This section now matches the intern's new screenshot layout.
     @ViewBuilder
     private var reportsContentSection: some View {
         VStack(spacing: 12) {
             // Full-width Wellness Score card
             if let wellnessScore = viewModel.wellnessScore {
-                WellnessScoreCardView(wellnessScore: wellnessScore)
+                // Pass the meal and sleep data to the card, so it can pass it to its sheet
+                #if !TARGET_IS_WIDGET_EXTENSION
+                WellnessScoreCardView(
+                    wellnessScore: wellnessScore,
+                    mealScore: viewModel.mealScore,
+                    sleepReport: viewModel.enhancedSleepReport
+                )
+                #else
+                // The widget target just shows the card, no data passing needed
+                WellnessScoreCardView(
+                    wellnessScore: wellnessScore,
+                    mealScore: nil,
+                    sleepReport: nil
+                )
+                .onTapGesture {}
+                #endif
             }
             
-            // Full-width Workout Summary card
+            // Full-width Workout Summary card (links to WorkoutAnalyticsView)
             if let workoutReport = viewModel.weeklyWorkoutReport {
+                #if !TARGET_IS_WIDGET_EXTENSION
+                NavigationLink(destination: WorkoutAnalyticsView(viewModel: viewModel)) {
+                    WorkoutReportCard(report: workoutReport)
+                }
+                .buttonStyle(.plain)
+                #else
                 WorkoutReportCard(report: workoutReport)
+                #endif
             }
             
             // Two-column layout for Calorie and Weight reports
             HStack(spacing: 12){
                 // Left card: Calorie Report
+                #if !TARGET_IS_WIDGET_EXTENSION
                 NavigationLink(destination: CalorieTrackingView(viewModel: viewModel)) {
                     mealDistributionCard
                 }
-                .buttonStyle(.plain) // Ensures the card is the tappable element
+                .buttonStyle(.plain)
+                #else
+                mealDistributionCard
+                #endif
                 
                 // Right card: Weight Report
+                #if !TARGET_IS_WIDGET_EXTENSION
                 NavigationLink(destination: WeightTrackingView()){
                     WeightCardReport
                 }
                 .buttonStyle(.plain)
+                #else
+                WeightCardReport
+                #endif
             }
             
             // "Generate Insights" button at the bottom
+            #if !TARGET_IS_WIDGET_EXTENSION
             insightsActionSection
                 .padding(.top, 8)
+            #endif
         }
     }
 
@@ -241,7 +276,7 @@ struct ReportsView: View {
             }
             Spacer()
         }
-        .foregroundColor(.textPrimary) // FIX: Use dynamic text color
+        .foregroundColor(.textPrimary) // Use dynamic text color
         .asCard()
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 180)
     }
@@ -257,16 +292,20 @@ struct ReportsView: View {
             }
             .padding(.horizontal, 12)
             .padding(.top, 12)
-            .foregroundColor(.textPrimary) // FIX: Use dynamic text color
+            .foregroundColor(.textPrimary) // Use dynamic text color
 
             if !viewModel.mealDistributionData.isEmpty {
                 let groupedMeals = Dictionary(grouping: viewModel.mealDistributionData, by: { $0.mealName })
                 let orderedMealNames = ["Breakfast", "Lunch", "Dinner", "Snacks"]
                 
                 let processedData: [(meal: String, totalCalories: Double)] = orderedMealNames.compactMap { mealName in
-                    if let items = groupedMeals[mealName], let total = items.first?.totalCalories, total > 0 {
-                        return (mealName, total)
-                    } else { return nil }
+                    // Use flatMap to get all calories for a meal type and sum them
+                    let totalCals = groupedMeals[mealName]?.reduce(0) { $0 + $1.totalCalories } ?? 0
+                    if totalCals > 0 {
+                        return (mealName, totalCals)
+                    } else {
+                        return nil
+                    }
                 }
                 
                 let colorMapping: [String: Color] = [
@@ -281,7 +320,6 @@ struct ReportsView: View {
                         angularInset: 2
                     )
                     .foregroundStyle(colorMapping[dp.meal, default: .gray])
-                    // *** FIX: Updated annotation to match new screenshot ***
                     .annotation(position: .overlay) {
                         VStack(spacing: 0) {
                             Text(dp.meal) // "Breakfast", "Lunch", etc.
@@ -289,7 +327,7 @@ struct ReportsView: View {
                             Text("\(dp.totalCalories, specifier: "%.0f") cal")
                                 .appFont(size: 10, weight: .regular)
                         }
-                        .foregroundColor(.white) // Keep white, it's on colored segments
+                        .foregroundColor(.white)
                     }
                 }
                 .chartLegend(.hidden)
@@ -299,7 +337,7 @@ struct ReportsView: View {
             } else if !viewModel.isLoading {
                 Spacer()
                 Text("No meal data available.")
-                    .foregroundColor(.textPrimary) // FIX: Use dynamic text color
+                    .foregroundColor(.textPrimary) // Use dynamic text color
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 Spacer()
