@@ -102,22 +102,20 @@ The AI logging workflow is especially relevant to modern application security. U
 
 The repository shows a substantial native iOS application with many implemented screens, services, models, and integrations. It demonstrates practical mobile engineering across health data, nutrition APIs, AI-assisted parsing, companion device features, and user-facing wellness workflows.
 
-The project also reveals areas that would make the app stronger for portfolio review: screenshots, architecture documentation, setup instructions, explicit privacy notes, and clearer separation of secrets/configuration from source code.
+The project also reveals areas that would make the app stronger for portfolio review: setup instructions, architecture documentation, explicit privacy notes, and clearer separation of secrets/configuration from source code. A security and privacy review has been added to document the app-security angle.
 
-## Screenshots
+## Evidence / Artifacts
 
-Suggested screenshots to add:
+Text and code artifacts included in this repository:
 
-- `screenshots/home-dashboard.png`
-- `screenshots/food-log.png`
-- `screenshots/ai-text-log-results.png`
-- `screenshots/barcode-scanner.png`
-- `screenshots/meal-planner.png`
-- `screenshots/workout-analytics.png`
-- `screenshots/healthkit-permissions.png`
-- `screenshots/apple-watch-home.png`
-- `screenshots/widget-view.png`
-- `screenshots/architecture.png`
+- `CalorieBeta/`
+- `CalorieWidget/`
+- `MyFitPlateWatch Watch App/`
+- `docs/security-privacy-review.md`
+- `CalorieBeta/AITextLogService.swift`
+- `CalorieBeta/HealthKitManager.swift`
+- `CalorieBeta/OpenFoodFactsAPIService.swift`
+- `CalorieBeta/FatSecretFoodAPIService.swift`
 
 ## Challenges & Lessons Learned
 
@@ -135,11 +133,9 @@ For security-focused roles, the strongest angle is secure mobile development: pr
 
 ## Future Improvements
 
-- Add a `screenshots/` folder with polished app screenshots.
 - Add setup instructions for Xcode, Firebase, HealthKit, and required API keys.
 - Move secrets and environment-specific values out of source files.
-- Add a privacy and data-handling section for health and nutrition data.
 - Add tests for API parsing and AI response validation.
 - Add architecture documentation for app modules and data flow.
-- Add a short demo video or GIF for the core food logging workflow.
+- Add a short demo video or GIF for the core food logging workflow if the app is being actively showcased.
 - Add App Store / TestFlight status if applicable.
