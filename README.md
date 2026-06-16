@@ -1,188 +1,145 @@
-# 🍽️ MyFitPlate — AI-Powered Nutrition Tracking Platform
+# MyFitPlate
 
 ## Overview
 
-MyFitPlate is an AI-powered iOS nutrition and calorie tracking application designed to simplify meal logging, improve dietary awareness, and provide users with intelligent food analysis through modern mobile and cloud technologies.
+MyFitPlate is an iOS nutrition and fitness application built with Swift, SwiftUI, Apple Watch support, HealthKit integration, nutrition APIs, and AI-assisted logging workflows. The project focuses on reducing friction in food tracking and wellness monitoring by combining manual logging, barcode lookup, AI text-based meal parsing, workout tracking, and personalized insights.
 
-The platform combines mobile development, backend cloud infrastructure, AI-assisted food recognition, and scalable API integrations into a production-ready health and fitness application.
+The app includes a broad mobile feature set: calorie and macronutrient tracking, meal planning, grocery lists, recipes, water tracking, weight tracking, cycle tracking, workout routines, community features, watchOS views, widgets, and an AI assistant named Maia. The repository shows hands-on iOS development across UI, data models, API integrations, health data, and cross-device experiences.
 
-As COO & Lead Developer, I directed product development, application architecture, feature implementation, and technical strategy while managing a small development team throughout the project lifecycle.
+From an engineering and security perspective, the project demonstrates mobile architecture, user-data handling considerations, API communication, authentication-oriented screens, and privacy-sensitive integrations such as HealthKit. It is not a cybersecurity lab, but it is relevant to application security and secure mobile development conversations because it handles health, nutrition, and user-generated data.
 
----
+## Key Features
 
-# 🚀 Key Features
+- Built an iOS app using Swift and SwiftUI.
+- Added food logging, calorie tracking, macro tracking, and micronutrient views.
+- Integrated barcode lookup and food search workflows.
+- Added AI-assisted meal logging through structured JSON responses from an LLM.
+- Integrated external nutrition data sources such as Open Food Facts and FatSecret-backed proxy workflows.
+- Added HealthKit read/write workflows for nutrition, workouts, sleep, heart rate, HRV, and body weight data.
+- Built workout routines, program creation, workout analytics, and workout report views.
+- Added meal planning, recipe creation, grocery list, and meal suggestion features.
+- Added water tracking, weight tracking, wellness scoring, cycle tracking, and journal features.
+- Added Apple Watch and widget support for companion experiences.
+- Built community and group-oriented features such as posts, comments, groups, and challenges.
 
-## 📸 AI-Assisted Food Recognition
+## Architecture
 
-Users can upload meal images to receive:
+The app is organized as a native iOS client with multiple SwiftUI feature modules. The mobile app communicates with nutrition APIs, an AI text logging service, HealthKit, Firebase-related configuration, and shared app/watch/widget data. Companion targets support Apple Watch and widget experiences.
 
-* food identification
-* calorie estimation
-* nutritional breakdowns
-* portion analysis assistance
-
-The AI pipeline was designed to reduce manual meal logging friction and improve user retention.
-
----
-
-## 📊 Nutrition & Calorie Tracking
-
-The platform enables users to:
-
-* track daily calorie intake
-* monitor macronutrients
-* log meals throughout the day
-* review nutritional trends over time
-* maintain dietary consistency
-
----
-
-## ☁️ Cloud-Based Architecture
-
-MyFitPlate utilizes cloud-backed infrastructure to support:
-
-* user authentication
-* real-time data synchronization
-* scalable backend operations
-* API-driven nutrition services
-* secure mobile data storage
-
----
-
-## 📱 Modern iOS Development
-
-The application was built using modern Apple development frameworks including:
-
-* Swift
-* SwiftUI
-* REST API integrations
-* asynchronous networking
-* reactive UI architecture
-
-The platform was optimized for responsiveness, usability, and scalable feature expansion.
-
----
-
-# 🏗️ Architecture Overview
-
-```text id="mfparch1"
-iOS Client (SwiftUI)
-        ↓
-Firebase Backend Services
-        ↓
-External Nutrition / AI APIs
-        ↓
-Cloud Data Processing & Storage
+```mermaid
+flowchart LR
+    User[User] --> IOS[iOS App: Swift / SwiftUI]
+    IOS --> AI[AI Text Log Service]
+    IOS --> Nutrition[Nutrition APIs]
+    IOS --> HealthKit[Apple HealthKit]
+    IOS --> Firebase[Firebase-Backed App Data]
+    IOS --> Widget[Widget Extension]
+    IOS --> Watch[Apple Watch App]
+    AI --> FoodLog[Structured Food Items]
+    Nutrition --> FoodLog
+    HealthKit --> Wellness[Wellness / Workout Insights]
 ```
 
----
+## Tools & Technologies
 
-# 🛠️ Technologies Used
+### Mobile Development
 
-## Mobile Development
+- Swift
+- SwiftUI
+- Xcode
+- UIKit interoperability
+- WidgetKit
+- watchOS app target
 
-* Swift
-* SwiftUI
-* Xcode
+### Backend / Cloud / Data
 
-## Backend & Cloud
+- Firebase configuration
+- Firestore-oriented service code
+- External nutrition API services
+- REST API calls
 
-* Firebase
-* Cloud Database Services
-* Authentication Services
-* REST APIs
+### AI and Data Processing
 
-## AI & Data
+- OpenAI API integration for AI text meal logging
+- JSON response parsing
+- Nutrition estimate normalization
+- Food and serving-size models
 
-* AI-assisted image analysis
-* Food recognition workflows
-* Nutrition data processing
+### Health / Device Integrations
 
-## Development Practices
+- Apple HealthKit
+- Apple Watch app
+- Home screen widget
+- Barcode scanning workflow
 
-* Agile development
-* Version control with Git
-* API integration
-* Secure backend communication
+### Security and Privacy Considerations
 
----
+- HealthKit permission prompts
+- API key handling considerations
+- User-generated health and nutrition data
+- Secure network communication requirements
 
-# 👨‍💼 Leadership & Product Management
+## Security and Engineering Concepts Demonstrated
 
-In addition to development responsibilities, this project included:
+This project demonstrates mobile application architecture, API integration, health-data permission handling, asynchronous networking, user-generated data workflows, and AI feature integration. Because the app handles nutrition, health, and wellness data, it also raises practical security and privacy considerations around data minimization, authentication, API key protection, and safe handling of sensitive user information.
 
-* coordinating development priorities
-* managing feature rollouts
-* mentoring team members
-* overseeing application direction
-* balancing technical and product decisions
+The AI logging workflow is especially relevant to modern application security. User-provided meal descriptions are sent to an LLM and parsed into structured nutrition data, which means the application needs reliable response validation, error handling, privacy review, and safeguards around prompt and data handling.
 
-The project operated with a small collaborative development team and focused heavily on iterative improvement and user-facing functionality.
+## Implementation Steps
 
----
+1. Built the main iOS app structure with SwiftUI views and navigation.
+2. Added models for food items, servings, meals, workouts, reports, wellness scores, and user data.
+3. Implemented manual food entry, food search, barcode scanning, and nutrition detail views.
+4. Integrated nutrition APIs for food lookup and nutrient details.
+5. Added AI text logging to convert meal descriptions into structured food entries.
+6. Added HealthKit permissions and data workflows for nutrition, weight, workouts, sleep, heart rate, and HRV.
+7. Built workout programs, routines, analytics, and reports.
+8. Added meal planning, recipes, grocery list, and suggestions.
+9. Added Apple Watch and widget targets for companion access.
+10. Added community-oriented screens for posts, groups, challenges, and comments.
 
-# 📈 Project Outcomes
+## Results / Findings
 
-* Successfully developed a functional AI-powered nutrition platform
-* Integrated cloud-backed infrastructure for scalable user management
-* Implemented production-level mobile application workflows
-* Demonstrated full-stack coordination between frontend, backend, and AI-assisted services
-* Supported thousands of users during platform operation
+The repository shows a substantial native iOS application with many implemented screens, services, models, and integrations. It demonstrates practical mobile engineering across health data, nutrition APIs, AI-assisted parsing, companion device features, and user-facing wellness workflows.
 
----
+The project also reveals areas that would make the app stronger for portfolio review: screenshots, architecture documentation, setup instructions, explicit privacy notes, and clearer separation of secrets/configuration from source code.
 
-# 🔒 Security & Engineering Considerations
+## Screenshots
 
-The application incorporated several security-conscious development practices including:
+Suggested screenshots to add:
 
-* secure API communication
-* protected authentication flows
-* backend access control
-* cloud-based data management
-* secure handling of user-generated content
+- `screenshots/home-dashboard.png`
+- `screenshots/food-log.png`
+- `screenshots/ai-text-log-results.png`
+- `screenshots/barcode-scanner.png`
+- `screenshots/meal-planner.png`
+- `screenshots/workout-analytics.png`
+- `screenshots/healthkit-permissions.png`
+- `screenshots/apple-watch-home.png`
+- `screenshots/widget-view.png`
+- `screenshots/architecture.png`
 
----
+## Challenges & Lessons Learned
 
-# 🧠 Skills Demonstrated
+- Mobile health apps require careful permission handling and clear user trust signals.
+- AI-generated nutrition estimates need validation and graceful error handling because model output can vary.
+- Nutrition APIs return inconsistent serving and micronutrient data, so parsing and normalization matter.
+- Cross-device support requires shared state planning between iOS, watchOS, and widgets.
+- A large feature set benefits from clear architecture documentation and modular organization.
 
-* iOS Development
-* Swift / SwiftUI
-* Mobile Application Architecture
-* Firebase Integration
-* Cloud-Connected Applications
-* API Integration
-* AI Feature Integration
-* Product Leadership
-* Agile Development
-* Team Coordination
+## Relevance to Security and Engineering Roles
 
----
+This project is most relevant to iOS Developer, Mobile Engineer, Full-Stack Mobile Developer, and AI Application Developer roles. It also supports Application Security conversations because it involves user authentication screens, API communication, HealthKit permissions, user-generated health data, and AI-assisted data processing.
 
-# 📚 Key Lessons Learned
+For security-focused roles, the strongest angle is secure mobile development: protecting API keys, limiting sensitive data exposure, validating LLM responses, handling health permissions responsibly, and documenting privacy/security decisions.
 
-Developing MyFitPlate provided hands-on experience in:
+## Future Improvements
 
-* scaling mobile applications
-* coordinating frontend/backend systems
-* integrating AI-driven functionality into consumer applications
-* balancing technical complexity with user experience
-* managing development priorities in a startup-style environment
-
----
-
-# 🔮 Future Improvements
-
-Potential future enhancements include:
-
-* advanced computer vision models
-* improved portion-size estimation
-* wearable device integrations
-* personalized nutrition recommendations
-* social/community features
-* enhanced analytics dashboards
-
----
-
-# 📌 Resume Summary
-
-Co-founded and led development of an AI-powered iOS nutrition platform utilizing SwiftUI, Firebase, and cloud-based APIs to deliver food recognition, calorie tracking, and scalable mobile application functionality for thousands of users.
+- Add a `screenshots/` folder with polished app screenshots.
+- Add setup instructions for Xcode, Firebase, HealthKit, and required API keys.
+- Move secrets and environment-specific values out of source files.
+- Add a privacy and data-handling section for health and nutrition data.
+- Add tests for API parsing and AI response validation.
+- Add architecture documentation for app modules and data flow.
+- Add a short demo video or GIF for the core food logging workflow.
+- Add App Store / TestFlight status if applicable.
