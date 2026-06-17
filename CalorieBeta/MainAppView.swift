@@ -6,6 +6,7 @@ import GoogleMobileAds
 import WatchConnectivity
 import FirebaseAnalytics
 
+// High-level comment: Manages communication with the Apple Watch app.
 class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var isReachable: Bool = false
 
@@ -23,12 +24,8 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         }
     }
 
-    func sessionDidBecomeInactive(_ session: WCSession) {
-    }
-
-    func sessionDidDeactivate(_ session: WCSession) {
-        WCSession.default.activate()
-    }
+    func sessionDidBecomeInactive(_ session: WCSession) {}
+    func sessionDidDeactivate(_ session: WCSession) { WCSession.default.activate() }
 
     func sessionReachabilityDidChange(_ session: WCSession) {
         DispatchQueue.main.async {
@@ -36,25 +33,18 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         }
     }
 
-
     func sendNutritionToWatch(goalCal: Double, userCal: Int, userProt: Double, totalProt: Double, totalCarb: Double, totalFat: Double, userCarb: Double, userFat: Double, goalWeight: Double, userWeight: Double, currWater: Double, goalWater: Double) {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         guard session.activationState == .activated else { return }
         
         let context: [String : Any] = [
-            "goalCal": goalCal,
-            "userCal": userCal,
-            "userProt": userProt,
-            "totalProt": totalProt,
-            "userCarb": userCarb,
-            "totalCarb": totalCarb,
-            "userFat": userFat,
-            "totalFat": totalFat,
-            "userWeight": userWeight,
-            "goalWeight": goalWeight,
-            "currWater": currWater,
-            "goalWater": goalWater
+            "goalCal": goalCal, "userCal": userCal,
+            "userProt": userProt, "totalProt": totalProt,
+            "userCarb": userCarb, "totalCarb": totalCarb,
+            "userFat": userFat, "totalFat": totalFat,
+            "userWeight": userWeight, "goalWeight": goalWeight,
+            "currWater": currWater, "goalWater": goalWater
         ]
         
         do {
@@ -65,9 +55,9 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     }
 }
 
-
 @main
 struct CalorieBetaApp: App {
+    // High-level comment: Initialize all shared services as StateObjects
     @StateObject var dailyLogService: DailyLogService
     @StateObject var goalSettings: GoalSettings
     @StateObject var appState: AppState
@@ -84,9 +74,11 @@ struct CalorieBetaApp: App {
     @StateObject var connectivityManager = WatchConnectivityManager()
 
     init() {
+        // 1. Configure Firebase
         FirebaseApp.configure()
         Analytics.setAnalyticsCollectionEnabled(true)
         
+        // 2. Initialize Services
         let bannerSvc = BannerService()
         let logService = DailyLogService()
         let goalsSvc = GoalSettings(dailyLogService: logService)
@@ -100,6 +92,7 @@ struct CalorieBetaApp: App {
         let spotlightMgr = SpotlightManager()
         let cycleSvc = CycleTrackingService()
 
+        // 3. Assign to StateObjects
         _dailyLogService = StateObject(wrappedValue: logService)
         _goalSettings = StateObject(wrappedValue: goalsSvc)
         _achievementService = StateObject(wrappedValue: achieveService)
@@ -113,6 +106,7 @@ struct CalorieBetaApp: App {
         _spotlightManager = StateObject(wrappedValue: spotlightMgr)
         _cycleService = StateObject(wrappedValue: cycleSvc)
         
+        // 4. Setup Dependencies (Circular references)
         logService.goalSettings = goalsSvc
         logService.bannerService = bannerSvc
         logService.achievementService = achieveService
@@ -120,13 +114,14 @@ struct CalorieBetaApp: App {
         hkViewModel.setup(dailyLogService: logService)
         cycleSvc.setupDependencies(goalSettings: goalsSvc, dailyLogService: logService)
         
-        //Task { await MobileAds.shared.start() }
+        // 5. Clear badges on launch
         NotificationManager.shared.clearNotificationBadge()
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // High-level comment: Inject all services into the environment
                 .environmentObject(goalSettings)
                 .environmentObject(dailyLogService)
                 .environmentObject(appState)
@@ -142,12 +137,10 @@ struct CalorieBetaApp: App {
                 .environmentObject(cycleService)
                 .preferredColorScheme(appState.isDarkModeEnabled ? .dark : .light)
                 .onAppear {
+                    // Request notification permissions
                     NotificationManager.shared.requestAuthorization { granted in
                         if granted {
-                            print("✅ Notification permission granted.")
                             NotificationManager.shared.scheduleCalendarNotification(.dailyLogReminder(hour: 20, minute: 00))
-                        } else {
-                            print("ℹ️ Notification permission denied.")
                         }
                     }
                 }
@@ -155,6 +148,7 @@ struct CalorieBetaApp: App {
     }
 }
 
+// High-level comment: The root view that handles navigation and authentication state.
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var goalSettings: GoalSettings
@@ -163,6 +157,10 @@ struct ContentView: View {
     @EnvironmentObject var bannerService: BannerService
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var connectivityManager: WatchConnectivityManager
+    @EnvironmentObject var cycleService: CycleTrackingService
+    
+    // High-level comment: Track scene phase to detect when app goes to background
+    @Environment(\.scenePhase) var scenePhase
     
     @State private var isLoadingUserState = true
     @State private var shouldShowOnboardingSurvey = false
@@ -171,14 +169,13 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             mainContent
-                .onAppear(perform: {
-                if let marketingVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
-                print("✅ Current Marketing Version is: \(marketingVersion)")
-                               }
-                               
-                checkUserStatusAndFirstLogin()
-                sendNutritionToWatchIfNeeded()
-                           })
+                .onAppear {
+                    if let marketingVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                        print("✅ Current Marketing Version is: \(marketingVersion)")
+                    }
+                    checkUserStatusAndFirstLogin()
+                    sendNutritionToWatchIfNeeded()
+                }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                     requestTrackingPermissionIfNeeded()
                     handleAppDidBecomeActive()
@@ -189,6 +186,12 @@ struct ContentView: View {
                 .onChange(of: dailyLogService.currentDailyLog) { _ in
                     sendNutritionToWatchIfNeeded()
                 }
+                // High-level comment: Trigger smart nudge generation when app enters background
+                .onChange(of: scenePhase) { newPhase in
+                    if newPhase == .background && appState.isUserLoggedIn {
+                        scheduleBackgroundNudge()
+                    }
+                }
             
             NotificationBanner(banner: $bannerService.currentBanner)
         }
@@ -196,15 +199,55 @@ struct ContentView: View {
             FeatureTourView(isPresented: $shouldShowFeatureTour)
         }
     }
+    
+    // High-level comment: Gathers user data and schedules a smart AI notification for later
+    private func scheduleBackgroundNudge() {
+        // Gather Data
+        let log = dailyLogService.currentDailyLog
+        let goals = goalSettings
+        
+        // Find last workout info
+        let lastWorkoutDate = log?.exercises?.sorted(by: { $0.date < $1.date }).last?.date ?? Date.distantPast
+        let daysSinceWorkout = Calendar.current.dateComponents([.day], from: lastWorkoutDate, to: Date()).day ?? 0
+        
+        // Pass `nil` for wellnessScore since it is not persisted in HealthKitViewModel
+        // This is safe because InsightsService will simply skip the "Recovery Hook" if score is nil.
+        let context = InsightsService.NotificationContext(
+            gender: goals.gender,
+            phase: cycleService.cycleDay?.phase, // Will be nil for men or non-trackers
+            wellnessScore: nil,
+            caloriesRemaining: (goals.calories ?? 2000) - (log?.totalCalories() ?? 0),
+            proteinRemaining: goals.protein - (log?.totalMacros().protein ?? 0),
+            daysSinceLastWorkout: daysSinceWorkout,
+            lastWorkoutName: log?.exercises?.last?.name
+        )
+        
+        Task {
+            if let notification = await insightsService.generateSmartNotification(context: context) {
+                // Schedule for 5 hours later (e.g. to prompt for the next meal)
+                NotificationManager.shared.scheduleSmartNudge(
+                    title: notification.title,
+                    body: notification.body,
+                    delayHours: 5.0
+                )
+            }
+        }
+    }
 
     @ViewBuilder
     private var mainContent: some View {
-        if isLoadingUserState { LandingPageView() }
-        else if appState.isUserLoggedIn {
+        if isLoadingUserState {
+            LandingPageView()
+        } else if appState.isUserLoggedIn {
             if shouldShowOnboardingSurvey {
-                OnboardingSurveyView(onComplete: handleOnboardingComplete).environmentObject(goalSettings)
+                OnboardingSurveyView(onComplete: handleOnboardingComplete)
+                    .environmentObject(goalSettings)
             } else {
-                 NavigationView { MainTabView().navigationBarHidden(true) }.navigationViewStyle(StackNavigationViewStyle())
+                NavigationView {
+                    MainTabView()
+                        .navigationBarHidden(true)
+                }
+                .navigationViewStyle(StackNavigationViewStyle())
             }
         } else {
             WelcomeView()
@@ -274,10 +317,13 @@ struct ContentView: View {
     }
 
      private func checkFirstLoginFirestore(userID: String, completion: @escaping (Bool) -> Void) {
-         let db = Firestore.firestore(); db.collection("users").document(userID).getDocument { document, error in
+         let db = Firestore.firestore()
+         db.collection("users").document(userID).getDocument { document, error in
              if let document = document, document.exists, let data = document.data() {
                  completion(data["isFirstLogin"] as? Bool ?? true)
-             } else { completion(true) }
+             } else {
+                 completion(true)
+             }
          }
      }
 
@@ -301,8 +347,7 @@ struct ContentView: View {
     private func requestTrackingPermissionIfNeeded() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             if #available(iOS 14, *) {
-                ATTrackingManager.requestTrackingAuthorization { status in
-                }
+                ATTrackingManager.requestTrackingAuthorization { status in }
             }
         }
     }

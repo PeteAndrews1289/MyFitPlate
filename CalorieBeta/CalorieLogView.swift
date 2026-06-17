@@ -31,13 +31,36 @@ struct CalorieLogView: View {
                 }
             }
         }
+        // FIXED: Updated to use the new AddFoodView initializer
         .sheet(isPresented: $showingAddFoodView) {
             AddFoodView(
-                isPresented: $showingAddFoodView,
-                onFoodLogged: { foodItem, mealType in
-                    Task {
-                        await dailyLogService.logFoodItem(foodItem, mealType: mealType)
-                    }
+                initialFoodItem: FoodItem(
+                    id: UUID().uuidString,
+                    name: "",
+                    calories: 0,
+                    protein: 0,
+                    carbs: 0,
+                    fats: 0,
+                    servingSize: "",
+                    servingWeight: 0
+                ),
+                dailyLog: $dailyLogService.currentDailyLog,
+                date: dailyLogService.activelyViewedDate,
+                source: "manual_add",
+                onLogUpdated: {
+                    showingAddFoodView = false
+                }
+            )
+        }
+        // FIXED: Added sheet for editing existing items
+        .sheet(item: $foodToEdit) { item in
+            AddFoodView(
+                initialFoodItem: item,
+                dailyLog: $dailyLogService.currentDailyLog,
+                date: dailyLogService.activelyViewedDate,
+                source: "log_edit",
+                onLogUpdated: {
+                    foodToEdit = nil
                 }
             )
         }
@@ -59,6 +82,7 @@ struct CalorieLogView: View {
             }
             .font(.caption)
         }
+        .contentShape(Rectangle())
         .onTapGesture {
             self.foodToEdit = foodItem
         }

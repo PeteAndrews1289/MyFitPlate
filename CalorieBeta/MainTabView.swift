@@ -26,7 +26,7 @@ struct MainTabView: View {
     @State private var showingRecipeListView = false
     @State private var showingAITextLog = false
     @State private var showingAddFoodManually = false
-    @State private var showingAddJournalView = false // Add state for journal view
+    @State private var showingAddJournalView = false
     
     @State private var showingImagePicker = false
     @State private var isProcessingImage = false
@@ -98,7 +98,7 @@ struct MainTabView: View {
                             ("Scan Barcode", "barcode.viewfinder", { self.showingBarcodeScanner = true }),
                             ("Log with Camera", "camera.fill", { self.showingImagePicker = true }),
                             ("Describe Your Meal", "text.bubble.fill", { self.showingAITextLog = true }),
-                            ("Add Journal Entry", "book.closed.fill", { self.showingAddJournalView = true }), // New Button
+                            ("Add Journal Entry", "book.closed.fill", { self.showingAddJournalView = true }),
                             ("Log Exercise", "figure.walk", { self.showingAddExerciseView = true }),
                             ("Log Recipe/Meal", "list.clipboard", { self.showingRecipeListView = true })
                         ]
@@ -138,14 +138,11 @@ struct MainTabView: View {
                 }, searchContext: "general_search")
             }
             .sheet(isPresented: $showingAddFoodManually) {
+                // FIXED: Removed 'isPresented' and updated arguments to match new AddFoodView
                 AddFoodView(
-                    isPresented: $showingAddFoodManually,
-                    onFoodLogged: { foodItem, mealType in
-                        Task {
-                            await dailyLogService.logFoodItem(foodItem, mealType: mealType)
-                            showingAddFoodManually = false
-                        }
-                    }
+                    initialFoodItem: FoodItem(id: UUID().uuidString, name: "", calories: 0, protein: 0, carbs: 0, fats: 0, servingSize: "", servingWeight: 0),
+                    dailyLog: $dailyLogService.currentDailyLog,
+                    onLogUpdated: { showingAddFoodManually = false }
                 )
             }
             .sheet(isPresented: $showingImagePicker) {
@@ -196,7 +193,7 @@ struct MainTabView: View {
             .sheet(isPresented: $showingRecipeListView) {
                 RecipeListView().environmentObject(recipeService)
             }
-            .sheet(isPresented: $showingAddJournalView) { // Add sheet for journal
+            .sheet(isPresented: $showingAddJournalView) {
                 JournalView()
             }
             .alert("Scan Error", isPresented: $scanError.0) { Button("OK") { } } message: { Text(scanError.1) }

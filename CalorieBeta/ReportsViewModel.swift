@@ -603,7 +603,7 @@ class ReportsViewModel: ObservableObject {
     private func fetchLatestHRV() async -> HKQuantitySample? { await withCheckedContinuation { c in healthKitManager.fetchLatestHRV { c.resume(returning: $0) } } }
     
     // Saves the calculated meal score to Firestore.
-    // *** This is the correct "live" version that saves the numeric score ***
+    // *** This is the correct "live" version that saves the numeric score and totals ***
     private func saveMealScore(for userID: String, date: Date, score: MealScore) {
         let dateString = dailyLogService.dateFormatter.string(from: date)
         let ref = db.collection("users").document(userID).collection("dailySummaries").document(dateString)
@@ -613,7 +613,12 @@ class ReportsViewModel: ObservableObject {
             "mealOverallScore": score.overallScore, // *** SAVE THE NUMERIC SCORE ***
             "calorieScore": score.calorieScore,
             "macroScore": score.macroScore,
-            "qualityScore": score.qualityScore
+            "qualityScore": score.qualityScore,
+            // Future-proofing: Saving raw totals
+            "totalCalories": score.actualCalories,
+            "totalProtein": score.actualProtein,
+            "totalCarbs": score.actualCarbs,
+            "totalFats": score.actualFats
         ]
         ref.setData(data, merge: true) { e in
              if let e = e {print("❌ Error saving meal score: \(e.localizedDescription)")}

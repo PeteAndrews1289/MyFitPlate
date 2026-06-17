@@ -12,11 +12,41 @@ struct FeatureTourView: View {
     }
 
     private let features: [FeatureInfo] = [
-        FeatureInfo(iconName: "fork.knife.circle.fill", title: "Effortless Logging", description: "Quickly log meals by searching our database, scanning a barcode, or describing your meal to Maia, your AI assistant.", color: .brandPrimary),
-        FeatureInfo(iconName: "photo.fill.on.rectangle.fill", title: "Advanced Tools", description: "Use our AI-powered Recipe Importer to grab recipes from websites, or snap a picture to identify food with your camera.", color: .accentFats),
-        FeatureInfo(iconName: "chart.bar.xaxis", title: "Detailed Tracking", description: "Go beyond calories. Monitor macros, micronutrients, water intake, and weight progress with detailed charts and reports.", color: .accentPositive),
-        FeatureInfo(iconName: "flame.fill", title: "Stay Motivated", description: "Unlock achievements, complete weekly challenges, and level up as you build consistent, healthy habits.", color: .accentCarbs),
-        FeatureInfo(iconName: "calendar", title: "Plan Ahead", description: "Let our Meal Plan Generator create a custom 7-day plan based on your goals and food preferences, complete with a grocery list.", color: .brandSecondary)
+        // Slide 1: Core AI Value Prop
+        FeatureInfo(
+            iconName: "sparkles",
+            title: "Meet Maia",
+            description: "Your personal AI nutrition coach. Ask her anything, log food by chatting, or get smart suggestions for your next meal.",
+            color: .brandPrimary
+        ),
+        // Slide 2: Vision & Logging
+        FeatureInfo(
+            iconName: "camera.viewfinder",
+            title: "Snap & Log",
+            description: "No more searching. Just snap a photo of your meal or a nutrition label, and our AI will estimate the calories and macros for you.",
+            color: .accentCarbs
+        ),
+        // Slide 3: Fitness & Live Activities
+        FeatureInfo(
+            iconName: "dumbbell.fill",
+            title: "Smart Training",
+            description: "Generate custom workout plans with AI, track your sets, and see your rest timers right on your Lock Screen.",
+            color: .blue
+        ),
+        // Slide 4: Wellness Score (Unique Selling Point)
+        FeatureInfo(
+            iconName: "heart.text.square.fill",
+            title: "Daily Wellness",
+            description: "We combine your Nutrition, Sleep, and Recovery data into a single 'Wellness Score' to help you balance effort with rest.",
+            color: .accentPositive
+        ),
+        // Slide 5: Planning
+        FeatureInfo(
+            iconName: "calendar.badge.clock",
+            title: "Plan Ahead",
+            description: "Generate full 7-day meal plans and grocery lists in seconds based on your specific goals and taste preferences.",
+            color: .orange
+        )
     ]
 
     var body: some View {
@@ -46,6 +76,7 @@ struct FeatureTourView: View {
             .padding(.horizontal, 30)
             .padding(.bottom, 40)
         }
+        .background(Color.backgroundPrimary.ignoresSafeArea())
     }
 
     @ViewBuilder
@@ -54,15 +85,23 @@ struct FeatureTourView: View {
             Image(systemName: feature.iconName)
                 .font(.system(size: 80, weight: .bold))
                 .foregroundColor(feature.color)
+                .padding()
+                .background(
+                    Circle()
+                        .fill(feature.color.opacity(0.1))
+                        .frame(width: 160, height: 160)
+                )
             
             Text(feature.title)
-                .appFont(size: 34, weight: .bold)
+                .appFont(size: 32, weight: .bold)
+                .multilineTextAlignment(.center)
             
             Text(feature.description)
-                .appFont(size: 17, weight: .semibold)
+                .appFont(size: 17, weight: .regular)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 320)
+                .lineSpacing(4)
         }
         .padding(.horizontal, 20)
     }

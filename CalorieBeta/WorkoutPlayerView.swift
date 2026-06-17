@@ -1,8 +1,11 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
+import ActivityKit
 
-// High-level comment: Manages the total elapsed time for the workout session.
+// MARK: - Timers
+
+/// Manages the total elapsed time for the workout session.
 class TotalWorkoutTimer: ObservableObject {
     @Published var totalTimeElapsed: TimeInterval = 0
     private var timer: Timer?
@@ -66,16 +69,20 @@ class TotalWorkoutTimer: ObservableObject {
     }
 }
 
-// High-level comment: Manages the rest timer between sets.
+/// Manages the rest timer between sets and syncs with Live Activities.
 class RestTimer: ObservableObject {
     @Published var timeRemaining: TimeInterval = 0
     private var timer: Timer?
     private var endTime: Date?
 
-    func start(duration: TimeInterval) {
+    // Starts the timer AND the Live Activity
+    func start(duration: TimeInterval, routineName: String) {
         guard timeRemaining == 0 else { return }
         self.timeRemaining = duration
         self.endTime = Date().addingTimeInterval(duration)
+        
+        // Start Live Activity on Lock Screen
+        LiveActivityManager.shared.startRestTimer(routineName: routineName, duration: duration)
         
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -83,11 +90,15 @@ class RestTimer: ObservableObject {
         }
     }
 
+    // Stops the timer AND removes the Live Activity
     func stop() {
         timer?.invalidate()
         timer = nil
         endTime = nil
         timeRemaining = 0
+        
+        // End Live Activity
+        LiveActivityManager.shared.endActivity()
     }
 
     private func updateTimer() {
@@ -112,7 +123,8 @@ class RestTimer: ObservableObject {
 }
 
 
-// High-level comment: The main view for actively performing a workout routine.
+// MARK: - Main View
+
 struct WorkoutPlayerView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -124,27 +136,32 @@ struct WorkoutPlayerView: View {
     @StateObject private var restTimer = RestTimer()
     @StateObject private var totalWorkoutTimer: TotalWorkoutTimer
     
+    // Note Editor State
     @State private var showingNoteEditor = false
     @State private var noteText = ""
     @State private var isNotePinned = false
     @State private var exerciseForNote: Binding<RoutineExercise>?
     
+    // Sheet State
     @State private var showingHistoryFor: RoutineExercise?
     @State private var showingPlateCalculator = false
     
     @State private var previousPerformance: [String: CompletedExercise] = [:]
     
-    // High-level comment: This @AppStorage variable is the source of truth
+    // Auto-Rest Preference
     @AppStorage("isAutoRestTimerEnabled") private var isAutoRestTimerEnabled = false
     
+    // Exercise Swapping
     struct SwappableExercise: Identifiable {
         let id: String
         let binding: Binding<RoutineExercise>
     }
     @State private var swappableExercise: SwappableExercise?
     
+    // Analytics / Summary Sheet
     @State private var showingAnalyticsSheet = false
-    @State private var generatedAnalytics: WorkoutAnalytics? = nil
+    // FIX: Changed from WorkoutAnalytics? to WorkoutSessionLog?
+    @State private var completedSessionLog: WorkoutSessionLog? = nil
     
     var onWorkoutComplete: () -> Void
 
@@ -157,7 +174,7 @@ struct WorkoutPlayerView: View {
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                // Header with timer and close button
+                // Top Bar: Timer & Close
                 HStack {
                     Text(totalWorkoutTimer.formattedTime())
                         .padding(8)
@@ -172,23 +189,24 @@ struct WorkoutPlayerView: View {
                     Spacer()
                     
                     Button("Close") {
+                        // Ensure we kill the Live Activity before dismissing
+                        restTimer.stop()
+                        totalWorkoutTimer.stop()
                         dismiss()
                     }
                     .buttonStyle(.bordered)
                 }
                 .padding()
 
-                // List of exercises
+                // Main Scroll Area
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         ForEach($routine.exercises) { $exercise in
                             ExerciseCardView(
                                 exercise: $exercise,
                                 restTimer: restTimer,
-                                // High-level comment: This is the critical fix.
-                                // We pass the @AppStorage binding ($isAutoRestTimerEnabled)
-                                // to the subview's @Binding (isAutoRestEnabled).
                                 isAutoRestEnabled: $isAutoRestTimerEnabled,
+                                routineName: routine.name,
                                 previousPerformance: previousPerformance[exercise.name],
                                 onAddNote: {
                                     self.exerciseForNote = $exercise
@@ -204,10 +222,13 @@ struct WorkoutPlayerView: View {
                                 }
                             )
                         }
-                        .onMove(perform: moveExercise) // Allows reordering exercises
+                        .onMove(perform: moveExercise)
                         
+                        // Complete Button
                         Button("Mark Workout as Complete") {
+                            // 1. Log the data
                             guard let sessionLog = logAllCompletedExercises() else {
+                                // Nothing logged? Just exit.
                                 restTimer.stop()
                                 totalWorkoutTimer.stop()
                                 onWorkoutComplete()
@@ -215,10 +236,14 @@ struct WorkoutPlayerView: View {
                                 return
                             }
                             
-                            Task {
-                                self.generatedAnalytics = await generateWorkoutAnalytics(from: sessionLog)
-                                self.showingAnalyticsSheet = true
-                            }
+                            // 2. Stop timers immediately
+                            restTimer.stop()
+                            totalWorkoutTimer.stop()
+                            
+                            // 3. Store the log and show the sheet
+                            // FIX: Pass log directly, don't generate old analytics
+                            self.completedSessionLog = sessionLog
+                            self.showingAnalyticsSheet = true
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .padding(.top)
@@ -226,7 +251,7 @@ struct WorkoutPlayerView: View {
                     .padding()
                 }
 
-                // Footer for utility buttons
+                // Bottom Bar
                 HStack {
                     Button {
                         showingPlateCalculator = true
@@ -240,7 +265,7 @@ struct WorkoutPlayerView: View {
             .blur(radius: showingNoteEditor ? 20 : 0)
             .onAppear(perform: loadPreviousPerformance)
 
-            // Exercise note editor overlay
+            // Note Editor Overlay
             if showingNoteEditor {
                 Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
                 ExerciseNoteView(
@@ -270,6 +295,8 @@ struct WorkoutPlayerView: View {
             totalWorkoutTimer.start()
         }
         .onDisappear {
+            // Safety check: Kill Live Activity if user swipes away the app
+            LiveActivityManager.shared.endActivity()
             Task {
                 try? await workoutService.saveRoutine(routine)
             }
@@ -283,13 +310,17 @@ struct WorkoutPlayerView: View {
         .sheet(isPresented: $showingPlateCalculator) {
             PlateCalculatorView()
         }
+        // Summary Sheet
         .sheet(isPresented: $showingAnalyticsSheet, onDismiss: {
-            restTimer.stop()
-            totalWorkoutTimer.stop()
             onWorkoutComplete()
             dismiss()
         }) {
-            WorkoutCompleteAnalyticsView(analytics: generatedAnalytics)
+            // FIX: Pass the log directly to the new view
+            if let log = completedSessionLog {
+                WorkoutCompleteAnalyticsView(log: log)
+            } else {
+                Text("Error loading analytics")
+            }
         }
     }
     
@@ -377,37 +408,15 @@ struct WorkoutPlayerView: View {
         
         return sessionLog
     }
-    
-    private func generateWorkoutAnalytics(from sessionLog: WorkoutSessionLog) async -> WorkoutAnalytics? {
-        let log = DailyLog(
-            id: sessionLog.id,
-            date: sessionLog.date.dateValue(),
-            meals: [],
-            exercises: [
-                LoggedExercise(
-                    name: routine.name,
-                    caloriesBurned: 0,
-                    date: sessionLog.date.dateValue(),
-                    workoutID: sessionLog.routineID,
-                    sessionID: sessionLog.id
-                )
-            ]
-        )
-        
-        let analyticsService = WorkoutAnalyticsService()
-        return await analyticsService.calculateAnalytics(for: [log], program: nil)
-    }
 }
 
-// High-level comment: A card for a single exercise in the workout player.
+// MARK: - Subviews
+
 private struct ExerciseCardView: View {
     @Binding var exercise: RoutineExercise
     @ObservedObject var restTimer: RestTimer
-    
-    // High-level comment: This @Binding is the fix.
-    // It correctly receives the binding from the parent view.
     @Binding var isAutoRestEnabled: Bool
-    
+    var routineName: String
     var previousPerformance: CompletedExercise?
     var onAddNote: () -> Void
     var onSwap: () -> Void
@@ -437,7 +446,7 @@ private struct ExerciseCardView: View {
                             .cornerRadius(8)
                     } else {
                         Button {
-                            restTimer.start(duration: TimeInterval(exercise.restTimeInSeconds))
+                            restTimer.start(duration: TimeInterval(exercise.restTimeInSeconds), routineName: routineName)
                         } label: {
                             Image(systemName: "timer")
                         }
@@ -453,9 +462,6 @@ private struct ExerciseCardView: View {
                         Button("Swap Exercise", action: onSwap)
                             .disabled(exercise.alternatives?.isEmpty ?? true)
                         Button("View Demo & History", action: onViewHistory)
-                        
-                        // High-level comment: This Toggle now correctly uses the $isAutoRestEnabled
-                        // binding that was passed into this subview.
                         Toggle("Auto-Rest Timer", isOn: $isAutoRestEnabled)
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -486,6 +492,7 @@ private struct ExerciseCardView: View {
                     exercise: $exercise,
                     previousPerformance: previousPerformance,
                     onSetComplete: { completedIndex in
+                        // Auto-fill logic
                         let nextIndex = completedIndex + 1
                         if nextIndex < exercise.sets.count {
                             let completedSet = exercise.sets[completedIndex]
@@ -495,8 +502,9 @@ private struct ExerciseCardView: View {
                             }
                         }
                         
+                        // Auto-start rest timer
                         if isAutoRestEnabled {
-                            restTimer.start(duration: TimeInterval(exercise.restTimeInSeconds))
+                            restTimer.start(duration: TimeInterval(exercise.restTimeInSeconds), routineName: routineName)
                         }
                     }
                 )
@@ -519,7 +527,6 @@ private struct ExerciseCardView: View {
     }
 }
 
-// High-level comment: View for logging Strength sets (Weight & Reps).
 private struct StrengthExerciseView: View {
     @Binding var exercise: RoutineExercise
     var previousPerformance: CompletedExercise?
@@ -556,7 +563,6 @@ private struct StrengthExerciseView: View {
     }
 }
 
-// High-level comment: View for logging Cardio sets (Distance & Time).
 private struct CardioExerciseView: View {
     @Binding var exercise: RoutineExercise
     
@@ -584,7 +590,6 @@ private struct CardioExerciseView: View {
     }
 }
 
-// High-level comment: View for logging Flexibility sets (Time).
 private struct FlexibilityExerciseView: View {
     @Binding var exercise: RoutineExercise
     
@@ -611,7 +616,6 @@ private struct FlexibilityExerciseView: View {
     }
 }
 
-// High-level comment: View for swapping the current exercise.
 private struct SwapExerciseView: View {
     @Binding var exercise: RoutineExercise
     @Environment(\.dismiss) var dismiss
@@ -649,7 +653,6 @@ private struct SwapExerciseView: View {
     }
 }
 
-// High-level comment: A single interactive row for a strength set.
 private struct StrengthSetRow: View {
     @Binding var set: ExerciseSet
     let setIndex: Int
@@ -805,7 +808,6 @@ private struct StrengthSetRow: View {
     }
 }
 
-// High-level comment: A single interactive row for a cardio set.
 private struct CardioSetRow: View {
     @Binding var set: ExerciseSet
     let setIndex: Int
@@ -855,7 +857,6 @@ private struct CardioSetRow: View {
     }
 }
 
-// High-level comment: A single interactive row for a flexibility set.
 private struct FlexibilitySetRow: View {
     @Binding var set: ExerciseSet
     let setIndex: Int

@@ -100,12 +100,17 @@ struct FoodSearchView: View {
                     fetchRecommendedFoods()
                 }
                 .sheet(isPresented: $showingAddFoodManually) {
-                    AddFoodView(isPresented: $showingAddFoodManually, onFoodLogged: { food, meal in
-                        Task {
-                            await dailyLogService.logFoodItem(food, mealType: meal)
+                    // Fixed: Updated to use the new AddFoodView initializer
+                    AddFoodView(
+                        initialFoodItem: FoodItem(id: UUID().uuidString, name: "", calories: 0, protein: 0, carbs: 0, fats: 0, servingSize: "", servingWeight: 0),
+                        dailyLog: $dailyLogService.currentDailyLog,
+                        date: dailyLogService.activelyViewedDate,
+                        source: "manual_add",
+                        onLogUpdated: {
+                            showingAddFoodManually = false
                             onFoodItemLogged?()
                         }
-                    })
+                    )
                 }
                 .sheet(isPresented: $showingBarcodeScanner) {
                     BarcodeScannerView { barcode in
@@ -138,6 +143,7 @@ struct FoodSearchView: View {
                 }
                 .sheet(isPresented: $showingAskMaia) { AIChatbotView(selectedTab: .constant(1)) }
                 .sheet(item: $selectedFoodItem) { foodItem in
+                    // Fixed: Updated to use the new FoodDetailView initializer
                     FoodDetailView(
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,
@@ -150,6 +156,7 @@ struct FoodSearchView: View {
                     )
                 }
                 .sheet(item: $scannedFoodItem) { foodItem in
+                    // Fixed: Updated to use the new FoodDetailView initializer
                     FoodDetailView(
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,

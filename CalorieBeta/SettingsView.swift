@@ -22,10 +22,14 @@ struct SettingsView: View {
     @State private var inchesInput: String = ""
     @State private var showingWaterGoalSheet = false
     @State private var waterGoalInput: String = ""
+    
+    // Wire up the reset confirmation
     @State private var showingResetTourConfirmation = false
+    
     @State private var showCycleSettings = false
     @State private var migrationStatusMessage = ""
     @State private var showingMigrationAlert = false
+    @State private var isDeletingAccount = false
 
     var body: some View {
         List {
@@ -86,15 +90,33 @@ struct SettingsView: View {
                   }
             }
             
+            // NEW: Help & Support Section
+            Section(header: Text("Help & Support")) {
+                Button("Reset Feature Tooltips") {
+                    showingResetTourConfirmation = true
+                }
+                .foregroundColor(.blue)
+            }
+            
             Section {
                 Button("Sign Out", role: .destructive) { showingSignOutAlert = true }
-                Button("Delete Account", role: .destructive) { showingDeleteAccountAlert = true }
+                
+                if isDeletingAccount {
+                    HStack {
+                        Text("Deleting Account...")
+                        Spacer()
+                        ProgressView()
+                    }
+                } else {
+                    Button("Delete Account", role: .destructive) { showingDeleteAccountAlert = true }
+                }
             }
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Done") { showSettings = false } } }
         .tint(.brandPrimary)
+        // Sheets
         .sheet(isPresented: $showCaloricCalculator) { CaloricCalculatorView().environmentObject(goalSettings) }
         .sheet(isPresented: $showHeightEditor) { SetHeightView(feetInput: $feetInput, inchesInput: $inchesInput, onSave: {
              if let feet = Int(feetInput), let inches = Int(inchesInput) {
@@ -119,7 +141,46 @@ struct SettingsView: View {
             }
             showingWaterGoalSheet = false
         }).environmentObject(goalSettings) }
+        // Alerts
         .alert("Sign Out", isPresented: $showingSignOutAlert, actions: { Button("Cancel", role: .cancel) {}; Button("Sign Out", role: .destructive) { appState.signOut() } }, message: { Text("Are you sure you want to sign out?") })
-        .alert("Delete Account", isPresented: $showingDeleteAccountAlert, actions: { Button("Cancel", role: .cancel) {}; Button("Delete", role: .destructive) { } }, message: { Text("Are you sure you want to delete your account? This action cannot be undone.") })
+        .alert("Delete Account", isPresented: $showingDeleteAccountAlert, actions: {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { deleteAccount() }
+        }, message: {
+            Text("Are you sure you want to delete your account? This will permanently delete your data and cannot be undone.")
+        })
+        .alert("Reset Tooltips?", isPresented: $showingResetTourConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) {
+                spotlightManager.resetSpotlights()
+            }
+        } message: {
+            Text("This will reset all the \"Quick Tip\" bubbles throughout the app so you can see them again.")
+        }
+    }
+    
+    private func deleteAccount() {
+        guard let user = Auth.auth().currentUser else { return }
+        isDeletingAccount = true
+        
+        let db = Firestore.firestore()
+        db.collection("users").document(user.uid).delete { error in
+            if let error = error {
+                print("Error deleting user data: \(error.localizedDescription)")
+                isDeletingAccount = false
+                return
+            }
+            user.delete { error in
+                DispatchQueue.main.async {
+                    isDeletingAccount = false
+                    if let error = error {
+                        print("Error deleting auth account: \(error.localizedDescription)")
+                    } else {
+                        appState.isUserLoggedIn = false
+                        showSettings = false
+                    }
+                }
+            }
+        }
     }
 }

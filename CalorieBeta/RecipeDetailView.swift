@@ -32,20 +32,21 @@ struct RecipeDetailView: View {
             }
         }
         .sheet(isPresented: $showingAddToLogSheet) {
+            // FIXED: Updated to use the new AddFoodView initializer
             AddFoodView(
-                isPresented: $showingAddToLogSheet,
-                foodItem: recipeService.recipeToFoodItem(recipe: recipe),
-                onFoodLogged: logRecipe
+                initialFoodItem: recipeService.recipeToFoodItem(recipe: recipe),
+                dailyLog: $dailyLogService.currentDailyLog,
+                date: dailyLogService.activelyViewedDate,
+                source: "recipe_detail",
+                onLogUpdated: {
+                    showingAddToLogSheet = false
+                }
             )
         }
     }
     
-    private func logRecipe(foodItem: FoodItem, mealType: String) {
-        Task {
-            await dailyLogService.logFoodItem(foodItem, mealType: mealType)
-            dismiss()
-        }
-    }
+    // Removed 'logRecipe' function as it is no longer needed.
+    // AddFoodView now handles logging directly via DailyLogService.
     
     private var nutritionSection: some View {
         VStack(alignment: .leading, spacing: 10) {

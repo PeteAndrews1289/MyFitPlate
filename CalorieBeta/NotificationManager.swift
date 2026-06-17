@@ -10,7 +10,7 @@ enum NotificationType {
     case encouragement
     case welcomeBack
     case healthTip
-    case dailyBriefing 
+    case dailyBriefing
 
     var id: String {
         switch self {
@@ -82,7 +82,30 @@ class NotificationManager {
         }
     }
     
-    // NEW FUNCTION: Schedules the AI-powered daily briefing.
+    // NEW: Schedules an AI-driven nudge for a later time (e.g. 5 hours after app close)
+    func scheduleSmartNudge(title: String, body: String, delayHours: Double) {
+        // Cancel existing nudge to avoid stacking
+        cancelNotification(identifier: "smart_ai_nudge")
+        
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.badge = 1
+        
+        // Schedule for X hours from now
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delayHours * 3600, repeats: false)
+        let request = UNNotificationRequest(identifier: "smart_ai_nudge", content: content, trigger: trigger)
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Error scheduling smart nudge: \(error)")
+            } else {
+                print("✅ Smart Nudge scheduled: '\(title)' in \(delayHours) hours.")
+            }
+        }
+    }
+    
     func scheduleDailyBriefingNotification(insightsService: InsightsService) {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         
