@@ -17,16 +17,6 @@ enum AITextLogError: Error, LocalizedError {
     }
 }
 
-private struct OpenAICompletionResponse: Decodable {
-    struct Choice: Decodable {
-        struct Message: Decodable {
-            let content: String
-        }
-        let message: Message
-    }
-    let choices: [Choice]
-}
-
 private struct AILogResponse: Codable {
     let foods: [AILoggedItem]
 }
@@ -52,8 +42,6 @@ private struct AILoggedItem: Codable {
 
 @MainActor
 class AITextLogService {
-    private let apiKey = getAPIKey()
-
     func estimateNutrition(from text: String) async -> Result<[FoodItem], AITextLogError> {
         let prompt = createPrompt(for: text)
         
@@ -94,41 +82,24 @@ class AITextLogService {
     }
 
     private func fetchAIResponse(prompt: String) async throws -> AILogResponse {
-        guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
-            throw AITextLogError.apiError("Invalid URL")
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        let result = await AIService.shared.performRequest(
+            messages: [["role": "user", "content": prompt]],
+            model: "gpt-4o-mini",
+            responseFormat: ["type": "json_object"]
+        )
 
-        let requestBody: [String: Any] = [
-            "model": "gpt-4o-mini",
-            "response_format": ["type": "json_object"],
-            "messages": [["role": "user", "content": prompt]]
-        ]
-        
-        request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
-        
-        do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            
-            let openAIResponse = try JSONDecoder().decode(OpenAICompletionResponse.self, from: data)
-            
-            guard let contentString = openAIResponse.choices.first?.message.content else {
-                throw AITextLogError.parsingError("The AI response was empty or in an unexpected format.")
-            }
-            
+        switch result {
+        case .success(let contentString):
             guard let contentData = contentString.data(using: .utf8) else {
                 throw AITextLogError.parsingError("Could not convert the AI's content string to data.")
             }
-            
-            let decodedResponse = try JSONDecoder().decode(AILogResponse.self, from: contentData)
-            return decodedResponse
-            
-        } catch {
-            throw AITextLogError.parsingError(error.localizedDescription)
+            do {
+                return try JSONDecoder().decode(AILogResponse.self, from: contentData)
+            } catch {
+                throw AITextLogError.parsingError(error.localizedDescription)
+            }
+        case .failure(let error):
+            throw AITextLogError.apiError(error.localizedDescription)
         }
     }
     

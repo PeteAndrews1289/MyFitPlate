@@ -1,1 +1,24 @@
+### macOS
+.DS_Store
+
+### Xcode local state
+xcuserdata/
+*.xcuserstate
+*.xcbkptlist
+DerivedData/
+build/
+
+### Archives and local exports
+*.zip
+*.ipa
+*.xcarchive
+
+### Local secrets
+secrets.xcconfig
 Secrets.xcconfig
+**/Secrets.plist
+
+### Firebase local config
+# Keep tracked Firebase config only if this repo stays private and your
+# Firebase rules/API restrictions are locked down.
+# GoogleService-Info.plist

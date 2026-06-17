@@ -119,7 +119,6 @@
 		4B71DB842E0B6A96003A0078 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4B71DB832E0B6A96003A0078 /* SwiftUI.framework */; };
 		4B71DB932E0B6A98003A0078 /* CalorieWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4B71DB802E0B6A96003A0078 /* CalorieWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4B71DB9C2E0B6B69003A0078 /* SharedDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B71DB9B2E0B6B69003A0078 /* SharedDataManager.swift */; };
-		4B71DBA12E0C4B36003A0078 /* secrets.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 4B71DBA02E0C4B36003A0078 /* secrets.xcconfig */; };
 		4B71DBB12E0CC665003A0078 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B71DBB02E0CC65C003A0078 /* DesignSystem.swift */; };
 		4B71DBBF2E1065FF003A0078 /* AISummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B71DBBE2E1065FF003A0078 /* AISummaryView.swift */; };
 		4B727F9D2E26B41C00874936 /* TTSManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B727F9C2E26B41C00874936 /* TTSManager.swift */; };
@@ -829,7 +828,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4B71DBA12E0C4B36003A0078 /* secrets.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
