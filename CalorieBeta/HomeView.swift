@@ -16,10 +16,15 @@ struct HomeView: View {
     @Binding var navigateToProfile: Bool
     @Binding var showSettings: Bool
 
+    // Initialize with Today's date
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    
     @State private var showingProfileSheet = false
     @State private var showingAddExerciseView = false
-    @State private var showingAddJournalView = false
+    
+    @State private var showingWeightEntrySheet = false
+    @State private var showingDetailedInsights = false
+    @State private var showingAIJournalSheet = false
     
     @State private var exerciseToEdit: LoggedExercise? = nil
     @State private var showingEditExerciseView = false
@@ -35,11 +40,30 @@ struct HomeView: View {
     
     @State private var showingWorkoutRoutines = false
     
-    private let spotlightOrder = ["nutritionProgress", "waterTracker", "dailyLog"]
+    // MARK: - New State for Past Workout Details
+    @State private var selectedExerciseForDetail: LoggedExercise?
+    @State private var showingWorkoutDetail = false
+    
+    private let spotlightOrder = ["nutritionProgress", "quickActions", "waterTracker", "dailyLog"]
+    
+    // UPDATED SPOTLIGHT CONTENT
     private let spotlightContent: [String: (title: String, text: String)] = [
-        "nutritionProgress": ("Daily Progress", "This area shows your real-time progress for calories, macros, and micronutrients. Swipe left or right to see different views!"),
-        "waterTracker": ("Water Intake", "Quickly log your water intake here. The bottle will fill up as you get closer to your daily goal."),
-        "dailyLog": ("Your Daily Log", "All of your logged food and exercise will appear here. Swipe any item to edit or delete it.")
+        "nutritionProgress": (
+            title: "Your Dashboard",
+            text: "This card shows your daily calorie and macro goals. Swipe it left or right to switch between the Summary, Macro Bubbles, Bar Charts, and Micronutrient views."
+        ),
+        "quickActions": (
+            title: "Command Center",
+            text: "Fast access to your core tools. Tap 'Workouts' to train, 'AI Journal' to reflect, or 'AI Insights' for a deep dive into your health trends."
+        ),
+        "waterTracker": (
+            title: "Stay Hydrated",
+            text: "Tap the + button to log water. The bottle fills up visually as you get closer to your daily goal."
+        ),
+        "dailyLog": (
+            title: "The Log",
+            text: "Everything you track appears here. You can swipe any food or exercise row to delete it, or tap to edit details."
+        )
     ]
 
     private var selectedDateFormattedString: String {
@@ -56,62 +80,56 @@ struct HomeView: View {
         Calendar.current.isDateInToday(selectedDate)
     }
 
+    // MARK: Body
     var body: some View {
           ZStack {
             NavigationLink(destination: WorkoutRoutinesView(), isActive: $showingWorkoutRoutines) { EmptyView() }
+            
+            // Link to the Past Workout Report
+            NavigationLink(
+                destination: selectedExerciseForDetail.map { PastWorkoutDetailView(exercise: $0) },
+                isActive: $showingWorkoutDetail
+            ) { EmptyView() }
+              
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(spacing: 20) {
+                    VStack(spacing: 24) { // Increased spacing for better breathing room
+                        
+                        // 1. Date Selector
                         dateNavigationView
                             .padding(.horizontal)
+                            .padding(.top, 10)
                         
+                        // 2. Nutrition Cards (Calories/Macros)
                         nutritionProgressSection
                             .padding(.horizontal)
                             .id("nutritionProgress")
                         
-                        if isToday {
-                            MealSuggestionCardView(
-                                suggestion: mealSuggestion,
-                                onGenerate: {
-                                    Task {
-                                        self.mealSuggestion = await insightsService.generateSingleMealSuggestion()
-                                    }
-                                },
-                                onTap: {
-                                    if mealSuggestion != nil {
-                                        showingSuggestionDetail = true
-                                    } else {
-                                        showingSuggestionPreferences = true
-                                    }
-                                },
-                                onPrefs: {
-                                    showingSuggestionPreferences = true
-                                },
-                                isLoading: insightsService.isGeneratingSuggestion
-                            )
+                        // 3. Quick Actions (Now Full Width)
+                        quickActions
                             .padding(.horizontal)
-                        }
+                            .id("quickActions")
                         
-                        if let currentDailyLog = dailyLogService.currentDailyLog, Calendar.current.isDate(currentDailyLog.date, inSameDayAs: selectedDate) {
-                            
+                        // 4. Water Tracker
+                        if let currentDailyLog = dailyLogService.currentDailyLog,
+                           Calendar.current.isDate(currentDailyLog.date, inSameDayAs: selectedDate) {
                             let insightToShow = insightsService.isLoadingInsights ? nil : weeklyInsight
                             
                             WaterTrackingCardView(date: currentDailyLog.date, insight: insightToShow)
                                 .asCard()
+                                .background(colorScheme == .dark ? Color.backgroundPrimary : Color.brandPrimary.opacity(0.03))
+                                .cornerRadius(20)
                                 .featureSpotlight(isActive: isSpotlightActive(for: "waterTracker"))
                                 .id("waterTracker")
                                 .padding(.horizontal)
                         }
                         
+                        // 5. Daily Log List
                         foodDiarySection
                             .padding(.horizontal)
                             .id("dailyLog")
-
-                        journalSection
-                            .padding(.horizontal)
                     }
-                    .padding(.top)
-                    .padding(.bottom, 120)
+                    .padding(.bottom, 50)
                 }
                 .onChange(of: currentSpotlightIndex) { newIndex in
                     if showingSpotlightTour && newIndex < tourSpotlightIDs.count {
@@ -123,10 +141,32 @@ struct HomeView: View {
                 }
             }
 
+            // MARK: - Spotlight Overlay
             if showingSpotlightTour {
                 Color.black.opacity(0.6).ignoresSafeArea()
                     .onTapGesture(perform: advanceTour)
                     .transition(.opacity)
+                
+                // Skip Button
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button(action: skipTour) {
+                            Text("Skip Tour")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.white.opacity(0.2))
+                                .clipShape(Capsule())
+                        }
+                        .padding(.top, 50)
+                        .padding(.trailing, 20)
+                    }
+                    Spacer()
+                }
+                .zIndex(100)
 
                 if currentSpotlightIndex < tourSpotlightIDs.count {
                     let currentID = tourSpotlightIDs[currentSpotlightIndex]
@@ -140,7 +180,7 @@ struct HomeView: View {
                         )
                     }
                 }
-            }
+             }
           }
           .toolbar {
               ToolbarItem(placement: .navigationBarLeading) {
@@ -148,10 +188,6 @@ struct HomeView: View {
                       Text("MyFitPlate")
                           .appFont(size: 17, weight: .semibold)
                           .foregroundColor(Color(UIColor.secondaryLabel))
-                      
-                      Button(action: { showingWorkoutRoutines = true }) {
-                          Image(systemName: "dumbbell.fill")
-                      }
                   }
               }
               ToolbarItem(placement: .navigationBarTrailing) {
@@ -168,6 +204,12 @@ struct HomeView: View {
                           .font(.title2)
                           .foregroundColor(Color(UIColor.secondaryLabel))
                   }
+              }
+          }
+          // MARK: - Sheets
+          .sheet(isPresented: $showingDetailedInsights) {
+              NavigationView {
+                  DetailedInsightsView(insightsService: insightsService)
               }
           }
           .sheet(isPresented: $showingSuggestionDetail) {
@@ -190,9 +232,6 @@ struct HomeView: View {
                   }
               }
           }
-          .sheet(isPresented: $showingAddJournalView) {
-              JournalView()
-          }
           .sheet(item: $exerciseToEdit) { exerciseToEdit in
               AddExerciseView(exerciseToEdit: exerciseToEdit) { updatedExercise in
                   if let userID = Auth.auth().currentUser?.uid {
@@ -201,33 +240,30 @@ struct HomeView: View {
                   }
               }
           }
+          .sheet(isPresented: $showingWeightEntrySheet) {
+              CurrentWeightView()
+                  .environmentObject(goalSettings)
+          }
+          .sheet(isPresented: $showingAIJournalSheet){
+              AIJournalSheet()
+          }
           .onAppear(perform: onHomeViewAppear)
+          .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+              // Check if we need to advance the day when app comes to foreground
+              let today = Calendar.current.startOfDay(for: Date())
+              if !Calendar.current.isDate(selectedDate, inSameDayAs: today) {
+                  withAnimation {
+                      selectedDate = today
+                  }
+                  onHomeViewAppear()
+              }
+          }
           .onReceive(insightsService.$currentInsights) { insights in
               self.weeklyInsight = insights.first
           }
     }
     
-    private func logMealSuggestion(_ suggestion: MealSuggestion) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
-        
-        let foodItem = FoodItem(
-            id: UUID().uuidString,
-            name: suggestion.mealName,
-            calories: suggestion.calories,
-            protein: suggestion.protein,
-            carbs: suggestion.carbs,
-            fats: suggestion.fats,
-            servingSize: "1 serving (AI Suggestion)",
-            servingWeight: 0,
-            timestamp: Date()
-        )
-        
-        dailyLogService.addFoodToCurrentLog(for: userID, foodItem: foodItem, source: "ai_suggestion")
-        
-        withAnimation {
-            self.mealSuggestion = nil
-        }
-    }
+    // MARK: - Logic
     
     private func onHomeViewAppear() {
         dailyLogService.activelyViewedDate = selectedDate
@@ -237,10 +273,16 @@ struct HomeView: View {
             cycleService.fetchAIInsight()
         }
         
+        // Check which spotlights haven't been seen yet
         let needed = spotlightOrder.filter { !spotlightManager.isShown(id: $0) }
+        
         if !needed.isEmpty {
             self.tourSpotlightIDs = needed
             self.currentSpotlightIndex = 0
+            
+            // Mark the FIRST one as shown immediately so it doesn't repeat if they leave now
+            spotlightManager.markAsShown(id: needed[0])
+            
             withAnimation {
                 self.showingSpotlightTour = true
             }
@@ -255,7 +297,15 @@ struct HomeView: View {
     }
     
     private func advanceTour() {
+        // Mark current as shown
+        if currentSpotlightIndex < tourSpotlightIDs.count {
+            spotlightManager.markAsShown(id: tourSpotlightIDs[currentSpotlightIndex])
+        }
+
         if currentSpotlightIndex < tourSpotlightIDs.count - 1 {
+            let nextID = tourSpotlightIDs[currentSpotlightIndex + 1]
+            spotlightManager.markAsShown(id: nextID)
+            
             withAnimation {
                 currentSpotlightIndex += 1
             }
@@ -264,12 +314,22 @@ struct HomeView: View {
         }
     }
     
+    private func skipTour() {
+        tourSpotlightIDs.forEach { spotlightManager.markAsShown(id: $0) }
+        finishTour()
+    }
+    
     private func finishTour() {
         withAnimation {
             showingSpotlightTour = false
         }
-        tourSpotlightIDs.forEach { spotlightManager.markAsShown(id: $0) }
+        if let last = tourSpotlightIDs.last {
+            spotlightManager.markAsShown(id: last)
+        }
+        spotlightManager.markAsShown(id: "action-menu")
     }
+    
+    // MARK: - Components & Subviews
 
     private var dateNavigationView: some View {
         HStack {
@@ -297,30 +357,98 @@ struct HomeView: View {
             }
             .disabled(isToday)
         }
+        .frame(maxWidth: UIScreen.main.bounds.width * 0.88)
         .padding(.vertical, 4)
     }
-
+    
     private var nutritionProgressSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Nutrition Progress")
                 .appFont(size: 22, weight: .bold)
-                .padding(.horizontal)
+                .padding(.leading, -5)
+                .padding(.bottom, 5)
             
+            Divider()
+                
             if let currentDailyLog = dailyLogService.currentDailyLog, Calendar.current.isDate(currentDailyLog.date, inSameDayAs: selectedDate) {
                 NutritionProgressView(dailyLog: currentDailyLog, goal: goalSettings, insight: weeklyInsight)
+                    
             } else {
                 ProgressView()
-                    .frame(maxWidth: .infinity, minHeight: 220)
+                    .frame(maxWidth: UIScreen.main.bounds.width * 0.88, minHeight: 220)
             }
         }
+        .frame(maxWidth: UIScreen.main.bounds.width * 0.88)
         .asCard()
+        .background(colorScheme == .dark ? Color.backgroundPrimary : Color.brandPrimary.opacity(0.03))
+        .cornerRadius(20)
         .featureSpotlight(isActive: isSpotlightActive(for: "nutritionProgress"))
+    }
+    
+    // Adjusted width calculation for a 2x2 grid with spacing
+    let quickButtonSize = (UIScreen.main.bounds.width - 48) / 2
+
+    // MARK: Quick Actions (Fixed Layout)
+    private var quickActions: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 16) {
+                // Top Left: Workouts
+                Button(action: { self.showingWorkoutRoutines = true }) {
+                    QuickActionButton(
+                        icon: "dumbbell.fill",
+                        label: "Workouts",
+                        color: .blue,
+                        size: quickButtonSize
+                    )
+                }
+
+                // Top Right: AI Journal
+                Button(action: {
+                    insightsService.generateAndFetchInsights(forLastDays: 7)
+                    showingAIJournalSheet = true
+                }) {
+                    QuickActionButton(
+                        icon: "book.pages.fill",
+                        label: "AI Journal",
+                        color: .purple,
+                        size: quickButtonSize
+                    )
+                }
+            }
+            
+            HStack(spacing: 16) {
+                // Bottom Left: AI Insights
+                Button(action: {
+                    insightsService.generateAndFetchInsights(forLastDays: 7)
+                    showingDetailedInsights = true
+                }) {
+                    QuickActionButton(
+                        icon: "sparkles",
+                        label: "AI Insights",
+                        color: .orange,
+                        size: quickButtonSize
+                    )
+                }
+                
+                // Bottom Right: Log Weight
+                Button(action: { showingWeightEntrySheet = true }) {
+                    QuickActionButton(
+                        icon: "scalemass.fill",
+                        label: "Log Weight",
+                        color: .green,
+                        size: quickButtonSize
+                    )
+                }
+            }
+        }
     }
 
     private var foodDiarySection: some View {
         VStack(alignment: .leading, spacing: 15) {
             Text("Daily Log")
                 .appFont(size: 22, weight: .bold)
+            
+            Divider()
 
             let currentLogForDisplay = (dailyLogService.currentDailyLog != nil && Calendar.current.isDate(dailyLogService.currentDailyLog!.date, inSameDayAs: selectedDate)) ? dailyLogService.currentDailyLog : nil
 
@@ -339,75 +467,13 @@ struct HomeView: View {
                 }
             }
         }
+        .frame(maxWidth: UIScreen.main.bounds.width * 0.88)
         .asCard()
+        .background(colorScheme == .dark ? Color.backgroundPrimary : Color.brandPrimary.opacity(0.03))
+        .cornerRadius(20)
         .featureSpotlight(isActive: isSpotlightActive(for: "dailyLog"))
     }
-
-    private var journalSection: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            HStack {
-                Text("AI Journal")
-                    .appFont(size: 22, weight: .bold)
-                Spacer()
-                Button("Add Entry") {
-                    showingAddJournalView = true
-                }
-                .appFont(size: 15, weight: .semibold)
-                .foregroundColor(.brandPrimary)
-            }
-
-            if let entries = dailyLogService.currentDailyLog?.journalEntries, !entries.isEmpty {
-                List {
-                    ForEach(entries) { entry in
-                        HStack(spacing: 8) {
-                            Text(JournalEmojiMapper.getEmoji(for: entry.category))
-                                .font(.title3)
-                            
-                            VStack(alignment: .leading) {
-                                Text(entry.text)
-                                    .appFont(size: 15, weight: .medium)
-                                    .foregroundColor(.textPrimary)
-                                    .lineLimit(2)
-                                
-                                Text(entry.category)
-                                    .appFont(size: 12)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 8)
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear) // *** ADDED THIS LINE ***
-                    }
-                    .onDelete(perform: deleteJournalEntry)
-                    .listRowSeparator(.hidden)
-                }
-                .listStyle(.plain)
-                .frame(height: CGFloat(entries.count) * 60)
-                .padding(.top, -5)
-                .background(Color.clear) // This background(Color.clear) is for the List itself
-                
-            } else {
-                Text("No journal entries for this day.")
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .appFont(size: 15)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
-            }
-        }
-        .asCard()
-    }
     
-    private func deleteJournalEntry(at offsets: IndexSet) {
-        guard let userID = Auth.auth().currentUser?.uid,
-              let allEntries = dailyLogService.currentDailyLog?.journalEntries else { return }
-        
-        let entriesToDelete = offsets.map { allEntries[$0] }
-        
-        for entry in entriesToDelete {
-            dailyLogService.deleteJournalEntry(for: userID, entry: entry)
-        }
-    }
-
     @ViewBuilder
     private func activityWidget() -> some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -427,9 +493,10 @@ struct HomeView: View {
                     SwipeableExerciseRowView(
                         exercise: exercise,
                         onDelete: { exerciseID in self.deleteExercise(byID: exerciseID) },
-                        onEdit: { exerciseToEdit in
-                            self.exerciseToEdit = exerciseToEdit
-                            self.showingEditExerciseView = true
+                        onTap: { exerciseToView in
+                            // *** ACTION: Navigate to detail ***
+                            self.selectedExerciseForDetail = exerciseToView
+                            self.showingWorkoutDetail = true
                         }
                     )
                 }
@@ -462,6 +529,28 @@ struct HomeView: View {
             }
         }
     }
+    
+    private func logMealSuggestion(_ suggestion: MealSuggestion) {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        
+        let foodItem = FoodItem(
+            id: UUID().uuidString,
+            name: suggestion.mealName,
+            calories: suggestion.calories,
+            protein: suggestion.protein,
+            carbs: suggestion.carbs,
+            fats: suggestion.fats,
+            servingSize: "1 serving (AI Suggestion)",
+            servingWeight: 0,
+            timestamp: Date()
+        )
+        
+        dailyLogService.addFoodToCurrentLog(for: userID, foodItem: foodItem, source: "ai_suggestion")
+        
+        withAnimation {
+            self.mealSuggestion = nil
+        }
+    }
 
     private func fetchLogForSelectedDate(completion: @escaping () -> Void = {}) {
             guard let userID = Auth.auth().currentUser?.uid else {
@@ -470,39 +559,58 @@ struct HomeView: View {
             }
             
             dailyLogService.fetchLog(for: userID, date: selectedDate) { [self] _ in
-            
                 self.goalSettings.recalculateAllGoals()
-                
                 if self.isToday {
                     self.insightsService.generateDailySmartInsight()
                 }
-                
                 completion()
             }
         }
 
     private func deleteFood(byID foodItemID: String) {
         guard let userID = Auth.auth().currentUser?.uid else { return }
-        dailyLogService.deleteFoodFromCurrentLog(
-            for: userID,
-            foodItemID: foodItemID
-        )
+        dailyLogService.deleteFoodFromCurrentLog(for: userID, foodItemID: foodItemID)
     }
 
     private func deleteExercise(byID exerciseID: String) {
         guard let userID = Auth.auth().currentUser?.uid else { return }
-        dailyLogService.deleteExerciseFromLog(
-            for: userID,
-            exerciseID: exerciseID
-        )
+        dailyLogService.deleteExerciseFromLog(for: userID, exerciseID: exerciseID)
     }
 }
 
-// These private subviews remain unchanged
+// MARK: - Helper Components
+
+// Helper View for Quick Action Buttons
+struct QuickActionButton: View {
+    let icon: String
+    let label: String
+    let color: Color
+    let size: CGFloat
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        VStack {
+            Image(systemName: icon)
+                .font(.system(size: 28))
+                .foregroundColor(color)
+            
+            Text(label)
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .padding(.top, 8)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+        }
+        .frame(width: size, height: 95)
+        .background(.ultraThinMaterial)
+        .background(colorScheme == .dark ? Color.backgroundPrimary : Color.brandPrimary.opacity(0.03))
+        .cornerRadius(20)
+    }
+}
+
 private struct SwipeableExerciseRowView: View {
     let exercise: LoggedExercise
     let onDelete: (String) -> Void
-    let onEdit: (LoggedExercise) -> Void
+    let onTap: (LoggedExercise) -> Void // Changed callback
     @State private var offset: CGFloat = 0
     @State private var isSwiped: Bool = false
 
@@ -518,60 +626,33 @@ private struct SwipeableExerciseRowView: View {
                             isSwiped = false
                         }
                     } label: {
-                        Image(systemName: "trash")
-                            .foregroundColor(.white)
-                            .frame(width: 60, height: 40, alignment: .center)
+                        Image(systemName: "trash").foregroundColor(.white).frame(width: 60, height: 40, alignment: .center)
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .background(Color.red)
-                    .contentShape(Rectangle())
-                    .cornerRadius(8)
+                    .buttonStyle(PlainButtonStyle()).background(Color.red).contentShape(Rectangle()).cornerRadius(8)
                 }
                 .padding(.vertical, 4)
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             }
 
             HStack(spacing: 8) {
-                Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                    .font(.title3)
+                Text(ExerciseEmojiMapper.getEmoji(for: exercise.name)).font(.title3)
                 VStack(alignment: .leading) {
                     HStack {
-                        Text(exercise.name)
-                            .appFont(size: 15, weight: .medium)
-                            .foregroundColor(.textPrimary)
-                        if exercise.source == "HealthKit" {
-                            Image("Apple_Health")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 14, height: 14)
-                        }
+                        Text(exercise.name).appFont(size: 15, weight: .medium).foregroundColor(.textPrimary)
+                        if exercise.source == "HealthKit" { Image("Apple_Health").resizable().scaledToFit().frame(width: 14, height: 14) }
                     }
-                    if let duration = exercise.durationMinutes, duration > 0 {
-                        Text("\(duration) min")
-                            .appFont(size: 12)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
+                    if let duration = exercise.durationMinutes, duration > 0 { Text("\(duration) min").appFont(size: 12).foregroundColor(Color(UIColor.secondaryLabel)) }
                 }
                 Spacer()
-                Text("\(Int(exercise.caloriesBurned)) cal")
-                    .appFont(size: 15)
-                    .foregroundColor(.accentPositive)
-                    .padding(.trailing, 5)
+                Text("\(Int(exercise.caloriesBurned)) cal").appFont(size: 15).foregroundColor(.accentPositive).padding(.trailing, 5)
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal)
-            .background(Color(UIColor.systemGray6).opacity(0.5))
-            .cornerRadius(8)
-            .contentShape(Rectangle())
+            .padding(.vertical, 10).padding(.horizontal).background(Color(UIColor.systemGray6).opacity(0.5)).cornerRadius(8).contentShape(Rectangle())
             .offset(x: offset)
             .onTapGesture {
                 if !isSwiped {
-                    onEdit(exercise)
+                    onTap(exercise) // Trigger navigation
                 } else {
-                    withAnimation(.easeInOut) {
-                        offset = 0
-                        isSwiped = false
-                    }
+                    withAnimation(.easeInOut) { offset = 0; isSwiped = false }
                 }
             }
             .gesture(
@@ -615,20 +696,11 @@ private struct SwipeableFoodItemView: View {
             NavigationLink(destination: FoodDetailView(initialFoodItem: initialFoodItem, dailyLog: $dailyLog, date: date, source: "log_swipe", onLogUpdated: onLogUpdated ), isActive: $showDetailView) { EmptyView() }.opacity(0)
             if isSwiped { HStack { Spacer(); Button { withAnimation(.easeInOut) { onDelete(initialFoodItem.id); offset = 0; isSwiped = false } } label: { Image(systemName: "trash").foregroundColor(.white).frame(width: 60, height: 50, alignment: .center) }.buttonStyle(PlainButtonStyle()).background(Color.red).contentShape(Rectangle()).cornerRadius(8) }.padding(.vertical, 2).transition(.move(edge: .trailing).combined(with: .opacity)) }
             HStack {
-                Text(FoodEmojiMapper.getEmoji(for: initialFoodItem.name) + " " + initialFoodItem.name)
-                    .lineLimit(1)
-                    .appFont(size: 17)
-                    .foregroundColor(.textPrimary)
+                Text(FoodEmojiMapper.getEmoji(for: initialFoodItem.name) + " " + initialFoodItem.name).lineLimit(1).appFont(size: 17).foregroundColor(.textPrimary)
                 Spacer()
-                Text("\(Int(initialFoodItem.calories)) cal")
-                    .appFont(size: 15)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                Text("\(Int(initialFoodItem.calories)) cal").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel))
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal)
-            .background(Color.clear)
-            .cornerRadius(8)
-            .contentShape(Rectangle())
+            .padding(.vertical, 8).padding(.horizontal).background(Color.clear).cornerRadius(8).contentShape(Rectangle())
             .offset(x: offset)
             .onTapGesture { if !isSwiped { showDetailView = true } else { withAnimation(.easeInOut) { offset = 0; isSwiped = false } } }
             .gesture( DragGesture().onChanged { value in if value.translation.width < 0 { offset = max(value.translation.width, -70) } else if isSwiped && value.translation.width > 0 { offset = -70 + value.translation.width } }.onEnded { value in withAnimation(.easeInOut) { if value.translation.width < -50 { offset = -70; isSwiped = true } else { offset = 0; isSwiped = false } } } )

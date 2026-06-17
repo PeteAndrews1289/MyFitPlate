@@ -3,6 +3,7 @@ import Combine
 import FirebaseAuth
 import HealthKit
 
+// High-level comment: Service responsible for generating AI-driven insights and now, smart notifications.
 @MainActor
 class InsightsService: ObservableObject {
     @Published var currentInsights: [UserInsight] = []
@@ -18,6 +19,17 @@ class InsightsService: ObservableObject {
     
     private var lastWeeklyInsightFetch: Date?
 
+    // High-level comment: Context object to pass snapshot data to the AI for notification generation.
+    struct NotificationContext {
+        let gender: String
+        let phase: MenstrualPhase?
+        let wellnessScore: Int?
+        let caloriesRemaining: Double
+        let proteinRemaining: Double
+        let daysSinceLastWorkout: Int
+        let lastWorkoutName: String?
+    }
+
     init(dailyLogService: DailyLogService, goalSettings: GoalSettings, healthKitViewModel: HealthKitViewModel) {
         self.dailyLogService = dailyLogService
         self.goalSettings = goalSettings
@@ -31,6 +43,8 @@ class InsightsService: ObservableObject {
             .store(in: &cancellables)
     }
 
+    // ... [generateSingleMealSuggestion, createMealSuggestionPrompt, generateDailySmartInsight remain unchanged] ...
+    // (Keep existing implementations)
     func generateSingleMealSuggestion() async -> MealSuggestion? {
         self.isGeneratingSuggestion = true
         let prompt = createMealSuggestionPrompt()
@@ -173,13 +187,123 @@ class InsightsService: ObservableObject {
                     return
                 }
                 
-                let aiInsights = await self.generateAIInsights(for: logs, sleepSamples: sleepData, goals: self.goalSettings)
+                let aiInsights = await self.generateAIInsights(for: logs, sleepSamples: sleepData, goals: self.goalSettings, retryCount: 1)
+                
                 await self.handleInsightsResult(insights: aiInsights, error: aiInsights.isEmpty ? "Could not generate AI insights at this time." : nil)
 
             case .failure(let error):
                 await self.handleInsightsError(message: "Could not analyze data: \(error.localizedDescription)")
             }
         }
+    }
+    
+    // MARK: - Smart Notification Logic (Fixed "700k Days" Bug)
+    func generateSmartNotification(context: NotificationContext) async -> (title: String, body: String)? {
+        
+        // --- STEP 1: SELECT THE STRATEGY ---
+        var strategy = "General Motivation"
+        var tone = "Encouraging"
+        var dataFocus = "User's general health goals"
+
+        // Hook 1: Extreme Recovery (High or Low)
+        if let score = context.wellnessScore {
+            if score < 50 {
+                strategy = "Recovery Warning"
+                tone = "Gentle, protective, authoritative."
+                dataFocus = "Wellness Score is low (\(score)). Advise rest or hydration."
+            } else if score > 90 {
+                strategy = "Peak Performance"
+                tone = "Hype man, high energy, challenging."
+                dataFocus = "Wellness Score is peak (\(score)). Challenge them to hit a Personal Record."
+            }
+        }
+        
+        // Hook 2: Cycle Phase
+        if strategy == "General Motivation", let phase = context.phase {
+            strategy = "Cycle Syncing"
+            dataFocus = "User is in \(phase.rawValue) phase."
+            switch phase {
+            case .follicular, .ovulatory:
+                tone = "Energetic, push them to work hard."
+            case .luteal, .menstrual:
+                tone = "Nurturing, validate their low energy."
+            }
+        }
+        
+        // Hook 3: Nutrition Gap
+        if strategy == "General Motivation" {
+            let hour = Calendar.current.component(.hour, from: Date())
+            if hour >= 17 && context.caloriesRemaining > 400 {
+                strategy = "Dinner Suggestion"
+                tone = "Helpful, solution-oriented."
+                dataFocus = "User has \(Int(context.caloriesRemaining)) calories and \(Int(context.proteinRemaining))g protein left. Suggest a meal type."
+            }
+        }
+        
+        // Hook 4: Workout Lapse (BUG FIX HERE)
+        // Only trigger if days > 2 AND less than ~365 (to filter out default distantPast dates)
+        if strategy == "General Motivation" && context.daysSinceLastWorkout > 2 && context.daysSinceLastWorkout < 400 {
+            strategy = "Re-engagement"
+            tone = context.gender == "Male" ? "Direct, challenge-oriented, 'tough love'." : "Encouraging, reminder of goals."
+            dataFocus = "User hasn't worked out in \(context.daysSinceLastWorkout) days. Their last workout was \(context.lastWorkoutName ?? "unknown"). Get them back in."
+        }
+
+        // --- STEP 2: CRAFT THE PROMPT ---
+        let prompt = """
+        You are Maia, an advanced AI fitness coach. Write a push notification for a \(context.gender) user.
+        
+        **CURRENT STRATEGY:** \(strategy)
+        **TONE:** \(tone)
+        **DATA CONTEXT:** \(dataFocus)
+        
+        **RULES:**
+        1. Be witty, short, and punchy.
+        2. Do NOT be generic (e.g., "Keep going!"). Be specific to the data provided.
+        3. Max length: Title (25 chars), Body (90 chars).
+        4. Return ONLY a valid JSON object with keys "title" and "body".
+        """
+        
+        // --- STEP 3: CALL AI (Reusing existing infrastructure) ---
+        guard let responseString = await fetchAIResponse(prompt: prompt),
+              let data = responseString.data(using: .utf8) else { return nil }
+        
+        struct NotificationResponse: Decodable {
+            let title: String
+            let body: String
+        }
+        
+        do {
+            let decoded = try JSONDecoder().decode(NotificationResponse.self, from: data)
+            return (decoded.title, decoded.body)
+        } catch {
+            return nil
+        }
+    }
+    
+    // ... [generateDailyBriefing and other methods remain unchanged] ...
+    // (Keep existing implementations)
+    func generateDailyBriefing(for userID: String) async -> (title: String, body: String)? {
+        let wellnessScoreSummary = "Good Recovery"
+        let todaysWorkout = "Leg Day"
+        
+        let prompt = """
+        You are Maia, an encouraging fitness coach. Create a short, motivational "Daily Briefing" push notification.
+
+        Yesterday's Wellness Score resulted in a summary of: "\(wellnessScoreSummary)".
+        Today's planned workout is: "\(todaysWorkout)".
+
+        RULES:
+        1.  The title should be 4-5 words.
+        2.  The body should be 1-2 short, encouraging sentences.
+        3.  Combine the user's recovery status with their plan for the day.
+        4.  Provide ONLY the title and body, separated by a newline. Do not add any other text.
+        """
+        
+        guard let response = await fetchAIResponse(prompt: prompt) else { return nil }
+        let lines = response.split(separator: "\n").map(String.init)
+        guard lines.count >= 2 else { return nil }
+        
+        return (title: lines[0], body: lines[1])
     }
     
     private func handleInsightsResult(insights: [UserInsight], error: String?) {
@@ -192,7 +316,7 @@ class InsightsService: ObservableObject {
         }
     }
     
-    private func generateAIInsights(for logs: [DailyLog], sleepSamples: [HKCategorySample], goals: GoalSettings) async -> [UserInsight] {
+    private func generateAIInsights(for logs: [DailyLog], sleepSamples: [HKCategorySample], goals: GoalSettings, retryCount: Int) async -> [UserInsight] {
         let prompt = createAIPrompt(logs: logs, sleepSamples: sleepSamples, goals: goals)
         
         guard let responseString = await fetchAIResponse(prompt: prompt) else { return [] }
@@ -203,7 +327,11 @@ class InsightsService: ObservableObject {
             return insightsResponse["insights"] ?? []
         } catch {
             print("❌ InsightsService: JSON Decoding Error - \(error)")
-            let fallbackInsight = UserInsight(title: "Today's Tip", message: responseString, category: .smartSuggestion)
+            if retryCount > 0 {
+                print("🔄 InsightsService: Retrying generation...")
+                return await generateAIInsights(for: logs, sleepSamples: sleepSamples, goals: goals, retryCount: retryCount - 1)
+            }
+            let fallbackInsight = UserInsight(title: "Today's Tip", message: "I couldn't generate detailed insights right now, but remember: consistency is key!", category: .smartSuggestion)
             return [fallbackInsight]
         }
     }
@@ -287,40 +415,11 @@ class InsightsService: ObservableObject {
         """
     }
     
-    func generateDailyBriefing(for userID: String) async -> (title: String, body: String)? {
-        let wellnessScoreSummary = "Good Recovery"
-        let todaysWorkout = "Leg Day"
-        
-        let prompt = """
-        You are Maia, an encouraging fitness coach. Create a short, motivational "Daily Briefing" push notification.
-
-        Yesterday's Wellness Score resulted in a summary of: "\(wellnessScoreSummary)".
-        Today's planned workout is: "\(todaysWorkout)".
-
-        RULES:
-        1.  The title should be 4-5 words.
-        2.  The body should be 1-2 short, encouraging sentences.
-        3.  Combine the user's recovery status with their plan for the day.
-        4.  Provide ONLY the title and body, separated by a newline. Do not add any other text.
-        """
-        
-        guard let response = await fetchAIResponse(prompt: prompt) else { return nil }
-        let lines = response.split(separator: "\n").map(String.init)
-        guard lines.count >= 2 else { return nil }
-        
-        return (title: lines[0], body: lines[1])
-    }
-    
     private func fetchAIResponse(prompt: String) async -> String? {
         let apiKey = getAPIKey()
         
-        // DEBUG PRINT: Check if key exists
-        if apiKey.isEmpty {
-            print("❌ InsightsService: API Key is EMPTY.")
-            return nil
-        }
-        if apiKey == "YOUR_API_KEY" {
-             print("❌ InsightsService: API Key is default placeholder 'YOUR_API_KEY'.")
+        if apiKey.isEmpty || apiKey == "YOUR_API_KEY" {
+             print("❌ InsightsService: API Key invalid.")
              return nil
         }
         
@@ -331,38 +430,27 @@ class InsightsService: ObservableObject {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let requestBody: [String: Any] = [
-            "model": "gpt-4o-mini", // Ensure this matches your authorized model
+            "model": "gpt-4o-mini",
             "messages": [["role": "user", "content": prompt]],
             "temperature": 0.7,
             "response_format": ["type": "json_object"]
         ]
         
-        guard let httpBody = try? JSONSerialization.data(withJSONObject: requestBody) else {
-            print("❌ InsightsService: Failed to serialize request body.")
-            return nil
-        }
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: requestBody) else { return nil }
         request.httpBody = httpBody
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             
-            if let httpResponse = response as? HTTPURLResponse {
-                // DEBUG PRINT: Check Status Code
-                if httpResponse.statusCode != 200 {
-                    print("❌ InsightsService: HTTP Error \(httpResponse.statusCode)")
-                    if let responseBody = String(data: data, encoding: .utf8) {
-                        print("❌ InsightsService: Response Body: \(responseBody)")
-                    }
-                    return nil
-                }
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+                print("❌ InsightsService: HTTP Error \(httpResponse.statusCode)")
+                return nil
             }
             
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                let choices = json["choices"] as? [[String: Any]], let firstChoice = choices.first,
                let message = firstChoice["message"] as? [String: Any], let content = message["content"] as? String {
                 return content
-            } else {
-                print("❌ InsightsService: Failed to parse valid JSON from response.")
             }
         } catch {
             print("❌ InsightsService: Network Request Failed - \(error.localizedDescription)")

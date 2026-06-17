@@ -6,10 +6,13 @@ import SwiftUI
 import Combine
 
 class GoalSettings: ObservableObject {
+    // Core Nutrition Goals
     @Published var calories: Double?
     @Published var protein: Double = 150
     @Published var fats: Double = 70
     @Published var carbs: Double = 250
+    
+    // User Stats
     @Published var weight: Double = 150.0
     @Published var height: Double = 170.0
     @Published var age: Int = 25
@@ -17,13 +20,18 @@ class GoalSettings: ObservableObject {
     @Published var activityLevel: Double = 1.2
     @Published var goal: String = "Maintain"
     @Published var targetWeight: Double?
+    
+    // Macro Split (%)
     @Published var proteinPercentage: Double = 30.0
     @Published var carbsPercentage: Double = 50.0
     @Published var fatsPercentage: Double = 20.0
+    
+    // History & State
     @Published var weightHistory: [(id: String, date: Date, weight: Double)] = []
     @Published var isUpdatingGoal: Bool = false
     @Published var nutritionViewIndex: Int = 0
 
+    // Micronutrient Goals
     @Published var calciumGoal: Double?
     @Published var ironGoal: Double?
     @Published var potassiumGoal: Double?
@@ -33,10 +41,12 @@ class GoalSettings: ObservableObject {
     @Published var vitaminDGoal: Double?
     @Published var vitaminB12Goal: Double?
     @Published var folateGoal: Double?
-    
-    @Published var calorieGoalMethod: CalorieGoalMethod = .mifflinWithActivity { didSet { recalculateAllGoals() } }
     @Published var waterGoal: Double = 64.0
+    
+    // Calculation Method
+    @Published var calorieGoalMethod: CalorieGoalMethod = .mifflinWithActivity { didSet { recalculateAllGoals() } }
 
+    // High-level comment: New AI Preferences for Meal Planning
     @Published var suggestionProteins: [String] = ["Chicken", "Beef", "Fish"]
     @Published var suggestionCuisines: [String] = ["Any"]
     @Published var suggestionCarbs: [String] = ["Rice", "Potatoes", "Pasta"]
@@ -67,6 +77,8 @@ class GoalSettings: ObservableObject {
     func setupDependencies(dailyLogService: DailyLogService) {
         self.dailyLogService = dailyLogService
     }
+    
+    // MARK: - Calculation Logic
     
     func recalculateAllGoals() {
         DispatchQueue.main.async {
@@ -128,6 +140,7 @@ class GoalSettings: ObservableObject {
         }
         let totalPct = proteinPercentage + carbsPercentage + fatsPercentage
         guard abs(totalPct - 100.0) < 1.0 else {
+            // Reset to defaults if percentages are invalid
             self.proteinPercentage = 30; self.carbsPercentage = 50; self.fatsPercentage = 20
             DispatchQueue.main.async { self.updateMacros() }
             return
@@ -141,8 +154,10 @@ class GoalSettings: ObservableObject {
     }
     
     private func calculateMicronutrientGoals() {
+        // Basic DRI approximations based on age/gender
         let age = self.age
         let gender = self.gender.lowercased()
+        
         switch age {
             case 0...3: calciumGoal = 700; case 4...8: calciumGoal = 1000; case 9...18: calciumGoal = 1300
             case 19...50: calciumGoal = 1000; case 51...70: calciumGoal = (gender == "female") ? 1200 : 1000
@@ -181,6 +196,8 @@ class GoalSettings: ObservableObject {
         folateGoal = 400
     }
     
+    // MARK: - Firestore Persistence
+    
     func loadUserGoals(userID: String, completion: @escaping () -> Void = {}) {
         db.collection("users").document(userID).getDocument { [weak self] document, error in
             guard let self = self else { completion(); return }
@@ -188,7 +205,7 @@ class GoalSettings: ObservableObject {
             var shouldUpdateFirestore = false
             
             if let doc = document, doc.exists, var data = doc.data() {
-                
+                // Load core stats
                 if data["weight"] == nil { data["weight"] = self.weight; shouldUpdateFirestore = true }
                 if data["height"] == nil { data["height"] = self.height; shouldUpdateFirestore = true }
                 if data["age"] == nil { data["age"] = self.age; shouldUpdateFirestore = true }
@@ -204,6 +221,8 @@ class GoalSettings: ObservableObject {
                 }
                 
                 var goalsMap = data["goals"] as? [String: Any] ?? [:]
+                
+                // Load or default new fields
                 if goalsMap["proteinPercentage"] == nil { goalsMap["proteinPercentage"] = self.proteinPercentage; shouldUpdateFirestore = true }
                 if goalsMap["carbsPercentage"] == nil { goalsMap["carbsPercentage"] = self.carbsPercentage; shouldUpdateFirestore = true }
                 if goalsMap["fatsPercentage"] == nil { goalsMap["fatsPercentage"] = self.fatsPercentage; shouldUpdateFirestore = true }
@@ -211,9 +230,10 @@ class GoalSettings: ObservableObject {
                 if goalsMap["goal"] == nil { goalsMap["goal"] = self.goal; shouldUpdateFirestore = true }
                 if goalsMap["waterGoal"] == nil { goalsMap["waterGoal"] = self.waterGoal; shouldUpdateFirestore = true }
 
+                // Handle target weight (might be null)
                 self.targetWeight = goalsMap["targetWeight"] as? Double
-                
                 if self.targetWeight == nil {
+                     // Backward compatibility check
                     if let topLevelTargetWeight = data["targetWeight"] as? Double {
                         self.targetWeight = topLevelTargetWeight
                         goalsMap["targetWeight"] = topLevelTargetWeight
@@ -224,6 +244,7 @@ class GoalSettings: ObservableObject {
                     }
                 }
                 
+                // Load AI Preferences
                 self.suggestionProteins = goalsMap["suggestionProteins"] as? [String] ?? self.suggestionProteins
                 self.suggestionCuisines = goalsMap["suggestionCuisines"] as? [String] ?? self.suggestionCuisines
                 self.suggestionCarbs = goalsMap["suggestionCarbs"] as? [String] ?? self.suggestionCarbs
@@ -262,6 +283,7 @@ class GoalSettings: ObservableObject {
                 "calciumGoal": self.calciumGoal ?? NSNull(), "ironGoal": self.ironGoal ?? NSNull(), "potassiumGoal": self.potassiumGoal ?? NSNull(),
                 "sodiumGoal": self.sodiumGoal ?? NSNull(), "vitaminAGoal": self.vitaminAGoal ?? NSNull(), "vitaminCGoal": self.vitaminCGoal ?? NSNull(),
                 "vitaminDGoal": self.vitaminDGoal ?? NSNull(), "waterGoal": self.waterGoal, "vitaminB12Goal": self.vitaminB12Goal ?? NSNull(), "folateGoal": self.folateGoal ?? NSNull(),
+                // Saving AI Preferences
                 "suggestionProteins": self.suggestionProteins, "suggestionCuisines": self.suggestionCuisines,
                 "suggestionCarbs": self.suggestionCarbs, "suggestionVeggies": self.suggestionVeggies
             ]
@@ -272,6 +294,8 @@ class GoalSettings: ObservableObject {
             self.db.collection("users").document(userID).setData(userData, merge: true)
         }
     }
+    
+    // MARK: - Weight Tracking
     
     func loadWeightHistory() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
@@ -298,16 +322,10 @@ class GoalSettings: ObservableObject {
             self.recalculateAllGoals()
         }
 
-        db.collection("users").document(userID).setData(["weight": newWeight], merge: true) { error in
-            if let error = error {
-            }
-        }
+        db.collection("users").document(userID).setData(["weight": newWeight], merge: true)
 
         let weightData: [String:Any] = ["weight": newWeight, "timestamp": Timestamp(date: currentDate)]
-        db.collection("users").document(userID).collection("weightHistory").addDocument(data: weightData) { error in
-             if let error = error {
-             }
-        }
+        db.collection("users").document(userID).collection("weightHistory").addDocument(data: weightData)
 
         HealthKitManager.shared.saveWeightSample(weightLbs: newWeight, date: currentDate)
     }
@@ -316,6 +334,8 @@ class GoalSettings: ObservableObject {
         guard let userID = Auth.auth().currentUser?.uid else { completion(NSError(domain:"App",code:401));return}
         db.collection("users").document(userID).collection("weightHistory").document(entryID).delete(completion: completion)
     }
+    
+    // MARK: - Helpers
     
     func getHeightInFeetAndInches() -> (feet: Int, inches: Int) {
         let hCm = self.height; guard hCm > 0 else { return (0,0) }; let totalInches = Int(round(hCm / 2.54))

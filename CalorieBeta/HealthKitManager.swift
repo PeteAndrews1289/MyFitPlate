@@ -14,7 +14,9 @@ class HealthKitManager {
             return
         }
 
+        // We need to write .food correlations
         let typesToShare: Set<HKSampleType> = [
+            HKObjectType.correlationType(forIdentifier: .food)!, // Added this
             HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed)!,
             HKQuantityType.quantityType(forIdentifier: .dietaryProtein)!,
             HKQuantityType.quantityType(forIdentifier: .dietaryCarbohydrates)!,
@@ -36,6 +38,7 @@ class HealthKitManager {
         }
     }
 
+    // ... (fetchWorkouts, fetchSleepAnalysis, fetchLatestRestingHeartRate, fetchLatestHRV remain unchanged) ...
     func fetchWorkouts(for date: Date, completion: @escaping ([HKWorkout]?, Error?) -> Void) {
         let calendar = Calendar.current
         let startDate = calendar.startOfDay(for: date)
@@ -62,17 +65,14 @@ class HealthKitManager {
         healthStore.execute(query)
     }
 
-    // Ensures end date includes the full day for sleep queries
     func fetchSleepAnalysis(startDate: Date, endDate: Date, completion: @escaping ([HKCategorySample]?, Error?) -> Void) {
         guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
             completion(nil, NSError(domain: "com.MyFitPlate.HealthKit", code: 2, userInfo: [NSLocalizedDescriptionKey: "Sleep analysis is not available."]))
             return
         }
 
-        // Use the very start of the start day and the very end of the end day
         let calendar = Calendar.current
         let queryStartDate = calendar.startOfDay(for: startDate)
-        // Go to the start of the day *after* the end date to include the full end date.
         let queryEndDate = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate))
 
         let predicate = HKQuery.predicateForSamples(withStart: queryStartDate, end: queryEndDate, options: .strictStartDate)
@@ -120,13 +120,13 @@ class HealthKitManager {
         healthStore.execute(query)
     }
 
-
+    // MARK: - Updated Nutrition Saving with Correlations
     public func saveNutrition(for foodItem: FoodItem) {
-
         guard let energyType = HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed),
               let proteinType = HKQuantityType.quantityType(forIdentifier: .dietaryProtein),
               let carbType = HKQuantityType.quantityType(forIdentifier: .dietaryCarbohydrates),
-              let fatType = HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal)
+              let fatType = HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal),
+              let foodCorrelationType = HKObjectType.correlationType(forIdentifier: .food)
         else {
             print("❌ Unable to get HealthKit nutrition types.")
             return
@@ -135,27 +135,34 @@ class HealthKitManager {
         let timestamp = foodItem.timestamp ?? Date()
         var nutrientSamples: [HKQuantitySample] = []
 
-        let calorieQuantity = HKQuantity(unit: .kilocalorie(), doubleValue: foodItem.calories)
-        let calorieSample = HKQuantitySample(type: energyType, quantity: calorieQuantity, start: timestamp, end: timestamp)
-        nutrientSamples.append(calorieSample)
+        // Create samples
+        if foodItem.calories > 0 {
+            nutrientSamples.append(HKQuantitySample(type: energyType, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: foodItem.calories), start: timestamp, end: timestamp))
+        }
+        if foodItem.protein > 0 {
+            nutrientSamples.append(HKQuantitySample(type: proteinType, quantity: HKQuantity(unit: .gram(), doubleValue: foodItem.protein), start: timestamp, end: timestamp))
+        }
+        if foodItem.carbs > 0 {
+            nutrientSamples.append(HKQuantitySample(type: carbType, quantity: HKQuantity(unit: .gram(), doubleValue: foodItem.carbs), start: timestamp, end: timestamp))
+        }
+        if foodItem.fats > 0 {
+            nutrientSamples.append(HKQuantitySample(type: fatType, quantity: HKQuantity(unit: .gram(), doubleValue: foodItem.fats), start: timestamp, end: timestamp))
+        }
+        
+        guard !nutrientSamples.isEmpty else { return }
 
-        let proteinQuantity = HKQuantity(unit: .gram(), doubleValue: foodItem.protein)
-        let proteinSample = HKQuantitySample(type: proteinType, quantity: proteinQuantity, start: timestamp, end: timestamp)
-        nutrientSamples.append(proteinSample)
+        // Wrap them in a correlation (Food Object)
+        let foodMetadata: [String: Any] = [
+            HKMetadataKeyFoodType: foodItem.name
+        ]
+        
+        let foodCorrelation = HKCorrelation(type: foodCorrelationType, start: timestamp, end: timestamp, objects: Set(nutrientSamples), metadata: foodMetadata)
 
-        let carbQuantity = HKQuantity(unit: .gram(), doubleValue: foodItem.carbs)
-        let carbSample = HKQuantitySample(type: carbType, quantity: carbQuantity, start: timestamp, end: timestamp)
-        nutrientSamples.append(carbSample)
-
-        let fatQuantity = HKQuantity(unit: .gram(), doubleValue: foodItem.fats)
-        let fatSample = HKQuantitySample(type: fatType, quantity: fatQuantity, start: timestamp, end: timestamp)
-        nutrientSamples.append(fatSample)
-
-        healthStore.save(nutrientSamples) { success, error in
+        healthStore.save(foodCorrelation) { success, error in
             if !success, let error = error {
-                print("❌ Error saving nutrition to HealthKit: \(error.localizedDescription)")
+                print("❌ Error saving food correlation to HealthKit: \(error.localizedDescription)")
             } else if success {
-                 // print("✅ Nutrition data saved to HealthKit for \(foodItem.name)") // Reduced logging noise
+                 // Success
             }
         }
     }
@@ -172,8 +179,6 @@ class HealthKitManager {
         healthStore.save(weightSample) { success, error in
             if !success, let error = error {
                 print("❌ Error saving weight to HealthKit: \(error.localizedDescription)")
-            } else if success {
-                 // print("✅ Weight data saved to HealthKit: \(weightLbs) lbs on \(date)") // Reduced logging noise
             }
         }
     }

@@ -2,12 +2,14 @@ import Foundation
 import FirebaseFirestore
 import SwiftUI
 
+// MARK: - Enums
 enum ExerciseType: String, Codable, CaseIterable {
     case strength = "Strength"
     case cardio = "Cardio"
     case flexibility = "Flexibility"
 }
 
+// MARK: - Workout Models
 struct WorkoutProgram: Identifiable, Codable {
     @DocumentID var id: String?
     var userID: String
@@ -69,8 +71,7 @@ class WorkoutRoutine: Identifiable, ObservableObject, Codable, Hashable {
     }
 }
 
-
-struct RoutineExercise: Identifiable, Codable{
+struct RoutineExercise: Identifiable, Codable {
     var id: String = UUID().uuidString
     var name: String
     var type: ExerciseType = .strength
@@ -82,7 +83,7 @@ struct RoutineExercise: Identifiable, Codable{
     var targetReps: String = "8-12"
 }
 
-struct ExerciseSet: Identifiable, Codable{
+struct ExerciseSet: Identifiable, Codable {
     var id: String = UUID().uuidString
     var isCompleted: Bool = false
     var target: String?
@@ -107,9 +108,7 @@ struct CompletedExercise: Identifiable, Codable {
     var exerciseName: String
     var exercise: RoutineExercise
     var sets: [CompletedSet]
-    var date: Date {
-        return Date()
-    }
+    var date: Date { return Date() }
 }
 
 struct CompletedSet: Identifiable, Codable {
@@ -120,6 +119,148 @@ struct CompletedSet: Identifiable, Codable {
     var durationInSeconds: Int?
 }
 
+// MARK: - Nutrition Models
+
+struct FoodItem: Codable, Identifiable, Hashable {
+    var id: String
+    var name: String
+    var calories: Double
+    var protein: Double
+    var carbs: Double
+    var fats: Double
+    var saturatedFat: Double?
+    var polyunsaturatedFat: Double?
+    var monounsaturatedFat: Double?
+    var fiber: Double?
+    var servingSize: String
+    var servingWeight: Double
+    var timestamp: Date?
+    
+    // Micros
+    var calcium: Double?
+    var iron: Double?
+    var potassium: Double?
+    var sodium: Double?
+    var vitaminA: Double?
+    var vitaminC: Double?
+    var vitaminD: Double?
+    var vitaminB12: Double?
+    var folate: Double?
+    var magnesium: Double?
+    var phosphorus: Double?
+    var zinc: Double?
+    var copper: Double?
+    var manganese: Double?
+    var selenium: Double?
+    var vitaminB1: Double?
+    var vitaminB2: Double?
+    var vitaminB3: Double?
+    var vitaminB5: Double?
+    var vitaminB6: Double?
+    var vitaminE: Double?
+    var vitaminK: Double?
+    
+    // NEW: Robust Quantity Fields
+    // Using optional with default nil ensures backward compatibility
+    var quantityValue: Double? = nil
+    var servingUnit: String? = nil
+
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    static func == (lhs: FoodItem, rhs: FoodItem) -> Bool { lhs.id == rhs.id }
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, calories, protein, carbs, fats, saturatedFat, polyunsaturatedFat, monounsaturatedFat, fiber, servingSize, servingWeight, timestamp, calcium, iron, potassium, sodium, vitaminA, vitaminC, vitaminD, vitaminB12, folate, magnesium, phosphorus, zinc, copper, manganese, selenium, vitaminB1, vitaminB2, vitaminB3, vitaminB5, vitaminB6, vitaminE, vitaminK
+        // New keys
+        case quantityValue, servingUnit
+    }
+}
+
+struct Meal: Codable, Identifiable, Equatable {
+    var id: String = UUID().uuidString
+    var name: String
+    var foodItems: [FoodItem]
+    static func == (lhs: Meal, rhs: Meal) -> Bool { lhs.id == rhs.id && lhs.name == rhs.name && lhs.foodItems == rhs.foodItems }
+}
+
+struct WaterTracker: Codable, Equatable {
+    var totalOunces: Double
+    var goalOunces: Double
+    var date: Date
+    init(totalOunces: Double, goalOunces: Double = 64.0, date: Date) { self.totalOunces = totalOunces; self.goalOunces = goalOunces; self.date = date }
+}
+
+struct LoggedExercise: Codable, Identifiable, Hashable {
+    var id: String = UUID().uuidString
+    var name: String
+    var durationMinutes: Int?
+    var caloriesBurned: Double
+    var date: Date
+    var source: String = "manual"
+    var workoutID: String?
+    var sessionID: String?
+
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    static func == (lhs: LoggedExercise, rhs: LoggedExercise) -> Bool { lhs.id == rhs.id }
+}
+
+struct DailyLog: Codable, Identifiable, Equatable {
+    var id: String?
+    var date: Date
+    var meals: [Meal]
+    var totalCaloriesOverride: Double?
+    var waterTracker: WaterTracker?
+    var exercises: [LoggedExercise]?
+    var journalEntries: [JournalEntry]?
+
+    init(id: String? = nil, date: Date, meals: [Meal], totalCaloriesOverride: Double? = nil, waterTracker: WaterTracker? = nil, exercises: [LoggedExercise]? = nil, journalEntries: [JournalEntry]? = nil) {
+        self.id = id
+        self.date = date
+        self.meals = meals
+        self.totalCaloriesOverride = totalCaloriesOverride
+        self.waterTracker = waterTracker
+        self.exercises = exercises
+        self.journalEntries = journalEntries
+    }
+
+    func totalCalories() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.calories } }
+    func totalMacros() -> (protein: Double, fats: Double, carbs: Double) { let p = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.protein }; let f = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.fats }; let c = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.carbs }; return (p, f, c) }
+    func totalMicronutrients() -> (
+        calcium: Double, iron: Double, potassium: Double, sodium: Double, vitaminA: Double, vitaminC: Double, vitaminD: Double, vitaminB12: Double, folate: Double, fiber: Double, magnesium: Double, phosphorus: Double, zinc: Double, copper: Double, manganese: Double, selenium: Double, vitaminB1: Double, vitaminB2: Double, vitaminB3: Double, vitaminB5: Double, vitaminB6: Double, vitaminE: Double, vitaminK: Double
+    ) {
+        var ca=0.0, fe=0.0, k=0.0, na=0.0, va=0.0, vc=0.0, vd=0.0, vb12=0.0, fol=0.0, fib=0.0, mg=0.0, p=0.0, zn=0.0, cu=0.0, mn=0.0, se=0.0, vb1=0.0, vb2=0.0, vb3=0.0, vb5=0.0, vb6=0.0, ve=0.0, vk=0.0
+        for meal in meals {
+            for item in meal.foodItems {
+                ca += item.calcium ?? 0; fe += item.iron ?? 0; k += item.potassium ?? 0; na += item.sodium ?? 0
+                va += item.vitaminA ?? 0; vc += item.vitaminC ?? 0; vd += item.vitaminD ?? 0; vb12 += item.vitaminB12 ?? 0
+                fol += item.folate ?? 0; fib += item.fiber ?? 0; mg += item.magnesium ?? 0; p += item.phosphorus ?? 0
+                zn += item.zinc ?? 0; cu += item.copper ?? 0; mn += item.manganese ?? 0; se += item.selenium ?? 0
+                vb1 += item.vitaminB1 ?? 0; vb2 += item.vitaminB2 ?? 0; vb3 += item.vitaminB3 ?? 0
+                vb5 += item.vitaminB5 ?? 0; vb6 += item.vitaminB6 ?? 0; ve += item.vitaminE ?? 0; vk += item.vitaminK ?? 0
+            }
+        }
+        return (ca, fe, k, na, va, vc, vd, vb12, fol, fib, mg, p, zn, cu, mn, se, vb1, vb2, vb3, vb5, vb6, ve, vk)
+    }
+    func totalSaturatedFat() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + ($1.saturatedFat ?? 0) } }
+    func totalPolyunsaturatedFat() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + ($1.polyunsaturatedFat ?? 0) } }
+    func totalMonounsaturatedFat() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + ($1.monounsaturatedFat ?? 0) } }
+    func totalCaloriesBurnedFromManualExercises() -> Double { return exercises?.filter { $0.source == "manual" }.reduce(0) { $0 + $1.caloriesBurned } ?? 0.0 }
+    func totalCaloriesBurnedFromHealthKitWorkouts() -> Double { return exercises?.filter { $0.source == "HealthKit" }.reduce(0) { $0 + $1.caloriesBurned } ?? 0.0 }
+    static func == (lhs: DailyLog, rhs: DailyLog) -> Bool {
+            lhs.id == rhs.id &&
+            Calendar.current.isDate(lhs.date, inSameDayAs: rhs.date) &&
+            lhs.meals == rhs.meals &&
+            lhs.totalCaloriesOverride == rhs.totalCaloriesOverride &&
+            lhs.waterTracker == rhs.waterTracker &&
+            lhs.exercises == rhs.exercises &&
+            lhs.journalEntries == rhs.journalEntries
+        }
+    
+    enum CodingKeys: String, CodingKey {
+            case id, date, meals, totalCaloriesOverride, waterTracker, exercises, journalEntries
+    }
+}
+
+// MARK: - Other Models
 struct UserInsight: Identifiable, Decodable, Equatable {
     let id = UUID()
     var title: String
@@ -142,7 +283,7 @@ struct UserInsight: Identifiable, Decodable, Equatable {
             message = try container.decode(String.self, forKey: .message)
             category = (try? container.decode(InsightCategory.self, forKey: .category)) ?? .nutritionGeneral
             priority = (try? container.decode(Int.self, forKey: .priority)) ?? 0
-            sourceData = try container.decodeIfPresent(String.self, forKey: .sourceData) // Decode the new property
+            sourceData = try container.decodeIfPresent(String.self, forKey: .sourceData)
         }
 
         init(title: String, message: String, category: InsightCategory, priority: Int = 0, sourceData: String? = nil) {
@@ -421,130 +562,6 @@ struct UserRecipe: Codable, Identifiable {
     }
 }
 
-
-struct FoodItem: Codable, Identifiable, Hashable {
-    var id: String
-    var name: String
-    var calories: Double
-    var protein: Double
-    var carbs: Double
-    var fats: Double
-    var saturatedFat: Double?
-    var polyunsaturatedFat: Double?
-    var monounsaturatedFat: Double?
-    var fiber: Double?
-    var servingSize: String
-    var servingWeight: Double
-    var timestamp: Date?
-    var calcium: Double?
-    var iron: Double?
-    var potassium: Double?
-    var sodium: Double?
-    var vitaminA: Double?
-    var vitaminC: Double?
-    var vitaminD: Double?
-    var vitaminB12: Double?
-    var folate: Double?
-    var magnesium: Double?
-    var phosphorus: Double?
-    var zinc: Double?
-    var copper: Double?
-    var manganese: Double?
-    var selenium: Double?
-    var vitaminB1: Double?
-    var vitaminB2: Double?
-    var vitaminB3: Double?
-    var vitaminB5: Double?
-    var vitaminB6: Double?
-    var vitaminE: Double?
-    var vitaminK: Double?
-
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
-    static func == (lhs: FoodItem, rhs: FoodItem) -> Bool { lhs.id == rhs.id }
-    enum CodingKeys: String, CodingKey {
-        case id, name, calories, protein, carbs, fats, saturatedFat, polyunsaturatedFat, monounsaturatedFat, fiber, servingSize, servingWeight, timestamp, calcium, iron, potassium, sodium, vitaminA, vitaminC, vitaminD, vitaminB12, folate, magnesium, phosphorus, zinc, copper, manganese, selenium, vitaminB1, vitaminB2, vitaminB3, vitaminB5, vitaminB6, vitaminE, vitaminK
-    }
-}
-struct Meal: Codable, Identifiable, Equatable { var id: String = UUID().uuidString; var name: String; var foodItems: [FoodItem]; static func == (lhs: Meal, rhs: Meal) -> Bool { lhs.id == rhs.id && lhs.name == rhs.name && lhs.foodItems == rhs.foodItems } }
-struct WaterTracker: Codable, Equatable { var totalOunces: Double; var goalOunces: Double; var date: Date; init(totalOunces: Double, goalOunces: Double = 64.0, date: Date) { self.totalOunces = totalOunces; self.goalOunces = goalOunces; self.date = date } }
-struct LoggedExercise: Codable, Identifiable, Hashable {
-    var id: String = UUID().uuidString
-    var name: String
-    var durationMinutes: Int?
-    var caloriesBurned: Double
-    var date: Date
-    var source: String = "manual"
-    var workoutID: String?
-    var sessionID: String?
-
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
-    static func == (lhs: LoggedExercise, rhs: LoggedExercise) -> Bool { lhs.id == rhs.id }
-}
-
-struct DailyLog: Codable, Identifiable, Equatable {
-    var id: String?
-    var date: Date
-    var meals: [Meal]
-    var totalCaloriesOverride: Double?
-    var waterTracker: WaterTracker?
-    var exercises: [LoggedExercise]?
-    var journalEntries: [JournalEntry]?
-
-
-    init(id: String? = nil, date: Date, meals: [Meal], totalCaloriesOverride: Double? = nil, waterTracker: WaterTracker? = nil, exercises: [LoggedExercise]? = nil, journalEntries: [JournalEntry]? = nil) {
-        self.id = id
-        self.date = date
-        self.meals = meals
-        self.totalCaloriesOverride = totalCaloriesOverride
-        self.waterTracker = waterTracker
-        self.exercises = exercises
-        self.journalEntries = journalEntries
-    }
-
-    func totalCalories() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.calories } }
-    func totalMacros() -> (protein: Double, fats: Double, carbs: Double) { let p = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.protein }; let f = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.fats }; let c = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.carbs }; return (p, f, c) }
-    func totalMicronutrients() -> (
-        calcium: Double, iron: Double, potassium: Double, sodium: Double, vitaminA: Double, vitaminC: Double, vitaminD: Double, vitaminB12: Double, folate: Double, fiber: Double, magnesium: Double, phosphorus: Double, zinc: Double, copper: Double, manganese: Double, selenium: Double, vitaminB1: Double, vitaminB2: Double, vitaminB3: Double, vitaminB5: Double, vitaminB6: Double, vitaminE: Double, vitaminK: Double
-    ) {
-        var ca=0.0, fe=0.0, k=0.0, na=0.0, va=0.0, vc=0.0, vd=0.0, vb12=0.0, fol=0.0, fib=0.0, mg=0.0, p=0.0, zn=0.0, cu=0.0, mn=0.0, se=0.0, vb1=0.0, vb2=0.0, vb3=0.0, vb5=0.0, vb6=0.0, ve=0.0, vk=0.0
-        for meal in meals {
-            for item in meal.foodItems {
-                ca += item.calcium ?? 0; fe += item.iron ?? 0; k += item.potassium ?? 0; na += item.sodium ?? 0
-                va += item.vitaminA ?? 0; vc += item.vitaminC ?? 0; vd += item.vitaminD ?? 0; vb12 += item.vitaminB12 ?? 0
-                fol += item.folate ?? 0; fib += item.fiber ?? 0; mg += item.magnesium ?? 0; p += item.phosphorus ?? 0
-                zn += item.zinc ?? 0; cu += item.copper ?? 0; mn += item.manganese ?? 0; se += item.selenium ?? 0
-                vb1 += item.vitaminB1 ?? 0; vb2 += item.vitaminB2 ?? 0; vb3 += item.vitaminB3 ?? 0
-                vb5 += item.vitaminB5 ?? 0; vb6 += item.vitaminB6 ?? 0; ve += item.vitaminE ?? 0; vk += item.vitaminK ?? 0
-            }
-        }
-        return (ca, fe, k, na, va, vc, vd, vb12, fol, fib, mg, p, zn, cu, mn, se, vb1, vb2, vb3, vb5, vb6, ve, vk)
-    }
-    func totalSaturatedFat() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + ($1.saturatedFat ?? 0) } }
-    func totalPolyunsaturatedFat() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + ($1.polyunsaturatedFat ?? 0) } }
-    func totalMonounsaturatedFat() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + ($1.monounsaturatedFat ?? 0) } }
-    func totalCaloriesBurnedFromManualExercises() -> Double { return exercises?.filter { $0.source == "manual" }.reduce(0) { $0 + $1.caloriesBurned } ?? 0.0 }
-    func totalCaloriesBurnedFromHealthKitWorkouts() -> Double { return exercises?.filter { $0.source == "HealthKit" }.reduce(0) { $0 + $1.caloriesBurned } ?? 0.0 }
-    static func == (lhs: DailyLog, rhs: DailyLog) -> Bool {
-            lhs.id == rhs.id &&
-            Calendar.current.isDate(lhs.date, inSameDayAs: rhs.date) &&
-            lhs.meals == rhs.meals &&
-            lhs.totalCaloriesOverride == rhs.totalCaloriesOverride &&
-            lhs.waterTracker == rhs.waterTracker &&
-            lhs.exercises == rhs.exercises &&
-            lhs.journalEntries == rhs.journalEntries 
-        }
-    
-    enum CodingKeys: String, CodingKey {
-            case id
-            case date
-            case meals
-            case totalCaloriesOverride
-            case waterTracker
-            case exercises
-            case journalEntries
-        }
-}
-
 enum CalorieGoalMethod: String, CaseIterable, Identifiable, Codable { case dynamicTDEE = "Dynamic (TDEE + Activity)"; case mifflinWithActivity = "Standard (Mifflin + Activity Level)"; var id: String { self.rawValue } }
 struct CommunityPost: Identifiable, Codable { @DocumentID var id: String?; let author: String; let content: String; var likes: Int = 0; var isLikedByCurrentUser: Bool = false; var reactions: [String: Int] = [:]; var comments: [Comment] = []; var timestamp: Date = Date(); var groupID: String; struct Comment: Identifiable, Codable { let id: String = UUID().uuidString; let author: String; let content: String; var replies: [Reply] = []; struct Reply: Identifiable, Codable { let id: String = UUID().uuidString; let author: String; let content: String } }; }
 struct CommunityGroup: Identifiable, Codable { @DocumentID var id: String?; var name: String; var description: String; var creatorID: String; var isPreset: Bool = false }
@@ -569,13 +586,13 @@ struct JournalEmojiMapper {
     static func getEmoji(for category: String) -> String {
         switch category.lowercased() {
         case "recovery":
-            return "🧊" // Ice bath, recovery
+            return "🧊"
         case "mindfulness":
-            return "🧘" // Meditation, yoga
+            return "🧘"
         case "flexibility":
-            return "🙆" // Stretching, flexibility
+            return "🙆"
         case "other":
-            return "📝" // Generic note
+            return "📝"
         default:
             return "📝"
         }
@@ -630,10 +647,8 @@ struct UserAchievementStatus: Identifiable, Codable, Equatable {
         lhs.lastProgressUpdate == rhs.lastProgressUpdate
     }
 }
+
 struct CustomCorners: Shape { var corners: UIRectCorner; var radius: CGFloat; func path(in rect: CGRect) -> Path { let path = UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius)); return Path(path.cgPath) } }
-
-
-
 
 struct FoodEmojiMapper { static let foodEmojiMap: [String: String] = ["hotdog":"🌭","hot dog":"🌭","burger":"🍔","hamburger":"🍔","cheeseburger":"🍔","pizza":"🍕","taco":"🌮","burrito":"🌯","fries":"🍟","sandwich":"🥪","wrap":"🌯","nachos":"🌮","steak":"🥩","chicken":"🍗","fish":"🐟","shrimp":"🍤","prawn":"🍤","egg":"🥚","eggs":"🥚","bacon":"🥓","sausage":"🌭","ham":"🥓","pork":"🥓","beef":"🥩","lamb":"🍖","turkey":"🍗","oyster":"🐚","caviar":"🐟","rice":"🍚","pasta":"🍝","spaghetti":"🍝","ravioli":"🍝","bread":"🍞","toast":"🍞","noodles":"🍜","ramen":"🍜","pho":"🍜","pad thai":"🍜","bagel":"🥯","croissant":"🥐","pretzel":"🥨","bun":"🥐","roll":"🥐","apple":"🍎","banana":"🍌","orange":"🍊","grape":"🍇","strawberry":"🍓","watermelon":"🍉","pear":"🍐","cherry":"🍒","mango":"🥭","pineapple":"🍍","peach":"🍑","kiwi":"🥝","lemon":"🍋","lime":"🍋","blueberry":"🫐","raspberry":"🫐","carrot":"🥕","broccoli":"🥦","tomato":"🍅","potato":"🥔","corn":"🌽","lettuce":"🥬","cucumber":"🥒","onion":"🧅","garlic":"🧄","pepper":"🌶️","mushroom":"🍄","spinach":"🥬","cabbage":"🥬","zucchini":"🥒","eggplant":"🍆","cake":"🍰","carrot cake":"🍰","chocolate cake":"🍰","red velvet cake":"🍰","cheesecake":"🍰","cookie":"🍪","ice cream":"🍦","donut":"🍩","chocolate":"🍫","candy":"🍬","cupcake":"🧁","pie":"🥧","apple pie":"🥧","pudding":"🍮","bread pudding":"🍮","panna cotta":"🍮","waffle":"🧇","pancake":"🥞","coffee":"☕","tea":"🍵","juice":"🍹","beer":"🍺","wine":"🍷","milk":"🥛","cocktail":"🍸","soda":"🥤","water":"💧","sushi":"🍣","sashimi":"🍣","sushi roll":"🍣","curry":"🍛","chicken curry":"🍛","dumpling":"🥟","gyoza":"🥟","samosa":"🥟","egg roll":"🥟","falafel":"🧆","paella":"🍲","tempura":"🍤","cheese":"🧀","grilled cheese":"🧀","peanut":"🥜","popcorn":"🍿","lollipop":"🍭","honey":"🍯","jam":"🍇","butter":"🧈","oil":"🛢️","soup":"🥣","miso soup":"🥣","french onion soup":"🥣","hot and sour soup":"🥣","clam chowder":"🥣","lobster bisque":"🥣","salad":"🥗","greek salad":"🥗","caesar salad":"🥗","caprese salad":"🥗","beet salad":"🥗","fruit salad":"🥗","stew":"🍲","casserole":"🍲","quesadilla":"🌮"]; static func getEmoji(for foodName: String) -> String { let l = foodName.lowercased(); if let e = foodEmojiMap[l] { return e }; if let c = foodEmojiMap.first(where: { l.contains($0.key) }) { return c.value }; let w = l.split(separator: " ").map { String($0) }; if let f = w.first, let m = foodEmojiMap[f] { return m }; return "🍽️" } }
 

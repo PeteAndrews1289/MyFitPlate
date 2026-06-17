@@ -2,6 +2,7 @@ import Foundation
 import FirebaseAuth
 import FirebaseFirestore
 import WidgetKit
+import FirebaseAnalytics // High-level comment: Added for event tracking
 
 class DailyLogService: ObservableObject {
     @Published var currentDailyLog: DailyLog?
@@ -73,6 +74,14 @@ class DailyLogService: ObservableObject {
             if success {
                 HealthKitManager.shared.saveNutrition(for: itemToAdd)
                 self.addRecentFood(for: userID, foodItem: itemToAdd, source: "recipe")
+                
+                // High-level comment: Log the food_logged event
+                Analytics.logEvent("food_logged", parameters: [
+                    "source": "manual_add",
+                    "meal_type": mealType,
+                    "calories": itemToAdd.calories,
+                    "item_name": itemToAdd.name
+                ])
 
                 await MainActor.run {
                     self.bannerService?.showBanner(title: "Success", message: "\(foodItem.name) logged to \(mealType)!")
@@ -112,6 +121,12 @@ class DailyLogService: ObservableObject {
             try await logRef.updateData([
                 "journalEntries": FieldValue.arrayUnion([encodedEntry])
             ])
+            
+            // High-level comment: Log journal entry event
+            Analytics.logEvent("journal_entry_added", parameters: [
+                "category": entry.category
+            ])
+            
              await MainActor.run {
                 self.bannerService?.showBanner(title: "Success", message: "Journal entry saved!")
             }
@@ -126,6 +141,12 @@ class DailyLogService: ObservableObject {
             
             do {
                 try logRef.setData(from: newLog)
+                
+                // High-level comment: Log journal entry event (new log case)
+                Analytics.logEvent("journal_entry_added", parameters: [
+                    "category": entry.category
+                ])
+                
                  await MainActor.run {
                     self.bannerService?.showBanner(title: "Success", message: "Journal entry saved!")
                 }
@@ -143,13 +164,11 @@ class DailyLogService: ObservableObject {
         }
     }
     
-    // *** NEW FUNCTION TO DELETE JOURNAL ENTRY ***
     func deleteJournalEntry(for userID: String, entry: JournalEntry) {
         let dateToLog = self.activelyViewedDate
         let dateString = dateFormatter.string(from: dateToLog)
         let logRef = db.collection("users").document(userID).collection("dailyLogs").document(dateString)
 
-        // Optimistic local update
         if self.currentDailyLog?.date == dateToLog,
            let index = self.currentDailyLog?.journalEntries?.firstIndex(where: { $0.id == entry.id }) {
             DispatchQueue.main.async {
@@ -157,7 +176,6 @@ class DailyLogService: ObservableObject {
             }
         }
 
-        // Update Firestore using arrayRemove
         do {
             let encodedEntry = try Firestore.Encoder().encode(entry)
             logRef.updateData([
@@ -166,22 +184,18 @@ class DailyLogService: ObservableObject {
                 Task { @MainActor in
                     if let error = error {
                         self.bannerService?.showBanner(title: "Error", message: "Failed to delete entry.", iconName: "xmark.circle.fill", iconColor: .red)
-                        // Note: If this fails, the local UI and remote are out of sync.
-                        // A more robust solution would re-fetch the log here.
                         print("Error deleting journal entry: \(error.localizedDescription)")
                     } else {
-                        // Success, no banner needed as UI already updated.
+                        // High-level comment: Optional - log deletion? Usually creation is more important.
                     }
                 }
             }
         } catch {
-            // Error encoding the entry to delete
             Task { @MainActor in
                 self.bannerService?.showBanner(title: "Error", message: "Failed to encode entry for deletion.", iconName: "xmark.circle.fill", iconColor: .red)
             }
         }
     }
-    // *** END NEW FUNCTION ***
 
     private func fetchLogInternalAsync(for userID: String, date: Date) async throws -> DailyLog {
         if Calendar.current.isDate(date, inSameDayAs: activelyViewedDate), let currentLog = currentDailyLog {
@@ -232,6 +246,9 @@ class DailyLogService: ObservableObject {
         let ref = db.collection("users").document(userID).collection(customFoodsCollection).document(foodItem.id)
         do {
             try ref.setData(from: foodItem, merge: true) { error in
+                if error == nil {
+                    Analytics.logEvent("custom_food_saved", parameters: ["item_name": foodItem.name])
+                }
                 completion(error == nil)
             }
         } catch {
@@ -415,6 +432,15 @@ class DailyLogService: ObservableObject {
                     if success {
                         HealthKitManager.shared.saveNutrition(for: itemToAdd)
                         self.addRecentFood(for: userID, foodItem: itemToAdd, source: source)
+                        
+                        // High-level comment: Log detailed food_logged event
+                        Analytics.logEvent("food_logged", parameters: [
+                            "source": source,
+                            "item_name": foodItem.name,
+                            "meal_type": mealName,
+                            "calories": foodItem.calories
+                        ])
+                        
                         Task { @MainActor in
                             self.bannerService?.showBanner(title: "Success", message: "\(foodItem.name) logged!")
                             self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
@@ -500,10 +526,18 @@ class DailyLogService: ObservableObject {
 
                 self.updateDailyLog(for: userID, updatedLog: log) { success in
                     if success {
+                        // High-level comment: Log bulk food add (meal)
+                        var itemSource = "recipe"
+                        if mealName.lowercased().contains("ai") { itemSource = "ai_bulk" }
+                        
+                        Analytics.logEvent("food_logged_bulk", parameters: [
+                            "source": itemSource,
+                            "item_count": foodItems.count,
+                            "meal_type": mealName
+                        ])
+                        
                         itemsWithTimestamp.forEach { item in
                             HealthKitManager.shared.saveNutrition(for: item)
-                            var itemSource: String
-                            if mealName.lowercased().contains("ai") { itemSource = "ai" } else { itemSource = "recipe" }
                             self.addRecentFood(for: userID, foodItem: item, source: itemSource)
                         }
                         Task { @MainActor in
@@ -587,8 +621,12 @@ class DailyLogService: ObservableObject {
                       if let currentLog = self.currentDailyLog, currentLog.id == log.id {
                          self.currentDailyLog = log
                       }
-                      // *** NOTE: This function already updates locally AND remotely ***
+                      
                       self.updateDailyLog(for: userID, updatedLog: log) { success in
+                          if success && amount > 0 {
+                              // High-level comment: Log water_logged event
+                              Analytics.logEvent("water_logged", parameters: ["amount": amount])
+                          }
                       }
                   }
               case .failure(let error):
@@ -619,6 +657,14 @@ class DailyLogService: ObservableObject {
                 self.updateDailyLog(for: userID, updatedLog: log) { success in
                      Task { @MainActor in
                         if success {
+                            // High-level comment: Log exercise_logged event
+                            Analytics.logEvent("exercise_logged", parameters: [
+                                "source": exercise.source,
+                                "duration": exercise.durationMinutes ?? 0,
+                                "exercise_name": exercise.name,
+                                "calories": exercise.caloriesBurned
+                            ])
+                            
                             self.bannerService?.showBanner(title: "Success", message: "\(exercise.name) logged!")
                             self.achievementService?.updateChallengeProgress(for: userID, type: .workoutLogged, amount: 1)
                             NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
@@ -700,6 +746,10 @@ class DailyLogService: ObservableObject {
                 self.updateDailyLog(for: userID, updatedLog: log) { success in
                     DispatchQueue.main.async {
                          if success {
+                            // High-level comment: Log HealthKit sync event
+                            Analytics.logEvent("healthkit_sync_workouts", parameters: [
+                                "count": exercises.count
+                            ])
                             NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
                          }
                          completion?()
@@ -782,13 +832,11 @@ class DailyLogService: ObservableObject {
 
      private func decodeDailyLog(from data: [String: Any], documentID: String) -> DailyLog {
         do {
-            // This will now correctly decode journalEntries if it exists, or set it to nil if not.
             let decodedLog = try Firestore.Decoder().decode(DailyLog.self, from: data)
             return decodedLog
         } catch {
             print("Error decoding DailyLog \(documentID): \(error). Returning default.")
             let dateFromDocID = dateFormatter.date(from: documentID) ?? Calendar.current.startOfDay(for: Date())
-            // Return a default log, ensuring journalEntries is nil or empty
             return DailyLog(id: documentID, date: dateFromDocID, meals: [], journalEntries: [])
         }
      }

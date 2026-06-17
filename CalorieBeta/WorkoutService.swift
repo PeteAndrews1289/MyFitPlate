@@ -1,6 +1,7 @@
 import Foundation
 import FirebaseFirestore
 import FirebaseAuth
+import FirebaseAnalytics
 
 enum WorkoutServiceError: Error, LocalizedError {
     case userNotLoggedIn
@@ -35,7 +36,6 @@ class WorkoutService: ObservableObject {
     private let db = Firestore.firestore()
     private var routineListener: ListenerRegistration?
     private var programListener: ListenerRegistration?
-    private let apiKey = getAPIKey()
 
     init() {
         loadPreBuiltPrograms()
@@ -53,6 +53,8 @@ class WorkoutService: ObservableObject {
         return db.collection("users").document(userID).collection("workoutSessionLogs")
     }
 
+    // MARK: - Fetching & Saving
+    
     func fetchWorkoutSessionLog(workoutID: String, sessionID: String) async -> Result<WorkoutSessionLog, Error> {
         guard let userID = Auth.auth().currentUser?.uid else {
             return .failure(WorkoutServiceError.userNotLoggedIn)
@@ -70,7 +72,8 @@ class WorkoutService: ObservableObject {
         guard let userID = Auth.auth().currentUser?.uid else { return [] }
         let routineIDs = program.routines.map { $0.id }
         
-        let chunks = routineIDs.chunked(into: 30)
+        // Chunk queries to avoid Firestore limits (max 10 in 'in' query usually, but safe with chunks)
+        let chunks = routineIDs.chunked(into: 10)
         var allLogs: [WorkoutSessionLog] = []
 
         for chunk in chunks {
@@ -127,6 +130,10 @@ class WorkoutService: ObservableObject {
                 programsCollectionRef(for: userID).document()
             programToSave.id = docRef.documentID
             try await docRef.setData(from: programToSave, merge: true)
+            
+            if program.id == nil {
+                Analytics.logEvent("program_created", parameters: ["name": program.name])
+            }
         } catch {
             print("Error saving program: \(error.localizedDescription)")
         }
@@ -218,6 +225,7 @@ class WorkoutService: ObservableObject {
         }
     }
 
+    // MARK: - AI Workout Generation (Refactored)
 
     /// Generates a workout plan using AI based on enhanced user input.
     func generateAIWorkoutPlan(
@@ -226,7 +234,7 @@ class WorkoutService: ObservableObject {
         fitnessLevel: String,
         equipment: String,
         details: String,
-        goalSettings: GoalSettings // Pass the user's goals for context
+        goalSettings: GoalSettings
     ) async -> Result<WorkoutProgram, WorkoutServiceError> {
         
         let exerciseListJSON: String
@@ -284,9 +292,17 @@ class WorkoutService: ObservableObject {
             - Set object key: "target" (string, e.g., "8-12 reps", "60 seconds").
         """
 
-        let responseResult = await fetchAIResponse(prompt: prompt)
+        let messages: [[String: Any]] = [["role": "user", "content": prompt]]
+        
+        // Use shared AIService
+        let result = await AIService.shared.performRequest(
+            messages: messages,
+            model: "gpt-4o-mini",
+            maxTokens: 4000,
+            responseFormat: ["type": "json_object"]
+        )
 
-        switch responseResult {
+        switch result {
         case .success(let responseString):
             guard let jsonData = responseString.data(using: .utf8) else {
                 return .failure(.decodingError(NSError(domain: "WorkoutService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Could not convert AI response to data."])))
@@ -304,17 +320,21 @@ class WorkoutService: ObservableObject {
                 if decodedResponse.routines.isEmpty && decodedResponse.programName.contains("cannot") {
                     return .failure(.apiError(decodedResponse.programName))
                 }
+                
+                Analytics.logEvent("ai_workout_generated", parameters: [
+                    "goal": goal,
+                    "days_per_week": daysPerWeek,
+                    "fitness_level": fitnessLevel
+                ])
+                
                 let program = mapResponseToProgram(decodedResponse)
                 return .success(program)
             } catch {
                  print("AI workout decoding error: \(error)")
-                 print("--- Failed JSON String ---")
-                 print(responseString)
-                 print("--- End Failed JSON ---")
                 return .failure(.decodingError(error))
             }
         case .failure(let error):
-            return .failure(error)
+            return .failure(.apiError(error.localizedDescription))
         }
     }
     
@@ -335,49 +355,6 @@ class WorkoutService: ObservableObject {
         return WorkoutProgram(userID: userID, name: response.programName, dateCreated: Timestamp(date: Date()), routines: routines)
     }
 
-    private func fetchAIResponse(prompt: String) async -> Result<String, WorkoutServiceError> {
-        guard !apiKey.isEmpty, apiKey != "YOUR_API_KEY" else {
-            return .failure(.apiError("API Key not configured."))
-        }
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let requestBody: [String: Any] = [
-            "model": "gpt-4o-mini",
-            "response_format": ["type": "json_object"],
-            "messages": [["role": "user", "content": prompt]],
-            "max_tokens": 4000
-        ]
-
-        request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                 let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
-                 return .failure(.apiError("Received invalid server response (\(statusCode))."))
-            }
-
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let choices = json["choices"] as? [[String: Any]], let firstChoice = choices.first,
-               let message = firstChoice["message"] as? [String: Any], let content = message["content"] as? String {
-                return .success(content)
-            } else if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let errorDict = errorJson["error"] as? [String: Any],
-                      let errorMessage = errorDict["message"] as? String {
-                return .failure(.apiError(errorMessage))
-            } else {
-                return .failure(.decodingError(NSError(domain: "WorkoutService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON structure from AI."])))
-            }
-        } catch {
-            return .failure(.networkError(error))
-        }
-    }
-
     func detachListener(){
         programListener?.remove()
         routineListener?.remove()
@@ -391,7 +368,7 @@ class WorkoutService: ObservableObject {
         let sl5x5_A = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Workout A", dateCreated: now, exercises: [RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Leg Press", "Goblet Squat"]), RoutineExercise(name: "Barbell Bench Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Dumbbell Bench Press", "Push-up"]), RoutineExercise(name: "Barbell Bent-over Row", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Dumbbell Row", "Seated Cable Row"])])
         let sl5x5_B = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Workout B", dateCreated: now, exercises: [RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Leg Press", "Goblet Squat"]), RoutineExercise(name: "Barbell Overhead Press (Military Press)", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Dumbbell Shoulder Press", "Arnold Press"]), RoutineExercise(name: "Deadlift (Conventional)", type: .strength, sets: [ExerciseSet(target: "5 reps")], alternatives: ["Sumo Deadlift", "Romanian Deadlift (RDL)"])])
         programs.append(WorkoutProgram(userID: systemUserID, name: "StrongLifts 5x5", dateCreated: now, routines: [sl5x5_A, sl5x5_B], daysOfWeek: [2, 4, 6]))
-        
+
         let bw_A = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Full Body Bodyweight A", dateCreated: now, exercises: [RoutineExercise(name: "Push-up", type: .strength, sets: Array(repeating: ExerciseSet(target: "AMRAP"), count: 3), alternatives: ["Incline Barbell Bench Press"]), RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Goblet Squat"]), RoutineExercise(name: "Plank", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "60 sec hold"), count: 3), alternatives: ["Crunch"]), RoutineExercise(name: "Lunge (Barbell/Dumbbell)", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-12 reps / side"), count: 3), alternatives: ["Bulgarian Split Squat"]), RoutineExercise(name: "Back Extension (Hyperextension)", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Good Mornings"])])
         let bw_B = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Full Body Bodyweight B", dateCreated: now, exercises: [RoutineExercise(name: "Burpees", type: .cardio, sets: Array(repeating: ExerciseSet(target: "AMRAP in 60s"), count: 3), alternatives: ["Jump Rope"]), RoutineExercise(name: "Hip Thrust", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Good Mornings"]), RoutineExercise(name: "Leg Raise", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Hanging Leg Raise"]), RoutineExercise(name: "Push-up", type: .strength, sets: Array(repeating: ExerciseSet(target: "AMRAP"), count: 3), alternatives: ["Dumbbell Bench Press"]), RoutineExercise(name: "Sit-up", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Crunch"])])
         programs.append(WorkoutProgram(userID: systemUserID, name: "Beginner Bodyweight", dateCreated: now, routines: [bw_A, bw_B], daysOfWeek: [2, 4, 6]))
@@ -399,10 +376,11 @@ class WorkoutService: ObservableObject {
         self.preBuiltPrograms = programs
     }
 
-
     /// Copies a pre-built program and saves it as a user program
     func selectPreBuiltProgram(_ program: WorkoutProgram) async {
         guard let userID = Auth.auth().currentUser?.uid else { return }
+        
+        Analytics.logEvent("prebuilt_program_selected", parameters: ["program_name": program.name])
 
         var userProgramCopy = program
         userProgramCopy.id = nil
@@ -433,14 +411,7 @@ class WorkoutService: ObservableObject {
     }
 }
 
-extension Array {
-    func chunked(into size: Int) -> [[Element]] {
-        return stride(from: 0, to: count, by: size).map {
-            Array(self[$0 ..< Swift.min($0 + size, count)])
-        }
-    }
-}
-
+// Helpers
 struct AIProgramResponse: Codable {
     let programName: String
     let routines: [AIRoutine]
@@ -457,4 +428,13 @@ struct AIExercise: Codable {
 }
 struct AISet: Codable {
     let target: String
+}
+
+// Missing Extension for Array Chunking
+extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0 ..< Swift.min($0 + size, count)])
+        }
+    }
 }
