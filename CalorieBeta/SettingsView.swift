@@ -13,6 +13,27 @@ struct SettingsView: View {
     @EnvironmentObject var recipeService: RecipeService
 
     @Binding var showSettings: Bool
+    // Known per-user subcollections, including a few legacy names still worth cleaning up.
+    private let userScopedCollections = [
+        "achievementStatus",
+        "activeChallenges",
+        "calorieHistory",
+        "customFoods",
+        "dailyLogs",
+        "dailySummaries",
+        "mealPlans",
+        "pinnedNotes",
+        "recentFoods",
+        "recipes",
+        "savedPrograms",
+        "userSettings",
+        "weightHistory",
+        "workoutHistory",
+        "workoutPrograms",
+        "workoutRoutines",
+        "workoutSessionLogs",
+        "workouts"
+    ]
     
     @State private var showingSignOutAlert = false
     @State private var showingDeleteAccountAlert = false
@@ -85,7 +106,7 @@ struct SettingsView: View {
                 Picker("Calorie Goal Method", selection: $goalSettings.calorieGoalMethod) {
                     ForEach(CalorieGoalMethod.allCases) { method in Text(method.rawValue).tag(method) }
                 }
-                 .onChange(of: goalSettings.calorieGoalMethod) { _ in
+                 .onChange(of: goalSettings.calorieGoalMethod) { _, _ in
                       if let userID = Auth.auth().currentUser?.uid { goalSettings.saveUserGoals(userID: userID) }
                   }
             }
@@ -147,7 +168,7 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { deleteAccount() }
         }, message: {
-            Text("Are you sure you want to delete your account? This will permanently delete your data and cannot be undone.")
+            Text("Are you sure you want to delete your account? This will permanently delete your profile, logs, recipes, workouts, and account data. This cannot be undone.")
         })
         .alert("Reset Tooltips?", isPresented: $showingResetTourConfirmation) {
             Button("Cancel", role: .cancel) {}
@@ -164,21 +185,142 @@ struct SettingsView: View {
         isDeletingAccount = true
         
         let db = Firestore.firestore()
-        db.collection("users").document(user.uid).delete { error in
-            if let error = error {
+        deleteUserFirestoreData(userID: user.uid, db: db) { result in
+            if case .failure(let error) = result {
                 print("Error deleting user data: \(error.localizedDescription)")
-                isDeletingAccount = false
+                DispatchQueue.main.async {
+                    isDeletingAccount = false
+                }
                 return
             }
+
             user.delete { error in
                 DispatchQueue.main.async {
                     isDeletingAccount = false
                     if let error = error {
                         print("Error deleting auth account: \(error.localizedDescription)")
                     } else {
+                        clearLocalAccountData()
                         appState.isUserLoggedIn = false
                         showSettings = false
                     }
+                }
+            }
+        }
+    }
+
+    private func clearLocalAccountData() {
+        spotlightManager.resetSpotlights()
+        UserDefaults.standard.removeObject(forKey: "cycleSettings")
+        UserDefaults.standard.removeObject(forKey: "lastPeriodStartDate")
+        UserDefaults.standard.removeObject(forKey: "pinnedExerciseNotes")
+    }
+
+    private func deleteUserFirestoreData(userID: String, db: Firestore, completion: @escaping (Result<Void, Error>) -> Void) {
+        let userRef = db.collection("users").document(userID)
+        deleteUserFirestoreData(userID: userID, userRef: userRef, db: db, completion: completion)
+    }
+
+    private func deleteUserFirestoreData(userID: String, userRef: DocumentReference, db: Firestore, completion: @escaping (Result<Void, Error>) -> Void) {
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var firstError: Error?
+
+        func recordError(_ error: Error) {
+            lock.lock()
+            if firstError == nil {
+                firstError = error
+            }
+            lock.unlock()
+        }
+
+        for collectionName in userScopedCollections {
+            group.enter()
+            deleteCollection(userRef.collection(collectionName), db: db) { error in
+                if let error = error {
+                    recordError(error)
+                }
+                group.leave()
+            }
+        }
+
+        let topLevelQueries: [Query] = [
+            db.collection("groupMemberships").whereField("userID", isEqualTo: userID),
+            db.collection("groups").whereField("creatorID", isEqualTo: userID),
+            db.collection("posts").whereField("authorID", isEqualTo: userID)
+        ]
+
+        for query in topLevelQueries {
+            group.enter()
+            deleteQueryResults(query, db: db) { error in
+                if let error = error {
+                    recordError(error)
+                }
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) {
+            if let firstError = firstError {
+                completion(.failure(firstError))
+                return
+            }
+
+            userRef.delete { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        }
+    }
+
+    private func deleteCollection(_ collection: CollectionReference, db: Firestore, batchSize: Int = 100, completion: @escaping (Error?) -> Void) {
+        collection.limit(to: batchSize).getDocuments { snapshot, error in
+            if let error = error {
+                completion(error)
+                return
+            }
+
+            guard let documents = snapshot?.documents, !documents.isEmpty else {
+                completion(nil)
+                return
+            }
+
+            let batch = db.batch()
+            documents.forEach { batch.deleteDocument($0.reference) }
+
+            batch.commit { error in
+                if let error = error {
+                    completion(error)
+                } else {
+                    deleteCollection(collection, db: db, batchSize: batchSize, completion: completion)
+                }
+            }
+        }
+    }
+
+    private func deleteQueryResults(_ query: Query, db: Firestore, batchSize: Int = 100, completion: @escaping (Error?) -> Void) {
+        query.limit(to: batchSize).getDocuments { snapshot, error in
+            if let error = error {
+                completion(error)
+                return
+            }
+
+            guard let documents = snapshot?.documents, !documents.isEmpty else {
+                completion(nil)
+                return
+            }
+
+            let batch = db.batch()
+            documents.forEach { batch.deleteDocument($0.reference) }
+
+            batch.commit { error in
+                if let error = error {
+                    completion(error)
+                } else {
+                    deleteQueryResults(query, db: db, batchSize: batchSize, completion: completion)
                 }
             }
         }

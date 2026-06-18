@@ -410,8 +410,12 @@ class AchievementService: ObservableObject {
                         
                         if challenge.progress >= challenge.goal {
                             challenge.isCompleted = true
-                            self.awardPointsAndCheckLevel(userID: userID, points: challenge.pointsValue)
-                            self.bannerService?.showBanner(title: "Challenge Complete!", message: challenge.title, iconName: "star.fill", iconColor: .yellow)
+                            let pointsValue = challenge.pointsValue
+                            let challengeTitle = challenge.title
+                            Task { @MainActor in
+                                self.awardPointsAndCheckLevel(userID: userID, points: pointsValue)
+                                self.bannerService?.showBanner(title: "Challenge Complete!", message: challengeTitle, iconName: "star.fill", iconColor: .yellow)
+                            }
                         }
                         
                         try challengesRef.document(document.documentID).setData(from: challenge, merge: true)

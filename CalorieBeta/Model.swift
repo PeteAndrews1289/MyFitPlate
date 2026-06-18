@@ -563,7 +563,7 @@ struct UserRecipe: Codable, Identifiable {
 }
 
 enum CalorieGoalMethod: String, CaseIterable, Identifiable, Codable { case dynamicTDEE = "Dynamic (TDEE + Activity)"; case mifflinWithActivity = "Standard (Mifflin + Activity Level)"; var id: String { self.rawValue } }
-struct CommunityPost: Identifiable, Codable { @DocumentID var id: String?; let author: String; let content: String; var likes: Int = 0; var isLikedByCurrentUser: Bool = false; var reactions: [String: Int] = [:]; var comments: [Comment] = []; var timestamp: Date = Date(); var groupID: String; struct Comment: Identifiable, Codable { let id: String = UUID().uuidString; let author: String; let content: String; var replies: [Reply] = []; struct Reply: Identifiable, Codable { let id: String = UUID().uuidString; let author: String; let content: String } }; }
+struct CommunityPost: Identifiable, Codable { @DocumentID var id: String?; let authorID: String?; let author: String; let content: String; var likes: Int = 0; var isLikedByCurrentUser: Bool = false; var reactions: [String: Int] = [:]; var comments: [Comment] = []; var timestamp: Date = Date(); var groupID: String; struct Comment: Identifiable, Codable { let id: String = UUID().uuidString; let author: String; let content: String; var replies: [Reply] = []; struct Reply: Identifiable, Codable { let id: String = UUID().uuidString; let author: String; let content: String } }; }
 struct CommunityGroup: Identifiable, Codable { @DocumentID var id: String?; var name: String; var description: String; var creatorID: String; var isPreset: Bool = false }
 struct GroupMembership: Codable { var groupID: String; var userID: String; var joinedAt: Timestamp = Timestamp(date: Date()) }
 

@@ -365,24 +365,29 @@ class ReportsViewModel: ObservableObject {
             daysInPeriodForSummary = (timeframe == .week) ? 7 : 30
         }
 
+        let reportStartDate = effectiveStartDate
+        let reportEndDate = effectiveEndDate
+        let reportTimeframeName = timeframeNameForSummary
+        let reportDaysInPeriod = daysInPeriodForSummary
+
         // Use Task to perform asynchronous operations
         Task {
              // Fetch logs for the main period and just for yesterday concurrently
-             async let logResult = dailyLogService.fetchDailyHistory(for: userID, startDate: effectiveStartDate, endDate: effectiveEndDate)
+             async let logResult = dailyLogService.fetchDailyHistory(for: userID, startDate: reportStartDate, endDate: reportEndDate)
              async let yesterdayLogResult = dailyLogService.fetchDailyHistory(for: userID, startDate: Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date()))!, endDate: Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date()))!)
 
              // *** Use HealthKitViewModel's authorization status ***
              if healthKitViewModel?.isAuthorized ?? false {
                  // Fetch sleep data if authorized (adjust start date for sleep queries)
-                 let sleepStartDate = Calendar.current.date(byAdding: .day, value: -1, to: effectiveStartDate)! // Fetch from day before start to catch overnight sleep
+                 let sleepStartDate = Calendar.current.date(byAdding: .day, value: -1, to: reportStartDate)! // Fetch from day before start to catch overnight sleep
                  
                  // Use the shared HealthKitManager instance to perform the fetch
-                 healthKitManager.fetchSleepAnalysis(startDate: sleepStartDate, endDate: effectiveEndDate) { [weak self] samples, error in
+                 healthKitManager.fetchSleepAnalysis(startDate: sleepStartDate, endDate: reportEndDate) { [weak self] samples, error in
                      // Process results on main thread
                      Task { @MainActor in
                          if let samples = samples {
                              // Filter samples to ensure they start within the *intended* report period or slightly before
-                             let filteredSamples = samples.filter { $0.startDate >= effectiveStartDate && $0.startDate <= Calendar.current.date(byAdding: .day, value: 1, to: effectiveEndDate)! }
+                             let filteredSamples = samples.filter { $0.startDate >= reportStartDate && $0.startDate <= Calendar.current.date(byAdding: .day, value: 1, to: reportEndDate)! }
                              self?.processAndScoreSleepData(samples: filteredSamples)
                          } else {
                              // Handle fetch errors or no data
@@ -403,7 +408,7 @@ class ReportsViewModel: ObservableObject {
             switch await logResult {
             case .success(let logs):
                 // Process fetched logs to calculate summaries, trends, etc.
-                self.processLogs(logs: logs, timeframeName: timeframeNameForSummary, totalDaysInPeriod: daysInPeriodForSummary)
+                self.processLogs(logs: logs, timeframeName: reportTimeframeName, totalDaysInPeriod: reportDaysInPeriod)
             case .failure(let e):
                 // Handle errors fetching logs
                 self.errorMessage = "Error fetching report data: \(e.localizedDescription)"

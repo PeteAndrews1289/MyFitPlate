@@ -53,27 +53,24 @@ class MealPlannerService: ObservableObject {
         var dailyPlans: [MealPlanDay?] = .init(repeating: nil, count: 7)
         var mealHistory: [String] = []
 
-        await withTaskGroup(of: (Int, MealPlanDay?).self) { group in
-            for i in 0..<7 {
-                group.addTask {
-                    let targetDate = Calendar.current.date(byAdding: .day, value: i, to: Date())!
-                    let singleDayPlan = await self.generatePlanForSingleDay(
-                        date: targetDate,
-                        goals: goals,
-                        preferredFoods: preferredFoods,
-                        preferredCuisines: preferredCuisines,
-                        preferredSnacks: preferredSnacks,
-                        mealHistory: mealHistory,
-                        retryCount: 1
-                    )
-                    if let plan = singleDayPlan {
-                        mealHistory.append(contentsOf: plan.meals.compactMap { $0.foodItem?.name })
-                    }
-                    return (i, singleDayPlan)
-                }
+        for i in 0..<7 {
+            guard let targetDate = Calendar.current.date(byAdding: .day, value: i, to: Date()) else {
+                return false
             }
-            for await (index, plan) in group {
-                dailyPlans[index] = plan
+
+            let singleDayPlan = await generatePlanForSingleDay(
+                date: targetDate,
+                goals: goals,
+                preferredFoods: preferredFoods,
+                preferredCuisines: preferredCuisines,
+                preferredSnacks: preferredSnacks,
+                mealHistory: mealHistory,
+                retryCount: 1
+            )
+
+            dailyPlans[i] = singleDayPlan
+            if let plan = singleDayPlan {
+                mealHistory.append(contentsOf: plan.meals.compactMap { $0.foodItem?.name })
             }
         }
 

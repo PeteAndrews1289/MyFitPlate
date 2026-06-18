@@ -3,6 +3,7 @@ import FirebaseAuth
 import UserNotifications
 import FirebaseFirestore
 
+@MainActor
 class AppState: ObservableObject {
 
     @Published var isUserLoggedIn: Bool = false
@@ -23,8 +24,9 @@ class AppState: ObservableObject {
             }
         }
 
-        Auth.auth().addStateDidChangeListener { auth, user in
-            DispatchQueue.main.async {
+        Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            Task { @MainActor in
+                guard let self = self else { return }
                 if let user = user {
                     self.isUserLoggedIn = true
                     self.loadDarkModePreference(userID: user.uid)
@@ -36,14 +38,13 @@ class AppState: ObservableObject {
     }
 
     func setUserLoggedIn(_ loggedIn: Bool) {
-        DispatchQueue.main.async {
-            self.isUserLoggedIn = loggedIn
-        }
+        isUserLoggedIn = loggedIn
     }
     
     private func loadDarkModePreference(userID: String) {
-        db.collection("users").document(userID).getDocument { document, error in
-            DispatchQueue.main.async {
+        db.collection("users").document(userID).getDocument { [weak self] document, error in
+            Task { @MainActor in
+                guard let self = self else { return }
                 if let error = error {
                     self.isDarkModeEnabled = false
                 } else if let document = document, document.exists,

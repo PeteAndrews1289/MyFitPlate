@@ -1,7 +1,8 @@
 import Foundation
 import AVFoundation
 
-class TTSManager: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
+@MainActor
+class TTSManager: NSObject, ObservableObject, @preconcurrency AVSpeechSynthesizerDelegate {
     static let shared = TTSManager()
 
     private let speechSynthesizer = AVSpeechSynthesizer()
@@ -51,36 +52,28 @@ class TTSManager: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
-        DispatchQueue.main.async {
-            self.isSpeaking = false
-            self.mouthShape = "mouth_neutral"
-        }
+        isSpeaking = false
+        mouthShape = "mouth_neutral"
     }
     
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async {
-            self.isSpeaking = true
-        }
+        isSpeaking = true
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async {
-            self.isSpeaking = false
-            self.mouthShape = "mouth_neutral"
-        }
+        isSpeaking = false
+        mouthShape = "mouth_neutral"
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, willSpeakRangeOfSpeechString characterRange: NSRange, utterance: AVSpeechUtterance) {
         let word = (utterance.speechString as NSString).substring(with: characterRange).lowercased()
         
-        DispatchQueue.main.async {
-            if word.contains("o") || word.contains("u") || word.contains("w") {
-                self.mouthShape = "mouth_o"
-            } else if word.contains("a") || word.contains("e") || word.contains("i") {
-                self.mouthShape = "mouth_open"
-            } else {
-                self.mouthShape = "mouth_neutral"
-            }
+        if word.contains("o") || word.contains("u") || word.contains("w") {
+            mouthShape = "mouth_o"
+        } else if word.contains("a") || word.contains("e") || word.contains("i") {
+            mouthShape = "mouth_open"
+        } else {
+            mouthShape = "mouth_neutral"
         }
     }
 }

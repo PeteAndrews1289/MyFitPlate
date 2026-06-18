@@ -64,12 +64,13 @@ class DailyLogService: ObservableObject {
                 log.meals.append(Meal(name: mealType, foodItems: [itemToAdd]))
             }
 
+            let updatedLog = log
             await MainActor.run {
-                self.currentDailyLog = log
+                self.currentDailyLog = updatedLog
                 self.updateWidgetData()
             }
 
-            let success = await updateDailyLogAsync(for: userID, updatedLog: log)
+            let success = await updateDailyLogAsync(for: userID, updatedLog: updatedLog)
 
             if success {
                 HealthKitManager.shared.saveNutrition(for: itemToAdd)
@@ -228,7 +229,7 @@ class DailyLogService: ObservableObject {
                      }
                      completion?(true)
                  } else {
-                     print("Error updating daily log: \(err!.localizedDescription)")
+                     print("Error updating daily log: \(err?.localizedDescription ?? "Unknown error")")
                      completion?(false)
                  }
             }

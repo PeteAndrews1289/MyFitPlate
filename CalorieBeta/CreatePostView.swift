@@ -47,6 +47,7 @@ struct CreatePostView: View {
             if let document = document, let data = document.data(), let username = data["username"] as? String {
                 let newPost = CommunityPost(
                     id: UUID().uuidString,
+                    authorID: userID,
                     author: username,
                     content: content,
                     likes: 0,
