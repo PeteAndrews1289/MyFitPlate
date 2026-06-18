@@ -7,6 +7,9 @@ xcuserdata/
 *.xcbkptlist
 DerivedData/
 build/
+.xcode-home/
+.swiftpm-cache/
+SourcePackages/
 
 ### Archives and local exports
 *.zip
@@ -17,6 +20,9 @@ build/
 secrets.xcconfig
 Secrets.xcconfig
 **/Secrets.plist
+
+### Accidental hidden config duplicates
+**/.plist
 
 ### Firebase local config
 # Keep tracked Firebase config only if this repo stays private and your
