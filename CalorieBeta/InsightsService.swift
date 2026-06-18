@@ -296,14 +296,19 @@ class InsightsService: ObservableObject {
         1.  The title should be 4-5 words.
         2.  The body should be 1-2 short, encouraging sentences.
         3.  Combine the user's recovery status with their plan for the day.
-        4.  Provide ONLY the title and body, separated by a newline. Do not add any other text.
+        4.  Return ONLY a valid JSON object with keys "title" and "body".
         """
         
-        guard let response = await fetchAIResponse(prompt: prompt) else { return nil }
-        let lines = response.split(separator: "\n").map(String.init)
-        guard lines.count >= 2 else { return nil }
-        
-        return (title: lines[0], body: lines[1])
+        guard let response = await fetchAIResponse(prompt: prompt),
+              let data = response.data(using: .utf8) else { return nil }
+
+        struct BriefingResponse: Decodable {
+            let title: String
+            let body: String
+        }
+
+        guard let decoded = try? JSONDecoder().decode(BriefingResponse.self, from: data) else { return nil }
+        return (title: decoded.title, body: decoded.body)
     }
     
     private func handleInsightsResult(insights: [UserInsight], error: String?) {
@@ -416,46 +421,20 @@ class InsightsService: ObservableObject {
     }
     
     private func fetchAIResponse(prompt: String) async -> String? {
-        let apiKey = getAPIKey()
-        
-        if apiKey.isEmpty || apiKey == "YOUR_API_KEY" {
-             print("❌ InsightsService: API Key invalid.")
-             return nil
-        }
-        
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        let result = await AIService.shared.performRequest(
+            messages: [["role": "user", "content": prompt]],
+            model: "gpt-4o-mini",
+            temperature: 0.7,
+            responseFormat: ["type": "json_object"]
+        )
 
-        let requestBody: [String: Any] = [
-            "model": "gpt-4o-mini",
-            "messages": [["role": "user", "content": prompt]],
-            "temperature": 0.7,
-            "response_format": ["type": "json_object"]
-        ]
-        
-        guard let httpBody = try? JSONSerialization.data(withJSONObject: requestBody) else { return nil }
-        request.httpBody = httpBody
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                print("❌ InsightsService: HTTP Error \(httpResponse.statusCode)")
-                return nil
-            }
-            
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let choices = json["choices"] as? [[String: Any]], let firstChoice = choices.first,
-               let message = firstChoice["message"] as? [String: Any], let content = message["content"] as? String {
-                return content
-            }
-        } catch {
-            print("❌ InsightsService: Network Request Failed - \(error.localizedDescription)")
+        switch result {
+        case .success(let content):
+            return content
+        case .failure(let error):
+            print("❌ InsightsService: AI Request Failed - \(error.localizedDescription)")
+            return nil
         }
-        return nil
     }
 
     private func handleInsightsError(message: String?, isLoading: Bool? = nil) async {

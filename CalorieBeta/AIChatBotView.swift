@@ -334,17 +334,6 @@ struct AIChatbotView: View {
     }
 
     func fetchGPT3Response(for message: String, completion: @escaping (String) -> Void) {
-        let apiKey = getAPIKey()
-        guard !apiKey.isEmpty, apiKey != "wtv" else {
-            completion("Error: API Key missing.")
-            return
-        }
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
         let systemPrompt = """
         You are a helpful AI assistant for a fitness app called MyFitPlate. Your name is Maia.
         When a user asks for nutritional information (e.g., "calories in an apple"), your response MUST be in the following format:
@@ -364,7 +353,7 @@ struct AIChatbotView: View {
         
         var messagesForAPI: [[String: Any]] = [["role": "system", "content": systemPrompt]]
         
-        let history = chatMessages.suffix(6)
+        let history = chatMessages.dropLast().suffix(6)
         for chatMessage in history {
             if !chatMessage.text.isEmpty {
                 messagesForAPI.append(["role": chatMessage.isUser ? "user" : "assistant", "content": chatMessage.text])
@@ -373,41 +362,21 @@ struct AIChatbotView: View {
         
         messagesForAPI.append(["role": "user", "content": message])
 
-        let requestBody: [String: Any] = ["model": "gpt-4o-mini", "messages": messagesForAPI, "max_tokens": 1000, "temperature": 0.5]
-        guard let httpBody = try? JSONSerialization.data(withJSONObject: requestBody) else {
-            completion("Error: Failed to serialize request.")
-            return
-        }
-        request.httpBody = httpBody
+        Task { @MainActor in
+            let result = await AIService.shared.performRequest(
+                messages: messagesForAPI,
+                model: "gpt-4o-mini",
+                maxTokens: 1000,
+                temperature: 0.5
+            )
 
-        URLSession.shared.dataTask(with: request) { data, _, error in
-            DispatchQueue.main.async {
-                isLoading = false
-                if let error = error {
-                    completion("Error: Network failed - \(error.localizedDescription)")
-                    return
-                }
-                guard let data = data else {
-                    completion("Error: No data.")
-                    return
-                }
-                do {
-                    if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        if let errDict = json["error"] as? [String: Any], let errMsg = errDict["message"] as? String {
-                            completion("Error: \(errMsg)")
-                        } else if let choices = json["choices"] as? [[String: Any]], let first = choices.first, let msg = first["message"] as? [String: Any], let content = msg["content"] as? String {
-                            completion(content.trimmingCharacters(in: .whitespacesAndNewlines))
-                        } else {
-                            completion("Error: Invalid API response.")
-                        }
-                    } else {
-                        completion("Error: Cannot parse response.")
-                    }
-                } catch {
-                    completion("Error: Failed to parse response - \(error.localizedDescription)")
-                }
+            switch result {
+            case .success(let content):
+                completion(content)
+            case .failure(let error):
+                completion("Error: \(error.localizedDescription)")
             }
-        }.resume()
+        }
     }
 
     private func extractFoodName(from aiResponse: String) -> String {

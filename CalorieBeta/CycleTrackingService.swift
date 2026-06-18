@@ -14,7 +14,6 @@ class CycleTrackingService: ObservableObject {
     @Published var isLoadingInsight = false
 
     private let healthKitManager = HealthKitManager.shared
-    private let apiKey = getAPIKey()
     private var lastPeriodStartDate: Date? {
         didSet {
             UserDefaults.standard.set(lastPeriodStartDate, forKey: "lastPeriodStartDate")
@@ -139,33 +138,20 @@ class CycleTrackingService: ObservableObject {
     }
     
     private func fetchAIResponse(prompt: String) async -> String? {
-        guard !apiKey.isEmpty else { return nil }
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let requestBody: [String: Any] = [
-            "model": "gpt-4o-mini",
-            "response_format": ["type": "json_object"],
-            "messages": [["role": "user", "content": prompt]],
-            "max_tokens": 800,
-            "temperature": 0.6
-        ]
-        
-        request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
-        
-        do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let choices = json["choices"] as? [[String: Any]], let firstChoice = choices.first,
-               let message = firstChoice["message"] as? [String: Any], let content = message["content"] as? String {
-                return content
-            }
-        } catch {
+        let result = await AIService.shared.performRequest(
+            messages: [["role": "user", "content": prompt]],
+            model: "gpt-4o-mini",
+            maxTokens: 800,
+            temperature: 0.6,
+            responseFormat: ["type": "json_object"]
+        )
+
+        switch result {
+        case .success(let content):
+            return content
+        case .failure(let error):
             print("AI fetch error: \(error.localizedDescription)")
+            return nil
         }
-        return nil
     }
 }

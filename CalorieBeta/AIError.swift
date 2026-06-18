@@ -25,8 +25,7 @@ enum AIError: Error, LocalizedError {
 @MainActor
 class AIService {
     static let shared = AIService()
-    // Ensure you have a global getAPIKey() function or replace this with your key logic
-    private let apiKey = getAPIKey()
+    private var apiKey: String { getAPIKey() }
     
     private init() {}
 
