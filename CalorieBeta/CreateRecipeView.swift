@@ -16,6 +16,7 @@ struct CreateRecipeView: View {
 
     enum CreationMode: String, CaseIterable, Identifiable {
         case ai = "AI"
+        case url = "Web URL"
         case manual = "Manual"
         var id: Self { self }
     }
@@ -55,6 +56,8 @@ struct CreateRecipeView: View {
 
                             if creationMode == .ai {
                                 aiSection
+                            } else if creationMode == .url {
+                                urlSection
                             } else {
                                 manualSection
                             }
@@ -66,7 +69,7 @@ struct CreateRecipeView: View {
                     .scrollDismissesKeyboard(.interactively)
 
                     CreateRecipeActionBar(
-                        title: creationMode == .ai ? "Generate Recipe" : "Save Recipe",
+                        title: creationMode == .ai ? "Generate Recipe" : (creationMode == .url ? "Import Recipe" : "Save Recipe"),
                         isEnabled: !isSaveDisabled,
                         action: saveRecipe
                     )
@@ -88,7 +91,7 @@ struct CreateRecipeView: View {
                 
                 if isLoading {
                     Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
-                    ProgressView(creationMode == .ai ? "Generating Recipe..." : "Saving Recipe...")
+                    ProgressView(creationMode == .ai ? "Generating Recipe..." : (creationMode == .url ? "Importing Recipe..." : "Saving Recipe..."))
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(1.5)
                         .padding().background(Color.black.opacity(0.8)).cornerRadius(10)
@@ -121,6 +124,28 @@ struct CreateRecipeView: View {
                             .allowsHitTesting(false)
                     }
                 }
+        }
+        .padding(16)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    @State private var importURL = ""
+
+    private var urlSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            CreateRecipeSectionHeader(title: "Import from URL", icon: "link")
+
+            Text("Paste a link to a recipe blog or website. Maia will extract the ingredients and instructions for you.")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .fixedSize(horizontal: false, vertical: true)
+
+            TextField("https://...", text: $importURL)
+                .keyboardType(.URL)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+                .padding(14)
+                .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .padding(16)
         .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -219,6 +244,8 @@ struct CreateRecipeView: View {
     private var isSaveDisabled: Bool {
         if creationMode == .ai {
             return aiDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } else if creationMode == .url {
+            return importURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         } else {
             return recipeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                 ingredients.isEmpty ||
@@ -233,6 +260,8 @@ struct CreateRecipeView: View {
         Task {
             if creationMode == .ai {
                 _ = await recipeService.createRecipeFromAI(description: aiDescription, userID: userID)
+            } else if creationMode == .url {
+                _ = await recipeService.createRecipeFromURL(url: importURL, userID: userID)
             } else {
                 let ingredientNames = ingredients.map { $0.name }
                 let instructionSteps = instructions.split(separator: "\n").map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
@@ -251,18 +280,18 @@ private struct CreateRecipeHeroCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: mode == .ai ? "sparkles" : "text.book.closed.fill")
+            Image(systemName: mode == .ai ? "sparkles" : (mode == .url ? "link" : "text.book.closed.fill"))
                 .font(.system(size: 25, weight: .bold))
                 .foregroundColor(.brandPrimary)
                 .frame(width: 62, height: 62)
                 .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(mode == .ai ? "Generate with Maia" : "Build Manually")
+                Text(mode == .ai ? "Generate with Maia" : (mode == .url ? "Import from URL" : "Build Manually"))
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(.textPrimary)
 
-                Text(mode == .ai ? "Describe the meal and let Maia draft ingredients, steps, and nutrition." : "Add ingredients from food search and write your own steps.")
+                Text(mode == .ai ? "Describe the meal and let Maia draft ingredients, steps, and nutrition." : (mode == .url ? "Paste a recipe URL and Maia will extract the rest." : "Add ingredients from food search and write your own steps."))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .fixedSize(horizontal: false, vertical: true)
@@ -284,7 +313,7 @@ private struct CreateRecipeModePicker: View {
                 Button {
                     selection = mode
                 } label: {
-                    Label(mode == .ai ? "Maia" : "Manual", systemImage: mode == .ai ? "sparkles" : "hand.draw.fill")
+                    Label(mode == .ai ? "Maia" : (mode == .url ? "URL" : "Manual"), systemImage: mode == .ai ? "sparkles" : (mode == .url ? "link" : "hand.draw.fill"))
                         .font(.system(size: 13, weight: .bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)

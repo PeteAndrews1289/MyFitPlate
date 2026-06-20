@@ -52,6 +52,48 @@ class RecipeService: ObservableObject {
             return nil
         }
     }
+
+    func createRecipeFromURL(url: String, userID: String, retryCount: Int = 1) async -> Recipe? {
+        isLoading = true
+        
+        let prompt = """
+        Extract the recipe from this URL: "\(url)".
+        Return a structured JSON object with keys: "name", "ingredients" (array of strings), "instructions" (array of strings), "nutrition" (object with calories, protein, carbs, fats, saturatedFat, fiber, sugars, sodium).
+        If you cannot read the URL content directly, try to infer the recipe from the URL path, or return a best guess.
+        """
+
+        let messages: [[String: Any]] = [["role": "user", "content": prompt]]
+        
+        let result = await AIService.shared.performRequest(
+            messages: messages,
+            temperature: 0.5,
+            responseFormat: ["type": "json_object"],
+            retryCount: 0
+        )
+
+        switch result {
+        case .success(let jsonString):
+            do {
+                let recipe = try parseRecipeFromAIResponse(jsonString)
+                let savedRecipe = try await saveRecipe(recipe, for: userID)
+                Analytics.logEvent("url_recipe_imported", parameters: ["recipe_name": savedRecipe.name])
+                isLoading = false
+                return savedRecipe
+            } catch {
+                AppLog.recipes.error("Recipe parsing failed: \(error.localizedDescription, privacy: .public)")
+                if retryCount > 0 {
+                    AppLog.recipes.info("Retrying URL recipe import.")
+                    return await createRecipeFromURL(url: url, userID: userID, retryCount: retryCount - 1)
+                }
+                isLoading = false
+                return nil
+            }
+        case .failure(let error):
+            AppLog.recipes.error("URL Recipe import request failed: \(error.localizedDescription, privacy: .public)")
+            isLoading = false
+            return nil
+        }
+    }
     
     // ... [CRUD Operations - Keep Existing] ...
     
