@@ -2,6 +2,7 @@ import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 import FirebaseAnalytics
+import SwiftSoup
 
 @MainActor
 class RecipeService: ObservableObject {
@@ -56,10 +57,42 @@ class RecipeService: ObservableObject {
     func createRecipeFromURL(url: String, userID: String, retryCount: Int = 1) async -> Recipe? {
         isLoading = true
         
+        guard let urlObj = URL(string: url) else {
+            AppLog.recipes.error("Invalid URL provided.")
+            isLoading = false
+            return nil
+        }
+        
+        var scrapedText = ""
+        do {
+            let (data, response) = try await URLSession.shared.data(from: urlObj)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
+                  let htmlString = String(data: data, encoding: .utf8) else {
+                throw URLError(.badServerResponse)
+            }
+            
+            let document = try SwiftSoup.parse(htmlString)
+            let paragraphs = try document.select("p").array().map { try $0.text() }
+            let lists = try document.select("li").array().map { try $0.text() }
+            let headers = try document.select("h1, h2, h3, h4").array().map { try $0.text() }
+            
+            let combined = headers + paragraphs + lists
+            let fullText = combined.joined(separator: "\n")
+            scrapedText = String(fullText.prefix(8000))
+        } catch {
+            AppLog.recipes.error("Failed to scrape URL: \(error.localizedDescription, privacy: .public)")
+            isLoading = false
+            return nil
+        }
+        
         let prompt = """
-        Extract the recipe from this URL: "\(url)".
+        I scraped the following text from a recipe blog:
+        ---
+        \(scrapedText)
+        ---
+        Extract the recipe from this text.
         Return a structured JSON object with keys: "name", "ingredients" (array of strings), "instructions" (array of strings), "nutrition" (object with calories, protein, carbs, fats, saturatedFat, fiber, sugars, sodium).
-        If you cannot read the URL content directly, try to infer the recipe from the URL path, or return a best guess.
+        If nutrition data is missing, carefully estimate it based on the ingredients for 1 serving.
         """
 
         let messages: [[String: Any]] = [["role": "user", "content": prompt]]
