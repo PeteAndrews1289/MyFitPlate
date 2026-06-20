@@ -25,9 +25,9 @@ class LiveActivityManager {
                 pushType: nil
             )
             self.activity = activity
-            print("✅ Live Activity Started: \(activity.id)")
+            AppLog.liveActivity.debug("Live Activity started: \(activity.id, privacy: .public)")
         } catch {
-            print("❌ Error starting Live Activity: \(error.localizedDescription)")
+            AppLog.liveActivity.error("Error starting Live Activity: \(error.localizedDescription, privacy: .public)")
         }
     }
     
@@ -39,7 +39,7 @@ class LiveActivityManager {
         Task {
             await activity.end(finalContent, dismissalPolicy: .immediate)
             self.activity = nil
-            print("🛑 Live Activity Ended")
+            AppLog.liveActivity.debug("Live Activity ended")
         }
     }
 }

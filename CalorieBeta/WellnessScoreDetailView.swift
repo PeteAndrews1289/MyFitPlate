@@ -45,13 +45,9 @@ struct WellnessScoreDetailView: View {
                             color: .purple
                         )
                     }
-                    
-                    // *** NEW: Conditionally show Meal Score Details ***
                     if let score = mealScore, score.overallScore > 0 {
                         mealScoreSection(score: score)
                     }
-                    
-                    // *** NEW: Conditionally show Sleep Analysis Details ***
                     if let report = sleepReport {
                         SleepDetailContent(report: report) // Using the helper view
                     }
@@ -113,8 +109,6 @@ struct WellnessScoreDetailView: View {
         .background(Color.backgroundSecondary) // Set the row's background.
         .cornerRadius(12) // Round the corners of the row.
     }
-    
-    // *** NEW: View builder for the Meal Score Section ***
     // (This UI is based on your MealScoreCard.swift file)
     @ViewBuilder
     private func mealScoreSection(score: MealScore) -> some View {
@@ -147,8 +141,6 @@ struct WellnessScoreDetailView: View {
         .cornerRadius(12)
     }
 }
-
-// *** NEW: Helper view for the Meal Score section ***
 private struct ScoreRow: View {
     let title: String
     let score: Int
@@ -173,9 +165,6 @@ private struct ScoreRow: View {
         }
     }
 }
-
-
-// *** NEW: Helper view copied from SleepReportCard.swift ***
 // This is the detailed content for the sleep analysis
 private struct SleepDetailContent: View {
     let report: EnhancedSleepReport

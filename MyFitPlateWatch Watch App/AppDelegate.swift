@@ -1,5 +1,11 @@
 import WatchKit
 import WatchConnectivity
+import OSLog
+
+private let watchConnectivityLog = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "MyFitPlateWatch",
+    category: "WatchConnectivity"
+)
 
 class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, ObservableObject {
     @Published var message: String = "no message"
@@ -32,16 +38,16 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
     
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if activationState == .activated {
-            print("✅ Watch session activated.")
+            watchConnectivityLog.debug("Watch session activated.")
             if let receivedContext = session.receivedApplicationContext as [String: Any]? {
-                print("📦 Processing received context on activation.")
+                watchConnectivityLog.debug("Processing received context on activation.")
                 update(with: receivedContext)
             }
         }
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        print("📦 Received application context on watch.")
+        watchConnectivityLog.debug("Received application context on watch.")
         update(with: applicationContext)
     }
 

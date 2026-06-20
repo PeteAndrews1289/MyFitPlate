@@ -13,9 +13,8 @@ struct MainTabView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var groupService: GroupService
     @EnvironmentObject var mealPlannerService: MealPlannerService
+    @EnvironmentObject var recipeService: RecipeService
     @EnvironmentObject var spotlightManager: SpotlightManager
-    
-    @StateObject private var recipeService = RecipeService()
     
     @State private var showSettings = false
     @State private var showingAddOptions = false
@@ -51,27 +50,21 @@ struct MainTabView: View {
                 Group {
                     switch appState.selectedTab {
                     case 0:
-                        NavigationView { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }
-                        .navigationViewStyle(StackNavigationViewStyle())
+                        NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }
                     case 1:
-                        NavigationView { AIChatbotView(selectedTab: $appState.selectedTab) }
-                        .navigationViewStyle(StackNavigationViewStyle())
+                        NavigationStack { AIChatbotView(selectedTab: $appState.selectedTab) }
                     case 2:
-                        NavigationView { WorkoutRoutinesView() }
-                        .navigationViewStyle(StackNavigationViewStyle())
+                        WorkoutRoutinesView()
                     case 3:
-                        NavigationView { MealPlannerView() }
-                        .navigationViewStyle(StackNavigationViewStyle())
+                        NavigationStack { MealPlannerView() }
                     case 4:
-                        NavigationView { ReportsView(dailyLogService: dailyLogService) }
-                        .navigationViewStyle(StackNavigationViewStyle())
+                        NavigationStack { ReportsView(dailyLogService: dailyLogService) }
                     default:
-                        NavigationView { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }
-                        .navigationViewStyle(StackNavigationViewStyle())
+                        NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.bottom, 70)
+                .padding(.bottom, 88)
 
                 CustomTabBar(
                     selectedIndex: $appState.selectedTab,
@@ -84,7 +77,8 @@ struct MainTabView: View {
                 )
 
                 if showingAddOptions {
-                    Color.black.opacity(0.5).edgesIgnoringSafeArea(.all)
+                    Color.black.opacity(0.34)
+                        .ignoresSafeArea()
                         .onTapGesture {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.6)){
                                 showingAddOptions = false
@@ -92,31 +86,79 @@ struct MainTabView: View {
                         }
                         .zIndex(1)
 
-                    VStack(spacing: 16) {
-                        let buttons = [
-                            ("Search Food", "magnifyingglass", { self.showingFoodSearch = true }),
-                            ("Scan Barcode", "barcode.viewfinder", { self.showingBarcodeScanner = true }),
-                            ("Log with Camera", "camera.fill", { self.showingImagePicker = true }),
-                            ("Describe Your Meal", "text.bubble.fill", { self.showingAITextLog = true }),
-                            ("Add Journal Entry", "book.closed.fill", { self.showingAddJournalView = true }),
-                            ("Log Exercise", "figure.walk", { self.showingAddExerciseView = true }),
-                            ("Log Recipe/Meal", "list.clipboard", { self.showingRecipeListView = true })
+                    VStack(alignment: .leading, spacing: 16) {
+                        let buttons: [(title: String, subtitle: String, icon: String, tint: Color, action: () -> Void)] = [
+                            ("Search Food", "Find from the food database", "magnifyingglass", .brandPrimary, { self.showingFoodSearch = true }),
+                            ("Scan Barcode", "Fast packaged food lookup", "barcode.viewfinder", .accentCarbs, { self.showingBarcodeScanner = true }),
+                            ("Log with Camera", "Estimate nutrition from a photo", "camera.fill", .orange, { self.showingImagePicker = true }),
+                            ("Describe Your Meal", "Tell Maia what you ate", "text.bubble.fill", .accentPositive, { self.showingAITextLog = true }),
+                            ("Add Journal Entry", "Capture mood, symptoms, or context", "book.closed.fill", .teal, { self.showingAddJournalView = true }),
+                            ("Log Exercise", "Record activity and calories", "figure.walk", .accentPositive, { self.showingAddExerciseView = true }),
+                            ("Log Recipe/Meal", "Use saved recipes and meals", "list.clipboard", .accentFats, { self.showingRecipeListView = true })
                         ]
 
+                        Capsule()
+                            .fill(Color(UIColor.tertiaryLabel).opacity(0.35))
+                            .frame(width: 42, height: 5)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 2)
+
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Quick Log")
+                                    .foregroundColor(.textPrimary)
+                                    .appFont(size: 24, weight: .bold)
+
+                                Text("Choose the fastest way to capture food, workouts, or notes.")
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                                    .appFont(size: 14)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Spacer()
+
+                            Button {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                    showingAddOptions = false
+                                }
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                                    .frame(width: 32, height: 32)
+                                    .background(Color.backgroundPrimary.opacity(0.78), in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Close quick log menu")
+                        }
+
                         ForEach(Array(buttons.enumerated()), id: \.offset) { index, buttonInfo in
-                            actionButton(title: buttonInfo.0, icon: buttonInfo.1) {
-                                buttonInfo.2()
+                            actionButton(
+                                title: buttonInfo.title,
+                                subtitle: buttonInfo.subtitle,
+                                icon: buttonInfo.icon,
+                                tint: buttonInfo.tint
+                            ) {
+                                buttonInfo.action()
                                 self.showingAddOptions = false
                             }
-                            .transition(.scale(scale: 0.5, anchor: .bottom).combined(with: .opacity))
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                             .animation(.spring(response: 0.3, dampingFraction: 0.6).delay(0.05 * Double(index)), value: showingAddOptions)
                         }
                     }
-                    .padding()
-                    .background(containerBackground)
-                    .cornerRadius(20)
-                    .shadow(radius: 10)
-                    .padding(40)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 10)
+                    .padding(.bottom, 18)
+                    .frame(maxWidth: 520)
+                    .background(containerBackground.opacity(0.92), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.18), radius: 24, x: 0, y: 16)
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 104)
                     .zIndex(2)
                     .featureSpotlight(isActive: showingSpotlightTour)
                 }
@@ -131,7 +173,7 @@ struct MainTabView: View {
                 }
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
-            .sheet(isPresented: $showSettings) { NavigationView { SettingsView(showSettings: $showSettings) } }
+            .sheet(isPresented: $showSettings) { NavigationStack { SettingsView(showSettings: $showSettings) } }
             .sheet(isPresented: $showingFoodSearch) {
                 FoodSearchView(dailyLog: $dailyLogService.currentDailyLog, onFoodItemLogged: {
                     showingFoodSearch = false
@@ -178,7 +220,7 @@ struct MainTabView: View {
                 }
             }
             .sheet(item: $scannedFoodItem) { foodItem in
-                NavigationView {
+                NavigationStack {
                     FoodDetailView(
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLogService.currentDailyLog,
@@ -197,7 +239,7 @@ struct MainTabView: View {
                 JournalView()
             }
             .alert("Scan Error", isPresented: $scanError.0) { Button("OK") { } } message: { Text(scanError.1) }
-            .onChange(of: showingAddOptions) { newValue in
+            .onChange(of: showingAddOptions) { _, newValue in
                 if newValue && !spotlightManager.isShown(id: "action-menu") {
                     withAnimation {
                         showingSpotlightTour = true
@@ -237,24 +279,51 @@ struct MainTabView: View {
         spotlightManager.markAsShown(id: "action-menu")
     }
     
-    private func actionButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
+    private func actionButton(title: String, subtitle: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 action()
             }
         }) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundColor(.brandPrimary)
-                    .frame(width: 24, height: 24)
-                Text(title)
-                    .foregroundColor(.textPrimary)
-                    .appFont(size: 17, weight: .semibold)
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(tint.opacity(0.14))
+
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(tint)
+                }
+                .frame(width: 44, height: 44)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .foregroundColor(.textPrimary)
+                        .appFont(size: 16, weight: .semibold)
+
+                    Text(subtitle)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appFont(size: 13)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)
+                }
+
                 Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
             }
-            .padding()
-            .background(Color.backgroundSecondary)
-            .cornerRadius(12)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
         }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens \(title)")
     }
 }

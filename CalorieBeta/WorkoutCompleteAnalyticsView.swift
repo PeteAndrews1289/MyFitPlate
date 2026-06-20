@@ -17,137 +17,166 @@ struct WorkoutCompleteAnalyticsView: View {
     @State private var isAnimated = false
     @State private var isLoading = true
 
+    private var displayedAnalytics: WorkoutAnalytics {
+        analytics ?? localAnalytics
+    }
+
+    private var localAnalytics: WorkoutAnalytics {
+        analyticsService.generateImmediateSessionAnalytics(for: log)
+    }
+
+    private var totalVolume: Double {
+        log.completedExercises.reduce(0) { exerciseSum, exercise in
+            exerciseSum + exercise.sets.reduce(0) { setSum, set in
+                setSum + (set.weight * Double(set.reps))
+            }
+        }
+    }
+
+    private var completedSetCount: Int {
+        log.completedExercises.reduce(0) { $0 + $1.sets.count }
+    }
+
+    private var totalRepCount: Int {
+        log.completedExercises.reduce(0) { exerciseSum, exercise in
+            exerciseSum + exercise.sets.reduce(0) { $0 + $1.reps }
+        }
+    }
+
+    private var cardioMinutes: Int {
+        let seconds = log.completedExercises.reduce(0) { exerciseSum, exercise in
+            exerciseSum + exercise.sets.reduce(0) { $0 + ($1.durationInSeconds ?? 0) }
+        }
+        return seconds / 60
+    }
+
+    private var estimatedDurationMinutes: Int {
+        max(cardioMinutes, completedSetCount * 2)
+    }
+
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
-                
-                // 1. Header
-                VStack(spacing: 8) {
-                    Image(systemName: "trophy.fill")
-                        .font(.system(size: 60))
-                        .foregroundColor(.yellow)
-                        .scaleEffect(isAnimated ? 1.0 : 0.5)
-                        .animation(.spring(), value: isAnimated)
-                    
-                    Text("Workout Summary")
-                        .appFont(size: 32, weight: .black)
-                    
-                    Text(log.date.dateValue().formatted(date: .abbreviated, time: .shortened))
-                        .appFont(size: 16)
-                        .foregroundColor(.secondary)
+            VStack(spacing: 18) {
+                WorkoutSummaryHeroCard(
+                    date: log.date.dateValue(),
+                    totalVolume: totalVolume,
+                    exerciseCount: log.completedExercises.count,
+                    setCount: completedSetCount,
+                    isAnimated: isAnimated
+                )
+                .padding(.horizontal)
+                .padding(.top, 14)
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    StatCard(title: "Total Volume", value: "\(Int(displayedAnalytics.totalVolume))", unit: "lbs", icon: "dumbbell.fill", color: .brandPrimary)
+                    StatCard(title: "Work Sets", value: "\(completedSetCount)", unit: "logged", icon: "checkmark.seal.fill", color: .accentPositive)
+                    StatCard(title: "Total Reps", value: "\(totalRepCount)", unit: totalRepCount == 1 ? "rep" : "reps", icon: "repeat", color: .orange)
+                    StatCard(title: "Est. Time", value: "\(estimatedDurationMinutes)", unit: "min", icon: "clock.fill", color: .blue)
                 }
-                .padding(.top)
+                .padding(.horizontal)
 
-                if let analytics = analytics {
-                    // 2. Comparison (Versus Last Time)
-                    if let comp = comparison {
-                        HStack {
-                            StatCard(title: "Volume vs Last", value: String(format: "%+.0f%%", comp.volumeDiffPercent * 100), unit: "", icon: "chart.bar.fill", color: comp.volumeDiffPercent >= 0 ? .green : .orange)
-                            StatCard(title: "Duration vs Last", value: String(format: "%+.0f%%", comp.durationDiffPercent * 100), unit: "", icon: "clock.fill", color: .blue)
-                        }
-                        .padding(.horizontal)
-                    } else {
-                        // Standard stats if no comparison available
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
-                            StatCard(title: "Total Volume", value: "\(Int(analytics.totalVolume))", unit: "lbs", icon: "dumbbell.fill", color: .blue)
-                            StatCard(title: "Exercises", value: "\(log.completedExercises.count)", unit: "total", icon: "figure.run", color: .orange)
-                        }
-                        .padding(.horizontal)
-                    }
-                    
-                    // 3. PR Celebration List (NEW)
-                    if !analytics.personalRecords.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Image(systemName: "crown.fill").foregroundColor(.yellow)
-                                Text("New Records!").font(.headline)
-                            }
-                            .padding(.horizontal)
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(Array(analytics.personalRecords), id: \.key) { exerciseName, prValue in
-                                        PRCard(exerciseName: exerciseName, detail: prValue)
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                    }
-
-                    // 4. Trends Charts
-                    if !trendData.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Key Gains")
-                                .appFont(size: 20, weight: .bold)
-                                .padding(.horizontal)
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 16) {
-                                    ForEach(log.completedExercises.prefix(3)) { exercise in
-                                        if let points = trendData[exercise.exerciseName], points.count > 1 {
-                                            ExerciseTrendChartView(exerciseName: exercise.exerciseName, dataPoints: points, metric: "Max Weight")
-                                                .frame(width: 300)
-                                        }
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                    }
-                    
-                    // 5. Muscle Split / Heatmap (NEW)
-                    if !muscleSplit.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Muscle Focus")
-                                .font(.headline)
-                                .padding(.horizontal)
-                            
-                            Chart(muscleSplit) { point in
-                                BarMark(
-                                    x: .value("Volume", point.volume),
-                                    y: .value("Muscle", point.muscleName)
-                                )
-                                .foregroundStyle(by: .value("Muscle", point.muscleName))
-                            }
-                            .frame(height: 200)
-                            .padding()
-                            .background(Color.backgroundSecondary)
-                            .cornerRadius(16)
-                            .padding(.horizontal)
-                        }
-                    }
-
-                    // 6. AI Insights
-                    if !analytics.aiInsights.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Image(systemName: "sparkles").foregroundColor(.brandPrimary)
-                                Text("Maia's Analysis").appFont(size: 20, weight: .bold)
-                            }
-                            .padding(.horizontal)
-                            ForEach(analytics.aiInsights) { insight in
-                                InsightCard(insight: insight)
-                            }
-                            .padding(.horizontal)
-                        }
-                    }
-                    
-                    // Share Button
-                    ShareLink(item: generateShareText(analytics: analytics), preview: SharePreview("Workout Summary", image: Image(systemName: "trophy.fill"))) {
-                        Label("Share Summary", systemImage: "square.and.arrow.up")
-                            .font(.headline)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.secondary.opacity(0.1))
-                            .cornerRadius(12)
+                if let comp = comparison {
+                    HStack(spacing: 12) {
+                        StatCard(title: "Volume vs Last", value: formatPercent(comp.volumeDiffPercent), unit: comp.previousDate?.formatted(date: .abbreviated, time: .omitted) ?? "last time", icon: "chart.bar.fill", color: comp.volumeDiffPercent >= 0 ? .accentPositive : .orange)
+                        StatCard(title: "Pace vs Last", value: formatPercent(-comp.durationDiffPercent), unit: "estimated", icon: "speedometer", color: comp.durationDiffPercent <= 0 ? .accentPositive : .blue)
                     }
                     .padding(.horizontal)
-                    
-                } else {
-                    ProgressView("Analyzing...")
-                        .padding()
                 }
+
+                SessionExerciseBreakdownCard(exercises: log.completedExercises)
+                    .padding(.horizontal)
+
+                if !displayedAnalytics.personalRecords.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Image(systemName: "crown.fill").foregroundColor(.yellow)
+                            Text("New Records").appFont(size: 20, weight: .bold)
+                        }
+                        .padding(.horizontal)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(Array(displayedAnalytics.personalRecords), id: \.key) { exerciseName, prValue in
+                                    PRCard(exerciseName: exerciseName, detail: prValue)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                }
+
+                if !trendData.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Key Gains")
+                            .appFont(size: 20, weight: .bold)
+                            .padding(.horizontal)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 16) {
+                                ForEach(Array(log.completedExercises.prefix(3))) { exercise in
+                                    if let points = trendData[exercise.exerciseName], points.count > 1 {
+                                        ExerciseTrendChartView(exerciseName: exercise.exerciseName, dataPoints: points, metric: "Max Weight")
+                                            .frame(width: 300)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                }
+
+                if !muscleSplit.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Muscle Focus")
+                            .appFont(size: 20, weight: .bold)
+                            .padding(.horizontal)
+
+                        Chart(muscleSplit) { point in
+                            BarMark(
+                                x: .value("Volume", point.volume),
+                                y: .value("Muscle", point.muscleName)
+                            )
+                            .foregroundStyle(Color.brandPrimary.gradient)
+                        }
+                        .frame(height: 200)
+                        .padding()
+                        .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .padding(.horizontal)
+                    }
+                }
+
+                if !displayedAnalytics.aiInsights.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "sparkles").foregroundColor(.brandPrimary)
+                            Text("Maia's Analysis").appFont(size: 20, weight: .bold)
+                        }
+                        .padding(.horizontal)
+
+                        ForEach(displayedAnalytics.aiInsights) { insight in
+                            InsightCard(insight: insight)
+                        }
+                        .padding(.horizontal)
+                    }
+                } else if isLoading {
+                    InlineAnalysisLoadingCard()
+                        .padding(.horizontal)
+                }
+
+                ShareLink(item: generateShareText(analytics: displayedAnalytics), preview: SharePreview("Workout Summary", image: Image(systemName: "trophy.fill"))) {
+                    Label("Share Summary", systemImage: "square.and.arrow.up")
+                        .font(.headline)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .padding(.horizontal)
+
+                Button("Done") {
+                    dismiss()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .padding(.horizontal)
             }
             .padding(.bottom, 40)
         }
@@ -159,24 +188,22 @@ struct WorkoutCompleteAnalyticsView: View {
     }
     
     private func loadData() {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-        
-        // Calculate Muscle Split locally immediately
+        analytics = localAnalytics
         self.muscleSplit = analyticsService.calculateMuscleSplit(log: log)
         
         Task {
-            // 1. Calculate Standard Analytics (includes PRs and Insights)
-            let result = await analyticsService.generateAnalyticsForPastSession(sessionID: log.id ?? "", workoutName: "Workout", date: log.date.dateValue())
-            self.analytics = result
-            
-            // 2. Fetch Comparison
-            self.comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: uid)
-            
-            // 3. Fetch Trends
-            for exercise in log.completedExercises.prefix(3) {
-                let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: uid)
-                self.trendData[exercise.exerciseName] = points
+            let uid = Auth.auth().currentUser?.uid
+            self.analytics = await analyticsService.generateAnalytics(for: log, userID: uid)
+
+            if let uid {
+                self.comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: uid)
+
+                for exercise in log.completedExercises.prefix(3) {
+                    let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: uid)
+                    self.trendData[exercise.exerciseName] = points
+                }
             }
+
             self.isLoading = false
         }
     }
@@ -184,11 +211,213 @@ struct WorkoutCompleteAnalyticsView: View {
     private func generateShareText(analytics: WorkoutAnalytics) -> String {
         let prCount = analytics.personalRecords.count
         let prText = prCount > 0 ? "Hit \(prCount) new PRs!" : "Great session!"
-        return "Just crushed a workout with MyFitPlate! 💪 \(Int(analytics.totalVolume))lbs total volume. \(prText)"
+        return "Just finished a workout with MyFitPlate: \(Int(analytics.totalVolume)) lbs total volume. \(prText)"
+    }
+
+    private func formatPercent(_ value: Double) -> String {
+        String(format: "%+.0f%%", value * 100)
     }
 }
 
 // MARK: - Subviews
+
+struct WorkoutSummaryHeroCard: View {
+    let date: Date
+    let totalVolume: Double
+    let exerciseCount: Int
+    let setCount: Int
+    let isAnimated: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Workout Complete")
+                        .appFont(size: 30, weight: .black)
+                        .foregroundColor(.textPrimary)
+
+                    Text(date.formatted(date: .abbreviated, time: .shortened))
+                        .appFont(size: 14, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Spacer()
+
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 36, weight: .bold))
+                    .foregroundColor(.yellow)
+                    .scaleEffect(isAnimated ? 1.0 : 0.65)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.62), value: isAnimated)
+            }
+
+            HStack(spacing: 12) {
+                SummaryHeroPill(title: "Volume", value: "\(Int(totalVolume)) lbs", icon: "dumbbell.fill")
+                SummaryHeroPill(title: "Logged", value: "\(exerciseCount) ex / \(setCount) sets", icon: "list.bullet.clipboard.fill")
+            }
+        }
+        .asCard()
+    }
+}
+
+private struct SummaryHeroPill: View {
+    let title: String
+    let value: String
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.brandPrimary)
+                .frame(width: 30, height: 30)
+                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .appFont(size: 10, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                Text(value)
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct SessionExerciseBreakdownCard: View {
+    let exercises: [CompletedExercise]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Session Breakdown")
+                        .appFont(size: 20, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("\(exercises.count) exercises completed")
+                        .appFont(size: 12, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Spacer()
+
+                Image(systemName: "list.bullet.rectangle.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 34, height: 34)
+                    .background(Color.brandPrimary.opacity(0.12), in: Circle())
+            }
+
+            VStack(spacing: 10) {
+                ForEach(Array(exercises.prefix(8))) { exercise in
+                    SessionExerciseRow(exercise: exercise)
+                }
+
+                if exercises.count > 8 {
+                    Text("+\(exercises.count - 8) more")
+                        .appFont(size: 12, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 2)
+                }
+            }
+        }
+        .asCard()
+    }
+}
+
+private struct SessionExerciseRow: View {
+    let exercise: CompletedExercise
+
+    private var volume: Double {
+        exercise.sets.reduce(0) { $0 + ($1.weight * Double($1.reps)) }
+    }
+
+    private var bestSetText: String {
+        switch exercise.exercise.type {
+        case .strength:
+            guard let bestSet = exercise.sets.max(by: { lhs, rhs in
+                (lhs.weight * Double(lhs.reps)) < (rhs.weight * Double(rhs.reps))
+            }) else { return "No sets" }
+            return "\(String(format: "%g", bestSet.weight)) lb x \(bestSet.reps)"
+
+        case .cardio:
+            let totalDistance = exercise.sets.reduce(0) { $0 + ($1.distance ?? 0) }
+            let totalMinutes = exercise.sets.reduce(0) { $0 + (($1.durationInSeconds ?? 0) / 60) }
+            if totalDistance > 0 && totalMinutes > 0 {
+                return "\(String(format: "%.1f", totalDistance)) mi in \(totalMinutes) min"
+            }
+            if totalMinutes > 0 {
+                return "\(totalMinutes) min"
+            }
+            return "\(exercise.sets.count) sets"
+
+        case .flexibility:
+            let totalSeconds = exercise.sets.reduce(0) { $0 + ($1.durationInSeconds ?? 0) }
+            return totalSeconds > 0 ? "\(totalSeconds) sec" : "\(exercise.sets.count) sets"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(ExerciseEmojiMapper.getEmoji(for: exercise.exerciseName))
+                .font(.title3)
+                .frame(width: 38, height: 38)
+                .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(exercise.exerciseName)
+                    .appFont(size: 15, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(1)
+
+                Text("\(exercise.sets.count) sets - \(bestSetText)")
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            if volume > 0 {
+                Text("\(Int(volume))")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.brandPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+            }
+        }
+        .padding(10)
+        .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct InlineAnalysisLoadingCard: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+                .tint(.brandPrimary)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Building deeper analysis")
+                    .appFont(size: 15, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Text("Your workout is already saved. Trends and coaching notes will appear when ready.")
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            }
+        }
+        .padding()
+        .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
 
 struct StatCard: View {
     let title: String, value: String, unit: String, icon: String, color: Color

@@ -8,13 +8,20 @@ struct GroceryListView: View {
     @State private var groceryList: [GroceryListItem] = []
     @State private var isLoading = true
     @State private var showingBarcodeScanner = false
+    @State private var showingManualItemSheet = false
     @State private var isFetchingItemName = false
+    @State private var showingClearConfirmation = false
+    @State private var hideCompletedItems = false
     @State private var fetchError: (isShowing: Bool, message: String) = (false, "")
     
     private let foodAPIService = FatSecretFoodAPIService()
 
+    private var displayedList: [GroceryListItem] {
+        hideCompletedItems ? groceryList.filter { !$0.isCompleted } : groceryList
+    }
+
     private var groupedList: [String: [GroceryListItem]] {
-        Dictionary(grouping: groceryList, by: { $0.category })
+        Dictionary(grouping: displayedList, by: { $0.category })
     }
     
     private var sortedCategories: [String] {
@@ -29,53 +36,76 @@ struct GroceryListView: View {
 
     var body: some View {
         ZStack {
-            VStack(spacing: 0) {
-                if isLoading {
-                    Spacer()
-                    ProgressView("Loading Grocery List...")
-                    Spacer()
-                } else if !groceryList.isEmpty {
-                    List {
-                        ForEach(sortedCategories, id: \.self) { category in
-                            Section(header: Text(category)) {
-                                ForEach($groceryList.filter { $item in
-                                    $item.wrappedValue.category == category
-                                }) { $item in
-                                    GroceryItemRow(item: $item, onToggle: saveList)
-                                }
-                                .onDelete { indexSet in
-                                    deleteItems(in: category, at: indexSet)
-                                }
+            ScrollView {
+                VStack(spacing: 16) {
+                    if isLoading {
+                        GroceryListLoadingState()
+                    } else if !groceryList.isEmpty {
+                        GrocerySummaryCard(
+                            items: groceryList,
+                            onScan: { showingBarcodeScanner = true },
+                            onAddManual: { showingManualItemSheet = true }
+                        )
+
+                        GroceryListDisplayControls(
+                            completedCount: groceryList.filter(\.isCompleted).count,
+                            hideCompletedItems: $hideCompletedItems
+                        )
+
+                        if sortedCategories.isEmpty {
+                            GroceryAllCompleteState {
+                                hideCompletedItems = false
+                            }
+                        } else {
+                            ForEach(sortedCategories, id: \.self) { category in
+                                GroceryCategorySection(
+                                    category: category,
+                                    items: orderedItems(for: category),
+                                    groceryList: $groceryList,
+                                    onToggle: saveList,
+                                    onDelete: deleteItem
+                                )
                             }
                         }
-                    }
-                    .listStyle(InsetGroupedListStyle())
-                } else {
-                    VStack {
-                        Spacer()
-                        Text("No grocery list found.")
-                            .foregroundColor(.gray)
-                        Text("Use the 'Meal Plan Generator' or the barcode scanner to add items.")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                        Spacer()
+                    } else {
+                        GroceryListEmptyState(
+                            onScan: { showingBarcodeScanner = true },
+                            onAddManual: { showingManualItemSheet = true }
+                        )
                     }
                 }
+                .padding(16)
+                .frame(maxWidth: .infinity)
             }
+            .background(Color.backgroundPrimary.ignoresSafeArea())
             .navigationTitle("Grocery List")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack {
-                        Button("Clear List", role: .destructive, action: clearList)
+                        if !groceryList.isEmpty {
+                            Button("Clear", role: .destructive) {
+                                showingClearConfirmation = true
+                            }
+                        }
+                        Button(action: { showingManualItemSheet = true }) {
+                            Image(systemName: "plus")
+                        }
+                        .accessibilityLabel("Add grocery item")
+
                         Button(action: { showingBarcodeScanner = true }) {
                             Image(systemName: "barcode.viewfinder")
                         }
+                        .accessibilityLabel("Scan barcode")
                     }
+                }
+            }
+            .sheet(isPresented: $showingManualItemSheet) {
+                ManualGroceryItemSheet { item in
+                    addManualItem(item)
                 }
             }
             .sheet(isPresented: $showingBarcodeScanner) {
@@ -88,8 +118,7 @@ struct GroceryListView: View {
                             isFetchingItemName = false
                             switch result {
                             case .success(let foodItem):
-                                let newItem = GroceryListItem(name: foodItem.name, quantity: 1, unit: "item", category: "Misc")
-                                groceryList.append(newItem)
+                                addBarcodeItem(foodItem)
                                 saveList()
                             case .failure(let error):
                                 fetchError = (true, "Could not find an item for that barcode. \(error.localizedDescription)")
@@ -103,6 +132,16 @@ struct GroceryListView: View {
             } message: {
                 Text(fetchError.message)
             }
+            .confirmationDialog(
+                "Clear grocery list?",
+                isPresented: $showingClearConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Clear List", role: .destructive, action: clearList)
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes every item currently on your grocery list.")
+            }
             .onAppear {
                 Task {
                     await loadList()
@@ -110,31 +149,77 @@ struct GroceryListView: View {
             }
             
             if isFetchingItemName {
-                Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
-                VStack {
-                    ProgressView("Finding Item...")
-                    Text("Looking up barcode...")
-                        .font(.caption)
-                        .padding(.top)
+                Color.black.opacity(0.36)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .tint(.brandPrimary)
+
+                    VStack(spacing: 3) {
+                        Text("Finding item")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.textPrimary)
+
+                        Text("Looking up that barcode...")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
                 }
-                .padding(30)
-                .background(Color(.secondarySystemBackground))
-                .foregroundColor(Color.primary)
-                .cornerRadius(20)
-                .shadow(radius: 10)
+                .padding(24)
+                .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .shadow(color: .black.opacity(0.16), radius: 18, x: 0, y: 10)
             }
         }
     }
     
-    private func deleteItems(in category: String, at offsets: IndexSet) {
-        let itemsForCategory = groceryList.filter { $0.category == category }
-        let idsToRemove = offsets.map { itemsForCategory[$0].id }
-        groceryList.removeAll { idsToRemove.contains($0.id) }
+    private func orderedItems(for category: String) -> [GroceryListItem] {
+        (groupedList[category] ?? []).sorted { first, second in
+            if first.isCompleted != second.isCompleted {
+                return !first.isCompleted
+            }
+            return first.name.localizedCaseInsensitiveCompare(second.name) == .orderedAscending
+        }
+    }
+
+    private func deleteItem(_ item: GroceryListItem) {
+        groceryList.removeAll { $0.id == item.id }
         saveList()
+        HapticManager.instance.feedback(.light)
+    }
+
+    private func addBarcodeItem(_ foodItem: FoodItem) {
+        if let existingIndex = groceryList.firstIndex(where: {
+            $0.name.caseInsensitiveCompare(foodItem.name) == .orderedSame
+        }) {
+            groceryList[existingIndex].quantity += 1
+            groceryList[existingIndex].isCompleted = false
+        } else {
+            let newItem = GroceryListItem(name: foodItem.name, quantity: 1, unit: "item", category: "Misc", source: "barcode")
+            groceryList.append(newItem)
+        }
+        HapticManager.instance.feedback(.medium)
+    }
+
+    private func addManualItem(_ item: GroceryListItem) {
+        if let existingIndex = groceryList.firstIndex(where: {
+            $0.name.caseInsensitiveCompare(item.name) == .orderedSame &&
+            $0.unit.caseInsensitiveCompare(item.unit) == .orderedSame
+        }) {
+            groceryList[existingIndex].quantity += item.quantity
+            groceryList[existingIndex].isCompleted = false
+        } else {
+            groceryList.append(item)
+        }
+        saveList()
+        HapticManager.instance.feedback(.medium)
     }
     
     private func loadList() async {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = Auth.auth().currentUser?.uid else {
+            self.isLoading = false
+            return
+        }
         self.groceryList = await mealPlannerService.fetchGroceryList(for: userID)
         self.isLoading = false
     }
@@ -147,14 +232,244 @@ struct GroceryListView: View {
     private func clearList() {
         groceryList = []
         saveList()
+        HapticManager.instance.feedback(.medium)
     }
 }
 
-struct GroceryItemRow: View {
+private struct GrocerySummaryCard: View {
+    let items: [GroceryListItem]
+    let onScan: () -> Void
+    let onAddManual: () -> Void
+
+    private var totalCount: Int {
+        items.count
+    }
+
+    private var completedCount: Int {
+        items.filter(\.isCompleted).count
+    }
+
+    private var remainingCount: Int {
+        max(totalCount - completedCount, 0)
+    }
+
+    private var categoryCount: Int {
+        Set(items.map(\.category)).count
+    }
+
+    private var progress: CGFloat {
+        guard totalCount > 0 else { return 0 }
+        return CGFloat(Double(completedCount) / Double(totalCount))
+    }
+
+    private var categoryLabel: String {
+        categoryCount == 1 ? "category" : "categories"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Shopping Run")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.textPrimary)
+
+                    Text("\(remainingCount) left across \(categoryCount) \(categoryLabel).")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Button(action: onAddManual) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 42, height: 42)
+                            .background(Color.brandPrimary, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Add grocery item")
+
+                    Button(action: onScan) {
+                        Image(systemName: "barcode.viewfinder")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.brandPrimary)
+                            .frame(width: 42, height: 42)
+                            .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Scan barcode")
+                }
+            }
+
+            HStack(spacing: 10) {
+                GroceryMetricTile(title: "Items", value: "\(totalCount)", color: .brandPrimary)
+                GroceryMetricTile(title: "Done", value: "\(completedCount)", color: .accentPositive)
+                GroceryMetricTile(title: "Left", value: "\(remainingCount)", color: .orange)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.primary.opacity(0.08))
+
+                        Capsule()
+                            .fill(Color.accentPositive)
+                            .frame(width: geometry.size.width * progress)
+                    }
+                }
+                .frame(height: 8)
+
+                Text(completedCount == totalCount ? "All set for this list." : "\(Int((progress * 100).rounded()))% checked off")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            }
+        }
+        .padding(18)
+        .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+        )
+    }
+}
+
+private struct GroceryMetricTile: View {
+    let title: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value)
+                .font(.system(size: 21, weight: .bold))
+                .foregroundColor(color)
+                .lineLimit(1)
+
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Color(UIColor.secondaryLabel))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+}
+
+private struct GroceryListDisplayControls: View {
+    let completedCount: Int
+    @Binding var hideCompletedItems: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                hideCompletedItems.toggle()
+                HapticManager.instance.feedback(.light)
+            } label: {
+                Label(
+                    hideCompletedItems ? "Show Done" : "Hide Done",
+                    systemImage: hideCompletedItems ? "eye.fill" : "eye.slash.fill"
+                )
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(completedCount == 0 ? Color(UIColor.tertiaryLabel) : .brandPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(completedCount == 0)
+
+            Text("\(completedCount) checked")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        }
+    }
+}
+
+private struct GroceryAllCompleteState: View {
+    let onShowCompleted: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 30, weight: .bold))
+                .foregroundColor(.accentPositive)
+                .frame(width: 58, height: 58)
+                .background(Color.accentPositive.opacity(0.12), in: Circle())
+
+            VStack(spacing: 4) {
+                Text("Everything visible is checked off")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.textPrimary)
+
+                Text("Completed items are hidden for a cleaner shopping run.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .multilineTextAlignment(.center)
+            }
+
+            Button("Show Checked Items", action: onShowCompleted)
+                .buttonStyle(SecondaryButtonStyle())
+        }
+        .frame(maxWidth: .infinity)
+        .padding(18)
+        .background(Color.backgroundSecondary.opacity(0.74), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private struct GroceryCategorySection: View {
+    let category: String
+    let items: [GroceryListItem]
+    @Binding var groceryList: [GroceryListItem]
+    let onToggle: () -> Void
+    let onDelete: (GroceryListItem) -> Void
+
+    private var remainingCount: Int {
+        items.filter { !$0.isCompleted }.count
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(category)
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundColor(.textPrimary)
+
+                Spacer()
+
+                Text("\(remainingCount) left")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(remainingCount == 0 ? .accentPositive : Color(UIColor.secondaryLabel))
+            }
+            .padding(.horizontal, 2)
+
+            VStack(spacing: 10) {
+                ForEach(items) { item in
+                    if let index = groceryList.firstIndex(where: { $0.id == item.id }) {
+                        GroceryItemRow(
+                            item: $groceryList[index],
+                            onToggle: onToggle,
+                            onDelete: { onDelete(item) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct GroceryItemRow: View {
     @Binding var item: GroceryListItem
     var onToggle: () -> Void
+    var onDelete: () -> Void
     
-    private var quantityText: String {
+    private var quantityText: String? {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 2
@@ -163,31 +478,322 @@ struct GroceryItemRow: View {
              formatter.maximumFractionDigits = 0
         }
 
-        let formattedQuantity = formatter.string(from: NSNumber(value: item.quantity)) ?? ""
+        let formattedQuantity = formatter.string(from: NSNumber(value: item.quantity)) ?? "\(item.quantity)"
+        let unit = item.unit.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedUnit = unit.lowercased()
         
-        if item.unit.lowercased() == "item" || item.unit.lowercased() == "to taste" || item.quantity == 0 {
-            return ""
+        if item.quantity <= 0 {
+            return normalizedUnit == "to taste" ? "to taste" : nil
+        }
+
+        if normalizedUnit == "to taste" {
+            return "to taste"
+        }
+
+        if normalizedUnit == "item" || unit.isEmpty {
+            return item.quantity == 1 ? "1 item" : "\(formattedQuantity) items"
+        }
+
+        if normalizedUnit == "meal use" {
+            return item.quantity == 1 ? "1 use" : "\(formattedQuantity) uses"
         }
         
-        return "\(formattedQuantity) \(item.unit)"
+        return "\(formattedQuantity) \(unit)"
+    }
+
+    private var sourceText: String? {
+        if item.source == "manual" {
+            return "Manual"
+        }
+
+        if item.source == "barcode" {
+            return "Scanned"
+        }
+
+        if item.source == nil && item.unit.lowercased() == "item" && item.category == "Misc" {
+            return "Scanned"
+        }
+
+        return nil
     }
     
     var body: some View {
-        Button(action: {
-            item.isCompleted.toggle()
-            onToggle()
-        }) {
-            HStack {
-                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(item.isCompleted ? .green : .primary)
-                Text(item.name)
-                    .strikethrough(item.isCompleted, color: .primary)
-                    .foregroundColor(item.isCompleted ? .secondary : .primary)
-                Spacer()
-                Text(quantityText)
-                    .foregroundColor(.secondary)
+        HStack(spacing: 10) {
+            Button(action: toggleCompleted) {
+                HStack(spacing: 12) {
+                    Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(item.isCompleted ? .accentPositive : Color(UIColor.tertiaryLabel))
+
+                    Text(FoodEmojiMapper.getEmoji(for: item.name))
+                        .font(.system(size: 24))
+                        .frame(width: 44, height: 44)
+                        .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.name)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(item.isCompleted ? Color(UIColor.secondaryLabel) : .textPrimary)
+                            .strikethrough(item.isCompleted, color: Color(UIColor.secondaryLabel))
+                            .lineLimit(2)
+
+                        HStack(spacing: 6) {
+                            if let quantityText {
+                                Text(quantityText)
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(.brandPrimary)
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 4)
+                                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                            }
+
+                            if let sourceText {
+                                Text(sourceText)
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(.accentCarbs)
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 4)
+                                    .background(Color.accentCarbs.opacity(0.10), in: Capsule())
+                            }
+                        }
+                    }
+
+                    Spacer(minLength: 6)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(item.isCompleted ? "Mark \(item.name) incomplete" : "Mark \(item.name) complete")
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .frame(width: 34, height: 34)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Delete \(item.name)")
+        }
+        .padding(12)
+        .background(
+            (item.isCompleted ? Color.backgroundSecondary.opacity(0.46) : Color.backgroundSecondary.opacity(0.78)),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(item.isCompleted ? Color.accentPositive.opacity(0.16) : Color.primary.opacity(0.05), lineWidth: 1)
+        )
+    }
+
+    private func toggleCompleted() {
+        item.isCompleted.toggle()
+        onToggle()
+        HapticManager.instance.feedback(.light)
+    }
+}
+
+private struct GroceryListLoadingState: View {
+    var body: some View {
+        VStack(spacing: 13) {
+            ProgressView()
+                .tint(.brandPrimary)
+
+            Text("Loading grocery list")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.textPrimary)
+
+            Text("Pulling together your planned ingredients.")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 72)
+    }
+}
+
+private struct GroceryListEmptyState: View {
+    let onScan: () -> Void
+    let onAddManual: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "cart.fill")
+                .font(.system(size: 39, weight: .bold))
+                .foregroundColor(.brandPrimary)
+                .frame(width: 76, height: 76)
+                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+
+            VStack(spacing: 5) {
+                Text("No grocery list yet")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.textPrimary)
+
+                Text("Generate a meal plan to build one automatically, add an item, or scan as you shop.")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(spacing: 10) {
+                Button(action: onAddManual) {
+                    Label("Add Item", systemImage: "plus")
+                }
+                .buttonStyle(PrimaryButtonStyle())
+
+                Button(action: onScan) {
+                    Label("Scan Barcode", systemImage: "barcode.viewfinder")
+                }
+                .buttonStyle(SecondaryButtonStyle())
             }
         }
-        .buttonStyle(PlainButtonStyle())
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 80)
+    }
+}
+
+private struct ManualGroceryItemSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var quantity = "1"
+    @State private var unit = "item"
+    @State private var category = "Misc"
+
+    let onAdd: (GroceryListItem) -> Void
+
+    private let categories = ["Produce", "Protein", "Carbohydrates", "Dairy", "Pantry", "Misc"]
+    private let units = ["item", "meal use", "oz", "lb", "g", "cup", "tbsp", "tsp", "serving"]
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var quantityValue: Double {
+        let normalized = quantity.replacingOccurrences(of: ",", with: ".")
+        return max(Double(normalized) ?? 1, 0)
+    }
+
+    private var canSave: Bool {
+        !trimmedName.isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "cart.badge.plus")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.brandPrimary)
+                                .frame(width: 42, height: 42)
+                                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Add Grocery Item")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.textPrimary)
+
+                                Text("Add anything you need outside the generated meal plan.")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                            }
+                        }
+                    }
+                    .padding(18)
+                    .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("Item")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.textPrimary)
+
+                        TextField("Chicken breast, blueberries, paper towels...", text: $name)
+                            .textInputAutocapitalization(.words)
+                            .padding(14)
+                            .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                        HStack(spacing: 10) {
+                            TextField("Qty", text: $quantity)
+                                .keyboardType(.decimalPad)
+                                .padding(14)
+                                .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .frame(maxWidth: 100)
+
+                            Picker("Unit", selection: $unit) {
+                                ForEach(units, id: \.self) { unit in
+                                    Text(unit).tag(unit)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                    }
+                    .padding(16)
+                    .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Category")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.textPrimary)
+
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                            ForEach(categories, id: \.self) { option in
+                                Button {
+                                    category = option
+                                    HapticManager.instance.feedback(.light)
+                                } label: {
+                                    Text(option)
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(category == option ? .brandPrimary : Color(UIColor.secondaryLabel))
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 11)
+                                        .background(
+                                            category == option ? Color.brandPrimary.opacity(0.14) : Color.backgroundPrimary.opacity(0.58),
+                                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(16)
+                    .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+                .padding(16)
+                .padding(.bottom, 86)
+            }
+            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .navigationTitle("Manual Item")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button("Add Item") {
+                    onAdd(GroceryListItem(
+                        name: trimmedName,
+                        quantity: quantityValue,
+                        unit: unit,
+                        category: category,
+                        source: "manual"
+                    ))
+                    dismiss()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(!canSave)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
+                .background(Color.backgroundPrimary.opacity(0.98).ignoresSafeArea(edges: .bottom))
+            }
+        }
     }
 }

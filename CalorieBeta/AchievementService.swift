@@ -140,7 +140,9 @@ class AchievementService: ObservableObject {
                         var status = try doc.data(as: UserAchievementStatus.self)
                         status.id = doc.documentID
                         newStatuses[status.achievementID] = status
-                    } catch {}
+                    } catch {
+                        AppLog.app.error("Failed to decode achievement status \(doc.documentID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    }
                 }
                 self.userStatuses = newStatuses
                 self.unlockedAchievementsCount = newStatuses.values.filter { $0.isUnlocked }.count
@@ -161,7 +163,9 @@ class AchievementService: ObservableObject {
         let ref = db.collection("users").document(userID).collection("achievementStatus").document(statusDocID)
         do {
             try ref.setData(from: status, merge: true)
-        } catch {}
+        } catch {
+            AppLog.app.error("Failed to save achievement status \(status.achievementID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func awardPointsAndCheckLevel(userID: String, points: Int) {
@@ -254,7 +258,7 @@ class AchievementService: ObservableObject {
     }
     private func checkLoggingStreakAchievement(userID: String) { }
     private func checkWeightChangeAchievement(userID: String, goals: GoalSettings) { let id = "first_5_lbs"; guard shouldCheck(id), let def = getDefinition(id: id), let firstW = goals.weightHistory.first else { return }; let initialW = firstW.weight; let currentW = goals.weight; let change = abs(currentW - initialW); updateProgress(userID: userID, achievementID: id, progress: change); if change >= def.criteriaValue { unlockAchievement(userID: userID, achievementID: id) } }
-    private func checkTargetWeightAchievement(userID: String, goals: GoalSettings) { let id = "target_reached"; guard shouldCheck(id), let def = getDefinition(id: id), let target = goals.targetWeight else { return }; let current = goals.weight; if abs(current - target) <= 0.5 { unlockAchievement(userID: userID, achievementID: id) } }
+    private func checkTargetWeightAchievement(userID: String, goals: GoalSettings) { let id = "target_reached"; guard shouldCheck(id), let target = goals.targetWeight else { return }; let current = goals.weight; if abs(current - target) <= 0.5 { unlockAchievement(userID: userID, achievementID: id) } }
     
     func checkRecipeCountAchievements(userID: String) {
         let recipeCollection = db.collection("users").document(userID).collection("recipes")
@@ -271,7 +275,7 @@ class AchievementService: ObservableObject {
                     }
                 }
             } catch {
-                print("Error fetching recipe count: \(error.localizedDescription)")
+                AppLog.recipes.error("Failed to fetch recipe count for achievements: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -291,7 +295,7 @@ class AchievementService: ObservableObject {
                     }
                 }
             } catch {
-                print("Error fetching workout count: \(error.localizedDescription)")
+                AppLog.workouts.error("Failed to fetch workout count for achievements: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -364,8 +368,8 @@ class AchievementService: ObservableObject {
 
     func generateWeeklyChallenges(for userID: String) {
         let challengesRef = db.collection("users").document(userID).collection("activeChallenges")
-        challengesRef.whereField("expiresAt", isGreaterThan: Timestamp(date: Date())).getDocuments { [weak self] snapshot, error in
-            guard let self = self, (snapshot?.documents.isEmpty ?? true) else { return }
+        challengesRef.whereField("expiresAt", isGreaterThan: Timestamp(date: Date())).getDocuments { snapshot, error in
+            guard snapshot?.documents.isEmpty ?? true else { return }
 
             let weekFromNow = Timestamp(date: Date().addingTimeInterval(7 * 24 * 60 * 60))
             
@@ -381,7 +385,7 @@ class AchievementService: ObservableObject {
             ]
             
             let challengesToSet = Array(potentialChallenges.shuffled().prefix(5))
-            let batch = self.db.batch()
+            let batch = Firestore.firestore().batch()
             for challenge in challengesToSet {
                 let newDocRef = challengesRef.document()
                 do {

@@ -20,7 +20,7 @@ class TTSManager: NSObject, ObservableObject, @preconcurrency AVSpeechSynthesize
             try audioSession.setCategory(.playback, mode: .default)
             try audioSession.setActive(true)
         } catch {
-            print("❌ Failed to set up audio session: \(error.localizedDescription)")
+            AppLog.app.error("Failed to set up audio session: \(error.localizedDescription, privacy: .public)")
         }
     }
     

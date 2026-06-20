@@ -26,7 +26,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .cornerRadius(16)
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
-            .onChange(of: configuration.isPressed) { newValue in
+            .onChange(of: configuration.isPressed) { _, newValue in
                 if newValue {
                     HapticManager.instance.feedback(.medium)
                 }
@@ -49,7 +49,7 @@ struct SecondaryButtonStyle: ButtonStyle {
             )
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
-            .onChange(of: configuration.isPressed){ newValue in
+            .onChange(of: configuration.isPressed) { _, newValue in
                 if newValue {
                     HapticManager.instance.feedback(.light)
                 }
@@ -94,5 +94,35 @@ struct CardViewModifier: ViewModifier {
 extension View {
     func asCard() -> some View {
         self.modifier(CardViewModifier())
+    }
+}
+
+struct ShimmerEffect: ViewModifier {
+    @State private var isInitialState = true
+
+    func body(content: Content) -> some View {
+        content
+            .mask(
+                LinearGradient(
+                    gradient: Gradient(colors: [.black.opacity(0.4), .black, .black.opacity(0.4)]),
+                    startPoint: (isInitialState ? .init(x: -0.3, y: -0.3) : .init(x: 1, y: 1)),
+                    endPoint: (isInitialState ? .init(x: 0, y: 0) : .init(x: 1.3, y: 1.3))
+                )
+            )
+            .animation(.linear(duration: 1.5).delay(0.25).repeatForever(autoreverses: false), value: isInitialState)
+            .onAppear {
+                isInitialState = false
+            }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func shimmering(active: Bool = true) -> some View {
+        if active {
+            self.modifier(ShimmerEffect())
+        } else {
+            self
+        }
     }
 }

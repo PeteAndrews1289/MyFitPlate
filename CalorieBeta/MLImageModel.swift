@@ -204,7 +204,7 @@ class MLImageModel {
                     DispatchQueue.main.async { completion(.success(foodItems)) }
                 } catch {
                     if retryCount > 0 {
-                        print("AI Vision Error: \(error). Retrying request...")
+                        AppLog.ai.warning("AI vision response decoding failed. Retrying: \(error.localizedDescription, privacy: .public)")
                         performEstimateRequest(image: image, retryCount: retryCount - 1, completion: completion)
                     } else {
                         completion(.failure(ImageRecognitionError.decodingError(error)))

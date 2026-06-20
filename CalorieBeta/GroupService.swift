@@ -20,7 +20,7 @@ class GroupService: ObservableObject {
 
         // Prepare Firestore document data
         let groupData: [String: Any] = [
-            "id": newGroup.id,
+            "id": newGroup.id ?? "",
             "name": newGroup.name,
             "description": newGroup.description,
             "creatorID": newGroup.creatorID,

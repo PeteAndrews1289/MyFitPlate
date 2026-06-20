@@ -9,7 +9,7 @@ struct CalorieTrackingView: View {
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
 
     @State private var selectedTimeframe: ReportTimeframe = .week
-    @State private var customStartDate: Date = Calendar.current.date(byAdding: .day, value: -6, to: Date())!
+    @State private var customStartDate: Date = Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date()
     @State private var customEndDate: Date = Date()
     
     @State private var showingDetailedInsights = false

@@ -94,13 +94,49 @@ class WorkoutAnalyticsService: ObservableObject {
     func generateAnalyticsForPastSession(sessionID: String, workoutName: String, date: Date) async -> WorkoutAnalytics? {
         let sessionResult = await workoutService.fetchWorkoutSessionLog(workoutID: "unknown", sessionID: sessionID)
         guard case .success(let sessionLog) = sessionResult else { return nil }
-        
-        let tempLoggedExercise = LoggedExercise(
-            id: UUID().uuidString, name: workoutName, durationMinutes: 0, caloriesBurned: 0, date: date, source: "routine", workoutID: sessionLog.routineID, sessionID: sessionLog.id
+
+        return await generateAnalytics(for: sessionLog, userID: Auth.auth().currentUser?.uid)
+    }
+
+    func generateImmediateSessionAnalytics(for sessionLog: WorkoutSessionLog) -> WorkoutAnalytics {
+        let totalVolume = calculateTotalVolume(log: sessionLog)
+        return WorkoutAnalytics(
+            totalVolume: totalVolume,
+            personalRecords: [:],
+            aiInsights: generateLocalSessionInsights(
+                for: sessionLog,
+                totalVolume: totalVolume,
+                personalRecords: [:]
+            )
         )
-        let tempLog = DailyLog(id: "temp", date: date, meals: [], exercises: [tempLoggedExercise])
-        
-        return await calculateAnalytics(for: [tempLog], program: nil)
+    }
+
+    func generateAnalytics(for sessionLog: WorkoutSessionLog, userID: String?) async -> WorkoutAnalytics {
+        let totalVolume = calculateTotalVolume(log: sessionLog)
+        let personalRecords: [String: String]
+
+        if let userID {
+            personalRecords = await detectPersonalRecords(in: sessionLog, userID: userID)
+        } else {
+            personalRecords = [:]
+        }
+
+        let localInsights = generateLocalSessionInsights(
+            for: sessionLog,
+            totalVolume: totalVolume,
+            personalRecords: personalRecords
+        )
+        let aiInsights = await generateAIWorkoutInsights(
+            for: sessionLog,
+            totalVolume: totalVolume,
+            personalRecords: personalRecords
+        )
+
+        return WorkoutAnalytics(
+            totalVolume: totalVolume,
+            personalRecords: personalRecords,
+            aiInsights: mergeInsights(local: localInsights, ai: aiInsights)
+        )
     }
 
     // MARK: - New: History & Trends Features
@@ -115,7 +151,7 @@ class WorkoutAnalyticsService: ObservableObject {
             let snapshot = try await ref.getDocuments()
             return snapshot.documents.compactMap { try? $0.data(as: WorkoutSessionLog.self) }
         } catch {
-            print("❌ Error fetching workout history: \(error)")
+            AppLog.workouts.error("Failed to fetch workout history: \(error.localizedDescription, privacy: .public)")
             return []
         }
     }
@@ -145,7 +181,7 @@ class WorkoutAnalyticsService: ObservableObject {
             }
             return points
         } catch {
-            print("❌ Error fetching trends: \(error)")
+            AppLog.workouts.error("Failed to fetch workout trends: \(error.localizedDescription, privacy: .public)")
             return []
         }
     }
@@ -174,7 +210,7 @@ class WorkoutAnalyticsService: ObservableObject {
             
             return WorkoutComparison(volumeDiffPercent: volDiff, durationDiffPercent: durDiff, previousDate: previousLog.date.dateValue())
         } catch {
-            print("❌ Error comparing workouts: \(error)")
+            AppLog.workouts.error("Failed to compare workouts: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
@@ -194,6 +230,67 @@ class WorkoutAnalyticsService: ObservableObject {
     }
 
     // MARK: - AI Insights Generation
+
+    private func generateAIWorkoutInsights(for sessionLog: WorkoutSessionLog, totalVolume: Double, personalRecords: [String: String]) async -> [WorkoutAnalysisInsight] {
+        let exerciseSummary = sessionLog.completedExercises.map { completedExercise in
+            let setSummary = completedExercise.sets.map { set -> String in
+                switch completedExercise.exercise.type {
+                case .strength:
+                    return "\(String(format: "%g", set.weight)) lb x \(set.reps)"
+                case .cardio:
+                    let minutes = (set.durationInSeconds ?? 0) / 60
+                    let distance = set.distance ?? 0
+                    return distance > 0 ? "\(String(format: "%.1f", distance)) mi in \(minutes) min" : "\(minutes) min"
+                case .flexibility:
+                    return "\((set.durationInSeconds ?? 0)) sec"
+                }
+            }.joined(separator: ", ")
+
+            return "- \(completedExercise.exerciseName): \(completedExercise.sets.count) sets (\(setSummary))"
+        }.joined(separator: "\n")
+
+        let prompt = """
+        You are Maia, a precise fitness coach inside MyFitPlate. Analyze this just-completed workout and produce exactly 3 short coaching insights.
+
+        SESSION DATA:
+        - Date: \(sessionLog.date.dateValue().formatted(date: .abbreviated, time: .shortened))
+        - Total volume: \(Int(totalVolume)) lb
+        - Exercises:
+        \(exerciseSummary)
+        - Confirmed records: \(personalRecords.isEmpty ? "None confirmed from prior history." : personalRecords.map { "\($0.key): \($0.value)" }.joined(separator: ", "))
+
+        RULES:
+        - Be specific to the logged sets. Do not invent sleep, soreness, calories, or nutrition.
+        - Do not call something a PR unless it appears in Confirmed records.
+        - Each message should be 1-2 sentences and end with a concrete next action.
+        - Use only these categories: "Performance", "Consistency", "Recovery", "Nutrition", "Mindset".
+
+        JSON only:
+        {"insights":[{"title":"...","message":"...","category":"Performance"}]}
+        """
+
+        let result = await AIService.shared.performRequest(
+            messages: [["role": "user", "content": prompt]],
+            model: "gpt-4o-mini",
+            temperature: 0.35,
+            responseFormat: ["type": "json_object"]
+        )
+
+        switch result {
+        case .success(let jsonString):
+            guard let data = jsonString.data(using: .utf8) else { return [] }
+            do {
+                let response = try JSONDecoder().decode(AIWorkoutInsightResponse.self, from: data)
+                return Array(response.insights.prefix(3))
+            } catch {
+                AppLog.workouts.error("Failed to decode session workout insights: \(error.localizedDescription, privacy: .public)")
+                return []
+            }
+        case .failure(let error):
+            AppLog.workouts.error("Session workout insights AI request failed: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
+    }
 
     private func generateAIWorkoutInsights(for logs: [DailyLog], program: WorkoutProgram?, analytics: (totalVolume: Double, prs: [String: String])) async -> [WorkoutAnalysisInsight] {
         let workoutSummary = logs.flatMap { $0.exercises ?? [] }
@@ -237,11 +334,11 @@ class WorkoutAnalyticsService: ObservableObject {
                 let response = try JSONDecoder().decode(AIWorkoutInsightResponse.self, from: data)
                 return response.insights
             } catch {
-                print("❌ Error decoding insights: \(error)")
+                AppLog.workouts.error("Failed to decode workout insights: \(error.localizedDescription, privacy: .public)")
                 return [WorkoutAnalysisInsight(title: "Analysis Error", message: "Could not process AI response.", category: "Mindset")]
             }
         case .failure(let error):
-            print("❌ AI Error: \(error.localizedDescription)")
+            AppLog.workouts.error("Workout insights AI request failed: \(error.localizedDescription, privacy: .public)")
             return []
         }
     }
@@ -259,6 +356,150 @@ class WorkoutAnalyticsService: ObservableObject {
     private func calculateEstimatedDuration(log: WorkoutSessionLog) -> Int {
         let totalSets = log.completedExercises.reduce(0) { $0 + $1.sets.count }
         return totalSets * 120
+    }
+
+    private func detectPersonalRecords(in currentLog: WorkoutSessionLog, userID: String) async -> [String: String] {
+        let ref = db.collection("users").document(userID).collection("workoutSessionLogs")
+            .order(by: "date", descending: true)
+            .limit(to: 60)
+
+        do {
+            let snapshot = try await ref.getDocuments()
+            let historicalLogs = snapshot.documents
+                .compactMap { try? $0.data(as: WorkoutSessionLog.self) }
+                .filter { log in
+                    if let currentID = currentLog.id, log.id == currentID { return false }
+                    return log.date.dateValue() < currentLog.date.dateValue()
+                }
+
+            guard !historicalLogs.isEmpty else { return [:] }
+
+            var records: [String: String] = [:]
+
+            for exercise in currentLog.completedExercises where exercise.exercise.type == .strength {
+                guard let currentBest = bestStrengthSet(in: exercise.sets) else { continue }
+
+                let previousBest = historicalLogs
+                    .flatMap(\.completedExercises)
+                    .filter { $0.exerciseName.localizedCaseInsensitiveCompare(exercise.exerciseName) == .orderedSame }
+                    .compactMap { bestStrengthSet(in: $0.sets) }
+                    .max { estimatedOneRepMax($0) < estimatedOneRepMax($1) }
+
+                guard let previousBest else { continue }
+
+                let currentScore = estimatedOneRepMax(currentBest)
+                let previousScore = estimatedOneRepMax(previousBest)
+                guard currentScore > previousScore * 1.005 else { continue }
+
+                records[exercise.exerciseName] = "\(formatSet(currentBest)) (prev \(formatSet(previousBest)))"
+            }
+
+            return records
+        } catch {
+            AppLog.workouts.error("Failed to detect workout PRs: \(error.localizedDescription, privacy: .public)")
+            return [:]
+        }
+    }
+
+    private func generateLocalSessionInsights(for log: WorkoutSessionLog, totalVolume: Double, personalRecords: [String: String]) -> [WorkoutAnalysisInsight] {
+        let setCount = log.completedExercises.reduce(0) { $0 + $1.sets.count }
+        let strengthExercises = log.completedExercises.filter { $0.exercise.type == .strength }
+        let cardioMinutes = log.completedExercises.reduce(0) { exerciseSum, exercise in
+            exerciseSum + exercise.sets.reduce(0) { $0 + (($1.durationInSeconds ?? 0) / 60) }
+        }
+        var insights: [WorkoutAnalysisInsight] = []
+
+        insights.append(
+            WorkoutAnalysisInsight(
+                title: "Session Banked",
+                message: "You logged \(log.completedExercises.count) exercises and \(setCount) working sets. Keep the next step simple: repeat the plan or add a small progression where form stayed clean.",
+                category: "Consistency"
+            )
+        )
+
+        if let topExercise = strengthExercises.max(by: { exerciseVolume($0) < exerciseVolume($1) }),
+           let bestSet = bestStrengthSet(in: topExercise.sets),
+           exerciseVolume(topExercise) > 0 {
+            insights.append(
+                WorkoutAnalysisInsight(
+                    title: "\(topExercise.exerciseName) Drove the Session",
+                    message: "That lift contributed \(Int(exerciseVolume(topExercise))) lb of volume, with a best set of \(formatSet(bestSet)). Use that as your anchor when you plan the next session.",
+                    category: "Performance"
+                )
+            )
+        } else if cardioMinutes > 0 {
+            insights.append(
+                WorkoutAnalysisInsight(
+                    title: "Conditioning Logged",
+                    message: "You recorded \(cardioMinutes) minutes of timed work. Next time, progress one variable only: either a little more time, a little more distance, or the same work at an easier effort.",
+                    category: "Performance"
+                )
+            )
+        }
+
+        if !personalRecords.isEmpty {
+            insights.append(
+                WorkoutAnalysisInsight(
+                    title: "Confirmed Progress",
+                    message: "You beat prior history on \(personalRecords.count) lift\(personalRecords.count == 1 ? "" : "s"). Keep the next exposure controlled instead of chasing another jump immediately.",
+                    category: "Performance"
+                )
+            )
+        }
+
+        if setCount >= 12 || totalVolume >= 10_000 {
+            insights.append(
+                WorkoutAnalysisInsight(
+                    title: "Recovery Has Leverage",
+                    message: "This was enough work to make recovery matter. Prioritize protein, fluids, and an easy warm-up next session before deciding whether to increase load.",
+                    category: "Recovery"
+                )
+            )
+        } else {
+            insights.append(
+                WorkoutAnalysisInsight(
+                    title: "Room to Build",
+                    message: "The session was compact, which is useful for consistency. If you felt strong, add one set to the main lift or make the next workout slightly denser.",
+                    category: "Mindset"
+                )
+            )
+        }
+
+        return Array(insights.prefix(4))
+    }
+
+    private func mergeInsights(local: [WorkoutAnalysisInsight], ai: [WorkoutAnalysisInsight]) -> [WorkoutAnalysisInsight] {
+        guard !ai.isEmpty else { return local }
+
+        let combined = Array(local.prefix(2)) + ai
+        var seenTitles = Set<String>()
+
+        return combined.filter { insight in
+            let normalizedTitle = insight.title.lowercased()
+            guard !seenTitles.contains(normalizedTitle) else { return false }
+            seenTitles.insert(normalizedTitle)
+            return true
+        }
+        .prefix(5)
+        .map { $0 }
+    }
+
+    private func exerciseVolume(_ exercise: CompletedExercise) -> Double {
+        exercise.sets.reduce(0) { $0 + ($1.weight * Double($1.reps)) }
+    }
+
+    private func bestStrengthSet(in sets: [CompletedSet]) -> CompletedSet? {
+        sets
+            .filter { $0.weight > 0 && $0.reps > 0 }
+            .max { estimatedOneRepMax($0) < estimatedOneRepMax($1) }
+    }
+
+    private func estimatedOneRepMax(_ set: CompletedSet) -> Double {
+        set.weight * (1 + Double(set.reps) / 30)
+    }
+
+    private func formatSet(_ set: CompletedSet) -> String {
+        "\(String(format: "%g", set.weight)) lb x \(set.reps)"
     }
     
     private func guessMuscleGroup(exerciseName: String) -> String {

@@ -5,8 +5,6 @@ import AppTrackingTransparency
 import GoogleMobileAds
 import WatchConnectivity
 import FirebaseAnalytics
-
-// High-level comment: Manages communication with the Apple Watch app.
 class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var isReachable: Bool = false
 
@@ -37,6 +35,7 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         guard session.activationState == .activated else { return }
+        guard session.isPaired && session.isWatchAppInstalled else { return }
         
         let context: [String : Any] = [
             "goalCal": goalCal, "userCal": userCal,
@@ -50,14 +49,13 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         do {
             try session.updateApplicationContext(context)
         } catch {
-            print("❌ Failed to send context to watch: \(error.localizedDescription)")
+            AppLog.watch.error("Failed to send context to watch: \(error.localizedDescription, privacy: .public)")
         }
     }
 }
 
 @main
 struct CalorieBetaApp: App {
-    // High-level comment: Initialize all shared services as StateObjects
     @StateObject var dailyLogService: DailyLogService
     @StateObject var goalSettings: GoalSettings
     @StateObject var appState: AppState
@@ -74,11 +72,13 @@ struct CalorieBetaApp: App {
     @StateObject var connectivityManager = WatchConnectivityManager()
 
     init() {
-        // 1. Configure Firebase
+        #if DEBUG
+        FirebaseConfiguration.shared.setLoggerLevel(.warning)
+        NutritionConsistencySelfCheck.run()
+        #endif
         FirebaseApp.configure()
         Analytics.setAnalyticsCollectionEnabled(true)
         
-        // 2. Initialize Services
         let bannerSvc = BannerService()
         let logService = DailyLogService()
         let goalsSvc = GoalSettings(dailyLogService: logService)
@@ -92,7 +92,6 @@ struct CalorieBetaApp: App {
         let spotlightMgr = SpotlightManager()
         let cycleSvc = CycleTrackingService()
 
-        // 3. Assign to StateObjects
         _dailyLogService = StateObject(wrappedValue: logService)
         _goalSettings = StateObject(wrappedValue: goalsSvc)
         _achievementService = StateObject(wrappedValue: achieveService)
@@ -106,7 +105,6 @@ struct CalorieBetaApp: App {
         _spotlightManager = StateObject(wrappedValue: spotlightMgr)
         _cycleService = StateObject(wrappedValue: cycleSvc)
         
-        // 4. Setup Dependencies (Circular references)
         logService.goalSettings = goalsSvc
         logService.bannerService = bannerSvc
         logService.achievementService = achieveService
@@ -114,14 +112,12 @@ struct CalorieBetaApp: App {
         hkViewModel.setup(dailyLogService: logService)
         cycleSvc.setupDependencies(goalSettings: goalsSvc, dailyLogService: logService)
         
-        // 5. Clear badges on launch
         NotificationManager.shared.clearNotificationBadge()
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                // High-level comment: Inject all services into the environment
                 .environmentObject(goalSettings)
                 .environmentObject(dailyLogService)
                 .environmentObject(appState)
@@ -147,8 +143,6 @@ struct CalorieBetaApp: App {
         }
     }
 }
-
-// High-level comment: The root view that handles navigation and authentication state.
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var goalSettings: GoalSettings
@@ -158,8 +152,6 @@ struct ContentView: View {
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var connectivityManager: WatchConnectivityManager
     @EnvironmentObject var cycleService: CycleTrackingService
-    
-    // High-level comment: Track scene phase to detect when app goes to background
     @Environment(\.scenePhase) var scenePhase
     
     @State private var isLoadingUserState = true
@@ -170,9 +162,6 @@ struct ContentView: View {
         ZStack {
             mainContent
                 .onAppear {
-                    if let marketingVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
-                        print("✅ Current Marketing Version is: \(marketingVersion)")
-                    }
                     checkUserStatusAndFirstLogin()
                     sendNutritionToWatchIfNeeded()
                 }
@@ -180,14 +169,13 @@ struct ContentView: View {
                     requestTrackingPermissionIfNeeded()
                     handleAppDidBecomeActive()
                 }
-                .onChange(of: appState.isUserLoggedIn) { isLoggedIn in
+                .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
                     handleLoginStateChange(isLoggedIn: isLoggedIn)
                 }
-                .onChange(of: dailyLogService.currentDailyLog) { _ in
+                .onChange(of: dailyLogService.currentDailyLog) {
                     sendNutritionToWatchIfNeeded()
                 }
-                // High-level comment: Trigger smart nudge generation when app enters background
-                .onChange(of: scenePhase) { newPhase in
+                .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .background && appState.isUserLoggedIn {
                         scheduleBackgroundNudge()
                     }
@@ -199,8 +187,6 @@ struct ContentView: View {
             FeatureTourView(isPresented: $shouldShowFeatureTour)
         }
     }
-    
-    // High-level comment: Gathers user data and schedules a smart AI notification for later
     private func scheduleBackgroundNudge() {
         // Gather Data
         let log = dailyLogService.currentDailyLog
@@ -219,7 +205,9 @@ struct ContentView: View {
             caloriesRemaining: (goals.calories ?? 2000) - (log?.totalCalories() ?? 0),
             proteinRemaining: goals.protein - (log?.totalMacros().protein ?? 0),
             daysSinceLastWorkout: daysSinceWorkout,
-            lastWorkoutName: log?.exercises?.last?.name
+            lastWorkoutName: log?.exercises?.last?.name,
+            stepsToday: healthKitViewModel.todaySteps,
+            activeEnergyToday: healthKitViewModel.todayActiveEnergy
         )
         
         Task {

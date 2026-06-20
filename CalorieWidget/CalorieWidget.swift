@@ -15,7 +15,7 @@ struct Provider: TimelineProvider {
         let data = SharedDataManager.shared.loadData()
         let entry = SimpleEntry(date: Date(), data: data)
 
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date())!
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date().addingTimeInterval(15 * 60)
         let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
         completion(timeline)
     }
@@ -84,72 +84,14 @@ struct CalorieWidget: Widget {
 struct CalorieWidgetBundle: WidgetBundle {
     var body: some Widget {
         CalorieWidget()
-        WorkoutLiveActivity()
-    }
-}
-
-struct WorkoutLiveActivity: Widget {
-    var body: some WidgetConfiguration {
-        ActivityConfiguration(for: WorkoutActivityAttributes.self) { context in
-            VStack(alignment: .leading) {
-                Text(context.attributes.workoutName)
-                    .font(.headline)
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Time")
-                            .font(.caption)
-                        Text(Date(timeIntervalSinceReferenceDate: context.state.elapsedTime), style: .timer)
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                    }
-                    Spacer()
-                    VStack(alignment: .leading) {
-                        Text("Calories")
-                            .font(.caption)
-                        Text("\(Int(context.state.caloriesBurned))")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                    }
-                }
-            }
-            .padding()
-            .activityBackgroundTint(Color.black.opacity(0.8))
-            .activitySystemActionForegroundColor(Color.white)
-
-        } dynamicIsland: { context in
-            DynamicIsland {
-                DynamicIslandExpandedRegion(.leading) {
-                    Text(context.attributes.workoutName)
-                        .font(.headline)
-                }
-                DynamicIslandExpandedRegion(.trailing) {
-                     Image(systemName: "flame.fill")
-                        .foregroundColor(.orange)
-                }
-                DynamicIslandExpandedRegion(.bottom) {
-                    HStack {
-                        Text(Date(timeIntervalSinceReferenceDate: context.state.elapsedTime), style: .timer)
-                            .fontWeight(.semibold)
-                        Spacer()
-                        Label("\(Int(context.state.caloriesBurned)) cal", systemImage: "flame.fill")
-                            .fontWeight(.medium)
-                    }
-                    .font(.subheadline)
-                }
-            } compactLeading: {
-                Image(systemName: "figure.walk")
-            } compactTrailing: {
-                Text(Date(timeIntervalSinceReferenceDate: context.state.elapsedTime), style: .timer)
-                    .frame(width: 40)
-            } minimal: {
-                 Image(systemName: "flame.fill")
-            }
-        }
     }
 }
 
 struct MediumWidgetView: View {
     let data: WidgetData
+    private var hasMacroWarning: Bool {
+        abs(data.macroCalorieDelta ?? 0) >= 75
+    }
 
     var body: some View {
         HStack(spacing: 20) {
@@ -170,6 +112,12 @@ struct MediumWidgetView: View {
                 MacroBar(label: "Protein", value: data.protein, goal: data.proteinGoal, color: .accentProtein)
                 MacroBar(label: "Carbs", value: data.carbs, goal: data.carbsGoal, color: .accentCarbs)
                 MacroBar(label: "Fats", value: data.fats, goal: data.fatGoal, color: .accentFats)
+
+                if hasMacroWarning {
+                    Label("Check macros", systemImage: "info.circle.fill")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
             }
         }
         .padding()
@@ -212,9 +160,9 @@ struct SmallWidgetView: View {
 struct LargeWidgetView: View {
     let data: WidgetData
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
-    
+
     var body: some View {
-        VStack {
+        VStack(spacing: 10) {
             LazyVGrid(columns: columns, spacing: 20) {
                 ProgressBubble(
                     value: data.calories, goal: data.calorieGoal,
@@ -236,6 +184,13 @@ struct LargeWidgetView: View {
                     percentage: data.carbsGoal > 0 ? (data.carbs / data.carbsGoal) : 0,
                     label: "Carbs", unit: "g", color: .accentCarbs
                 )
+            }
+
+            if let delta = data.macroCalorieDelta, abs(delta) >= 75 {
+                Text("Macros imply \(Int(abs(delta).rounded())) cal \(delta > 0 ? "more" : "less").")
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+                    .lineLimit(1)
             }
         }
         .padding()

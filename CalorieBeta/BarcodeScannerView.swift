@@ -46,7 +46,7 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
 
 class ScannerViewController: UIViewController {
     var captureSession: AVCaptureSession?
-    var previewLayer: AVCaptureVideoPreviewLayer!
+    var previewLayer: AVCaptureVideoPreviewLayer?
     var delegate: AVCaptureMetadataOutputObjectsDelegate?
 
     override func viewDidLoad() {
@@ -73,9 +73,17 @@ class ScannerViewController: UIViewController {
 
     func setupCamera() {
         captureSession = AVCaptureSession()
-        guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else { return }
+        guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else {
+            AppLog.app.error("Barcode scanner could not access a video capture device.")
+            return
+        }
         let videoInput: AVCaptureDeviceInput
-        do { videoInput = try AVCaptureDeviceInput(device: videoCaptureDevice) } catch { return }
+        do {
+            videoInput = try AVCaptureDeviceInput(device: videoCaptureDevice)
+        } catch {
+            AppLog.app.error("Barcode scanner failed to create video input: \(error.localizedDescription, privacy: .public)")
+            return
+        }
         if captureSession?.canAddInput(videoInput) == true { captureSession?.addInput(videoInput) } else { captureSession = nil; return }
         let metadataOutput = AVCaptureMetadataOutput()
         if captureSession?.canAddOutput(metadataOutput) == true {
@@ -83,10 +91,12 @@ class ScannerViewController: UIViewController {
             metadataOutput.setMetadataObjectsDelegate(delegate, queue: DispatchQueue.main)
             metadataOutput.metadataObjectTypes = [.ean8, .ean13, .upce, .code39, .code128, .qr]
         } else { captureSession = nil; return }
-        previewLayer = AVCaptureVideoPreviewLayer(session: captureSession!)
+        guard let captureSession else { return }
+        let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
         previewLayer.frame = view.layer.bounds
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
+        self.previewLayer = previewLayer
          DispatchQueue.global(qos: .background).async { [weak self] in self?.captureSession?.startRunning() }
     }
 

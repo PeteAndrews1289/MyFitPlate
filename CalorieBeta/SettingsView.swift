@@ -47,15 +47,24 @@ struct SettingsView: View {
     // Wire up the reset confirmation
     @State private var showingResetTourConfirmation = false
     
-    @State private var showCycleSettings = false
-    @State private var migrationStatusMessage = ""
-    @State private var showingMigrationAlert = false
     @State private var isDeletingAccount = false
 
     var body: some View {
         List {
+            Section {
+                SettingsHeaderCard(
+                    calorieGoal: goalSettings.calories,
+                    waterGoal: goalSettings.waterGoal,
+                    heightText: "\(goalSettings.getHeightInFeetAndInches().feet)'\(goalSettings.getHeightInFeetAndInches().inches)\""
+                )
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
+
             Section(header: Text("Appearance")) {
-                Toggle("Enable Dark Mode", isOn: $appState.isDarkModeEnabled.animation())
+                Toggle(isOn: $appState.isDarkModeEnabled.animation()) {
+                    SettingsLabel(icon: "moon.fill", title: "Dark Mode", subtitle: "Use the darker app appearance.", color: .purple)
+                }
             }
             
             Section(header: Text("Integrations")) {
@@ -72,7 +81,13 @@ struct SettingsView: View {
                             .scaledToFit()
                             .frame(width: 20, height: 20)
                         
-                        Text(healthKitViewModel.isAuthorized ? "Sync with Health Now" : "Connect to Apple Health")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(healthKitViewModel.isAuthorized ? "Sync with Health Now" : "Connect to Apple Health")
+                                .appFont(size: 15, weight: .semibold)
+                            Text(healthKitViewModel.isAuthorized ? "Refresh workouts and health data." : "Import workouts and sleep where available.")
+                                .appFont(size: 12)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
+                        }
                         
                         Spacer()
                         
@@ -90,19 +105,22 @@ struct SettingsView: View {
             }
 
             Section(header: Text("Account")) {
-                Button("Set New Calorie/Macro Goals") { showCaloricCalculator = true }
-                    .foregroundColor(.brandPrimary)
-                Button("Set Height") {
+                Button { showCaloricCalculator = true } label: {
+                    SettingsLabel(icon: "target", title: "Calorie and Macro Goals", subtitle: "Adjust targets and goal method.", color: .brandPrimary)
+                }
+                Button {
                     let currentHeight = goalSettings.getHeightInFeetAndInches()
                     feetInput = "\(currentHeight.feet)"; inchesInput = "\(currentHeight.inches)"
                     showHeightEditor = true
+                } label: {
+                    SettingsLabel(icon: "ruler", title: "Height", subtitle: "Update your body metrics.", color: .blue)
                 }
-                .foregroundColor(.brandPrimary)
-                Button("Set New Daily Water Goal") {
+                Button {
                     waterGoalInput = String(format: "%.0f", goalSettings.waterGoal)
                     showingWaterGoalSheet = true
+                } label: {
+                    SettingsLabel(icon: "drop.fill", title: "Daily Water Goal", subtitle: "\(Int(goalSettings.waterGoal.rounded())) oz per day.", color: .cyan)
                 }
-                .foregroundColor(.brandPrimary)
                 Picker("Calorie Goal Method", selection: $goalSettings.calorieGoalMethod) {
                     ForEach(CalorieGoalMethod.allCases) { method in Text(method.rawValue).tag(method) }
                 }
@@ -111,12 +129,12 @@ struct SettingsView: View {
                   }
             }
             
-            // NEW: Help & Support Section
             Section(header: Text("Help & Support")) {
-                Button("Reset Feature Tooltips") {
+                Button {
                     showingResetTourConfirmation = true
+                } label: {
+                    SettingsLabel(icon: "questionmark.circle.fill", title: "Reset Feature Tooltips", subtitle: "Replay the guided app tips.", color: .orange)
                 }
-                .foregroundColor(.blue)
             }
             
             Section {
@@ -133,6 +151,8 @@ struct SettingsView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Done") { showSettings = false } } }
@@ -187,7 +207,7 @@ struct SettingsView: View {
         let db = Firestore.firestore()
         deleteUserFirestoreData(userID: user.uid, db: db) { result in
             if case .failure(let error) = result {
-                print("Error deleting user data: \(error.localizedDescription)")
+                AppLog.data.error("Failed to delete user data: \(error.localizedDescription, privacy: .public)")
                 DispatchQueue.main.async {
                     isDeletingAccount = false
                 }
@@ -198,7 +218,7 @@ struct SettingsView: View {
                 DispatchQueue.main.async {
                     isDeletingAccount = false
                     if let error = error {
-                        print("Error deleting auth account: \(error.localizedDescription)")
+                        AppLog.app.error("Failed to delete auth account: \(error.localizedDescription, privacy: .public)")
                     } else {
                         clearLocalAccountData()
                         appState.isUserLoggedIn = false
@@ -322,6 +342,97 @@ struct SettingsView: View {
                 } else {
                     deleteQueryResults(query, db: db, batchSize: batchSize, completion: completion)
                 }
+            }
+        }
+    }
+}
+
+private struct SettingsHeaderCard: View {
+    let calorieGoal: Double?
+    let waterGoal: Double
+    let heightText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 46, height: 46)
+                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Personal Settings")
+                        .appFont(size: 24, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    Text("Tune the goals and integrations that power the rest of MyFitPlate.")
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            HStack(spacing: 10) {
+                SettingsMetric(title: "Calories", value: calorieGoal.map { "\(Int($0.rounded()))" } ?? "--", color: .orange)
+                SettingsMetric(title: "Water", value: "\(Int(waterGoal.rounded())) oz", color: .cyan)
+                SettingsMetric(title: "Height", value: heightText, color: .blue)
+            }
+        }
+        .padding(16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+}
+
+private struct SettingsMetric: View {
+    let title: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value)
+                .appFont(size: 15, weight: .bold)
+                .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text(title)
+                .appFont(size: 11, weight: .semibold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct SettingsLabel: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(color)
+                .frame(width: 32, height: 32)
+                .background(color.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .appFont(size: 15, weight: .semibold)
+                    .foregroundColor(.textPrimary)
+                Text(subtitle)
+                    .appFont(size: 12)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

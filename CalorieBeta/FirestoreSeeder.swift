@@ -42,12 +42,12 @@ func addSampleLog() {
        
         db.collection("users").document(userID).collection("dailyLogs").addDocument(data: dailyLog) { error in
             if let error = error {
-                print("Error adding document: \(error.localizedDescription)")
+                AppLog.data.error("Failed to add sample log: \(error.localizedDescription, privacy: .public)")
             } else {
-                print("Document added successfully!")
+                AppLog.data.info("Sample log added successfully.")
             }
         }
     } else {
-        print("User ID not found")
+        AppLog.data.warning("Cannot add sample log because no user is signed in.")
     }
 }

@@ -45,12 +45,13 @@ class GoalSettings: ObservableObject {
     
     // Calculation Method
     @Published var calorieGoalMethod: CalorieGoalMethod = .mifflinWithActivity { didSet { recalculateAllGoals() } }
-
-    // High-level comment: New AI Preferences for Meal Planning
     @Published var suggestionProteins: [String] = ["Chicken", "Beef", "Fish"]
     @Published var suggestionCuisines: [String] = ["Any"]
     @Published var suggestionCarbs: [String] = ["Rice", "Potatoes", "Pasta"]
     @Published var suggestionVeggies: [String] = ["Broccoli", "Bell Peppers"]
+    @Published var trainingIntent: String = "General Fitness"
+    @Published var reminderStyle: String = "Gentle"
+    @Published var maiaTone: String = "Balanced"
 
     private let db = Firestore.firestore()
     private var weightHistoryListener: ListenerRegistration?
@@ -229,6 +230,9 @@ class GoalSettings: ObservableObject {
                 if goalsMap["activityLevel"] == nil { goalsMap["activityLevel"] = self.activityLevel; shouldUpdateFirestore = true }
                 if goalsMap["goal"] == nil { goalsMap["goal"] = self.goal; shouldUpdateFirestore = true }
                 if goalsMap["waterGoal"] == nil { goalsMap["waterGoal"] = self.waterGoal; shouldUpdateFirestore = true }
+                if goalsMap["trainingIntent"] == nil { goalsMap["trainingIntent"] = self.trainingIntent; shouldUpdateFirestore = true }
+                if goalsMap["reminderStyle"] == nil { goalsMap["reminderStyle"] = self.reminderStyle; shouldUpdateFirestore = true }
+                if goalsMap["maiaTone"] == nil { goalsMap["maiaTone"] = self.maiaTone; shouldUpdateFirestore = true }
 
                 // Handle target weight (might be null)
                 self.targetWeight = goalsMap["targetWeight"] as? Double
@@ -249,6 +253,9 @@ class GoalSettings: ObservableObject {
                 self.suggestionCuisines = goalsMap["suggestionCuisines"] as? [String] ?? self.suggestionCuisines
                 self.suggestionCarbs = goalsMap["suggestionCarbs"] as? [String] ?? self.suggestionCarbs
                 self.suggestionVeggies = goalsMap["suggestionVeggies"] as? [String] ?? self.suggestionVeggies
+                self.trainingIntent = goalsMap["trainingIntent"] as? String ?? self.trainingIntent
+                self.reminderStyle = goalsMap["reminderStyle"] as? String ?? self.reminderStyle
+                self.maiaTone = goalsMap["maiaTone"] as? String ?? self.maiaTone
                 
                 data["goals"] = goalsMap
 
@@ -285,7 +292,8 @@ class GoalSettings: ObservableObject {
                 "vitaminDGoal": self.vitaminDGoal ?? NSNull(), "waterGoal": self.waterGoal, "vitaminB12Goal": self.vitaminB12Goal ?? NSNull(), "folateGoal": self.folateGoal ?? NSNull(),
                 // Saving AI Preferences
                 "suggestionProteins": self.suggestionProteins, "suggestionCuisines": self.suggestionCuisines,
-                "suggestionCarbs": self.suggestionCarbs, "suggestionVeggies": self.suggestionVeggies
+                "suggestionCarbs": self.suggestionCarbs, "suggestionVeggies": self.suggestionVeggies,
+                "trainingIntent": self.trainingIntent, "reminderStyle": self.reminderStyle, "maiaTone": self.maiaTone
             ]
             let userData:[String:Any] = [
                 "goals": goalsDict, "height": self.height, "age": self.age, "gender": self.gender, "isFirstLogin": false,
@@ -379,7 +387,7 @@ class GoalSettings: ObservableObject {
         if sortedData.count >= 2, let first = sortedData.first, let last = sortedData.last {
             trend = last.weight - first.weight
             if let days = Calendar.current.dateComponents([.day], from: first.date, to: last.date).day, days > 0 {
-                dailyRate = trend! / Double(days)
+                dailyRate = (trend ?? 0) / Double(days)
             }
         }
         return (trend, highest, lowest, dailyRate)

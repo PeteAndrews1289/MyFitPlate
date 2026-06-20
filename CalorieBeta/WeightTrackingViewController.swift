@@ -53,7 +53,7 @@ class WeightTrackingViewController: UIViewController {
             if let document = document, document.exists, let weight = document.data()?["weight"] as? Double {
                 self.currentWeight = weight
             } else if let error = error {
-                 print("Error fetching current weight: \(error.localizedDescription)")
+                AppLog.health.error("Failed to fetch current weight: \(error.localizedDescription, privacy: .public)")
             }
         }
 
@@ -63,7 +63,7 @@ class WeightTrackingViewController: UIViewController {
             .getDocuments { snapshot, error in
                 defer { group.leave() }
                 if let error = error {
-                    print("Error fetching weight history: \(error.localizedDescription)")
+                    AppLog.health.error("Failed to fetch weight history: \(error.localizedDescription, privacy: .public)")
                     return
                 }
 

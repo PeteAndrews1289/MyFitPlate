@@ -12,40 +12,90 @@ struct WorkoutReportCard: View {
     let report: WorkoutReport
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Weekly Workout Summary")
-                .appFont(size: 17, weight: .semibold)
-                .padding([.top, .leading, .trailing])
-            
-            HStack(spacing: 16) {
-                workoutStatBox(value: "\(report.totalWorkouts)", label: "Workouts")
-                workoutStatBox(value: String(format: "%.0f", report.totalCaloriesBurned), label: "Calories Burned")
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "figure.run")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.blue)
+                    .frame(width: 42, height: 42)
+                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Workout Summary")
+                        .appFont(size: 20, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Training volume and most frequent activity.")
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
             }
-            .padding(.horizontal)
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Most Frequent Activity")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                Text(report.mostFrequentWorkout)
-                    .appFont(size: 15)
+            HStack(spacing: 10) {
+                workoutStatBox(
+                    value: "\(report.totalWorkouts)",
+                    label: "Workouts",
+                    icon: "calendar.badge.checkmark",
+                    color: .blue
+                )
+                workoutStatBox(
+                    value: String(format: "%.0f", report.totalCaloriesBurned),
+                    label: "Calories",
+                    icon: "flame.fill",
+                    color: .orange
+                )
             }
-            .padding(.horizontal)
-            .padding(.bottom)
+
+            HStack(spacing: 10) {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 30, height: 30)
+                    .background(Color.brandPrimary.opacity(0.12), in: Circle())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Most frequent")
+                        .appFont(size: 11, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                    Text(report.mostFrequentWorkout)
+                        .appFont(size: 15, weight: .semibold)
+                        .foregroundColor(.textPrimary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(12)
+            .background(Color.backgroundSecondary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .asCard()
     }
     
     @ViewBuilder
-    private func workoutStatBox(value: String, label: String) -> some View {
-        VStack {
+    private func workoutStatBox(value: String, label: String, icon: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.12), in: Circle())
+
             Text(value)
-                .appFont(size: 22, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .appFont(size: 22, weight: .bold)
+                .foregroundColor(.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
             Text(label)
-                .appFont(size: 12)
+                .appFont(size: 12, weight: .semibold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.backgroundSecondary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }

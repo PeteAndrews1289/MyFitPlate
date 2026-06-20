@@ -1,7 +1,6 @@
 import UserNotifications
 import FirebaseAuth
 import FirebaseFirestore
-import UIKit
 
 enum NotificationType {
     case dailyLogReminder(hour: Int, minute: Int)
@@ -67,22 +66,37 @@ class NotificationManager {
     
     func clearNotificationBadge() {
         UNUserNotificationCenter.current().setBadgeCount(0)
-        UIApplication.shared.applicationIconBadgeNumber = 0
     }
 
     func requestAuthorization(completion: @escaping (Bool) -> Void) {
-        let options: UNAuthorizationOptions = [.alert, .sound, .badge]
-        UNUserNotificationCenter.current().requestAuthorization(options: options) { (success, error) in
-            if let error = error {
-                print("❌ Error requesting notification authorization: \(error.localizedDescription)")
-            }
-            DispatchQueue.main.async {
-                completion(success)
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                DispatchQueue.main.async {
+                    completion(true)
+                }
+            case .denied:
+                DispatchQueue.main.async {
+                    completion(false)
+                }
+            case .notDetermined:
+                let options: UNAuthorizationOptions = [.alert, .sound, .badge]
+                center.requestAuthorization(options: options) { success, error in
+                    if let error {
+                        AppLog.notifications.error("Error requesting notification authorization: \(error.localizedDescription, privacy: .public)")
+                    }
+                    DispatchQueue.main.async {
+                        completion(success)
+                    }
+                }
+            @unknown default:
+                DispatchQueue.main.async {
+                    completion(false)
+                }
             }
         }
     }
-    
-    // NEW: Schedules an AI-driven nudge for a later time (e.g. 5 hours after app close)
     func scheduleSmartNudge(title: String, body: String, delayHours: Double) {
         // Cancel existing nudge to avoid stacking
         cancelNotification(identifier: "smart_ai_nudge")
@@ -99,9 +113,7 @@ class NotificationManager {
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Error scheduling smart nudge: \(error)")
-            } else {
-                print("✅ Smart Nudge scheduled: '\(title)' in \(delayHours) hours.")
+                AppLog.notifications.error("Error scheduling smart nudge: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -126,12 +138,10 @@ class NotificationManager {
                 let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
                 let request = UNNotificationRequest(identifier: NotificationType.dailyBriefing.id, content: content, trigger: trigger)
                 
-                UNUserNotificationCenter.current().add(request) { error in
-                    if let error = error {
-                        print("❌ Error scheduling daily briefing: \(error.localizedDescription)")
-                    } else {
-                        print("✅ Daily briefing scheduled for 8:00 AM.")
-                    }
+                do {
+                    try await UNUserNotificationCenter.current().add(request)
+                } catch {
+                    AppLog.notifications.error("Error scheduling daily briefing: \(error.localizedDescription, privacy: .public)")
                 }
             }
         }
@@ -160,9 +170,7 @@ class NotificationManager {
                 
                 UNUserNotificationCenter.current().add(request) { error in
                     if let error = error {
-                        print("❌ Error scheduling calendar notification \(type.id): \(error.localizedDescription)")
-                    } else {
-                        print("✅ Calendar notification scheduled: \(type.id) for \(hour):\(minute)")
+                        AppLog.notifications.error("Error scheduling calendar notification \(type.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
                     }
                 }
             }
@@ -182,9 +190,7 @@ class NotificationManager {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Error scheduling interval notification \(type.id): \(error.localizedDescription)")
-            } else {
-                print("✅ Interval notification scheduled: \(type.id)")
+                AppLog.notifications.error("Error scheduling interval notification \(type.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
     }

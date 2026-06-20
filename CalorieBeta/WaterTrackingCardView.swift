@@ -8,132 +8,128 @@ struct WaterTrackingCardView: View {
     var date: Date
     var insight: UserInsight?
     
-    @State private var motivationalQuote: (text: String, author: String) = ("", "")
     private let waterIncrement: Double = 8.0
-    
-    private static let quotes = [
-        ("The only way to do great work is to love what you do.", "Steve Jobs"),
-        ("Strive for progress, not perfection.", "Unknown"),
-        ("The journey of a thousand miles begins with a single step.", "Lao Tzu"),
-        ("Believe you can and you're halfway there.", "Theodore Roosevelt"),
-        ("Your body can stand almost anything. It’s your mind that you have to convince.", "Unknown"),
-        ("The best way to predict the future is to create it.", "Peter Drucker"),
-        ("Success is not final, failure is not fatal: It is the courage to continue that counts.", "Winston Churchill"),
-        ("Don't watch the clock; do what it does. Keep going.", "Sam Levenson"),
-        ("The pain you feel today will be the strength you feel tomorrow.", "Unknown"),
-        ("Take care of your body. It’s the only place you have to live.", "Jim Rohn"),
-        ("Strength does not come from physical capacity. It comes from an indomitable will.", "Mahatma Gandhi"),
-        ("The secret of getting ahead is getting started.", "Mark Twain"),
-        ("Well done is better than well said.", "Benjamin Franklin"),
-        ("A year from now you may wish you had started today.", "Karen Lamb")
-    ]
-    
+
     private var waterIntake: Double {
         dailyLogService.currentDailyLog?.waterTracker?.totalOunces ?? 0.0
     }
+
     private var waterGoal: Double {
         max(1, goalSettings.waterGoal)
+    }
+
+    private var remainingWater: Double {
+        max(waterGoal - waterIntake, 0)
     }
     
     var body: some View {
         let progress = max(0, min(1, waterIntake / waterGoal))
         
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 10) {
-                    if let insight = insight {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Image(systemName: "lightbulb.fill")
-                                    .foregroundColor(.yellow)
-                                Text(insight.title)
-                                    .appFont(size: 13, weight: .semibold)
-                                    .foregroundColor(.brandPrimary)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "drop.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.cyan)
+                            .frame(width: 30, height: 30)
+                            .background(Color.cyan.opacity(0.12), in: Circle())
+
+                        Text("Hydration")
+                            .appFont(size: 21, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                    }
+
+                    Text(remainingWater > 0 ? "\(Int(remainingWater.rounded())) oz left to hit your goal." : "Goal reached. Keep sipping as needed.")
+                        .appFont(size: 14, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.cyan.opacity(0.12))
+
+                                Capsule()
+                                    .fill(LinearGradient(colors: [.cyan, Color.brandPrimary.opacity(0.78)], startPoint: .leading, endPoint: .trailing))
+                                    .frame(width: geometry.size.width * CGFloat(progress))
+                                    .animation(.easeInOut(duration: 0.45), value: progress)
                             }
-                            Text(insight.message)
-                                .appFont(size: 12)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .lineLimit(8)
                         }
-                        .padding(.bottom, 8)
+                        .frame(height: 10)
+
+                        HStack {
+                            Text("\(Int(waterIntake.rounded())) / \(Int(waterGoal.rounded())) oz")
+                                .appFont(size: 12, weight: .semibold)
+                                .foregroundColor(.textPrimary)
+
+                            Spacer()
+
+                            Text("\(Int((progress * 100).rounded()))%")
+                                .appFont(size: 12, weight: .semibold)
+                                .foregroundColor(.cyan)
+                        }
                     }
-                    
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(motivationalQuote.text)
-                            .appFont(size: 12)
-                            .italic()
-                            .lineLimit(3)
-                        Text("- \(motivationalQuote.author)")
-                            .appFont(size: 10)
-                            .foregroundColor(Color(UIColor.tertiaryLabel))
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+
+                    HStack(spacing: 10) {
+                        WaterAdjustButton(icon: "minus", title: "-\(Int(waterIncrement)) oz") {
+                            adjustWater(by: -waterIncrement)
+                        }
+                        .disabled(waterIntake < waterIncrement && waterIntake != 0)
+
+                        WaterAdjustButton(icon: "plus", title: "+\(Int(waterIncrement)) oz") {
+                            adjustWater(by: waterIncrement)
+                        }
                     }
-                    Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                
-                VStack(alignment: .center, spacing: 5) {
-                    Text("Water Intake")
-                        .appFont(size: 17, weight: .semibold)
-                    
-                    Text("\(Int(waterIntake)) / \(Int(waterGoal)) oz")
-                        .appFont(size: 12, weight: .medium)
-                        .padding(.bottom, 2)
 
-                    GeometryReader { geometry in
-                        ZStack(alignment: .bottom){
-                            Rectangle()
-                                .fill(LinearGradient(
-                                    gradient: Gradient(colors: [.cyan, Color.brandPrimary.opacity(0.7)]),
-                                    startPoint: .bottom, endPoint: .top ))
-                                .frame(height: geometry.size.height * CGFloat(progress))
-                                .animation(.easeInOut(duration: 0.5), value: progress)
-                            
-                            WaterBottleShape()
-                                .stroke(Color(UIColor.secondaryLabel), lineWidth: 1.5)
-                        }
-                        .mask(WaterBottleShape())
-                        .frame(width: geometry.size.width, height: geometry.size.height)
+                GeometryReader { geometry in
+                    ZStack(alignment: .bottom) {
+                        Rectangle()
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [.cyan, Color.brandPrimary.opacity(0.72)]),
+                                    startPoint: .bottom,
+                                    endPoint: .top
+                                )
+                            )
+                            .frame(height: geometry.size.height * CGFloat(progress))
+                            .animation(.easeInOut(duration: 0.5), value: progress)
+
+                        WaterBottleShape()
+                            .stroke(Color(UIColor.secondaryLabel).opacity(0.78), lineWidth: 1.5)
                     }
-                    .frame(width: 50, height: 80)
-                    .padding(.bottom, 5)
-                    
-                    HStack(spacing: 15) {
-                        Button {
-                            adjustWater(by: -waterIncrement)
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(.brandPrimary)
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(Rectangle())
-                        .disabled(waterIntake < waterIncrement && waterIntake != 0)
-                        
-                        Text("\(Int(waterIncrement)) oz")
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    .mask(WaterBottleShape())
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                }
+                .frame(width: 62, height: 104)
+            }
 
-                        Button {
-                            adjustWater(by: waterIncrement)
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(.brandPrimary)
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(Rectangle())
+            if let insight = insight {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "lightbulb.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.yellow)
+                        .frame(width: 28, height: 28)
+                        .background(Color.yellow.opacity(0.14), in: Circle())
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(insight.title)
+                            .appFont(size: 14, weight: .semibold)
+                            .foregroundColor(.textPrimary)
+
+                        Text(insight.message)
+                            .appFont(size: 12)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .lineLimit(4)
                     }
                 }
-                .frame(width: 110, alignment: .top)
+                .padding(12)
+                .background(Color.backgroundPrimary.opacity(0.66), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-            .padding(.horizontal)
-            .frame(maxWidth: .infinity, minHeight: 140, alignment: .center)
-            .padding(.bottom, 5)
         }
-        .onAppear {
-            selectRandomQuote()
-        }
+        .frame(maxWidth: .infinity, minHeight: 150, alignment: .leading)
     }
     
     private func adjustWater(by amount: Double) {
@@ -147,10 +143,26 @@ struct WaterTrackingCardView: View {
              dailyLogService.addWaterToCurrentLog(for: userID, amount: -waterIntake, goalOunces: goalSettings.waterGoal)
         }
     }
-    
-    private func selectRandomQuote() {
-        if let random = Self.quotes.randomElement() {
-            self.motivationalQuote = random
+}
+
+private struct WaterAdjustButton: View {
+    let icon: String
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .bold))
+                Text(title)
+                    .appFont(size: 12, weight: .semibold)
+            }
+            .foregroundColor(.brandPrimary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color.brandPrimary.opacity(0.10), in: Capsule())
         }
+        .buttonStyle(.plain)
     }
 }

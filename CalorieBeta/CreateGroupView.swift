@@ -37,7 +37,7 @@ struct CreateGroupView: View {
                 onGroupCreated(newGroup)
                 dismiss()
             case .failure(let error):
-                print("Error creating group: \(error.localizedDescription)")
+                AppLog.social.error("Failed to create group: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

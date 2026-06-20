@@ -200,7 +200,7 @@ class ReportsViewModel: ObservableObject {
             // Estimate timeInBed if HealthKit didn't provide it directly but provided asleep/awake times
             if timeInBed == 0 && (timeAsleep > 0 || timeAwake > 0) {
                  let firstStart = relevantSamples.map{$0.startDate}.min() ?? day
-                 let lastEnd = relevantSamples.map{$0.endDate}.max() ?? calendar.date(byAdding: .day, value: 1, to: day)!
+                 let lastEnd = relevantSamples.map{$0.endDate}.max() ?? calendar.date(byAdding: .day, value: 1, to: day) ?? day
                  timeInBed = lastEnd.timeIntervalSince(firstStart) // Use span from first start to last end
             }
 
@@ -213,7 +213,7 @@ class ReportsViewModel: ObservableObject {
                 // Store the earliest start time for this sleep session for consistency calculation
                 if let bedtime = relevantSamples.map({$0.startDate}).min() { allBedtimes.append(bedtime) }
                 // Update the most recent sleep day found so far
-                 if mostRecentSleepDay == nil || day > mostRecentSleepDay! { mostRecentSleepDay = day }
+                if mostRecentSleepDay.map({ day > $0 }) ?? true { mostRecentSleepDay = day }
             }
         }
 
@@ -248,7 +248,7 @@ class ReportsViewModel: ObservableObject {
         // Calculate the average weekly sleep score based on average durations and consistency
         let weeklyAverageScore = calculateComprehensiveSleepScore(avgTimeAsleep: avgAsleep, avgTimeDeep: avgDeep, avgTimeREM: avgREM, avgTimeAwake: avgAwake, consistencyScore: consistencyScore)
         // Format the date range string for display
-        let firstDate = validDays.first!.date; let lastDate = validDays.last!.date
+        guard let firstDate = validDays.first?.date, let lastDate = validDays.last?.date else { return }
         let dateFormatter = DateFormatter(); dateFormatter.dateFormat = "MMM d"
         let dateRangeString = "\(dateFormatter.string(from: firstDate)) - \(dateFormatter.string(from: lastDate))"
 
@@ -337,7 +337,7 @@ class ReportsViewModel: ObservableObject {
     // Fetches all necessary data for the selected timeframe.
     func fetchData(for timeframe: ReportTimeframe, startDate: Date? = nil, endDate: Date? = nil) {
         // Ensure user and goals are loaded
-        guard let userID = currentUserID, let goals = currentGoals else { errorMessage = "User or goals not loaded."; isLoading = false; return }
+        guard let userID = currentUserID, currentGoals != nil else { errorMessage = "User or goals not loaded."; isLoading = false; return }
         // Reset state before fetching
         isLoading = true; errorMessage = nil; summary = nil
         calorieTrend = []; proteinTrend = []; carbTrend = []; fatTrend = []
@@ -361,7 +361,7 @@ class ReportsViewModel: ObservableObject {
         } else {
             // Calculate start date for week or month
             let daysToSubtract = (timeframe == .week) ? -6 : -29
-            effectiveStartDate = Calendar.current.date(byAdding: .day, value: daysToSubtract, to: effectiveEndDate)!
+            effectiveStartDate = Calendar.current.date(byAdding: .day, value: daysToSubtract, to: effectiveEndDate) ?? effectiveEndDate
             daysInPeriodForSummary = (timeframe == .week) ? 7 : 30
         }
 
@@ -373,13 +373,14 @@ class ReportsViewModel: ObservableObject {
         // Use Task to perform asynchronous operations
         Task {
              // Fetch logs for the main period and just for yesterday concurrently
+             let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date())) ?? Calendar.current.startOfDay(for: Date())
              async let logResult = dailyLogService.fetchDailyHistory(for: userID, startDate: reportStartDate, endDate: reportEndDate)
-             async let yesterdayLogResult = dailyLogService.fetchDailyHistory(for: userID, startDate: Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date()))!, endDate: Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date()))!)
+             async let yesterdayLogResult = dailyLogService.fetchDailyHistory(for: userID, startDate: yesterday, endDate: yesterday)
 
              // *** Use HealthKitViewModel's authorization status ***
              if healthKitViewModel?.isAuthorized ?? false {
                  // Fetch sleep data if authorized (adjust start date for sleep queries)
-                 let sleepStartDate = Calendar.current.date(byAdding: .day, value: -1, to: reportStartDate)! // Fetch from day before start to catch overnight sleep
+                 let sleepStartDate = Calendar.current.date(byAdding: .day, value: -1, to: reportStartDate) ?? reportStartDate // Fetch from day before start to catch overnight sleep
                  
                  // Use the shared HealthKitManager instance to perform the fetch
                  healthKitManager.fetchSleepAnalysis(startDate: sleepStartDate, endDate: reportEndDate) { [weak self] samples, error in
@@ -387,7 +388,8 @@ class ReportsViewModel: ObservableObject {
                      Task { @MainActor in
                          if let samples = samples {
                              // Filter samples to ensure they start within the *intended* report period or slightly before
-                             let filteredSamples = samples.filter { $0.startDate >= reportStartDate && $0.startDate <= Calendar.current.date(byAdding: .day, value: 1, to: reportEndDate)! }
+                             let reportEndBoundary = Calendar.current.date(byAdding: .day, value: 1, to: reportEndDate) ?? reportEndDate
+                             let filteredSamples = samples.filter { $0.startDate >= reportStartDate && $0.startDate <= reportEndBoundary }
                              self?.processAndScoreSleepData(samples: filteredSamples)
                          } else {
                              // Handle fetch errors or no data
@@ -569,7 +571,7 @@ class ReportsViewModel: ObservableObject {
             }
         } else {
              // If neither is available, attempt one final fetch for yesterday's log
-             let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date()))!
+             let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date())) ?? Calendar.current.startOfDay(for: Date())
              let logResult = await dailyLogService.fetchDailyHistory(for: userID, startDate: yesterday, endDate: yesterday)
              if case .success(let logs) = logResult, let log = logs.first {
                  self.yesterdaysLog = log; calculatedMealScore = await calculateMealScore(for: log, goals: goals)
@@ -626,7 +628,9 @@ class ReportsViewModel: ObservableObject {
             "totalFats": score.actualFats
         ]
         ref.setData(data, merge: true) { e in
-             if let e = e {print("❌ Error saving meal score: \(e.localizedDescription)")}
+            if let e = e {
+                AppLog.data.error("Failed to save meal score: \(e.localizedDescription, privacy: .public)")
+            }
         }
     }
     

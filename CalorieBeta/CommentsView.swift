@@ -38,7 +38,7 @@ struct CommentsView: View {
 
     private func saveCommentToFirebase(comment: CommunityPost.Comment) {
         guard let postId = post.id else {
-            print("Post ID is nil; cannot save comment.")
+            AppLog.social.warning("Cannot save comment because post ID is missing.")
             return
         }
 
@@ -47,9 +47,8 @@ struct CommentsView: View {
             "comments": post.comments.map { try? Firestore.Encoder().encode($0) }
         ]) { error in
             if let error = error {
-                print("Error saving comment: \(error)")
+                AppLog.social.error("Failed to save comment: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
 }
-

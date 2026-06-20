@@ -61,13 +61,23 @@ class WorkoutRoutine: Identifiable, ObservableObject, Codable, Hashable {
         try container.encode(exercises, forKey: .exercises)
         try container.encodeIfPresent(notes, forKey: .notes)
     }
-    
+
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
 
     static func == (lhs: WorkoutRoutine, rhs: WorkoutRoutine) -> Bool {
         lhs.id == rhs.id
+    }
+
+    func deepCopy() -> WorkoutRoutine? {
+        do {
+            let data = try JSONEncoder().encode(self)
+            return try JSONDecoder().decode(WorkoutRoutine.self, from: data)
+        } catch {
+            AppLog.workouts.error("Error deep copying workout routine: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 }
 
@@ -89,7 +99,7 @@ struct ExerciseSet: Identifiable, Codable {
     var target: String?
     var previousPerformance: String?
     var isWarmup: Bool = false
-    
+
     var reps: Int = 0
     var weight: Double = 0.0
     var distance: Double = 0.0
@@ -121,6 +131,102 @@ struct CompletedSet: Identifiable, Codable {
 
 // MARK: - Nutrition Models
 
+enum NutritionCalorieConsistency {
+    static let absoluteMismatchThreshold = 75.0
+    static let relativeMismatchThreshold = 0.12
+
+    struct Status: Equatable {
+        let loggedCalories: Double
+        let macroDerivedCalories: Double
+        let delta: Double
+        let relativeDelta: Double
+        let hasMeaningfulMismatch: Bool
+
+        var mismatchAmount: Double {
+            abs(delta)
+        }
+
+        var directionText: String {
+            delta > 0 ? "higher" : "lower"
+        }
+    }
+
+    static func macroDerivedCalories(protein: Double, carbs: Double, fats: Double) -> Double {
+        max(0, protein) * 4 + max(0, carbs) * 4 + max(0, fats) * 9
+    }
+
+    static func status(calories: Double, protein: Double, carbs: Double, fats: Double) -> Status {
+        let loggedCalories = max(0, calories)
+        let macroCalories = macroDerivedCalories(protein: protein, carbs: carbs, fats: fats)
+        let delta = macroCalories - loggedCalories
+        let denominator = max(max(loggedCalories, macroCalories), 1)
+        let relativeDelta = abs(delta) / denominator
+        let hasMeaningfulMismatch = abs(delta) >= absoluteMismatchThreshold || relativeDelta >= relativeMismatchThreshold
+
+        return Status(
+            loggedCalories: loggedCalories,
+            macroDerivedCalories: macroCalories,
+            delta: delta,
+            relativeDelta: relativeDelta,
+            hasMeaningfulMismatch: hasMeaningfulMismatch
+        )
+    }
+
+    static func normalizedCaloriesForEstimatedSource(calories: Double, protein: Double, carbs: Double, fats: Double, source: String) -> Double {
+        guard isEstimatedSource(source) else { return calories }
+
+        let consistency = status(calories: calories, protein: protein, carbs: carbs, fats: fats)
+        guard consistency.macroDerivedCalories > 0 else { return max(0, calories) }
+
+        if calories <= 0 {
+            return consistency.macroDerivedCalories
+        }
+
+        if consistency.hasMeaningfulMismatch && consistency.delta > 0 {
+            return consistency.macroDerivedCalories
+        }
+
+        return calories
+    }
+
+    static func isEstimatedSource(_ source: String) -> Bool {
+        let normalizedSource = source.lowercased()
+        return normalizedSource.contains("ai") || normalizedSource.contains("manual")
+    }
+}
+
+#if DEBUG
+enum NutritionConsistencySelfCheck {
+    static func run() {
+        let macroCalories = NutritionCalorieConsistency.macroDerivedCalories(protein: 10, carbs: 20, fats: 5)
+        precondition(abs(macroCalories - 165) < 0.001, "Macro calorie formula regressed.")
+
+        let missingEstimateCalories = NutritionCalorieConsistency.normalizedCaloriesForEstimatedSource(
+            calories: 0,
+            protein: 10,
+            carbs: 20,
+            fats: 5,
+            source: "ai_chat"
+        )
+        precondition(abs(missingEstimateCalories - 165) < 0.001, "Estimated foods with missing calories should use macro-derived calories.")
+
+        let databaseCalories = NutritionCalorieConsistency.normalizedCaloriesForEstimatedSource(
+            calories: 120,
+            protein: 10,
+            carbs: 20,
+            fats: 5,
+            source: "fatsecret"
+        )
+        precondition(abs(databaseCalories - 120) < 0.001, "Database food calories should remain authoritative.")
+
+        let meaningfulMismatch = NutritionCalorieConsistency.status(calories: 100, protein: 20, carbs: 20, fats: 20)
+        precondition(meaningfulMismatch.hasMeaningfulMismatch, "Large calorie and macro mismatches should be flagged.")
+
+        AppLog.data.info("Nutrition consistency self-check passed.")
+    }
+}
+#endif
+
 struct FoodItem: Codable, Identifiable, Hashable {
     var id: String
     var name: String
@@ -135,7 +241,7 @@ struct FoodItem: Codable, Identifiable, Hashable {
     var servingSize: String
     var servingWeight: Double
     var timestamp: Date?
-    
+
     // Micros
     var calcium: Double?
     var iron: Double?
@@ -159,19 +265,42 @@ struct FoodItem: Codable, Identifiable, Hashable {
     var vitaminB6: Double?
     var vitaminE: Double?
     var vitaminK: Double?
-    
-    // NEW: Robust Quantity Fields
-    // Using optional with default nil ensures backward compatibility
+
     var quantityValue: Double? = nil
     var servingUnit: String? = nil
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (lhs: FoodItem, rhs: FoodItem) -> Bool { lhs.id == rhs.id }
-    
+
     enum CodingKeys: String, CodingKey {
         case id, name, calories, protein, carbs, fats, saturatedFat, polyunsaturatedFat, monounsaturatedFat, fiber, servingSize, servingWeight, timestamp, calcium, iron, potassium, sodium, vitaminA, vitaminC, vitaminD, vitaminB12, folate, magnesium, phosphorus, zinc, copper, manganese, selenium, vitaminB1, vitaminB2, vitaminB3, vitaminB5, vitaminB6, vitaminE, vitaminK
-        // New keys
         case quantityValue, servingUnit
+    }
+}
+
+extension FoodItem {
+    var macroDerivedCalories: Double {
+        NutritionCalorieConsistency.macroDerivedCalories(protein: protein, carbs: carbs, fats: fats)
+    }
+
+    var calorieConsistencyStatus: NutritionCalorieConsistency.Status {
+        NutritionCalorieConsistency.status(calories: calories, protein: protein, carbs: carbs, fats: fats)
+    }
+
+    var hasMeaningfulCalorieMacroMismatch: Bool {
+        calorieConsistencyStatus.hasMeaningfulMismatch
+    }
+
+    func normalizedForEstimatedSource(_ source: String) -> FoodItem {
+        var item = self
+        item.calories = NutritionCalorieConsistency.normalizedCaloriesForEstimatedSource(
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fats: fats,
+            source: source
+        )
+        return item
     }
 }
 
@@ -224,6 +353,17 @@ struct DailyLog: Codable, Identifiable, Equatable {
 
     func totalCalories() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.calories } }
     func totalMacros() -> (protein: Double, fats: Double, carbs: Double) { let p = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.protein }; let f = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.fats }; let c = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.carbs }; return (p, f, c) }
+    func macroDerivedCalories() -> Double {
+        let macros = totalMacros()
+        return NutritionCalorieConsistency.macroDerivedCalories(protein: macros.protein, carbs: macros.carbs, fats: macros.fats)
+    }
+    func calorieConsistencyStatus() -> NutritionCalorieConsistency.Status {
+        let macros = totalMacros()
+        return NutritionCalorieConsistency.status(calories: totalCalories(), protein: macros.protein, carbs: macros.carbs, fats: macros.fats)
+    }
+    func foodsWithMeaningfulCalorieMacroMismatch() -> [FoodItem] {
+        meals.flatMap(\.foodItems).filter(\.hasMeaningfulCalorieMacroMismatch)
+    }
     func totalMicronutrients() -> (
         calcium: Double, iron: Double, potassium: Double, sodium: Double, vitaminA: Double, vitaminC: Double, vitaminD: Double, vitaminB12: Double, folate: Double, fiber: Double, magnesium: Double, phosphorus: Double, zinc: Double, copper: Double, manganese: Double, selenium: Double, vitaminB1: Double, vitaminB2: Double, vitaminB3: Double, vitaminB5: Double, vitaminB6: Double, vitaminE: Double, vitaminK: Double
     ) {
@@ -254,7 +394,7 @@ struct DailyLog: Codable, Identifiable, Equatable {
             lhs.exercises == rhs.exercises &&
             lhs.journalEntries == rhs.journalEntries
         }
-    
+
     enum CodingKeys: String, CodingKey {
             case id, date, meals, totalCaloriesOverride, waterTracker, exercises, journalEntries
     }
@@ -272,11 +412,11 @@ struct UserInsight: Identifiable, Decodable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case title, message, category, priority, sourceData
     }
-    
+
     enum InsightCategory: String, Codable, Equatable, CaseIterable {
         case nutritionGeneral, hydration, macroBalance, microNutrient, mealTiming, consistency, postWorkout, foodVariety, positiveReinforcement, sugarAwareness, fiberIntake, saturatedFat, smartSuggestion, sleep, calorieFluctuation, weekendTrends, exerciseSynergy
     }
-    
+
     init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             title = try container.decode(String.self, forKey: .title)
@@ -344,12 +484,13 @@ enum WeightChartTimeframe: String, CaseIterable, Identifiable {
 }
 
 struct GroceryListItem: Identifiable, Codable, Equatable {
-    let id = UUID()
+    var id = UUID()
     var name: String
     var quantity: Double
     var unit: String
     var isCompleted: Bool = false
     var category: String = "Misc"
+    var source: String?
 }
 
 struct ChallengeType: RawRepresentable, Codable, Hashable {
@@ -563,7 +704,7 @@ struct UserRecipe: Codable, Identifiable {
 }
 
 enum CalorieGoalMethod: String, CaseIterable, Identifiable, Codable { case dynamicTDEE = "Dynamic (TDEE + Activity)"; case mifflinWithActivity = "Standard (Mifflin + Activity Level)"; var id: String { self.rawValue } }
-struct CommunityPost: Identifiable, Codable { @DocumentID var id: String?; let authorID: String?; let author: String; let content: String; var likes: Int = 0; var isLikedByCurrentUser: Bool = false; var reactions: [String: Int] = [:]; var comments: [Comment] = []; var timestamp: Date = Date(); var groupID: String; struct Comment: Identifiable, Codable { let id: String = UUID().uuidString; let author: String; let content: String; var replies: [Reply] = []; struct Reply: Identifiable, Codable { let id: String = UUID().uuidString; let author: String; let content: String } }; }
+struct CommunityPost: Identifiable, Codable { @DocumentID var id: String?; let authorID: String?; let author: String; let content: String; var likes: Int = 0; var isLikedByCurrentUser: Bool = false; var reactions: [String: Int] = [:]; var comments: [Comment] = []; var timestamp: Date = Date(); var groupID: String; struct Comment: Identifiable, Codable { var id: String = UUID().uuidString; let author: String; let content: String; var replies: [Reply] = []; struct Reply: Identifiable, Codable { var id: String = UUID().uuidString; let author: String; let content: String } }; }
 struct CommunityGroup: Identifiable, Codable { @DocumentID var id: String?; var name: String; var description: String; var creatorID: String; var isPreset: Bool = false }
 struct GroupMembership: Codable { var groupID: String; var userID: String; var joinedAt: Timestamp = Timestamp(date: Date()) }
 
@@ -617,7 +758,7 @@ struct Nutrition: Codable, Equatable {
     var vitaminD: Double?
     var vitaminB12: Double?
     var folate: Double?
-    
+
     static var zero: Nutrition {
         Nutrition(calories: 0, protein: 0, carbs: 0, fats: 0)
     }
@@ -638,7 +779,7 @@ struct UserAchievementStatus: Identifiable, Codable, Equatable {
     var unlockedDate: Date? = nil
     var currentProgress: Double = 0.0
     var lastProgressUpdate: Date? = nil
-    
+
     static func == (lhs: UserAchievementStatus, rhs: UserAchievementStatus) -> Bool {
         lhs.achievementID == rhs.achievementID &&
         lhs.isUnlocked == rhs.isUnlocked &&

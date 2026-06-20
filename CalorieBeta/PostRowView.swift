@@ -46,7 +46,7 @@ struct PostRowView: View {
 
     private func saveLikeStatusToFirebase() {
         guard let postId = post.id else {
-            print("Post ID is nil; cannot save like status.")
+            AppLog.social.warning("Cannot save like status because post ID is missing.")
             return
         }
 
@@ -56,7 +56,7 @@ struct PostRowView: View {
             "isLikedByCurrentUser": post.isLikedByCurrentUser
         ]) { error in
             if let error = error {
-                print("Error updating like status: \(error)")
+                AppLog.social.error("Failed to update like status: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

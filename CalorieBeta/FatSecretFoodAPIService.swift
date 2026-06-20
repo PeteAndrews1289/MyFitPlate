@@ -171,7 +171,9 @@ class FatSecretFoodAPIService {
                     availableServings.append(option)
                 }
                 
-                let baseServing = food.servings.serving.first { $0.parsedServingWeightGrams == 100.0 && $0.metricServingUnit?.lowercased() == "g" } ?? food.servings.serving.first!
+                guard let baseServing = food.servings.serving.first(where: { $0.parsedServingWeightGrams == 100.0 && $0.metricServingUnit?.lowercased() == "g" }) ?? food.servings.serving.first else {
+                    return completion(.failure(NSError(domain: "FatSecretFoodAPIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No serving options were returned for this food."])))
+                }
                 let baseFoodItem = FoodItem(
                     id: food.foodID, name: food.brandName.map { "\($0) \(food.foodName)" } ?? food.foodName,
                     calories: baseServing.parsedNutrient(.calories), protein: baseServing.parsedNutrient(.protein),
@@ -237,14 +239,64 @@ class FatSecretFoodAPIService {
     
     private func mapSearchResultToFoodItem(from fatSecretFoodItem: FatSecretFoodItem) -> FoodItem {
         let fullName = fatSecretFoodItem.brandName.map { "\($0) \(fatSecretFoodItem.foodName ?? "")" } ?? (fatSecretFoodItem.foodName ?? "Unknown")
+        let preview = parseSearchNutritionPreview(from: fatSecretFoodItem.foodDescription)
+
         return FoodItem(
             id: fatSecretFoodItem.foodID, name: fullName,
-            calories: 0, protein: 0, carbs: 0, fats: 0,
+            calories: preview.calories, protein: preview.protein, carbs: preview.carbs, fats: preview.fats,
             saturatedFat: 0, polyunsaturatedFat: 0, monounsaturatedFat: 0, fiber: 0,
-            servingSize: fatSecretFoodItem.foodDescription ?? "Tap to see details", servingWeight: 0, timestamp: nil,
+            servingSize: preview.servingDescription, servingWeight: preview.servingWeightGrams, timestamp: nil,
             calcium: nil, iron: nil, potassium: nil, sodium: nil,
             vitaminA: nil, vitaminC: nil, vitaminD: nil,
             vitaminB12: nil, folate: nil
         )
+    }
+
+    private func parseSearchNutritionPreview(from description: String?) -> (servingDescription: String, servingWeightGrams: Double, calories: Double, protein: Double, carbs: Double, fats: Double) {
+        guard let description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return ("Tap to see details", 0, 0, 0, 0, 0)
+        }
+
+        let servingDescription = description.components(separatedBy: " - ").first?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let servingWeight = parseServingWeightGrams(from: servingDescription ?? "")
+
+        return (
+            servingDescription: servingDescription ?? "Tap to see details",
+            servingWeightGrams: servingWeight,
+            calories: extractNutritionValue(afterAny: ["Calories"], in: description) ?? 0,
+            protein: extractNutritionValue(afterAny: ["Protein"], in: description) ?? 0,
+            carbs: extractNutritionValue(afterAny: ["Carbs", "Carbohydrate"], in: description) ?? 0,
+            fats: extractNutritionValue(afterAny: ["Fat", "Fats"], in: description) ?? 0
+        )
+    }
+
+    private func extractNutritionValue(afterAny labels: [String], in text: String) -> Double? {
+        for label in labels {
+            if let value = extractNutritionValue(after: label, in: text) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private func extractNutritionValue(after label: String, in text: String) -> Double? {
+        guard let range = text.range(of: "\(label):", options: .caseInsensitive) else { return nil }
+        let remainder = text[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+        let numberText = remainder.prefix { character in
+            character.isNumber || character == "." || character == ","
+        }
+        return Double(String(numberText).replacingOccurrences(of: ",", with: "."))
+    }
+
+    private func parseServingWeightGrams(from servingDescription: String) -> Double {
+        let lowercased = servingDescription.lowercased()
+        guard lowercased.contains("g") else { return 0 }
+        let numberText = lowercased
+            .replacingOccurrences(of: "per", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .prefix { character in
+                character.isNumber || character == "." || character == ","
+            }
+        return Double(String(numberText).replacingOccurrences(of: ",", with: ".")) ?? 0
     }
 }

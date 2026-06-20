@@ -1,53 +1,54 @@
 import SwiftUI
 
-/// This view is the small summary card shown on the Reports tab.
-/// It displays the overall wellness score and its three components.
 struct WellnessScoreCardView: View {
-    // The data model containing all the score information.
     let wellnessScore: WellnessScore
-    
-    // *** ADDED: Data to pass to the detail sheet ***
     let mealScore: MealScore?
     let sleepReport: EnhancedSleepReport?
     
-    // State variable to control showing the detailed pop-up sheet.
     @State private var showDetail = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // MARK: - Header Section
-            HStack {
-                // Title and summary text.
-                VStack(alignment: .leading) {
-                    Text("Daily Wellness Score")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Wellness Score")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .textCase(.uppercase)
+
                     Text(wellnessScore.summary)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(wellnessScore.color) // Uses the color from the data model.
+                        .appFont(size: 22, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("Nutrition, sleep, and recovery in one read.")
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                 }
+
                 Spacer()
-                
-                // MARK: - Overall Score Gauge
-                // A circular gauge showing the main score (e.g., "85").
-                Gauge(value: Double(wellnessScore.overallScore), in: 0...100) {
-                    // Accessibility label for the gauge.
-                    Image(systemName: "heart.fill")
-                } currentValueLabel: {
-                    // The text displayed inside the gauge.
-                    Text("\(wellnessScore.overallScore)")
-                        .font(.title)
-                        .fontWeight(.bold)
+
+                ZStack {
+                    Circle()
+                        .stroke(wellnessScore.color.opacity(0.16), lineWidth: 12)
+                    Circle()
+                        .trim(from: 0, to: CGFloat(min(max(Double(wellnessScore.overallScore) / 100, 0), 1)))
+                        .stroke(wellnessScore.color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeInOut(duration: 0.5), value: wellnessScore.overallScore)
+
+                    VStack(spacing: 0) {
+                        Text("\(wellnessScore.overallScore)")
+                            .appFont(size: 24, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                        Text("score")
+                            .appFont(size: 10, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
                 }
-                .gaugeStyle(.accessoryCircularCapacity) // Apple's standard circular gauge style.
-                .tint(wellnessScore.color) // Tints the gauge with the score-appropriate color.
+                .frame(width: 86, height: 86)
             }
             
-            Divider()
-            
-            // MARK: - Sub-Score Section
-            // A horizontal layout showing the three component scores.
             HStack(spacing: 16) {
                 ScoreComponentView(
                     icon: "fork.knife",
@@ -69,15 +70,12 @@ struct WellnessScoreCardView: View {
                 )
             }
         }
-        .padding() // Adds padding inside the card.
-        .background(Color.backgroundSecondary) // Sets the card's background color.
-        .cornerRadius(16) // Rounds the corners of the card.
-        .contentShape(Rectangle()) // Makes the whole card tappable.
+        .asCard()
+        .contentShape(Rectangle())
         .onTapGesture {
-            showDetail = true // Tapping the card sets this to true...
+            showDetail = true
         }
         .sheet(isPresented: $showDetail) {
-            // ...which presents the WellnessScoreDetailView, now passing all data
             WellnessScoreDetailView(
                 wellnessScore: wellnessScore,
                 mealScore: mealScore,
@@ -87,7 +85,6 @@ struct WellnessScoreCardView: View {
     }
 }
 
-/// A small, reusable view to display one of the sub-scores (Nutrition, Sleep, Recovery).
 struct ScoreComponentView: View {
     let icon: String
     let color: Color
@@ -95,23 +92,25 @@ struct ScoreComponentView: View {
     let score: Int
 
     var body: some View {
-        HStack {
-            // Icon with a circular background.
+        VStack(alignment: .leading, spacing: 7) {
             Image(systemName: icon)
                 .font(.callout)
                 .foregroundColor(color)
-                .frame(width: 24, height: 24)
-                .background(color.opacity(0.15))
-                .clipShape(Circle())
+                .frame(width: 30, height: 30)
+                .background(color.opacity(0.14), in: Circle())
             
-            // Title and score text.
             VStack(alignment: .leading) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
                 Text("\(score)")
-                    .fontWeight(.semibold)
+                    .appFont(size: 18, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Text(title)
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .lineLimit(1)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color.backgroundSecondary.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }

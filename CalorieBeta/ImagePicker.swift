@@ -62,19 +62,19 @@ struct ImagePicker: UIViewControllerRepresentable {
             let status = AVCaptureDevice.authorizationStatus(for: .video) // Checks camera permission status.
             switch status {
             case .denied, .restricted: // Handles denied or restricted access.
-                print("❌ Camera access denied or restricted") // Logs the issue.
+                AppLog.app.warning("Camera access denied or restricted.")
                 // Optionally, show an alert or handle this in the parent view.
                 return picker
             case .notDetermined: // Requests access if permission is not yet determined.
                 AVCaptureDevice.requestAccess(for: .video) { granted in
                     if !granted {
-                        print("❌ Camera access not granted") // Logs if access is denied.
+                        AppLog.app.warning("Camera access was not granted.")
                     }
                 }
             case .authorized: // Proceeds if access is granted.
                 break
             @unknown default: // Handles unexpected future cases.
-                print("❌ Unknown camera authorization status") // Logs unknown status.
+                AppLog.app.warning("Unknown camera authorization status.")
             }
             picker.cameraCaptureMode = .photo // Sets the camera to photo mode.
             picker.allowsEditing = false // Disables image editing (optional customization).

@@ -5,97 +5,160 @@ struct ContinueProgramCard: View {
     let nextWorkout: (routine: WorkoutRoutine, title: String)
     let onStartWorkout: () -> Void
     
-    // Access all necessary services
     @EnvironmentObject var workoutService: WorkoutService
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService
     
-    // State to control navigation
     @State private var showingProgramDetail = false
     @State private var showingProgramList = false
 
+    private var totalProgramWorkouts: Int {
+        max((program.daysOfWeek?.count ?? 0) * 12, program.routines.count)
+    }
+
+    private var completedWorkouts: Int {
+        min(program.currentProgressIndex ?? 0, totalProgramWorkouts)
+    }
+
+    private var progress: Double {
+        guard totalProgramWorkouts > 0 else { return 0 }
+        return min(Double(completedWorkouts) / Double(totalProgramWorkouts), 1)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            
-            // Hidden NavigationLinks that are triggered by the menu buttons
-            NavigationLink(
-                destination: ProgramDetailView(program: program)
-                    // Inject all services into the destination view
-                    .environmentObject(workoutService)
-                    .environmentObject(goalSettings)
-                    .environmentObject(dailyLogService)
-                    .environmentObject(achievementService),
-                isActive: $showingProgramDetail
-            ) { EmptyView() }
-            
-            NavigationLink(
-                destination: ProgramListView(workoutService: workoutService),
-                isActive: $showingProgramList
-            ) { EmptyView() }
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "figure.strengthtraining.traditional")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 46, height: 46)
+                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-            
-            Text("Continue Program")
-                .appFont(size: 17, weight: .semibold)
-                .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Continue Program")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .textCase(.uppercase)
 
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
                     Text(program.name)
                         .appFont(size: 24, weight: .bold)
+                        .foregroundColor(.textPrimary)
                         .lineLimit(2)
+                }
+
+                Spacer()
+
+                Menu {
+                    Button("View Program Details") {
+                        showingProgramDetail = true
+                    }
+                    Button("Change Program") {
+                        showingProgramList = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .frame(width: 34, height: 34)
+                        .background(Color.backgroundPrimary.opacity(0.7), in: Circle())
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("\(completedWorkouts) of \(totalProgramWorkouts) workouts complete")
+                        .appFont(size: 12, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+
                     Spacer()
-                    Menu {
-                        Button("View Program Details") {
-                            // Triggers the first NavigationLink
-                            showingProgramDetail = true
-                        }
-                        Button("Change Program") {
-                            // Triggers the second NavigationLink
-                            showingProgramList = true
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle.fill")
-                            .font(.title2)
+
+                    Text("\(Int((progress * 100).rounded()))%")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(.brandPrimary)
+                }
+
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.brandPrimary.opacity(0.12))
+
+                        Capsule()
+                            .fill(Color.brandPrimary)
+                            .frame(width: geometry.size.width * CGFloat(progress))
+                            .animation(.easeInOut(duration: 0.4), value: progress)
                     }
                 }
-                
-                Text(nextWorkout.routine.name)
-                    .appFont(size: 15, weight: .medium)
-                    .foregroundColor(.secondary)
+                .frame(height: 8)
+            }
 
-                Divider()
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Next Session")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .textCase(.uppercase)
+
+                Text(nextWorkout.routine.name)
+                    .appFont(size: 19, weight: .bold)
+                    .foregroundColor(.textPrimary)
 
                 VStack(spacing: 8) {
-                    HStack {
-                        Text("Exercise").appFont(size: 12, weight: .semibold).foregroundColor(.secondary)
-                        Spacer()
-                        Text("Sets").appFont(size: 12, weight: .semibold).foregroundColor(.secondary)
-                        Text("Target").appFont(size: 12, weight: .semibold).foregroundColor(.secondary)
+                    ForEach(Array(nextWorkout.routine.exercises.prefix(4))) { exercise in
+                        exercisePreviewRow(exercise)
                     }
-                    .padding(.horizontal, 8)
 
-                    ForEach(nextWorkout.routine.exercises) { exercise in
-                        HStack {
-                            Text(exercise.name).appFont(size: 15).lineLimit(1)
-                            Spacer()
-                            Text("\(exercise.sets.count)").appFont(size: 15)
-                            Text(exercise.sets.first?.target ?? "-").appFont(size: 15)
-                        }
-                        .padding(.horizontal, 8)
+                    if nextWorkout.routine.exercises.count > 4 {
+                        Text("+ \(nextWorkout.routine.exercises.count - 4) more exercises")
+                            .appFont(size: 12, weight: .semibold)
+                            .foregroundColor(.brandPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 2)
                     }
                 }
-
-                Button(action: onStartWorkout) {
-                    Text(nextWorkout.title)
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .padding(.top, 8)
-
+                .padding(12)
+                .background(Color.backgroundPrimary.opacity(0.66), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
-            .padding()
-            .background(Color.backgroundSecondary)
-            .cornerRadius(20)
+
+            Button(action: onStartWorkout) {
+                Label(nextWorkout.title, systemImage: "play.fill")
+            }
+            .buttonStyle(PrimaryButtonStyle())
+        }
+        .asCard()
+        .navigationDestination(isPresented: $showingProgramDetail) {
+            ProgramDetailView(program: program)
+                .environmentObject(workoutService)
+                .environmentObject(goalSettings)
+                .environmentObject(dailyLogService)
+                .environmentObject(achievementService)
+        }
+        .navigationDestination(isPresented: $showingProgramList) {
+            ProgramListView(workoutService: workoutService)
+        }
+    }
+
+    private func exercisePreviewRow(_ exercise: RoutineExercise) -> some View {
+        HStack(spacing: 10) {
+            Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
+                .font(.body)
+                .frame(width: 30, height: 30)
+                .background(Color.brandPrimary.opacity(0.10), in: Circle())
+
+            Text(exercise.name)
+                .appFont(size: 14, weight: .semibold)
+                .foregroundColor(.textPrimary)
+                .lineLimit(1)
+
+            Spacer()
+
+            Text("\(exercise.sets.count)x")
+                .appFont(size: 12, weight: .bold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+
+            Text(exercise.sets.first?.target ?? "-")
+                .appFont(size: 12, weight: .semibold)
+                .foregroundColor(.brandPrimary)
+                .lineLimit(1)
         }
     }
 }

@@ -280,7 +280,8 @@ struct WeightTrackingView: View {
     
     private func confirmDeleteChartEntry(entryID: String) {
         goalSettings.deleteWeightEntry(entryID: entryID) { error in
-            if let error = error {
+            if let error {
+                AppLog.app.error("Failed to delete weight entry: \(error.localizedDescription, privacy: .public)")
                 
             } else {
                 

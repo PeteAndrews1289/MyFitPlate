@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseFirestore
 import FirebaseAuth
+import HealthKit
 
 func capitalizedFirstLetter(of string: String) -> String {
     guard let first = string.first else { return "" }
@@ -13,27 +14,30 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     let isUser: Bool
 }
 
-// MARK: - SuggestionButtonsView
+struct MealSuggestionPayload: Codable, Identifiable {
+    var id: UUID { UUID() }
+    let type: String?
+    let mealName: String
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fats: Double
+}
+
 struct SuggestionButtonsView: View {
+    let suggestions: [String]
     var onSelect: (String) -> Void
-    
-    let suggestions = [
-        "What's a healthy, high-protein snack?",
-        "Give me a recipe for a simple dinner.",
-        "How can I reduce my sugar intake?",
-        "Log 1 apple and a handful of almonds."
-    ]
-    
+
     private let columns: [GridItem] = [
         GridItem(.flexible(), spacing: 12),
         GridItem(.flexible(), spacing: 12)
     ]
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Try asking...")
                 .appFont(size: 16, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .foregroundColor(.textPrimary)
                 .padding(.horizontal)
                 .padding(.bottom, 5)
 
@@ -45,10 +49,10 @@ struct SuggestionButtonsView: View {
                             .foregroundColor(.textPrimary)
                             .frame(maxWidth: .infinity, minHeight: 50)
                             .padding(10)
-                            .background(Color.backgroundSecondary.opacity(0.5))
-                            .cornerRadius(12)
+                            .background(Color.backgroundSecondary.opacity(0.74), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                             .multilineTextAlignment(.center)
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal)
@@ -57,12 +61,9 @@ struct SuggestionButtonsView: View {
     }
 }
 
-
-// MARK: - ChatBubble
 struct ChatBubble: View {
     @Environment(\.colorScheme) var colorScheme
-    var bgGreen = Color(red: 16/255, green: 20/255, blue: 21/255)
-    
+
     let message: ChatMessage
     let onLogRecipe: (String) -> Void
     let onSpeak: (String) -> Void
@@ -79,67 +80,169 @@ struct ChatBubble: View {
         self.canBeLogged = !message.isUser && message.text.contains("---Nutritional Breakdown---") && message.text.contains("Calories:")
     }
 
+    private func parseStructuredPayloads(from text: String) -> (String, [MealSuggestionPayload]) {
+        var cleanText = text
+        var payloads: [MealSuggestionPayload] = []
+
+        let pattern = "```json\\s*(\\{.*?\\})\\s*```"
+        if let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive]) {
+            let nsString = text as NSString
+            let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+
+            for match in matches.reversed() {
+                let jsonString = nsString.substring(with: match.range(at: 1))
+                if let data = jsonString.data(using: .utf8),
+                   let payload = try? JSONDecoder().decode(MealSuggestionPayload.self, from: data) {
+                    payloads.append(payload)
+                }
+                cleanText = (cleanText as NSString).replacingCharacters(in: match.range, with: "")
+            }
+        }
+
+        return (cleanText.trimmingCharacters(in: .whitespacesAndNewlines), payloads.reversed())
+    }
+
     var body: some View {
         VStack(alignment: message.isUser ? .trailing : .leading, spacing: 8) {
-            HStack {
-                if message.isUser { Spacer() }
-                VStack(alignment: !message.isUser ? .leading : .trailing) {
-                    if !message.isUser {
-                        Text("Maia")
-                            .padding()
-                            .background(Circle().fill(colorScheme == .dark ? bgGreen : Color.backgroundSecondary ))
-                            .padding(.leading, -6)
-                    }
-                    
-                    if message.isUser {
-                        Text("You")
-                            .padding()
-                            .background(Circle().fill(Color.brandPrimary))
-                            .foregroundColor(colorScheme == .dark ? .black : .white)
-                            .padding(.trailing, -3)
-                    }
-                    
-                    Text(message.text)
-                        .padding()
-                        .background(message.isUser ? Color.brandPrimary : Color.backgroundSecondary)
-                        .cornerRadius(12)
-                        .foregroundColor(message.isUser ? .white : .textPrimary)
-                        .frame(maxWidth: 300, alignment: message.isUser ? .trailing : .leading)
+            HStack(alignment: .bottom, spacing: 10) {
+                if message.isUser {
+                    Spacer(minLength: 42)
+                } else {
+                    Image("maia_avatar")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 34, height: 34)
+                        .clipShape(Circle())
+                        .background(Color.backgroundSecondary, in: Circle())
                 }
 
-                if !message.isUser { Spacer() }
+                VStack(alignment: message.isUser ? .trailing : .leading, spacing: 6) {
+                    Text(message.isUser ? "You" : "Maia")
+                        .appFont(size: 11, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+
+                    let parsed = parseStructuredPayloads(from: message.text)
+                    let displayText = parsed.0
+                    let payloads = parsed.1
+
+                    if !displayText.isEmpty {
+                        Text(.init(displayText))
+                            .appFont(size: 15)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+                            .background(
+                                message.isUser ? Color.brandPrimary : Color.backgroundSecondary,
+                                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            )
+                            .foregroundColor(message.isUser ? .white : .textPrimary)
+                            .frame(maxWidth: 310, alignment: message.isUser ? .trailing : .leading)
+                    }
+
+                    if !payloads.isEmpty && !message.isUser {
+                        ForEach(payloads) { payload in
+                            AIChatActionCard(payload: payload, onLog: {
+                                let legacyFormat = """
+                                \(payload.mealName)
+                                ---Nutritional Breakdown---
+                                Calories: \(payload.calories)
+                                Protein: \(payload.protein)g
+                                Carbs: \(payload.carbs)g
+                                Fats: \(payload.fats)g
+                                """
+                                onLogRecipe(legacyFormat)
+                            })
+                            .frame(maxWidth: 310, alignment: .leading)
+                        }
+                    }
+                }
+
+                if !message.isUser {
+                    Spacer(minLength: 42)
+                }
             }
-            .padding(message.isUser ? .leading : .trailing, 40)
-            
+
             HStack(spacing: 12) {
                 if message.isUser { Spacer() }
                 if !message.isUser {
                     Button(action: { onSpeak(message.text) }) {
-                        Image(systemName: "speaker.wave.2.fill")
+                        Label("Speak", systemImage: "speaker.wave.2.fill")
                             .appFont(size: 12, weight: .semibold)
-                            .foregroundColor(.brandPrimary)
-                            .padding(.bottom, 10)
                     }
+                    .foregroundColor(.brandPrimary)
+                    .buttonStyle(.plain)
                 }
                 if canBeLogged {
                     Button(action: { onLogRecipe(message.text) }) {
-                        Text("Log Food")
+                        Label("Log Food", systemImage: "plus.circle.fill")
                             .appFont(size: 12, weight: .semibold)
                             .padding(.vertical, 4)
                             .padding(.horizontal, 8)
-                            .background(Color.brandPrimary)
+                            .background(Color.brandPrimary, in: Capsule())
                             .foregroundColor(.white)
-                            .cornerRadius(8)
                     }
+                    .buttonStyle(.plain)
                 }
                 if !message.isUser { Spacer() }
             }
-            .padding(.horizontal, message.isUser ? 40 : 0)
+            .padding(.leading, message.isUser ? 0 : 44)
+            .padding(.trailing, message.isUser ? 44 : 0)
         }
     }
 }
 
-// MARK: - ChatHistoryListView
+private struct AIChatActionCard: View {
+    let payload: MealSuggestionPayload
+    let onLog: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(payload.mealName)
+                    .appFont(size: 16, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Spacer()
+                Button(action: onLog) {
+                    Text("Log Food")
+                        .appFont(size: 14, weight: .bold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .background(Color.brandPrimary, in: Capsule())
+                        .foregroundColor(.white)
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack(spacing: 12) {
+                MacroLabel(title: "Cal", value: "\(Int(payload.calories.rounded()))")
+                MacroLabel(title: "Pro", value: "\(Int(payload.protein.rounded()))g")
+                MacroLabel(title: "Carb", value: "\(Int(payload.carbs.rounded()))g")
+                MacroLabel(title: "Fat", value: "\(Int(payload.fats.rounded()))g")
+            }
+        }
+        .padding(14)
+        .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.brandPrimary.opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+private struct MacroLabel: View {
+    let title: String
+    let value: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(Color(UIColor.secondaryLabel))
+            Text(value)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.textPrimary)
+        }
+    }
+}
+
 private struct ChatHistoryListView: View {
     @Binding var chatMessages: [ChatMessage]
     var onLogRecipe: (String) -> Void
@@ -162,7 +265,8 @@ private struct ChatHistoryListView: View {
                         .id(message.id)
                     }
                 }
-                .padding()
+                .padding(.horizontal)
+                .padding(.vertical, 12)
             }
             .onChange(of: chatMessages) {
                 if let lastId = chatMessages.last?.id {
@@ -180,30 +284,256 @@ private struct ChatHistoryListView: View {
     }
 }
 
-// MARK: - AIChatbotView
+private struct MaiaBriefingCard: View {
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fats: Double
+    let water: Double
+    let waterGoal: Double
+    let mealCount: Int
+    let workoutCount: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image("maia_avatar")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 46, height: 46)
+                    .clipShape(Circle())
+                    .background(Color.backgroundSecondary, in: Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Maia is ready")
+                        .appFont(size: 20, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Ask for food ideas, meal logging, recipe help, or a quick read on today.")
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+            }
+
+            MaiaDailyContextRow(
+                mealCount: mealCount,
+                workoutCount: workoutCount,
+                water: water,
+                waterGoal: waterGoal
+            )
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                MaiaBriefingMetric(title: "Calories left", value: "\(Int(calories.rounded()))", color: .orange)
+                MaiaBriefingMetric(title: "Protein left", value: "\(Int(protein.rounded()))g", color: .accentProtein)
+                MaiaBriefingMetric(title: "Carbs left", value: "\(Int(carbs.rounded()))g", color: .accentCarbs)
+                MaiaBriefingMetric(title: "Fats left", value: "\(Int(fats.rounded()))g", color: .accentFats)
+            }
+        }
+        .asCard()
+    }
+}
+
+private struct MaiaDailyContextRow: View {
+    let mealCount: Int
+    let workoutCount: Int
+    let water: Double
+    let waterGoal: Double
+
+    var body: some View {
+        HStack(spacing: 8) {
+            MaiaContextChip(icon: "fork.knife", title: "\(mealCount)", subtitle: mealCount == 1 ? "meal" : "meals", color: .orange)
+            MaiaContextChip(icon: "figure.strengthtraining.traditional", title: "\(workoutCount)", subtitle: workoutCount == 1 ? "workout" : "workouts", color: .brandPrimary)
+            MaiaContextChip(icon: "drop.fill", title: "\(Int(water.rounded()))", subtitle: "/ \(Int(waterGoal.rounded())) oz", color: .blue)
+        }
+    }
+}
+
+private struct MaiaContextChip: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(color)
+                .frame(width: 24, height: 24)
+                .background(color.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title)
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Text(subtitle)
+                    .appFont(size: 10, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(9)
+        .background(Color.backgroundSecondary.opacity(0.62), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+    }
+}
+
+private struct MaiaBriefingMetric: View {
+    let title: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .appFont(size: 16, weight: .bold)
+                .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text(title)
+                .appFont(size: 11, weight: .semibold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(9)
+        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+    }
+}
+
+private struct MaiaHealthKitContextIndicator: View {
+    let steps: Double
+    let activeEnergy: Double
+    let sleepSamples: [HKCategorySample]
+
+    var body: some View {
+        let sleepHours = sleepSamples.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) } / 3600.0
+
+        HStack(spacing: 8) {
+            Image(systemName: "applewatch")
+                .foregroundColor(.brandPrimary)
+            Text("Maia is analyzing your HealthKit data")
+                .appFont(size: 12, weight: .semibold)
+                .foregroundColor(.secondary)
+            Spacer()
+
+            HStack(spacing: 12) {
+                if steps > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "figure.walk")
+                        Text("\(Int(steps))")
+                    }
+                }
+                if activeEnergy > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                        Text("\(Int(activeEnergy))")
+                    }
+                }
+                if sleepHours > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "moon.zzz.fill")
+                        Text(String(format: "%.1fh", sleepHours))
+                    }
+                }
+            }
+            .appFont(size: 11, weight: .bold)
+            .foregroundColor(.secondary)
+        }
+        .padding(12)
+        .background(Color.backgroundSecondary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
 struct AIChatbotView: View {
     @State private var userMessage = ""
     @State private var chatMessages: [ChatMessage] = []
     @State private var isLoading = false
     @Binding var selectedTab: Int
     var chatContext: String?
-    
+
     var bgGreen = Color(red: 16/255, green: 20/255, blue: 21/255)
-    
+
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService
     @EnvironmentObject var mealPlannerService: MealPlannerService
-    
+    @EnvironmentObject var healthKitViewModel: HealthKitViewModel
+
     @Environment(\.colorScheme) var colorScheme
     @StateObject private var ttsManager = TTSManager.shared
-    
+
     @State private var showAlert = false
     @State private var alertMessage = ""
+    @State private var showingClearChatConfirmation = false
+
+    private var bottomSafeAreaInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow }?
+            .safeAreaInsets.bottom ?? 0
+    }
+
+    private var starterSuggestions: [String] {
+        var suggestions: [String] = []
+
+        if relevantDailyLog?.calorieConsistencyStatus().hasMeaningfulMismatch == true {
+            suggestions.append("Audit today's calorie and macro mismatch.")
+        }
+
+        if remainingProtein >= 15 {
+            suggestions.append("Help me hit \(Int(remainingProtein.rounded()))g more protein.")
+        }
+
+        if workoutCount > 0 {
+            suggestions.append("What should I eat after today's workout?")
+        }
+
+        if mealCount == 0 {
+            suggestions.append("Build my first meal for today.")
+        } else {
+            suggestions.append("What should I eat with \(Int(remainingCalories.rounded())) calories left?")
+        }
+
+        suggestions.append("Give me a simple dinner idea.")
+        suggestions.append("Log 1 apple and a handful of almonds.")
+
+        return Array(suggestions.prefix(4))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
+            if chatMessages.count <= 1 {
+                MaiaBriefingCard(
+	                    calories: remainingCalories,
+	                    protein: remainingProtein,
+	                    carbs: remainingCarbs,
+	                    fats: remainingFats,
+	                    water: waterOunces,
+	                    waterGoal: waterGoal,
+	                    mealCount: mealCount,
+	                    workoutCount: workoutCount
+	                )
+                .padding(.horizontal)
+                .padding(.top, 10)
+
+                if healthKitViewModel.isAuthorized {
+                    MaiaHealthKitContextIndicator(
+                        steps: healthKitViewModel.todaySteps,
+                        activeEnergy: healthKitViewModel.todayActiveEnergy,
+                        sleepSamples: healthKitViewModel.sleepSamples
+                    )
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                }
+            }
+
             ChatHistoryListView(
                 chatMessages: $chatMessages,
                 onLogRecipe: logRecipe,
@@ -215,36 +545,51 @@ struct AIChatbotView: View {
 
             VStack(spacing: 0) {
                 if chatMessages.count <= 1 && !isLoading {
-                    SuggestionButtonsView { prompt in
+                    SuggestionButtonsView(suggestions: starterSuggestions) { prompt in
                         userMessage = prompt
                         sendMessage()
                     }
                     .padding(.vertical, 10)
                 }
-                
+
                 if isLoading {
-                    ProgressView().padding(10)
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .tint(.brandPrimary)
+                        Text("Maia is thinking...")
+                            .appFont(size: 13, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                    .padding(.vertical, 8)
                 }
 
-                HStack(spacing: 15) {
+                HStack(spacing: 10) {
                     TextField("Ask Maia anything...", text: $userMessage, axis: .vertical)
                         .textFieldStyle(PlainTextFieldStyle())
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(colorScheme == .dark ? Color(white: 0.2) : Color.white)
-                        .clipShape(Capsule())
+                        .padding(.vertical, 12)
+                        .background(Color.backgroundPrimary.opacity(colorScheme == .dark ? 0.62 : 0.92), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .lineLimit(1...4)
                         .onSubmit(sendMessage)
-                    
+
                     Button(action: sendMessage) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.largeTitle)
-                            .foregroundColor(.brandPrimary)
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 42, height: 42)
+                            .background(
+                                userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading
+                                ? Color(UIColor.tertiaryLabel)
+                                : Color.brandPrimary,
+                                in: Circle()
+                            )
                     }
+                    .buttonStyle(.plain)
                     .disabled(userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
                 }
                 .padding(.horizontal)
                 .padding(.top, 10)
-                .padding(.bottom, UIApplication.shared.windows.first?.safeAreaInsets.bottom ?? 0)
+                .padding(.bottom, bottomSafeAreaInset)
             }
             .background(
                 ChatBoxShape()
@@ -255,6 +600,16 @@ struct AIChatbotView: View {
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("Maia")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showingClearChatConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .disabled(chatMessages.count <= 1)
+            }
+        }
         .onAppear(perform: setupView)
         .onDisappear(perform: saveMessages)
         .onReceive(appState.$pendingChatPrompt) { prompt in
@@ -267,8 +622,14 @@ struct AIChatbotView: View {
         .alert(isPresented: $showAlert) {
             Alert(title: Text("Notification"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
         }
+        .confirmationDialog("Clear Maia chat?", isPresented: $showingClearChatConfirmation, titleVisibility: .visible) {
+            Button("Clear Chat", role: .destructive, action: clearChat)
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This removes the saved conversation history on this device.")
+        }
     }
-    
+
     private func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
@@ -285,42 +646,106 @@ struct AIChatbotView: View {
         }
     }
 
+    private func clearChat() {
+        chatMessages.removeAll()
+        let welcomeMessage = "Fresh chat ready. What would you like help with?"
+        chatMessages.append(ChatMessage(id: UUID(), text: welcomeMessage, isUser: false))
+        saveMessages()
+    }
+
     private var remainingCalories: Double {
-        let logDate = dailyLogService.activelyViewedDate
-        let relevantLog = dailyLogService.currentDailyLog != nil && Calendar.current.isDate(dailyLogService.currentDailyLog!.date, inSameDayAs: logDate) ? dailyLogService.currentDailyLog : nil
-        let total = relevantLog?.totalCalories() ?? 0
+        let total = relevantDailyLog?.totalCalories() ?? 0
         let goal = goalSettings.calories ?? 2000
         return max(0, goal - total)
     }
-    
+
     private var remainingProtein: Double {
-        let logDate = dailyLogService.activelyViewedDate
-        let relevantLog = dailyLogService.currentDailyLog != nil && Calendar.current.isDate(dailyLogService.currentDailyLog!.date, inSameDayAs: logDate) ? dailyLogService.currentDailyLog : nil
-        let total = relevantLog?.totalMacros().protein ?? 0
+        let total = relevantDailyLog?.totalMacros().protein ?? 0
         return max(0, goalSettings.protein - total)
     }
-    
+
     private var remainingFats: Double {
-        let logDate = dailyLogService.activelyViewedDate
-        let relevantLog = dailyLogService.currentDailyLog != nil && Calendar.current.isDate(dailyLogService.currentDailyLog!.date, inSameDayAs: logDate) ? dailyLogService.currentDailyLog : nil
-        let total = relevantLog?.totalMacros().fats ?? 0
+        let total = relevantDailyLog?.totalMacros().fats ?? 0
         return max(0, goalSettings.fats - total)
     }
-    
+
     private var remainingCarbs: Double {
-        let logDate = dailyLogService.activelyViewedDate
-        let relevantLog = dailyLogService.currentDailyLog != nil && Calendar.current.isDate(dailyLogService.currentDailyLog!.date, inSameDayAs: logDate) ? dailyLogService.currentDailyLog : nil
-        let total = relevantLog?.totalMacros().carbs ?? 0
+        let total = relevantDailyLog?.totalMacros().carbs ?? 0
         return max(0, goalSettings.carbs - total)
+    }
+
+    private var mealCount: Int {
+        relevantDailyLog?.meals.filter { !$0.foodItems.isEmpty }.count ?? 0
+    }
+
+    private var workoutCount: Int {
+        relevantDailyLog?.exercises?.count ?? 0
+    }
+
+    private var waterOunces: Double {
+        relevantDailyLog?.waterTracker?.totalOunces ?? 0
+    }
+
+    private var waterGoal: Double {
+        relevantDailyLog?.waterTracker?.goalOunces ?? goalSettings.waterGoal
+    }
+
+    private var dailyContextSummary: String {
+        let log = relevantDailyLog
+        let macros = log?.totalMacros() ?? (protein: 0, fats: 0, carbs: 0)
+        let caloriesLogged = log?.totalCalories() ?? 0
+        let consistencyStatus = log?.calorieConsistencyStatus()
+        let flaggedFoods = log?.foodsWithMeaningfulCalorieMacroMismatch().map(\.name).prefix(4).joined(separator: ", ") ?? "None"
+        let exerciseNames = log?.exercises?.map(\.name).joined(separator: ", ") ?? "None"
+
+        let hkSteps = healthKitViewModel.todaySteps
+        let hkActiveEnergy = healthKitViewModel.todayActiveEnergy
+        let sleepHours = healthKitViewModel.sleepSamples.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) } / 3600.0
+        let macroCalories = consistencyStatus?.macroDerivedCalories ?? 0
+        let calorieDelta = consistencyStatus?.delta ?? 0
+        let auditStatus = consistencyStatus?.hasMeaningfulMismatch == true
+            ? "Needs review: macros imply \(Int(abs(calorieDelta).rounded())) calories \(calorieDelta > 0 ? "more" : "less") than logged."
+            : "No meaningful mismatch."
+
+        return """
+        Today's logged context:
+        - Calories logged: \(Int(caloriesLogged.rounded())) of \(Int((goalSettings.calories ?? 0).rounded())) target
+        - Macro-derived calories: \(Int(macroCalories.rounded()))
+        - Nutrition audit: \(auditStatus)
+        - Flagged foods: \(flaggedFoods)
+        - Protein logged: \(Int(macros.protein.rounded()))g of \(Int(goalSettings.protein.rounded()))g target
+        - Carbs logged: \(Int(macros.carbs.rounded()))g of \(Int(goalSettings.carbs.rounded()))g target
+        - Fats logged: \(Int(macros.fats.rounded()))g of \(Int(goalSettings.fats.rounded()))g target
+        - Meals logged: \(mealCount)
+        - Water logged: \(Int(waterOunces.rounded())) oz of \(Int(waterGoal.rounded())) oz target
+        - Workouts logged: \(workoutCount) (\(exerciseNames))
+
+        User coaching preferences:
+        - Training intent: \(goalSettings.trainingIntent)
+        - Reminder style: \(goalSettings.reminderStyle)
+        - Maia style: \(goalSettings.maiaTone)
+
+        Passive Health Data (For Coaching Context Only):
+        - Steps Today: \(Int(hkSteps))
+        - Passive Active Energy Burned: \(Int(hkActiveEnergy)) kcal
+        - Sleep Last Night: \(String(format: "%.1f", sleepHours)) hours
+        """
+    }
+
+    private var relevantDailyLog: DailyLog? {
+        let logDate = dailyLogService.activelyViewedDate
+        return dailyLogService.currentDailyLog.flatMap { log in
+            Calendar.current.isDate(log.date, inSameDayAs: logDate) ? log : nil
+        }
     }
 
     func sendMessage() {
         let trimmedMessage = userMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedMessage.isEmpty else { return }
-        
+
         let userMsg = ChatMessage(id: UUID(), text: trimmedMessage, isUser: true)
         chatMessages.append(userMsg)
-        
+
         let msgToSend = userMessage
         userMessage = ""
         isLoading = true
@@ -335,31 +760,59 @@ struct AIChatbotView: View {
 
     func fetchGPT3Response(for message: String, completion: @escaping (String) -> Void) {
         let systemPrompt = """
-        You are a helpful AI assistant for a fitness app called MyFitPlate. Your name is Maia.
+        You are Maia, the personal nutrition and training coach inside MyFitPlate.
+        Your style is warm, concise, practical, and specific to the user's logged day. Avoid generic wellness filler.
+        Do not diagnose medical conditions or present estimates as clinical truth.
+        Respect the user's coaching preferences in the context. If reminder style is Minimal, be brief. If Direct, be crisp and action-oriented. If Gentle, be encouraging without being vague.
+        If the nutrition audit says calories and macros meaningfully disagree, mention that logged calories remain official but the item should be reviewed before making precise calorie-budget claims.
+
         When a user asks for nutritional information (e.g., "calories in an apple"), your response MUST be in the following format:
         1. Start with a brief, friendly sentence.
         2. On a new line, write the header "---Nutritional Breakdown---".
         3. On subsequent new lines, list "Calories: <value>", "Protein: <value>g", "Carbs: <value>g", and "Fats: <value>g". Include other relevant micronutrients like Sodium, Potassium, and key vitamins if available.
         This format is critical for the app to function. Do not deviate from it.
+
         When a user asks for a meal plan and grocery list, use the following format:
         Start with "---Meal Plan---". List each day (e.g., "Day 1:") followed by meals.
         Then, on a new line, start with "---Grocery List---". List each item with quantity and unit (e.g., "Chicken Breast: 2 lbs").
+
+        If the user asks what to eat, prioritize remaining calories, protein, and whether a workout was logged.
+        If the user asks to log food or you suggest a specific meal/recipe, you MUST provide a realistic nutrition estimate in a structured JSON block AT THE END of your message. Format it exactly like this:
+
+        ```json
+        {
+          "type": "meal_suggestion",
+          "mealName": "Chicken & Rice",
+          "calories": 400,
+          "protein": 30,
+          "carbs": 40,
+          "fats": 10
+        }
+        ```
+
+        Do not use the old "---Nutritional Breakdown---" format. You may include conversational text before the JSON block.
+        If data is missing, say what assumption you are making.
+        For your own AI estimates, keep calories reasonably consistent with protein*4 + carbs*4 + fats*9. Do not invent exact precision for restaurant or packaged foods.
+
         **User's Remaining Goals for Today:**
         - Calories: \(String(format: "%.0f", self.remainingCalories)) cal
         - Protein: \(String(format: "%.0f", self.remainingProtein)) g
         - Fats: \(String(format: "%.0f", self.remainingFats)) g
         - Carbs: \(String(format: "%.0f", self.remainingCarbs)) g
+
+        \(dailyContextSummary)
+        \(chatContext.map { "Additional context: \($0)" } ?? "")
         """
-        
+
         var messagesForAPI: [[String: Any]] = [["role": "system", "content": systemPrompt]]
-        
+
         let history = chatMessages.dropLast().suffix(6)
         for chatMessage in history {
             if !chatMessage.text.isEmpty {
                 messagesForAPI.append(["role": chatMessage.isUser ? "user" : "assistant", "content": chatMessage.text])
             }
         }
-        
+
         messagesForAPI.append(["role": "user", "content": message])
 
         Task { @MainActor in
@@ -374,7 +827,8 @@ struct AIChatbotView: View {
             case .success(let content):
                 completion(content)
             case .failure(let error):
-                completion("Error: \(error.localizedDescription)")
+                AppLog.ai.error("Maia chat request failed: \(error.localizedDescription, privacy: .public)")
+                completion("I couldn't reach Maia's deeper model right now. Based on your logged day, focus first on protein, hydration, and a simple meal that fits your remaining calories.")
             }
         }
     }
@@ -438,11 +892,11 @@ struct AIChatbotView: View {
         let foodName = extractFoodName(from: recipeText)
         let loggedFoodItem = FoodItem(id: UUID().uuidString, name: foodName, calories: calories, protein: protein, carbs: carbs, fats: fats, servingSize: "1 serving (AI Est.)", servingWeight: 0, timestamp: Date(), calcium: calcium, iron: iron, potassium: potassium, sodium: sodium, vitaminA: vitaminA, vitaminC: vitaminC, vitaminD: vitaminD)
         let mealType = determineMealType()
-        dailyLogService.addMealToCurrentLog(for: userID, mealName: mealType, foodItems: [loggedFoodItem])
+        dailyLogService.addMealToLog(for: userID, date: dailyLogService.activelyViewedDate, mealName: mealType, foodItems: [loggedFoodItem], source: "ai_chat")
         let haptic = UINotificationFeedbackGenerator(); haptic.notificationOccurred(.success); alertMessage = "\(foodName) logged!"; showAlert = true
         Task { @MainActor in self.achievementService.checkFeatureUsedAchievement(userID: userID, featureType: .aiRecipeLogged) }
     }
-    
+
     private func parseNutrient(from text: String, for nutrient: String) -> Double? {
         do {
             let regex = try NSRegularExpression(pattern: "\(nutrient):\\s*([\\d.]+)", options: .caseInsensitive)
@@ -451,10 +905,12 @@ struct AIChatbotView: View {
                let range = Range(match.range(at: 1), in: text) {
                 return Double(text[range])
             }
-        } catch {}
+        } catch {
+            AppLog.ai.error("Failed to parse nutrient \(nutrient, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
         return nil
     }
-    
+
     private func parseNutritionalBreakdown(from recipeText: String) -> [String: Double] {
         var breakdown: [String: Double] = [:]
         breakdown["calories"] = parseNutrient(from: recipeText, for: "Calories")
@@ -472,7 +928,7 @@ struct AIChatbotView: View {
     }
 
     private func determineMealType() -> String { let h = Calendar.current.component(.hour, from: Date()); switch h { case 0..<4: return "Snack"; case 4..<11: return "Breakfast"; case 11..<16: return "Lunch"; case 16..<21: return "Dinner"; default: return "Snack" } }
-    
+
     private func loadMessages() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         let key = "chatHistory_\(userID)"
@@ -487,7 +943,7 @@ struct AIChatbotView: View {
         let key = "chatHistory_\(userID)"
         let max = 12
         let messagesToSave = Array(chatMessages.suffix(max))
-        
+
         if let encoded = try? JSONEncoder().encode(messagesToSave) {
             UserDefaults.standard.set(encoded, forKey: key)
         }

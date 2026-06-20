@@ -1,5 +1,11 @@
 import Foundation
 import AVFoundation
+import OSLog
+
+private let watchTTSLog = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "MyFitPlateWatch",
+    category: "TTS"
+)
 
 class TTSManager: NSObject {
     static let shared = TTSManager()
@@ -44,7 +50,7 @@ class TTSManager: NSObject {
 
         URLSession.shared.dataTask(with: request) { data, _, error in
             if let error = error {
-                print("❌ Google TTS error: \(error.localizedDescription)")
+                watchTTSLog.error("Google TTS request failed: \(error.localizedDescription, privacy: .public)")
                 completion(false)
                 return
             }
@@ -52,7 +58,7 @@ class TTSManager: NSObject {
             guard let data = data,
                   let response = try? JSONDecoder().decode(GoogleTTSResponse.self, from: data),
                   let audioData = Data(base64Encoded: response.audioContent) else {
-                print("❌ Failed to decode TTS response")
+                watchTTSLog.error("Failed to decode TTS response.")
                 completion(false)
                 return
             }
@@ -79,7 +85,7 @@ class TTSManager: NSObject {
             self.audioPlayer?.prepareToPlay()
             self.audioPlayer?.play()
         } catch {
-            print("🎵 Audio error: \(error.localizedDescription)")
+            watchTTSLog.error("Failed to play TTS audio: \(error.localizedDescription, privacy: .public)")
         }
     }
 

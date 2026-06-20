@@ -1,6 +1,10 @@
 import Foundation
 
-// A simple struct to hold the data our widget needs.
+private enum SharedDataKeys {
+    static let appGroup = "group.com.peterandrews.CalorieBeta"
+    static let widgetData = "widgetData"
+}
+
 struct WidgetData: Codable {
     let calories: Double
     let calorieGoal: Double
@@ -10,31 +14,33 @@ struct WidgetData: Codable {
     let carbsGoal: Double
     let fats: Double
     let fatGoal: Double
+    var lastUpdated: Date? = nil
+    var macroCalorieDelta: Double? = nil
 
-    // A static property for placeholder data used in previews.
     static var previewData: WidgetData {
-        .init(calories: 1250, calorieGoal: 2400, protein: 110, proteinGoal: 150, carbs: 180, carbsGoal: 250, fats: 25, fatGoal: 70)
+        .init(calories: 1250, calorieGoal: 2400, protein: 110, proteinGoal: 150, carbs: 180, carbsGoal: 250, fats: 25, fatGoal: 70, lastUpdated: Date(), macroCalorieDelta: nil)
     }
 }
 
-// This manager handles saving and loading widget data to the shared space.
 struct SharedDataManager {
-    // The location of our shared data.
     static let shared = SharedDataManager()
-    private let userDefaults = UserDefaults(suiteName: "group.com.peterandrews.CalorieBeta") // <-- IMPORTANT: Use your App Group name here
+    private let userDefaults = UserDefaults(suiteName: SharedDataKeys.appGroup)
 
-    // Saves the widget data.
-    func saveData(_ data: WidgetData) {
-        guard let userDefaults = userDefaults else { return }
-        if let encodedData = try? JSONEncoder().encode(data) {
-            userDefaults.set(encodedData, forKey: "widgetData")
+    func saveData(_ data: WidgetData) -> Bool {
+        guard let userDefaults = userDefaults else { return false }
+
+        do {
+            let encodedData = try JSONEncoder().encode(data)
+            userDefaults.set(encodedData, forKey: SharedDataKeys.widgetData)
+            return true
+        } catch {
+            return false
         }
     }
 
-    // Loads the widget data.
     func loadData() -> WidgetData? {
         guard let userDefaults = userDefaults,
-              let data = userDefaults.data(forKey: "widgetData") else {
+              let data = userDefaults.data(forKey: SharedDataKeys.widgetData) else {
             return nil
         }
         return try? JSONDecoder().decode(WidgetData.self, from: data)

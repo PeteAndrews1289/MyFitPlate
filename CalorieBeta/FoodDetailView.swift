@@ -76,6 +76,14 @@ struct FoodDetailView: View {
         return availableServings.first { $0.id == selectedID }
     }
 
+    private var isShowingDetailsLoading: Bool {
+        isLoadingDetails && !isLoggedItem && source != "recent_tap" && source != "search_result_no_detail_fetch"
+    }
+
+    private var canChangeServing: Bool {
+        !isLoggedItem || source == "recent_tap" || source == "image_result_edit" || (availableServings.count > 1 && source != "log_swipe_direct_edit_no_picker")
+    }
+
     // MARK: - Adjusted Nutrients Calculation
     // Now returns structured data (quantityValue, servingUnit) alongside the strings.
     private var adjustedNutrients: (
@@ -205,104 +213,64 @@ struct FoodDetailView: View {
         )
     }
 
+    private var adjustedConsistencyStatus: NutritionCalorieConsistency.Status {
+        let nutrients = adjustedNutrients
+        return NutritionCalorieConsistency.status(
+            calories: nutrients.calories,
+            protein: nutrients.protein,
+            carbs: nutrients.carbs,
+            fats: nutrients.fats
+        )
+    }
+
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                VStack {
-                    Text(FoodEmojiMapper.getEmoji(for: foodName) + " " + foodName)
-                        .appFont(size: 22, weight: .bold)
-                        .multilineTextAlignment(.center)
-                        .padding(.top)
-                        .padding(.horizontal)
-                    Text("Serving: \(adjustedNutrients.servingDescription)")
-                        .appFont(size: 15)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .padding(.bottom, 8)
-                }.padding(.bottom, 5)
-                Divider()
-                Form {
-                    Section(header: Text("Nutritional Information (Adjusted for Quantity)"), footer: labelScannerButton) {
-                        if isLoadingDetails && !isLoggedItem && source != "recent_tap" && source != "search_result_no_detail_fetch" { ProgressView() }
-                        else if let error = errorLoading { Text("Error loading details: \(error)").foregroundColor(.red) }
-                        else {
-                            let nutrients = adjustedNutrients
-                            let totalUnsaturatedFat = nutrients.fats - (nutrients.saturatedFat ?? 0)
+                ScrollView {
+                    VStack(spacing: 16) {
+                        FoodDetailHeroCard(
+                            foodName: foodName,
+                            servingDescription: adjustedNutrients.servingDescription
+                        )
 
-                            nutrientRow(label: "Calories", value: String(format: "%.0f cal", nutrients.calories))
-                            nutrientRow(label: "Carbs", value: String(format: "%.1f g", nutrients.carbs))
-                            nutrientRow(label: "Protein", value: String(format: "%.1f g", nutrients.protein))
-                            nutrientRow(label: "Total Fat", value: String(format: "%.1f g", nutrients.fats))
-                            
-                            DisclosureGroup("Fat & Fiber Details") {
-                                nutrientRow(label: "Saturated Fat", value: nutrients.saturatedFat, unit: "g")
-                                nutrientRow(label: "Polyunsaturated Fat", value: nutrients.polyunsaturatedFat, unit: "g")
-                                nutrientRow(label: "Monounsaturated Fat", value: nutrients.monounsaturatedFat, unit: "g")
-                                nutrientRow(label: "Unsaturated Fat", value: totalUnsaturatedFat > 0 ? totalUnsaturatedFat : nil, unit: "g")
-                                nutrientRow(label: "Dietary Fiber", value: nutrients.fiber, unit: "g")
+                        if isShowingDetailsLoading {
+                            FoodDetailLoadingCard()
+                        } else {
+                            if let error = errorLoading {
+                                FoodDetailNoticeCard(
+                                    title: "Serving details could not fully refresh",
+                                    message: error
+                                )
                             }
-                            
-                            DisclosureGroup("Vitamins & Minerals") {
-                                nutrientRow(label: "Calcium", value: nutrients.calcium, unit: "mg", specifier: "%.0f")
-                                nutrientRow(label: "Iron", value: nutrients.iron, unit: "mg", specifier: "%.1f")
-                                nutrientRow(label: "Potassium", value: nutrients.potassium, unit: "mg", specifier: "%.0f")
-                                nutrientRow(label: "Sodium", value: nutrients.sodium, unit: "mg", specifier: "%.0f")
-                                nutrientRow(label: "Vitamin A", value: nutrients.vitaminA, unit: "mcg", specifier: "%.0f")
-                                nutrientRow(label: "Vitamin C", value: nutrients.vitaminC, unit: "mg", specifier: "%.0f")
-                                nutrientRow(label: "Vitamin D", value: nutrients.vitaminD, unit: "mcg", specifier: "%.0f")
-                                nutrientRow(label: "Vitamin B12", value: nutrients.vitaminB12, unit: "mcg", specifier: "%.1f")
-                                nutrientRow(label: "Folate", value: nutrients.folate, unit: "mcg", specifier: "%.0f")
-                                nutrientRow(label: "Magnesium", value: nutrients.magnesium, unit: "mg", specifier: "%.0f")
-                                nutrientRow(label: "Phosphorus", value: nutrients.phosphorus, unit: "mg", specifier: "%.0f")
-                                nutrientRow(label: "Zinc", value: nutrients.zinc, unit: "mg", specifier: "%.1f")
-                                nutrientRow(label: "Copper", value: nutrients.copper, unit: "mcg", specifier: "%.0f")
-                                nutrientRow(label: "Manganese", value: nutrients.manganese, unit: "mg", specifier: "%.1f")
-                                nutrientRow(label: "Selenium", value: nutrients.selenium, unit: "mcg", specifier: "%.0f")
-                                nutrientRow(label: "Vitamin B1", value: nutrients.vitaminB1, unit: "mg", specifier: "%.1f")
-                                nutrientRow(label: "Vitamin B2", value: nutrients.vitaminB2, unit: "mg", specifier: "%.1f")
-                                nutrientRow(label: "Vitamin B3", value: nutrients.vitaminB3, unit: "mg", specifier: "%.1f")
-                                nutrientRow(label: "Vitamin B5", value: nutrients.vitaminB5, unit: "mg", specifier: "%.1f")
-                                nutrientRow(label: "Vitamin B6", value: nutrients.vitaminB6, unit: "mg", specifier: "%.1f")
-                                nutrientRow(label: "Vitamin E", value: nutrients.vitaminE, unit: "mg", specifier: "%.1f")
-                                nutrientRow(label: "Vitamin K", value: nutrients.vitaminK, unit: "mcg", specifier: "%.0f")
+
+                            FoodDetailMacroGrid(
+                                calories: adjustedNutrients.calories,
+                                protein: adjustedNutrients.protein,
+                                carbs: adjustedNutrients.carbs,
+                                fats: adjustedNutrients.fats
+                            )
+
+                            let consistencyStatus = adjustedConsistencyStatus
+                            if consistencyStatus.hasMeaningfulMismatch {
+                                NutritionConsistencyNoticeCard(status: consistencyStatus, style: .detail)
                             }
+
+                            servingControlsCard
+                            nutritionDetailsCard
+                            FoodDetailLabelScanCard { showingImagePicker = true }
                         }
                     }
-                    Section(header: Text("Adjust Serving")) {
-                        HStack {
-                            Text(isLoggedItem ? "Number of Logged Servings" : "Number of Servings")
-                            Spacer()
-                            TextField("Quantity", text: $quantity).keyboardType(.decimalPad).textFieldStyle(RoundedBorderTextFieldStyle()).frame(width: 80).multilineTextAlignment(.trailing)
-                        }
-                        if !isLoggedItem || source == "recent_tap" || source == "image_result_edit" || (availableServings.count > 1 && source != "log_swipe_direct_edit_no_picker") {
-                            if !availableServings.isEmpty {
-                                Menu {
-                                    ForEach(availableServings) { option in
-                                        Button(option.description) {
-                                            selectedServingID = option.id
-                                        }
-                                    }
-                                } label: {
-                                    HStack {
-                                        Text("Serving Size")
-                                            .foregroundColor(.textPrimary)
-                                        Spacer()
-                                        Text(selectedServingOption?.description ?? "Select...")
-                                            .foregroundColor(Color(UIColor.secondaryLabel))
-                                    }
-                                }
-                            } else if !isLoadingDetails { Text("No other serving sizes available.").appFont(size: 12).foregroundColor(Color(UIColor.secondaryLabel)) }
-                        } else if let baseNutrients = baseLoggedItemNutrientsPerUnit {
-                            Text("Base Serving: \(baseNutrients.description)")
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                        }
-                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 12)
                 }
-                Button(buttonText()) {
-                    handleButtonAction()
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(!logButtonEnabled)
-                .padding()
+                .scrollDismissesKeyboard(.interactively)
+
+                FoodDetailActionBar(
+                    title: buttonText(),
+                    isEnabled: logButtonEnabled,
+                    action: handleButtonAction
+                )
             }.blur(radius: isProcessingLabel ? 3 : 0)
             
             if isProcessingLabel {
@@ -344,6 +312,141 @@ struct FoodDetailView: View {
         } message: {
             Text(scanError.1)
         }
+    }
+
+    @ViewBuilder private var servingControlsCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Serving")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(.textPrimary)
+
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(isLoggedItem ? "Logged servings" : "Number of servings")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+
+                    TextField("Quantity", text: $quantity)
+                        .keyboardType(.decimalPad)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(.textPrimary)
+                        .multilineTextAlignment(.leading)
+                }
+
+                Spacer()
+
+                Image(systemName: "number")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Color.brandPrimary.opacity(0.12), in: Circle())
+            }
+            .padding(14)
+            .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            if canChangeServing {
+                if !availableServings.isEmpty {
+                    Menu {
+                        ForEach(availableServings) { option in
+                            Button(option.description) {
+                                selectedServingID = option.id
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "fork.knife")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.brandPrimary)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Serving size")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+
+                                Text(selectedServingOption?.description ?? "Select...")
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundColor(.textPrimary)
+                                    .lineLimit(2)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(Color(UIColor.tertiaryLabel))
+                        }
+                        .padding(14)
+                        .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                } else if !isLoadingDetails {
+                    Text("No other serving sizes available.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+            } else if let baseNutrients = baseLoggedItemNutrientsPerUnit {
+                Text("Base serving: \(baseNutrients.description)")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            }
+        }
+        .padding(16)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    @ViewBuilder private var nutritionDetailsCard: some View {
+        let nutrients = adjustedNutrients
+        let totalUnsaturatedFat = nutrients.fats - (nutrients.saturatedFat ?? 0)
+
+        VStack(alignment: .leading, spacing: 13) {
+            Text("Nutrition Details")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(.textPrimary)
+
+            DisclosureGroup("Fat & Fiber") {
+                VStack(spacing: 8) {
+                    nutrientRow(label: "Saturated Fat", value: nutrients.saturatedFat, unit: "g")
+                    nutrientRow(label: "Polyunsaturated Fat", value: nutrients.polyunsaturatedFat, unit: "g")
+                    nutrientRow(label: "Monounsaturated Fat", value: nutrients.monounsaturatedFat, unit: "g")
+                    nutrientRow(label: "Unsaturated Fat", value: totalUnsaturatedFat > 0 ? totalUnsaturatedFat : nil, unit: "g")
+                    nutrientRow(label: "Dietary Fiber", value: nutrients.fiber, unit: "g")
+                }
+                .padding(.top, 8)
+            }
+
+            Divider().opacity(0.5)
+
+            DisclosureGroup("Vitamins & Minerals") {
+                VStack(spacing: 8) {
+                    nutrientRow(label: "Calcium", value: nutrients.calcium, unit: "mg", specifier: "%.0f")
+                    nutrientRow(label: "Iron", value: nutrients.iron, unit: "mg", specifier: "%.1f")
+                    nutrientRow(label: "Potassium", value: nutrients.potassium, unit: "mg", specifier: "%.0f")
+                    nutrientRow(label: "Sodium", value: nutrients.sodium, unit: "mg", specifier: "%.0f")
+                    nutrientRow(label: "Vitamin A", value: nutrients.vitaminA, unit: "mcg", specifier: "%.0f")
+                    nutrientRow(label: "Vitamin C", value: nutrients.vitaminC, unit: "mg", specifier: "%.0f")
+                    nutrientRow(label: "Vitamin D", value: nutrients.vitaminD, unit: "mcg", specifier: "%.0f")
+                    nutrientRow(label: "Vitamin B12", value: nutrients.vitaminB12, unit: "mcg", specifier: "%.1f")
+                    nutrientRow(label: "Folate", value: nutrients.folate, unit: "mcg", specifier: "%.0f")
+                    nutrientRow(label: "Magnesium", value: nutrients.magnesium, unit: "mg", specifier: "%.0f")
+                    nutrientRow(label: "Phosphorus", value: nutrients.phosphorus, unit: "mg", specifier: "%.0f")
+                    nutrientRow(label: "Zinc", value: nutrients.zinc, unit: "mg", specifier: "%.1f")
+                    nutrientRow(label: "Copper", value: nutrients.copper, unit: "mcg", specifier: "%.0f")
+                    nutrientRow(label: "Manganese", value: nutrients.manganese, unit: "mg", specifier: "%.1f")
+                    nutrientRow(label: "Selenium", value: nutrients.selenium, unit: "mcg", specifier: "%.0f")
+                    nutrientRow(label: "Vitamin B1", value: nutrients.vitaminB1, unit: "mg", specifier: "%.1f")
+                    nutrientRow(label: "Vitamin B2", value: nutrients.vitaminB2, unit: "mg", specifier: "%.1f")
+                    nutrientRow(label: "Vitamin B3", value: nutrients.vitaminB3, unit: "mg", specifier: "%.1f")
+                    nutrientRow(label: "Vitamin B5", value: nutrients.vitaminB5, unit: "mg", specifier: "%.1f")
+                    nutrientRow(label: "Vitamin B6", value: nutrients.vitaminB6, unit: "mg", specifier: "%.1f")
+                    nutrientRow(label: "Vitamin E", value: nutrients.vitaminE, unit: "mg", specifier: "%.1f")
+                    nutrientRow(label: "Vitamin K", value: nutrients.vitaminK, unit: "mcg", specifier: "%.0f")
+                }
+                .padding(.top, 8)
+            }
+        }
+        .tint(.brandPrimary)
+        .padding(16)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private var labelScannerButton: some View {
@@ -424,7 +527,7 @@ struct FoodDetailView: View {
         guard let quantityValue = Double(quantity), quantityValue > 0 else { return }
         
         let finalNutrients = adjustedNutrients
-        let updatedFoodItem = FoodItem(
+        let rawUpdatedFoodItem = FoodItem(
             id: initialFoodItem.id,
             name: foodName, calories: finalNutrients.calories,
             protein: finalNutrients.protein, carbs: finalNutrients.carbs, fats: finalNutrients.fats,
@@ -445,6 +548,7 @@ struct FoodDetailView: View {
             quantityValue: finalNutrients.quantityValue,
             servingUnit: finalNutrients.servingUnit
         )
+        let updatedFoodItem = rawUpdatedFoodItem.normalizedForEstimatedSource(source)
         onUpdate(updatedFoodItem)
         dismiss()
     }
@@ -466,7 +570,7 @@ struct FoodDetailView: View {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         let finalNutrients = adjustedNutrients
         
-        let itemToSave = FoodItem(
+        let rawItemToSave = FoodItem(
             id: UUID().uuidString,
             name: foodName,
             calories: finalNutrients.calories, protein: finalNutrients.protein, carbs: finalNutrients.carbs, fats: finalNutrients.fats,
@@ -483,7 +587,8 @@ struct FoodDetailView: View {
             quantityValue: finalNutrients.quantityValue,
             servingUnit: finalNutrients.servingUnit
         )
-        
+        let itemToSave = rawItemToSave.normalizedForEstimatedSource(source)
+
         dailyLogService.saveCustomFood(for: userID, foodItem: itemToSave) { success in
             Task { @MainActor in
                 if success {
@@ -755,7 +860,7 @@ struct FoodDetailView: View {
 
     // MARK: - Save Data (Robust)
     private func logAdjustedFood() {
-        guard let userID = Auth.auth().currentUser?.uid, logButtonEnabled, let currentSelectedServing = selectedServingOption else { return }
+        guard let userID = Auth.auth().currentUser?.uid, logButtonEnabled, selectedServingOption != nil else { return }
         guard let quantityValue = Double(quantity), quantityValue > 0 else { return }
 
         dailyLogService.activelyViewedDate = self.date
@@ -782,7 +887,7 @@ struct FoodDetailView: View {
             }
         }
         
-        let loggedFoodItem = FoodItem(
+        let rawLoggedFoodItem = FoodItem(
             id: isLoggedItem ? initialFoodItem.id : UUID().uuidString,
             name: foodName, calories: finalNutrients.calories,
             protein: finalNutrients.protein, carbs: finalNutrients.carbs, fats: finalNutrients.fats,
@@ -799,11 +904,11 @@ struct FoodDetailView: View {
             copper: finalNutrients.copper, manganese: finalNutrients.manganese, selenium: finalNutrients.selenium,
             vitaminB1: finalNutrients.vitaminB1, vitaminB2: finalNutrients.vitaminB2, vitaminB3: finalNutrients.vitaminB3,
             vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK,
-            // SAVE NEW FIELDS
             quantityValue: finalNutrients.quantityValue,
             servingUnit: finalNutrients.servingUnit
         )
-        
+        let loggedFoodItem = rawLoggedFoodItem.normalizedForEstimatedSource(itemSourceToLog)
+
         if isLoggedItem {
             dailyLogService.updateFoodInCurrentLog(for: userID, updatedFoodItem: loggedFoodItem)
         } else {
@@ -824,4 +929,201 @@ struct FoodDetailView: View {
         HStack { Text(label).appFont(size: 15); Spacer(); Text(value).appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel)) }
     }
     private func hideKeyboard() { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+}
+
+private struct FoodDetailHeroCard: View {
+    let foodName: String
+    let servingDescription: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Text(FoodEmojiMapper.getEmoji(for: foodName))
+                .font(.system(size: 34))
+                .frame(width: 62, height: 62)
+                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text(foodName)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Label(servingDescription, systemImage: "scalemass.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(18)
+        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
+private struct FoodDetailMacroGrid: View {
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fats: Double
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            FoodDetailMacroTile(title: "Calories", value: "\(Int(calories.rounded()))", unit: "cal", icon: "flame.fill", color: .orange)
+            FoodDetailMacroTile(title: "Protein", value: String(format: "%.1f", protein), unit: "g", icon: "bolt.fill", color: .accentProtein)
+            FoodDetailMacroTile(title: "Carbs", value: String(format: "%.1f", carbs), unit: "g", icon: "leaf.fill", color: .accentCarbs)
+            FoodDetailMacroTile(title: "Fat", value: String(format: "%.1f", fats), unit: "g", icon: "drop.fill", color: .accentFats)
+        }
+    }
+}
+
+private struct FoodDetailMacroTile: View {
+    let title: String
+    let value: String
+    let unit: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(color)
+                    .frame(width: 30, height: 30)
+                    .background(color.opacity(0.12), in: Circle())
+
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(value)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+
+                    Text(unit)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct FoodDetailLoadingCard: View {
+    var body: some View {
+        VStack(spacing: 13) {
+            ProgressView()
+                .tint(.brandPrimary)
+
+            Text("Loading serving options")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.textPrimary)
+
+            Text("Pulling the most accurate nutrition details for this food.")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 36)
+        .padding(.horizontal, 18)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private struct FoodDetailNoticeCard: View {
+    let title: String
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.orange)
+                .frame(width: 34, height: 34)
+                .background(Color.orange.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.textPrimary)
+
+                Text(message)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct FoodDetailLabelScanCard: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: "camera.viewfinder")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Nutrition label looks different?")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.textPrimary)
+
+                    Text("Take a label photo to replace these numbers.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+            .padding(14)
+            .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct FoodDetailActionBar: View {
+    let title: String
+    let isEnabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(title, action: action)
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(!isEnabled)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
+        .background(Color.backgroundPrimary.opacity(0.98).ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.06))
+                .frame(height: 1)
+        }
+    }
 }

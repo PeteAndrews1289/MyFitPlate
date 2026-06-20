@@ -22,9 +22,6 @@ struct LandingPageView: View {
                     .frame(width: 120, height: 120) // Sets a fixed size for the logo.
                     .clipShape(Circle()) // Clips the image into a circle.
                     .overlay(Circle().stroke(Color.green, lineWidth: 2)) // Adds a green border.
-                    .onAppear {
-                        print("Loading mfp logo image") // Logs when the image is loaded for debugging.
-                    }
 
                 // Displays the app name.
                 Text("MyFitPlate")
@@ -55,7 +52,7 @@ struct LandingPageView: View {
 
     // Loads initial data, checking authentication status and triggering further loading if needed.
     private func loadData() {
-        guard let userID = Auth.auth().currentUser?.uid else { // Checks if a user is authenticated.
+        guard Auth.auth().currentUser?.uid != nil else { // Checks if a user is authenticated.
             errorMessage = "User not authenticated. Please log in." // Sets error if no user.
             return
         }

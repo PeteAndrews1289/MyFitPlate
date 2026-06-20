@@ -76,7 +76,7 @@ class AIService {
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
                 // If server error (5xx), retry
                 if retryCount > 0 && httpResponse.statusCode >= 500 {
-                    print("⚠️ AIService: Server error \(httpResponse.statusCode). Retrying...")
+                    AppLog.ai.warning("AI request returned server status \(httpResponse.statusCode, privacy: .public). Retrying.")
                     try await Task.sleep(nanoseconds: 1_000_000_000) // Sleep 1s
                     return await performRequest(messages: messages, model: model, maxTokens: maxTokens, temperature: temperature, responseFormat: responseFormat, retryCount: retryCount - 1)
                 }
@@ -103,7 +103,7 @@ class AIService {
 
         } catch {
             if retryCount > 0 {
-                print("⚠️ AIService: Network error. Retrying... (\(error.localizedDescription))")
+                AppLog.ai.warning("AI request failed with network error. Retrying: \(error.localizedDescription, privacy: .public)")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 return await performRequest(messages: messages, model: model, maxTokens: maxTokens, temperature: temperature, responseFormat: responseFormat, retryCount: retryCount - 1)
             }

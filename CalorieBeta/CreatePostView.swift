@@ -40,7 +40,7 @@ struct CreatePostView: View {
 
         db.collection("users").document(userID).getDocument { document, error in
             if let error = error {
-                print("Error fetching username: \(error.localizedDescription)")
+                AppLog.social.error("Failed to fetch username for post creation: \(error.localizedDescription, privacy: .public)")
                 return
             }
 
@@ -60,7 +60,7 @@ struct CreatePostView: View {
                 onPostCreated(newPost)
                 dismiss()
             } else {
-                print("Username not found for user \(userID).")
+                AppLog.social.warning("Username missing for user \(userID, privacy: .private).")
             }
         }
     }

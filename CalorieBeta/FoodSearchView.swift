@@ -6,36 +6,38 @@ struct FoodSearchView: View {
     var onFoodItemLogged: (() -> Void)?
     var onFoodItemSelected: ((FoodItem) -> Void)?
     var searchContext: String
-    
+
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
-    
+
     @State private var searchText = ""
     @State private var selectedMeal: String = "Breakfast"
     private let foodTypes = ["Breakfast", "Lunch", "Dinner", "Snacks"]
-    
+
     @State private var showingAddFoodManually = false
     @State private var showingBarcodeScanner = false
     @State private var showingImagePicker = false
     @State private var showingAskMaia = false
-    
+
     @State private var searchResults: [FoodItem] = []
     @State private var isLoading = false
+    @State private var activeSearchQuery = ""
+    @State private var quickLoggedFoodIDs: Set<String> = []
     @State private var debounceTimer: Timer?
     @State private var selectedFoodItem: FoodItem? = nil
-    
+
     @State private var isProcessingImage = false
     @State private var isSearchingAfterScan = false
     @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems? = nil
     @State private var scannedFoodItem: FoodItem? = nil
     @State private var scanError: (Bool, String) = (false, "")
-    
+
     private let foodAPIService = FatSecretFoodAPIService()
     private let imageModel = MLImageModel()
-    
+
     @State private var recentFoods: [FoodItem] = []
     @State private var recommendedFoods: [FoodItem] = []
-    
+
     private var isSearching: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -43,50 +45,82 @@ struct FoodSearchView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                VStack(spacing: 0) {
-                    HStack {
-                        TextField("Search for a food...", text: $searchText)
-                            .padding(8)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(8)
-                            .onChange(of: searchText) { newValue in
-                                handleSearchQueryChange(newValue)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        FoodSearchHeader(
+                            searchText: $searchText,
+                            placeholder: onFoodItemSelected == nil ? "Search foods, meals, brands..." : "Search ingredients...",
+                            onClear: {
+                                searchText = ""
+                                handleSearchQueryChange("")
                             }
-                    }
-                    .padding(.horizontal)
-                    
-                    if onFoodItemSelected == nil {
-                        HStack(spacing: 12) {
-                            actionButton(title: "Log with Camera", icon: "camera.fill") { showingImagePicker = true }
-                            actionButton(title: "Scan Barcode", icon: "barcode.viewfinder") { showingBarcodeScanner = true }
-                            actionButton(title: "Ask Maia!", icon: "person.fill.questionmark") { showingAskMaia = true }
+                        )
+                        .onChange(of: searchText) { _, newValue in
+                            handleSearchQueryChange(newValue)
                         }
-                        .padding()
 
-                        Picker("Log to", selection: $selectedMeal) {
-                            ForEach(foodTypes, id: \.self) { Text($0) }
+                        if onFoodItemSelected == nil {
+                            FoodSearchActionGrid(
+                                cameraAction: { showingImagePicker = true },
+                                barcodeAction: { showingBarcodeScanner = true },
+                                maiaAction: { showingAskMaia = true }
+                            )
+
+                            FoodSearchMealPicker(selectedMeal: $selectedMeal, foodTypes: foodTypes)
                         }
-                        .pickerStyle(SegmentedPickerStyle())
-                        .padding(.horizontal)
-                        .padding(.bottom, 10)
-                    }
 
-                    List {
                         if isSearching {
                             if isLoading {
-                                ProgressView()
+                                FoodSearchLoadingState(query: searchText)
                             } else if searchResults.isEmpty {
-                                Text("No results found for \"\(searchText)\"")
+                                FoodSearchEmptyState(
+                                    icon: "magnifyingglass",
+                                    title: "No foods found",
+                                    message: "Try a simpler search like \"chicken breast\" or use Manual to add it yourself."
+                                )
                             } else {
-                                SearchResultsSection(results: searchResults, onSelect: handleSelection)
+                                FoodPickerSection(
+                                    title: "Search Results",
+                                    subtitle: "Tap a food to review servings before logging.",
+                                    foods: searchResults,
+                                    quickLoggedFoodIDs: [],
+                                    emptyTitle: "",
+                                    emptyMessage: "",
+                                    onSelect: handleSelection,
+                                    onQuickLog: nil,
+                                    onDelete: nil
+                                )
                             }
                         } else {
-                            RecommendedSection(foods: recommendedFoods, onSelect: handleSelection)
-                            RecentSection(foods: $recentFoods, onDelete: deleteRecent, onSelect: handleSelection)
+                            FoodHorizontalScroller(
+                                title: "Recommended for \(selectedMeal)",
+                                subtitle: "Common picks based on your recent logging.",
+                                foods: recommendedFoods,
+                                quickLoggedFoodIDs: quickLoggedFoodIDs,
+                                emptyTitle: "No recommendations yet",
+                                emptyMessage: "Log a few \(selectedMeal.lowercased()) foods and this area will become faster.",
+                                onSelect: handleSelection,
+                                onQuickLog: onFoodItemSelected == nil ? quickLog : nil
+                            )
+
+                            FoodHorizontalScroller(
+                                title: "Recent Foods",
+                                subtitle: "Your fastest path for repeat meals.",
+                                foods: recentFoods,
+                                quickLoggedFoodIDs: quickLoggedFoodIDs,
+                                emptyTitle: "No recent foods",
+                                emptyMessage: "Foods you log will appear here for one-tap reuse.",
+                                onSelect: handleSelection,
+                                onQuickLog: onFoodItemSelected == nil ? quickLog : nil
+                            )
                         }
                     }
-                    .listStyle(.insetGrouped)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 28)
                 }
+                .background(Color.backgroundPrimary.ignoresSafeArea())
+                .scrollDismissesKeyboard(.interactively)
                 .navigationTitle(onFoodItemSelected == nil ? "Log Food" : "Select Ingredient")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -96,7 +130,7 @@ struct FoodSearchView: View {
                     }
                 }
                 .onAppear(perform: fetchData)
-                .onChange(of: selectedMeal) { _ in
+                .onChange(of: selectedMeal) {
                     fetchRecommendedFoods()
                 }
                 .sheet(isPresented: $showingAddFoodManually) {
@@ -172,7 +206,7 @@ struct FoodSearchView: View {
                      AISummaryView(estimatedItems: .constant(wrapper.items))
                 }
                 .alert("Scan Error", isPresented: $scanError.0) { Button("OK") { } } message: { Text(scanError.1) }
-                
+
                 if isProcessingImage || isSearchingAfterScan {
                     Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
                     ProgressView(isProcessingImage ? "Analyzing Image..." : "Searching Barcode...")
@@ -185,7 +219,7 @@ struct FoodSearchView: View {
             }
         }
     }
-    
+
     private func handleSelection(food: FoodItem) {
         if let selectionHandler = onFoodItemSelected {
             isSearchingAfterScan = true
@@ -195,40 +229,39 @@ struct FoodSearchView: View {
                 case .success(let (detailedFood, _)):
                     selectionHandler(detailedFood)
                 case .failure(let error):
-                    print("Error fetching details: \(error)")
+                    AppLog.data.error("Failed to fetch food details: \(error.localizedDescription, privacy: .public)")
                 }
             }
         } else {
             self.selectedFoodItem = food
         }
     }
-    
-    private func actionButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.title3)
-                Text(title)
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity, minHeight: 55)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 10)
-            .background(Color.brandPrimary)
-            .foregroundColor(.white)
-            .cornerRadius(8)
+
+    private func quickLog(food: FoodItem) {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        let sourceFoodID = food.id
+        var itemToLog = food
+        itemToLog.id = UUID().uuidString
+        itemToLog.timestamp = Date()
+        dailyLogService.addMealToCurrentLog(for: userID, mealName: selectedMeal, foodItems: [itemToLog])
+        quickLoggedFoodIDs.insert(sourceFoodID)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            quickLoggedFoodIDs.remove(sourceFoodID)
         }
+        HapticManager.instance.feedback(.medium)
+        onFoodItemLogged?()
     }
 
     private func handleSearchQueryChange(_ newValue: String) {
         debounceTimer?.invalidate()
         let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
+            activeSearchQuery = ""
             searchResults = []
             isLoading = false
             return
         }
+        activeSearchQuery = trimmed
         isLoading = true
         debounceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
             searchByQuery(query: trimmed)
@@ -238,6 +271,7 @@ struct FoodSearchView: View {
     private func searchByQuery(query: String) {
         foodAPIService.fetchFoodByQuery(query: query) { result in
             DispatchQueue.main.async {
+                guard query == activeSearchQuery else { return }
                 isLoading = false
                 switch result {
                 case .success(let foodItems):
@@ -248,12 +282,12 @@ struct FoodSearchView: View {
             }
         }
     }
-    
+
     private func fetchData() {
         fetchRecents()
         fetchRecommendedFoods()
     }
-    
+
     private func fetchRecents() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         dailyLogService.fetchRecentFoodItems(for: userID) { result in
@@ -262,7 +296,7 @@ struct FoodSearchView: View {
             }
         }
     }
-    
+
     private func fetchRecommendedFoods() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         dailyLogService.fetchRecommendedFoods(for: userID, mealName: selectedMeal) { result in
@@ -271,79 +305,422 @@ struct FoodSearchView: View {
             }
         }
     }
-    
-    private func deleteRecent(at offsets: IndexSet) {
-        recentFoods.remove(atOffsets: offsets)
+
+    private func deleteRecent(food: FoodItem) {
+        recentFoods.removeAll { $0.id == food.id }
     }
 }
 
-private struct SearchResultsSection: View {
-    let results: [FoodItem]
-    let onSelect: (FoodItem) -> Void
+private struct FoodSearchHeader: View {
+    @Binding var searchText: String
+    let placeholder: String
+    let onClear: () -> Void
 
     var body: some View {
-        Section(header: Text("Search Results")) {
-            ForEach(results) { food in
-                Button(action: { onSelect(food) }) {
-                    HStack(spacing: 15) {
-                        Text(FoodEmojiMapper.getEmoji(for: food.name)).font(.title)
-                        VStack(alignment: .leading) {
-                            Text(food.name)
-                            Text(food.servingSize).font(.caption).foregroundColor(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .foregroundColor(.primary)
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.brandPrimary)
+
+            TextField(placeholder, text: $searchText)
+                .textInputAutocapitalization(.words)
+                .submitLabel(.search)
+
+            if !searchText.isEmpty {
+                Button(action: onClear) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
             }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+    }
+}
+
+private struct FoodSearchActionGrid: View {
+    let cameraAction: () -> Void
+    let barcodeAction: () -> Void
+    let maiaAction: () -> Void
+
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+            FoodSearchActionTile(title: "Camera", subtitle: "Snap meal", icon: "camera.fill", action: cameraAction)
+            FoodSearchActionTile(title: "Barcode", subtitle: "Scan label", icon: "barcode.viewfinder", action: barcodeAction)
+            FoodSearchActionTile(title: "Maia", subtitle: "Ask AI", icon: "sparkles", action: maiaAction)
         }
     }
 }
 
-private struct RecommendedSection: View {
+private struct FoodSearchActionTile: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 9) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 34, height: 34)
+                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.textPrimary)
+                        .lineLimit(1)
+
+                    Text(subtitle)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+            .padding(12)
+            .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct FoodSearchMealPicker: View {
+    @Binding var selectedMeal: String
+    let foodTypes: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Log to")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(Color(UIColor.secondaryLabel))
+
+            HStack(spacing: 7) {
+                ForEach(foodTypes, id: \.self) { meal in
+                    Button {
+                        selectedMeal = meal
+                    } label: {
+                        Text(meal)
+                            .font(.system(size: 12, weight: .bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.74)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                selectedMeal == meal ? Color.brandPrimary.opacity(0.14) : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            )
+                            .foregroundColor(selectedMeal == meal ? .brandPrimary : Color(UIColor.secondaryLabel))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(5)
+            .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+        }
+    }
+}
+
+private struct FoodPickerSection: View {
+    let title: String
+    let subtitle: String
     let foods: [FoodItem]
+    let quickLoggedFoodIDs: Set<String>
+    let emptyTitle: String
+    let emptyMessage: String
     let onSelect: (FoodItem) -> Void
+    let onQuickLog: ((FoodItem) -> Void)?
+    let onDelete: ((FoodItem) -> Void)?
 
     var body: some View {
-        Section(header: Text("Recommended")) {
-            ForEach(foods) { food in
-                Button(action: { onSelect(food) }) {
-                    HStack(spacing: 15) {
-                        Text(FoodEmojiMapper.getEmoji(for: food.name)).font(.title)
-                        VStack(alignment: .leading) {
-                            Text(food.name)
-                            Text("\(Int(food.calories)) cal").font(.caption).foregroundColor(.secondary)
-                        }
-                        Spacer()
+        VStack(alignment: .leading, spacing: 11) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.textPrimary)
+
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+            }
+
+            if foods.isEmpty {
+                FoodSearchEmptyState(icon: "tray", title: emptyTitle, message: emptyMessage)
+            } else {
+                VStack(spacing: 9) {
+                    ForEach(foods) { food in
+                        FoodPickerRow(
+                            food: food,
+                            isQuickLogged: quickLoggedFoodIDs.contains(food.id),
+                            onSelect: onSelect,
+                            onQuickLog: onQuickLog,
+                            onDelete: onDelete
+                        )
                     }
-                    .foregroundColor(.primary)
                 }
             }
         }
     }
 }
 
-private struct RecentSection: View {
-    @Binding var foods: [FoodItem]
-    let onDelete: (IndexSet) -> Void
+private struct FoodPickerRow: View {
+    let food: FoodItem
+    let isQuickLogged: Bool
     let onSelect: (FoodItem) -> Void
+    let onQuickLog: ((FoodItem) -> Void)?
+    let onDelete: ((FoodItem) -> Void)?
+
+    private var detailText: String {
+        guard food.calories > 0 || food.protein > 0 || food.carbs > 0 || food.fats > 0 else {
+            return "Tap to review nutrition"
+        }
+
+        var parts: [String] = []
+        if food.calories > 0 { parts.append("\(Int(food.calories.rounded())) cal") }
+        if food.protein > 0 { parts.append("P \(Int(food.protein.rounded()))g") }
+        if food.carbs > 0 { parts.append("C \(Int(food.carbs.rounded()))g") }
+        if food.fats > 0 { parts.append("F \(Int(food.fats.rounded()))g") }
+        return parts.joined(separator: "  ")
+    }
+
+    private var servingText: String {
+        food.servingSize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Serving details" : food.servingSize
+    }
 
     var body: some View {
-        Section(header: Text("Recent")) {
-            ForEach(foods) { food in
-                Button(action: { onSelect(food) }) {
-                    HStack {
-                        Text(FoodEmojiMapper.getEmoji(for: food.name)).font(.title)
-                        VStack(alignment: .leading) {
-                            Text(food.name)
-                            Text("\(Int(food.calories)) cal").font(.caption).foregroundColor(.secondary)
-                        }
-                        Spacer()
+        HStack(spacing: 10) {
+            Button(action: { onSelect(food) }) {
+                HStack(spacing: 12) {
+                    Text(FoodEmojiMapper.getEmoji(for: food.name))
+                        .font(.system(size: 23))
+                        .frame(width: 42, height: 42)
+                        .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(food.name)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.textPrimary)
+                            .lineLimit(2)
+
+                        Text(servingText)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .lineLimit(1)
+
+                        Text(detailText)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.brandPrimary)
+                            .lineLimit(1)
                     }
-                    .foregroundColor(.primary)
+
+                    Spacer(minLength: 6)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if let onQuickLog {
+                Button(action: { onQuickLog(food) }) {
+                    Image(systemName: isQuickLogged ? "checkmark" : "plus")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(isQuickLogged ? Color.accentPositive : Color.brandPrimary, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isQuickLogged)
+                .accessibilityLabel("Quick log \(food.name)")
+            }
+
+            if let onDelete {
+                Button(role: .destructive, action: { onDelete(food) }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .frame(width: 34, height: 34)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove \(food.name) from recent foods")
+            }
+        }
+        .padding(12)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+        )
+    }
+}
+
+private struct FoodHorizontalScroller: View {
+    let title: String
+    let subtitle: String
+    let foods: [FoodItem]
+    let quickLoggedFoodIDs: Set<String>
+    let emptyTitle: String
+    let emptyMessage: String
+    let onSelect: (FoodItem) -> Void
+    let onQuickLog: ((FoodItem) -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.textPrimary)
+
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                 }
             }
-            .onDelete(perform: onDelete)
+
+            if foods.isEmpty {
+                FoodSearchEmptyState(icon: "tray", title: emptyTitle, message: emptyMessage)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(foods) { food in
+                            FoodCard(
+                                food: food,
+                                isQuickLogged: quickLoggedFoodIDs.contains(food.id),
+                                onSelect: onSelect,
+                                onQuickLog: onQuickLog
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 4)
+                }
+                .padding(.horizontal, -4)
+            }
         }
+    }
+}
+
+private struct FoodCard: View {
+    let food: FoodItem
+    let isQuickLogged: Bool
+    let onSelect: (FoodItem) -> Void
+    let onQuickLog: ((FoodItem) -> Void)?
+
+    var body: some View {
+        Button(action: { onSelect(food) }) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top) {
+                    Text(FoodEmojiMapper.getEmoji(for: food.name))
+                        .font(.system(size: 32))
+
+                    Spacer()
+
+                    if let onQuickLog = onQuickLog {
+                        Button(action: {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                            onQuickLog(food)
+                        }) {
+                            Image(systemName: isQuickLogged ? "checkmark.circle.fill" : "plus.circle.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(isQuickLogged ? .accentPositive : .brandPrimary)
+                        }
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(food.name)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.textPrimary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+
+                    Text("\(Int(food.calories.rounded())) cal")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+            }
+            .padding(14)
+            .frame(width: 140, height: 135)
+            .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct FoodSearchLoadingState: View {
+    let query: String
+
+    var body: some View {
+        VStack(spacing: 13) {
+            ProgressView()
+                .tint(.brandPrimary)
+
+            Text("Searching foods")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.textPrimary)
+
+            Text(query.trimmingCharacters(in: .whitespacesAndNewlines))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 34)
+        .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private struct FoodSearchEmptyState: View {
+    let icon: String
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 11) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.brandPrimary)
+                .frame(width: 48, height: 48)
+                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+
+            VStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.textPrimary)
+
+                Text(message)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 26)
+        .background(Color.backgroundSecondary.opacity(0.62), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }

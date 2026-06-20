@@ -20,7 +20,7 @@ struct AddExerciseView: View {
         
         if let exercise = exerciseToEdit {
             _exerciseName = State(initialValue: exercise.name)
-            _duration = State(initialValue: exercise.durationMinutes != nil ? "\(exercise.durationMinutes!)" : "")
+            _duration = State(initialValue: exercise.durationMinutes.map(String.init) ?? "")
             _caloriesBurned = State(initialValue: "\(Int(exercise.caloriesBurned))")
             _selectedDate = State(initialValue: exercise.date)
             _isEditing = State(initialValue: true)

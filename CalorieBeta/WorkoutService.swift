@@ -36,6 +36,8 @@ class WorkoutService: ObservableObject {
     private let db = Firestore.firestore()
     private var routineListener: ListenerRegistration?
     private var programListener: ListenerRegistration?
+    private var listenerUserID: String?
+    private let activeProgramIDKey = "activeWorkoutProgramID"
 
     init() {
         loadPreBuiltPrograms()
@@ -86,7 +88,7 @@ class WorkoutService: ObservableObject {
                 let logs = snapshot.documents.compactMap { try? $0.data(as: WorkoutSessionLog.self) }
                 allLogs.append(contentsOf: logs)
             } catch {
-                print("Error fetching session log chunk: \(error.localizedDescription)")
+                AppLog.workouts.error("Failed to fetch workout session log chunk: \(error.localizedDescription, privacy: .public)")
             }
         }
         return allLogs
@@ -94,23 +96,30 @@ class WorkoutService: ObservableObject {
 
     func fetchRoutinesAndPrograms() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
+        if listenerUserID == userID, routineListener != nil, programListener != nil {
+            return
+        }
+
+        programListener?.remove()
+        routineListener?.remove()
+        listenerUserID = userID
 
         self.programListener = programsCollectionRef(for: userID).order(by: "dateCreated", descending: true)
             .addSnapshotListener { querySnapshot, error in
                 guard let documents = querySnapshot?.documents else {
-                    print("Error fetching user programs: \(error?.localizedDescription ?? "Unknown error")")
+                    AppLog.workouts.error("Failed to fetch user programs: \(error?.localizedDescription ?? "Unknown error", privacy: .public)")
                     return
                 }
                 self.userPrograms = documents.compactMap { doc -> WorkoutProgram? in
                    try? doc.data(as: WorkoutProgram.self)
                 }
-                self.activeProgram = self.userPrograms.first
+                self.restoreActiveProgram()
             }
 
         self.routineListener = routinesCollectionRef(for: userID).order(by: "dateCreated", descending: true)
             .addSnapshotListener { querySnapshot, error in
                 guard let documents = querySnapshot?.documents else {
-                    print("Error fetching user routines: \(error?.localizedDescription ?? "Unknown error")")
+                    AppLog.workouts.error("Failed to fetch user routines: \(error?.localizedDescription ?? "Unknown error", privacy: .public)")
                     return
                 }
                 self.userRoutines = documents.compactMap { doc -> WorkoutRoutine? in
@@ -119,31 +128,53 @@ class WorkoutService: ObservableObject {
             }
     }
 
-    func saveProgram(_ program: WorkoutProgram) async {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+    deinit {
+        programListener?.remove()
+        routineListener?.remove()
+    }
+
+    func setActiveProgram(_ program: WorkoutProgram) {
+        activeProgram = program
+        if let programID = program.id {
+            UserDefaults.standard.set(programID, forKey: activeProgramIDKey)
+        }
+    }
+
+    @discardableResult
+    func saveProgram(_ program: WorkoutProgram) async -> WorkoutProgram? {
+        guard let userID = Auth.auth().currentUser?.uid else { return nil }
         var programToSave = program
         programToSave.userID = userID
 
         do {
-            let docRef = programToSave.id != nil ?
-                programsCollectionRef(for: userID).document(programToSave.id!) :
-                programsCollectionRef(for: userID).document()
+            let docRef: DocumentReference
+            if let programID = programToSave.id {
+                docRef = programsCollectionRef(for: userID).document(programID)
+            } else {
+                docRef = programsCollectionRef(for: userID).document()
+            }
             programToSave.id = docRef.documentID
-            try await docRef.setData(from: programToSave, merge: true)
+            try docRef.setData(from: programToSave, merge: true)
             
             if program.id == nil {
                 Analytics.logEvent("program_created", parameters: ["name": program.name])
             }
+            return programToSave
         } catch {
-            print("Error saving program: \(error.localizedDescription)")
+            AppLog.workouts.error("Failed to save workout program: \(error.localizedDescription, privacy: .public)")
+            return nil
         }
     }
 
     func deleteProgram(_ program: WorkoutProgram) {
         guard let userID = Auth.auth().currentUser?.uid, let programID = program.id else { return }
+        if activeProgram?.id == programID {
+            activeProgram = nil
+            UserDefaults.standard.removeObject(forKey: activeProgramIDKey)
+        }
         programsCollectionRef(for: userID).document(programID).delete { error in
              if let error = error {
-                 print("Error deleting program: \(error.localizedDescription)")
+                AppLog.workouts.error("Failed to delete workout program: \(error.localizedDescription, privacy: .public)")
              }
         }
     }
@@ -152,7 +183,7 @@ class WorkoutService: ObservableObject {
         guard let userID = Auth.auth().currentUser?.uid else {
             throw WorkoutServiceError.userNotLoggedIn
         }
-        var routineToSave = routine
+        let routineToSave = routine
         routineToSave.userID = userID
 
         do {
@@ -166,7 +197,7 @@ class WorkoutService: ObservableObject {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         routinesCollectionRef(for: userID).document(routine.id).delete { error in
              if let error = error {
-                 print("Error deleting routine: \(error.localizedDescription)")
+                 AppLog.workouts.error("Failed to delete workout routine: \(error.localizedDescription, privacy: .public)")
              }
         }
     }
@@ -174,12 +205,17 @@ class WorkoutService: ObservableObject {
     func saveWorkoutSessionLog(_ log: WorkoutSessionLog) async {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         do {
-            let docRef = log.id != nil ? sessionLogsCollectionRef(for: userID).document(log.id!) : sessionLogsCollectionRef(for: userID).document()
+            let docRef: DocumentReference
+            if let logID = log.id {
+                docRef = sessionLogsCollectionRef(for: userID).document(logID)
+            } else {
+                docRef = sessionLogsCollectionRef(for: userID).document()
+            }
             var logToSave = log
             logToSave.id = docRef.documentID
-            try await docRef.setData(from: logToSave)
+            try docRef.setData(from: logToSave)
         } catch {
-            print("Error saving workout session log: \(error.localizedDescription)")
+            AppLog.workouts.error("Failed to save workout session log: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -200,7 +236,7 @@ class WorkoutService: ObservableObject {
             return filteredLogs
 
         } catch {
-             print("Error fetching exercise history: \(error.localizedDescription)")
+            AppLog.workouts.error("Failed to fetch exercise history: \(error.localizedDescription, privacy: .public)")
             return []
         }
     }
@@ -220,7 +256,7 @@ class WorkoutService: ObservableObject {
              }
              return nil
         } catch {
-             print("Error fetching previous performance for \(exerciseName): \(error.localizedDescription)")
+            AppLog.workouts.error("Failed to fetch previous performance for \(exerciseName, privacy: .public): \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
@@ -236,6 +272,9 @@ class WorkoutService: ObservableObject {
         details: String,
         goalSettings: GoalSettings
     ) async -> Result<WorkoutProgram, WorkoutServiceError> {
+        guard let userID = Auth.auth().currentUser?.uid else {
+            return .failure(.userNotLoggedIn)
+        }
         
         let exerciseListJSON: String
         do {
@@ -327,10 +366,10 @@ class WorkoutService: ObservableObject {
                     "fitness_level": fitnessLevel
                 ])
                 
-                let program = mapResponseToProgram(decodedResponse)
+                let program = mapResponseToProgram(decodedResponse, userID: userID)
                 return .success(program)
             } catch {
-                 print("AI workout decoding error: \(error)")
+                AppLog.workouts.error("Failed to decode AI workout response: \(error.localizedDescription, privacy: .public)")
                 return .failure(.decodingError(error))
             }
         case .failure(let error):
@@ -338,9 +377,7 @@ class WorkoutService: ObservableObject {
         }
     }
     
-    private func mapResponseToProgram(_ response: AIProgramResponse) -> WorkoutProgram {
-        guard let userID = Auth.auth().currentUser?.uid else { fatalError("User not logged in.") }
-
+    private func mapResponseToProgram(_ response: AIProgramResponse, userID: String) -> WorkoutProgram {
         let routines = response.routines.map { aiRoutine -> WorkoutRoutine in
             let exercises = aiRoutine.exercises.map { aiExercise -> RoutineExercise in
                 let sets = aiExercise.sets.map { aiSet -> ExerciseSet in
@@ -365,49 +402,181 @@ class WorkoutService: ObservableObject {
         let systemUserID = "system_prebuilt"
         let now = Timestamp(date: Date())
 
-        let sl5x5_A = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Workout A", dateCreated: now, exercises: [RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Leg Press", "Goblet Squat"]), RoutineExercise(name: "Barbell Bench Press", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Dumbbell Bench Press", "Push-up"]), RoutineExercise(name: "Barbell Bent-over Row", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Dumbbell Row", "Seated Cable Row"])])
-        let sl5x5_B = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Workout B", dateCreated: now, exercises: [RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Leg Press", "Goblet Squat"]), RoutineExercise(name: "Barbell Overhead Press (Military Press)", type: .strength, sets: Array(repeating: ExerciseSet(target: "5 reps"), count: 5), alternatives: ["Dumbbell Shoulder Press", "Arnold Press"]), RoutineExercise(name: "Deadlift (Conventional)", type: .strength, sets: [ExerciseSet(target: "5 reps")], alternatives: ["Sumo Deadlift", "Romanian Deadlift (RDL)"])])
-        programs.append(WorkoutProgram(userID: systemUserID, name: "StrongLifts 5x5", dateCreated: now, routines: [sl5x5_A, sl5x5_B], daysOfWeek: [2, 4, 6]))
+        func exercise(
+            _ name: String,
+            target: String,
+            sets: Int = 3,
+            type: ExerciseType = .strength,
+            alternatives: [String]? = nil
+        ) -> RoutineExercise {
+            RoutineExercise(
+                name: name,
+                type: type,
+                sets: Array(repeating: ExerciseSet(target: target), count: sets),
+                alternatives: alternatives,
+                targetSets: sets,
+                targetReps: target
+            )
+        }
 
-        let bw_A = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Full Body Bodyweight A", dateCreated: now, exercises: [RoutineExercise(name: "Push-up", type: .strength, sets: Array(repeating: ExerciseSet(target: "AMRAP"), count: 3), alternatives: ["Incline Barbell Bench Press"]), RoutineExercise(name: "Barbell Back Squat", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Goblet Squat"]), RoutineExercise(name: "Plank", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "60 sec hold"), count: 3), alternatives: ["Crunch"]), RoutineExercise(name: "Lunge (Barbell/Dumbbell)", type: .strength, sets: Array(repeating: ExerciseSet(target: "10-12 reps / side"), count: 3), alternatives: ["Bulgarian Split Squat"]), RoutineExercise(name: "Back Extension (Hyperextension)", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Good Mornings"])])
-        let bw_B = WorkoutRoutine(id: UUID().uuidString, userID: systemUserID, name: "Full Body Bodyweight B", dateCreated: now, exercises: [RoutineExercise(name: "Burpees", type: .cardio, sets: Array(repeating: ExerciseSet(target: "AMRAP in 60s"), count: 3), alternatives: ["Jump Rope"]), RoutineExercise(name: "Hip Thrust", type: .strength, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Good Mornings"]), RoutineExercise(name: "Leg Raise", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Hanging Leg Raise"]), RoutineExercise(name: "Push-up", type: .strength, sets: Array(repeating: ExerciseSet(target: "AMRAP"), count: 3), alternatives: ["Dumbbell Bench Press"]), RoutineExercise(name: "Sit-up", type: .flexibility, sets: Array(repeating: ExerciseSet(target: "15-20 reps"), count: 3), alternatives: ["Crunch"])])
-        programs.append(WorkoutProgram(userID: systemUserID, name: "Beginner Bodyweight", dateCreated: now, routines: [bw_A, bw_B], daysOfWeek: [2, 4, 6]))
+        let sl5x5_A = WorkoutRoutine(id: "prebuilt_stronglifts_a", userID: systemUserID, name: "Workout A", dateCreated: now, exercises: [
+            exercise("Barbell Back Squat", target: "5 reps", sets: 5, alternatives: ["Leg Press", "Goblet Squat"]),
+            exercise("Barbell Bench Press", target: "5 reps", sets: 5, alternatives: ["Dumbbell Bench Press", "Push-up"]),
+            exercise("Barbell Bent-over Row", target: "5 reps", sets: 5, alternatives: ["Dumbbell Row", "Seated Cable Row"])
+        ])
+        let sl5x5_B = WorkoutRoutine(id: "prebuilt_stronglifts_b", userID: systemUserID, name: "Workout B", dateCreated: now, exercises: [
+            exercise("Barbell Back Squat", target: "5 reps", sets: 5, alternatives: ["Leg Press", "Goblet Squat"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "5 reps", sets: 5, alternatives: ["Dumbbell Shoulder Press", "Arnold Press"]),
+            exercise("Deadlift (Conventional)", target: "5 reps", sets: 1, alternatives: ["Sumo Deadlift", "Romanian Deadlift (RDL)"])
+        ])
+        programs.append(WorkoutProgram(id: "prebuilt_stronglifts_5x5", userID: systemUserID, name: "StrongLifts 5x5", dateCreated: now, routines: [sl5x5_A, sl5x5_B], daysOfWeek: [2, 4, 6]))
+
+        let bw_A = WorkoutRoutine(id: "prebuilt_bodyweight_a", userID: systemUserID, name: "Full Body Bodyweight A", dateCreated: now, exercises: [
+            exercise("Push-up", target: "AMRAP", sets: 3, alternatives: ["Incline Barbell Bench Press"]),
+            exercise("Barbell Back Squat", target: "15-20 reps", sets: 3, alternatives: ["Goblet Squat"]),
+            exercise("Plank", target: "60 sec hold", sets: 3, type: .flexibility, alternatives: ["Crunch"]),
+            exercise("Lunge (Barbell/Dumbbell)", target: "10-12 reps / side", sets: 3, alternatives: ["Bulgarian Split Squat"]),
+            exercise("Back Extension (Hyperextension)", target: "15-20 reps", sets: 3, alternatives: ["Good Mornings"])
+        ])
+        let bw_B = WorkoutRoutine(id: "prebuilt_bodyweight_b", userID: systemUserID, name: "Full Body Bodyweight B", dateCreated: now, exercises: [
+            exercise("Burpees", target: "AMRAP in 60s", sets: 3, type: .cardio, alternatives: ["Jump Rope"]),
+            exercise("Hip Thrust", target: "15-20 reps", sets: 3, alternatives: ["Good Mornings"]),
+            exercise("Leg Raise", target: "15-20 reps", sets: 3, type: .flexibility, alternatives: ["Hanging Leg Raise"]),
+            exercise("Push-up", target: "AMRAP", sets: 3, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Sit-up", target: "15-20 reps", sets: 3, type: .flexibility, alternatives: ["Crunch"])
+        ])
+        programs.append(WorkoutProgram(id: "prebuilt_beginner_bodyweight", userID: systemUserID, name: "Beginner Bodyweight", dateCreated: now, routines: [bw_A, bw_B], daysOfWeek: [2, 4, 6]))
+
+        let dumbbellUpperA = WorkoutRoutine(id: "prebuilt_dumbbell_upper_a", userID: systemUserID, name: "Upper A - Press & Row", dateCreated: now, exercises: [
+            exercise("Dumbbell Bench Press", target: "8-12 reps", sets: 4, alternatives: ["Push-up", "Machine Chest Press"]),
+            exercise("One-Arm Dumbbell Row", target: "10-12 reps / side", sets: 4, alternatives: ["Seated Cable Row"]),
+            exercise("Seated Dumbbell Shoulder Press", target: "8-10 reps", sets: 3, alternatives: ["Arnold Press"]),
+            exercise("Dumbbell Lateral Raise", target: "12-15 reps", sets: 3, alternatives: ["Cable Lateral Raise"]),
+            exercise("Dumbbell Curl", target: "10-15 reps", sets: 3, alternatives: ["Hammer Curl"])
+        ])
+        let dumbbellLowerA = WorkoutRoutine(id: "prebuilt_dumbbell_lower_a", userID: systemUserID, name: "Lower A - Squat Focus", dateCreated: now, exercises: [
+            exercise("Goblet Squat", target: "10-12 reps", sets: 4, alternatives: ["Leg Press"]),
+            exercise("Dumbbell Romanian Deadlift", target: "8-12 reps", sets: 4, alternatives: ["Barbell Romanian Deadlift"]),
+            exercise("Dumbbell Reverse Lunge", target: "10 reps / side", sets: 3, alternatives: ["Walking Lunge"]),
+            exercise("Standing Calf Raise", target: "12-20 reps", sets: 3, alternatives: ["Seated Calf Raise"]),
+            exercise("Plank", target: "45-60 sec", sets: 3, type: .flexibility, alternatives: ["Dead Bug"])
+        ])
+        let dumbbellUpperB = WorkoutRoutine(id: "prebuilt_dumbbell_upper_b", userID: systemUserID, name: "Upper B - Incline & Arms", dateCreated: now, exercises: [
+            exercise("Incline Dumbbell Bench Press", target: "8-12 reps", sets: 4, alternatives: ["Incline Barbell Bench Press"]),
+            exercise("Chest-Supported Dumbbell Row", target: "10-12 reps", sets: 4, alternatives: ["Machine Row"]),
+            exercise("Dumbbell Pullover", target: "10-15 reps", sets: 3, alternatives: ["Lat Pulldown"]),
+            exercise("Hammer Curl", target: "10-15 reps", sets: 3, alternatives: ["Cable Curl"]),
+            exercise("Dumbbell Overhead Triceps Extension", target: "10-15 reps", sets: 3, alternatives: ["Cable Triceps Extension"])
+        ])
+        let dumbbellLowerB = WorkoutRoutine(id: "prebuilt_dumbbell_lower_b", userID: systemUserID, name: "Lower B - Hinge & Carry", dateCreated: now, exercises: [
+            exercise("Dumbbell Front Squat", target: "8-10 reps", sets: 4, alternatives: ["Goblet Squat"]),
+            exercise("Dumbbell Hip Thrust", target: "10-15 reps", sets: 4, alternatives: ["Barbell Hip Thrust"]),
+            exercise("Bulgarian Split Squat", target: "8-12 reps / side", sets: 3, alternatives: ["Step-up"]),
+            exercise("Farmer Carry", target: "30-45 sec", sets: 3, type: .strength, alternatives: ["Suitcase Carry"]),
+            exercise("Dead Bug", target: "8-12 reps / side", sets: 3, type: .flexibility, alternatives: ["Bird Dog"])
+        ])
+        programs.append(WorkoutProgram(id: "prebuilt_dumbbell_hypertrophy_4_day", userID: systemUserID, name: "Dumbbell Hypertrophy 4-Day", dateCreated: now, routines: [dumbbellUpperA, dumbbellLowerA, dumbbellUpperB, dumbbellLowerB], daysOfWeek: [2, 3, 5, 6]))
+
+        let mobilityA = WorkoutRoutine(id: "prebuilt_mobility_a", userID: systemUserID, name: "Reset A - Hips & Spine", dateCreated: now, exercises: [
+            exercise("World's Greatest Stretch", target: "5 reps / side", sets: 2, type: .flexibility),
+            exercise("Hip Flexor Stretch", target: "45 sec / side", sets: 2, type: .flexibility),
+            exercise("Thoracic Rotation", target: "8 reps / side", sets: 2, type: .flexibility),
+            exercise("Dead Bug", target: "8-10 reps / side", sets: 3, type: .flexibility),
+            exercise("Box Breathing", target: "3 min", sets: 1, type: .flexibility)
+        ])
+        let mobilityB = WorkoutRoutine(id: "prebuilt_mobility_b", userID: systemUserID, name: "Reset B - Shoulders & Core", dateCreated: now, exercises: [
+            exercise("Wall Slide", target: "10-12 reps", sets: 2, type: .flexibility),
+            exercise("Scapular Push-up", target: "10-12 reps", sets: 2, type: .strength),
+            exercise("Side Plank", target: "30-45 sec / side", sets: 3, type: .flexibility),
+            exercise("Bird Dog", target: "8-10 reps / side", sets: 3, type: .flexibility),
+            exercise("Child's Pose Breathing", target: "2 min", sets: 1, type: .flexibility)
+        ])
+        let mobilityC = WorkoutRoutine(id: "prebuilt_mobility_c", userID: systemUserID, name: "Reset C - Low Impact Engine", dateCreated: now, exercises: [
+            exercise("Brisk Walk", target: "10 min", sets: 1, type: .cardio, alternatives: ["Stationary Bike"]),
+            exercise("Glute Bridge", target: "12-15 reps", sets: 3, type: .strength),
+            exercise("Bodyweight Squat", target: "10-15 reps", sets: 3, type: .strength),
+            exercise("Standing Calf Raise", target: "15-20 reps", sets: 2, type: .strength),
+            exercise("Couch Stretch", target: "45 sec / side", sets: 2, type: .flexibility)
+        ])
+        programs.append(WorkoutProgram(id: "prebuilt_mobility_core_reset", userID: systemUserID, name: "Mobility & Core Reset", dateCreated: now, routines: [mobilityA, mobilityB, mobilityC], daysOfWeek: [2, 4, 6]))
 
         self.preBuiltPrograms = programs
     }
 
     /// Copies a pre-built program and saves it as a user program
-    func selectPreBuiltProgram(_ program: WorkoutProgram) async {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+    @discardableResult
+    func selectPreBuiltProgram(_ program: WorkoutProgram) async -> WorkoutProgram? {
+        guard let userID = Auth.auth().currentUser?.uid else { return nil }
         
         Analytics.logEvent("prebuilt_program_selected", parameters: ["program_name": program.name])
 
         var userProgramCopy = program
         userProgramCopy.id = nil
         userProgramCopy.userID = userID
-        userProgramCopy.startDate = nil
-        userProgramCopy.daysOfWeek = nil
+        userProgramCopy.startDate = Timestamp(date: Date())
+        userProgramCopy.daysOfWeek = program.daysOfWeek?.isEmpty == false ? program.daysOfWeek : [2, 4, 6]
         userProgramCopy.currentProgressIndex = 0
         userProgramCopy.dateCreated = Timestamp(date: Date())
 
         userProgramCopy.routines = userProgramCopy.routines.map { routine in
-            var newRoutine = routine
-            newRoutine.id = UUID().uuidString
-            newRoutine.userID = userID
-            newRoutine.exercises = routine.exercises.map { exercise in
+            let copiedExercises = routine.exercises.map { exercise in
                 var newExercise = exercise
                 newExercise.id = UUID().uuidString
+                newExercise.targetSets = max(exercise.targetSets, exercise.sets.count)
+                newExercise.targetReps = exercise.sets.first?.target ?? exercise.targetReps
                 newExercise.sets = exercise.sets.map { set in
                     var newSet = set
                     newSet.id = UUID().uuidString
+                    newSet.isCompleted = false
+                    newSet.reps = 0
+                    newSet.weight = 0
+                    newSet.distance = 0
+                    newSet.durationInSeconds = 0
                     return newSet
                 }
                 return newExercise
             }
-            return newRoutine
+
+            return WorkoutRoutine(
+                id: UUID().uuidString,
+                userID: userID,
+                name: routine.name,
+                dateCreated: Timestamp(date: Date()),
+                exercises: copiedExercises,
+                notes: routine.notes
+            )
         }
 
-        await saveProgram(userProgramCopy)
+        let savedProgram = await saveProgram(userProgramCopy)
+        if let savedProgram {
+            setActiveProgram(savedProgram)
+        }
+        return savedProgram
+    }
+
+    private func restoreActiveProgram() {
+        guard !userPrograms.isEmpty else {
+            activeProgram = nil
+            UserDefaults.standard.removeObject(forKey: activeProgramIDKey)
+            return
+        }
+
+        if let savedActiveProgramID = UserDefaults.standard.string(forKey: activeProgramIDKey),
+           let savedActiveProgram = userPrograms.first(where: { $0.id == savedActiveProgramID }) {
+            activeProgram = savedActiveProgram
+            return
+        }
+
+        if let currentActiveProgramID = activeProgram?.id,
+           let currentActiveProgram = userPrograms.first(where: { $0.id == currentActiveProgramID }) {
+            activeProgram = currentActiveProgram
+            return
+        }
+
+        activeProgram = userPrograms.first
+        if let firstProgramID = activeProgram?.id {
+            UserDefaults.standard.set(firstProgramID, forKey: activeProgramIDKey)
+        }
     }
 }
 

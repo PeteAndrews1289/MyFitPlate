@@ -2,6 +2,7 @@ import Foundation
 import HealthKit
 import FirebaseAuth
 
+@MainActor
 class CycleTrackingService: ObservableObject {
     @Published var cycleDay: CycleDay?
     @Published var cycleSettings = CycleSettings() {
@@ -124,14 +125,12 @@ class CycleTrackingService: ObservableObject {
             """
             let response = await fetchAIResponse(prompt: prompt)
             
-            DispatchQueue.main.async {
-                self.isLoadingInsight = false
-                if let responseData = response?.data(using: .utf8) {
-                    do {
-                        self.aiInsight = try JSONDecoder().decode(AIInsight.self, from: responseData)
-                    } catch {
-                        print("Error decoding AI insight: \(error)")
-                    }
+            self.isLoadingInsight = false
+            if let responseData = response?.data(using: .utf8) {
+                do {
+                    self.aiInsight = try JSONDecoder().decode(AIInsight.self, from: responseData)
+                } catch {
+                    AppLog.app.error("Error decoding cycle AI insight: \(error.localizedDescription, privacy: .public)")
                 }
             }
         }
@@ -150,7 +149,7 @@ class CycleTrackingService: ObservableObject {
         case .success(let content):
             return content
         case .failure(let error):
-            print("AI fetch error: \(error.localizedDescription)")
+            AppLog.app.error("Cycle AI fetch error: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }

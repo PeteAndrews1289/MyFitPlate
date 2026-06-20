@@ -105,7 +105,7 @@ struct CommunityHubView: View {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         let membershipID = "\(userID)_\(groupID)"
         Firestore.firestore().collection("groupMemberships").document(membershipID).getDocument { document, error in
-            if let error = error {
+            if error != nil {
                 return
             }
             if document?.exists == true {
@@ -124,7 +124,7 @@ struct CommunityHubView: View {
             .whereField("groupID", isEqualTo: groupID)
             .order(by: "timestamp", descending: true)
             .addSnapshotListener { snapshot, error in
-                if let error = error {
+                if error != nil {
                     return
                 }
                 guard let documents = snapshot?.documents else { return }
@@ -148,7 +148,7 @@ struct CommunityHubView: View {
     private func joinGroup(groupID: String) {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         groupService.joinGroup(userID: userID, groupID: groupID) { error in
-            if let error = error {
+            if error != nil {
             } else {
                 isMemberOfSelectedGroup = true
                 fetchPostsForGroup(groupID: groupID)

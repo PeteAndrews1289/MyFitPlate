@@ -165,6 +165,9 @@
 		4BE7685A2D51040E00EAF4C8 /* FoodDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BE768592D51040200EAF4C8 /* FoodDetailView.swift */; };
 		4BF46DDE2DF74ED30018668F /* MealPlanSurveyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF46DDD2DF74ED30018668F /* MealPlanSurveyView.swift */; };
 		4BF46DE02DF76A6F0018668F /* AddMealToPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF46DDF2DF76A6F0018668F /* AddMealToPlanView.swift */; };
+		737B4BD680386CFEA8AD5A4C /* HomeViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB8FD36CF065D12A07BE4EED /* HomeViewComponents.swift */; };
+		AF0C26D9822819D9A5E3E2AD /* EcosystemSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 969DD3CF7764D9F747A622D0 /* EcosystemSyncManager.swift */; };
+		FC25C02D559302AA2773C778 /* MealPlannerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D799836B4E8BAEEBA76869D /* MealPlannerComponents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -381,16 +384,12 @@
 		4BE768592D51040200EAF4C8 /* FoodDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodDetailView.swift; sourceTree = "<group>"; };
 		4BF46DDD2DF74ED30018668F /* MealPlanSurveyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlanSurveyView.swift; sourceTree = "<group>"; };
 		4BF46DDF2DF76A6F0018668F /* AddMealToPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMealToPlanView.swift; sourceTree = "<group>"; };
+		5D799836B4E8BAEEBA76869D /* MealPlannerComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealPlannerComponents.swift; sourceTree = "<group>"; };
+		969DD3CF7764D9F747A622D0 /* EcosystemSyncManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EcosystemSyncManager.swift; sourceTree = "<group>"; };
+		DB8FD36CF065D12A07BE4EED /* HomeViewComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeViewComponents.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		4B15AD322E3A765F00F0A0BB /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				WorkoutActivityAttributes.swift,
-			);
-			target = 3EB297752CAEEDC90093E1B9 /* MyFitPlate */;
-		};
 		4BB462CC2E1EEA33007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -415,7 +414,7 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		4B71DB852E0B6A96003A0078 /* CalorieWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4B15AD322E3A765F00F0A0BB /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 4BB462CC2E1EEA33007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = CalorieWidget; sourceTree = "<group>"; };
+		4B71DB852E0B6A96003A0078 /* CalorieWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4BB462CC2E1EEA33007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = CalorieWidget; sourceTree = "<group>"; };
 		4BB462832E1EE8AA007CCA8A /* MyFitPlateWatch Watch App */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4BB462CD2E1EEA36007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = "MyFitPlateWatch Watch App"; sourceTree = "<group>"; };
 		4BE15BCD2ED0C61900342C86 /* LiveActivity */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4BE15BDF2ED0C61B00342C86 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = LiveActivity; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -647,6 +646,9 @@
 				4B15AD2C2E37FDC900F0A0BB /* WorkoutReport.swift */,
 				4B727FB02E2FD6B000874936 /* WorkoutRoutinesView.swift */,
 				4B727FAC2E2FD69A00874936 /* WorkoutService.swift */,
+				DB8FD36CF065D12A07BE4EED /* HomeViewComponents.swift */,
+				5D799836B4E8BAEEBA76869D /* MealPlannerComponents.swift */,
+				969DD3CF7764D9F747A622D0 /* EcosystemSyncManager.swift */,
 			);
 			path = CalorieBeta;
 			sourceTree = "<group>";
@@ -712,8 +714,6 @@
 				4B71DB852E0B6A96003A0078 /* CalorieWidget */,
 			);
 			name = CalorieWidgetExtension;
-			packageProductDependencies = (
-			);
 			productName = CalorieWidgetExtension;
 			productReference = 4B71DB802E0B6A96003A0078 /* CalorieWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -734,8 +734,6 @@
 				4BB462832E1EE8AA007CCA8A /* MyFitPlateWatch Watch App */,
 			);
 			name = "MyFitPlateWatch Watch App";
-			packageProductDependencies = (
-			);
 			productName = "MyFitPlateWatch Watch App";
 			productReference = 4BB462822E1EE8AA007CCA8A /* MyFitPlateWatch Watch App.app */;
 			productType = "com.apple.product-type.application";
@@ -756,8 +754,6 @@
 				4BE15BCD2ED0C61900342C86 /* LiveActivity */,
 			);
 			name = LiveActivityExtension;
-			packageProductDependencies = (
-			);
 			productName = LiveActivityExtension;
 			productReference = 4BE15BCA2ED0C61900342C86 /* LiveActivityExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -770,7 +766,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2600;
-				LastUpgradeCheck = 1620;
+				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					3EB297752CAEEDC90093E1B9 = {
 						CreatedOnToolsVersion = 15.4;
@@ -990,6 +986,9 @@
 				3EC693CB2CB81F8B002222C6 /* NutritionProgressView.swift in Sources */,
 				4BA12D7A2E5658E600E55716 /* IngredientRowView.swift in Sources */,
 				4B619A942D677DBC00D6C9A8 /* APIError.swift in Sources */,
+				737B4BD680386CFEA8AD5A4C /* HomeViewComponents.swift in Sources */,
+				FC25C02D559302AA2773C778 /* MealPlannerComponents.swift in Sources */,
+				AF0C26D9822819D9A5E3E2AD /* EcosystemSyncManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1073,6 +1072,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = XMYB49J6UL;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -1094,7 +1094,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				STRIP_SWIFT_SYMBOLS = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -1137,6 +1137,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = XMYB49J6UL;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -1151,7 +1152,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				STRIP_SWIFT_SYMBOLS = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -1167,7 +1168,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"CalorieBeta/Preview Content\"";
-				DEVELOPMENT_TEAM = XMYB49J6UL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieBeta/Info.plist;
@@ -1199,7 +1199,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRIP_SWIFT_SYMBOLS = NO;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -1221,7 +1220,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"CalorieBeta/Preview Content\"";
-				DEVELOPMENT_TEAM = XMYB49J6UL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieBeta/Info.plist;
@@ -1253,7 +1251,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRIP_SWIFT_SYMBOLS = NO;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -1273,7 +1270,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = XMYB49J6UL;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CalorieWidget;
@@ -1303,7 +1299,6 @@
 				CODE_SIGN_ENTITLEMENTS = CalorieWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XMYB49J6UL;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CalorieWidget;
@@ -1335,7 +1330,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_ASSET_PATHS = "\"MyFitPlateWatch Watch App/Preview Content\"";
-				DEVELOPMENT_TEAM = XMYB49J6UL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = MyFitPlateWatch;
@@ -1365,7 +1359,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"MyFitPlateWatch Watch App/Preview Content\"";
-				DEVELOPMENT_TEAM = XMYB49J6UL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = MyFitPlateWatch;
@@ -1396,7 +1389,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = XMYB49J6UL;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LiveActivity/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = LiveActivity;
@@ -1428,7 +1420,6 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XMYB49J6UL;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LiveActivity/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = LiveActivity;

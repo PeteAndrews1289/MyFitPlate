@@ -121,14 +121,14 @@ struct CaloricCalculatorView: View {
         .alert(isPresented: $showSaveConfirmation) {
             Alert(title: Text("Success"), message: Text("Your goals have been saved!"), dismissButton: .default(Text("OK")))
         }
-        .onChange(of: goalSettings.activityLevel) { _ in goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.goal) { _ in goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.age) { _ in goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.gender) { _ in goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.proteinPercentage) { _ in goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.carbsPercentage) { _ in goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.fatsPercentage) { _ in goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.calories) { newRecommendedCalories in
+        .onChange(of: goalSettings.activityLevel) { goalSettings.recalculateAllGoals() }
+        .onChange(of: goalSettings.goal) { goalSettings.recalculateAllGoals() }
+        .onChange(of: goalSettings.age) { goalSettings.recalculateAllGoals() }
+        .onChange(of: goalSettings.gender) { goalSettings.recalculateAllGoals() }
+        .onChange(of: goalSettings.proteinPercentage) { goalSettings.recalculateAllGoals() }
+        .onChange(of: goalSettings.carbsPercentage) { goalSettings.recalculateAllGoals() }
+        .onChange(of: goalSettings.fatsPercentage) { goalSettings.recalculateAllGoals() }
+        .onChange(of: goalSettings.calories) { _, newRecommendedCalories in
             if Double(calorieInput) != newRecommendedCalories {
                  calorieInput = String(format: "%.0f", newRecommendedCalories ?? 0)
             }

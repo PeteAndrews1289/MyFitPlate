@@ -9,6 +9,8 @@ class HealthKitViewModel: ObservableObject {
     @Published var isAuthorized = false
     @Published var workouts: [LoggedExercise] = []
     @Published var sleepSamples: [HKCategorySample] = []
+    @Published var todaySteps: Double = 0
+    @Published var todayActiveEnergy: Double = 0
     @Published var authError: String? = nil
     @Published var isSyncing = false
 
@@ -27,6 +29,7 @@ class HealthKitViewModel: ObservableObject {
                 if success {
                     self?.fetchTodayWorkouts()
                     self?.fetchLastSevenDaysSleep()
+                    self?.fetchTodayPassiveData()
                 } else {
                     let errorMessage = error?.localizedDescription ?? "An unknown error occurred."
                     self?.authError = errorMessage
@@ -41,10 +44,18 @@ class HealthKitViewModel: ObservableObject {
             return
         }
 
+        guard let activeEnergyType = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned),
+              let sleepAnalysisType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
+              let stepCountType = HKObjectType.quantityType(forIdentifier: .stepCount) else {
+            DispatchQueue.main.async { self.isAuthorized = false }
+            return
+        }
+
         let typesToRead: Set<HKObjectType> = [
             HKObjectType.workoutType(),
-            HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
-            HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
+            activeEnergyType,
+            sleepAnalysisType,
+            stepCountType
         ]
 
         manager.healthStore.getRequestStatusForAuthorization(toShare: [], read: typesToRead) { [weak self] (status, error) in
@@ -52,15 +63,17 @@ class HealthKitViewModel: ObservableObject {
 
             DispatchQueue.main.async {
                 if let error = error {
+                    AppLog.app.error("Failed to check HealthKit authorization status: \(error.localizedDescription, privacy: .public)")
                     self.isAuthorized = false
                     return
                 }
-                
+
                 switch status {
                 case .unnecessary:
                     self.isAuthorized = true
                     self.fetchTodayWorkouts()
                     self.fetchLastSevenDaysSleep()
+                    self.fetchTodayPassiveData()
                 case .shouldRequest:
                     self.isAuthorized = false
                 case .unknown:
@@ -72,13 +85,32 @@ class HealthKitViewModel: ObservableObject {
         }
     }
 
+    func fetchTodayPassiveData() {
+        guard isAuthorized else { return }
+
+        manager.fetchTodaySteps { [weak self] steps in
+            DispatchQueue.main.async {
+                self?.todaySteps = steps
+            }
+        }
+
+        manager.fetchTodayActiveEnergy { [weak self] activeEnergy in
+            DispatchQueue.main.async {
+                self?.todayActiveEnergy = activeEnergy
+            }
+        }
+    }
+
     func fetchTodayWorkouts() {
         guard isAuthorized, !isSyncing else { return }
         isSyncing = true
         manager.fetchWorkouts(for: Date()) { [weak self] (hkWorkouts, error) in
             guard let self = self else { return }
             if let error = error {
-                DispatchQueue.main.async { self.isSyncing = false }
+                DispatchQueue.main.async {
+                    AppLog.app.error("Failed to fetch HealthKit workouts: \(error.localizedDescription, privacy: .public)")
+                    self.isSyncing = false
+                }
                 return
             }
             guard let workouts = hkWorkouts else {
@@ -90,14 +122,19 @@ class HealthKitViewModel: ObservableObject {
             self.syncWorkoutsWithFirestore(loggedExercises)
         }
     }
-    
+
     func fetchLastSevenDaysSleep() {
         guard isAuthorized else { return }
         let endDate = Date()
         guard let startDate = Calendar.current.date(byAdding: .day, value: -7, to: endDate) else { return }
-        
+
         manager.fetchSleepAnalysis(startDate: startDate, endDate: endDate) { [weak self] (samples, error) in
-            guard let self = self, let samples = samples, error == nil else { return }
+            guard let self = self else { return }
+            if let error {
+                AppLog.health.error("Failed to fetch seven-day sleep samples: \(error.localizedDescription, privacy: .public)")
+                return
+            }
+            guard let samples = samples else { return }
             self.sleepSamples = samples
         }
     }
@@ -118,7 +155,7 @@ class HealthKitViewModel: ObservableObject {
             DispatchQueue.main.async { self.isSyncing = false }
             return
         }
-        
+
         dailyLogService.addOrUpdateHealthKitWorkouts(for: userID, exercises: workouts, date: Date()) {
             DispatchQueue.main.async {
                 self.isSyncing = false

@@ -6,15 +6,24 @@ struct MealPlannerView: View {
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var spotlightManager: SpotlightManager
+    @EnvironmentObject var dailyLogService: DailyLogService
+    @EnvironmentObject var recipeService: RecipeService
     @Environment(\.colorScheme) var colorScheme
 
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var planForSelectedDate: MealPlanDay?
     @State private var isLoading = false
+    @State private var loadingMessage = "Checking saved plan..."
     @State private var showingGroceryList = false
     @State private var showingMealPlanSurvey = false
+    @State private var showingAddMealToPlan = false
+    @State private var showingLogDayConfirmation = false
 
     @State private var regeneratingMealID: String?
+    @State private var loggedMealID: String?
+    @State private var mealPendingDelete: PlannedMeal?
+    @State private var weekPlans: [String: MealPlanDay] = [:]
+    @State private var didPrefetchVisibleWeek = false
 
     @State private var tourSpotlightIDs: [String] = []
     @State private var currentSpotlightIndex: Int = 0
@@ -24,108 +33,239 @@ struct MealPlannerView: View {
     private let spotlightContent: [String: (title: String, text: String)] = [
         "weekView": ("Select a Day", "Tap any day of the week to view or manage your meal plan for that specific date."),
         "planContent": ("Your Daily Plan", "Once a meal plan is generated, your meals for the selected day will appear here."),
-        "toolbarActions": ("Meal Plan Tools", "Use the toolbar buttons to manage your plan. Tap ✨ to generate a new 7-day plan, or tap 📋 to see your grocery list.")
+        "toolbarActions": ("Meal Plan Tools", "Use the toolbar buttons to manage your plan, add saved recipes, generate a new week, or open your grocery list.")
     ]
+
+    private var visibleWeekDates: [Date] {
+        let today = Calendar.current.startOfDay(for: Date())
+        return (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    private var visibleWeekPlans: [MealPlanDay] {
+        visibleWeekDates.compactMap { weekPlans[dateKey(for: $0)] }
+    }
+
+    private var weekMealCounts: [String: Int] {
+        Dictionary(uniqueKeysWithValues: visibleWeekDates.map { date in
+            (dateKey(for: date), weekPlans[dateKey(for: date)]?.meals.count ?? 0)
+        })
+    }
+
+    private var selectedPlanTitle: String {
+        if Calendar.current.isDateInToday(selectedDate) {
+            return "Today's Plan"
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return "\(formatter.string(from: selectedDate))'s Plan"
+    }
 
     var body: some View {
         ZStack {
-            VStack(spacing: 0) {
-                WeekView(selectedDate: $selectedDate)
-                    .padding(.vertical, 10)
-                    .background(colorScheme == .dark ? Color(UIColor.systemGray).opacity(0.2) : Color(UIColor.systemGray6))
-                    .cornerRadius(20)
-                    .padding(.horizontal, 15)
-                    .padding(.vertical, 15)
-                    .featureSpotlight(isActive: isSpotlightActive(for: "weekView"))
-                    .id("weekView")
-                    .onChange(of: selectedDate) { _ in fetchPlan() }
-
-                if isLoading {
-                    Spacer()
-                    ProgressView("Loading Plan...")
-                    Spacer()
-                } else if let plan = planForSelectedDate, !plan.meals.isEmpty {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Plan for \(selectedDate, formatter: DateFormatter.longDate)")
-                                .appFont(size: 17, weight: .semibold)
-                                .padding(.horizontal)
-
-                            ForEach(plan.meals) { meal in
-                                MealCardView(
-                                    meal: meal,
-                                    isRegenerating: regeneratingMealID == meal.id,
-                                    onLog: log,
-                                    onRegenerate: { regenerate(meal: meal) }
-                                )
-                            }
+            mainScrollView
+                .background(Color.backgroundPrimary)
+                .navigationTitle("Meal Plan")
+                .navigationBarTitleDisplayMode(.inline)
+                .sheet(isPresented: $showingGroceryList) {
+                    NavigationStack {
+                        GroceryListView()
+                    }
+                }
+                .sheet(isPresented: $showingAddMealToPlan, onDismiss: handlePlanEditDismiss) {
+                    AddMealToPlanView(date: selectedDate, isPresented: $showingAddMealToPlan)
+                        .environmentObject(mealPlannerService)
+                        .environmentObject(dailyLogService)
+                        .environmentObject(recipeService)
+                }
+                .sheet(isPresented: $showingMealPlanSurvey, onDismiss: handlePlanEditDismiss) {
+                    MealPlanSurveyView()
+                }
+                .confirmationDialog(
+                    "Remove this meal?",
+                    isPresented: Binding(
+                        get: { mealPendingDelete != nil },
+                        set: { if !$0 { mealPendingDelete = nil } }
+                    ),
+                    titleVisibility: .visible
+                ) {
+                    Button("Remove Meal", role: .destructive) {
+                        if let meal = mealPendingDelete {
+                            delete(meal: meal)
                         }
-                        .padding()
+                        mealPendingDelete = nil
                     }
-                    .featureSpotlight(isActive: isSpotlightActive(for: "planContent"))
-                    .id("planContent")
-                } else {
-                    Spacer()
-                    Text("No plan found for this day.").appFont(size: 17)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                    Button("Generate New Meal Plan") {
-                        showingMealPlanSurvey = true
+
+                    Button("Cancel", role: .cancel) {
+                        mealPendingDelete = nil
                     }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .padding()
-                    Spacer()
-                    .featureSpotlight(isActive: isSpotlightActive(for: "planContent"))
-                    .id("planContent")
+                } message: {
+                    Text(mealPendingDelete?.foodItem?.name ?? "This meal will be removed from the selected day.")
                 }
-            }
-            .background(Color.backgroundPrimary)
-            .navigationTitle("Meal Plan")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showingGroceryList) {
-                NavigationView {
-                    GroceryListView()
+                .confirmationDialog(
+                    "Log this planned day?",
+                    isPresented: $showingLogDayConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Log Planned Meals") {
+                        if let plan = planForSelectedDate {
+                            logDay(plan: plan)
+                        }
+                    }
+
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This adds the planned meals to the food log for \(selectedDate, formatter: DateFormatter.longDate).")
                 }
-            }
-            .sheet(isPresented: $showingMealPlanSurvey, onDismiss: fetchPlan) {
-                MealPlanSurveyView()
-            }
-            .onAppear(perform: onMealPlanAppear)
+                .onAppear(perform: onMealPlanAppear)
 
             if showingSpotlightTour {
-                Color.black.opacity(0.5).ignoresSafeArea()
-                    .onTapGesture(perform: advanceTour)
-                    .transition(.opacity)
-
-                if !tourSpotlightIDs.isEmpty && currentSpotlightIndex < tourSpotlightIDs.count {
-                    let currentID = tourSpotlightIDs[currentSpotlightIndex]
-                    if let content = spotlightContent[currentID] {
-                        SpotlightTextView(
-                            content: content,
-                            currentIndex: currentSpotlightIndex,
-                            total: tourSpotlightIDs.count,
-                            position: .bottom,
-                            onNext: advanceTour
-                        )
-                    }
-                }
+                spotlightOverlay
             }
         }
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: { showingGroceryList = true }) {
-                    Image(systemName: "list.bullet.clipboard")
+            toolbarContent
+        }
+    }
+
+    @ViewBuilder
+    private var mainScrollView: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                WeekView(
+                    selectedDate: $selectedDate,
+                    mealCountsByDay: weekMealCounts
+                )
+                .featureSpotlight(isActive: isSpotlightActive(for: "weekView"))
+                .id("weekView")
+                .onChange(of: selectedDate) { _, _ in fetchPlan() }
+
+                WeeklyPlanOverviewCard(
+                    plans: visibleWeekPlans,
+                    onOpenGrocery: { showingGroceryList = true },
+                    onGenerate: { showingMealPlanSurvey = true }
+                )
+
+                if isLoading {
+                    MealPlanLoadingState(message: loadingMessage)
+                        .padding(.top, 24)
+                } else if let plan = planForSelectedDate, !plan.meals.isEmpty {
+                    planContentView(for: plan)
+                } else {
+                    MealPlannerEmptyState(
+                        onGenerate: { showingMealPlanSurvey = true },
+                        onAddRecipe: { showingAddMealToPlan = true }
+                    )
+                    .featureSpotlight(isActive: isSpotlightActive(for: "planContent"))
+                    .id("planContent")
                 }
             }
-            ToolbarItem(placement: .navigationBarTrailing) {
+            .padding(16)
+        }
+    }
+
+    @ViewBuilder
+    private func planContentView(for plan: MealPlanDay) -> some View {
+        MealPlanSummaryCard(date: selectedDate, meals: plan.meals, goals: goalSettings)
+
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(selectedPlanTitle)
+                        .appFont(size: 22, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Regenerate individual meals or send them to Maia to log.")
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Spacer()
+
+                if plan.meals.contains(where: { $0.foodItem != nil }) {
+                    Button(action: { showingLogDayConfirmation = true }) {
+                        Label("Log Day", systemImage: "checkmark.circle.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.accentPositive.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.accentPositive)
+                }
+
+                Button(action: { showingAddMealToPlan = true }) {
+                    Label("Add", systemImage: "plus")
+                        .font(.system(size: 13, weight: .bold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.brandPrimary.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.brandPrimary)
+            }
+
+            ForEach(plan.meals) { meal in
+                MealCardView(
+                    meal: meal,
+                    isRegenerating: regeneratingMealID == meal.id,
+                    isLogged: loggedMealID == meal.id,
+                    onLog: log,
+                    onRegenerate: { regenerate(meal: meal) },
+                    onDelete: { mealPendingDelete = meal }
+                )
+            }
+        }
+        .featureSpotlight(isActive: isSpotlightActive(for: "planContent"))
+        .id("planContent")
+    }
+
+    @ViewBuilder
+    private var spotlightOverlay: some View {
+        Color.black.opacity(0.5).ignoresSafeArea()
+            .onTapGesture(perform: advanceTour)
+            .transition(.opacity)
+
+        if !tourSpotlightIDs.isEmpty && currentSpotlightIndex < tourSpotlightIDs.count {
+            let currentID = tourSpotlightIDs[currentSpotlightIndex]
+            if let content = spotlightContent[currentID] {
+                SpotlightTextView(
+                    content: content,
+                    currentIndex: currentSpotlightIndex,
+                    total: tourSpotlightIDs.count,
+                    position: .bottom,
+                    onNext: advanceTour
+                )
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button(action: { showingGroceryList = true }) {
+                Image(systemName: "list.bullet.clipboard")
+            }
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            HStack {
+                Button(action: { showingAddMealToPlan = true }) {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("Add meal to plan")
+
                 Button(action: { showingMealPlanSurvey = true }) {
                     Image(systemName: "wand.and.stars")
                 }
+                .accessibilityLabel("Generate meal plan")
             }
         }
     }
 
     private func onMealPlanAppear() {
         fetchPlan()
+        prefetchVisibleWeekIfNeeded()
+        refreshWeekOverview()
 
         let needed = spotlightOrder.filter { !spotlightManager.isShown(id: $0) }
         if !needed.isEmpty {
@@ -162,15 +302,105 @@ struct MealPlannerView: View {
     }
 
     private func fetchPlan() {
-        isLoading = true
         guard let userID = Auth.auth().currentUser?.uid else { isLoading = false; return }
+        let requestedDate = selectedDate
+
+        if let cachedPlan = mealPlannerService.cachedPlan(for: requestedDate, userID: userID) {
+            planForSelectedDate = cachedPlan
+            isLoading = false
+        } else {
+            planForSelectedDate = nil
+            loadingMessage = "Checking saved plan..."
+            isLoading = true
+        }
+
         Task {
-            self.planForSelectedDate = await mealPlannerService.fetchPlan(for: selectedDate, userID: userID)
-            self.isLoading = false
+            let plan = await mealPlannerService.fetchPlan(for: requestedDate, userID: userID)
+            await MainActor.run {
+                guard Calendar.current.isDate(requestedDate, inSameDayAs: selectedDate) else { return }
+                self.planForSelectedDate = plan
+                self.isLoading = false
+                self.updateWeekCache(with: plan, for: requestedDate)
+            }
         }
     }
 
+    private func prefetchVisibleWeekIfNeeded() {
+        guard !didPrefetchVisibleWeek, let userID = Auth.auth().currentUser?.uid else { return }
+        didPrefetchVisibleWeek = true
+
+        Task {
+            await mealPlannerService.prefetchPlans(starting: Date(), userID: userID)
+        }
+    }
+
+    private func refreshWeekOverview() {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        let dates = visibleWeekDates
+
+        Task {
+            var plans: [String: MealPlanDay] = [:]
+            await withTaskGroup(of: (String, MealPlanDay?).self) { group in
+                for date in dates {
+                    group.addTask {
+                        let plan = await mealPlannerService.fetchPlan(for: date, userID: userID)
+                        return (dateKey(for: date), plan)
+                    }
+                }
+
+                for await (key, plan) in group {
+                    if let plan, !plan.meals.isEmpty {
+                        plans[key] = plan
+                    }
+                }
+            }
+
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    weekPlans = plans
+                }
+            }
+        }
+    }
+
+    private func updateWeekCache(with plan: MealPlanDay?, for date: Date) {
+        let key = dateKey(for: date)
+        if let plan, !plan.meals.isEmpty {
+            weekPlans[key] = plan
+        } else {
+            weekPlans.removeValue(forKey: key)
+        }
+    }
+
+    private func handlePlanEditDismiss() {
+        fetchPlan()
+        refreshWeekOverview()
+    }
+
     private func log(meal: PlannedMeal) {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+
+        if var foodItem = meal.foodItem {
+            foodItem.timestamp = Date()
+            dailyLogService.addMealToLog(
+                for: userID,
+                date: selectedDate,
+                mealName: meal.mealType,
+                foodItems: [foodItem],
+                source: "meal_plan"
+            )
+            loggedMealID = meal.id
+            HapticManager.instance.feedback(.medium)
+
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_400_000_000)
+                if loggedMealID == meal.id {
+                    loggedMealID = nil
+                }
+            }
+            return
+        }
+
         guard let ingredients = meal.ingredients, !ingredients.isEmpty else { return }
 
         let ingredientListString = ingredients.joined(separator: "\n- ")
@@ -190,6 +420,39 @@ struct MealPlannerView: View {
 
         appState.pendingChatPrompt = prompt
         appState.selectedTab = 1
+    }
+
+    private func logDay(plan: MealPlanDay) {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+
+        let mealGroups: [(mealName: String, foodItems: [FoodItem])] = plan.meals.compactMap { meal in
+            guard var foodItem = meal.foodItem else { return nil }
+            foodItem.timestamp = Date()
+            return (mealName: meal.mealType, foodItems: [foodItem])
+        }
+
+        guard !mealGroups.isEmpty else { return }
+
+        dailyLogService.addMealGroupsToLog(
+            for: userID,
+            date: selectedDate,
+            mealGroups: mealGroups,
+            source: "meal_plan"
+        )
+        HapticManager.instance.feedback(.medium)
+    }
+
+    private func delete(meal: PlannedMeal) {
+        guard let userID = Auth.auth().currentUser?.uid, var updatedPlan = planForSelectedDate else { return }
+        updatedPlan.meals.removeAll { $0.id == meal.id }
+        planForSelectedDate = updatedPlan
+        updateWeekCache(with: updatedPlan, for: selectedDate)
+        HapticManager.instance.feedback(.light)
+
+        Task {
+            await mealPlannerService.savePlan(updatedPlan, for: userID)
+            await mealPlannerService.refreshGroceryList(for: userID)
+        }
     }
 
     private func regenerate(meal: PlannedMeal) {
@@ -212,159 +475,12 @@ struct MealPlannerView: View {
                 if var updatedPlan = self.planForSelectedDate, let index = updatedPlan.meals.firstIndex(where: { $0.id == meal.id }) {
                     updatedPlan.meals[index] = newMeal
                     self.planForSelectedDate = updatedPlan
+                    self.updateWeekCache(with: updatedPlan, for: selectedDate)
                     await mealPlannerService.savePlan(updatedPlan, for: userID)
+                    await mealPlannerService.refreshGroceryList(for: userID)
                 }
             }
             regeneratingMealID = nil
         }
     }
-}
-
-private struct MealCardView: View {
-    let meal: PlannedMeal
-    var isRegenerating: Bool
-    var onLog: (PlannedMeal) -> Void
-    var onRegenerate: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(meal.mealType)
-                .appFont(size: 14, weight: .semibold)
-                .foregroundColor(.secondary)
-
-            Text(meal.foodItem?.name ?? "Unnamed Meal")
-                .appFont(size: 20, weight: .bold)
-
-            if let foodItem = meal.foodItem {
-                HStack {
-                    nutrientPill(label: "Cal", value: foodItem.calories, color: .red)
-                    nutrientPill(label: "P", value: foodItem.protein, color: .accentProtein)
-                    nutrientPill(label: "C", value: foodItem.carbs, color: .accentCarbs)
-                    nutrientPill(label: "F", value: foodItem.fats, color: .accentFats)
-                }
-            }
-
-            if let ingredients = meal.ingredients, let instructions = meal.instructions, !ingredients.isEmpty, !instructions.isEmpty {
-                DisclosureGroup("View Recipe") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Ingredients")
-                            .appFont(size: 15, weight: .semibold)
-                        ForEach(ingredients, id: \.self) { ingredient in
-                            Text("• \(ingredient)").appFont(size: 14)
-                        }
-
-                        Text("Instructions")
-                            .appFont(size: 15, weight: .semibold)
-                            .padding(.top, 5)
-                        Text(instructions).appFont(size: 14)
-                    }
-                    .padding(.top, 8)
-                }
-            }
-
-            HStack {
-                Button(action: { onLog(meal) }) {
-                    Label("Log with AI", systemImage: "plus.bubble.fill")
-                }
-                .buttonStyle(.borderless)
-
-                Spacer()
-
-                Button(action: onRegenerate) {
-                    if isRegenerating {
-                        ProgressView()
-                    } else {
-                        Label("Regenerate", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                }
-                .buttonStyle(.borderless)
-                .disabled(isRegenerating)
-            }
-            .padding(.top, 5)
-
-        }
-        .asCard()
-    }
-
-    @ViewBuilder
-    private func nutrientPill(label: String, value: Double, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .appFont(size: 10, weight: .bold)
-            Text(String(format: "%.0f", value))
-                .appFont(size: 12, weight: .semibold)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(color.opacity(0.15))
-        .foregroundColor(color)
-        .cornerRadius(20)
-    }
-}
-
-
-struct WeekView: View {
-    @Binding var selectedDate: Date
-    @Namespace private var animationNamespace
-    let calendar = Calendar.current
-    var body: some View {
-        let today = calendar.startOfDay(for: Date())
-        let dates = (0..<7).map { calendar.date(byAdding: .day, value: $0, to: today)! }
-        let now = Date()
-        let day = String(Calendar.current.component(.day, from: now))
-
-        HStack {
-            ForEach(dates, id: \.self) { date in
-                VStack {
-                    VStack(spacing: 8) {
-                        if (dayOfMonth(for: date) == day) {
-                            Text(dayOfWeek(for: date)).appFont(size: 12).foregroundColor(calendar.isDate(date, inSameDayAs: selectedDate) ? .brandPrimary : Color(UIColor.secondaryLabel))
-                        } else {
-                            Text(dayOfWeek(for: date)).appFont(size: 12).foregroundColor(calendar.isDate(date, inSameDayAs: selectedDate) ? .brandPrimary : Color(UIColor.secondaryLabel))
-                        }
-
-                        if (dayOfMonth(for: date) == day) {
-                            Text(dayOfMonth(for: date))
-                                .appFont(size: 17, weight: .semibold)
-                                .fixedSize(horizontal: true, vertical: false)
-                                .padding(10)
-                                .background( Group { if calendar.isDate(date, inSameDayAs: selectedDate) { Circle().fill(Color.brandPrimary).matchedGeometryEffect(id: "selectedDay", in: animationNamespace) } else { Circle().fill(Color.clear) } } )
-                                .foregroundColor(calendar.isDate(date, inSameDayAs: selectedDate) ? .white : .textPrimary)
-                                .padding(.top, -1)
-                                .padding(.bottom, -5)
-                        } else {
-                            Text(dayOfMonth(for: date))
-                                .appFont(size: 17, weight: .semibold)
-                                .fixedSize(horizontal: true, vertical: false)
-                                .padding(10)
-                                .background( Group { if calendar.isDate(date, inSameDayAs: selectedDate) { Circle().fill(Color.brandPrimary).matchedGeometryEffect(id: "selectedDay", in: animationNamespace) } else { Circle().fill(Color.clear) } } )
-                                .foregroundColor(calendar.isDate(date, inSameDayAs: selectedDate) ? .white : .textPrimary)
-                                .padding(.bottom, 3)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: 70)
-                    .onTapGesture {
-                        withAnimation(.spring()) { selectedDate = date }
-                        HapticManager.instance.feedback(.light)
-                    }
-
-                    if (dayOfMonth(for: date) == day) {
-                        Circle()
-                            .frame(width: 5, height: 5)
-                            .foregroundColor(.green)
-                            .padding(.bottom, -5)
-                            .padding(.top, -5)
-                    }
-                }
-            }
-        }
-        .padding(.horizontal)
-    }
-
-    private func dayOfWeek(for date: Date) -> String { let formatter = DateFormatter(); formatter.dateFormat = "EEE"; return formatter.string(from: date) }
-    private func dayOfMonth(for date: Date) -> String { let formatter = DateFormatter(); formatter.dateFormat = "d"; return formatter.string(from: date) }
-}
-
-fileprivate extension DateFormatter {
-    static var longDate: DateFormatter { let formatter = DateFormatter(); formatter.dateStyle = .long; return formatter }
 }

@@ -1,0 +1,711 @@
+import SwiftUI
+import FirebaseAuth
+
+
+struct DailySnapshotStrip: View {
+    let dailyLog: DailyLog
+    @ObservedObject var goalSettings: GoalSettings
+    let isToday: Bool
+    let dateTitle: String
+    let onOpenInsights: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var foodItems: [FoodItem] {
+        dailyLog.meals.flatMap(\.foodItems)
+    }
+
+    private var exercises: [LoggedExercise] {
+        dailyLog.exercises ?? []
+    }
+
+    private var calories: Double {
+        dailyLog.totalCalories()
+    }
+
+    private var caloriesGoal: Double {
+        max(goalSettings.calories ?? 1, 1)
+    }
+
+    private var caloriesRemaining: Double {
+        caloriesGoal - calories
+    }
+
+    private var protein: Double {
+        dailyLog.totalMacros().protein
+    }
+
+    private var proteinGoal: Double {
+        max(goalSettings.protein, 1)
+    }
+
+    private var waterIntake: Double {
+        dailyLog.waterTracker?.totalOunces ?? 0
+    }
+
+    private var waterGoal: Double {
+        max(goalSettings.waterGoal, 1)
+    }
+
+    private var coach: (title: String, message: String, icon: String, color: Color) {
+        let calorieProgress = calories / caloriesGoal
+        let proteinProgress = protein / proteinGoal
+        let waterProgress = waterIntake / waterGoal
+
+        if foodItems.isEmpty {
+            return (
+                "Start the day clean",
+                isToday ? "Log your first meal so the rest of today has a real baseline." : "No food was logged for this day.",
+                "fork.knife",
+                .brandPrimary
+            )
+        }
+
+        if caloriesRemaining < -150 {
+            return (
+                "Protect the rest of the day",
+                "You are \(Int(abs(caloriesRemaining).rounded())) calories over. Keep the next choice simple and protein-forward.",
+                "exclamationmark.circle.fill",
+                .orange
+            )
+        }
+
+        if waterProgress < 0.35 && isToday {
+            return (
+                "Hydration is the easy win",
+                "You are at \(Int(waterIntake.rounded())) oz. One quick water log gets the day moving.",
+                "drop.fill",
+                .cyan
+            )
+        }
+
+        if proteinProgress < 0.5 && calorieProgress > 0.25 {
+            return (
+                "Protein needs attention",
+                "You have logged \(Int(protein.rounded()))g of \(Int(proteinGoal.rounded()))g. Build the next meal around protein.",
+                "bolt.heart.fill",
+                .accentProtein
+            )
+        }
+
+        if exercises.isEmpty && isToday {
+            return (
+                "Movement slot is open",
+                "No workouts are logged yet. Even a short walk keeps the daily picture more complete.",
+                "figure.walk",
+                .blue
+            )
+        }
+
+        return (
+            "You are building a useful day",
+            "Food, hydration, and activity are coming together. Review insights when you want the deeper read.",
+            "checkmark.seal.fill",
+            .accentPositive
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: coach.icon)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(coach.color)
+                    .frame(width: 36, height: 36)
+                    .background(coach.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(isToday ? "Today" : dateTitle)
+                            .appFont(size: 19, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                            .lineLimit(1)
+
+                        Spacer(minLength: 6)
+
+                        Text(calorieStatus)
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(coach.color)
+                            .lineLimit(1)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(coach.color.opacity(0.10), in: Capsule())
+                    }
+
+                    Text(coach.title)
+                        .appFont(size: 13, weight: .semibold)
+                        .foregroundColor(coach.color)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+
+                    Text("\(Int(protein.rounded()))g protein • \(Int(waterIntake.rounded())) oz water")
+                        .appFont(size: 13, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                }
+
+                Spacer(minLength: 8)
+
+                Button(action: onOpenInsights) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.brandPrimary)
+                        .frame(width: 34, height: 34)
+                        .background(Color.brandPrimary.opacity(0.12))
+                        .clipShape(Circle())
+                        .shimmering()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open insights")
+            }
+
+            Text(coach.message)
+                .appFont(size: 12)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: 520)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private var calorieStatus: String {
+        if caloriesRemaining >= 0 {
+            return "\(Int(caloriesRemaining.rounded())) cal left"
+        }
+        return "\(Int(abs(caloriesRemaining).rounded())) cal over"
+    }
+}
+
+struct DiaryMetricPill: View {
+    let title: String
+    let value: String
+    let subtitle: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(color)
+                .frame(width: 30, height: 30)
+                .background(color.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                Text("\(value) \(subtitle)")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(Color.backgroundSecondary.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+struct NutritionAuditLaunchButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: "checklist")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.orange)
+                    .frame(width: 28, height: 28)
+                    .background(Color.orange.opacity(0.12), in: Circle())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Review nutrition audit")
+                        .appFont(size: 13, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Find foods where macros and calories disagree.")
+                        .appFont(size: 11, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+            .padding(12)
+            .background(Color.orange.opacity(0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct NutritionAuditView: View {
+    let dailyLog: DailyLog
+    @Binding var dailyLogBinding: DailyLog?
+    let date: Date
+    @Environment(\.dismiss) private var dismiss
+
+    private var dailyStatus: NutritionCalorieConsistency.Status {
+        dailyLog.calorieConsistencyStatus()
+    }
+
+    private var mismatchedFoods: [FoodItem] {
+        dailyLog.foodsWithMeaningfulCalorieMacroMismatch()
+            .sorted { $0.calorieConsistencyStatus.mismatchAmount > $1.calorieConsistencyStatus.mismatchAmount }
+    }
+
+    private var totalFoods: Int {
+        dailyLog.meals.flatMap(\.foodItems).count
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Nutrition Audit")
+                        .appFont(size: 28, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Logged calories stay official, but this shows where macro math suggests a different total.")
+                        .appFont(size: 14, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                NutritionConsistencyNoticeCard(status: dailyStatus, style: .detail)
+
+                HStack(spacing: 10) {
+                    DiaryMetricPill(title: "Foods", value: "\(totalFoods)", subtitle: "logged", icon: "fork.knife", color: .brandPrimary)
+                    DiaryMetricPill(title: "Flagged", value: "\(mismatchedFoods.count)", subtitle: "items", icon: "exclamationmark.triangle.fill", color: .orange)
+                }
+
+                if mismatchedFoods.isEmpty {
+                    NutritionAuditEmptyState()
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Items to review")
+                            .appFont(size: 18, weight: .bold)
+                            .foregroundColor(.textPrimary)
+
+                        ForEach(mismatchedFoods) { food in
+                            NavigationLink {
+                                FoodDetailView(
+                                    initialFoodItem: food,
+                                    dailyLog: $dailyLogBinding,
+                                    date: date,
+                                    source: "nutrition_audit",
+                                    onLogUpdated: { }
+                                )
+                            } label: {
+                                NutritionAuditFoodRow(food: food)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(16)
+                    .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+            }
+            .padding(16)
+        }
+        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .navigationTitle("Audit")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Done") { dismiss() }
+            }
+        }
+    }
+}
+
+private struct NutritionAuditFoodRow: View {
+    let food: FoodItem
+
+    private var status: NutritionCalorieConsistency.Status {
+        food.calorieConsistencyStatus
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(FoodEmojiMapper.getEmoji(for: food.name))
+                .font(.system(size: 24))
+                .frame(width: 42, height: 42)
+                .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(food.name)
+                    .appFont(size: 15, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(2)
+
+                Text(food.servingSize)
+                    .appFont(size: 12, weight: .medium)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .lineLimit(1)
+
+                Text("Logged \(Int(status.loggedCalories.rounded())) cal • macros imply \(Int(status.macroDerivedCalories.rounded())) cal")
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+
+            Text("\(Int(status.mismatchAmount.rounded()))")
+                .appFont(size: 17, weight: .bold)
+                .foregroundColor(.orange)
+        }
+        .padding(12)
+        .background(Color.backgroundPrimary.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct NutritionAuditEmptyState: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 28, weight: .bold))
+                .foregroundColor(.accentPositive)
+                .frame(width: 54, height: 54)
+                .background(Color.accentPositive.opacity(0.12), in: Circle())
+
+            Text("No single food stands out")
+                .appFont(size: 17, weight: .bold)
+                .foregroundColor(.textPrimary)
+
+            Text("The daily gap is likely coming from smaller rounding differences across multiple foods.")
+                .appFont(size: 13, weight: .medium)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+        .padding(.horizontal, 16)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+struct EmptyDailyLogView: View {
+    let isToday: Bool
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "plus.viewfinder")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundColor(.brandPrimary)
+                .frame(width: 56, height: 56)
+                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+
+            Text(isToday ? "Ready for your first log" : "Nothing logged on this day")
+                .appFont(size: 17, weight: .semibold)
+                .foregroundColor(.textPrimary)
+
+            Text(isToday ? "Use the center + button to search, scan, take a photo, or describe a meal." : "Switch dates or use this as a clean slate for planning.")
+                .appFont(size: 13)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 22)
+        .padding(.horizontal, 18)
+        .background(Color.backgroundSecondary.opacity(0.58), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+struct QuickActionButton: View {
+    let icon: String
+    let label: String
+    let subtitle: String
+    let color: Color
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(color)
+                    .frame(width: 38, height: 38)
+                    .background(color.opacity(0.13), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+            
+            Text(label)
+                .appFont(size: 15, weight: .bold)
+                .foregroundColor(.textPrimary)
+                .lineLimit(1)
+
+            Text(subtitle)
+                .appFont(size: 12)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(width: 128)
+        .frame(minHeight: 116, alignment: .topLeading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(
+            colorScheme == .dark ? Color.backgroundPrimary.opacity(0.76) : color.opacity(0.035),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+struct SwipeableExerciseRowView: View {
+    let exercise: LoggedExercise
+    let onDelete: (String) -> Void
+    let onTap: (LoggedExercise) -> Void
+    @State private var offset: CGFloat = 0
+    @State private var isSwiped: Bool = false
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            if isSwiped {
+                HStack {
+                    Spacer()
+                    Button {
+                        withAnimation(.easeInOut) {
+                            onDelete(exercise.id)
+                            offset = 0
+                            isSwiped = false
+                        }
+                    } label: {
+                        Image(systemName: "trash").foregroundColor(.white).frame(width: 60, height: 40, alignment: .center)
+                    }
+                    .buttonStyle(PlainButtonStyle()).background(Color.red).contentShape(Rectangle()).cornerRadius(8)
+                }
+                .padding(.vertical, 4)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+
+            HStack(spacing: 12) {
+                Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
+                    .font(.title3)
+                    .frame(width: 38, height: 38)
+                    .background(Color.blue.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(exercise.name)
+                            .appFont(size: 15, weight: .semibold)
+                            .foregroundColor(.textPrimary)
+                            .lineLimit(1)
+
+                        if exercise.source == "HealthKit" {
+                            Image("Apple_Health")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 14, height: 14)
+                        }
+                    }
+
+                    Text(exerciseSubtitle)
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(Int(exercise.caloriesBurned.rounded()))")
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.accentPositive)
+                    Text("cal")
+                        .appFont(size: 11)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(Rectangle())
+            .offset(x: offset)
+            .onTapGesture {
+                if !isSwiped {
+                    onTap(exercise)
+                } else {
+                    withAnimation(.easeInOut) { offset = 0; isSwiped = false }
+                }
+            }
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if value.translation.width < 0 {
+                            offset = max(value.translation.width, -70)
+                        } else if isSwiped && value.translation.width > 0 {
+                            offset = -70 + value.translation.width
+                        }
+                    }
+                    .onEnded { value in
+                        withAnimation(.easeInOut) {
+                            if value.translation.width < -50 {
+                                offset = -70
+                                isSwiped = true
+                            } else {
+                                offset = 0
+                                isSwiped = false
+                            }
+                        }
+                    }
+            )
+        }
+        .padding(.bottom, 2)
+    }
+
+    private var exerciseSubtitle: String {
+        var parts: [String] = []
+        if let duration = exercise.durationMinutes, duration > 0 {
+            parts.append("\(duration) min")
+        }
+        parts.append(exercise.source == "HealthKit" ? "Apple Health" : "Manual")
+        return parts.joined(separator: " • ")
+    }
+}
+
+struct SwipeableFoodItemView: View {
+    let initialFoodItem: FoodItem
+    @Binding var dailyLog: DailyLog?
+    let onDelete: (String) -> Void
+    let onLogUpdated: () -> Void
+    let date: Date
+    @State private var offset: CGFloat = 0
+    @State private var isSwiped: Bool = false
+    @State private var showDetailView = false
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            if isSwiped {
+                HStack {
+                    Spacer()
+                    Button {
+                        withAnimation(.easeInOut) {
+                            onDelete(initialFoodItem.id)
+                            offset = 0
+                            isSwiped = false
+                        }
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundColor(.white)
+                            .frame(width: 60, height: 58, alignment: .center)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .background(Color.red)
+                    .contentShape(Rectangle())
+                    .cornerRadius(12)
+                }
+                .padding(.vertical, 2)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+
+            HStack(spacing: 12) {
+                Text(FoodEmojiMapper.getEmoji(for: initialFoodItem.name))
+                    .font(.title3)
+                    .frame(width: 38, height: 38)
+                    .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(initialFoodItem.name)
+                        .lineLimit(1)
+                        .appFont(size: 16, weight: .semibold)
+                        .foregroundColor(.textPrimary)
+
+                    Text(macroSummary)
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(Int(initialFoodItem.calories.rounded()))")
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    Text("cal")
+                        .appFont(size: 11)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Color.backgroundSecondary.opacity(0.58), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(Rectangle())
+            .offset(x: offset)
+            .onTapGesture {
+                if !isSwiped {
+                    showDetailView = true
+                } else {
+                    withAnimation(.easeInOut) {
+                        offset = 0
+                        isSwiped = false
+                    }
+                }
+            }
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if value.translation.width < 0 {
+                            offset = max(value.translation.width, -70)
+                        } else if isSwiped && value.translation.width > 0 {
+                            offset = -70 + value.translation.width
+                        }
+                    }
+                    .onEnded { value in
+                        withAnimation(.easeInOut) {
+                            if value.translation.width < -50 {
+                                offset = -70
+                                isSwiped = true
+                            } else {
+                                offset = 0
+                                isSwiped = false
+                            }
+                        }
+                    }
+            )
+        }
+        .navigationDestination(isPresented: $showDetailView) {
+            FoodDetailView(
+                initialFoodItem: initialFoodItem,
+                dailyLog: $dailyLog,
+                date: date,
+                source: "log_swipe",
+                onLogUpdated: onLogUpdated
+            )
+        }
+        .padding(.bottom, 1)
+    }
+
+    private var macroSummary: String {
+        "P \(Int(initialFoodItem.protein.rounded()))g • C \(Int(initialFoodItem.carbs.rounded()))g • F \(Int(initialFoodItem.fats.rounded()))g"
+    }
+}

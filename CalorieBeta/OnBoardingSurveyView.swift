@@ -6,7 +6,7 @@ struct OnboardingSurveyView: View {
     var onComplete: () -> Void
 
     @State private var currentStep = 0
-    let totalSteps = 5
+    let totalSteps = 6
 
     @State private var ageInput: String = ""
     @State private var heightFeetInput: String = ""
@@ -16,6 +16,9 @@ struct OnboardingSurveyView: View {
     @State private var selectedGender: String = "Male"
     @State private var selectedActivityLevelKey: String = "Sedentary"
     @State private var selectedGoal: String = "Lose"
+    @State private var selectedTrainingIntent: String = "General Fitness"
+    @State private var selectedReminderStyle: String = "Gentle"
+    @State private var selectedMaiaTone: String = "Balanced"
     
     let activityLevels: [String: String] = [
         "Sedentary": "Little to no exercise",
@@ -25,10 +28,17 @@ struct OnboardingSurveyView: View {
         "Extremely Active": "Very hard exercise & physical job"
     ]
     let goals = ["Lose", "Maintain", "Gain"]
+    let trainingIntents = ["General Fitness", "Strength", "Muscle Gain", "Fat Loss"]
+    let reminderStyles = ["Gentle", "Direct", "Minimal"]
+    let maiaTones = ["Balanced", "Coach", "Analyst"]
     private let activityLevelMap: [String: Double] = ["Sedentary": 1.2, "Lightly Active": 1.375, "Moderately Active": 1.55, "Very Active": 1.725, "Extremely Active": 1.9]
 
     public init(onComplete: @escaping () -> Void) {
         self.onComplete = onComplete
+    }
+
+    private var progressValue: Double {
+        Double(currentStep + 1) / Double(totalSteps)
     }
 
     private var isCurrentStepValid: Bool {
@@ -43,6 +53,8 @@ struct OnboardingSurveyView: View {
         case 3:
             return true
         case 4:
+            return true
+        case 5:
             return !targetWeightInput.isEmpty && (Double(targetWeightInput) ?? 0) > 0
         default:
             return false
@@ -50,31 +62,64 @@ struct OnboardingSurveyView: View {
     }
 
     var body: some View {
-        VStack {
-            ProgressView(value: Double(currentStep + 1), total: Double(totalSteps))
-                .padding()
-                .tint(Color.brandPrimary)
+        ZStack {
+            Color.backgroundPrimary.ignoresSafeArea()
 
-            TabView(selection: $currentStep) {
-                stepView(title: "What's your age?", subtitle: "Your age helps us calculate your metabolic rate.", iconName: "birthday.cake", content: { ageStepView() }).tag(0)
-                stepView(title: "What's your height?", subtitle: "This is used to help determine your energy needs.", iconName: "ruler", content: { heightStepView() }).tag(1)
-                stepView(title: "What's your current weight?", subtitle: "This provides a baseline for tracking your progress.", iconName: "scalemass", content: { currentWeightStepView() }).tag(2)
-                stepView(title: "Tell us about your lifestyle", subtitle: "This helps us tailor your goals to your daily life.", iconName: "figure.walk.circle", content: { activityAndGoalStepView() }).tag(3)
-                stepView(title: "What's your target weight?", subtitle: "Setting a goal is a great first step!", iconName: "flag.checkered.circle", content: { targetWeightStepView() }).tag(4)
-            }
-            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-            .animation(.easeInOut, value: currentStep)
-            
-            HStack {
-                if currentStep > 0 {
-                    Button("Back") { withAnimation { currentStep -= 1 } }.padding()
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Personal Setup")
+                                .appFont(size: 22, weight: .bold)
+                                .foregroundColor(.textPrimary)
+                            Text("Step \(currentStep + 1) of \(totalSteps)")
+                                .appFont(size: 13, weight: .semibold)
+                                .foregroundColor(.brandPrimary)
+                        }
+
+                        Spacer()
+
+                        Text("\(Int((progressValue * 100).rounded()))%")
+                            .appFont(size: 15, weight: .bold)
+                            .foregroundColor(.brandPrimary)
+                            .frame(width: 48, height: 48)
+                            .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                    }
+
+                    ProgressView(value: Double(currentStep + 1), total: Double(totalSteps))
+                        .tint(Color.brandPrimary)
                 }
-                Spacer()
-                Button(currentStep == totalSteps - 1 ? "Finish" : "Next") { saveGoalsAndProceed() }
-                    .padding()
+                .padding(18)
+                .background(.ultraThinMaterial)
+
+                TabView(selection: $currentStep) {
+                    stepView(title: "What's your age?", subtitle: "Your age helps us calculate your metabolic rate.", iconName: "birthday.cake", content: { ageStepView() }).tag(0)
+                    stepView(title: "What's your height?", subtitle: "This is used to help determine your energy needs.", iconName: "ruler", content: { heightStepView() }).tag(1)
+                    stepView(title: "What's your current weight?", subtitle: "This provides a baseline for tracking your progress.", iconName: "scalemass", content: { currentWeightStepView() }).tag(2)
+                    stepView(title: "Tell us about your lifestyle", subtitle: "This helps us tailor your goals to your daily life.", iconName: "figure.walk.circle", content: { activityAndGoalStepView() }).tag(3)
+                    stepView(title: "How should MyFitPlate coach you?", subtitle: "These preferences tune training, reminders, and Maia's style.", iconName: "slider.horizontal.3", content: { coachingPreferencesStepView() }).tag(4)
+                    stepView(title: "What's your target weight?", subtitle: "Setting a goal is a great first step.", iconName: "flag.checkered.circle", content: { targetWeightStepView() }).tag(5)
+                }
+                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                .animation(.easeInOut, value: currentStep)
+
+                HStack(spacing: 12) {
+                    if currentStep > 0 {
+                        Button("Back") {
+                            withAnimation { currentStep -= 1 }
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                    }
+
+                    Button(currentStep == totalSteps - 1 ? "Finish Setup" : "Next") {
+                        saveGoalsAndProceed()
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
                     .disabled(!isCurrentStepValid)
+                }
+                .padding(18)
+                .background(.ultraThinMaterial)
             }
-            .padding()
         }
     }
 
@@ -98,7 +143,10 @@ struct OnboardingSurveyView: View {
             goalSettings.gender = selectedGender
             goalSettings.activityLevel = activityLevelMap[selectedActivityLevelKey] ?? 1.2
             goalSettings.goal = selectedGoal
-            
+            goalSettings.trainingIntent = selectedTrainingIntent
+            goalSettings.reminderStyle = selectedReminderStyle
+            goalSettings.maiaTone = selectedMaiaTone
+
             goalSettings.recalculateAllGoals()
             
             if let userID = Auth.auth().currentUser?.uid {
@@ -114,41 +162,93 @@ struct OnboardingSurveyView: View {
         ScrollView {
             VStack(spacing: 20) {
                 Image(systemName: iconName)
-                    .font(.system(size: 50))
+                    .font(.system(size: 34, weight: .semibold))
                     .foregroundColor(.brandPrimary)
-                    .padding(.bottom, 10)
+                    .frame(width: 72, height: 72)
+                    .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                    .padding(.top, 18)
+
                 Text(title)
-                    .font(.title2.bold())
+                    .appFont(size: 28, weight: .bold)
+                    .foregroundColor(.textPrimary)
                     .multilineTextAlignment(.center)
+
                 Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .appFont(size: 15)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                    .fixedSize(horizontal: false, vertical: true)
                 
                 content()
-                
-                Spacer()
             }
-            .padding()
+            .padding(22)
+            .frame(maxWidth: .infinity)
+            .asCard()
+            .padding(20)
         }
     }
 
-    @ViewBuilder private func ageStepView() -> some View { TextField("Age (Years)", text: $ageInput).keyboardType(.numberPad).textFieldStyle(RoundedBorderTextFieldStyle()).frame(width: 200) }
-    @ViewBuilder private func heightStepView() -> some View { HStack { TextField("Feet", text: $heightFeetInput).keyboardType(.numberPad).textFieldStyle(RoundedBorderTextFieldStyle()); Text("ft"); TextField("Inches", text: $heightInchesInput).keyboardType(.numberPad).textFieldStyle(RoundedBorderTextFieldStyle()); Text("in") }.frame(width: 250) }
-    @ViewBuilder private func currentWeightStepView() -> some View { HStack { TextField("Weight", text: $currentWeightInput).keyboardType(.decimalPad).textFieldStyle(RoundedBorderTextFieldStyle()); Text("lbs") }.frame(width: 200) }
-    @ViewBuilder private func targetWeightStepView() -> some View { HStack { TextField("Target Weight", text: $targetWeightInput).keyboardType(.decimalPad).textFieldStyle(RoundedBorderTextFieldStyle()); Text("lbs") }.frame(width: 200) }
+    @ViewBuilder
+    private func ageStepView() -> some View {
+        onboardingInputField(title: "Age", text: $ageInput, unit: "years", keyboard: .numberPad)
+    }
+
+    @ViewBuilder
+    private func heightStepView() -> some View {
+        HStack(spacing: 12) {
+            onboardingInputField(title: "Feet", text: $heightFeetInput, unit: "ft", keyboard: .numberPad)
+            onboardingInputField(title: "Inches", text: $heightInchesInput, unit: "in", keyboard: .numberPad)
+        }
+    }
+
+    @ViewBuilder
+    private func currentWeightStepView() -> some View {
+        onboardingInputField(title: "Current Weight", text: $currentWeightInput, unit: "lbs", keyboard: .decimalPad)
+    }
+
+    @ViewBuilder
+    private func targetWeightStepView() -> some View {
+        onboardingInputField(title: "Target Weight", text: $targetWeightInput, unit: "lbs", keyboard: .decimalPad)
+    }
+
+    private func onboardingInputField(title: String, text: Binding<String>, unit: String, keyboard: UIKeyboardType) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .appFont(size: 13, weight: .semibold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+
+            HStack {
+                TextField(title, text: text)
+                    .keyboardType(keyboard)
+                    .appFont(size: 24, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                    .multilineTextAlignment(.leading)
+
+                Text(unit)
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.brandPrimary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+            }
+            .padding(14)
+            .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .frame(maxWidth: .infinity)
+    }
     
     @ViewBuilder
     private func activityAndGoalStepView() -> some View {
         VStack(spacing: 20) {
             Text("Biological Sex")
-                .font(.headline)
+                .appFont(size: 17, weight: .bold)
+                .foregroundColor(.textPrimary)
             
             GenderButtonPicker(selectedGender: $selectedGender)
 
             Text("Activity Level")
-                .font(.headline)
+                .appFont(size: 17, weight: .bold)
+                .foregroundColor(.textPrimary)
             
             Picker("Activity Level", selection: $selectedActivityLevelKey) {
                 ForEach(activityLevels.keys.sorted(), id: \.self) { key in
@@ -167,11 +267,38 @@ struct OnboardingSurveyView: View {
             .labelsHidden()
 
             Text("Primary Goal")
-                .font(.headline)
+                .appFont(size: 17, weight: .bold)
+                .foregroundColor(.textPrimary)
             
             Picker("Goal", selection: $selectedGoal) {
                 ForEach(goals, id: \.self) { Text($0) }
             }.pickerStyle(SegmentedPickerStyle())
+        }
+        .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private func coachingPreferencesStepView() -> some View {
+        VStack(spacing: 18) {
+            onboardingChoiceSection(title: "Training Intent", selection: $selectedTrainingIntent, options: trainingIntents)
+            onboardingChoiceSection(title: "Reminder Style", selection: $selectedReminderStyle, options: reminderStyles)
+            onboardingChoiceSection(title: "Maia Style", selection: $selectedMaiaTone, options: maiaTones)
+        }
+        .padding(.top, 4)
+    }
+
+    private func onboardingChoiceSection(title: String, selection: Binding<String>, options: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .appFont(size: 17, weight: .bold)
+                .foregroundColor(.textPrimary)
+
+            Picker(title, selection: selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(option).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
         }
     }
 }

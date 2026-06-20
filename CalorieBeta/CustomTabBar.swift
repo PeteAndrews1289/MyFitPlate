@@ -10,12 +10,21 @@ struct AnimatedActionButton: View {
                 .font(.system(size: 26, weight: .bold))
                 .foregroundColor(.white)
                 .rotationEffect(Angle(degrees: isActive ? 45 : 0))
-                .frame(width: 55, height: 55)
-                .background(Color.brandPrimary.shadow(.drop(color: .brandPrimary.opacity(0.5), radius: 5, y: 3)))
+                .frame(width: 60, height: 60)
+                .background(
+                    Circle()
+                        .fill(Color.brandPrimary)
+                        .shadow(color: Color.brandPrimary.opacity(0.34), radius: 14, x: 0, y: 8)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                )
                 .clipShape(Circle())
-                .shadow(radius: 3)
-                .offset(y: -25)
+                .shadow(color: Color.black.opacity(0.16), radius: 12, x: 0, y: 8)
+                .offset(y: -26)
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -34,7 +43,16 @@ struct CustomTabBar: View {
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            Rectangle().fill(Material.bar).frame(height: 85).overlay(Divider(), alignment: .top)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.10), radius: 18, x: 0, y: -4)
+                .padding(.horizontal, 12)
+                .frame(height: 74)
+                .padding(.bottom, 8)
 
             HStack(alignment: .bottom, spacing: 0) {
                 ForEach(0..<tabs.count, id: \.self) { index in
@@ -44,6 +62,7 @@ struct CustomTabBar: View {
 
                     } else {
                         let item = tabs[index]
+                        let isSelected = selectedIndex == index && !showingAddOptions
                         Button {
                             if showingAddOptions {
                                 withAnimation { showingAddOptions = false }
@@ -52,14 +71,23 @@ struct CustomTabBar: View {
                         } label: {
                             VStack(spacing: 4) {
                                 Image(systemName: item.icon)
-                                    .font(.system(size: 22))
-                                Text(item.name).font(.caption2)
+                                    .font(.system(size: 21, weight: isSelected ? .semibold : .medium))
+                                    .frame(width: 36, height: 28)
+                                    .background(
+                                        Capsule()
+                                            .fill(isSelected ? Color.brandPrimary.opacity(0.14) : Color.clear)
+                                    )
+
+                                Text(item.name)
+                                    .appFont(size: 11, weight: isSelected ? .semibold : .regular)
                             }
-                            .foregroundColor(selectedIndex == index && !showingAddOptions ? Color.brandPrimary : Color(UIColor.secondaryLabel))
-                        }.frame(maxWidth: .infinity)
+                            .foregroundColor(isSelected ? Color.brandPrimary : Color(UIColor.secondaryLabel))
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity)
                     }
                 }
-            }.frame(height: 55).padding(.bottom, 30).padding(.horizontal, 5)
-        }.frame(height: 85)
+            }.frame(height: 58).padding(.bottom, 24).padding(.horizontal, 16)
+        }.frame(height: 92)
     }
 }

@@ -9,7 +9,6 @@ struct NutritionProgressView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     var insight: UserInsight?
 
-    @GestureState private var dragOffset: CGFloat = 0
     private let swipeThreshold: CGFloat = 50
     private let totalViews = 4
 
@@ -27,7 +26,8 @@ struct NutritionProgressView: View {
         let proteinPercentage = min(protein / proteinGoal, 1.0)
         let fatsPercentage = min(fats / fatsGoal, 1.0)
         let carbsPercentage = min(carbs / carbsGoal, 1.0)
-        
+        let consistencyStatus = dailyLog.calorieConsistencyStatus()
+
         VStack(spacing: 16) {
             ZStack {
                  switch goal.nutritionViewIndex {
@@ -45,34 +45,60 @@ struct NutritionProgressView: View {
                          .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
                  default: EmptyView()
                  }
-             }
+            }
             .padding(.horizontal, 8)
-            .frame(minHeight: 180)
-            .background(Color.backgroundSecondary.opacity(0.8))
-            .cornerRadius(12)
+            .padding(.vertical, 10)
+            .frame(minHeight: 190)
+            .background(Color.backgroundSecondary.opacity(0.74), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
+            )
             .clipped()
-            .gesture( DragGesture().updating($dragOffset) { value, state, _ in state = value.translation.width }.onEnded { value in let swipeDistance = value.translation.width; if abs(swipeDistance) > swipeThreshold { withAnimation(.easeInOut(duration: 0.3)) { if swipeDistance < 0 { goal.nutritionViewIndex = (goal.nutritionViewIndex + 1) % totalViews } else { goal.nutritionViewIndex = (goal.nutritionViewIndex - 1 + totalViews) % totalViews } } } } )
-            .offset(x: dragOffset / 3)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 20)
+                    .onEnded { value in
+                        let horizontalDistance = value.translation.width
+                        let verticalDistance = value.translation.height
+                        guard abs(horizontalDistance) > abs(verticalDistance) * 1.35,
+                              abs(horizontalDistance) > swipeThreshold else {
+                            return
+                        }
+
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            if horizontalDistance < 0 {
+                                goal.nutritionViewIndex = (goal.nutritionViewIndex + 1) % totalViews
+                            } else {
+                                goal.nutritionViewIndex = (goal.nutritionViewIndex - 1 + totalViews) % totalViews
+                            }
+                        }
+                    }
+            )
 
             DotIndicator(goalSettings: goal)
                 .padding(.top, -4)
                 .padding(.bottom, 4)
 
-        }.padding(.bottom, 8)
+            if consistencyStatus.hasMeaningfulMismatch {
+                NutritionConsistencyNoticeCard(status: consistencyStatus, style: .compact)
+                    .padding(.horizontal, 8)
+                    .padding(.top, -6)
+            }
+        }
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder
     private func summaryView(calories: Double, caloriesGoal: Double, caloriesPercentage: Double, protein: Double, proteinGoal: Double, fats: Double, fatsGoal: Double, carbs: Double, carbsGoal: Double) -> some View {
         HStack(spacing: 16) {
             VStack {
-                // MODIFIED: The "Calories" label is now outside the bubble
                 Text("Calories")
                     .appFont(size: 14, weight: .medium)
                 ProgressBubble(
                     value: calories,
                     goal: caloriesGoal,
                     percentage: caloriesPercentage,
-                    label: "", // MODIFIED: Label text is now handled above
+                    label: "",
                     unit: "cal",
                     color: .red
                 )
@@ -109,7 +135,6 @@ struct NutritionProgressView: View {
     @ViewBuilder
     private func bubblesView(calories: Double, caloriesGoal: Double, caloriesPercentage: Double, protein: Double, proteinGoal: Double, proteinPercentage: Double, fats: Double, fatsGoal: Double, fatsPercentage: Double, carbs: Double, carbsGoal: Double, carbsPercentage: Double) -> some View {
          HStack(spacing: 15) {
-             // MODIFIED: This bubble will now show "Eaten / Goal" since isSmall = true
              ProgressBubble(value: calories, goal: caloriesGoal, percentage: caloriesPercentage, label: "Calories", unit: "cal", color: .red, isSmall: true)
              ProgressBubble(value: protein, goal: proteinGoal, percentage: proteinPercentage, label: "Protein", unit: "g", color: .accentProtein, isSmall: true)
              ProgressBubble(value: fats, goal: fatsGoal, percentage: fatsPercentage, label: "Fats", unit: "g", color: .accentFats, isSmall: true)
@@ -126,12 +151,19 @@ struct ProgressBubble: View {
     let unit: String
     let color: Color
     var isSmall: Bool = false
-    
-    // NEW: Calculate remaining calories
+
     private var remaining: Double {
         goal - value
     }
-    
+
+    private var remainingMagnitude: Double {
+        abs(remaining)
+    }
+
+    private var remainingLabel: String {
+        remaining >= 0 ? "Remaining" : "Over"
+    }
+
     var body: some View {
         VStack {
             ZStack {
@@ -143,10 +175,8 @@ struct ProgressBubble: View {
                     .rotationEffect(Angle(degrees: -90))
                     .animation(.easeInOut(duration: 0.75), value: percentage)
 
-                // MODIFIED: This VStack now shows different text based on isSmall
                 VStack {
                     if isSmall {
-                        // Small View: (for macros) - Shows "Eaten"
                         Text("\(String(format: "%.0f", value))")
                             .appFont(size: isSmall ? 15 : 24, weight: isSmall ? .medium : .bold)
                             .foregroundColor(.textPrimary)
@@ -154,32 +184,77 @@ struct ProgressBubble: View {
                              .appFont(size: isSmall ? 10 : 12)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     } else {
-                        // Large View: (for calories) - Shows "Remaining"
-                        Text("\(String(format: "%.0f", remaining))")
-                            .appFont(size: 28, weight: .bold) // Larger font for remaining
+                        Text("\(String(format: "%.0f", remainingMagnitude))")
+                            .appFont(size: 28, weight: .bold)
                             .foregroundColor(.textPrimary)
-                        Text("Remaining")
+                        Text(remainingLabel)
                             .appFont(size: 12)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     }
                 }
             }
             .frame(width: isSmall ? 70 : 100, height: isSmall ? 70 : 100)
-            
-            // MODIFIED: Logic for displaying text below the bubble
+
             if !isSmall {
-                // Large View: Show "Eaten / Goal" underneath
                 Text("\(String(format: "%.0f", value)) / \(String(format: "%.0f", goal)) \(unit)")
                      .appFont(size: 12)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             } else if !label.isEmpty {
-                // Small View: Show label (e.g., "Protein") underneath
                 Text(label)
                     .appFont(size: 12)
                     .foregroundColor(.textPrimary)
                     .lineLimit(1)
             }
         }
+    }
+}
+
+struct NutritionConsistencyNoticeCard: View {
+    enum Style {
+        case compact
+        case detail
+    }
+
+    let status: NutritionCalorieConsistency.Status
+    var style: Style = .detail
+    var messageOverride: String? = nil
+
+    private var title: String {
+        style == .compact ? "Calorie check" : "Calories and macros differ"
+    }
+
+    private var message: String {
+        if let messageOverride {
+            return messageOverride
+        }
+        let macroCalories = Int(status.macroDerivedCalories.rounded())
+        let mismatch = Int(status.mismatchAmount.rounded())
+        return "Macros imply \(macroCalories) cal, \(mismatch) cal \(status.directionText) than logged. Logged calories stay official."
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "info.circle.fill")
+                .font(.system(size: style == .compact ? 13 : 15, weight: .bold))
+                .foregroundColor(.orange)
+                .frame(width: style == .compact ? 24 : 30, height: style == .compact ? 24 : 30)
+                .background(Color.orange.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: style == .compact ? 12 : 14, weight: .bold))
+                    .foregroundColor(.textPrimary)
+
+                Text(message)
+                    .font(.system(size: style == .compact ? 11 : 12, weight: .medium))
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(style == .compact ? 10 : 14)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: style == .compact ? 14 : 18, style: .continuous))
     }
 }
 

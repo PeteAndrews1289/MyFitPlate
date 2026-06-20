@@ -32,23 +32,22 @@ class RecipeService: ObservableObject {
         switch result {
         case .success(let jsonString):
             do {
-                var recipe = try parseRecipeFromAIResponse(jsonString)
-                try await saveRecipe(recipe, for: userID)
-                Analytics.logEvent("ai_recipe_generated", parameters: ["recipe_name": recipe.name])
-                userRecipes.append(recipe)
+                let recipe = try parseRecipeFromAIResponse(jsonString)
+                let savedRecipe = try await saveRecipe(recipe, for: userID)
+                Analytics.logEvent("ai_recipe_generated", parameters: ["recipe_name": savedRecipe.name])
                 isLoading = false
-                return recipe
+                return savedRecipe
             } catch {
-                print("❌ Recipe Parsing Error: \(error)")
+                AppLog.recipes.error("Recipe parsing failed: \(error.localizedDescription, privacy: .public)")
                 if retryCount > 0 {
-                    print("🔄 Retrying recipe generation...")
+                    AppLog.recipes.info("Retrying recipe generation.")
                     return await createRecipeFromAI(description: description, userID: userID, retryCount: retryCount - 1)
                 }
                 isLoading = false
                 return nil
             }
         case .failure(let error):
-            print("❌ AI Service Error: \(error.localizedDescription)")
+            AppLog.recipes.error("Recipe AI request failed: \(error.localizedDescription, privacy: .public)")
             isLoading = false
             return nil
         }
@@ -65,11 +64,14 @@ class RecipeService: ObservableObject {
             self.userRecipes = snapshot.documents.compactMap { document -> Recipe? in
                 try? document.data(as: Recipe.self)
             }
-        } catch { print("Error fetching user recipes: \(error)") }
+        } catch {
+            AppLog.recipes.error("Failed to fetch user recipes: \(error.localizedDescription, privacy: .public)")
+        }
         isLoading = false
     }
 
-    func saveRecipe(_ recipe: Recipe, for userID: String) async throws {
+    @discardableResult
+    func saveRecipe(_ recipe: Recipe, for userID: String) async throws -> Recipe {
         let userRecipesCollection = db.collection("users").document(userID).collection("recipes")
         var recipeToSave = recipe
         if let id = recipeToSave.id {
@@ -80,6 +82,15 @@ class RecipeService: ObservableObject {
             try newDocRef.setData(from: recipeToSave)
             Analytics.logEvent("recipe_created", parameters: ["recipe_name": recipe.name])
         }
+
+        if let recipeID = recipeToSave.id,
+           let index = userRecipes.firstIndex(where: { $0.id == recipeID }) {
+            userRecipes[index] = recipeToSave
+        } else {
+            userRecipes.append(recipeToSave)
+        }
+
+        return recipeToSave
     }
     
     func deleteRecipe(recipe: Recipe) async {
@@ -87,7 +98,9 @@ class RecipeService: ObservableObject {
         do {
             try await db.collection("users").document(userID).collection("recipes").document(recipeID).delete()
             if let index = userRecipes.firstIndex(where: { $0.id == recipeID }) { userRecipes.remove(at: index) }
-        } catch { print("Error deleting recipe: \(error)") }
+        } catch {
+            AppLog.recipes.error("Failed to delete recipe: \(error.localizedDescription, privacy: .public)")
+        }
     }
     
     func recipeToFoodItem(recipe: Recipe) -> FoodItem {
