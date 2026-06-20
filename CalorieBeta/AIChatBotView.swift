@@ -130,9 +130,21 @@ struct ChatBubble: View {
                             .padding(.horizontal, 14)
                             .padding(.vertical, 11)
                             .background(
-                                message.isUser ? Color.brandPrimary : Color.backgroundSecondary,
-                                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                Group {
+                                    if message.isUser {
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .fill(LinearGradient.brandGradient)
+                                    } else {
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .fill(.ultraThinMaterial)
+                                    }
+                                }
                             )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(message.isUser ? Color.clear : Color.primary.opacity(0.08), lineWidth: 1)
+                            )
+                            .shadow(color: message.isUser ? Color.brandPrimary.opacity(0.3) : Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
                             .foregroundColor(message.isUser ? .white : .textPrimary)
                             .frame(maxWidth: 310, alignment: message.isUser ? .trailing : .leading)
                     }
@@ -174,10 +186,11 @@ struct ChatBubble: View {
                     Button(action: { onLogRecipe(message.text) }) {
                         Label("Log Food", systemImage: "plus.circle.fill")
                             .appFont(size: 12, weight: .semibold)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(Color.brandPrimary, in: Capsule())
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 12)
+                            .background(LinearGradient.brandGradient, in: Capsule())
                             .foregroundColor(.white)
+                            .shadow(color: Color.brandPrimary.opacity(0.3), radius: 4, x: 0, y: 2)
                     }
                     .buttonStyle(.plain)
                 }
@@ -194,51 +207,54 @@ private struct AIChatActionCard: View {
     let onLog: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text(payload.mealName)
                     .appFont(size: 16, weight: .bold)
                     .foregroundColor(.textPrimary)
+                    .lineLimit(2)
                 Spacer()
                 Button(action: onLog) {
                     Text("Log Food")
-                        .appFont(size: 14, weight: .bold)
+                        .appFont(size: 13, weight: .bold)
                         .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .background(Color.brandPrimary, in: Capsule())
-                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(LinearGradient.brandGradient, in: Capsule())
+                        .shadow(color: Color.brandPrimary.opacity(0.3), radius: 5, x: 0, y: 3)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AnimatedCardButtonStyle())
             }
 
             HStack(spacing: 12) {
-                MacroLabel(title: "Cal", value: "\(Int(payload.calories.rounded()))")
-                MacroLabel(title: "Pro", value: "\(Int(payload.protein.rounded()))g")
-                MacroLabel(title: "Carb", value: "\(Int(payload.carbs.rounded()))g")
-                MacroLabel(title: "Fat", value: "\(Int(payload.fats.rounded()))g")
+                MacroLabel(title: "Cal", value: "\(Int(payload.calories.rounded()))", color: .orange)
+                MacroLabel(title: "Pro", value: "\(Int(payload.protein.rounded()))g", color: .accentProtein)
+                MacroLabel(title: "Carb", value: "\(Int(payload.carbs.rounded()))g", color: .accentCarbs)
+                MacroLabel(title: "Fat", value: "\(Int(payload.fats.rounded()))g", color: .accentFats)
             }
         }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.brandPrimary.opacity(0.3), lineWidth: 1)
-        )
+        .padding(.horizontal, 2)
+        .padding(.vertical, 2)
+        .glassCard()
     }
 }
 
 private struct MacroLabel: View {
     let title: String
     let value: String
+    var color: Color = .textPrimary
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Color(UIColor.secondaryLabel))
             Text(value)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.textPrimary)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(color)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
