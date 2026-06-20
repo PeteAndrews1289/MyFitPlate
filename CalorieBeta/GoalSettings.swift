@@ -307,7 +307,7 @@ class GoalSettings: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.recalculateAllGoals()
-            let goalsDict: [String:Any] = [
+            var goalsDict: [String:Any] = [
                 "calories": self.calories ?? 0, "protein": self.protein, "fats": self.fats, "carbs": self.carbs,
                 "proteinPercentage": self.proteinPercentage, "carbsPercentage": self.carbsPercentage, "fatsPercentage": self.fatsPercentage,
                 "activityLevel": self.activityLevel, "goal": self.goal, "targetWeight": self.targetWeight ?? NSNull(),

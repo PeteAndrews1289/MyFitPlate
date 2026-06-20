@@ -71,7 +71,7 @@ struct WeeklyCheckInView: View {
             }
             
             HStack(spacing: 16) {
-                StatCard(
+                WeeklyCheckInStatCard(
                     title: "Avg Intake",
                     value: adaptiveGoalService.last21DaysCalorieAverage != nil ? "\(Int(adaptiveGoalService.last21DaysCalorieAverage!))" : "--",
                     subtitle: "kcal / day",
@@ -79,7 +79,7 @@ struct WeeklyCheckInView: View {
                     color: .orange
                 )
                 
-                StatCard(
+                WeeklyCheckInStatCard(
                     title: "Weight Trend",
                     value: adaptiveGoalService.weightChangeRatePerDay != nil ? "\(String(format: "%.2f", adaptiveGoalService.weightChangeRatePerDay! * 7))" : "--",
                     subtitle: "lbs / week",
@@ -187,7 +187,7 @@ struct WeeklyCheckInView: View {
     }
 }
 
-private struct StatCard: View {
+private struct WeeklyCheckInStatCard: View {
     let title: String
     let value: String
     let subtitle: String

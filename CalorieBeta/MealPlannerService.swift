@@ -494,25 +494,33 @@ class MealPlannerService: ObservableObject {
         var grouped: [String: GroceryListItem] = [:]
 
         for ingredient in ingredients {
-            let name = normalizedIngredientName(ingredient)
-            let key = name.lowercased()
-            let category = groceryCategory(for: name)
+            let parsed = parseIngredient(ingredient)
+            let key = "\(parsed.name.lowercased())_\(parsed.unit)"
+            let category = groceryCategory(for: parsed.name)
 
             if var existing = grouped[key] {
-                existing.quantity += 1
+                existing.quantity += parsed.quantity
                 grouped[key] = existing
             } else {
                 grouped[key] = GroceryListItem(
-                    name: name,
-                    quantity: 1,
-                    unit: "meal use",
+                    name: parsed.name,
+                    quantity: parsed.quantity,
+                    unit: parsed.unit,
                     category: category,
                     source: "mealPlan"
                 )
             }
         }
+        
+        let rawPreference = UserDefaults.standard.string(forKey: "groceryUnitSystem") ?? "imperial"
+        let system = GroceryUnitSystem(rawValue: rawPreference) ?? .imperial
+        
+        var results = Array(grouped.values)
+        for i in 0..<results.count {
+            results[i] = applyUnitSystem(results[i], system: system)
+        }
 
-        return grouped.values.sorted { first, second in
+        return results.sorted { first, second in
             if first.category == second.category {
                 return first.name < second.name
             }
@@ -573,42 +581,148 @@ class MealPlannerService: ObservableObject {
             .lowercased()
     }
 
-    private func normalizedIngredientName(_ ingredient: String) -> String {
-        var name = ingredient
-            .replacingOccurrences(of: #"^\d+(\.\d+)?\s*"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"(?i)\b(cups?|tbsp|tsp|oz|ounces|lbs?|pounds|grams|g|servings?)\b"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"\([^)]*\)"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"^\s*of\s+"#, with: "", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "-•")))
+    private struct ParsedIngredient {
+        let name: String
+        let quantity: Double
+        let unit: String
+    }
+    
+    private func parseIngredient(_ raw: String) -> ParsedIngredient {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        text = text.replacingOccurrences(of: #"\([^)]*\)"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
 
-        if name.isEmpty {
-            name = ingredient.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"^[\-•\s]*(\d+(?:\.\d+)?(?:/\d+)?)\s*([a-zA-Z]+)?\s*(?:of\s+)?(.*)$"#
+        
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else {
+            return ParsedIngredient(name: text, quantity: 1, unit: "item")
         }
+        
+        let nsString = text as NSString
+        let qtyString = nsString.substring(with: match.range(at: 1))
+        
+        var unitString = ""
+        if match.range(at: 2).location != NSNotFound {
+            unitString = nsString.substring(with: match.range(at: 2)).lowercased()
+        }
+        
+        var nameString = ""
+        if match.range(at: 3).location != NSNotFound {
+            nameString = nsString.substring(with: match.range(at: 3)).trimmingCharacters(in: .whitespaces)
+        }
+        
+        var quantity: Double = 1.0
+        if qtyString.contains("/") {
+            let parts = qtyString.split(separator: "/")
+            if parts.count == 2, let num = Double(parts[0]), let den = Double(parts[1]), den != 0 {
+                quantity = num / den
+            }
+        } else if let val = Double(qtyString) {
+            quantity = val
+        }
+        
+        switch unitString {
+        case "g", "gram", "grams": unitString = "g"
+        case "kg", "kilogram", "kilograms": unitString = "kg"
+        case "oz", "ounce", "ounces": unitString = "oz"
+        case "lb", "lbs", "pound", "pounds": unitString = "lb"
+        case "ml", "milliliter", "milliliters": unitString = "ml"
+        case "l", "liter", "liters": unitString = "L"
+        case "cup", "cups": unitString = "cup"
+        case "tbsp", "tablespoon", "tablespoons": unitString = "tbsp"
+        case "tsp", "teaspoon", "teaspoons": unitString = "tsp"
+        case "slice", "slices": unitString = "slice"
+        case "clove", "cloves": unitString = "clove"
+        case "can", "cans": unitString = "can"
+        case "piece", "pieces": unitString = "piece"
+        default:
+            if !unitString.isEmpty {
+                nameString = "\(unitString) \(nameString)".trimmingCharacters(in: .whitespaces)
+            }
+            unitString = "item"
+        }
+        
+        if nameString.isEmpty {
+            nameString = text
+        }
+        
+        return ParsedIngredient(name: nameString, quantity: quantity, unit: unitString)
+    }
 
-        return name
+    private func applyUnitSystem(_ item: GroceryListItem, system: GroceryUnitSystem) -> GroceryListItem {
+        var newItem = item
+        
+        if system == .imperial {
+            if item.unit == "g" {
+                let lbs = item.quantity / 453.592
+                if lbs >= 1.0 {
+                    newItem.quantity = lbs
+                    newItem.unit = "lbs"
+                } else {
+                    newItem.quantity = item.quantity / 28.3495
+                    newItem.unit = "oz"
+                }
+            } else if item.unit == "kg" {
+                newItem.quantity = item.quantity * 2.20462
+                newItem.unit = "lbs"
+            } else if item.unit == "ml" {
+                let flOz = item.quantity / 29.5735
+                newItem.quantity = flOz
+                newItem.unit = "fl oz"
+            } else if item.unit == "L" {
+                newItem.quantity = item.quantity * 33.814
+                newItem.unit = "fl oz"
+            }
+        } else {
+            if item.unit == "oz" {
+                newItem.quantity = item.quantity * 28.3495
+                newItem.unit = "g"
+            } else if item.unit == "lb" || item.unit == "lbs" {
+                newItem.quantity = item.quantity * 453.592
+                newItem.unit = "g"
+            } else if item.unit == "fl oz" {
+                newItem.quantity = item.quantity * 29.5735
+                newItem.unit = "ml"
+            }
+            
+            if newItem.unit == "g" && newItem.quantity >= 1000 {
+                newItem.quantity = newItem.quantity / 1000
+                newItem.unit = "kg"
+            }
+            if newItem.unit == "ml" && newItem.quantity >= 1000 {
+                newItem.quantity = newItem.quantity / 1000
+                newItem.unit = "L"
+            }
+        }
+        
+        return newItem
     }
 
     private func groceryCategory(for ingredient: String) -> String {
         let lower = ingredient.lowercased()
 
-        if ["chicken", "turkey", "beef", "salmon", "tuna", "fish", "shrimp", "eggs", "tofu", "tempeh", "protein"].contains(where: lower.contains) {
-            return "Protein"
+        if ["chicken", "turkey", "beef", "salmon", "tuna", "fish", "shrimp", "steak", "pork", "lamb", "meat"].contains(where: lower.contains) {
+            return "Meat & Seafood"
+        }
+        
+        if ["eggs", "yogurt", "cheese", "milk", "butter", "cream", "sour cream", "cottage"].contains(where: lower.contains) {
+            return "Dairy & Eggs"
         }
 
-        if ["rice", "oats", "pasta", "bread", "wrap", "tortilla", "potato", "quinoa", "beans"].contains(where: lower.contains) {
-            return "Carbohydrates"
-        }
-
-        if ["broccoli", "pepper", "onion", "spinach", "lettuce", "carrot", "tomato", "fruit", "berries", "banana", "apple", "vegetable"].contains(where: lower.contains) {
+        if ["broccoli", "pepper", "onion", "spinach", "lettuce", "carrot", "tomato", "fruit", "berries", "banana", "apple", "vegetable", "garlic", "avocado", "lemon", "lime", "potato"].contains(where: lower.contains) {
             return "Produce"
         }
 
-        if ["yogurt", "cheese", "milk", "cottage"].contains(where: lower.contains) {
-            return "Dairy"
+        if ["rice", "oats", "pasta", "bread", "wrap", "tortilla", "quinoa", "beans", "lentils", "bagel", "bun", "flour"].contains(where: lower.contains) {
+            return "Carbohydrates"
         }
-
-        if ["oil", "sauce", "seasoning", "spice", "chia", "nuts", "seeds"].contains(where: lower.contains) {
-            return "Pantry"
+        
+        if ["oil", "sauce", "chia", "nuts", "seeds", "peanut", "almond", "honey", "jam", "sugar", "broth"].contains(where: lower.contains) {
+            return "Pantry & Oils"
+        }
+        
+        if ["seasoning", "spice", "cumin", "paprika", "salt", "pepper", "cinnamon", "oregano", "basil", "thyme", "rosemary", "parsley", "cilantro", "ginger"].contains(where: lower.contains) {
+            return "Spices & Seasonings"
         }
 
         return "Misc"

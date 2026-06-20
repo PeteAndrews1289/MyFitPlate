@@ -11,6 +11,7 @@ struct HomeView: View {
     @EnvironmentObject var insightsService: InsightsService
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var cycleService: CycleTrackingService
+    @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
     @Environment(\.colorScheme) var colorScheme
 
     @Binding var navigateToProfile: Bool

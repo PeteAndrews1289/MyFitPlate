@@ -14,6 +14,8 @@ struct GroceryListView: View {
     @State private var hideCompletedItems = false
     @State private var fetchError: (isShowing: Bool, message: String) = (false, "")
     
+    @AppStorage("groceryUnitSystem") private var unitSystem: GroceryUnitSystem = .imperial
+    
     private let foodAPIService = FatSecretFoodAPIService()
 
     private var displayedList: [GroceryListItem] {
@@ -45,12 +47,25 @@ struct GroceryListView: View {
     }
     
     private var sortedCategories: [String] {
-        groupedList.keys.sorted {
-            if $0 == "Pantry" { return false }
-            if $1 == "Pantry" { return true }
-            if $0 == "Misc" { return false }
-            if $1 == "Misc" { return true }
-            return $0 < $1
+        let customOrder = [
+            "Produce",
+            "Meat & Seafood",
+            "Dairy & Eggs",
+            "Carbohydrates",
+            "Pantry & Oils",
+            "Spices & Seasonings",
+            "Bakery",
+            "Misc"
+        ]
+        
+        return groupedList.keys.sorted { first, second in
+            let index1 = customOrder.firstIndex(of: first) ?? 99
+            let index2 = customOrder.firstIndex(of: second) ?? 99
+            
+            if index1 == index2 {
+                return first < second
+            }
+            return index1 < index2
         }
     }
 
@@ -120,6 +135,11 @@ struct GroceryListView: View {
                             Menu {
                                 ShareLink(item: shareText) {
                                     Label("Share List", systemImage: "square.and.arrow.up")
+                                }
+                                
+                                Picker(selection: $unitSystem, label: Text("Units")) {
+                                    Text("Imperial (lbs, oz)").tag(GroceryUnitSystem.imperial)
+                                    Text("Metric (kg, g)").tag(GroceryUnitSystem.metric)
                                 }
                                 
                                 if groceryList.contains(where: \.isCompleted) {
