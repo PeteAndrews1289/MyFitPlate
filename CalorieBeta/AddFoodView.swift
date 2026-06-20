@@ -7,6 +7,7 @@ struct AddFoodView: View {
     @Binding var dailyLog: DailyLog?
     var date: Date = Date()
     var source: String = "manual"
+    var targetMealName: String?
     var onLogUpdated: () -> Void
     var onUpdate: ((FoodItem) -> Void)? = nil
 
@@ -41,11 +42,12 @@ struct AddFoodView: View {
     @State private var scanError: (Bool, String) = (false, "")
 
     // MARK: - Robust Initializer
-    init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "manual", onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil) {
+    init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "manual", targetMealName: String? = nil, onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil) {
         self.initialFoodItem = initialFoodItem
         self._dailyLog = dailyLog
         self.date = date
         self.source = source
+        self.targetMealName = targetMealName
         self.onLogUpdated = onLogUpdated
         self.onUpdate = onUpdate
 
@@ -81,11 +83,8 @@ struct AddFoodView: View {
     }
 
     private func parseQuantityFromServing(_ servingDesc: String) -> (qty: Double, baseDesc: String) {
-        let components = servingDesc.components(separatedBy: " x ")
-        if components.count == 2, let qty = Double(components[0]), qty > 0 {
-            return (qty, components[1])
-        }
-        return (1.0, servingDesc)
+        let parsed = ServingNutritionCalculator.parseQuantity(from: servingDesc)
+        return (parsed.quantity, parsed.baseDescription)
     }
 
     private var selectedServingOption: ServingSizeOption? {
@@ -152,78 +151,10 @@ struct AddFoodView: View {
     }
 
     // MARK: - Adjusted Nutrients Calculation
-    private var adjustedNutrients: (
-        calories: Double, protein: Double, carbs: Double, fats: Double,
-        saturatedFat: Double?, polyunsaturatedFat: Double?, monounsaturatedFat: Double?,
-        fiber: Double?, calcium: Double?, iron: Double?, potassium: Double?, sodium: Double?,
-        vitaminA: Double?, vitaminC: Double?, vitaminD: Double?, vitaminB12: Double?, folate: Double?,
-        magnesium: Double?, phosphorus: Double?, zinc: Double?, copper: Double?, manganese: Double?, selenium: Double?,
-        vitaminB1: Double?, vitaminB2: Double?, vitaminB3: Double?, vitaminB5: Double?, vitaminB6: Double?, vitaminE: Double?, vitaminK: Double?,
-        servingDescription: String, servingWeightGrams: Double,
-        quantityValue: Double, servingUnit: String // New return values
-    ) {
-        guard let quantityValue = Double(quantity), quantityValue > 0 else {
-            // Fallback to initial values if input is invalid
-            let baseNutrients = editableBaseServingOption
-            let unit = baseNutrients.description
-            return (
-                calories: baseNutrients.calories, protein: baseNutrients.protein, carbs: baseNutrients.carbs, fats: baseNutrients.fats,
-                saturatedFat: baseNutrients.saturatedFat, polyunsaturatedFat: baseNutrients.polyunsaturatedFat, monounsaturatedFat: baseNutrients.monounsaturatedFat,
-                fiber: baseNutrients.fiber, calcium: baseNutrients.calcium, iron: baseNutrients.iron, potassium: baseNutrients.potassium, sodium: baseNutrients.sodium,
-                vitaminA: baseNutrients.vitaminA, vitaminC: baseNutrients.vitaminC, vitaminD: baseNutrients.vitaminD, vitaminB12: baseNutrients.vitaminB12,
-                folate: baseNutrients.folate, magnesium: baseNutrients.magnesium, phosphorus: baseNutrients.phosphorus, zinc: baseNutrients.zinc,
-                copper: baseNutrients.copper, manganese: baseNutrients.manganese, selenium: baseNutrients.selenium, vitaminB1: baseNutrients.vitaminB1,
-                vitaminB2: baseNutrients.vitaminB2, vitaminB3: baseNutrients.vitaminB3, vitaminB5: baseNutrients.vitaminB5, vitaminB6: baseNutrients.vitaminB6,
-                vitaminE: baseNutrients.vitaminE, vitaminK: baseNutrients.vitaminK,
-                servingDescription: unit,
-                servingWeightGrams: baseNutrients.servingWeightGrams ?? 0,
-                quantityValue: 1.0,
-                servingUnit: unit
-            )
-        }
-
-        let baseNutrients = editableBaseServingOption
-        let unitName = baseNutrients.description
-
-        let factor = quantityValue
-        let finalDescription = quantityValue == 1 ? unitName : "\(String(format: "%g", quantityValue)) x \(unitName)"
-        let finalWeight = (baseNutrients.servingWeightGrams ?? 0) * factor
-
-        return (
-            calories: baseNutrients.calories * factor,
-            protein: baseNutrients.protein * factor,
-            carbs: baseNutrients.carbs * factor,
-            fats: baseNutrients.fats * factor,
-            saturatedFat: baseNutrients.saturatedFat.map { $0 * factor },
-            polyunsaturatedFat: baseNutrients.polyunsaturatedFat.map { $0 * factor },
-            monounsaturatedFat: baseNutrients.monounsaturatedFat.map { $0 * factor },
-            fiber: baseNutrients.fiber.map { $0 * factor },
-            calcium: baseNutrients.calcium.map { $0 * factor },
-            iron: baseNutrients.iron.map { $0 * factor },
-            potassium: baseNutrients.potassium.map { $0 * factor },
-            sodium: baseNutrients.sodium.map { $0 * factor },
-            vitaminA: baseNutrients.vitaminA.map { $0 * factor },
-            vitaminC: baseNutrients.vitaminC.map { $0 * factor },
-            vitaminD: baseNutrients.vitaminD.map { $0 * factor },
-            vitaminB12: baseNutrients.vitaminB12.map { $0 * factor },
-            folate: baseNutrients.folate.map { $0 * factor },
-            magnesium: baseNutrients.magnesium.map { $0 * factor },
-            phosphorus: baseNutrients.phosphorus.map { $0 * factor },
-            zinc: baseNutrients.zinc.map { $0 * factor },
-            copper: baseNutrients.copper.map { $0 * factor },
-            manganese: baseNutrients.manganese.map { $0 * factor },
-            selenium: baseNutrients.selenium.map { $0 * factor },
-            vitaminB1: baseNutrients.vitaminB1.map { $0 * factor },
-            vitaminB2: baseNutrients.vitaminB2.map { $0 * factor },
-            vitaminB3: baseNutrients.vitaminB3.map { $0 * factor },
-            vitaminB5: baseNutrients.vitaminB5.map { $0 * factor },
-            vitaminB6: baseNutrients.vitaminB6.map { $0 * factor },
-            vitaminE: baseNutrients.vitaminE.map { $0 * factor },
-            vitaminK: baseNutrients.vitaminK.map { $0 * factor },
-            servingDescription: finalDescription,
-            servingWeightGrams: finalWeight,
-            quantityValue: quantityValue,
-            servingUnit: unitName
+    private var adjustedNutrients: AdjustedServingNutrition {
+        ServingNutritionCalculator.adjustedNutrition(
+            base: editableBaseServingOption,
+            quantityText: quantity
         )
     }
 
@@ -543,44 +474,7 @@ struct AddFoodView: View {
     }
 
     private func createFallbackServing(from item: FoodItem) -> ServingSizeOption {
-        let parsed = parseQuantityFromServing(item.servingSize)
-        let quantityFactor = max(item.quantityValue ?? parsed.qty, 1)
-        let servingDescription = item.servingUnit ?? (parsed.baseDesc.isEmpty ? "1 serving" : parsed.baseDesc)
-
-        return ServingSizeOption(
-            description: servingDescription,
-            servingWeightGrams: item.servingWeight / quantityFactor,
-            calories: item.calories / quantityFactor,
-            protein: item.protein / quantityFactor,
-            carbs: item.carbs / quantityFactor,
-            fats: item.fats / quantityFactor,
-            saturatedFat: item.saturatedFat.map { $0 / quantityFactor },
-            polyunsaturatedFat: item.polyunsaturatedFat.map { $0 / quantityFactor },
-            monounsaturatedFat: item.monounsaturatedFat.map { $0 / quantityFactor },
-            fiber: item.fiber.map { $0 / quantityFactor },
-            calcium: item.calcium.map { $0 / quantityFactor },
-            iron: item.iron.map { $0 / quantityFactor },
-            potassium: item.potassium.map { $0 / quantityFactor },
-            sodium: item.sodium.map { $0 / quantityFactor },
-            vitaminA: item.vitaminA.map { $0 / quantityFactor },
-            vitaminC: item.vitaminC.map { $0 / quantityFactor },
-            vitaminD: item.vitaminD.map { $0 / quantityFactor },
-            vitaminB12: item.vitaminB12.map { $0 / quantityFactor },
-            folate: item.folate.map { $0 / quantityFactor },
-            magnesium: item.magnesium.map { $0 / quantityFactor },
-            phosphorus: item.phosphorus.map { $0 / quantityFactor },
-            zinc: item.zinc.map { $0 / quantityFactor },
-            copper: item.copper.map { $0 / quantityFactor },
-            manganese: item.manganese.map { $0 / quantityFactor },
-            selenium: item.selenium.map { $0 / quantityFactor },
-            vitaminB1: item.vitaminB1.map { $0 / quantityFactor },
-            vitaminB2: item.vitaminB2.map { $0 / quantityFactor },
-            vitaminB3: item.vitaminB3.map { $0 / quantityFactor },
-            vitaminB5: item.vitaminB5.map { $0 / quantityFactor },
-            vitaminB6: item.vitaminB6.map { $0 / quantityFactor },
-            vitaminE: item.vitaminE.map { $0 / quantityFactor },
-            vitaminK: item.vitaminK.map { $0 / quantityFactor }
-        )
+        ServingNutritionCalculator.baseServing(from: item)
     }
 
     private func handleScannedNutrition(_ data: NutritionLabelData) {
@@ -613,6 +507,14 @@ struct AddFoodView: View {
             updateHandler(itemToLog)
         } else if isLoggedItem {
             dailyLogService.updateFoodInCurrentLog(for: userID, updatedFoodItem: itemToLog)
+        } else if let targetMealName {
+            dailyLogService.addFoodToLog(
+                for: userID,
+                date: date,
+                mealName: targetMealName,
+                foodItem: itemToLog,
+                source: source
+            )
         } else {
             dailyLogService.addFoodToCurrentLog(for: userID, foodItem: itemToLog, source: source)
         }

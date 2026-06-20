@@ -1,7 +1,24 @@
 import Foundation
 import HealthKit
 
-class HealthKitManager {
+
+protocol HealthKitManaging {
+    func requestAuthorization(completion: @escaping (Bool, Error?) -> Void)
+    func fetchWorkouts(for date: Date, completion: @escaping ([HKWorkout]?, Error?) -> Void)
+    func fetchSleepAnalysis(startDate: Date, endDate: Date, completion: @escaping ([HKCategorySample]?, Error?) -> Void)
+    func fetchLatestRestingHeartRate(completion: @escaping (HKQuantitySample?) -> Void)
+    func fetchLatestHRV(completion: @escaping (HKQuantitySample?) -> Void)
+    func fetchTodaySteps(completion: @escaping (Double) -> Void)
+    func fetchTodayActiveEnergy(completion: @escaping (Double) -> Void)
+    func saveNutrition(for foodItem: FoodItem)
+    func appFoodMetadataPredicate(for foodItem: FoodItem) -> NSPredicate
+    func deleteNutrition(for foodItem: FoodItem, completion: ((Bool) -> Void)?)
+    func replaceNutrition(oldItem: FoodItem, newItem: FoodItem)
+    func saveWeightSample(weightLbs: Double, date: Date)
+}
+
+class HealthKitManager: HealthKitManaging {
+
 
     static let shared = HealthKitManager()
     let healthStore = HKHealthStore()

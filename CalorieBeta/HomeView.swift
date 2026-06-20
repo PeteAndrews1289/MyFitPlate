@@ -41,6 +41,7 @@ struct HomeView: View {
 
     @State private var selectedExerciseForDetail: LoggedExercise?
     @State private var showingWorkoutDetail = false
+    @State private var showingWeeklyCheckIn = false
 
     private let spotlightOrder = ["nutritionProgress", "quickActions", "waterTracker", "dailyLog"]
 
@@ -98,6 +99,11 @@ struct HomeView: View {
                             dateNavigationView
                                 .padding(.horizontal)
                                 .padding(.top, 10)
+                                
+                            if goalSettings.isCheckInReady {
+                                weeklyCheckInBanner
+                                    .padding(.horizontal)
+                            }
 
                             if let currentDailyLog = currentLogForSelectedDate {
                                 dashboardHeaderSection(for: currentDailyLog)
@@ -283,6 +289,11 @@ struct HomeView: View {
                   PastWorkoutDetailView(exercise: selectedExerciseForDetail)
               }
           }
+          .sheet(isPresented: $showingWeeklyCheckIn) {
+              WeeklyCheckInView()
+                  .environmentObject(goalSettings)
+                  .environmentObject(adaptiveGoalService)
+          }
           .onReceive(insightsService.$currentInsights) { insights in
               self.weeklyInsight = insights.first
           }
@@ -402,6 +413,37 @@ struct HomeView: View {
             Capsule()
                 .stroke(Color.white.opacity(0.16), lineWidth: 1)
         )
+    }
+    
+    private var weeklyCheckInBanner: some View {
+        Button(action: {
+            HapticFeedback.selection()
+            showingWeeklyCheckIn = true
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.white)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Weekly Check-In Ready")
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.white)
+                    Text("Tap to review your new targets")
+                        .appFont(size: 12, weight: .medium)
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .padding(16)
+            .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private func dashboardHeaderSection(for dailyLog: DailyLog) -> some View {

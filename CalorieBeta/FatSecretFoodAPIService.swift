@@ -84,18 +84,58 @@ struct FatSecretServing: Decodable {
 }
 
 class FatSecretFoodAPIService {
-    private let proxyURL = "http://34.75.143.244:8080"
+    private static let fallbackProxyURL = "http://34.75.143.244:8080"
+    private static let proxyConfigurationError = "Food search is not configured. Check FATSECRET_PROXY_URL."
+
+    private var proxyBaseURL: URL? {
+        let configuredValue = (Bundle.main.object(forInfoDictionaryKey: "FATSECRET_PROXY_URL") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let configuredValue,
+           !configuredValue.isEmpty,
+           configuredValue != "$(FATSECRET_PROXY_URL)",
+           configuredValue != "your_proxy_url_here",
+           let configuredURL = Self.validProxyURL(from: configuredValue) {
+            return configuredURL
+        }
+
+        return Self.validProxyURL(from: Self.fallbackProxyURL)
+    }
+
+    private static func validProxyURL(from value: String) -> URL? {
+        guard let url = URL(string: value),
+              url.host != nil,
+              url.scheme?.lowercased().hasPrefix("http") == true else {
+            return nil
+        }
+        return url
+    }
+
+    private func proxyEndpoint(path: String, queryItems: [URLQueryItem]) -> URL? {
+        guard let baseURL = proxyBaseURL else { return nil }
+        var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)
+        components?.queryItems = queryItems
+        return components?.url
+    }
+
     private var barcodeCache = Set<String>()
     
     func fetchFoodByBarcode(barcode: String, completion: @escaping (Result<FoodItem, Error>) -> Void) {
         if barcodeCache.contains(barcode) { return }
         barcodeCache.insert(barcode)
-        guard let url = URL(string: "\(proxyURL)/barcode?barcode=\(barcode)") else { completion(.failure(APIError.invalidURL)); return }
+        guard let url = proxyEndpoint(path: "barcode", queryItems: [URLQueryItem(name: "barcode", value: barcode)]) else {
+            barcodeCache.remove(barcode)
+            completion(.failure(APIError.apiError(Self.proxyConfigurationError)))
+            return
+        }
         let request = URLRequest(url: url)
         
-        URLSession.shared.dataTask(with: request) { data, _, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             defer { self.barcodeCache.remove(barcode) }
             if let error = error { completion(.failure(APIError.networkError(error))); return }
+            guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
+                completion(.failure(APIError.apiError("Food search returned an invalid server response.")))
+                return
+            }
             guard let data = data else { completion(.failure(APIError.noData)); return }
             
             do {
@@ -119,11 +159,18 @@ class FatSecretFoodAPIService {
     }
     
     public func fetchFoodDetails(foodId: String, completion: @escaping (Result<(foodInfo: FoodItem, availableServings: [ServingSizeOption]), Error>) -> Void) {
-        guard let url = URL(string: "\(proxyURL)/food?food_id=\(foodId)") else { completion(.failure(APIError.invalidURL)); return }
+        guard let url = proxyEndpoint(path: "food", queryItems: [URLQueryItem(name: "food_id", value: foodId)]) else {
+            completion(.failure(APIError.apiError(Self.proxyConfigurationError)))
+            return
+        }
         let request = URLRequest(url: url)
         
-        URLSession.shared.dataTask(with: request) { data, _, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error { completion(.failure(APIError.networkError(error))); return }
+            guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
+                completion(.failure(APIError.apiError("Food details returned an invalid server response.")))
+                return
+            }
             guard let data = data else { completion(.failure(APIError.noData)); return }
             
             do {
@@ -217,11 +264,14 @@ class FatSecretFoodAPIService {
     }
     
     func fetchFoodByQuery(query: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        guard let url = URL(string: "\(proxyURL)/search?query=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") else { completion(.success([])); return }
+        guard let url = proxyEndpoint(path: "search", queryItems: [URLQueryItem(name: "query", value: query)]) else {
+            completion(.failure(APIError.apiError(Self.proxyConfigurationError)))
+            return
+        }
         let request = URLRequest(url: url)
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error { completion(.failure(APIError.networkError(error))); return }
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { completion(.failure(APIError.apiError("Received an invalid server response."))); return }
+            guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else { completion(.failure(APIError.apiError("Received an invalid server response."))); return }
             guard let data = data else { completion(.failure(APIError.noData)); return }
             do {
                 let decodedResponse = try JSONDecoder().decode(FatSecretResponse.self, from: data)

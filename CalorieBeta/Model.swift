@@ -554,6 +554,153 @@ struct ServingSizeOption: Identifiable, Hashable {
     static func == (lhs: ServingSizeOption, rhs: ServingSizeOption) -> Bool { lhs.description == rhs.description && lhs.servingWeightGrams == rhs.servingWeightGrams }
 }
 
+struct AdjustedServingNutrition {
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fats: Double
+    let saturatedFat: Double?
+    let polyunsaturatedFat: Double?
+    let monounsaturatedFat: Double?
+    let fiber: Double?
+    let calcium: Double?
+    let iron: Double?
+    let potassium: Double?
+    let sodium: Double?
+    let vitaminA: Double?
+    let vitaminC: Double?
+    let vitaminD: Double?
+    let vitaminB12: Double?
+    let folate: Double?
+    let magnesium: Double?
+    let phosphorus: Double?
+    let zinc: Double?
+    let copper: Double?
+    let manganese: Double?
+    let selenium: Double?
+    let vitaminB1: Double?
+    let vitaminB2: Double?
+    let vitaminB3: Double?
+    let vitaminB5: Double?
+    let vitaminB6: Double?
+    let vitaminE: Double?
+    let vitaminK: Double?
+    let servingDescription: String
+    let servingWeightGrams: Double
+    let quantityValue: Double
+    let servingUnit: String
+}
+
+enum ServingNutritionCalculator {
+    static func parseQuantity(from servingDescription: String) -> (quantity: Double, baseDescription: String) {
+        let components = servingDescription.components(separatedBy: " x ")
+        if components.count == 2, let quantity = Double(components[0]), quantity > 0 {
+            return (quantity, components[1])
+        }
+        return (1.0, servingDescription)
+    }
+
+    static func baseServing(from item: FoodItem) -> ServingSizeOption {
+        let parsed = parseQuantity(from: item.servingSize)
+        let quantity = safeQuantity(item.quantityValue ?? parsed.quantity)
+        let unit = item.servingUnit ?? normalizedServingDescription(parsed.baseDescription)
+
+        return ServingSizeOption(
+            description: unit,
+            servingWeightGrams: item.servingWeight / quantity,
+            calories: item.calories / quantity,
+            protein: item.protein / quantity,
+            carbs: item.carbs / quantity,
+            fats: item.fats / quantity,
+            saturatedFat: item.saturatedFat.map { $0 / quantity },
+            polyunsaturatedFat: item.polyunsaturatedFat.map { $0 / quantity },
+            monounsaturatedFat: item.monounsaturatedFat.map { $0 / quantity },
+            fiber: item.fiber.map { $0 / quantity },
+            calcium: item.calcium.map { $0 / quantity },
+            iron: item.iron.map { $0 / quantity },
+            potassium: item.potassium.map { $0 / quantity },
+            sodium: item.sodium.map { $0 / quantity },
+            vitaminA: item.vitaminA.map { $0 / quantity },
+            vitaminC: item.vitaminC.map { $0 / quantity },
+            vitaminD: item.vitaminD.map { $0 / quantity },
+            vitaminB12: item.vitaminB12.map { $0 / quantity },
+            folate: item.folate.map { $0 / quantity },
+            magnesium: item.magnesium.map { $0 / quantity },
+            phosphorus: item.phosphorus.map { $0 / quantity },
+            zinc: item.zinc.map { $0 / quantity },
+            copper: item.copper.map { $0 / quantity },
+            manganese: item.manganese.map { $0 / quantity },
+            selenium: item.selenium.map { $0 / quantity },
+            vitaminB1: item.vitaminB1.map { $0 / quantity },
+            vitaminB2: item.vitaminB2.map { $0 / quantity },
+            vitaminB3: item.vitaminB3.map { $0 / quantity },
+            vitaminB5: item.vitaminB5.map { $0 / quantity },
+            vitaminB6: item.vitaminB6.map { $0 / quantity },
+            vitaminE: item.vitaminE.map { $0 / quantity },
+            vitaminK: item.vitaminK.map { $0 / quantity }
+        )
+    }
+
+    static func adjustedNutrition(base: ServingSizeOption, quantityText: String) -> AdjustedServingNutrition {
+        let quantity = safeQuantity(Double(quantityText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        return adjustedNutrition(base: base, quantityValue: quantity)
+    }
+
+    static func adjustedNutrition(base: ServingSizeOption, quantityValue: Double) -> AdjustedServingNutrition {
+        let quantity = safeQuantity(quantityValue)
+        let unit = normalizedServingDescription(base.description)
+        let servingDescription = quantity == 1 ? unit : "\(String(format: "%g", quantity)) x \(unit)"
+        let servingWeight = (base.servingWeightGrams ?? 0) * quantity
+
+        return AdjustedServingNutrition(
+            calories: base.calories * quantity,
+            protein: base.protein * quantity,
+            carbs: base.carbs * quantity,
+            fats: base.fats * quantity,
+            saturatedFat: base.saturatedFat.map { $0 * quantity },
+            polyunsaturatedFat: base.polyunsaturatedFat.map { $0 * quantity },
+            monounsaturatedFat: base.monounsaturatedFat.map { $0 * quantity },
+            fiber: base.fiber.map { $0 * quantity },
+            calcium: base.calcium.map { $0 * quantity },
+            iron: base.iron.map { $0 * quantity },
+            potassium: base.potassium.map { $0 * quantity },
+            sodium: base.sodium.map { $0 * quantity },
+            vitaminA: base.vitaminA.map { $0 * quantity },
+            vitaminC: base.vitaminC.map { $0 * quantity },
+            vitaminD: base.vitaminD.map { $0 * quantity },
+            vitaminB12: base.vitaminB12.map { $0 * quantity },
+            folate: base.folate.map { $0 * quantity },
+            magnesium: base.magnesium.map { $0 * quantity },
+            phosphorus: base.phosphorus.map { $0 * quantity },
+            zinc: base.zinc.map { $0 * quantity },
+            copper: base.copper.map { $0 * quantity },
+            manganese: base.manganese.map { $0 * quantity },
+            selenium: base.selenium.map { $0 * quantity },
+            vitaminB1: base.vitaminB1.map { $0 * quantity },
+            vitaminB2: base.vitaminB2.map { $0 * quantity },
+            vitaminB3: base.vitaminB3.map { $0 * quantity },
+            vitaminB5: base.vitaminB5.map { $0 * quantity },
+            vitaminB6: base.vitaminB6.map { $0 * quantity },
+            vitaminE: base.vitaminE.map { $0 * quantity },
+            vitaminK: base.vitaminK.map { $0 * quantity },
+            servingDescription: servingDescription,
+            servingWeightGrams: servingWeight,
+            quantityValue: quantity,
+            servingUnit: unit
+        )
+    }
+
+    private static func safeQuantity(_ value: Double?) -> Double {
+        guard let value, value > 0 else { return 1.0 }
+        return value
+    }
+
+    private static func normalizedServingDescription(_ description: String) -> String {
+        let trimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "1 serving" : trimmed
+    }
+}
+
 struct BarcodeQueryResult: Identifiable {
     let id = UUID()
     let barcode: String

@@ -21,11 +21,12 @@ struct PrimaryButtonStyle: ButtonStyle {
             .appFont(size: 18, weight: .semibold)
             .padding()
             .frame(maxWidth: .infinity)
-            .background(Color.brandPrimary)
+            .background(LinearGradient.brandGradient)
             .foregroundColor(Color.white)
             .cornerRadius(16)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
+            .shadow(color: Color.brandPrimary.opacity(0.4), radius: 10, x: 0, y: 5)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.interpolatingSpring(stiffness: 300, damping: 20), value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, newValue in
                 if newValue {
                     HapticManager.instance.feedback(.medium)
@@ -40,15 +41,16 @@ struct SecondaryButtonStyle: ButtonStyle {
             .appFont(size: 18, weight: .semibold)
             .padding()
             .frame(maxWidth: .infinity)
-            .background(Color.backgroundPrimary)
+            .background(Color.backgroundPrimary.opacity(0.5))
+            .background(.ultraThinMaterial)
             .foregroundColor(.brandPrimary)
             .cornerRadius(16)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.brandPrimary, lineWidth: 2)
+                    .stroke(LinearGradient.brandGradient, lineWidth: 2)
             )
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.interpolatingSpring(stiffness: 300, damping: 20), value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, newValue in
                 if newValue {
                     HapticManager.instance.feedback(.light)
@@ -70,30 +72,62 @@ struct AppTextFieldStyle: TextFieldStyle {
             configuration
         }
         .padding()
-        .background(Color("ControlBackground"))
+        .background(Color("ControlBackground").opacity(0.8))
+        .background(.ultraThinMaterial)
         .cornerRadius(16)
     }
 }
 
-struct CardViewModifier: ViewModifier {
+struct GlassCardModifier: ViewModifier {
+    @Environment(\.colorScheme) var colorScheme
     func body(content: Content) -> some View {
         content
             .padding(16)
             .background(
                 .ultraThinMaterial,
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(colorScheme == .dark ? 0.15 : 0.6), Color.white.opacity(0.05)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
             )
-            .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.08), radius: 15, x: 0, y: 8)
+    }
+}
+
+struct AnimatedCardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.interpolatingSpring(stiffness: 300, damping: 20), value: configuration.isPressed)
     }
 }
 
 extension View {
+    func glassCard() -> some View {
+        self.modifier(GlassCardModifier())
+    }
+    
+    // Legacy support to easily transition
     func asCard() -> some View {
-        self.modifier(CardViewModifier())
+        self.modifier(GlassCardModifier())
+    }
+}
+
+extension LinearGradient {
+    static var brandGradient: LinearGradient {
+        LinearGradient(
+            colors: [Color.brandPrimary, Color.teal],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 }
 

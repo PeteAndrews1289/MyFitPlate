@@ -7,20 +7,22 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>This allows us to provide a personalized ad experience, which helps support the app and keep our core features free.</string>
+	<key>FATSECRET_PROXY_URL</key>
+	<string>$(FATSECRET_PROXY_URL)</string>
+	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>This app uses the camera to allow you to take pictures of your food for nutritional analysis.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Your workouts, activity, sleep, heart rate, and body measurements help MyFitPlate build more accurate reports and wellness insights.</string>
-	<key>OPENAI_API_KEY</key>
-	<string>$(OPENAI_API_KEY)</string>
-	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
-	<false/>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>MyFitPlate saves nutrition and body measurement entries to Apple Health so your health data stays synchronized.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>This allows us to provide a personalized ad experience, which helps support the app and keep our core features free.</string>
+	<key>OPENAI_API_KEY</key>
+	<string>$(OPENAI_API_KEY)</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

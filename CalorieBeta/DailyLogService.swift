@@ -451,22 +451,33 @@ class DailyLogService: ObservableObject {
     }
 
     func addFoodToCurrentLog(for userID: String, foodItem: FoodItem, source: String = "unknown") {
-        let dateToLog = self.activelyViewedDate
+        addFoodToLog(
+            for: userID,
+            date: activelyViewedDate,
+            mealName: determineMealType(),
+            foodItem: foodItem,
+            source: source
+        )
+    }
+
+    func addFoodToLog(for userID: String, date: Date, mealName: String, foodItem: FoodItem, source: String = "unknown") {
+        let dateToLog = Calendar.current.startOfDay(for: date)
         fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
             guard let self = self else { return }
             switch result {
             case .success(var log):
                 var itemToAdd = normalizedFoodForLogging(foodItem, source: source)
                 if itemToAdd.timestamp == nil { itemToAdd.timestamp = Date() }
-                let mealName = self.determineMealType()
                 if let index = log.meals.firstIndex(where: { $0.name == mealName }) {
                     log.meals[index].foodItems.append(itemToAdd)
                 } else {
                     log.meals.append(Meal(name: mealName, foodItems: [itemToAdd]))
                 }
 
-                DispatchQueue.main.async {
-                    self.publishCurrentDailyLog(log)
+                if Calendar.current.isDate(dateToLog, inSameDayAs: self.activelyViewedDate) {
+                    DispatchQueue.main.async {
+                        self.publishCurrentDailyLog(log)
+                    }
                 }
 
                 self.updateDailyLog(for: userID, updatedLog: log) { success in

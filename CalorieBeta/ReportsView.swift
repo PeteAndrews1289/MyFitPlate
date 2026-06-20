@@ -160,12 +160,12 @@ struct ReportsView: View {
                 NavigationLink(destination: MetabolismDashboardView()) {
                     MetabolismReportCard()
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AnimatedCardButtonStyle())
                 
                 NavigationLink(destination: WorkoutAnalyticsView(viewModel: viewModel)) {
                     WorkoutReportCard(report: workoutReport)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AnimatedCardButtonStyle())
                 #else
                 WorkoutReportCard(report: workoutReport)
                 #endif
@@ -176,7 +176,7 @@ struct ReportsView: View {
                 NavigationLink(destination: CalorieTrackingView(viewModel: viewModel)) {
                     mealDistributionCard
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AnimatedCardButtonStyle())
                 #else
                 mealDistributionCard
                 #endif
@@ -185,7 +185,7 @@ struct ReportsView: View {
                 NavigationLink(destination: WeightTrackingView()) {
                     WeightCardReport
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AnimatedCardButtonStyle())
                 #else
                 WeightCardReport
                 #endif
@@ -414,7 +414,7 @@ private struct ReportsOverviewCard: View {
                         .frame(width: 40, height: 40)
                         .background(Color.brandPrimary.opacity(0.12), in: Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AnimatedCardButtonStyle())
                 .accessibilityLabel("Generate detailed insights")
             }
 
@@ -619,7 +619,7 @@ struct MetabolismDashboardView: View {
         .navigationTitle("Adaptive Metabolism")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            guard let userID = goalSettings.dailyLogService?.currentDailyLog?.id?.components(separatedBy: "_").first else {
+            guard let userID = Auth.auth().currentUser?.uid else {
                 isLoading = false
                 return
             }

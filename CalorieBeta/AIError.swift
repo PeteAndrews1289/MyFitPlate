@@ -22,8 +22,21 @@ enum AIError: Error, LocalizedError {
     }
 }
 
+
+protocol AIServiceProtocol {
+    func performRequest(
+        messages: [[String: Any]],
+        model: String,
+        maxTokens: Int,
+        temperature: Double,
+        responseFormat: [String: Any]?,
+        retryCount: Int
+    ) async -> Result<String, AIError>
+}
+
 @MainActor
-class AIService {
+class AIService: AIServiceProtocol {
+
     static let shared = AIService()
     private var apiKey: String { getAPIKey() }
     

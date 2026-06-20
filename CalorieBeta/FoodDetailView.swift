@@ -6,6 +6,7 @@ struct FoodDetailView: View {
     @Binding var dailyLog: DailyLog?
     var date: Date
     var source: String
+    var targetMealName: String?
     var onLogUpdated: () -> Void
     var onUpdate: ((FoodItem) -> Void)?
 
@@ -34,11 +35,12 @@ struct FoodDetailView: View {
 
     // MARK: - Robust Initializer
     // Updated to use new model fields if available, ensuring stability.
-    init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "log", onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil) {
+    init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "log", targetMealName: String? = nil, onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil) {
         self.initialFoodItem = initialFoodItem
         self._dailyLog = dailyLog
         self.date = date
         self.source = source
+        self.targetMealName = targetMealName
         self.onLogUpdated = onLogUpdated
         self.onUpdate = onUpdate
         
@@ -64,11 +66,8 @@ struct FoodDetailView: View {
 
     // Helper to parse old string format (Backward Compatibility)
     private func parseQuantityFromServing(_ servingDesc: String) -> (qty: Double, baseDesc: String) {
-        let components = servingDesc.components(separatedBy: " x ")
-        if components.count == 2, let qty = Double(components[0]), qty > 0 {
-            return (qty, components[1])
-        }
-        return (1.0, servingDesc)
+        let parsed = ServingNutritionCalculator.parseQuantity(from: servingDesc)
+        return (parsed.quantity, parsed.baseDescription)
     }
 
     private var selectedServingOption: ServingSizeOption? {
@@ -85,130 +84,11 @@ struct FoodDetailView: View {
     }
 
     // MARK: - Adjusted Nutrients Calculation
-    // Now returns structured data (quantityValue, servingUnit) alongside the strings.
-    private var adjustedNutrients: (
-        calories: Double, protein: Double, carbs: Double, fats: Double,
-        saturatedFat: Double?, polyunsaturatedFat: Double?, monounsaturatedFat: Double?,
-        fiber: Double?, calcium: Double?, iron: Double?, potassium: Double?, sodium: Double?,
-        vitaminA: Double?, vitaminC: Double?, vitaminD: Double?, vitaminB12: Double?, folate: Double?,
-        magnesium: Double?, phosphorus: Double?, zinc: Double?, copper: Double?, manganese: Double?, selenium: Double?,
-        vitaminB1: Double?, vitaminB2: Double?, vitaminB3: Double?, vitaminB5: Double?, vitaminB6: Double?, vitaminE: Double?, vitaminK: Double?,
-        servingDescription: String, servingWeightGrams: Double,
-        quantityValue: Double, servingUnit: String // New return values
-    ) {
-        guard let quantityValue = Double(quantity), quantityValue > 0 else {
-            // Safe fallback if input is invalid
-            let unit = initialFoodItem.servingUnit ?? "serving"
-            return (
-                calories: initialFoodItem.calories, protein: initialFoodItem.protein, carbs: initialFoodItem.carbs, fats: initialFoodItem.fats,
-                saturatedFat: initialFoodItem.saturatedFat, polyunsaturatedFat: initialFoodItem.polyunsaturatedFat, monounsaturatedFat: initialFoodItem.monounsaturatedFat,
-                fiber: initialFoodItem.fiber, calcium: initialFoodItem.calcium, iron: initialFoodItem.iron, potassium: initialFoodItem.potassium, sodium: initialFoodItem.sodium,
-                vitaminA: initialFoodItem.vitaminA, vitaminC: initialFoodItem.vitaminC, vitaminD: initialFoodItem.vitaminD, vitaminB12: initialFoodItem.vitaminB12,
-                folate: initialFoodItem.folate, magnesium: initialFoodItem.magnesium, phosphorus: initialFoodItem.phosphorus, zinc: initialFoodItem.zinc,
-                copper: initialFoodItem.copper, manganese: initialFoodItem.manganese, selenium: initialFoodItem.selenium, vitaminB1: initialFoodItem.vitaminB1,
-                vitaminB2: initialFoodItem.vitaminB2, vitaminB3: initialFoodItem.vitaminB3, vitaminB5: initialFoodItem.vitaminB5, vitaminB6: initialFoodItem.vitaminB6,
-                vitaminE: initialFoodItem.vitaminE, vitaminK: initialFoodItem.vitaminK,
-                servingDescription: initialFoodItem.servingSize,
-                servingWeightGrams: initialFoodItem.servingWeight,
-                quantityValue: 1.0,
-                servingUnit: unit
-            )
-        }
-
-        // Determine the unit name safely
-        let unitName: String
-        let baseNutrients: ServingSizeOption
-        
-        if let selected = selectedServingOption {
-            baseNutrients = selected
-            unitName = selected.description
-        } else {
-            // If no option selected (rare), calculate base from initial item
-            let parsed = parseQuantityFromServing(initialFoodItem.servingSize)
-            let initialQty = parsed.qty
-            // Reconstruct a temporary base option
-            baseNutrients = ServingSizeOption(
-                description: parsed.baseDesc,
-                servingWeightGrams: initialFoodItem.servingWeight / initialQty,
-                calories: initialFoodItem.calories / initialQty,
-                protein: initialFoodItem.protein / initialQty,
-                carbs: initialFoodItem.carbs / initialQty,
-                fats: initialFoodItem.fats / initialQty,
-                saturatedFat: initialFoodItem.saturatedFat.map { $0 / initialQty },
-                polyunsaturatedFat: initialFoodItem.polyunsaturatedFat.map { $0 / initialQty },
-                monounsaturatedFat: initialFoodItem.monounsaturatedFat.map { $0 / initialQty },
-                fiber: initialFoodItem.fiber.map { $0 / initialQty },
-                calcium: initialFoodItem.calcium.map { $0 / initialQty },
-                iron: initialFoodItem.iron.map { $0 / initialQty },
-                potassium: initialFoodItem.potassium.map { $0 / initialQty },
-                sodium: initialFoodItem.sodium.map { $0 / initialQty },
-                vitaminA: initialFoodItem.vitaminA.map { $0 / initialQty },
-                vitaminC: initialFoodItem.vitaminC.map { $0 / initialQty },
-                vitaminD: initialFoodItem.vitaminD.map { $0 / initialQty },
-                vitaminB12: initialFoodItem.vitaminB12.map { $0 / initialQty },
-                folate: initialFoodItem.folate.map { $0 / initialQty },
-                magnesium: initialFoodItem.magnesium.map { $0 / initialQty },
-                phosphorus: initialFoodItem.phosphorus.map { $0 / initialQty },
-                zinc: initialFoodItem.zinc.map { $0 / initialQty },
-                copper: initialFoodItem.copper.map { $0 / initialQty },
-                manganese: initialFoodItem.manganese.map { $0 / initialQty },
-                selenium: initialFoodItem.selenium.map { $0 / initialQty },
-                vitaminB1: initialFoodItem.vitaminB1.map { $0 / initialQty },
-                vitaminB2: initialFoodItem.vitaminB2.map { $0 / initialQty },
-                vitaminB3: initialFoodItem.vitaminB3.map { $0 / initialQty },
-                vitaminB5: initialFoodItem.vitaminB5.map { $0 / initialQty },
-                vitaminB6: initialFoodItem.vitaminB6.map { $0 / initialQty },
-                vitaminE: initialFoodItem.vitaminE.map { $0 / initialQty },
-                vitaminK: initialFoodItem.vitaminK.map { $0 / initialQty }
-            )
-            unitName = parsed.baseDesc
-        }
-
-        let factor = quantityValue
-        let finalDescription: String
-        if quantityValue == 1 {
-            finalDescription = unitName
-        } else {
-            finalDescription = "\(String(format: "%g", quantityValue)) x \(unitName)"
-        }
-        
-        let finalWeight = (baseNutrients.servingWeightGrams ?? 0) * factor
-        
-        return (
-            calories: baseNutrients.calories * factor,
-            protein: baseNutrients.protein * factor,
-            carbs: baseNutrients.carbs * factor,
-            fats: baseNutrients.fats * factor,
-            saturatedFat: baseNutrients.saturatedFat.map { $0 * factor },
-            polyunsaturatedFat: baseNutrients.polyunsaturatedFat.map { $0 * factor },
-            monounsaturatedFat: baseNutrients.monounsaturatedFat.map { $0 * factor },
-            fiber: baseNutrients.fiber.map { $0 * factor },
-            calcium: baseNutrients.calcium.map { $0 * factor },
-            iron: baseNutrients.iron.map { $0 * factor },
-            potassium: baseNutrients.potassium.map { $0 * factor },
-            sodium: baseNutrients.sodium.map { $0 * factor },
-            vitaminA: baseNutrients.vitaminA.map { $0 * factor },
-            vitaminC: baseNutrients.vitaminC.map { $0 * factor },
-            vitaminD: baseNutrients.vitaminD.map { $0 * factor },
-            vitaminB12: baseNutrients.vitaminB12.map { $0 * factor },
-            folate: baseNutrients.folate.map { $0 * factor },
-            magnesium: baseNutrients.magnesium.map { $0 * factor },
-            phosphorus: baseNutrients.phosphorus.map { $0 * factor },
-            zinc: baseNutrients.zinc.map { $0 * factor },
-            copper: baseNutrients.copper.map { $0 * factor },
-            manganese: baseNutrients.manganese.map { $0 * factor },
-            selenium: baseNutrients.selenium.map { $0 * factor },
-            vitaminB1: baseNutrients.vitaminB1.map { $0 * factor },
-            vitaminB2: baseNutrients.vitaminB2.map { $0 * factor },
-            vitaminB3: baseNutrients.vitaminB3.map { $0 * factor },
-            vitaminB5: baseNutrients.vitaminB5.map { $0 * factor },
-            vitaminB6: baseNutrients.vitaminB6.map { $0 * factor },
-            vitaminE: baseNutrients.vitaminE.map { $0 * factor },
-            vitaminK: baseNutrients.vitaminK.map { $0 * factor },
-            servingDescription: finalDescription,
-            servingWeightGrams: finalWeight,
-            quantityValue: quantityValue,
-            servingUnit: unitName
+    private var adjustedNutrients: AdjustedServingNutrition {
+        let baseNutrients = selectedServingOption ?? ServingNutritionCalculator.baseServing(from: initialFoodItem)
+        return ServingNutritionCalculator.adjustedNutrition(
+            base: baseNutrients,
+            quantityText: quantity
         )
     }
 
@@ -635,107 +515,14 @@ struct FoodDetailView: View {
         dailyLogService.activelyViewedDate = self.date
 
         if source.starts(with: "log_") || source.starts(with: "image_result_edit") {
-            // Determine quantity factor (either from explicit new field or parsed string)
-            let qtyFactor: Double
-            let unitName: String
-            
-            if let explicitQty = initialFoodItem.quantityValue, let explicitUnit = initialFoodItem.servingUnit {
-                qtyFactor = explicitQty
-                unitName = explicitUnit
-            } else {
-                let parsed = parseQuantityFromServing(initialFoodItem.servingSize)
-                qtyFactor = parsed.qty > 0 ? parsed.qty : 1.0
-                unitName = parsed.baseDesc
-            }
-            
-            // Calculate "Per Unit" nutrients by dividing totals by quantity factor
-            let singleUnitNutrients = ServingSizeOption(
-                description: unitName,
-                servingWeightGrams: initialFoodItem.servingWeight / qtyFactor,
-                calories: initialFoodItem.calories / qtyFactor,
-                protein: initialFoodItem.protein / qtyFactor,
-                carbs: initialFoodItem.carbs / qtyFactor,
-                fats: initialFoodItem.fats / qtyFactor,
-                saturatedFat: initialFoodItem.saturatedFat.map { $0 / qtyFactor },
-                polyunsaturatedFat: initialFoodItem.polyunsaturatedFat.map { $0 / qtyFactor },
-                monounsaturatedFat: initialFoodItem.monounsaturatedFat.map { $0 / qtyFactor },
-                fiber: initialFoodItem.fiber.map { $0 / qtyFactor },
-                calcium: initialFoodItem.calcium.map { $0 / qtyFactor },
-                iron: initialFoodItem.iron.map { $0 / qtyFactor },
-                potassium: initialFoodItem.potassium.map { $0 / qtyFactor },
-                sodium: initialFoodItem.sodium.map { $0 / qtyFactor },
-                vitaminA: initialFoodItem.vitaminA.map { $0 / qtyFactor },
-                vitaminC: initialFoodItem.vitaminC.map { $0 / qtyFactor },
-                vitaminD: initialFoodItem.vitaminD.map { $0 / qtyFactor },
-                vitaminB12: initialFoodItem.vitaminB12.map { $0 / qtyFactor },
-                folate: initialFoodItem.folate.map { $0 / qtyFactor },
-                magnesium: initialFoodItem.magnesium.map { $0 / qtyFactor },
-                phosphorus: initialFoodItem.phosphorus.map { $0 / qtyFactor },
-                zinc: initialFoodItem.zinc.map { $0 / qtyFactor },
-                copper: initialFoodItem.copper.map { $0 / qtyFactor },
-                manganese: initialFoodItem.manganese.map { $0 / qtyFactor },
-                selenium: initialFoodItem.selenium.map { $0 / qtyFactor },
-                vitaminB1: initialFoodItem.vitaminB1.map { $0 / qtyFactor },
-                vitaminB2: initialFoodItem.vitaminB2.map { $0 / qtyFactor },
-                vitaminB3: initialFoodItem.vitaminB3.map { $0 / qtyFactor },
-                vitaminB5: initialFoodItem.vitaminB5.map { $0 / qtyFactor },
-                vitaminB6: initialFoodItem.vitaminB6.map { $0 / qtyFactor },
-                vitaminE: initialFoodItem.vitaminE.map { $0 / qtyFactor },
-                vitaminK: initialFoodItem.vitaminK.map { $0 / qtyFactor }
-            )
+            let singleUnitNutrients = ServingNutritionCalculator.baseServing(from: initialFoodItem)
             self.availableServings = [singleUnitNutrients]
             self.selectedServingID = singleUnitNutrients.id
             self.baseLoggedItemNutrientsPerUnit = singleUnitNutrients
             self.isLoadingDetails = false
             
         } else if source == "recent_tap" {
-            // (Same logic as above but handled for recent items)
-            let qtyFactor: Double
-            let unitName: String
-            
-            if let explicitQty = initialFoodItem.quantityValue, let explicitUnit = initialFoodItem.servingUnit {
-                qtyFactor = explicitQty
-                unitName = explicitUnit
-            } else {
-                let parsed = parseQuantityFromServing(initialFoodItem.servingSize)
-                qtyFactor = parsed.qty > 0 ? parsed.qty : 1.0
-                unitName = parsed.baseDesc
-            }
-            
-            let singleUnitNutrients = ServingSizeOption(
-                description: unitName,
-                servingWeightGrams: initialFoodItem.servingWeight / qtyFactor,
-                calories: initialFoodItem.calories / qtyFactor,
-                protein: initialFoodItem.protein / qtyFactor,
-                carbs: initialFoodItem.carbs / qtyFactor,
-                fats: initialFoodItem.fats / qtyFactor,
-                saturatedFat: initialFoodItem.saturatedFat.map { $0 / qtyFactor },
-                polyunsaturatedFat: initialFoodItem.polyunsaturatedFat.map { $0 / qtyFactor },
-                monounsaturatedFat: initialFoodItem.monounsaturatedFat.map { $0 / qtyFactor },
-                fiber: initialFoodItem.fiber.map { $0 / qtyFactor },
-                calcium: initialFoodItem.calcium.map { $0 / qtyFactor },
-                iron: initialFoodItem.iron.map { $0 / qtyFactor },
-                potassium: initialFoodItem.potassium.map { $0 / qtyFactor },
-                sodium: initialFoodItem.sodium.map { $0 / qtyFactor },
-                vitaminA: initialFoodItem.vitaminA.map { $0 / qtyFactor },
-                vitaminC: initialFoodItem.vitaminC.map { $0 / qtyFactor },
-                vitaminD: initialFoodItem.vitaminD.map { $0 / qtyFactor },
-                vitaminB12: initialFoodItem.vitaminB12.map { $0 / qtyFactor },
-                folate: initialFoodItem.folate.map { $0 / qtyFactor },
-                magnesium: initialFoodItem.magnesium.map { $0 / qtyFactor },
-                phosphorus: initialFoodItem.phosphorus.map { $0 / qtyFactor },
-                zinc: initialFoodItem.zinc.map { $0 / qtyFactor },
-                copper: initialFoodItem.copper.map { $0 / qtyFactor },
-                manganese: initialFoodItem.manganese.map { $0 / qtyFactor },
-                selenium: initialFoodItem.selenium.map { $0 / qtyFactor },
-                vitaminB1: initialFoodItem.vitaminB1.map { $0 / qtyFactor },
-                vitaminB2: initialFoodItem.vitaminB2.map { $0 / qtyFactor },
-                vitaminB3: initialFoodItem.vitaminB3.map { $0 / qtyFactor },
-                vitaminB5: initialFoodItem.vitaminB5.map { $0 / qtyFactor },
-                vitaminB6: initialFoodItem.vitaminB6.map { $0 / qtyFactor },
-                vitaminE: initialFoodItem.vitaminE.map { $0 / qtyFactor },
-                vitaminK: initialFoodItem.vitaminK.map { $0 / qtyFactor }
-            )
+            let singleUnitNutrients = ServingNutritionCalculator.baseServing(from: initialFoodItem)
             self.availableServings = [singleUnitNutrients]
             self.selectedServingID = singleUnitNutrients.id
             self.isLoadingDetails = false
@@ -743,40 +530,7 @@ struct FoodDetailView: View {
         } else if source == "search_result" || source == "barcode_result" || source == "image_result" {
             fetchAPIServingDetails()
         } else {
-            let baseServingOption = ServingSizeOption(
-                description: initialFoodItem.servingSize.isEmpty ? "1 serving" : initialFoodItem.servingSize,
-                servingWeightGrams: initialFoodItem.servingWeight,
-                calories: initialFoodItem.calories,
-                protein: initialFoodItem.protein,
-                carbs: initialFoodItem.carbs,
-                fats: initialFoodItem.fats,
-                saturatedFat: initialFoodItem.saturatedFat,
-                polyunsaturatedFat: initialFoodItem.polyunsaturatedFat,
-                monounsaturatedFat: initialFoodItem.monounsaturatedFat,
-                fiber: initialFoodItem.fiber,
-                calcium: initialFoodItem.calcium,
-                iron: initialFoodItem.iron,
-                potassium: initialFoodItem.potassium,
-                sodium: initialFoodItem.sodium,
-                vitaminA: initialFoodItem.vitaminA,
-                vitaminC: initialFoodItem.vitaminC,
-                vitaminD: initialFoodItem.vitaminD,
-                vitaminB12: initialFoodItem.vitaminB12,
-                folate: initialFoodItem.folate,
-                magnesium: initialFoodItem.magnesium,
-                phosphorus: initialFoodItem.phosphorus,
-                zinc: initialFoodItem.zinc,
-                copper: initialFoodItem.copper,
-                manganese: initialFoodItem.manganese,
-                selenium: initialFoodItem.selenium,
-                vitaminB1: initialFoodItem.vitaminB1,
-                vitaminB2: initialFoodItem.vitaminB2,
-                vitaminB3: initialFoodItem.vitaminB3,
-                vitaminB5: initialFoodItem.vitaminB5,
-                vitaminB6: initialFoodItem.vitaminB6,
-                vitaminE: initialFoodItem.vitaminE,
-                vitaminK: initialFoodItem.vitaminK
-            )
+            let baseServingOption = ServingNutritionCalculator.baseServing(from: initialFoodItem)
             self.availableServings = [baseServingOption]
             self.selectedServingID = baseServingOption.id
             self.isLoadingDetails = false
@@ -819,42 +573,7 @@ struct FoodDetailView: View {
     }
     
     private func createFallbackServing(from foodItem: FoodItem) -> ServingSizeOption {
-        let parsed = parseQuantityFromServing(foodItem.servingSize)
-        let qtyFactor = parsed.qty > 0 ? parsed.qty : 1.0
-        return ServingSizeOption(
-            description: parsed.baseDesc.isEmpty ? "1 serving" : parsed.baseDesc,
-            servingWeightGrams: foodItem.servingWeight / qtyFactor,
-            calories: foodItem.calories / qtyFactor,
-            protein: foodItem.protein / qtyFactor,
-            carbs: foodItem.carbs / qtyFactor,
-            fats: foodItem.fats / qtyFactor,
-            saturatedFat: foodItem.saturatedFat.map { $0 / qtyFactor },
-            polyunsaturatedFat: initialFoodItem.polyunsaturatedFat.map { $0 / qtyFactor },
-            monounsaturatedFat: initialFoodItem.monounsaturatedFat.map { $0 / qtyFactor },
-            fiber: initialFoodItem.fiber.map { $0 / qtyFactor },
-            calcium: initialFoodItem.calcium.map { $0 / qtyFactor },
-            iron: initialFoodItem.iron.map { $0 / qtyFactor },
-            potassium: initialFoodItem.potassium.map { $0 / qtyFactor },
-            sodium: initialFoodItem.sodium.map { $0 / qtyFactor },
-            vitaminA: initialFoodItem.vitaminA.map { $0 / qtyFactor },
-            vitaminC: initialFoodItem.vitaminC.map { $0 / qtyFactor },
-            vitaminD: initialFoodItem.vitaminD.map { $0 / qtyFactor },
-            vitaminB12: initialFoodItem.vitaminB12.map { $0 / qtyFactor },
-            folate: initialFoodItem.folate.map { $0 / qtyFactor },
-            magnesium: initialFoodItem.magnesium.map { $0 / qtyFactor },
-            phosphorus: initialFoodItem.phosphorus.map { $0 / qtyFactor },
-            zinc: initialFoodItem.zinc.map { $0 / qtyFactor },
-            copper: initialFoodItem.copper.map { $0 / qtyFactor },
-            manganese: initialFoodItem.manganese.map { $0 / qtyFactor },
-            selenium: initialFoodItem.selenium.map { $0 / qtyFactor },
-            vitaminB1: initialFoodItem.vitaminB1.map { $0 / qtyFactor },
-            vitaminB2: initialFoodItem.vitaminB2.map { $0 / qtyFactor },
-            vitaminB3: initialFoodItem.vitaminB3.map { $0 / qtyFactor },
-            vitaminB5: initialFoodItem.vitaminB5.map { $0 / qtyFactor },
-            vitaminB6: initialFoodItem.vitaminB6.map { $0 / qtyFactor },
-            vitaminE: initialFoodItem.vitaminE.map { $0 / qtyFactor },
-            vitaminK: initialFoodItem.vitaminK.map { $0 / qtyFactor }
-        )
+        ServingNutritionCalculator.baseServing(from: foodItem)
     }
 
     // MARK: - Save Data (Robust)
@@ -910,6 +629,14 @@ struct FoodDetailView: View {
 
         if isLoggedItem {
             dailyLogService.updateFoodInCurrentLog(for: userID, updatedFoodItem: loggedFoodItem)
+        } else if let targetMealName {
+            dailyLogService.addFoodToLog(
+                for: userID,
+                date: date,
+                mealName: targetMealName,
+                foodItem: loggedFoodItem,
+                source: itemSourceToLog
+            )
         } else {
             dailyLogService.addFoodToCurrentLog(for: userID, foodItem: loggedFoodItem, source: itemSourceToLog)
         }
@@ -928,201 +655,4 @@ struct FoodDetailView: View {
         HStack { Text(label).appFont(size: 15); Spacer(); Text(value).appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel)) }
     }
     private func hideKeyboard() { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
-}
-
-private struct FoodDetailHeroCard: View {
-    let foodName: String
-    let servingDescription: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Text(FoodEmojiMapper.getEmoji(for: foodName))
-                .font(.system(size: 34))
-                .frame(width: 62, height: 62)
-                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 7) {
-                Text(foodName)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Label(servingDescription, systemImage: "scalemass.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(18)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-    }
-}
-
-private struct FoodDetailMacroGrid: View {
-    let calories: Double
-    let protein: Double
-    let carbs: Double
-    let fats: Double
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            FoodDetailMacroTile(title: "Calories", value: "\(Int(calories.rounded()))", unit: "cal", icon: "flame.fill", color: .orange)
-            FoodDetailMacroTile(title: "Protein", value: String(format: "%.1f", protein), unit: "g", icon: "bolt.fill", color: .accentProtein)
-            FoodDetailMacroTile(title: "Carbs", value: String(format: "%.1f", carbs), unit: "g", icon: "leaf.fill", color: .accentCarbs)
-            FoodDetailMacroTile(title: "Fat", value: String(format: "%.1f", fats), unit: "g", icon: "drop.fill", color: .accentFats)
-        }
-    }
-}
-
-private struct FoodDetailMacroTile: View {
-    let title: String
-    let value: String
-    let unit: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(color)
-                    .frame(width: 30, height: 30)
-                    .background(color.opacity(0.12), in: Circle())
-
-                Spacer()
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(value)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-
-                    Text(unit)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-private struct FoodDetailLoadingCard: View {
-    var body: some View {
-        VStack(spacing: 13) {
-            ProgressView()
-                .tint(.brandPrimary)
-
-            Text("Loading serving options")
-                .font(.system(size: 17, weight: .bold))
-                .foregroundColor(.textPrimary)
-
-            Text("Pulling the most accurate nutrition details for this food.")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 36)
-        .padding(.horizontal, 18)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-}
-
-private struct FoodDetailNoticeCard: View {
-    let title: String
-    let message: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.orange)
-                .frame(width: 34, height: 34)
-                .background(Color.orange.opacity(0.12), in: Circle())
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.textPrimary)
-
-                Text(message)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(14)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-private struct FoodDetailLabelScanCard: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: "camera.viewfinder")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.brandPrimary)
-                    .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Nutrition label looks different?")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.textPrimary)
-
-                    Text("Take a label photo to replace these numbers.")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
-            }
-            .padding(14)
-            .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct FoodDetailActionBar: View {
-    let title: String
-    let isEnabled: Bool
-    let action: () -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Button(title, action: action)
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(!isEnabled)
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .background(Color.backgroundPrimary.opacity(0.98).ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.primary.opacity(0.06))
-                .frame(height: 1)
-        }
-    }
 }

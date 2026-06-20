@@ -30,6 +30,21 @@ class GoalSettings: ObservableObject {
     @Published var weightHistory: [(id: String, date: Date, weight: Double)] = []
     @Published var isUpdatingGoal: Bool = false
     @Published var nutritionViewIndex: Int = 0
+    @Published var lastCheckInDate: Date?
+    
+    var isCheckInReady: Bool {
+        guard calorieGoalMethod == .dynamicTDEE else { return false }
+        let confidence = adaptiveGoalService?.dataConfidence
+        guard confidence == .high || confidence == .medium else { return false }
+        
+        if let last = lastCheckInDate {
+            if let days = Calendar.current.dateComponents([.day], from: last, to: Date()).day, days >= 7 {
+                return true
+            }
+            return false
+        }
+        return true
+    }
 
     // Micronutrient Goals
     @Published var calciumGoal: Double?
@@ -59,7 +74,10 @@ class GoalSettings: ObservableObject {
     weak var dailyLogService: DailyLogService?
     weak var adaptiveGoalService: AdaptiveGoalService?
 
-    init(dailyLogService: DailyLogService? = nil) {
+    private let healthKitManager: HealthKitManaging
+    
+    init(dailyLogService: DailyLogService? = nil, healthKitManager: HealthKitManaging = HealthKitManager.shared) {
+        self.healthKitManager = healthKitManager
         self.dailyLogService = dailyLogService
         recalculateAllGoals()
 
@@ -236,6 +254,10 @@ class GoalSettings: ObservableObject {
                 if goalsMap["reminderStyle"] == nil { goalsMap["reminderStyle"] = self.reminderStyle; shouldUpdateFirestore = true }
                 if goalsMap["maiaTone"] == nil { goalsMap["maiaTone"] = self.maiaTone; shouldUpdateFirestore = true }
 
+                if let timestamp = goalsMap["lastCheckInDate"] as? Timestamp {
+                    self.lastCheckInDate = timestamp.dateValue()
+                }
+
                 // Handle target weight (might be null)
                 self.targetWeight = goalsMap["targetWeight"] as? Double
                 if self.targetWeight == nil {
@@ -297,6 +319,9 @@ class GoalSettings: ObservableObject {
                 "suggestionCarbs": self.suggestionCarbs, "suggestionVeggies": self.suggestionVeggies,
                 "trainingIntent": self.trainingIntent, "reminderStyle": self.reminderStyle, "maiaTone": self.maiaTone
             ]
+            if let lastDate = self.lastCheckInDate {
+                goalsDict["lastCheckInDate"] = Timestamp(date: lastDate)
+            }
             let userData:[String:Any] = [
                 "goals": goalsDict, "height": self.height, "age": self.age, "gender": self.gender, "isFirstLogin": false,
                 "calorieGoalMethod": self.calorieGoalMethod.rawValue
@@ -337,7 +362,7 @@ class GoalSettings: ObservableObject {
         let weightData: [String:Any] = ["weight": newWeight, "timestamp": Timestamp(date: currentDate)]
         db.collection("users").document(userID).collection("weightHistory").addDocument(data: weightData)
 
-        HealthKitManager.shared.saveWeightSample(weightLbs: newWeight, date: currentDate)
+        self.healthKitManager.saveWeightSample(weightLbs: newWeight, date: currentDate)
     }
     
     func deleteWeightEntry(entryID: String, completion: @escaping (Error?) -> Void) {

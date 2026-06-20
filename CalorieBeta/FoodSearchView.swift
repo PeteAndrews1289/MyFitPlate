@@ -11,20 +11,22 @@ struct FoodSearchView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
 
     @State private var searchText = ""
-    @State private var selectedMeal: String = "Breakfast"
+    @State private var selectedMeal: String = FoodSearchView.defaultMealName()
     private let foodTypes = ["Breakfast", "Lunch", "Dinner", "Snacks"]
 
     @State private var showingAddFoodManually = false
     @State private var showingBarcodeScanner = false
     @State private var showingImagePicker = false
-    @State private var showingAskMaia = false
+    @State private var showingAITextLog = false
 
     @State private var searchResults: [FoodItem] = []
     @State private var isLoading = false
+    @State private var searchErrorMessage: String? = nil
     @State private var activeSearchQuery = ""
     @State private var quickLoggedFoodIDs: Set<String> = []
     @State private var debounceTimer: Timer?
     @State private var selectedFoodItem: FoodItem? = nil
+    @State private var selectedFoodSource: String = "search_result"
 
     @State private var isProcessingImage = false
     @State private var isSearchingAfterScan = false
@@ -35,14 +37,24 @@ struct FoodSearchView: View {
     private let foodAPIService = FatSecretFoodAPIService()
     private let imageModel = MLImageModel()
 
+    @State private var savedFoods: [FoodItem] = []
     @State private var recentFoods: [FoodItem] = []
     @State private var recommendedFoods: [FoodItem] = []
 
     @State private var yesterdaysMealItems: [FoodItem] = []
+    @State private var yesterdaysLog: DailyLog? = nil
     @State private var isFetchingYesterday = false
 
     private var isSearching: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var yesterdaysDayItems: [FoodItem] {
+        yesterdaysLog?.meals.flatMap(\.foodItems) ?? []
+    }
+
+    private var hasYesterdayFoods: Bool {
+        !yesterdaysMealItems.isEmpty || !yesterdaysDayItems.isEmpty
     }
 
     var body: some View {
@@ -56,52 +68,49 @@ struct FoodSearchView: View {
                             onClear: {
                                 searchText = ""
                                 handleSearchQueryChange("")
-                            }
+                            },
+                            onSubmit: hideKeyboard
                         )
                         .onChange(of: searchText) { _, newValue in
                             handleSearchQueryChange(newValue)
                         }
 
-                        if onFoodItemSelected == nil {
+                        if onFoodItemSelected == nil && isSearching {
+                            FoodSearchCompactMealPicker(selectedMeal: $selectedMeal, foodTypes: foodTypes)
+                        }
+
+                        if onFoodItemSelected == nil && !isSearching {
                             FoodSearchActionGrid(
+                                manualAction: { showingAddFoodManually = true },
                                 cameraAction: { showingImagePicker = true },
                                 barcodeAction: { showingBarcodeScanner = true },
-                                maiaAction: { showingAskMaia = true }
+                                textAction: { showingAITextLog = true }
                             )
 
                             FoodSearchMealPicker(selectedMeal: $selectedMeal, foodTypes: foodTypes)
 
-                            if !isSearching && !yesterdaysMealItems.isEmpty {
-                                Button(action: logYesterdayMeal) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("Log Yesterday's \(selectedMeal)")
-                                                .font(.system(size: 16, weight: .bold))
-                                                .foregroundColor(.brandPrimary)
-                                            Text("\(yesterdaysMealItems.count) items • \(Int(yesterdaysMealItems.reduce(0) { $0 + $1.calories })) cal")
-                                                .font(.system(size: 12, weight: .medium))
-                                                .foregroundColor(.brandPrimary.opacity(0.8))
-                                        }
-                                        Spacer()
-                                        Image(systemName: "plus.circle.fill")
-                                            .font(.system(size: 24))
-                                            .foregroundColor(.brandPrimary)
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .background(Color.brandPrimary.opacity(0.1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .stroke(Color.brandPrimary.opacity(0.2), lineWidth: 1)
-                                    )
-                                }
-                                .buttonStyle(.plain)
+                            if hasYesterdayFoods {
+                                YesterdayLogActions(
+                                    selectedMeal: selectedMeal,
+                                    mealItemCount: yesterdaysMealItems.count,
+                                    mealCalories: yesterdaysMealItems.reduce(0) { $0 + $1.calories },
+                                    dayItemCount: yesterdaysDayItems.count,
+                                    dayCalories: yesterdaysDayItems.reduce(0) { $0 + $1.calories },
+                                    onLogMeal: logYesterdayMeal,
+                                    onLogDay: logYesterdayDay
+                                )
                             }
                         }
 
                         if isSearching {
                             if isLoading {
                                 FoodSearchLoadingState(query: searchText)
+                            } else if let searchErrorMessage {
+                                FoodSearchEmptyState(
+                                    icon: "wifi.exclamationmark",
+                                    title: "Search could not load",
+                                    message: searchErrorMessage
+                                )
                             } else if searchResults.isEmpty {
                                 FoodSearchEmptyState(
                                     icon: "magnifyingglass",
@@ -111,17 +120,28 @@ struct FoodSearchView: View {
                             } else {
                                 FoodPickerSection(
                                     title: "Search Results",
-                                    subtitle: "Tap a food to review servings before logging.",
+                                    subtitle: "Tap a food to review servings before logging to \(selectedMeal).",
                                     foods: searchResults,
                                     quickLoggedFoodIDs: [],
                                     emptyTitle: "",
                                     emptyMessage: "",
-                                    onSelect: handleSelection,
+                                    onSelect: { handleSelection(food: $0, source: "search_result") },
                                     onQuickLog: nil,
                                     onDelete: nil
                                 )
                             }
                         } else {
+                            FoodHorizontalScroller(
+                                title: "My Foods",
+                                subtitle: "Saved foods with your usual serving.",
+                                foods: savedFoods,
+                                quickLoggedFoodIDs: quickLoggedFoodIDs,
+                                emptyTitle: "No saved foods yet",
+                                emptyMessage: "Star foods from detail screens and they will appear here.",
+                                onSelect: { handleSelection(food: $0, source: "custom_food") },
+                                onQuickLog: onFoodItemSelected == nil ? quickLog : nil
+                            )
+
                             FoodHorizontalScroller(
                                 title: "Recommended for \(selectedMeal)",
                                 subtitle: "Common picks based on your recent logging.",
@@ -129,7 +149,7 @@ struct FoodSearchView: View {
                                 quickLoggedFoodIDs: quickLoggedFoodIDs,
                                 emptyTitle: "No recommendations yet",
                                 emptyMessage: "Log a few \(selectedMeal.lowercased()) foods and this area will become faster.",
-                                onSelect: handleSelection,
+                                onSelect: { handleSelection(food: $0, source: "recent_tap") },
                                 onQuickLog: onFoodItemSelected == nil ? quickLog : nil
                             )
 
@@ -140,7 +160,7 @@ struct FoodSearchView: View {
                                 quickLoggedFoodIDs: quickLoggedFoodIDs,
                                 emptyTitle: "No recent foods",
                                 emptyMessage: "Foods you log will appear here for one-tap reuse.",
-                                onSelect: handleSelection,
+                                onSelect: { handleSelection(food: $0, source: "recent_tap") },
                                 onQuickLog: onFoodItemSelected == nil ? quickLog : nil
                             )
                         }
@@ -155,9 +175,6 @@ struct FoodSearchView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                    if onFoodItemSelected == nil {
-                        ToolbarItem(placement: .primaryAction) { Button("Manual") { showingAddFoodManually = true } }
-                    }
                 }
                 .onAppear(perform: fetchData)
                 .onChange(of: selectedMeal) { _, _ in
@@ -170,6 +187,7 @@ struct FoodSearchView: View {
                         dailyLog: $dailyLogService.currentDailyLog,
                         date: dailyLogService.activelyViewedDate,
                         source: "manual_add",
+                        targetMealName: selectedMeal,
                         onLogUpdated: {
                             showingAddFoodManually = false
                             onFoodItemLogged?()
@@ -205,13 +223,14 @@ struct FoodSearchView: View {
                         }
                     }
                 }
-                .sheet(isPresented: $showingAskMaia) { AIChatbotView(selectedTab: .constant(1)) }
+                .sheet(isPresented: $showingAITextLog) { AITextLogView() }
                 .sheet(item: $selectedFoodItem) { foodItem in
                     FoodDetailView(
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,
                         date: dailyLogService.activelyViewedDate,
-                        source: "search_result",
+                        source: selectedFoodSource,
+                        targetMealName: selectedMeal,
                         onLogUpdated: {
                             selectedFoodItem = nil
                             onFoodItemLogged?()
@@ -223,7 +242,8 @@ struct FoodSearchView: View {
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,
                         date: dailyLogService.activelyViewedDate,
-                        source: "barcode_scan",
+                        source: "barcode_result",
+                        targetMealName: selectedMeal,
                         onLogUpdated: {
                             self.scannedFoodItem = nil
                             onFoodItemLogged?()
@@ -248,21 +268,33 @@ struct FoodSearchView: View {
         }
     }
 
-    private func handleSelection(food: FoodItem) {
+    private func handleSelection(food: FoodItem, source: String) {
         if let selectionHandler = onFoodItemSelected {
+            guard source == "search_result", isLikelyFoodAPIID(food.id) else {
+                selectionHandler(food)
+                return
+            }
+
             isSearchingAfterScan = true
             foodAPIService.fetchFoodDetails(foodId: food.id) { result in
-                isSearchingAfterScan = false
-                switch result {
-                case .success(let (detailedFood, _)):
-                    selectionHandler(detailedFood)
-                case .failure(let error):
-                    AppLog.data.error("Failed to fetch food details: \(error.localizedDescription, privacy: .public)")
+                DispatchQueue.main.async {
+                    isSearchingAfterScan = false
+                    switch result {
+                    case .success(let (detailedFood, _)):
+                        selectionHandler(detailedFood)
+                    case .failure(let error):
+                        AppLog.data.error("Failed to fetch food details: \(error.localizedDescription, privacy: .public)")
+                    }
                 }
             }
         } else {
+            selectedFoodSource = source
             self.selectedFoodItem = food
         }
+    }
+
+    private func isLikelyFoodAPIID(_ id: String) -> Bool {
+        id.count < 20 && !id.contains("-")
     }
 
     private func quickLog(food: FoodItem) {
@@ -271,13 +303,18 @@ struct FoodSearchView: View {
         var itemToLog = food
         itemToLog.id = UUID().uuidString
         itemToLog.timestamp = Date()
-        dailyLogService.addMealToCurrentLog(for: userID, mealName: selectedMeal, foodItems: [itemToLog])
+        dailyLogService.addMealToLog(
+            for: userID,
+            date: dailyLogService.activelyViewedDate,
+            mealName: selectedMeal,
+            foodItems: [itemToLog],
+            source: "quick_log"
+        )
         quickLoggedFoodIDs.insert(sourceFoodID)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
             quickLoggedFoodIDs.remove(sourceFoodID)
         }
         HapticManager.instance.feedback(.medium)
-        onFoodItemLogged?()
     }
 
     private func handleSearchQueryChange(_ newValue: String) {
@@ -286,11 +323,13 @@ struct FoodSearchView: View {
         guard !trimmed.isEmpty else {
             activeSearchQuery = ""
             searchResults = []
+            searchErrorMessage = nil
             isLoading = false
             return
         }
         activeSearchQuery = trimmed
         isLoading = true
+        searchErrorMessage = nil
         debounceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
             searchByQuery(query: trimmed)
         }
@@ -303,25 +342,45 @@ struct FoodSearchView: View {
                 isLoading = false
                 switch result {
                 case .success(let foodItems):
+                    self.searchErrorMessage = nil
                     self.searchResults = foodItems
-                case .failure:
+                case .failure(let error):
+                    self.searchErrorMessage = "Check your connection and try again. \(error.localizedDescription)"
                     self.searchResults = []
                 }
             }
         }
     }
 
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
     private func fetchData() {
+        fetchSavedFoods()
         fetchRecents()
         fetchRecommendedFoods()
         fetchYesterdayMeal()
     }
 
+    private func fetchSavedFoods() {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        dailyLogService.fetchMyFoodItems(for: userID) { result in
+            DispatchQueue.main.async {
+                if case .success(let items) = result {
+                    self.savedFoods = items
+                }
+            }
+        }
+    }
+
     private func fetchRecents() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         dailyLogService.fetchRecentFoodItems(for: userID) { result in
-            if case .success(let items) = result {
-                self.recentFoods = items
+            DispatchQueue.main.async {
+                if case .success(let items) = result {
+                    self.recentFoods = items
+                }
             }
         }
     }
@@ -329,8 +388,10 @@ struct FoodSearchView: View {
     private func fetchRecommendedFoods() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         dailyLogService.fetchRecommendedFoods(for: userID, mealName: selectedMeal) { result in
-            if case .success(let items) = result {
-                self.recommendedFoods = items
+            DispatchQueue.main.async {
+                if case .success(let items) = result {
+                    self.recommendedFoods = items
+                }
             }
         }
     }
@@ -345,12 +406,14 @@ struct FoodSearchView: View {
                 self.isFetchingYesterday = false
                 switch result {
                 case .success(let log):
+                    self.yesterdaysLog = log
                     if let meal = log.meals.first(where: { $0.name.lowercased() == self.selectedMeal.lowercased() }) {
                         self.yesterdaysMealItems = meal.foodItems
                     } else {
                         self.yesterdaysMealItems = []
                     }
                 case .failure:
+                    self.yesterdaysLog = nil
                     self.yesterdaysMealItems = []
                 }
             }
@@ -366,15 +429,44 @@ struct FoodSearchView: View {
             itemsToLog[i].id = UUID().uuidString
             itemsToLog[i].timestamp = Date()
         }
-        dailyLogService.addMealToCurrentLog(for: userID, mealName: selectedMeal, foodItems: itemsToLog)
+        dailyLogService.addMealToLog(
+            for: userID,
+            date: dailyLogService.activelyViewedDate,
+            mealName: selectedMeal,
+            foodItems: itemsToLog,
+            source: "repeat_yesterday_meal"
+        )
 
         HapticManager.instance.feedback(.medium)
-        dismiss()
-        onFoodItemLogged?()
+    }
+
+    private func logYesterdayDay() {
+        guard let userID = Auth.auth().currentUser?.uid,
+              let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: dailyLogService.activelyViewedDate),
+              !yesterdaysDayItems.isEmpty else {
+            return
+        }
+
+        dailyLogService.repeatFoods(from: yesterday, to: dailyLogService.activelyViewedDate, for: userID)
+        HapticManager.instance.feedback(.medium)
     }
 
     private func deleteRecent(food: FoodItem) {
         recentFoods.removeAll { $0.id == food.id }
+    }
+
+    private static func defaultMealName(for date: Date = Date()) -> String {
+        let hour = Calendar.current.component(.hour, from: date)
+        switch hour {
+        case 5..<11:
+            return "Breakfast"
+        case 11..<16:
+            return "Lunch"
+        case 16..<22:
+            return "Dinner"
+        default:
+            return "Snacks"
+        }
     }
 }
 
@@ -382,6 +474,7 @@ private struct FoodSearchHeader: View {
     @Binding var searchText: String
     let placeholder: String
     let onClear: () -> Void
+    let onSubmit: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -392,6 +485,7 @@ private struct FoodSearchHeader: View {
             TextField(placeholder, text: $searchText)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.search)
+                .onSubmit(onSubmit)
 
             if !searchText.isEmpty {
                 Button(action: onClear) {
@@ -413,16 +507,95 @@ private struct FoodSearchHeader: View {
     }
 }
 
-private struct FoodSearchActionGrid: View {
-    let cameraAction: () -> Void
-    let barcodeAction: () -> Void
-    let maiaAction: () -> Void
+private struct YesterdayLogActions: View {
+    let selectedMeal: String
+    let mealItemCount: Int
+    let mealCalories: Double
+    let dayItemCount: Int
+    let dayCalories: Double
+    let onLogMeal: () -> Void
+    let onLogDay: () -> Void
 
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Copy Yesterday")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(Color(UIColor.secondaryLabel))
+
+            HStack(spacing: 10) {
+                yesterdayButton(
+                    title: selectedMeal,
+                    detail: detailText(count: mealItemCount, calories: mealCalories),
+                    icon: "clock.arrow.circlepath",
+                    isEnabled: mealItemCount > 0,
+                    action: onLogMeal
+                )
+
+                yesterdayButton(
+                    title: "Full Day",
+                    detail: detailText(count: dayItemCount, calories: dayCalories),
+                    icon: "calendar.badge.plus",
+                    isEnabled: dayItemCount > 0,
+                    action: onLogDay
+                )
+            }
+        }
+        .padding(14)
+        .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func detailText(count: Int, calories: Double) -> String {
+        guard count > 0 else { return "No items" }
+        return "\(count) items • \(Int(calories.rounded())) cal"
+    }
+
+    private func yesterdayButton(title: String, detail: String, icon: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(isEnabled ? .brandPrimary : Color(UIColor.tertiaryLabel))
+                    .frame(width: 30, height: 30)
+                    .background((isEnabled ? Color.brandPrimary : Color(UIColor.tertiaryLabel)).opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(isEnabled ? .textPrimary : Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+
+                    Text(detail)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+            .padding(12)
+            .background(Color.backgroundPrimary.opacity(isEnabled ? 0.78 : 0.42), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+    }
+}
+
+private struct FoodSearchActionGrid: View {
+    let manualAction: () -> Void
+    let cameraAction: () -> Void
+    let barcodeAction: () -> Void
+    let textAction: () -> Void
+
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
+            FoodSearchActionTile(title: "Manual", subtitle: "Type numbers", icon: "square.and.pencil", action: manualAction)
+            FoodSearchActionTile(title: "Barcode", subtitle: "Scan package", icon: "barcode.viewfinder", action: barcodeAction)
             FoodSearchActionTile(title: "Camera", subtitle: "Snap meal", icon: "camera.fill", action: cameraAction)
-            FoodSearchActionTile(title: "Barcode", subtitle: "Scan label", icon: "barcode.viewfinder", action: barcodeAction)
-            FoodSearchActionTile(title: "Maia", subtitle: "Ask AI", icon: "sparkles", action: maiaAction)
+            FoodSearchActionTile(title: "Describe", subtitle: "Use text", icon: "text.bubble.fill", action: textAction)
         }
     }
 }
@@ -500,6 +673,43 @@ private struct FoodSearchMealPicker: View {
             .padding(5)
             .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
         }
+    }
+}
+
+private struct FoodSearchCompactMealPicker: View {
+    @Binding var selectedMeal: String
+    let foodTypes: [String]
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("Log to")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(Color(UIColor.secondaryLabel))
+
+            Menu {
+                ForEach(foodTypes, id: \.self) { meal in
+                    Button(meal) {
+                        selectedMeal = meal
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(selectedMeal)
+                        .font(.system(size: 13, weight: .bold))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .foregroundColor(.brandPrimary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.brandPrimary.opacity(0.12), in: Capsule())
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -693,6 +903,11 @@ private struct FoodCard: View {
     let onSelect: (FoodItem) -> Void
     let onQuickLog: ((FoodItem) -> Void)?
 
+    private var servingText: String {
+        let trimmed = food.servingSize.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Usual serving" : trimmed
+    }
+
     var body: some View {
         Button(action: { onSelect(food) }) {
             VStack(alignment: .leading, spacing: 12) {
@@ -712,6 +927,8 @@ private struct FoodCard: View {
                                 .font(.system(size: 24))
                                 .foregroundColor(isQuickLogged ? .accentPositive : .brandPrimary)
                         }
+                        .disabled(isQuickLogged)
+                        .accessibilityLabel(isQuickLogged ? "\(food.name) logged" : "Quick log \(food.name)")
                     }
                 }
 
@@ -724,13 +941,18 @@ private struct FoodCard: View {
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
 
+                    Text(servingText)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+
                     Text("\(Int(food.calories.rounded())) cal")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .foregroundColor(.brandPrimary)
                 }
             }
             .padding(14)
-            .frame(width: 140, height: 135)
+            .frame(width: 146, height: 150)
             .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)

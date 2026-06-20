@@ -6,9 +6,11 @@ struct WellnessScoreCardView: View {
     let sleepReport: EnhancedSleepReport?
     
     @State private var showDetail = false
+    @State private var animatedScore: Double = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        Button(action: { showDetail = true }) {
+            VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Wellness Score")
@@ -32,10 +34,9 @@ struct WellnessScoreCardView: View {
                     Circle()
                         .stroke(wellnessScore.color.opacity(0.16), lineWidth: 12)
                     Circle()
-                        .trim(from: 0, to: CGFloat(min(max(Double(wellnessScore.overallScore) / 100, 0), 1)))
+                        .trim(from: 0, to: CGFloat(min(max(animatedScore / 100, 0), 1)))
                         .stroke(wellnessScore.color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.5), value: wellnessScore.overallScore)
 
                     VStack(spacing: 0) {
                         Text("\(wellnessScore.overallScore)")
@@ -70,17 +71,25 @@ struct WellnessScoreCardView: View {
                 )
             }
         }
-        .asCard()
-        .contentShape(Rectangle())
-        .onTapGesture {
-            showDetail = true
+        .glassCard()
         }
+        .buttonStyle(AnimatedCardButtonStyle())
         .sheet(isPresented: $showDetail) {
             WellnessScoreDetailView(
                 wellnessScore: wellnessScore,
                 mealScore: mealScore,
                 sleepReport: sleepReport
             )
+        }
+        .onAppear {
+            withAnimation(.interpolatingSpring(stiffness: 100, damping: 15).delay(0.2)) {
+                animatedScore = Double(wellnessScore.overallScore)
+            }
+        }
+        .onChange(of: wellnessScore.overallScore) { _, newValue in
+            withAnimation(.interpolatingSpring(stiffness: 100, damping: 15)) {
+                animatedScore = Double(newValue)
+            }
         }
     }
 }
@@ -96,8 +105,8 @@ struct ScoreComponentView: View {
             Image(systemName: icon)
                 .font(.callout)
                 .foregroundColor(color)
-                .frame(width: 30, height: 30)
-                .background(color.opacity(0.14), in: Circle())
+                .frame(width: 32, height: 32)
+                .background(color.opacity(0.18), in: Circle())
             
             VStack(alignment: .leading) {
                 Text(score.map { "\($0)" } ?? "--")
@@ -110,7 +119,11 @@ struct ScoreComponentView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(Color.backgroundSecondary.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(12)
+        .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(color.opacity(0.25), lineWidth: 1)
+        )
     }
 }

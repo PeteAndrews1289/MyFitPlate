@@ -7,24 +7,27 @@ struct AnimatedActionButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "plus")
-                .font(.system(size: 26, weight: .bold))
+                .font(.system(size: 26, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
                 .rotationEffect(Angle(degrees: isActive ? 45 : 0))
-                .frame(width: 60, height: 60)
+                .frame(width: 62, height: 62)
                 .background(
                     Circle()
-                        .fill(Color.brandPrimary)
-                        .shadow(color: Color.brandPrimary.opacity(0.34), radius: 14, x: 0, y: 8)
+                        .fill(LinearGradient.brandGradient)
+                        .shadow(color: Color.brandPrimary.opacity(0.5), radius: 16, x: 0, y: 8)
                 )
                 .overlay(
                     Circle()
-                        .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.4), lineWidth: 1.5)
                 )
                 .clipShape(Circle())
-                .shadow(color: Color.black.opacity(0.16), radius: 12, x: 0, y: 8)
-                .offset(y: -26)
+                .offset(y: isActive ? -22 : -28)
+                .scaleEffect(isActive ? 0.95 : 1.0)
+                .animation(.interpolatingSpring(stiffness: 250, damping: 15), value: isActive)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Quick log")
+        .accessibilityHint("Opens logging options")
     }
 }
 
@@ -43,15 +46,22 @@ struct CustomTabBar: View {
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.5), Color.white.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
                 )
-                .shadow(color: Color.black.opacity(0.10), radius: 18, x: 0, y: -4)
+                .shadow(color: Color.black.opacity(0.12), radius: 20, x: 0, y: 10)
                 .padding(.horizontal, 12)
-                .frame(height: 74)
+                .frame(height: 76)
                 .padding(.bottom, 8)
 
             HStack(alignment: .bottom, spacing: 0) {
@@ -67,27 +77,31 @@ struct CustomTabBar: View {
                             if showingAddOptions {
                                 withAnimation { showingAddOptions = false }
                             }
-                            self.selectedIndex = index
+                            withAnimation(.interpolatingSpring(stiffness: 300, damping: 25)) {
+                                self.selectedIndex = index
+                            }
                         } label: {
                             VStack(spacing: 4) {
                                 Image(systemName: item.icon)
-                                    .font(.system(size: 21, weight: isSelected ? .semibold : .medium))
-                                    .frame(width: 36, height: 28)
+                                    .font(.system(size: 22, weight: isSelected ? .bold : .medium))
+                                    .frame(width: 40, height: 28)
                                     .background(
                                         Capsule()
-                                            .fill(isSelected ? Color.brandPrimary.opacity(0.14) : Color.clear)
+                                            .fill(isSelected ? Color.brandPrimary.opacity(0.15) : Color.clear)
                                     )
+                                    .scaleEffect(isSelected ? 1.05 : 1.0)
 
                                 Text(item.name)
-                                    .appFont(size: 11, weight: isSelected ? .semibold : .regular)
+                                    .appFont(size: 11, weight: isSelected ? .bold : .medium)
                             }
                             .foregroundColor(isSelected ? Color.brandPrimary : Color(UIColor.secondaryLabel))
+                            .animation(.easeOut(duration: 0.2), value: isSelected)
                         }
                         .buttonStyle(.plain)
                         .frame(maxWidth: .infinity)
                     }
                 }
-            }.frame(height: 58).padding(.bottom, 24).padding(.horizontal, 16)
-        }.frame(height: 92)
+            }.frame(height: 60).padding(.bottom, 24).padding(.horizontal, 16)
+        }.frame(height: 94)
     }
 }
