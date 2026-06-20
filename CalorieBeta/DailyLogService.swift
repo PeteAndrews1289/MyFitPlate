@@ -122,7 +122,7 @@ class DailyLogService: ObservableObject {
             if success {
                 EcosystemSyncManager.shared.syncNutritionToHealthKit(item: itemToAdd)
                 self.addRecentFood(for: userID, foodItem: itemToAdd, source: "recipe")
-                
+
                 Analytics.logEvent("food_logged", parameters: [
                     "source": "manual_add",
                     "meal_type": mealType,
@@ -168,29 +168,29 @@ class DailyLogService: ObservableObject {
             try await logRef.updateData([
                 "journalEntries": FieldValue.arrayUnion([encodedEntry])
             ])
-            
+
             Analytics.logEvent("journal_entry_added", parameters: [
                 "category": entry.category
             ])
-            
+
              await MainActor.run {
                 self.bannerService?.showBanner(title: "Success", message: "Journal entry saved!")
             }
 
         } catch let error as NSError where error.domain == FirestoreErrorDomain && error.code == FirestoreErrorCode.notFound.rawValue {
             let newLog = DailyLog(id: dateString, date: dateToLog, meals: [], journalEntries: [entry])
-            
+
              await MainActor.run {
                  self.publishCurrentDailyLog(newLog)
              }
-            
+
             do {
                 try logRef.setData(from: newLog)
-                
+
                 Analytics.logEvent("journal_entry_added", parameters: [
                     "category": entry.category
                 ])
-                
+
                 await MainActor.run {
                    self.bannerService?.showBanner(title: "Success", message: "Journal entry saved!")
                 }
@@ -207,7 +207,7 @@ class DailyLogService: ObservableObject {
             }
         }
     }
-    
+
     func deleteJournalEntry(for userID: String, entry: JournalEntry) {
         let dateToLog = self.activelyViewedDate
         let dateString = dateFormatter.string(from: dateToLog)
@@ -245,7 +245,7 @@ class DailyLogService: ObservableObject {
         if Calendar.current.isDate(date, inSameDayAs: activelyViewedDate), let currentLog = currentDailyLog {
             return currentLog
         }
-        
+
         return try await withCheckedThrowingContinuation { continuation in
             fetchLogInternal(for: userID, date: date) { result in
                 continuation.resume(with: result)
@@ -449,7 +449,7 @@ class DailyLogService: ObservableObject {
                 completion(.success(Array(sortedFoods.prefix(10))))
             }
     }
-    
+
     func addFoodToCurrentLog(for userID: String, foodItem: FoodItem, source: String = "unknown") {
         let dateToLog = self.activelyViewedDate
         fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
@@ -468,19 +468,19 @@ class DailyLogService: ObservableObject {
                 DispatchQueue.main.async {
                     self.publishCurrentDailyLog(log)
                 }
-                
+
                 self.updateDailyLog(for: userID, updatedLog: log) { success in
                     if success {
                         EcosystemSyncManager.shared.syncNutritionToHealthKit(item: itemToAdd)
                         self.addRecentFood(for: userID, foodItem: itemToAdd, source: source)
-                        
+
                         Analytics.logEvent("food_logged", parameters: [
                             "source": source,
                             "item_name": itemToAdd.name,
                             "meal_type": mealName,
                             "calories": itemToAdd.calories
                         ])
-                        
+
                         Task { @MainActor in
                             self.bannerService?.showBanner(title: "Success", message: "\(itemToAdd.name) logged!")
                             self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
@@ -522,7 +522,7 @@ class DailyLogService: ObservableObject {
                     DispatchQueue.main.async {
                         self.publishCurrentDailyLog(log)
                     }
-                    
+
                     self.updateDailyLog(for: userID, updatedLog: log) { success in
                         if success {
                             if let previousFoodItem {
@@ -603,7 +603,7 @@ class DailyLogService: ObservableObject {
                             "meal_count": nonEmptyGroups.count,
                             "meal_type": nonEmptyGroups.map { $0.mealName }.joined(separator: ",")
                         ])
-                        
+
                         allItemsWithTimestamp.forEach { item in
                             EcosystemSyncManager.shared.syncNutritionToHealthKit(item: item)
                             self.addRecentFood(for: userID, foodItem: item, source: itemSource)
@@ -650,7 +650,7 @@ class DailyLogService: ObservableObject {
                      DispatchQueue.main.async {
                          self.publishCurrentDailyLog(log)
                      }
-                     
+
                      self.updateDailyLog(for: userID, updatedLog: log) { success in
                           Task { @MainActor in
                               if success {
@@ -735,7 +735,7 @@ class DailyLogService: ObservableObject {
                                 "exercise_name": exercise.name,
                                 "calories": exercise.caloriesBurned
                             ])
-                            
+
                             self.bannerService?.showBanner(title: "Success", message: "\(exercise.name) logged!")
                             self.achievementService?.updateChallengeProgress(for: userID, type: .workoutLogged, amount: 1)
                             NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
@@ -837,12 +837,15 @@ class DailyLogService: ObservableObject {
         let ref = db.collection("users").document(userID).collection(recentFoodsCollection)
         let ts = Timestamp(date: Date())
 
+        let stableIDString = foodItem.name
+        let stableID = Data(stableIDString.utf8).base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
+
         do {
             var data = try Firestore.Encoder().encode(foodItem)
             data["timestamp"] = ts
             data["source"] = source
 
-            ref.document(foodItem.id).setData(data, merge: true) { error in
+            ref.document(stableID).setData(data, merge: false) { error in
                 if let error = error {
                     AppLog.data.error("Failed to add or update recent food: \(error.localizedDescription, privacy: .public)")
                 }

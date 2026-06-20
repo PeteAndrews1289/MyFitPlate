@@ -68,6 +68,7 @@ struct CalorieBetaApp: App {
     @StateObject var healthKitViewModel: HealthKitViewModel
     @StateObject var spotlightManager: SpotlightManager
     @StateObject var cycleService: CycleTrackingService
+    @StateObject var adaptiveGoalService: AdaptiveGoalService
     
     @StateObject var connectivityManager = WatchConnectivityManager()
 
@@ -91,6 +92,7 @@ struct CalorieBetaApp: App {
         let plannerService = MealPlannerService(recipeService: recipes)
         let spotlightMgr = SpotlightManager()
         let cycleSvc = CycleTrackingService()
+        let adaptiveSvc = AdaptiveGoalService()
 
         _dailyLogService = StateObject(wrappedValue: logService)
         _goalSettings = StateObject(wrappedValue: goalsSvc)
@@ -104,8 +106,10 @@ struct CalorieBetaApp: App {
         _bannerService = StateObject(wrappedValue: bannerSvc)
         _spotlightManager = StateObject(wrappedValue: spotlightMgr)
         _cycleService = StateObject(wrappedValue: cycleSvc)
+        _adaptiveGoalService = StateObject(wrappedValue: adaptiveSvc)
         
         logService.goalSettings = goalsSvc
+        goalsSvc.adaptiveGoalService = adaptiveSvc
         logService.bannerService = bannerSvc
         logService.achievementService = achieveService
         achieveService.setupDependencies(dailyLogService: logService, goalSettings: goalsSvc, bannerService: bannerSvc)
@@ -131,6 +135,7 @@ struct CalorieBetaApp: App {
                 .environmentObject(connectivityManager)
                 .environmentObject(spotlightManager)
                 .environmentObject(cycleService)
+                .environmentObject(adaptiveGoalService)
                 .preferredColorScheme(appState.isDarkModeEnabled ? .dark : .light)
                 .onAppear {
                     // Request notification permissions
@@ -202,6 +207,7 @@ struct ContentView: View {
             gender: goals.gender,
             phase: cycleService.cycleDay?.phase, // Will be nil for men or non-trackers
             wellnessScore: nil,
+            sleepScore: healthKitViewModel.sleepSummary.lastNightScore,
             caloriesRemaining: (goals.calories ?? 2000) - (log?.totalCalories() ?? 0),
             proteinRemaining: goals.protein - (log?.totalMacros().protein ?? 0),
             daysSinceLastWorkout: daysSinceWorkout,

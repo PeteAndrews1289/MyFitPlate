@@ -20,6 +20,7 @@ class InsightsService: ObservableObject {
         let gender: String
         let phase: MenstrualPhase?
         let wellnessScore: Int?
+        let sleepScore: Int?
         let caloriesRemaining: Double
         let proteinRemaining: Double
         let daysSinceLastWorkout: Int
@@ -213,6 +214,18 @@ class InsightsService: ObservableObject {
                 strategy = "Peak Performance"
                 tone = "Hype man, high energy, challenging."
                 dataFocus = "Wellness Score is peak (\(score)). Challenge them to hit a Personal Record."
+            }
+        }
+
+        if strategy == "General Motivation", let sleepScore = context.sleepScore {
+            if sleepScore < 55 {
+                strategy = "Sleep Recovery"
+                tone = "Gentle, practical, protective."
+                dataFocus = "Last sleep score is low (\(sleepScore)). Suggest lighter training, hydration, and a protein-forward meal."
+            } else if sleepScore > 85 {
+                strategy = "Rested Momentum"
+                tone = "Confident, upbeat, practical."
+                dataFocus = "Last sleep score is strong (\(sleepScore)). Encourage using the good recovery window well."
             }
         }
 
@@ -552,4 +565,117 @@ class InsightsService: ObservableObject {
     private func fetchLogsForAnalysis(userID: String, startDate: Date, endDate: Date) async -> Result<[DailyLog], Error> {
         return await dailyLogService.fetchDailyHistory(for: userID, startDate: startDate, endDate: endDate)
     }
+
+    // MARK: - Maia Operator Logic
+    func processOperatorMessage(message: String, context: String) async -> MaiaOperatorResponse? {
+        let prompt = """
+        You are Maia, an AI fitness coach and operator. The user wants you to perform an action.
+        Determine the intent and extract parameters.
+
+        Available action types:
+        1. "log_food": If the user wants to log a food/meal. Provide "foodName", "calories", "protein", "carbs", "fats". Estimate nutrition realistically.
+        2. "adjust_goal": If the user wants to change a goal. Provide "target" (calories, protein, carbs, fats) and "value" (number).
+
+        User's message: "\(message)"
+        Additional Context: \(context)
+
+        Respond ONLY with a valid JSON object matching this schema:
+        {
+          "reply": "Friendly response acknowledging the action",
+          "actions": [
+            {
+              "actionType": "log_food",
+              "foodName": "Apple",
+              "calories": 95,
+              "protein": 0.5,
+              "carbs": 25,
+              "fats": 0.3
+            }
+          ]
+        }
+        """
+
+        guard let responseString = await fetchAIResponse(prompt: prompt),
+              let data = responseString.data(using: .utf8) else {
+            return nil
+        }
+
+        do {
+            let decoded = try JSONDecoder().decode(MaiaOperatorResponse.self, from: data)
+            return decoded
+        } catch {
+            AppLog.ai.error("Failed to decode operator response: \\(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    func executeOperatorActions(_ actions: [MaiaOperatorAction], userID: String) async {
+        for action in actions {
+            switch action.actionType {
+            case "log_food":
+                guard let name = action.foodName, let cals = action.calories else { continue }
+                let item = FoodItem(
+                    id: UUID().uuidString,
+                    name: name,
+                    calories: cals,
+                    protein: action.protein ?? 0,
+                    carbs: action.carbs ?? 0,
+                    fats: action.fats ?? 0,
+                    servingSize: "1 serving",
+                    servingWeight: 0.0
+                )
+                let mealName = determineMealType(for: Date())
+                await dailyLogService.logFoodItem(item, mealType: mealName)
+
+            case "adjust_goal":
+                guard let target = action.target, let value = action.value else { continue }
+                switch target.lowercased() {
+                case "calories":
+                    goalSettings.calories = value
+                case "protein":
+                    goalSettings.protein = value
+                case "carbs":
+                    goalSettings.carbs = value
+                case "fats":
+                    goalSettings.fats = value
+                default:
+                    break
+                }
+
+            default:
+                break
+            }
+        }
+    }
+
+    private func determineMealType(for date: Date) -> String {
+        let hour = Calendar.current.component(.hour, from: date)
+        switch hour {
+        case 4..<11: return "Breakfast"
+        case 11..<16: return "Lunch"
+        case 16..<21: return "Dinner"
+        default: return "Snack"
+        }
+    }
+}
+
+// MARK: - Maia Operator Foundation
+public struct MaiaOperatorAction: Codable, Equatable {
+    public let actionType: String // "log_food", "adjust_goal"
+
+    // For log_food
+    public let foodName: String?
+    public let calories: Double?
+    public let protein: Double?
+    public let carbs: Double?
+    public let fats: Double?
+
+    // For adjust_goal
+    public let target: String? // "protein", "calories", "carbs", "fats"
+    public let value: Double?
+}
+
+public struct MaiaOperatorResponse: Codable {
+    public let reply: String
+    public let actions: [MaiaOperatorAction]
 }

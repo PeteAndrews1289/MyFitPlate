@@ -21,9 +21,7 @@ class HealthKitManager {
             return
         }
 
-        // We need to write .food correlations
-        guard let foodCorrelationType = HKObjectType.correlationType(forIdentifier: .food),
-              let dietaryEnergyType = HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed),
+        guard let dietaryEnergyType = HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed),
               let dietaryProteinType = HKQuantityType.quantityType(forIdentifier: .dietaryProtein),
               let dietaryCarbType = HKQuantityType.quantityType(forIdentifier: .dietaryCarbohydrates),
               let dietaryFatType = HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal),
@@ -38,7 +36,6 @@ class HealthKitManager {
         }
 
         let typesToShare: Set<HKSampleType> = [
-            foodCorrelationType,
             dietaryEnergyType,
             dietaryProteinType,
             dietaryCarbType,
@@ -97,7 +94,7 @@ class HealthKitManager {
         let queryStartDate = calendar.startOfDay(for: startDate)
         let queryEndDate = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate))
 
-        let predicate = HKQuery.predicateForSamples(withStart: queryStartDate, end: queryEndDate, options: .strictStartDate)
+        let predicate = HKQuery.predicateForSamples(withStart: queryStartDate, end: queryEndDate, options: [])
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
 
         let query = HKSampleQuery(sampleType: sleepType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sortDescriptor]) { _, samples, error in
@@ -185,8 +182,7 @@ class HealthKitManager {
         guard let energyType = HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed),
               let proteinType = HKQuantityType.quantityType(forIdentifier: .dietaryProtein),
               let carbType = HKQuantityType.quantityType(forIdentifier: .dietaryCarbohydrates),
-              let fatType = HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal),
-              let foodCorrelationType = HKObjectType.correlationType(forIdentifier: .food)
+              let fatType = HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal)
         else {
             AppLog.health.error("Unable to get HealthKit nutrition types.")
             return
@@ -194,22 +190,6 @@ class HealthKitManager {
 
         let timestamp = foodItem.timestamp ?? Date()
         var nutrientSamples: [HKQuantitySample] = []
-
-        // Create samples
-        if foodItem.calories > 0 {
-            nutrientSamples.append(HKQuantitySample(type: energyType, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: foodItem.calories), start: timestamp, end: timestamp))
-        }
-        if foodItem.protein > 0 {
-            nutrientSamples.append(HKQuantitySample(type: proteinType, quantity: HKQuantity(unit: .gram(), doubleValue: foodItem.protein), start: timestamp, end: timestamp))
-        }
-        if foodItem.carbs > 0 {
-            nutrientSamples.append(HKQuantitySample(type: carbType, quantity: HKQuantity(unit: .gram(), doubleValue: foodItem.carbs), start: timestamp, end: timestamp))
-        }
-        if foodItem.fats > 0 {
-            nutrientSamples.append(HKQuantitySample(type: fatType, quantity: HKQuantity(unit: .gram(), doubleValue: foodItem.fats), start: timestamp, end: timestamp))
-        }
-
-        guard !nutrientSamples.isEmpty else { return }
 
         let foodMetadata: [String: Any] = [
             HKMetadataKeyFoodType: foodItem.name,
@@ -220,11 +200,24 @@ class HealthKitManager {
             MetadataKey.calorieMacroDelta: foodItem.calorieConsistencyStatus.delta
         ]
 
-        let foodCorrelation = HKCorrelation(type: foodCorrelationType, start: timestamp, end: timestamp, objects: Set(nutrientSamples), metadata: foodMetadata)
+        if foodItem.calories > 0 {
+            nutrientSamples.append(HKQuantitySample(type: energyType, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: foodItem.calories), start: timestamp, end: timestamp, metadata: foodMetadata))
+        }
+        if foodItem.protein > 0 {
+            nutrientSamples.append(HKQuantitySample(type: proteinType, quantity: HKQuantity(unit: .gram(), doubleValue: foodItem.protein), start: timestamp, end: timestamp, metadata: foodMetadata))
+        }
+        if foodItem.carbs > 0 {
+            nutrientSamples.append(HKQuantitySample(type: carbType, quantity: HKQuantity(unit: .gram(), doubleValue: foodItem.carbs), start: timestamp, end: timestamp, metadata: foodMetadata))
+        }
+        if foodItem.fats > 0 {
+            nutrientSamples.append(HKQuantitySample(type: fatType, quantity: HKQuantity(unit: .gram(), doubleValue: foodItem.fats), start: timestamp, end: timestamp, metadata: foodMetadata))
+        }
 
-        healthStore.save(foodCorrelation) { success, error in
+        guard !nutrientSamples.isEmpty else { return }
+
+        healthStore.save(nutrientSamples) { success, error in
             if !success, let error = error {
-                AppLog.health.error("Failed to save food correlation to HealthKit: \(error.localizedDescription, privacy: .public)")
+                AppLog.health.error("Failed to save nutrition samples to HealthKit: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -234,19 +227,47 @@ class HealthKitManager {
     }
 
     func deleteNutrition(for foodItem: FoodItem, completion: ((Bool) -> Void)? = nil) {
-        guard let foodCorrelationType = HKObjectType.correlationType(forIdentifier: .food) else {
+        let sampleTypes = nutritionSampleTypes()
+        guard !sampleTypes.isEmpty else {
             completion?(false)
             return
         }
 
         let predicate = appFoodMetadataPredicate(for: foodItem)
-        healthStore.deleteObjects(of: foodCorrelationType, predicate: predicate) { success, deletedCount, error in
-            if let error {
-                AppLog.health.error("Failed to delete MyFitPlate food samples from HealthKit: \(error.localizedDescription, privacy: .public)")
-            } else if deletedCount > 0 {
-                AppLog.health.info("Deleted \(deletedCount, privacy: .public) MyFitPlate food sample(s) from HealthKit.")
+        let group = DispatchGroup()
+        let stateLock = NSLock()
+        var deletionSucceeded = true
+        var deletedSamples = 0
+
+        for sampleType in sampleTypes {
+            group.enter()
+            healthStore.deleteObjects(of: sampleType, predicate: predicate) { success, deletedCount, error in
+                stateLock.lock()
+                defer {
+                    stateLock.unlock()
+                    group.leave()
+                }
+
+                if let error {
+                    deletionSucceeded = false
+                    AppLog.health.error("Failed to delete MyFitPlate nutrition samples from HealthKit: \(error.localizedDescription, privacy: .public)")
+                } else {
+                    deletedSamples += deletedCount
+                    if !success { deletionSucceeded = false }
+                }
             }
-            completion?(success)
+        }
+
+        group.notify(queue: .main) {
+            stateLock.lock()
+            let didSucceed = deletionSucceeded
+            let totalDeleted = deletedSamples
+            stateLock.unlock()
+
+            if totalDeleted > 0 {
+                AppLog.health.info("Deleted \(totalDeleted, privacy: .public) MyFitPlate nutrition sample(s) from HealthKit.")
+            }
+            completion?(didSucceed)
         }
     }
 
@@ -254,6 +275,15 @@ class HealthKitManager {
         deleteNutrition(for: oldItem) { [weak self] _ in
             self?.saveNutrition(for: newItem)
         }
+    }
+
+    private func nutritionSampleTypes() -> [HKSampleType] {
+        [
+            HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed),
+            HKQuantityType.quantityType(forIdentifier: .dietaryProtein),
+            HKQuantityType.quantityType(forIdentifier: .dietaryCarbohydrates),
+            HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal)
+        ].compactMap { $0 }
     }
 
     func saveWeightSample(weightLbs: Double, date: Date) {

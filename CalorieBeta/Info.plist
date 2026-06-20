@@ -12,7 +12,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>This app uses the camera to allow you to take pictures of your food for nutritional analysis.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Your workout and activity data is used to improve the accuracy of your daily calorie and exercise tracking.</string>
+	<string>Your workouts, activity, sleep, heart rate, and body measurements help MyFitPlate build more accurate reports and wellness insights.</string>
 	<key>OPENAI_API_KEY</key>
 	<string>$(OPENAI_API_KEY)</string>
 	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
@@ -20,7 +20,7 @@
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>This app updates your Health data to keep your calorie and exercise information synchronized.</string>
+	<string>MyFitPlate saves nutrition and body measurement entries to Apple Health so your health data stays synchronized.</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

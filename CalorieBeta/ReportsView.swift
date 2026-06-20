@@ -157,6 +157,11 @@ struct ReportsView: View {
             
             if let workoutReport = viewModel.weeklyWorkoutReport {
                 #if !TARGET_IS_WIDGET_EXTENSION
+                NavigationLink(destination: MetabolismDashboardView()) {
+                    MetabolismReportCard()
+                }
+                .buttonStyle(.plain)
+                
                 NavigationLink(destination: WorkoutAnalyticsView(viewModel: viewModel)) {
                     WorkoutReportCard(report: workoutReport)
                 }
@@ -585,5 +590,185 @@ private struct ReportSectionHeader: View {
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+// MARK: - MetabolismDashboardView
+struct MetabolismDashboardView: View {
+    @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
+    @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject var dailyLogService: DailyLogService
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var isLoading = true
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if isLoading {
+                    ProgressView("Analyzing 21-Day Metabolism Trends...")
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 40)
+                } else {
+                    dashboardContent
+                }
+            }
+            .padding()
+        }
+        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .navigationTitle("Adaptive Metabolism")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard let userID = goalSettings.dailyLogService?.currentDailyLog?.id?.components(separatedBy: "_").first else {
+                isLoading = false
+                return
+            }
+            await adaptiveGoalService.fetchAndCalculate(userID: userID, goalSettings: goalSettings, dailyLogService: dailyLogService)
+            isLoading = false
+        }
+    }
+
+    @ViewBuilder
+    private var dashboardContent: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            // Header
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Your True TDEE")
+                    .appFont(size: 20, weight: .semibold)
+                    .foregroundColor(.textPrimary)
+                
+                Text("Total Daily Energy Expenditure is the actual number of calories your body burns, calculated by analyzing your weight trend and food intake over the last 3 weeks.")
+                    .appFont(size: 14)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // Calculation Card
+            VStack(spacing: 16) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(adaptiveGoalService.dataConfidence.rawValue)
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(Color(adaptiveGoalService.dataConfidence.colorName))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(adaptiveGoalService.dataConfidence.colorName).opacity(0.1), in: Capsule())
+                        
+                        if let tdee = adaptiveGoalService.calculatedTDEE {
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text("\(Int(tdee))")
+                                    .appFont(size: 48, weight: .heavy)
+                                    .foregroundColor(.textPrimary)
+                                Text(" kcal")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                            }
+                        } else {
+                            Text("Needs Data")
+                                .appFont(size: 32, weight: .heavy)
+                                .foregroundColor(.textPrimary)
+                        }
+                    }
+                    
+                    Spacer()
+                }
+
+                Divider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Avg Intake (21d)")
+                            .appFont(size: 12, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                        Text(adaptiveGoalService.last21DaysCalorieAverage != nil ? "\(Int(adaptiveGoalService.last21DaysCalorieAverage!)) kcal" : "--")
+                            .appFont(size: 16, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Weight Trend")
+                            .appFont(size: 12, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                        if let rate = adaptiveGoalService.weightChangeRatePerDay {
+                            let isLosing = rate < 0
+                            Text("\(isLosing ? "" : "+")\(String(format: "%.2f", rate * 7)) lbs/wk")
+                                .appFont(size: 16, weight: .bold)
+                                .foregroundColor(isLosing ? .brandPrimary : .orange)
+                        } else {
+                            Text("--")
+                                .appFont(size: 16, weight: .bold)
+                                .foregroundColor(.textPrimary)
+                        }
+                    }
+                }
+            }
+            .padding(20)
+            .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 4)
+
+            // Action Button
+            Button(action: {
+                HapticFeedback.selection()
+                goalSettings.calorieGoalMethod = .dynamicTDEE
+                goalSettings.recalculateAllGoals()
+                dismiss()
+            }) {
+                Text("Use Adaptive TDEE for Goals")
+                    .appFont(size: 16, weight: .bold)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        adaptiveGoalService.dataConfidence == .insufficient ? Color.gray : Color.brandPrimary,
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    )
+            }
+            .disabled(adaptiveGoalService.dataConfidence == .insufficient)
+            .opacity(adaptiveGoalService.dataConfidence == .insufficient ? 0.6 : 1.0)
+            .buttonStyle(.plain)
+
+            // Explainer
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Why is this better?", systemImage: "sparkles")
+                    .appFont(size: 18, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                
+                Text("Standard calculators (like the Mifflin-St Jeor equation) guess your metabolism based on height, weight, and age. \n\nAdaptive TDEE looks at what you actually eat and how your weight actually responds, finding your exact metabolic rate. The more consistently you log, the more accurate this becomes.")
+                    .appFont(size: 14)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding()
+            .background(Color.accentPositive.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+}
+
+private struct MetabolismReportCard: View {
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill")
+                        .foregroundColor(.brandPrimary)
+                    Text("Adaptive Metabolism")
+                        .appFont(size: 15, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                }
+                
+                Text("Analyze your true TDEE and metabolism trend.")
+                    .appFont(size: 13)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(Color(UIColor.tertiaryLabel))
+        }
+        .padding(16)
+        .asCard()
     }
 }

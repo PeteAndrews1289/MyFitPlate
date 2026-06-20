@@ -81,8 +81,8 @@ class RestTimer: ObservableObject {
         self.timeRemaining = duration
         self.endTime = Date().addingTimeInterval(duration)
 
-        // Start Live Activity on Lock Screen
-        LiveActivityManager.shared.startRestTimer(routineName: routineName, duration: duration)
+        // Update Live Activity on Lock Screen
+        LiveActivityManager.shared.startRestTimer(duration: duration)
 
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -97,8 +97,8 @@ class RestTimer: ObservableObject {
         endTime = nil
         timeRemaining = 0
 
-        // End Live Activity
-        LiveActivityManager.shared.endActivity()
+        // End Rest state on Live Activity
+        LiveActivityManager.shared.endRestTimer()
     }
 
     private func updateTimer() {
@@ -306,6 +306,7 @@ struct WorkoutPlayerView: View {
         .navigationBarHidden(true)
         .onAppear {
             totalWorkoutTimer.start()
+            LiveActivityManager.shared.startWorkout(routineName: routine.name)
         }
         .onDisappear {
             // Safety check: Kill Live Activity if user swipes away the app

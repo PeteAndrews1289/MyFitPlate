@@ -12,8 +12,8 @@ struct WellnessScore {
     // The score for yesterday's nutrition (from MealScore).
     let nutritionScore: Int
     
-    // The score for the most recent night of sleep.
-    let sleepScore: Int // Store the last night's comprehensive score
+    // The score for the most recent night of sleep, if Apple Health has sleep samples available.
+    let sleepScore: Int?
     
     // The score for physical recovery (RHR, HRV).
     let recoveryScore: Int
@@ -25,7 +25,7 @@ struct WellnessScore {
     let color: Color
 
     /// A static "zero" state for when no data is available to display.
-    static let zero = WellnessScore(overallScore: 0, nutritionScore: 0, sleepScore: 0, recoveryScore: 0, summary: "Log your day to see your score.", color: .gray)
+    static let zero = WellnessScore(overallScore: 0, nutritionScore: 0, sleepScore: nil, recoveryScore: 0, summary: "Log your day to see your score.", color: .gray)
 }
 
 // MARK: - Wellness Score Service
@@ -55,21 +55,31 @@ class WellnessScoreService {
         let currentMealScore = mealScore ?? .noScore
         let nutritionScore = currentMealScore.overallScore
 
-        // 2. Sleep Score (30% weight)
-        // We use the `lastNightSleepScore` passed in, defaulting to 0 if nil.
-        let sleepScore = lastNightSleepScore ?? 0 // Use 0 if nil
+        let sleepScore = lastNightSleepScore
 
         // 3. Recovery Score (30% weight)
         // This score is calculated internally based on RHR and HRV.
         let recoveryScore = calculateRecoveryScore(restingHeartRate: restingHeartRate, hrv: hrv)
 
-        // 4. Overall Weighted Score
-        // The final score is a weighted average of the three components.
-        let overallScore = Int(
-            (Double(nutritionScore) * 0.40) +
-            (Double(sleepScore) * 0.30) +
-            (Double(recoveryScore) * 0.30)
-        )
+        var weightedTotal = 0.0
+        var availableWeight = 0.0
+
+        if nutritionScore > 0 {
+            weightedTotal += Double(nutritionScore) * 0.40
+            availableWeight += 0.40
+        }
+
+        if let sleepScore, sleepScore > 0 {
+            weightedTotal += Double(sleepScore) * 0.30
+            availableWeight += 0.30
+        }
+
+        if restingHeartRate != nil || hrv != nil {
+            weightedTotal += Double(recoveryScore) * 0.30
+            availableWeight += 0.30
+        }
+
+        let overallScore = availableWeight > 0 ? Int((weightedTotal / availableWeight).rounded()) : 0
 
         // Get the appropriate summary text and color for the final score.
         let (summary, color) = getSummaryAndColor(for: overallScore)
@@ -78,7 +88,7 @@ class WellnessScoreService {
         return WellnessScore(
             overallScore: overallScore,
             nutritionScore: nutritionScore,
-            sleepScore: sleepScore, // Store last night's comprehensive score
+            sleepScore: sleepScore,
             recoveryScore: recoveryScore,
             summary: summary,
             color: color

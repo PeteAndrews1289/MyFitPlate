@@ -207,7 +207,6 @@ struct FoodDetailView: View {
             vitaminK: baseNutrients.vitaminK.map { $0 * factor },
             servingDescription: finalDescription,
             servingWeightGrams: finalWeight,
-            // Return explicit data fields
             quantityValue: quantityValue,
             servingUnit: unitName
         )

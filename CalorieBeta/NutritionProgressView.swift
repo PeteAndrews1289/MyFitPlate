@@ -12,6 +12,8 @@ struct NutritionProgressView: View {
     private let swipeThreshold: CGFloat = 50
     private let totalViews = 4
 
+    @State private var showingAudit = false
+
     var body: some View {
         let totalCalories = max(0, dailyLog.totalCalories())
         let totalMacros = dailyLog.totalMacros()
@@ -80,9 +82,17 @@ struct NutritionProgressView: View {
                 .padding(.bottom, 4)
 
             if consistencyStatus.hasMeaningfulMismatch {
-                NutritionConsistencyNoticeCard(status: consistencyStatus, style: .compact)
-                    .padding(.horizontal, 8)
-                    .padding(.top, -6)
+                Button {
+                    showingAudit = true
+                } label: {
+                    NutritionConsistencyNoticeCard(status: consistencyStatus, style: .compact)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .padding(.horizontal, 8)
+                .padding(.top, -6)
+                .sheet(isPresented: $showingAudit) {
+                    NutritionAuditView(dailyLog: dailyLog, dailyLogBinding: $dailyLogService.currentDailyLog, date: dailyLog.date)
+                }
             }
         }
         .padding(.bottom, 8)
@@ -103,7 +113,7 @@ struct NutritionProgressView: View {
                     color: .red
                 )
             }
-            
+
             VStack(spacing: 12) {
                 MacroProgressRow(
                     label: "Protein",
@@ -142,7 +152,6 @@ struct NutritionProgressView: View {
          }.padding(.horizontal, 8).frame(maxWidth: .infinity)
     }
 }
-
 struct ProgressBubble: View {
     let value: Double
     let goal: Double

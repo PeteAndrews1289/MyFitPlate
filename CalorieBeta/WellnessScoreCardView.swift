@@ -89,7 +89,7 @@ struct ScoreComponentView: View {
     let icon: String
     let color: Color
     let title: String
-    let score: Int
+    let score: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -100,7 +100,7 @@ struct ScoreComponentView: View {
                 .background(color.opacity(0.14), in: Circle())
             
             VStack(alignment: .leading) {
-                Text("\(score)")
+                Text(score.map { "\($0)" } ?? "--")
                     .appFont(size: 18, weight: .bold)
                     .foregroundColor(.textPrimary)
                 Text(title)

@@ -27,6 +27,8 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
     
     @Published var currWater: Double = 0.0
     @Published var goalWater: Double = 0.0
+    @Published var sleepScore: Int = 0
+    @Published var sleepHours: Double = 0.0
     
     override init() {
         super.init()
@@ -65,6 +67,8 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
             self.goalWeight = context["goalWeight"] as? Double ?? self.goalWeight
             self.currWater = context["currWater"] as? Double ?? self.currWater
             self.goalWater = context["goalWater"] as? Double ?? self.goalWater
+            self.sleepScore = context["sleepScore"] as? Int ?? self.sleepScore
+            self.sleepHours = context["sleepHours"] as? Double ?? self.sleepHours
         }
     }
 }

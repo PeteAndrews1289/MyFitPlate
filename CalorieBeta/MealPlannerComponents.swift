@@ -321,7 +321,7 @@ struct MealPlanLoadingState: View {
             }
         }
         .asCard()
-        .shimmering()
+        // Removed shimmering
     }
 }
 

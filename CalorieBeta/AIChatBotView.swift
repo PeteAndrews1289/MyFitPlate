@@ -1,7 +1,6 @@
 import SwiftUI
 import FirebaseFirestore
 import FirebaseAuth
-import HealthKit
 
 func capitalizedFirstLetter(of string: String) -> String {
     guard let first = string.first else { return "" }
@@ -408,10 +407,11 @@ private struct MaiaBriefingMetric: View {
 private struct MaiaHealthKitContextIndicator: View {
     let steps: Double
     let activeEnergy: Double
-    let sleepSamples: [HKCategorySample]
+    let sleepSummary: SleepHealthSummary
 
     var body: some View {
-        let sleepHours = sleepSamples.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) } / 3600.0
+        let sleepHours = sleepSummary.lastNightHours
+        let sleepScore = sleepSummary.lastNightScore ?? sleepSummary.averageScore
 
         HStack(spacing: 8) {
             Image(systemName: "applewatch")
@@ -438,6 +438,12 @@ private struct MaiaHealthKitContextIndicator: View {
                     HStack(spacing: 4) {
                         Image(systemName: "moon.zzz.fill")
                         Text(String(format: "%.1fh", sleepHours))
+                    }
+                }
+                if let sleepScore {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bed.double.fill")
+                        Text("\(sleepScore)")
                     }
                 }
             }
@@ -527,7 +533,7 @@ struct AIChatbotView: View {
                     MaiaHealthKitContextIndicator(
                         steps: healthKitViewModel.todaySteps,
                         activeEnergy: healthKitViewModel.todayActiveEnergy,
-                        sleepSamples: healthKitViewModel.sleepSamples
+                        sleepSummary: healthKitViewModel.sleepSummary
                     )
                     .padding(.horizontal)
                     .padding(.top, 8)
@@ -700,7 +706,8 @@ struct AIChatbotView: View {
 
         let hkSteps = healthKitViewModel.todaySteps
         let hkActiveEnergy = healthKitViewModel.todayActiveEnergy
-        let sleepHours = healthKitViewModel.sleepSamples.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) } / 3600.0
+        let sleepHours = healthKitViewModel.sleepSummary.lastNightHours
+        let sleepScore = healthKitViewModel.sleepSummary.lastNightScore ?? healthKitViewModel.sleepSummary.averageScore
         let macroCalories = consistencyStatus?.macroDerivedCalories ?? 0
         let calorieDelta = consistencyStatus?.delta ?? 0
         let auditStatus = consistencyStatus?.hasMeaningfulMismatch == true
@@ -729,6 +736,7 @@ struct AIChatbotView: View {
         - Steps Today: \(Int(hkSteps))
         - Passive Active Energy Burned: \(Int(hkActiveEnergy)) kcal
         - Sleep Last Night: \(String(format: "%.1f", sleepHours)) hours
+        - Sleep Score: \(sleepScore.map { "\($0)" } ?? "Unavailable")
         """
     }
 

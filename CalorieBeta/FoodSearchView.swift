@@ -38,6 +38,9 @@ struct FoodSearchView: View {
     @State private var recentFoods: [FoodItem] = []
     @State private var recommendedFoods: [FoodItem] = []
 
+    @State private var yesterdaysMealItems: [FoodItem] = []
+    @State private var isFetchingYesterday = false
+
     private var isSearching: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -67,6 +70,33 @@ struct FoodSearchView: View {
                             )
 
                             FoodSearchMealPicker(selectedMeal: $selectedMeal, foodTypes: foodTypes)
+
+                            if !isSearching && !yesterdaysMealItems.isEmpty {
+                                Button(action: logYesterdayMeal) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Log Yesterday's \(selectedMeal)")
+                                                .font(.system(size: 16, weight: .bold))
+                                                .foregroundColor(.brandPrimary)
+                                            Text("\(yesterdaysMealItems.count) items • \(Int(yesterdaysMealItems.reduce(0) { $0 + $1.calories })) cal")
+                                                .font(.system(size: 12, weight: .medium))
+                                                .foregroundColor(.brandPrimary.opacity(0.8))
+                                        }
+                                        Spacer()
+                                        Image(systemName: "plus.circle.fill")
+                                            .font(.system(size: 24))
+                                            .foregroundColor(.brandPrimary)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(Color.brandPrimary.opacity(0.1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                            .stroke(Color.brandPrimary.opacity(0.2), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
 
                         if isSearching {
@@ -130,11 +160,11 @@ struct FoodSearchView: View {
                     }
                 }
                 .onAppear(perform: fetchData)
-                .onChange(of: selectedMeal) {
+                .onChange(of: selectedMeal) { _, _ in
                     fetchRecommendedFoods()
+                    fetchYesterdayMeal()
                 }
                 .sheet(isPresented: $showingAddFoodManually) {
-                    // Fixed: Updated to use the new AddFoodView initializer
                     AddFoodView(
                         initialFoodItem: FoodItem(id: UUID().uuidString, name: "", calories: 0, protein: 0, carbs: 0, fats: 0, servingSize: "", servingWeight: 0),
                         dailyLog: $dailyLogService.currentDailyLog,
@@ -177,7 +207,6 @@ struct FoodSearchView: View {
                 }
                 .sheet(isPresented: $showingAskMaia) { AIChatbotView(selectedTab: .constant(1)) }
                 .sheet(item: $selectedFoodItem) { foodItem in
-                    // Fixed: Updated to use the new FoodDetailView initializer
                     FoodDetailView(
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,
@@ -190,7 +219,6 @@ struct FoodSearchView: View {
                     )
                 }
                 .sheet(item: $scannedFoodItem) { foodItem in
-                    // Fixed: Updated to use the new FoodDetailView initializer
                     FoodDetailView(
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,
@@ -286,6 +314,7 @@ struct FoodSearchView: View {
     private func fetchData() {
         fetchRecents()
         fetchRecommendedFoods()
+        fetchYesterdayMeal()
     }
 
     private func fetchRecents() {
@@ -304,6 +333,44 @@ struct FoodSearchView: View {
                 self.recommendedFoods = items
             }
         }
+    }
+
+    private func fetchYesterdayMeal() {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: dailyLogService.activelyViewedDate) else { return }
+
+        isFetchingYesterday = true
+        dailyLogService.fetchLogInternal(for: userID, date: yesterday) { result in
+            DispatchQueue.main.async {
+                self.isFetchingYesterday = false
+                switch result {
+                case .success(let log):
+                    if let meal = log.meals.first(where: { $0.name.lowercased() == self.selectedMeal.lowercased() }) {
+                        self.yesterdaysMealItems = meal.foodItems
+                    } else {
+                        self.yesterdaysMealItems = []
+                    }
+                case .failure:
+                    self.yesterdaysMealItems = []
+                }
+            }
+        }
+    }
+
+    private func logYesterdayMeal() {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard !yesterdaysMealItems.isEmpty else { return }
+
+        var itemsToLog = yesterdaysMealItems
+        for i in 0..<itemsToLog.count {
+            itemsToLog[i].id = UUID().uuidString
+            itemsToLog[i].timestamp = Date()
+        }
+        dailyLogService.addMealToCurrentLog(for: userID, mealName: selectedMeal, foodItems: itemsToLog)
+
+        HapticManager.instance.feedback(.medium)
+        dismiss()
+        onFoodItemLogged?()
     }
 
     private func deleteRecent(food: FoodItem) {

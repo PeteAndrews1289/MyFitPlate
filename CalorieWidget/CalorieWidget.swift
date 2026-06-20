@@ -1,4 +1,5 @@
 import WidgetKit
+import AppIntents
 import SwiftUI
 
 struct Provider: TimelineProvider {
@@ -113,10 +114,24 @@ struct MediumWidgetView: View {
                 MacroBar(label: "Carbs", value: data.carbs, goal: data.carbsGoal, color: .accentCarbs)
                 MacroBar(label: "Fats", value: data.fats, goal: data.fatGoal, color: .accentFats)
 
-                if hasMacroWarning {
-                    Label("Check macros", systemImage: "info.circle.fill")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
+                HStack {
+                    if hasMacroWarning {
+                        Label("Check macros", systemImage: "info.circle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
+
+                    Spacer()
+
+                    Button(intent: LogWaterIntent()) {
+                        Image(systemName: "drop.fill")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .padding(6)
+                            .background(Color.blue)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -252,7 +267,7 @@ struct ProgressBubble: View {
     let label: String
     let unit: String
     let color: Color
-    
+
     var body: some View {
         VStack {
             ZStack {

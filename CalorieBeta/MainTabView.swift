@@ -25,7 +25,6 @@ struct MainTabView: View {
     @State private var showingRecipeListView = false
     @State private var showingAITextLog = false
     @State private var showingAddFoodManually = false
-    @State private var showingAddJournalView = false
     
     @State private var showingImagePicker = false
     @State private var isProcessingImage = false
@@ -92,7 +91,6 @@ struct MainTabView: View {
                             ("Scan Barcode", "Fast packaged food lookup", "barcode.viewfinder", .accentCarbs, { self.showingBarcodeScanner = true }),
                             ("Log with Camera", "Estimate nutrition from a photo", "camera.fill", .orange, { self.showingImagePicker = true }),
                             ("Describe Your Meal", "Tell Maia what you ate", "text.bubble.fill", .accentPositive, { self.showingAITextLog = true }),
-                            ("Add Journal Entry", "Capture mood, symptoms, or context", "book.closed.fill", .teal, { self.showingAddJournalView = true }),
                             ("Log Exercise", "Record activity and calories", "figure.walk", .accentPositive, { self.showingAddExerciseView = true }),
                             ("Log Recipe/Meal", "Use saved recipes and meals", "list.clipboard", .accentFats, { self.showingRecipeListView = true })
                         ]
@@ -180,7 +178,6 @@ struct MainTabView: View {
                 }, searchContext: "general_search")
             }
             .sheet(isPresented: $showingAddFoodManually) {
-                // FIXED: Removed 'isPresented' and updated arguments to match new AddFoodView
                 AddFoodView(
                     initialFoodItem: FoodItem(id: UUID().uuidString, name: "", calories: 0, protein: 0, carbs: 0, fats: 0, servingSize: "", servingWeight: 0),
                     dailyLog: $dailyLogService.currentDailyLog,
@@ -234,9 +231,6 @@ struct MainTabView: View {
             .sheet(isPresented: $showingAddExerciseView) { AddExerciseView { newExercise in if let userID = Auth.auth().currentUser?.uid { dailyLogService.addExerciseToLog(for: userID, exercise: newExercise) } } }
             .sheet(isPresented: $showingRecipeListView) {
                 RecipeListView().environmentObject(recipeService)
-            }
-            .sheet(isPresented: $showingAddJournalView) {
-                JournalView()
             }
             .alert("Scan Error", isPresented: $scanError.0) { Button("OK") { } } message: { Text(scanError.1) }
             .onChange(of: showingAddOptions) { _, newValue in

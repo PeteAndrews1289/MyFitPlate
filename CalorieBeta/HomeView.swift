@@ -23,7 +23,6 @@ struct HomeView: View {
 
     @State private var showingWeightEntrySheet = false
     @State private var showingDetailedInsights = false
-    @State private var showingAIJournalSheet = false
     @State private var showingNutritionAudit = false
 
     @State private var exerciseToEdit: LoggedExercise? = nil
@@ -114,6 +113,7 @@ struct HomeView: View {
                                 let insightToShow = insightsService.isLoadingInsights ? nil : weeklyInsight
 
                                 WaterTrackingCardView(date: currentDailyLog.date, insight: insightToShow)
+                                    // Removed shimmering
                                     .asCard()
                                     .background(colorScheme == .dark ? Color.backgroundPrimary : Color.brandPrimary.opacity(0.03))
                                     .cornerRadius(20)
@@ -263,9 +263,6 @@ struct HomeView: View {
           .sheet(isPresented: $showingWeightEntrySheet) {
               CurrentWeightView()
                   .environmentObject(goalSettings)
-          }
-          .sheet(isPresented: $showingAIJournalSheet){
-              AIJournalSheet()
           }
           .onAppear(perform: onHomeViewAppear)
           .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
@@ -459,7 +456,10 @@ struct HomeView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    Button(action: { self.showingWorkoutRoutines = true }) {
+                    Button(action: {
+                        HapticFeedback.selection()
+                        self.showingWorkoutRoutines = true
+                    }) {
                         QuickActionButton(
                             icon: "dumbbell.fill",
                             label: "Workouts",
@@ -470,33 +470,9 @@ struct HomeView: View {
                     .buttonStyle(.plain)
 
                     Button(action: {
-                        insightsService.generateAndFetchInsights(forLastDays: 7)
-                        showingAIJournalSheet = true
+                        HapticFeedback.selection()
+                        repeatYesterdayMeals()
                     }) {
-                        QuickActionButton(
-                            icon: "book.pages.fill",
-                            label: "AI Journal",
-                            subtitle: "Reflect with context",
-                            color: .purple
-                        )
-                        .shimmering(active: (currentLogForSelectedDate?.journalEntries ?? []).isEmpty)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(action: {
-                        insightsService.generateAndFetchInsights(forLastDays: 7)
-                        showingDetailedInsights = true
-                    }) {
-                        QuickActionButton(
-                            icon: "sparkles",
-                            label: "AI Insights",
-                            subtitle: "Review weekly trends",
-                            color: .orange
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(action: repeatYesterdayMeals) {
                         QuickActionButton(
                             icon: "clock.arrow.circlepath",
                             label: "Yesterday",

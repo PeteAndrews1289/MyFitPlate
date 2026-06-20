@@ -57,6 +57,7 @@ class GoalSettings: ObservableObject {
     private var weightHistoryListener: ListenerRegistration?
     private var cancellables = Set<AnyCancellable>()
     weak var dailyLogService: DailyLogService?
+    weak var adaptiveGoalService: AdaptiveGoalService?
 
     init(dailyLogService: DailyLogService? = nil) {
         self.dailyLogService = dailyLogService
@@ -116,11 +117,12 @@ class GoalSettings: ObservableObject {
             calculatedCalories = maintenanceCalories + calorieAdjustmentForWeightGoal
             
         case .dynamicTDEE:
-            var totalBurnedFromWorkouts: Double = 0
-            if let log = self.dailyLogService?.currentDailyLog, Calendar.current.isDateInToday(log.date) {
-                totalBurnedFromWorkouts = (log.totalCaloriesBurnedFromManualExercises()) + (log.totalCaloriesBurnedFromHealthKitWorkouts())
+            if let adaptiveTDEE = self.adaptiveGoalService?.calculatedTDEE {
+                calculatedCalories = adaptiveTDEE + calorieAdjustmentForWeightGoal
+            } else {
+                // Fallback if we don't have enough data
+                calculatedCalories = bmr + (self.dailyLogService?.currentDailyLog?.totalCaloriesBurnedFromManualExercises() ?? 0) + calorieAdjustmentForWeightGoal
             }
-            calculatedCalories = bmr + totalBurnedFromWorkouts + calorieAdjustmentForWeightGoal
         }
 
         let minimumGoal: Double = (gender.lowercased() == "male") ? 1500 : 1200
@@ -396,5 +398,123 @@ class GoalSettings: ObservableObject {
     func updateUserAsOnboarded(userID: String) {
         guard !userID.isEmpty else { return }
         db.collection("users").document(userID).setData(["isFirstLogin": false], merge: true)
+    }
+}
+
+// MARK: - AdaptiveGoalService
+class AdaptiveGoalService: ObservableObject {
+    @Published var calculatedTDEE: Double?
+    @Published var weightTrendLine: [Double] = []
+    @Published var calorieTrendLine: [Double] = []
+    
+    @Published var last21DaysCalorieAverage: Double?
+    @Published var weightChangeRatePerDay: Double?
+    @Published var dataConfidence: DataConfidence = .insufficient
+    
+    private let db = Firestore.firestore()
+    
+    enum DataConfidence: String {
+        case high = "High Confidence"
+        case medium = "Medium Confidence"
+        case low = "Low Confidence"
+        case insufficient = "Needs More Data"
+        
+        var colorName: String {
+            switch self {
+            case .high: return "accentPositive"
+            case .medium: return "orange"
+            case .low: return "red"
+            case .insufficient: return "gray"
+            }
+        }
+    }
+    
+    /// Calculate the true TDEE based on weight changes and caloric intake over the last 21 days.
+    func calculateExpenditure(weightHistory: [(id: String, date: Date, weight: Double)], dailyLogs: [DailyLog]) {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let twentyOneDaysAgo = calendar.date(byAdding: .day, value: -21, to: today) else { return }
+        
+        // 1. Filter data to last 21 days
+        let recentWeights = weightHistory.filter { $0.date >= twentyOneDaysAgo }.sorted { $0.date < $1.date }
+        let recentLogs = dailyLogs.filter { $0.date >= twentyOneDaysAgo }.sorted { $0.date < $1.date }
+        
+        // We need at least 7 days of weight data and 10 days of food logs to make a semi-confident guess.
+        if recentWeights.count < 7 || recentLogs.count < 10 {
+            DispatchQueue.main.async {
+                self.dataConfidence = .insufficient
+                self.calculatedTDEE = nil
+            }
+            return
+        }
+        
+        // 2. Exponential Moving Average (EMA) of Weight
+        // EMA smooths out daily water weight fluctuations to find the true biological tissue trend.
+        var emaWeights: [Date: Double] = [:]
+        var currentEMA: Double = recentWeights.first!.weight
+        let smoothingFactor = 2.0 / (7.0 + 1.0) // 7-day EMA
+        
+        for record in recentWeights {
+            currentEMA = (record.weight - currentEMA) * smoothingFactor + currentEMA
+            let dayStart = calendar.startOfDay(for: record.date)
+            emaWeights[dayStart] = currentEMA
+        }
+        
+        // Get start and end EMA to find total weight change rate
+        guard let firstEmaRecord = recentWeights.first, let lastEmaRecord = recentWeights.last else { return }
+        let firstDay = calendar.startOfDay(for: firstEmaRecord.date)
+        let lastDay = calendar.startOfDay(for: lastEmaRecord.date)
+        
+        guard let startWeight = emaWeights[firstDay], let endWeight = emaWeights[lastDay] else { return }
+        let daysBetween = Double(calendar.dateComponents([.day], from: firstDay, to: lastDay).day ?? 1)
+        
+        var ratePerDay = 0.0
+        if daysBetween > 0 {
+            ratePerDay = (endWeight - startWeight) / daysBetween
+        }
+        
+        // 3. Average Calorie Intake
+        // Only count days where user actually logged a meaningful amount of food (> 500 cals)
+        let validLogs = recentLogs.filter { $0.totalCalories() > 500 }
+        let totalCaloriesLogged = validLogs.reduce(0.0) { $0 + $1.totalCalories() }
+        let averageCalories = validLogs.isEmpty ? 0 : totalCaloriesLogged / Double(validLogs.count)
+        
+        // 4. Calculate True TDEE
+        // 1 lb of body tissue = ~3500 kcal
+        let dailyCalorieDeficitOrSurplus = ratePerDay * 3500.0
+        
+        let rawTDEE = averageCalories - dailyCalorieDeficitOrSurplus
+        
+        // 5. Calculate Confidence
+        let loggingConsistency = Double(validLogs.count) / 21.0
+        let weightConsistency = Double(recentWeights.count) / 21.0
+        
+        var confidence: DataConfidence = .low
+        if loggingConsistency > 0.8 && weightConsistency > 0.6 {
+            confidence = .high
+        } else if loggingConsistency > 0.6 && weightConsistency > 0.4 {
+            confidence = .medium
+        }
+        
+        DispatchQueue.main.async {
+            self.last21DaysCalorieAverage = averageCalories
+            self.weightChangeRatePerDay = ratePerDay
+            self.calculatedTDEE = max(1000, min(rawTDEE, 5000))
+            self.dataConfidence = confidence
+        }
+    }
+    
+    func fetchAndCalculate(userID: String, goalSettings: GoalSettings, dailyLogService: DailyLogService) async {
+        let calendar = Calendar.current
+        let today = Date()
+        guard let twentyOneDaysAgo = calendar.date(byAdding: .day, value: -21, to: today) else { return }
+        
+        let result = await dailyLogService.fetchDailyHistory(for: userID, startDate: twentyOneDaysAgo, endDate: today)
+        switch result {
+        case .success(let logs):
+            self.calculateExpenditure(weightHistory: goalSettings.weightHistory, dailyLogs: logs)
+        case .failure(let error):
+            print("AdaptiveGoalService Error: \(error.localizedDescription)")
+        }
     }
 }

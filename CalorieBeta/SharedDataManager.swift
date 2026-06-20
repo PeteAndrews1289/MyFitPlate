@@ -3,6 +3,7 @@ import Foundation
 private enum SharedDataKeys {
     static let appGroup = "group.com.peterandrews.CalorieBeta"
     static let widgetData = "widgetData"
+    static let pendingWater = "pendingWaterOunces"
 }
 
 struct WidgetData: Codable {
@@ -54,5 +55,18 @@ struct SharedDataManager {
             AppLog.app.error("Unable to decode widget data: \(error.localizedDescription, privacy: .public)")
             return nil
         }
+    }
+
+    func logPendingWater(ounces: Double) {
+        guard let userDefaults = userDefaults else { return }
+        let currentPending = userDefaults.double(forKey: SharedDataKeys.pendingWater)
+        userDefaults.set(currentPending + ounces, forKey: SharedDataKeys.pendingWater)
+    }
+
+    func getAndClearPendingWater() -> Double {
+        guard let userDefaults = userDefaults else { return 0 }
+        let pending = userDefaults.double(forKey: SharedDataKeys.pendingWater)
+        userDefaults.set(0.0, forKey: SharedDataKeys.pendingWater)
+        return pending
     }
 }

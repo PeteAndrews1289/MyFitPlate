@@ -162,29 +162,26 @@ class ReportsViewModel: ObservableObject {
     // Processes sleep samples from HealthKit to generate scores and reports.
     func processAndScoreSleepData(samples: [HKCategorySample]) {
         guard !samples.isEmpty else {
-            self.enhancedSleepReport = nil // Clear report if no data
-            self.lastNightSleepScore = nil // Clear last night's score
-            // Trigger wellness score recalculation as sleep data is now nil
+            self.enhancedSleepReport = nil
+            self.lastNightSleepScore = nil
+            self.wellnessScore = nil
             Task { await calculateWellnessScoreIfNeeded() }
             return
         }
 
         let calendar = Calendar.current
         var dailyData: [Date: EnhancedSleepReport.DailySleepStageData] = [:]
-        var allBedtimes: [Date] = [] // Collect all start times for consistency calculation
+        var allBedtimes: [Date] = []
+        var bedtimesByDay: [Date: Date] = [:]
 
-        // Group samples by the start day
-        let sleepByStartDate = Dictionary(grouping: samples) { calendar.startOfDay(for: $0.startDate) }
-        var mostRecentSleepDay: Date? = nil // Track the latest day with sleep data
+        let sleepByNight = Dictionary(grouping: samples) { sleepNightKey(for: $0, calendar: calendar) }
+        var mostRecentSleepDay: Date? = nil
 
-        // Iterate through each day's samples
-        for (day, samplesForDay) in sleepByStartDate {
+        for (day, samplesForDay) in sleepByNight {
             var timeInBed: TimeInterval = 0; var timeAsleep: TimeInterval = 0; var timeCore: TimeInterval = 0
             var timeDeep: TimeInterval = 0; var timeREM: TimeInterval = 0; var timeAwake: TimeInterval = 0
-            // Note: relevantSamples is just samplesForDay here, can simplify later if needed
             let relevantSamples = samplesForDay
 
-            // Sum durations for each sleep stage
             for sample in relevantSamples {
                 let duration = sample.endDate.timeIntervalSince(sample.startDate)
                 switch HKCategoryValueSleepAnalysis(rawValue: sample.value) {
@@ -192,67 +189,68 @@ class ReportsViewModel: ObservableObject {
                 case .asleepCore: timeCore += duration; timeAsleep += duration
                 case .asleepDeep: timeDeep += duration; timeAsleep += duration
                 case .asleepREM: timeREM += duration; timeAsleep += duration
-                case .awake: timeAwake += duration; timeInBed += duration // Awake counts towards timeInBed
-                default: break // Ignore other stages like .asleepUnspecified
+                case .asleepUnspecified: timeAsleep += duration
+                case .awake: timeAwake += duration; timeInBed += duration
+                default: break
                 }
             }
 
-            // Estimate timeInBed if HealthKit didn't provide it directly but provided asleep/awake times
             if timeInBed == 0 && (timeAsleep > 0 || timeAwake > 0) {
                  let firstStart = relevantSamples.map{$0.startDate}.min() ?? day
                  let lastEnd = relevantSamples.map{$0.endDate}.max() ?? calendar.date(byAdding: .day, value: 1, to: day) ?? day
-                 timeInBed = lastEnd.timeIntervalSince(firstStart) // Use span from first start to last end
+                 timeInBed = lastEnd.timeIntervalSince(firstStart)
             }
 
-            // Only store data if there was actual sleep recorded
             if timeAsleep > 0 {
                 dailyData[day] = EnhancedSleepReport.DailySleepStageData(
                     date: day, timeInBed: timeInBed, timeAsleep: timeAsleep, timeCore: timeCore,
                     timeDeep: timeDeep, timeREM: timeREM, timeAwake: timeAwake
                 )
-                // Store the earliest start time for this sleep session for consistency calculation
-                if let bedtime = relevantSamples.map({$0.startDate}).min() { allBedtimes.append(bedtime) }
-                // Update the most recent sleep day found so far
+                if let bedtime = relevantSamples.map({$0.startDate}).min() {
+                    allBedtimes.append(bedtime)
+                    bedtimesByDay[day] = bedtime
+                }
                 if mostRecentSleepDay.map({ day > $0 }) ?? true { mostRecentSleepDay = day }
             }
         }
 
-        // Get the valid daily sleep data entries, sorted by date
         let validDays = dailyData.values.sorted { $0.date < $1.date }
         guard !validDays.isEmpty else {
             self.enhancedSleepReport = nil; self.lastNightSleepScore = nil
-            Task { await calculateWellnessScoreIfNeeded() } // Recalculate wellness score
+            self.wellnessScore = nil
+            Task { await calculateWellnessScoreIfNeeded() }
             return
         }
 
-        // Calculate the score specifically for the most recent night of sleep
+        let usualBedtimeMinutes = averageBedtimeMinutes(from: allBedtimes)
+
         if let lastSleepDay = mostRecentSleepDay, let lastNightData = dailyData[lastSleepDay] {
-            // Need consistency score for *all* bedtimes for the last night calculation
-            let lastNightConsistencyScore = calculateBedtimeConsistencyScore(bedtimes: allBedtimes)
-            self.lastNightSleepScore = calculateComprehensiveSleepScore(
-                avgTimeAsleep: lastNightData.timeAsleep, avgTimeDeep: lastNightData.timeDeep,
-                avgTimeREM: lastNightData.timeREM, avgTimeAwake: lastNightData.timeAwake,
-                consistencyScore: lastNightConsistencyScore // Use overall consistency
+            self.lastNightSleepScore = calculateSleepScore(
+                timeAsleep: lastNightData.timeAsleep,
+                timeAwake: lastNightData.timeAwake,
+                bedtimeComponent: bedtimeScore(for: bedtimesByDay[lastSleepDay], usualBedtimeMinutes: usualBedtimeMinutes)
             )
         } else {
-            self.lastNightSleepScore = nil // No score if last night's data is missing
+            self.lastNightSleepScore = nil
         }
 
-        // Calculate weekly averages
         let numDays = Double(validDays.count)
         let avgInBed=validDays.reduce(0){$0 + $1.timeInBed}/numDays; let avgAsleep=validDays.reduce(0){$0 + $1.timeAsleep}/numDays
         let avgCore=validDays.reduce(0){$0 + $1.timeCore}/numDays; let avgDeep=validDays.reduce(0){$0 + $1.timeDeep}/numDays
         let avgREM=validDays.reduce(0){$0 + $1.timeREM}/numDays; let avgAwake=validDays.reduce(0){$0 + $1.timeAwake}/numDays
-        // Calculate overall consistency score and message for the period
         let (consistencyScore, consistencyMessage) = calculateBedtimeConsistency(bedtimes: allBedtimes)
-        // Calculate the average weekly sleep score based on average durations and consistency
-        let weeklyAverageScore = calculateComprehensiveSleepScore(avgTimeAsleep: avgAsleep, avgTimeDeep: avgDeep, avgTimeREM: avgREM, avgTimeAwake: avgAwake, consistencyScore: consistencyScore)
-        // Format the date range string for display
+        let dailyScores = validDays.map { dayData in
+            calculateSleepScore(
+                timeAsleep: dayData.timeAsleep,
+                timeAwake: dayData.timeAwake,
+                bedtimeComponent: bedtimeScore(for: bedtimesByDay[dayData.date], usualBedtimeMinutes: usualBedtimeMinutes)
+            )
+        }
+        let weeklyAverageScore = dailyScores.reduce(0, +) / max(dailyScores.count, 1)
         guard let firstDate = validDays.first?.date, let lastDate = validDays.last?.date else { return }
         let dateFormatter = DateFormatter(); dateFormatter.dateFormat = "MMM d"
         let dateRangeString = "\(dateFormatter.string(from: firstDate)) - \(dateFormatter.string(from: lastDate))"
 
-        // Create the final EnhancedSleepReport object
         self.enhancedSleepReport = EnhancedSleepReport(
             dateRange: dateRangeString, averageSleepScore: weeklyAverageScore, averageTimeInBed: avgInBed,
             averageTimeAsleep: avgAsleep, averageTimeInCore: avgCore, averageTimeInDeep: avgDeep,
@@ -260,65 +258,85 @@ class ReportsViewModel: ObservableObject {
             sleepConsistencyMessage: consistencyMessage, dailySleepData: validDays
         )
 
-        // Trigger wellness score calculation now that sleep data (or lack thereof) is processed
-         Task {
-              await self.calculateWellnessScoreIfNeeded()
-         }
+        if errorMessage == "No data available for the selected period." {
+            errorMessage = nil
+        }
+        self.wellnessScore = nil
+        Task {
+            await self.calculateWellnessScoreIfNeeded()
+        }
+    }
+
+    private func sleepNightKey(for sample: HKCategorySample, calendar: Calendar) -> Date {
+        let adjustedWakeDate = calendar.date(byAdding: .hour, value: -4, to: sample.endDate) ?? sample.endDate
+        return calendar.startOfDay(for: adjustedWakeDate)
     }
 
 
     // Calculates bedtime consistency score and provides a descriptive message.
     private func calculateBedtimeConsistency(bedtimes: [Date]) -> (score: Int, message: String) {
         guard bedtimes.count > 1 else { return (75, "Need 2+ nights for consistency analysis.") } // Need at least 2 points
-        let calendar = Calendar.current
-        // Convert bedtimes to minutes past midnight (adjusting for crossing midnight)
-        let bedtimeMinutes = bedtimes.map { date -> Double in let c = calendar.dateComponents([.hour, .minute], from: date); let h=Double(c.hour ?? 0); let m=Double(c.minute ?? 0); return h < 12 ? (h+24)*60+m : h*60+m } // Handle times after midnight
-        let stdDev = calculateStdDev(for: bedtimeMinutes) // Calculate standard deviation
+        let bedtimeMinuteValues = bedtimes.map { bedtimeMinutes(from: $0) }
+        let stdDev = calculateStdDev(for: bedtimeMinuteValues) // Calculate standard deviation
         // Assign score and message based on standard deviation
         let score: Int; let message: String
         if stdDev <= 15 { score = 100; message = "Excellent! Bedtime varies by only \(Int(round(stdDev))) mins." }
-        else if stdDev <= 30 { score = 85; message = "Good. Bedtime varies by ~\(Int(round(stdDev))) mins." }
-        else if stdDev <= 60 { score = 65; message = "Fair. Bedtime varies by ~\(Int(round(stdDev))) mins. Aim for more regularity." }
-        else { score = 40; message = "Inconsistent. Bedtime varies by over an hour (\(Int(round(stdDev))) mins)." }
+        else if stdDev <= 30 { score = 88; message = "Good. Bedtime varies by ~\(Int(round(stdDev))) mins." }
+        else if stdDev <= 60 { score = 70; message = "Fair. Bedtime varies by ~\(Int(round(stdDev))) mins. Aim for more regularity." }
+        else if stdDev <= 90 { score = 55; message = "Bedtime was off by ~\(Int(round(stdDev))) mins. Keep nudging it earlier." }
+        else { score = 40; message = "Inconsistent. Bedtime varies by over an hour and a half (\(Int(round(stdDev))) mins)." }
         return (score, message)
     }
 
-    // Helper to get just the consistency score.
-     private func calculateBedtimeConsistencyScore(bedtimes: [Date]) -> Int { return calculateBedtimeConsistency(bedtimes: bedtimes).score }
+    private func averageBedtimeMinutes(from bedtimes: [Date]) -> Double? {
+        guard bedtimes.count > 1 else { return nil }
+        let minutes = bedtimes.map { bedtimeMinutes(from: $0) }
+        return minutes.reduce(0, +) / Double(minutes.count)
+    }
 
-    // Calculates a comprehensive sleep score based on durations, stages, and consistency.
-    private func calculateComprehensiveSleepScore(avgTimeAsleep: TimeInterval, avgTimeDeep: TimeInterval, avgTimeREM: TimeInterval, avgTimeAwake: TimeInterval, consistencyScore: Int) -> Int {
-        let totalHoursAsleep = avgTimeAsleep / 3600.0; guard totalHoursAsleep > 0 else { return 0 } // Need sleep to score
-        var durationScore: Double = 0; var deepScore: Double = 0; var remScore: Double = 0; var awakePenalty: Double = 0
-        let consistencyBonus: Double = Double(consistencyScore) * 0.2 // Consistency contributes up to 20 points
+    private func bedtimeMinutes(from date: Date) -> Double {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        let hour = Double(components.hour ?? 0)
+        let minute = Double(components.minute ?? 0)
+        return hour < 12 ? (hour + 24) * 60 + minute : hour * 60 + minute
+    }
 
-        // Score based on total sleep duration (aiming for 7-9 hours)
-        if totalHoursAsleep >= 7 && totalHoursAsleep <= 9 { durationScore = 40 } // Max score in ideal range
-        else if totalHoursAsleep > 9 { durationScore = max(20, 40 - (totalHoursAsleep - 9) * 10) } // Penalize oversleeping
-        else if totalHoursAsleep >= 6 { durationScore = 20 + (totalHoursAsleep - 6) * 20 } // Scale up score between 6-7 hours
-        else { durationScore = max(0, totalHoursAsleep * 3.33) }; durationScore = max(0, min(40, durationScore)) // Score for <6 hours, capped at 40
+    private func bedtimeScore(for bedtime: Date?, usualBedtimeMinutes: Double?) -> Double {
+        guard let bedtime, let usualBedtimeMinutes else { return 22.5 }
 
-        // Score based on deep sleep percentage (aiming for 13-23%)
-        let deepPercentage = (avgTimeDeep / avgTimeAsleep) * 100
-        if deepPercentage >= 13 && deepPercentage <= 23 { deepScore = 20 } // Max score in ideal range
-        else if deepPercentage > 23 { deepScore = max(10, 20 - (deepPercentage - 23)) } // Penalize slightly too much deep sleep
-        else { deepScore = max(0, deepPercentage * (20.0 / 13.0)) }; deepScore = max(0, min(20, deepScore)) // Scale up score below 13%, capped at 20
+        let deviation = abs(bedtimeMinutes(from: bedtime) - usualBedtimeMinutes)
+        if deviation <= 15 { return 30 }
+        if deviation <= 30 { return 26 }
+        if deviation <= 60 { return 21 }
+        if deviation <= 90 { return 16 }
+        if deviation <= 120 { return 11 }
+        return 6
+    }
 
-        // Score based on REM sleep percentage (aiming for 20-25%)
-        let remPercentage = (avgTimeREM / avgTimeAsleep) * 100
-        if remPercentage >= 20 && remPercentage <= 25 { remScore = 20 } // Max score in ideal range
-        else if remPercentage > 25 { remScore = max(10, 20 - (remPercentage - 25)) } // Penalize slightly too much REM
-        else { remScore = max(0, remPercentage * (20.0 / 20.0)) }; remScore = max(0, min(20, remScore)) // Scale up score below 20%, capped at 20
-
-        // Penalty for excessive time awake during the sleep period (more than 15% is penalized)
-        // Use total time (asleep + awake) if available, otherwise just asleep time, as base for percentage.
-        let totalTimeForAwakeCalc = max(avgTimeAsleep, avgTimeAsleep + avgTimeAwake) // Ensure non-zero denominator
-        let awakePercentage = totalTimeForAwakeCalc > 0 ? (avgTimeAwake / totalTimeForAwakeCalc) * 100 : 0
-        if awakePercentage > 15 { awakePenalty = min(10, (awakePercentage - 15) * 0.67) } // Penalty up to 10 points
-
-        // Combine scores and clamp between 0 and 100
-        let totalScore = durationScore + deepScore + remScore + consistencyBonus - awakePenalty
+    private func calculateSleepScore(timeAsleep: TimeInterval, timeAwake: TimeInterval, bedtimeComponent: Double) -> Int {
+        let totalHoursAsleep = timeAsleep / 3600.0; guard totalHoursAsleep > 0 else { return 0 }
+        let totalScore = durationScore(hours: totalHoursAsleep)
+            + bedtimeComponent
+            + interruptionScore(asleep: timeAsleep, awake: timeAwake)
         return Int(max(0, min(100, round(totalScore))))
+    }
+
+    private func durationScore(hours: Double) -> Double {
+        if hours >= 7 && hours <= 9 { return 50 }
+        if hours > 9 { return max(30, 50 - ((hours - 9) * 5)) }
+        if hours >= 6 { return min(50, 30 + ((hours - 6) * 25)) }
+        return max(0, (hours / 6) * 30)
+    }
+
+    private func interruptionScore(asleep: TimeInterval, awake: TimeInterval) -> Double {
+        let totalTime = max(asleep, asleep + awake)
+        guard totalTime > 0 else { return 0 }
+
+        let awakePercentage = (awake / totalTime) * 100
+        if awakePercentage <= 8 { return 20 }
+        if awakePercentage <= 20 { return max(10, 20 - ((awakePercentage - 8) * 0.8)) }
+        return max(0, 10 - ((awakePercentage - 20) * 0.6))
     }
 
     // Helper to format time intervals into "Xh Ym" string.
@@ -342,7 +360,8 @@ class ReportsViewModel: ObservableObject {
         isLoading = true; errorMessage = nil; summary = nil
         calorieTrend = []; proteinTrend = []; carbTrend = []; fatTrend = []
         micronutrientAverages = []; mealDistributionData = []
-        reportSpecificInsight = nil; weeklyWorkoutReport = nil; workoutAnalytics = nil;
+        reportSpecificInsight = nil; weeklyWorkoutReport = nil; workoutAnalytics = nil
+        enhancedSleepReport = nil; lastNightSleepScore = nil; wellnessScore = nil
         didCalculateYesterdaysMealScore = false; yesterdaysLog = nil // Reset yesterday's log flag
 
         // Determine date range based on timeframe selection
@@ -386,21 +405,24 @@ class ReportsViewModel: ObservableObject {
                  healthKitManager.fetchSleepAnalysis(startDate: sleepStartDate, endDate: reportEndDate) { [weak self] samples, error in
                      // Process results on main thread
                      Task { @MainActor in
+                         guard let self else { return }
                          if let samples = samples {
-                             // Filter samples to ensure they start within the *intended* report period or slightly before
                              let reportEndBoundary = Calendar.current.date(byAdding: .day, value: 1, to: reportEndDate) ?? reportEndDate
-                             let filteredSamples = samples.filter { $0.startDate >= reportStartDate && $0.startDate <= reportEndBoundary }
-                             self?.processAndScoreSleepData(samples: filteredSamples)
+                             let filteredSamples = samples.filter {
+                                 let night = self.sleepNightKey(for: $0, calendar: Calendar.current)
+                                 return night >= reportStartDate && night < reportEndBoundary
+                             }
+                             self.processAndScoreSleepData(samples: filteredSamples)
                          } else {
                              // Handle fetch errors or no data
-                             self?.enhancedSleepReport = nil; self?.lastNightSleepScore = nil
-                             await self?.calculateWellnessScoreIfNeeded() // Recalculate wellness without sleep
+                             self.enhancedSleepReport = nil; self.lastNightSleepScore = nil; self.wellnessScore = nil
+                             await self.calculateWellnessScoreIfNeeded() // Recalculate wellness without sleep
                          }
                      }
                  }
              } else {
                  // Handle case where HealthKit sleep data is not authorized
-                 self.enhancedSleepReport = nil; self.lastNightSleepScore = nil
+                 self.enhancedSleepReport = nil; self.lastNightSleepScore = nil; self.wellnessScore = nil
                  // Still need to attempt wellness score calculation, passing potential yesterday log result
                  await self.calculateWellnessScoreIfNeeded(yesterdayLogResult: await yesterdayLogResult)
              }
@@ -583,8 +605,6 @@ class ReportsViewModel: ObservableObject {
         // Fetch latest RHR and HRV concurrently
         async let restingHeartRateSample = fetchLatestRHR()
         async let hrvSample = fetchLatestHRV()
-        // Use the last calculated sleep score (could be nil or 0)
-        let sleepScoreForWellness = self.lastNightSleepScore ?? 0
         // Extract values from HealthKit samples
         let rhrValue = (await restingHeartRateSample)?.quantity.doubleValue(for: HKUnit(from: "count/min"))
         let hrvValue = (await hrvSample)?.quantity.doubleValue(for: HKUnit(from: "ms"))
@@ -592,7 +612,7 @@ class ReportsViewModel: ObservableObject {
         // Calculate the final wellness score using the service
         let finalWellnessScore = wellnessScoreService.calculateWellnessScore(
             mealScore: calculatedMealScore.overallScore > 0 ? calculatedMealScore : nil, // Pass meal score only if calculated
-            lastNightSleepScore: sleepScoreForWellness > 0 ? sleepScoreForWellness : nil, // Pass sleep score only if > 0
+            lastNightSleepScore: lastNightSleepScore,
             restingHeartRate: rhrValue, hrv: hrvValue
         )
 

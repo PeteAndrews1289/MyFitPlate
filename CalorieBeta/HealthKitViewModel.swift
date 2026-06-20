@@ -3,12 +3,33 @@ import HealthKit
 import Combine
 import FirebaseAuth
 
+struct SleepHealthSummary: Equatable {
+    var lastNightScore: Int?
+    var averageScore: Int?
+    var lastNightHours: Double
+    var averageHours: Double
+    var sampleCount: Int
+    var nightCount: Int
+    var lastSleepDate: Date?
+
+    static let empty = SleepHealthSummary(
+        lastNightScore: nil,
+        averageScore: nil,
+        lastNightHours: 0,
+        averageHours: 0,
+        sampleCount: 0,
+        nightCount: 0,
+        lastSleepDate: nil
+    )
+}
+
 @MainActor
 class HealthKitViewModel: ObservableObject {
 
     @Published var isAuthorized = false
     @Published var workouts: [LoggedExercise] = []
     @Published var sleepSamples: [HKCategorySample] = []
+    @Published var sleepSummary: SleepHealthSummary = .empty
     @Published var todaySteps: Double = 0
     @Published var todayActiveEnergy: Double = 0
     @Published var authError: String? = nil
@@ -27,9 +48,7 @@ class HealthKitViewModel: ObservableObject {
             DispatchQueue.main.async {
                 self?.isAuthorized = success
                 if success {
-                    self?.fetchTodayWorkouts()
-                    self?.fetchLastSevenDaysSleep()
-                    self?.fetchTodayPassiveData()
+                    self?.syncAllHealthData()
                 } else {
                     let errorMessage = error?.localizedDescription ?? "An unknown error occurred."
                     self?.authError = errorMessage
@@ -71,9 +90,7 @@ class HealthKitViewModel: ObservableObject {
                 switch status {
                 case .unnecessary:
                     self.isAuthorized = true
-                    self.fetchTodayWorkouts()
-                    self.fetchLastSevenDaysSleep()
-                    self.fetchTodayPassiveData()
+                    self.syncAllHealthData()
                 case .shouldRequest:
                     self.isAuthorized = false
                 case .unknown:
@@ -83,6 +100,13 @@ class HealthKitViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    func syncAllHealthData() {
+        guard isAuthorized else { return }
+        fetchTodayWorkouts()
+        fetchLastSevenDaysSleep()
+        fetchTodayPassiveData()
     }
 
     func fetchTodayPassiveData() {
@@ -134,9 +158,152 @@ class HealthKitViewModel: ObservableObject {
                 AppLog.health.error("Failed to fetch seven-day sleep samples: \(error.localizedDescription, privacy: .public)")
                 return
             }
-            guard let samples = samples else { return }
+            guard let samples = samples else {
+                self.sleepSamples = []
+                self.sleepSummary = .empty
+                return
+            }
             self.sleepSamples = samples
+            self.sleepSummary = self.makeSleepSummary(from: samples)
+            AppLog.health.info("Fetched \(samples.count, privacy: .public) HealthKit sleep samples across \(self.sleepSummary.nightCount, privacy: .public) nights.")
         }
+    }
+
+    private struct SleepNight {
+        var date: Date
+        var asleep: TimeInterval = 0
+        var awake: TimeInterval = 0
+        var bedtime: Date?
+    }
+
+    private func makeSleepSummary(from samples: [HKCategorySample]) -> SleepHealthSummary {
+        var nights: [Date: SleepNight] = [:]
+        let calendar = Calendar.current
+
+        for sample in samples {
+            let duration = sample.endDate.timeIntervalSince(sample.startDate)
+            guard duration > 0 else { continue }
+
+            let nightKey = sleepNightKey(for: sample, calendar: calendar)
+            var night = nights[nightKey] ?? SleepNight(date: nightKey)
+
+            switch HKCategoryValueSleepAnalysis(rawValue: sample.value) {
+            case .asleepCore:
+                night.asleep += duration
+            case .asleepDeep:
+                night.asleep += duration
+            case .asleepREM:
+                night.asleep += duration
+            case .asleepUnspecified:
+                night.asleep += duration
+            case .awake:
+                night.awake += duration
+            default:
+                break
+            }
+
+            if night.asleep > 0 {
+                if let currentBedtime = night.bedtime {
+                    night.bedtime = min(currentBedtime, sample.startDate)
+                } else {
+                    night.bedtime = sample.startDate
+                }
+            }
+
+            nights[nightKey] = night
+        }
+
+        let validNights = nights.values
+            .filter { $0.asleep > 0 }
+            .sorted { $0.date < $1.date }
+
+        guard !validNights.isEmpty else {
+            return .empty
+        }
+
+        let bedtimes = validNights.compactMap(\.bedtime)
+        let usualBedtimeMinutes = averageBedtimeMinutes(from: bedtimes)
+        let scoredNights = validNights.map { night in
+            calculateSleepScore(
+                asleep: night.asleep,
+                awake: night.awake,
+                bedtimeComponent: bedtimeScore(for: night.bedtime, usualBedtimeMinutes: usualBedtimeMinutes)
+            )
+        }
+
+        let averageScore = scoredNights.reduce(0, +) / max(scoredNights.count, 1)
+        let averageHours = validNights.reduce(0) { $0 + $1.asleep / 3600.0 } / Double(validNights.count)
+        let lastNight = validNights.last
+        let lastScore = scoredNights.last
+
+        return SleepHealthSummary(
+            lastNightScore: lastScore,
+            averageScore: averageScore,
+            lastNightHours: (lastNight?.asleep ?? 0) / 3600.0,
+            averageHours: averageHours,
+            sampleCount: samples.count,
+            nightCount: validNights.count,
+            lastSleepDate: lastNight?.date
+        )
+    }
+
+    private func sleepNightKey(for sample: HKCategorySample, calendar: Calendar) -> Date {
+        let adjustedWakeDate = calendar.date(byAdding: .hour, value: -4, to: sample.endDate) ?? sample.endDate
+        return calendar.startOfDay(for: adjustedWakeDate)
+    }
+
+    private func averageBedtimeMinutes(from bedtimes: [Date]) -> Double? {
+        guard bedtimes.count > 1 else { return nil }
+        let minutes = bedtimes.map { bedtimeMinutes(from: $0) }
+        return minutes.reduce(0, +) / Double(minutes.count)
+    }
+
+    private func bedtimeMinutes(from date: Date) -> Double {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        let hour = Double(components.hour ?? 0)
+        let minute = Double(components.minute ?? 0)
+        return hour < 12 ? (hour + 24) * 60 + minute : hour * 60 + minute
+    }
+
+    private func bedtimeScore(for bedtime: Date?, usualBedtimeMinutes: Double?) -> Double {
+        guard let bedtime, let usualBedtimeMinutes else { return 22.5 }
+
+        let deviation = abs(bedtimeMinutes(from: bedtime) - usualBedtimeMinutes)
+        if deviation <= 15 { return 30 }
+        if deviation <= 30 { return 26 }
+        if deviation <= 60 { return 21 }
+        if deviation <= 90 { return 16 }
+        if deviation <= 120 { return 11 }
+        return 6
+    }
+
+    private func calculateSleepScore(asleep: TimeInterval, awake: TimeInterval, bedtimeComponent: Double) -> Int {
+        let totalHoursAsleep = asleep / 3600.0
+        guard totalHoursAsleep > 0 else { return 0 }
+
+        let score = durationScore(hours: totalHoursAsleep)
+            + bedtimeComponent
+            + interruptionScore(asleep: asleep, awake: awake)
+
+        return Int(max(0, min(100, round(score))))
+    }
+
+    private func durationScore(hours: Double) -> Double {
+        if hours >= 7 && hours <= 9 { return 50 }
+        if hours > 9 { return max(30, 50 - ((hours - 9) * 5)) }
+        if hours >= 6 { return min(50, 30 + ((hours - 6) * 25)) }
+        return max(0, (hours / 6) * 30)
+    }
+
+    private func interruptionScore(asleep: TimeInterval, awake: TimeInterval) -> Double {
+        let totalTime = max(asleep, asleep + awake)
+        guard totalTime > 0 else { return 0 }
+
+        let awakePercentage = (awake / totalTime) * 100
+        if awakePercentage <= 8 { return 20 }
+        if awakePercentage <= 20 { return max(10, 20 - ((awakePercentage - 8) * 0.8)) }
+        return max(0, 10 - ((awakePercentage - 20) * 0.6))
     }
 
     private func mapHKWorkoutToLoggedExercise(_ workout: HKWorkout) -> LoggedExercise {

@@ -69,11 +69,7 @@ struct SettingsView: View {
             
             Section(header: Text("Integrations")) {
                 Button(action: {
-                    if healthKitViewModel.isAuthorized {
-                        healthKitViewModel.fetchTodayWorkouts()
-                    } else {
-                        healthKitViewModel.requestAuthorization()
-                    }
+                    healthKitViewModel.requestAuthorization()
                 }) {
                     HStack {
                         Image("Apple_Health")
@@ -82,9 +78,9 @@ struct SettingsView: View {
                             .frame(width: 20, height: 20)
                         
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(healthKitViewModel.isAuthorized ? "Sync with Health Now" : "Connect to Apple Health")
+                            Text(healthKitViewModel.isAuthorized ? "Review Health Access & Sync" : "Connect to Apple Health")
                                 .appFont(size: 15, weight: .semibold)
-                            Text(healthKitViewModel.isAuthorized ? "Refresh workouts and health data." : "Import workouts and sleep where available.")
+                            Text(healthKitViewModel.isAuthorized ? "Refresh workouts, sleep, and recovery permissions." : "Import workouts and sleep where available.")
                                 .appFont(size: 12)
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                         }

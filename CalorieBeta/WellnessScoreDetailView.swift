@@ -34,7 +34,7 @@ struct WellnessScoreDetailView: View {
                         detailRow(
                             title: "Sleep Score",
                             score: wellnessScore.sleepScore,
-                            description: "Calculated from your total sleep duration. Aim for 7-9 hours for optimal recovery.",
+                            description: wellnessScore.sleepScore == nil ? "Sleep data is not available yet. Review Apple Health access and make sure Sleep is enabled for MyFitPlate." : "Calculated from your total sleep duration. Aim for 7-9 hours for optimal recovery.",
                             color: .blue
                         )
                         
@@ -84,20 +84,20 @@ struct WellnessScoreDetailView: View {
     }
     
     /// A private function to create a reusable row for each score component.
-    private func detailRow(title: String, score: Int, description: String, color: Color) -> some View {
+    private func detailRow(title: String, score: Int?, description: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             // Title and score (e.g., "Nutrition Score" ... "80/100").
             HStack {
                 Text(title)
                     .font(.title2).bold()
                 Spacer()
-                Text("\(score)/100")
+                Text(score.map { "\($0)/100" } ?? "--")
                     .font(.title2).bold()
                     .foregroundColor(color)
             }
-            
+
             // A progress bar representing the score.
-            ProgressView(value: Double(score) / 100.0)
+            ProgressView(value: Double(score ?? 0) / 100.0)
                 .tint(color)
             
             // The detailed explanation text.

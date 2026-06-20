@@ -11,6 +11,20 @@ class MealPlannerService: ObservableObject {
 
     init(recipeService: RecipeService) {
         self.recipeService = recipeService
+        loadCacheFromDisk()
+    }
+
+    private func loadCacheFromDisk() {
+        if let data = UserDefaults.standard.data(forKey: "mealPlanCache"),
+           let cached = try? JSONDecoder().decode([String: MealPlanDay].self, from: data) {
+            self.planCache = cached
+        }
+    }
+
+    private func saveCacheToDisk() {
+        if let data = try? JSONEncoder().encode(planCache) {
+            UserDefaults.standard.set(data, forKey: "mealPlanCache")
+        }
     }
 
     // MARK: - Single Meal Regeneration
@@ -20,7 +34,7 @@ class MealPlannerService: ObservableObject {
 
         let prompt = """
         You are regenerating a single meal for a user's meal plan.
-        
+
         **Details:**
         - Replace: **\(mealToReplace.mealType)**
         - Do NOT suggest: **'\(mealToReplace.foodItem?.name ?? "")'**
@@ -28,13 +42,13 @@ class MealPlannerService: ObservableObject {
         - Daily Goals: \(Int(goals.calories ?? 2000)) cal, \(Int(goals.protein))g P, \(Int(goals.carbs))g C, \(Int(goals.fats))g F.
         - Prefs: \(preferredFoods.joined(separator: ", ")).
         - Cuisines: \(preferredCuisines.joined(separator: ", ")).
-        
+
         **Format:** Valid JSON object: "mealType", "mealName", "calories", "protein", "carbs", "fats", "ingredients", "instructions".
         """
-        
+
         let messages: [[String: Any]] = [["role": "user", "content": prompt]]
         let result = await AIService.shared.performRequest(messages: messages, responseFormat: ["type": "json_object"])
-        
+
         switch result {
         case .success(let jsonString):
             do {
@@ -232,13 +246,13 @@ class MealPlannerService: ObservableObject {
         - Cuisines: \(preferredCuisines.joined(separator: ", ")).
         - Snack Prefs: \(preferredSnacks.joined(separator: ", ")).
         - Target: ~\(Int(goals.calories ?? 2000)) cal, \(Int(goals.protein))g P.
-        
+
         **Format:** JSON object with root "meals" (array). Each meal: "mealType", "mealName", "calories", "protein", "carbs", "fats", "ingredients" (array), "instructions" (array).
         """
-        
+
         let messages: [[String: Any]] = [["role": "user", "content": prompt]]
         let result = await AIService.shared.performRequest(messages: messages, responseFormat: ["type": "json_object"])
-        
+
         switch result {
         case .success(let jsonString):
             do {
@@ -259,7 +273,7 @@ class MealPlannerService: ObservableObject {
             return nil
         }
     }
-    
+
     // MARK: - Parsing Helpers (Keep existing implementations)
     private struct AIWeekPlanResponse: Codable {
         let days: [AIWeekDay]
@@ -303,7 +317,7 @@ class MealPlannerService: ObservableObject {
         let response = try JSONDecoder().decode(AIPlanResponse.self, from: jsonData)
         return response.meals.map(mapAIMealToPlannedMeal)
     }
-    
+
     private func parseSingleMealFromAIResponse(_ jsonString: String) throws -> PlannedMeal {
         guard let jsonData = jsonString.data(using: .utf8) else { throw NSError(domain: "MealPlanner", code: 1) }
         let aiMeal = try JSONDecoder().decode(AIMeal.self, from: jsonData)
@@ -508,10 +522,10 @@ class MealPlannerService: ObservableObject {
 
     private func generateAndSaveGroceryListFromAI(for mealNames: [String], userID: String) async {
         let prompt = "Create a categorized grocery list for: \(mealNames.joined(separator: ", ")). Format: Category:\n- Item (Qty)".trimmingCharacters(in: .whitespaces)
-        
+
         let messages: [[String: Any]] = [["role": "user", "content": prompt]]
         let result = await AIService.shared.performRequest(messages: messages)
-        
+
         if case .success(let content) = result {
             let items = parseGroceryList(from: content)
             if !items.isEmpty { saveGroceryList(items, for: userID) }
@@ -599,7 +613,7 @@ class MealPlannerService: ObservableObject {
 
         return "Misc"
     }
-    
+
     public func fetchPlan(for date: Date, userID: String) async -> MealPlanDay? {
         let key = cacheKey(for: date, userID: userID)
         if let cachedPlan = planCache[key] {
@@ -611,18 +625,20 @@ class MealPlannerService: ObservableObject {
         do {
             let plan = try await planRef.getDocument(as: MealPlanDay.self)
             planCache[key] = plan
+            saveCacheToDisk()
             return plan
         } catch {
             return nil
         }
     }
-    
+
     public func savePlan(_ plan: MealPlanDay, for userID: String) async {
         guard let planID = plan.id else { return }; let planRef = db.collection("users").document(userID).collection("mealPlans").document(planID)
         do {
             let data = try Firestore.Encoder().encode(MealPlanPayload(date: plan.date, meals: plan.meals))
             try await planRef.setData(data, merge: true)
             planCache[cacheKey(for: plan.date.dateValue(), userID: userID)] = plan
+            saveCacheToDisk()
         } catch {
             AppLog.mealPlanner.error("Failed to save meal plan \(planID, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
@@ -645,11 +661,12 @@ class MealPlannerService: ObservableObject {
             days.forEach { day in
                 planCache[cacheKey(for: day.date.dateValue(), userID: userID)] = day
             }
+            saveCacheToDisk()
         } catch {
             AppLog.mealPlanner.error("Failed to save full meal plan batch: \(error.localizedDescription, privacy: .public)")
         }
     }
-    
+
     private struct MealPlanPayload: Codable {
         let date: Timestamp
         let meals: [PlannedMeal]

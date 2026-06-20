@@ -143,22 +143,7 @@ struct DailySnapshotStrip: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
                 }
-
-                Spacer(minLength: 8)
-
-                Button(action: onOpenInsights) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.brandPrimary)
-                        .frame(width: 34, height: 34)
-                        .background(Color.brandPrimary.opacity(0.12))
-                        .clipShape(Circle())
-                        .shimmering()
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open insights")
-            }
-
             Text(coach.message)
                 .appFont(size: 12)
                 .foregroundColor(Color(UIColor.secondaryLabel))
@@ -428,7 +413,7 @@ struct QuickActionButton: View {
     let subtitle: String
     let color: Color
     @Environment(\.colorScheme) var colorScheme
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -444,7 +429,7 @@ struct QuickActionButton: View {
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
-            
+
             Text(label)
                 .appFont(size: 15, weight: .bold)
                 .foregroundColor(.textPrimary)
@@ -457,8 +442,7 @@ struct QuickActionButton: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(12)
-        .frame(width: 128)
-        .frame(minHeight: 116, alignment: .topLeading)
+        .frame(width: 136, height: 136, alignment: .topLeading)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .background(
             colorScheme == .dark ? Color.backgroundPrimary.opacity(0.76) : color.opacity(0.035),
@@ -707,5 +691,85 @@ struct SwipeableFoodItemView: View {
 
     private var macroSummary: String {
         "P \(Int(initialFoodItem.protein.rounded()))g • C \(Int(initialFoodItem.carbs.rounded()))g • F \(Int(initialFoodItem.fats.rounded()))g"
+    }
+}
+
+public struct Shimmer: ViewModifier {
+    @State private var phase: CGFloat = 0
+    var duration: Double = 1.5
+    var bounce: Bool = false
+
+    public func body(content: Content) -> some View {
+        content
+            .modifier(
+                AnimatedMask(phase: phase).animation(
+                    Animation.linear(duration: duration)
+                        .repeatForever(autoreverses: bounce)
+                )
+            )
+            .onAppear { phase = 0.8 }
+    }
+
+    struct AnimatedMask: AnimatableModifier {
+        var phase: CGFloat = 0
+
+        var animatableData: CGFloat {
+            get { phase }
+            set { phase = newValue }
+        }
+
+        func body(content: Content) -> some View {
+            content
+                .mask(GradientMask(phase: phase).scaleEffect(3))
+        }
+    }
+
+    struct GradientMask: View {
+        let phase: CGFloat
+        let centerColor = Color.black
+        let edgeColor = Color.black.opacity(0.3)
+
+        var body: some View {
+            LinearGradient(gradient:
+                Gradient(stops: [
+                    .init(color: edgeColor, location: phase),
+                    .init(color: centerColor, location: phase + 0.1),
+                    .init(color: edgeColor, location: phase + 0.2)
+                ]), startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+}
+
+public extension View {
+    @ViewBuilder func shimmering(
+        active: Bool = true,
+        duration: Double = 1.5,
+        bounce: Bool = false
+    ) -> some View {
+        if active {
+            modifier(Shimmer(duration: duration, bounce: bounce))
+        } else {
+            self
+        }
+    }
+}
+
+public struct HapticFeedback {
+    public static func impact(style: UIImpactFeedbackGenerator.FeedbackStyle = .light) {
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.prepare()
+        generator.impactOccurred()
+    }
+
+    public static func notify(type: UINotificationFeedbackGenerator.FeedbackType) {
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(type)
+    }
+
+    public static func selection() {
+        let generator = UISelectionFeedbackGenerator()
+        generator.prepare()
+        generator.selectionChanged()
     }
 }
