@@ -327,6 +327,7 @@ struct ReportsView: View {
                         angularInset: 2
                     )
                     .foregroundStyle(colorMapping[dp.meal, default: .gray])
+                    .cornerRadius(6)
                     .annotation(position: .overlay) {
                         VStack(spacing: 0) {
                             Text(dp.meal)
@@ -335,10 +336,12 @@ struct ReportsView: View {
                                 .appFont(size: 10, weight: .regular)
                         }
                         .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
                     }
                 }
                 .chartLegend(.hidden)
-                .frame(maxWidth: .infinity, maxHeight: 105)
+                .frame(maxWidth: .infinity, maxHeight: 115)
+                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: processedData.map { $0.totalCalories })
                 Spacer()
             } else if !viewModel.isLoading {
                 Spacer()
