@@ -24,6 +24,26 @@ struct GroceryListView: View {
         Dictionary(grouping: displayedList, by: { $0.category })
     }
     
+    private var shareText: String {
+        let items = groceryList.filter { !$0.isCompleted }
+        guard !items.isEmpty else { return "My Grocery List is empty!" }
+        let grouped = Dictionary(grouping: items, by: { $0.category })
+        var text = "🛒 Grocery List\n"
+        for category in grouped.keys.sorted() {
+            text += "\n\(category):\n"
+            if let groupItems = grouped[category] {
+                for item in groupItems.sorted(by: { $0.name < $1.name }) {
+                    let formatter = NumberFormatter()
+                    formatter.maximumFractionDigits = 2
+                    let q = formatter.string(from: NSNumber(value: item.quantity)) ?? "\(item.quantity)"
+                    let unit = item.unit == "item" ? "" : item.unit
+                    text += "• \(item.name) \(q) \(unit)\n"
+                }
+            }
+        }
+        return text
+    }
+    
     private var sortedCategories: [String] {
         groupedList.keys.sorted {
             if $0 == "Pantry" { return false }
@@ -85,21 +105,36 @@ struct GroceryListView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack {
-                        if !groceryList.isEmpty {
-                            Button("Clear", role: .destructive) {
-                                showingClearConfirmation = true
-                            }
+                    HStack(spacing: 16) {
+                        Button(action: { showingBarcodeScanner = true }) {
+                            Image(systemName: "barcode.viewfinder")
                         }
+                        .accessibilityLabel("Scan barcode")
+                        
                         Button(action: { showingManualItemSheet = true }) {
                             Image(systemName: "plus")
                         }
                         .accessibilityLabel("Add grocery item")
 
-                        Button(action: { showingBarcodeScanner = true }) {
-                            Image(systemName: "barcode.viewfinder")
+                        if !groceryList.isEmpty {
+                            Menu {
+                                ShareLink(item: shareText) {
+                                    Label("Share List", systemImage: "square.and.arrow.up")
+                                }
+                                
+                                if groceryList.contains(where: \.isCompleted) {
+                                    Button(role: .destructive, action: clearCompleted) {
+                                        Label("Clear Completed", systemImage: "checkmark.circle.badge.xmark")
+                                    }
+                                }
+                                
+                                Button(role: .destructive, action: { showingClearConfirmation = true }) {
+                                    Label("Clear All", systemImage: "trash")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                            }
                         }
-                        .accessibilityLabel("Scan barcode")
                     }
                 }
             }
@@ -229,6 +264,12 @@ struct GroceryListView: View {
         mealPlannerService.saveGroceryList(groceryList, for: userID)
     }
 
+    private func clearCompleted() {
+        groceryList.removeAll { $0.isCompleted }
+        saveList()
+        HapticManager.instance.feedback(.medium)
+    }
+
     private func clearList() {
         groceryList = []
         saveList()
@@ -328,12 +369,8 @@ private struct GrocerySummaryCard: View {
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
-        .padding(18)
-        .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
-        )
+        .padding(.vertical, 2)
+        .glassCard()
     }
 }
 
@@ -418,8 +455,8 @@ private struct GroceryAllCompleteState: View {
                 .buttonStyle(SecondaryButtonStyle())
         }
         .frame(maxWidth: .infinity)
-        .padding(18)
-        .background(Color.backgroundSecondary.opacity(0.74), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.vertical, 4)
+        .glassCard()
     }
 }
 
@@ -519,16 +556,23 @@ private struct GroceryItemRow: View {
     
     var body: some View {
         HStack(spacing: 10) {
-            Button(action: toggleCompleted) {
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                    toggleCompleted()
+                }
+            }) {
                 HStack(spacing: 12) {
                     Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(item.isCompleted ? .accentPositive : Color(UIColor.tertiaryLabel))
+                        .scaleEffect(item.isCompleted ? 1.15 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.5), value: item.isCompleted)
 
                     Text(FoodEmojiMapper.getEmoji(for: item.name))
                         .font(.system(size: 24))
                         .frame(width: 44, height: 44)
                         .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .opacity(item.isCompleted ? 0.6 : 1.0)
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.name)
@@ -649,8 +693,9 @@ private struct GroceryListEmptyState: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 28)
-        .padding(.vertical, 80)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 40)
+        .glassCard()
     }
 }
 
