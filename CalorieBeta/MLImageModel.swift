@@ -107,7 +107,7 @@ class MLImageModel {
         Task {
             let result = await AIService.shared.performRequest(
                 messages: messages,
-                model: "gpt-4o-mini", // Or gpt-4o if better vision needed
+                model: "gpt-4o", // Upgraded to gpt-4o for maximum OCR accuracy on dense labels
                 responseFormat: ["type": "json_object"]
             )
 
