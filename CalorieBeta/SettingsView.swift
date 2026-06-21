@@ -11,6 +11,8 @@ struct SettingsView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var cycleService: CycleTrackingService
     @EnvironmentObject var recipeService: RecipeService
+    
+    @AppStorage("includeActiveCaloriesInGoal") var includeActiveCaloriesInGoal: Bool = false
 
     @Binding var showSettings: Bool
     // Known per-user subcollections, including a few legacy names still worth cleaning up.
@@ -98,6 +100,18 @@ struct SettingsView: View {
                 }
                 .foregroundColor(.textPrimary)
                 .disabled(healthKitViewModel.isSyncing)
+                
+                if healthKitViewModel.isAuthorized {
+                    Toggle(isOn: $includeActiveCaloriesInGoal) {
+                        SettingsLabel(
+                            icon: "flame.fill",
+                            title: "Include Active Calories",
+                            subtitle: "Add exercise calories burned to your daily food allowance.",
+                            color: .orange
+                        )
+                    }
+                    .tint(.brandPrimary)
+                }
             }
 
             Section(header: Text("Account")) {

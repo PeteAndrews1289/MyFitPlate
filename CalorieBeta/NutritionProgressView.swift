@@ -7,7 +7,10 @@ struct NutritionProgressView: View {
     @ObservedObject var goal: GoalSettings
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var dailyLogService: DailyLogService
+    @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     var insight: UserInsight?
+    
+    @AppStorage("includeActiveCaloriesInGoal") var includeActiveCaloriesInGoal: Bool = false
 
     private let swipeThreshold: CGFloat = 50
     private let totalViews = 4
@@ -20,7 +23,8 @@ struct NutritionProgressView: View {
         let protein = max(0, totalMacros.protein)
         let fats = max(0, totalMacros.fats)
         let carbs = max(0, totalMacros.carbs)
-        let caloriesGoal = max(goal.calories ?? 1, 1)
+        let baseGoal = max(goal.calories ?? 1, 1)
+        let caloriesGoal = includeActiveCaloriesInGoal && Calendar.current.isDateInToday(dailyLog.date) ? (baseGoal + healthKitViewModel.todayActiveEnergy) : baseGoal
         let proteinGoal = max(goal.protein, 1)
         let fatsGoal = max(goal.fats, 1)
         let carbsGoal = max(goal.carbs, 1)

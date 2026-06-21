@@ -39,7 +39,7 @@ struct GroceryListView: View {
                     formatter.maximumFractionDigits = 2
                     let q = formatter.string(from: NSNumber(value: item.quantity)) ?? "\(item.quantity)"
                     let unit = item.unit == "item" ? "" : item.unit
-                    text += "• \(item.name) \(q) \(unit)\n"
+                    text += "• \(item.name.capitalized) \(q) \(unit)\n"
                 }
             }
         }
@@ -595,7 +595,7 @@ private struct GroceryItemRow: View {
                         .opacity(item.isCompleted ? 0.6 : 1.0)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(item.name)
+                        Text(item.name.capitalized)
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(item.isCompleted ? Color(UIColor.secondaryLabel) : .textPrimary)
                             .strikethrough(item.isCompleted, color: Color(UIColor.secondaryLabel))

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		25C9C417733D7F20C6AD317F /* FastingActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7300A41D242D070B4A4AAC1 /* FastingActivityAttributes.swift */; };
+		2EDBED80C61A7B1D62B4C3BB /* HealthActivityCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785AA6BBDDB8A5483B16F977 /* HealthActivityCard.swift */; };
 		3E676A182CCFE4AD0019DC51 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E676A172CCFE4AD0019DC51 /* AppState.swift */; };
 		3E676A1A2CCFE6AD0019DC51 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E676A192CCFE6AD0019DC51 /* MainTabView.swift */; };
 		3E676A1C2CDBC1C30019DC51 /* CommunityHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E676A1B2CDBC1C30019DC51 /* CommunityHubView.swift */; };
@@ -403,6 +404,7 @@
 		5263C458429127683635C37B /* FastingTrackerCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FastingTrackerCard.swift; sourceTree = "<group>"; };
 		58BE721B7C88EA4E0C7E641C /* FastingManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FastingManager.swift; sourceTree = "<group>"; };
 		5D799836B4E8BAEEBA76869D /* MealPlannerComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealPlannerComponents.swift; sourceTree = "<group>"; };
+		785AA6BBDDB8A5483B16F977 /* HealthActivityCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthActivityCard.swift; sourceTree = "<group>"; };
 		86B61BA83FC7D958F7425AA6 /* WeeklyCheckInView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyCheckInView.swift; sourceTree = "<group>"; };
 		969DD3CF7764D9F747A622D0 /* EcosystemSyncManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EcosystemSyncManager.swift; sourceTree = "<group>"; };
 		B122D8E82720026EFDD03083 /* WorkoutPlayerComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutPlayerComponents.swift; sourceTree = "<group>"; };
@@ -412,21 +414,21 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		4BB462CC2E1EEA33007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		4BB462CC2E1EEA33007CCA8A /* Exceptions for "CalorieWidget" folder in "CalorieWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = 4B71DB7F2E0B6A96003A0078 /* CalorieWidgetExtension */;
 		};
-		4BB462CD2E1EEA36007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		4BB462CD2E1EEA36007CCA8A /* Exceptions for "MyFitPlateWatch Watch App" folder in "MyFitPlateWatch Watch App" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = 4BB462812E1EE8AA007CCA8A /* MyFitPlateWatch Watch App */;
 		};
-		4BE15BDF2ED0C61B00342C86 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		4BE15BDF2ED0C61B00342C86 /* Exceptions for "LiveActivity" folder in "LiveActivityExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -436,10 +438,53 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		4B71DB852E0B6A96003A0078 /* CalorieWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4BB462CC2E1EEA33007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = CalorieWidget; sourceTree = "<group>"; };
-		4BB462832E1EE8AA007CCA8A /* MyFitPlateWatch Watch App */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4BB462CD2E1EEA36007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = "MyFitPlateWatch Watch App"; sourceTree = "<group>"; };
-		4BCF27082FE6F92B0054378E /* MyFitPlateTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MyFitPlateTests; sourceTree = "<group>"; };
-		4BE15BCD2ED0C61900342C86 /* LiveActivity */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4BE15BDF2ED0C61B00342C86 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = LiveActivity; sourceTree = "<group>"; };
+		4B71DB852E0B6A96003A0078 /* CalorieWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4BB462CC2E1EEA33007CCA8A /* Exceptions for "CalorieWidget" folder in "CalorieWidgetExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = CalorieWidget;
+			sourceTree = "<group>";
+		};
+		4BB462832E1EE8AA007CCA8A /* MyFitPlateWatch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4BB462CD2E1EEA36007CCA8A /* Exceptions for "MyFitPlateWatch Watch App" folder in "MyFitPlateWatch Watch App" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = "MyFitPlateWatch Watch App";
+			sourceTree = "<group>";
+		};
+		4BCF27082FE6F92B0054378E /* MyFitPlateTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = MyFitPlateTests;
+			sourceTree = "<group>";
+		};
+		4BE15BCD2ED0C61900342C86 /* LiveActivity */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4BE15BDF2ED0C61B00342C86 /* Exceptions for "LiveActivity" folder in "LiveActivityExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = LiveActivity;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -688,6 +733,7 @@
 				B7300A41D242D070B4A4AAC1 /* FastingActivityAttributes.swift */,
 				58BE721B7C88EA4E0C7E641C /* FastingManager.swift */,
 				5263C458429127683635C37B /* FastingTrackerCard.swift */,
+				785AA6BBDDB8A5483B16F977 /* HealthActivityCard.swift */,
 			);
 			path = CalorieBeta;
 			sourceTree = "<group>";
@@ -1067,6 +1113,7 @@
 				D7FDFE69BFDBD75A4C410E71 /* FastingActivityAttributes.swift in Sources */,
 				F8B6554FD26FCC80B4F70720 /* FastingManager.swift in Sources */,
 				7A060F26061AD18486959D34 /* FastingTrackerCard.swift in Sources */,
+				2EDBED80C61A7B1D62B4C3BB /* HealthActivityCard.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

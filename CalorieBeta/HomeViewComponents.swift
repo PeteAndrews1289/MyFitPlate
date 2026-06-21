@@ -9,6 +9,8 @@ struct DailySnapshotStrip: View {
     let dateTitle: String
     let onOpenInsights: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject var healthKitViewModel: HealthKitViewModel
+    @AppStorage("includeActiveCaloriesInGoal") var includeActiveCaloriesInGoal: Bool = false
 
     private var foodItems: [FoodItem] {
         dailyLog.meals.flatMap(\.foodItems)
@@ -23,7 +25,11 @@ struct DailySnapshotStrip: View {
     }
 
     private var caloriesGoal: Double {
-        max(goalSettings.calories ?? 1, 1)
+        let baseGoal = max(goalSettings.calories ?? 1, 1)
+        if includeActiveCaloriesInGoal && isToday {
+            return baseGoal + healthKitViewModel.todayActiveEnergy
+        }
+        return baseGoal
     }
 
     private var caloriesRemaining: Double {

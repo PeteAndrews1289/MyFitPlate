@@ -130,6 +130,9 @@ struct HomeView: View {
                                     
                                 FastingTrackerCard()
                                     .padding(.horizontal)
+                                    
+                                HealthActivityCard()
+                                    .padding(.horizontal)
                             }
 
                             foodDiarySection
