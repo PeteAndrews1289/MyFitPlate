@@ -127,6 +127,9 @@ struct HomeView: View {
                                     .featureSpotlight(isActive: isSpotlightActive(for: "waterTracker"))
                                     .id("waterTracker")
                                     .padding(.horizontal)
+                                    
+                                FastingTrackerCard()
+                                    .padding(.horizontal)
                             }
 
                             foodDiarySection

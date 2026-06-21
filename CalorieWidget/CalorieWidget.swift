@@ -123,6 +123,20 @@ struct MediumWidgetView: View {
 
                     Spacer()
 
+                    Button(intent: LogPlannedMealIntent(mealName: "Breakfast")) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "fork.knife")
+                            Text("Breakfast")
+                        }
+                        .font(.caption2)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.orange)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
                     Button(intent: LogWaterIntent()) {
                         Image(systemName: "drop.fill")
                             .font(.caption)
