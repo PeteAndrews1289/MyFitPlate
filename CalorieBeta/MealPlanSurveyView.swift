@@ -300,55 +300,72 @@ fileprivate enum CarbChoice: String, CaseIterable, Identifiable { case rice = "R
 fileprivate enum VeggieChoice: String, CaseIterable, Identifiable { case broccoli = "Broccoli", spinach = "Spinach", bellPeppers = "Bell Peppers", onions = "Onions", carrots = "Carrots", zucchini = "Zucchini"; var id: Self { self } }
 fileprivate enum SnackChoice: String, CaseIterable, Identifiable { case yogurt = "Yogurt", nuts = "Nuts", fruit = "Fruit", proteinBar = "Protein Bar"; var id: Self { self } }
 
+private struct CookingStyleItem: Identifiable {
+    let id: String
+    let title: String
+    let description: String
+    let iconName: String
+}
+
 private struct CookingStyleSelectionView: View {
     @Binding var selectedStyle: String
-    let styles = [
-        ("Macro-Focused Prep", "Bulk batch-cooking using heavy proteins and frozen vegetables for maximum convenience.", "box.truck.fill"),
-        ("Aesthetic Prep", "Traditional portioned meal-prep containers with structured, discrete meals.", "takeoutbag.and.cup.and.straw.fill"),
-        ("Daily Fresh", "Cooking discrete, varied fresh meals each day.", "frying.pan.fill"),
-        ("Flexible", "A mix of meal-prep and fresh cooking based on the day.", "shuffle")
+    
+    private let styles: [CookingStyleItem] = [
+        CookingStyleItem(id: "Macro-Focused Prep", title: "Macro-Focused Prep", description: "Bulk batch-cooking using heavy proteins and frozen vegetables for maximum convenience.", iconName: "box.truck.fill"),
+        CookingStyleItem(id: "Aesthetic Prep", title: "Aesthetic Prep", description: "Traditional portioned meal-prep containers with structured, discrete meals.", iconName: "takeoutbag.and.cup.and.straw.fill"),
+        CookingStyleItem(id: "Daily Fresh", title: "Daily Fresh", description: "Cooking discrete, varied fresh meals each day.", iconName: "frying.pan.fill"),
+        CookingStyleItem(id: "Flexible", title: "Flexible", description: "A mix of meal-prep and fresh cooking based on the day.", iconName: "shuffle")
     ]
     
     var body: some View {
         VStack(spacing: 16) {
-            ForEach(styles, id: \.0) { style in
+            ForEach(styles) { style in
                 Button(action: {
-                    selectedStyle = style.0
+                    selectedStyle = style.id
                 }) {
-                    HStack(spacing: 16) {
-                        Image(systemName: style.2)
-                            .font(.system(size: 24))
-                            .foregroundColor(selectedStyle == style.0 ? .white : .brandPrimary)
-                            .frame(width: 44, height: 44)
-                            .background(selectedStyle == style.0 ? Color.brandPrimary.opacity(0.8) : Color.brandPrimary.opacity(0.1))
-                            .clipShape(Circle())
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(style.0)
-                                .font(.headline)
-                                .foregroundColor(selectedStyle == style.0 ? .white : .textPrimary)
-                            Text(style.1)
-                                .font(.subheadline)
-                                .foregroundColor(selectedStyle == style.0 ? Color.white.opacity(0.8) : .secondaryLabel)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .multilineTextAlignment(.leading)
-                        }
-                        Spacer()
-                        if selectedStyle == style.0 {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.white)
-                                .font(.title3)
-                        }
-                    }
-                    .padding()
-                    .background(selectedStyle == style.0 ? Color.brandPrimary : Color.backgroundSecondary)
-                    .cornerRadius(16)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(selectedStyle == style.0 ? Color.brandPrimary : Color.clear, lineWidth: 2)
-                    )
+                    StyleRow(style: style, isSelected: selectedStyle == style.id)
                 }
             }
+        }
+    }
+    
+    private struct StyleRow: View {
+        let style: CookingStyleItem
+        let isSelected: Bool
+        
+        var body: some View {
+            HStack(spacing: 16) {
+                Image(systemName: style.iconName)
+                    .font(.system(size: 24))
+                    .foregroundColor(isSelected ? .white : .brandPrimary)
+                    .frame(width: 44, height: 44)
+                    .background(isSelected ? Color.brandPrimary.opacity(0.8) : Color.brandPrimary.opacity(0.1))
+                    .clipShape(Circle())
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(style.title)
+                        .font(.headline)
+                        .foregroundColor(isSelected ? .white : .textPrimary)
+                    Text(style.description)
+                        .font(.subheadline)
+                        .foregroundColor(isSelected ? Color.white.opacity(0.8) : .secondaryLabel)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.white)
+                        .font(.title3)
+                }
+            }
+            .padding()
+            .background(isSelected ? Color.brandPrimary : Color.backgroundSecondary)
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(isSelected ? Color.brandPrimary : Color.clear, lineWidth: 2)
+            )
         }
     }
 }
