@@ -22,7 +22,7 @@ struct MealPlanSurveyView: View {
     @State private var alertMessage = ""
 
     @State private var currentStep = 0
-    let totalSteps = 5
+    let totalSteps = 6
 
     var body: some View {
         NavigationView {
@@ -73,6 +73,10 @@ struct MealPlanSurveyView: View {
                         stepView(title: "Cuisine Influence", iconName: "globe.americas.fill") {
                             CuisineSelectionView(selectedCuisines: $selectedCuisines)
                         }.tag(4)
+
+                        stepView(title: "Cooking Style", iconName: "stove.fill") {
+                            CookingStyleSelectionView(selectedStyle: $goalSettings.cookingStyle)
+                        }.tag(5)
                     }
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                     .animation(.easeInOut, value: currentStep)
@@ -295,3 +299,57 @@ fileprivate enum ProteinChoice: String, CaseIterable, Identifiable { case chicke
 fileprivate enum CarbChoice: String, CaseIterable, Identifiable { case rice = "Rice", quinoa = "Quinoa", potatoes = "Potatoes", pasta = "Pasta", bread = "Bread", oats = "Oats"; var id: Self { self } }
 fileprivate enum VeggieChoice: String, CaseIterable, Identifiable { case broccoli = "Broccoli", spinach = "Spinach", bellPeppers = "Bell Peppers", onions = "Onions", carrots = "Carrots", zucchini = "Zucchini"; var id: Self { self } }
 fileprivate enum SnackChoice: String, CaseIterable, Identifiable { case yogurt = "Yogurt", nuts = "Nuts", fruit = "Fruit", proteinBar = "Protein Bar"; var id: Self { self } }
+
+private struct CookingStyleSelectionView: View {
+    @Binding var selectedStyle: String
+    let styles = [
+        ("Macro-Focused Prep", "Bulk batch-cooking using heavy proteins and frozen vegetables for maximum convenience.", "box.truck.fill"),
+        ("Aesthetic Prep", "Traditional portioned meal-prep containers with structured, discrete meals.", "takeoutbag.and.cup.and.straw.fill"),
+        ("Daily Fresh", "Cooking discrete, varied fresh meals each day.", "frying.pan.fill"),
+        ("Flexible", "A mix of meal-prep and fresh cooking based on the day.", "shuffle")
+    ]
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            ForEach(styles, id: \.0) { style in
+                Button(action: {
+                    selectedStyle = style.0
+                }) {
+                    HStack(spacing: 16) {
+                        Image(systemName: style.2)
+                            .font(.system(size: 24))
+                            .foregroundColor(selectedStyle == style.0 ? .white : .brandPrimary)
+                            .frame(width: 44, height: 44)
+                            .background(selectedStyle == style.0 ? Color.brandPrimary.opacity(0.8) : Color.brandPrimary.opacity(0.1))
+                            .clipShape(Circle())
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(style.0)
+                                .font(.headline)
+                                .foregroundColor(selectedStyle == style.0 ? .white : .textPrimary)
+                            Text(style.1)
+                                .font(.subheadline)
+                                .foregroundColor(selectedStyle == style.0 ? Color.white.opacity(0.8) : .secondaryLabel)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer()
+                        if selectedStyle == style.0 {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.white)
+                                .font(.title3)
+                        }
+                    }
+                    .padding()
+                    .background(selectedStyle == style.0 ? Color.brandPrimary : Color.backgroundSecondary)
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(selectedStyle == style.0 ? Color.brandPrimary : Color.clear, lineWidth: 2)
+                    )
+                }
+            }
+        }
+    }
+}
+

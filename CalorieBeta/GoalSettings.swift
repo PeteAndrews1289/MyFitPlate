@@ -67,6 +67,7 @@ class GoalSettings: ObservableObject {
     @Published var trainingIntent: String = "General Fitness"
     @Published var reminderStyle: String = "Gentle"
     @Published var maiaTone: String = "Balanced"
+    @Published var cookingStyle: String = "Macro-Focused Prep" // "Macro-Focused Prep", "Aesthetic Prep", "Daily Fresh", "Flexible"
 
     private let db = Firestore.firestore()
     private var weightHistoryListener: ListenerRegistration?
@@ -253,6 +254,7 @@ class GoalSettings: ObservableObject {
                 if goalsMap["trainingIntent"] == nil { goalsMap["trainingIntent"] = self.trainingIntent; shouldUpdateFirestore = true }
                 if goalsMap["reminderStyle"] == nil { goalsMap["reminderStyle"] = self.reminderStyle; shouldUpdateFirestore = true }
                 if goalsMap["maiaTone"] == nil { goalsMap["maiaTone"] = self.maiaTone; shouldUpdateFirestore = true }
+                if goalsMap["cookingStyle"] == nil { goalsMap["cookingStyle"] = self.cookingStyle; shouldUpdateFirestore = true }
 
                 if let timestamp = goalsMap["lastCheckInDate"] as? Timestamp {
                     self.lastCheckInDate = timestamp.dateValue()
@@ -280,6 +282,7 @@ class GoalSettings: ObservableObject {
                 self.trainingIntent = goalsMap["trainingIntent"] as? String ?? self.trainingIntent
                 self.reminderStyle = goalsMap["reminderStyle"] as? String ?? self.reminderStyle
                 self.maiaTone = goalsMap["maiaTone"] as? String ?? self.maiaTone
+                self.cookingStyle = goalsMap["cookingStyle"] as? String ?? self.cookingStyle
                 
                 data["goals"] = goalsMap
 
@@ -317,7 +320,8 @@ class GoalSettings: ObservableObject {
                 // Saving AI Preferences
                 "suggestionProteins": self.suggestionProteins, "suggestionCuisines": self.suggestionCuisines,
                 "suggestionCarbs": self.suggestionCarbs, "suggestionVeggies": self.suggestionVeggies,
-                "trainingIntent": self.trainingIntent, "reminderStyle": self.reminderStyle, "maiaTone": self.maiaTone
+                "trainingIntent": self.trainingIntent, "reminderStyle": self.reminderStyle, "maiaTone": self.maiaTone,
+                "cookingStyle": self.cookingStyle
             ]
             if let lastDate = self.lastCheckInDate {
                 goalsDict["lastCheckInDate"] = Timestamp(date: lastDate)

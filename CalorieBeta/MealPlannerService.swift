@@ -122,15 +122,16 @@ class MealPlannerService: ObservableObject {
         - Fats: about \(Int(goals.fats))g
 
         Preferences:
+        - Cooking Style: \(goals.cookingStyle)
         - Preferred foods: \(preferredFoods.isEmpty ? "Flexible" : preferredFoods.joined(separator: ", "))
         - Preferred cuisines: \(preferredCuisines.isEmpty ? "Flexible" : preferredCuisines.joined(separator: ", "))
         - Preferred snacks: \(preferredSnacks.isEmpty ? "Flexible" : preferredSnacks.joined(separator: ", "))
 
         Rules:
         - Create Breakfast, Lunch, Dinner, and Snack for each day.
-        - Keep meals realistic, repeat-friendly, and easy to cook.
-        - Avoid repeating the exact same meal name more than twice.
-        - Ingredients should be shopping-list friendly, including rough amounts.
+        - Adapt recipes to the Cooking Style. If 'Macro-Focused Prep', generate bulk batch-cooking meals using heavy proteins and frozen/bulk vegetables for extreme convenience. If 'Aesthetic Prep', use traditional tupperware-friendly distinct meals. If 'Daily Fresh', vary meals daily.
+        - GROCERY FRIENDLY INGREDIENTS (CRITICAL): Never use fractional whole foods or granular amounts (e.g., DO NOT use '0.5 cup pineapple' or '0.25 onion'). Specify ingredients exactly as bought at the store (e.g., '1 bag frozen broccoli', '1 lb chicken breast', '1 medium onion', '1 carton eggs').
+        - Avoid repeating the exact same meal name more than twice, though base ingredients can repeat.
         - Instructions should be concise.
 
         Return valid JSON only:
@@ -241,11 +242,14 @@ class MealPlannerService: ObservableObject {
 
         let prompt = """
         Generate a one-day meal plan for \(dateString).
+        - Cooking Style: \(goals.cookingStyle)
         - Breakfast, Lunch, Dinner, 1 Snack.
         - Avoid: \(mealHistory.joined(separator: ", ")).
         - Cuisines: \(preferredCuisines.joined(separator: ", ")).
         - Snack Prefs: \(preferredSnacks.joined(separator: ", ")).
         - Target: ~\(Int(goals.calories ?? 2000)) cal, \(Int(goals.protein))g P.
+
+        CRITICAL: Adapt to the Cooking Style (e.g., batch-cooking slop bowls vs daily fresh). Ensure all ingredients are GROCERY FRIENDLY (e.g., '1 bag frozen broccoli', '1 lb beef', NOT '0.5 cup' or '0.25 pepper').
 
         **Format:** JSON object with root "meals" (array). Each meal: "mealType", "mealName", "calories", "protein", "carbs", "fats", "ingredients" (array), "instructions" (array).
         """
