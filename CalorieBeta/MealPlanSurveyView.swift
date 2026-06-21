@@ -348,7 +348,7 @@ private struct CookingStyleSelectionView: View {
                         .foregroundColor(isSelected ? .white : .textPrimary)
                     Text(style.description)
                         .font(.subheadline)
-                        .foregroundColor(isSelected ? Color.white.opacity(0.8) : .secondaryLabel)
+                        .foregroundColor(isSelected ? Color.white.opacity(0.8) : .secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
                 }
