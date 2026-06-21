@@ -1,6 +1,7 @@
 import Foundation
 import ActivityKit
 
+@MainActor
 public class FastingManager: ObservableObject {
     public static let shared = FastingManager()
     
@@ -26,11 +27,12 @@ public class FastingManager: ObservableObject {
         
         let attributes = FastingActivityAttributes(fastType: self.fastType)
         let contentState = FastingActivityAttributes.ContentState(startTime: startTime, targetEndTime: targetEndTime)
+        let content = ActivityContent(state: contentState, staleDate: nil)
         
         do {
             let activity = try Activity<FastingActivityAttributes>.request(
                 attributes: attributes,
-                contentState: contentState,
+                content: content,
                 pushType: nil
             )
             
@@ -62,8 +64,8 @@ public class FastingManager: ObservableObject {
     public func recoverState() {
         if let activity = Activity<FastingActivityAttributes>.activities.first(where: { $0.activityState == .active }) {
             self.isFasting = true
-            self.currentFastStartTime = activity.contentState.startTime
-            self.currentFastTargetEndTime = activity.contentState.targetEndTime
+            self.currentFastStartTime = activity.content.state.startTime
+            self.currentFastTargetEndTime = activity.content.state.targetEndTime
             self.fastType = activity.attributes.fastType
             self.currentActivityId = activity.id
         } else {
