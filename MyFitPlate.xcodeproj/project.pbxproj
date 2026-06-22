@@ -466,21 +466,21 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		4BB462CC2E1EEA33007CCA8A /* Exceptions for "CalorieWidget" folder in "CalorieWidgetExtension" target */ = {
+		4BB462CC2E1EEA33007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = 4B71DB7F2E0B6A96003A0078 /* CalorieWidgetExtension */;
 		};
-		4BB462CD2E1EEA36007CCA8A /* Exceptions for "MyFitPlateWatch Watch App" folder in "MyFitPlateWatch Watch App" target */ = {
+		4BB462CD2E1EEA36007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = 4BB462812E1EE8AA007CCA8A /* MyFitPlateWatch Watch App */;
 		};
-		4BE15BDF2ED0C61B00342C86 /* Exceptions for "LiveActivity" folder in "LiveActivityExtension" target */ = {
+		4BE15BDF2ED0C61B00342C86 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -490,53 +490,10 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		4B71DB852E0B6A96003A0078 /* CalorieWidget */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				4BB462CC2E1EEA33007CCA8A /* Exceptions for "CalorieWidget" folder in "CalorieWidgetExtension" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = CalorieWidget;
-			sourceTree = "<group>";
-		};
-		4BB462832E1EE8AA007CCA8A /* MyFitPlateWatch Watch App */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				4BB462CD2E1EEA36007CCA8A /* Exceptions for "MyFitPlateWatch Watch App" folder in "MyFitPlateWatch Watch App" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = "MyFitPlateWatch Watch App";
-			sourceTree = "<group>";
-		};
-		4BCF27082FE6F92B0054378E /* MyFitPlateTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = MyFitPlateTests;
-			sourceTree = "<group>";
-		};
-		4BE15BCD2ED0C61900342C86 /* LiveActivity */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				4BE15BDF2ED0C61B00342C86 /* Exceptions for "LiveActivity" folder in "LiveActivityExtension" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = LiveActivity;
-			sourceTree = "<group>";
-		};
+		4B71DB852E0B6A96003A0078 /* CalorieWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4BB462CC2E1EEA33007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = CalorieWidget; sourceTree = "<group>"; };
+		4BB462832E1EE8AA007CCA8A /* MyFitPlateWatch Watch App */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4BB462CD2E1EEA36007CCA8A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = "MyFitPlateWatch Watch App"; sourceTree = "<group>"; };
+		4BCF27082FE6F92B0054378E /* MyFitPlateTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MyFitPlateTests; sourceTree = "<group>"; };
+		4BE15BCD2ED0C61900342C86 /* LiveActivity */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4BE15BDF2ED0C61B00342C86 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = LiveActivity; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1437,7 +1394,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.5;
-				MARKETING_VERSION = 1.16;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1489,7 +1446,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.5;
-				MARKETING_VERSION = 1.16;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1522,7 +1479,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.16;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.CalorieWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1551,7 +1508,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.16;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.CalorieWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1581,7 +1538,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.16;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1610,7 +1567,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.16;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1689,7 +1646,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.16;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.LiveActivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1720,7 +1677,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.16;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.LiveActivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

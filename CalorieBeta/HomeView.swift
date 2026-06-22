@@ -47,7 +47,7 @@ struct HomeView: View {
     @State private var showingWeeklyCheckIn = false
     @State private var showingMenuScanner = false
 
-    private let spotlightOrder = ["nutritionProgress", "quickActions", "pantryFeature", "waterTracker", "dailyLog"]
+    private let spotlightOrder = ["nutritionProgress", "quickActions", "menuScanner", "pantryFeature", "waterTracker", "dailyLog"]
 
     private let spotlightContent: [String: (title: String, text: String)] = [
         "nutritionProgress": (
@@ -58,9 +58,13 @@ struct HomeView: View {
             title: "Command Center",
             text: "Fast access to your core tools. Tap 'Workouts' to train, 'AI Journal' to reflect, or 'AI Insights' for a deep dive into your health trends."
         ),
+        "menuScanner": (
+            title: "Menu Matchmaker",
+            text: "At a restaurant? Tap 'Menu Scan' to snap a photo of the menu. Maia will find the Top 3 meals that perfectly fit your remaining macros!"
+        ),
         "pantryFeature": (
             title: "Smart Pantry",
-            text: "Keep track of your ingredients here! The AI can generate personalized recipes using ONLY what you have. When you log a generated meal, ingredients are automatically deducted."
+            text: "Tap the receipt icon to scan grocery receipts and auto-populate your pantry! Maia can then generate personalized recipes using ONLY what you have."
         ),
         "waterTracker": (
             title: "Stay Hydrated",
@@ -587,6 +591,7 @@ struct HomeView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .featureSpotlight(isActive: isSpotlightActive(for: "menuScanner"))
                     
                     Button(action: { showingWeightEntrySheet = true }) {
                         QuickActionButton(
