@@ -394,7 +394,9 @@ struct ReceiptScannerView: View {
                             }
                         }
                         .sheet(isPresented: $showingCamera) {
-                            ImagePicker(image: $capturedImage, sourceType: .camera)
+                            ImagePicker(sourceType: .camera) { uiImage in
+                                capturedImage = uiImage
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
