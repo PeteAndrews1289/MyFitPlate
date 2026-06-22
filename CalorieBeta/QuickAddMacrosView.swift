@@ -132,14 +132,14 @@ struct QuickAddMacrosView: View {
     }
 }
 
-import PhotosUI
 
 struct MenuScannerView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var goalSettings: GoalSettings
     
-    @State private var selectedImage: PhotosPickerItem? = nil
+    @State private var capturedImage: UIImage? = nil
+    @State private var showingCamera = false
     @State private var isProcessing = false
     @State private var recommendedMeals: [FoodItem] = []
     @State private var errorMessage: String? = nil
@@ -216,7 +216,9 @@ struct MenuScannerView: View {
                                 .cornerRadius(8)
                         }
                         
-                        PhotosPicker(selection: $selectedImage, matching: .images, photoLibrary: .shared()) {
+                        Button(action: {
+                            showingCamera = true
+                        }) {
                             Label("Scan Menu", systemImage: "camera")
                                 .font(.headline)
                                 .foregroundColor(.white)
@@ -226,13 +228,13 @@ struct MenuScannerView: View {
                                 .cornerRadius(10)
                         }
                         .padding(.horizontal, 32)
-                        .onChange(of: selectedImage) { _, newValue in
-                            Task {
-                                if let data = try? await newValue?.loadTransferable(type: Data.self),
-                                   let uiImage = UIImage(data: data) {
-                                    processImage(uiImage)
-                                }
+                        .onChange(of: capturedImage) { _, newValue in
+                            if let uiImage = newValue {
+                                processImage(uiImage)
                             }
+                        }
+                        .sheet(isPresented: $showingCamera) {
+                            ImagePicker(image: $capturedImage, sourceType: .camera)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

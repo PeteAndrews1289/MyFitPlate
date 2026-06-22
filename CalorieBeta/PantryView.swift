@@ -283,13 +283,13 @@ struct PantryRecipeGenerationView: View {
     }
 }
 
-import PhotosUI
 
 struct ReceiptScannerView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var pantryService: PantryService
     
-    @State private var selectedImage: PhotosPickerItem? = nil
+    @State private var capturedImage: UIImage? = nil
+    @State private var showingCamera = false
     @State private var scanningImage: UIImage? = nil
     @State private var isProcessing = false
     @State private var parsedItems: [PantryItem] = []
@@ -375,8 +375,10 @@ struct ReceiptScannerView: View {
                                 .cornerRadius(8)
                         }
                         
-                        PhotosPicker(selection: $selectedImage, matching: .images, photoLibrary: .shared()) {
-                            Label("Select Photo", systemImage: "photo")
+                        Button(action: {
+                            showingCamera = true
+                        }) {
+                            Label("Take Photo", systemImage: "camera")
                                 .font(.headline)
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
@@ -385,14 +387,14 @@ struct ReceiptScannerView: View {
                                 .cornerRadius(10)
                         }
                         .padding(.horizontal, 32)
-                        .onChange(of: selectedImage) { _, newValue in
-                            Task {
-                                if let data = try? await newValue?.loadTransferable(type: Data.self),
-                                   let uiImage = UIImage(data: data) {
-                                    scanningImage = uiImage
-                                    processImage(uiImage)
-                                }
+                        .onChange(of: capturedImage) { _, newValue in
+                            if let uiImage = newValue {
+                                scanningImage = uiImage
+                                processImage(uiImage)
                             }
+                        }
+                        .sheet(isPresented: $showingCamera) {
+                            ImagePicker(image: $capturedImage, sourceType: .camera)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
