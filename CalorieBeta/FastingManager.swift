@@ -52,12 +52,10 @@ public class FastingManager: ObservableObject {
                 await activity.end(nil, dismissalPolicy: .immediate)
             }
             
-            DispatchQueue.main.async {
-                self.isFasting = false
-                self.currentFastStartTime = nil
-                self.currentFastTargetEndTime = nil
-                self.currentActivityId = nil
-            }
+            self.isFasting = false
+            self.currentFastStartTime = nil
+            self.currentFastTargetEndTime = nil
+            self.currentActivityId = nil
         }
     }
     

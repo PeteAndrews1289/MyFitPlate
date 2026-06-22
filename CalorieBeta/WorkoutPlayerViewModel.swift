@@ -102,7 +102,7 @@ class WorkoutPlayerViewModel: ObservableObject {
                     workoutID: routine.id, // Link back to the routine
                     sessionID: newSessionID // Link back to the specific session
                 )
-                dailyLogService.addExerciseToLog(for: userID, exercise: loggedExercise)
+                dailyLogService.exerciseLogStore.addExerciseToLog(for: userID, exercise: loggedExercise)
             }
         }
     }

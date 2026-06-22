@@ -63,7 +63,7 @@ struct OnboardingSurveyView: View {
 
     var body: some View {
         ZStack {
-            Color.backgroundPrimary.ignoresSafeArea()
+            AnimatedBackgroundView()
 
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -106,12 +106,14 @@ struct OnboardingSurveyView: View {
                 HStack(spacing: 12) {
                     if currentStep > 0 {
                         Button("Back") {
+                            hideKeyboard()
                             withAnimation { currentStep -= 1 }
                         }
                         .buttonStyle(SecondaryButtonStyle())
                     }
 
                     Button(currentStep == totalSteps - 1 ? "Finish Setup" : "Next") {
+                        hideKeyboard()
                         saveGoalsAndProceed()
                     }
                     .buttonStyle(PrimaryButtonStyle())
@@ -155,6 +157,10 @@ struct OnboardingSurveyView: View {
             }
             onComplete()
         }
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     @ViewBuilder

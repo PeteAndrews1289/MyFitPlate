@@ -500,6 +500,110 @@ class WorkoutService: ObservableObject {
         ])
         programs.append(WorkoutProgram(id: "prebuilt_mobility_core_reset", userID: systemUserID, name: "Mobility & Core Reset", dateCreated: now, routines: [mobilityA, mobilityB, mobilityC], daysOfWeek: [2, 4, 6]))
 
+        // Layne Norton's PHAT
+        let phatUpperPower = WorkoutRoutine(id: "prebuilt_phat_upper_power", userID: systemUserID, name: "Upper Power", dateCreated: now, exercises: [
+            exercise("Pendlay Row", target: "3-5 reps", sets: 3, alternatives: ["Barbell Bent-over Row"]),
+            exercise("Pull-Up", target: "6-10 reps", sets: 2, alternatives: ["Lat Pulldown"]),
+            exercise("Flat Dumbbell Press", target: "3-5 reps", sets: 3, alternatives: ["Barbell Bench Press"]),
+            exercise("Incline Dumbbell Press", target: "6-10 reps", sets: 2, alternatives: ["Incline Barbell Bench Press"]),
+            exercise("Seated Dumbbell Shoulder Press", target: "6-10 reps", sets: 3, alternatives: ["Barbell Overhead Press"]),
+            exercise("Barbell Curl", target: "6-10 reps", sets: 3, alternatives: ["Dumbbell Curl"]),
+            exercise("Lying Triceps Extension", target: "6-10 reps", sets: 3, alternatives: ["Dumbbell Overhead Triceps Extension"])
+        ])
+        let phatLowerPower = WorkoutRoutine(id: "prebuilt_phat_lower_power", userID: systemUserID, name: "Lower Power", dateCreated: now, exercises: [
+            exercise("Barbell Back Squat", target: "3-5 reps", sets: 3, alternatives: ["Leg Press"]),
+            exercise("Hack Squat", target: "6-10 reps", sets: 2, alternatives: ["Goblet Squat"]),
+            exercise("Leg Extension", target: "6-10 reps", sets: 2, alternatives: ["Bulgarian Split Squat"]),
+            exercise("Stiff Legged Deadlift", target: "5-8 reps", sets: 3, alternatives: ["Romanian Deadlift (RDL)"]),
+            exercise("Glute Ham Raise", target: "6-10 reps", sets: 2, alternatives: ["Lying Leg Curl"]),
+            exercise("Standing Calf Raise", target: "6-10 reps", sets: 3, alternatives: ["Seated Calf Raise"])
+        ])
+        let phatBackShoulders = WorkoutRoutine(id: "prebuilt_phat_back_shoulders", userID: systemUserID, name: "Back & Shoulders Hypertrophy", dateCreated: now, exercises: [
+            exercise("Pendlay Row", target: "8-12 reps", sets: 3, alternatives: ["Barbell Bent-over Row"]),
+            exercise("Seated Cable Row", target: "8-12 reps", sets: 3, alternatives: ["Dumbbell Row"]),
+            exercise("Seated Dumbbell Shoulder Press", target: "8-12 reps", sets: 3, alternatives: ["Arnold Press"]),
+            exercise("Upright Row", target: "8-12 reps", sets: 2, alternatives: ["Face Pull"]),
+            exercise("Dumbbell Lateral Raise", target: "12-20 reps", sets: 3, alternatives: ["Cable Lateral Raise"])
+        ])
+        let phatLowerHypertrophy = WorkoutRoutine(id: "prebuilt_phat_lower_hypertrophy", userID: systemUserID, name: "Lower Hypertrophy", dateCreated: now, exercises: [
+            exercise("Barbell Back Squat", target: "8-12 reps", sets: 3, alternatives: ["Leg Press"]),
+            exercise("Leg Press", target: "12-15 reps", sets: 2, alternatives: ["Hack Squat"]),
+            exercise("Leg Extension", target: "15-20 reps", sets: 3, alternatives: ["Walking Lunge"]),
+            exercise("Romanian Deadlift (RDL)", target: "8-12 reps", sets: 3, alternatives: ["Stiff Legged Deadlift"]),
+            exercise("Lying Leg Curl", target: "12-15 reps", sets: 2, alternatives: ["Seated Leg Curl"]),
+            exercise("Seated Calf Raise", target: "15-20 reps", sets: 3, alternatives: ["Standing Calf Raise"])
+        ])
+        let phatChestArms = WorkoutRoutine(id: "prebuilt_phat_chest_arms", userID: systemUserID, name: "Chest & Arms Hypertrophy", dateCreated: now, exercises: [
+            exercise("Flat Dumbbell Press", target: "8-12 reps", sets: 3, alternatives: ["Machine Chest Press"]),
+            exercise("Incline Dumbbell Press", target: "8-12 reps", sets: 3, alternatives: ["Incline Barbell Bench Press"]),
+            exercise("Cable Crossover", target: "15-20 reps", sets: 2, alternatives: ["Dumbbell Flyes"]),
+            exercise("Preacher Curl", target: "8-12 reps", sets: 3, alternatives: ["Dumbbell Curl"]),
+            exercise("Seated Triceps Extension", target: "8-12 reps", sets: 3, alternatives: ["Cable Triceps Extension"]),
+            exercise("Cable Pressdown", target: "12-15 reps", sets: 2, alternatives: ["Dumbbell Kickback"])
+        ])
+        programs.append(WorkoutProgram(id: "prebuilt_phat", userID: systemUserID, name: "Layne Norton's PHAT", dateCreated: now, routines: [phatUpperPower, phatLowerPower, phatBackShoulders, phatLowerHypertrophy, phatChestArms], daysOfWeek: [2, 3, 5, 6, 7]))
+
+        // Men's Aesthetic Sculpt
+        let aestheticPush = WorkoutRoutine(id: "prebuilt_aesthetic_push", userID: systemUserID, name: "Push", dateCreated: now, exercises: [
+            exercise("Incline Dumbbell Press", target: "8-12 reps", sets: 4, alternatives: ["Incline Barbell Bench Press"]),
+            exercise("Flat Dumbbell Press", target: "8-12 reps", sets: 3, alternatives: ["Machine Chest Press"]),
+            exercise("Seated Dumbbell Shoulder Press", target: "8-12 reps", sets: 3, alternatives: ["Arnold Press"]),
+            exercise("Dumbbell Lateral Raise", target: "15-20 reps", sets: 4, alternatives: ["Cable Lateral Raise"]),
+            exercise("Dumbbell Overhead Triceps Extension", target: "10-15 reps", sets: 3, alternatives: ["Cable Triceps Extension"])
+        ])
+        let aestheticPull = WorkoutRoutine(id: "prebuilt_aesthetic_pull", userID: systemUserID, name: "Pull", dateCreated: now, exercises: [
+            exercise("Pull-Up", target: "8-12 reps", sets: 4, alternatives: ["Lat Pulldown"]),
+            exercise("Dumbbell Row", target: "8-12 reps", sets: 3, alternatives: ["Seated Cable Row"]),
+            exercise("Face Pull", target: "15-20 reps", sets: 3, alternatives: ["Rear Delt Fly"]),
+            exercise("Dumbbell Curl", target: "10-15 reps", sets: 4, alternatives: ["Hammer Curl"])
+        ])
+        let aestheticLegs = WorkoutRoutine(id: "prebuilt_aesthetic_legs", userID: systemUserID, name: "Legs", dateCreated: now, exercises: [
+            exercise("Barbell Back Squat", target: "8-12 reps", sets: 4, alternatives: ["Leg Press"]),
+            exercise("Romanian Deadlift (RDL)", target: "8-12 reps", sets: 3, alternatives: ["Dumbbell Romanian Deadlift"]),
+            exercise("Leg Extension", target: "12-15 reps", sets: 3, alternatives: ["Walking Lunge"]),
+            exercise("Lying Leg Curl", target: "12-15 reps", sets: 3, alternatives: ["Seated Leg Curl"]),
+            exercise("Standing Calf Raise", target: "15-20 reps", sets: 4, alternatives: ["Seated Calf Raise"])
+        ])
+        let aestheticUpper = WorkoutRoutine(id: "prebuilt_aesthetic_upper", userID: systemUserID, name: "Upper", dateCreated: now, exercises: [
+            exercise("Incline Barbell Bench Press", target: "8-12 reps", sets: 3, alternatives: ["Incline Dumbbell Press"]),
+            exercise("Seated Cable Row", target: "8-12 reps", sets: 3, alternatives: ["Machine Row"]),
+            exercise("Machine Chest Press", target: "10-15 reps", sets: 3, alternatives: ["Push-up"]),
+            exercise("Cable Lateral Raise", target: "15-20 reps", sets: 3, alternatives: ["Dumbbell Lateral Raise"]),
+            exercise("Cable Triceps Extension", target: "10-15 reps", sets: 3, alternatives: ["Skull Crushers"])
+        ])
+        programs.append(WorkoutProgram(id: "prebuilt_mens_aesthetic", userID: systemUserID, name: "Men's Aesthetic Sculpt", dateCreated: now, routines: [aestheticPush, aestheticPull, aestheticLegs, aestheticUpper], daysOfWeek: [2, 3, 5, 6]))
+
+        // Women's Glute/Leg Focus
+        let gluteFocusLegs1 = WorkoutRoutine(id: "prebuilt_glute_legs_1", userID: systemUserID, name: "Glutes & Hamstrings", dateCreated: now, exercises: [
+            exercise("Barbell Hip Thrust", target: "8-12 reps", sets: 4, alternatives: ["Dumbbell Hip Thrust"]),
+            exercise("Romanian Deadlift (RDL)", target: "8-12 reps", sets: 4, alternatives: ["Dumbbell Romanian Deadlift"]),
+            exercise("Bulgarian Split Squat", target: "10-12 reps / side", sets: 3, alternatives: ["Walking Lunge"]),
+            exercise("Lying Leg Curl", target: "12-15 reps", sets: 3, alternatives: ["Seated Leg Curl"]),
+            exercise("Cable Kickback", target: "15-20 reps / side", sets: 3, alternatives: ["Glute Bridge"])
+        ])
+        let gluteFocusUpper = WorkoutRoutine(id: "prebuilt_glute_upper", userID: systemUserID, name: "Upper Body", dateCreated: now, exercises: [
+            exercise("Seated Cable Row", target: "10-12 reps", sets: 3, alternatives: ["Dumbbell Row"]),
+            exercise("Lat Pulldown", target: "10-12 reps", sets: 3, alternatives: ["Pull-Up"]),
+            exercise("Dumbbell Bench Press", target: "10-12 reps", sets: 3, alternatives: ["Machine Chest Press"]),
+            exercise("Dumbbell Lateral Raise", target: "15-20 reps", sets: 3, alternatives: ["Cable Lateral Raise"]),
+            exercise("Dumbbell Curl", target: "12-15 reps", sets: 3, alternatives: ["Hammer Curl"])
+        ])
+        let gluteFocusLegs2 = WorkoutRoutine(id: "prebuilt_glute_legs_2", userID: systemUserID, name: "Quads & Calves", dateCreated: now, exercises: [
+            exercise("Goblet Squat", target: "10-12 reps", sets: 4, alternatives: ["Leg Press"]),
+            exercise("Leg Press", target: "10-15 reps", sets: 3, alternatives: ["Hack Squat"]),
+            exercise("Leg Extension", target: "12-15 reps", sets: 3, alternatives: ["Bulgarian Split Squat"]),
+            exercise("Walking Lunge", target: "10-12 reps / side", sets: 3, alternatives: ["Dumbbell Reverse Lunge"]),
+            exercise("Standing Calf Raise", target: "15-20 reps", sets: 4, alternatives: ["Seated Calf Raise"])
+        ])
+        let gluteFocusFull = WorkoutRoutine(id: "prebuilt_glute_full", userID: systemUserID, name: "Full Body & Core", dateCreated: now, exercises: [
+            exercise("Deadlift (Conventional)", target: "5-8 reps", sets: 3, alternatives: ["Sumo Deadlift"]),
+            exercise("Dumbbell Overhead Press", target: "8-12 reps", sets: 3, alternatives: ["Arnold Press"]),
+            exercise("Push-up", target: "AMRAP", sets: 3, alternatives: ["Machine Chest Press"]),
+            exercise("Step-up", target: "10-12 reps / side", sets: 3, alternatives: ["Bulgarian Split Squat"]),
+            exercise("Plank", target: "60 sec", sets: 3, type: .flexibility, alternatives: ["Dead Bug"])
+        ])
+        programs.append(WorkoutProgram(id: "prebuilt_womens_glute", userID: systemUserID, name: "Women's Glute/Leg Focus", dateCreated: now, routines: [gluteFocusLegs1, gluteFocusUpper, gluteFocusLegs2, gluteFocusFull], daysOfWeek: [2, 4, 5, 6]))
+
         self.preBuiltPrograms = programs
     }
 

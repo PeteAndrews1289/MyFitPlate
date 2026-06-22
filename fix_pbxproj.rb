@@ -1,22 +1,20 @@
 require 'xcodeproj'
 project_path = 'MyFitPlate.xcodeproj'
 project = Xcodeproj::Project.open(project_path)
+target = project.targets.find { |t| t.name == 'MyFitPlate' }
+group = project.main_group.find_subpath('CalorieBeta', false)
 
-main_target = project.targets.find { |t| t.name == 'MyFitPlate' }
-live_target = project.targets.find { |t| t.name == 'LiveActivityExtension' }
+# Remove the broken references
+broken_refs = group.files.select { |f| f.path == 'CalorieBeta/RecipeLoggingView.swift' || f.path == 'CalorieBeta/AIMenuSelectionView.swift' }
+broken_refs.each do |ref|
+  target.source_build_phase.files_references.delete(ref)
+  ref.remove_from_project
+end
 
-# File Paths
-fasting_attrs_path = 'CalorieBeta/FastingActivityAttributes.swift'
-end_fast_intent_path = 'LiveActivity/EndFastIntent.swift'
-
-# Add to Main Group
-main_group = project.main_group.find_subpath('CalorieBeta', false)
-
-# Create references
-attr_ref = main_group.files.find { |f| f.path == 'FastingActivityAttributes.swift' } || main_group.new_file('FastingActivityAttributes.swift')
-
-# Add to Targets
-main_target.add_file_references([attr_ref]) unless main_target.source_build_phase.files.any? { |f| f.file_ref == attr_ref }
-live_target.add_file_references([attr_ref]) unless live_target.source_build_phase.files.any? { |f| f.file_ref == attr_ref }
+# Add the correct references
+['RecipeLoggingView.swift', 'AIMenuSelectionView.swift'].each do |file_path|
+  file_ref = group.new_reference(file_path)
+  target.add_file_references([file_ref])
+end
 
 project.save

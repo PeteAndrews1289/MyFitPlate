@@ -1,8 +1,52 @@
 import SwiftUI
-import FirebaseFirestore
+import VisionKit
 import AVFoundation
 
-struct BarcodeScannerView: UIViewControllerRepresentable {
+struct BarcodeScannerView: View {
+    @Environment(\.presentationMode) var presentationMode
+    var onBarcodeDetected: (String) -> Void
+
+    var body: some View {
+        if DataScannerViewController.isSupported && DataScannerViewController.isAvailable {
+            ZStack {
+                VisionKitScannerView(onBarcodeDetected: onBarcodeDetected)
+                    .ignoresSafeArea()
+                
+                VStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.8), style: StrokeStyle(lineWidth: 3, dash: [10, 5]))
+                        .frame(width: 280, height: 160)
+                        .overlay(
+                            Text("Position barcode within the frame")
+                                .font(.footnote)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.bottom, -30),
+                            alignment: .bottom
+                        )
+                }
+            }
+        } else {
+            // Fallback for unsupported devices (like Simulators)
+            VStack(spacing: 20) {
+                Image(systemName: "camera.viewfinder")
+                    .font(.system(size: 60))
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                Text("Barcode scanning is not supported or camera access was denied on this device.")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                Button("Close") {
+                    presentationMode.wrappedValue.dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+        }
+    }
+}
+
+struct VisionKitScannerView: UIViewControllerRepresentable {
     @Environment(\.presentationMode) var presentationMode
     var onBarcodeDetected: (String) -> Void
 
@@ -10,112 +54,62 @@ struct BarcodeScannerView: UIViewControllerRepresentable {
         return Coordinator(parent: self)
     }
 
-    func makeUIViewController(context: Context) -> ScannerViewController {
-        let viewController = ScannerViewController()
+    func makeUIViewController(context: Context) -> DataScannerViewController {
+        let viewController = DataScannerViewController(
+            recognizedDataTypes: [.barcode()],
+            qualityLevel: .fast,
+            recognizesMultipleItems: false,
+            isHighFrameRateTrackingEnabled: true,
+            isPinchToZoomEnabled: true,
+            isGuidanceEnabled: true,
+            isHighlightingEnabled: true
+        )
         viewController.delegate = context.coordinator
+        
+        // Start scanning immediately
+        try? viewController.startScanning()
+        
         return viewController
     }
 
-    func updateUIViewController(_ uiViewController: ScannerViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {}
+    
+    static func dismantleUIViewController(_ uiViewController: DataScannerViewController, coordinator: Coordinator) {
+        uiViewController.stopScanning()
+    }
 
-    class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate {
-        var parent: BarcodeScannerView
+    class Coordinator: NSObject, DataScannerViewControllerDelegate {
+        var parent: VisionKitScannerView
+        private var hasDetected = false
 
-        init(parent: BarcodeScannerView) {
+        init(parent: VisionKitScannerView) {
             self.parent = parent
         }
 
-        func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-            if let metadataObject = metadataObjects.first,
-               let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject,
-               let barcodeString = readableObject.stringValue {
+        func dataScanner(_ dataScanner: DataScannerViewController, didTapOn item: RecognizedItem) {
+            handleRecognizedItem(item)
+        }
 
-                AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
-                
-
-                let workItem = DispatchWorkItem { [weak self] in
-                    guard let self = self else { return }
-                    self.parent.presentationMode.wrappedValue.dismiss()
-                    self.parent.onBarcodeDetected(barcodeString)
+        func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
+            if let item = addedItems.first {
+                handleRecognizedItem(item)
+            }
+        }
+        
+        private func handleRecognizedItem(_ item: RecognizedItem) {
+            guard !hasDetected else { return }
+            if case .barcode(let barcode) = item {
+                if let payload = barcode.payloadStringValue {
+                    hasDetected = true
+                    // Vibrate to indicate success
+                    AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
+                    
+                    DispatchQueue.main.async {
+                        self.parent.presentationMode.wrappedValue.dismiss()
+                        self.parent.onBarcodeDetected(payload)
+                    }
                 }
-                DispatchQueue.main.async(execute: workItem)
             }
         }
     }
-}
-
-class ScannerViewController: UIViewController {
-    var captureSession: AVCaptureSession?
-    var previewLayer: AVCaptureVideoPreviewLayer?
-    var delegate: AVCaptureMetadataOutputObjectsDelegate?
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        setupCamera()
-        setupOverlay()
-    }
-    
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        if let session = captureSession, !session.isRunning {
-             DispatchQueue.global(qos: .background).async {
-                 session.startRunning()
-             }
-        }
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        if let session = captureSession, session.isRunning {
-            session.stopRunning()
-        }
-    }
-
-    func setupCamera() {
-        captureSession = AVCaptureSession()
-        guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else {
-            AppLog.app.error("Barcode scanner could not access a video capture device.")
-            return
-        }
-        let videoInput: AVCaptureDeviceInput
-        do {
-            videoInput = try AVCaptureDeviceInput(device: videoCaptureDevice)
-        } catch {
-            AppLog.app.error("Barcode scanner failed to create video input: \(error.localizedDescription, privacy: .public)")
-            return
-        }
-        if captureSession?.canAddInput(videoInput) == true { captureSession?.addInput(videoInput) } else { captureSession = nil; return }
-        let metadataOutput = AVCaptureMetadataOutput()
-        if captureSession?.canAddOutput(metadataOutput) == true {
-            captureSession?.addOutput(metadataOutput)
-            metadataOutput.setMetadataObjectsDelegate(delegate, queue: DispatchQueue.main)
-            metadataOutput.metadataObjectTypes = [.ean8, .ean13, .upce, .code39, .code128, .qr]
-        } else { captureSession = nil; return }
-        guard let captureSession else { return }
-        let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
-        previewLayer.frame = view.layer.bounds
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
-        self.previewLayer = previewLayer
-         DispatchQueue.global(qos: .background).async { [weak self] in self?.captureSession?.startRunning() }
-    }
-
-    func setupOverlay() {
-        let overlayView = UIView()
-        overlayView.layer.borderColor = UIColor.green.cgColor
-        overlayView.layer.borderWidth = 3
-        overlayView.backgroundColor = UIColor.clear
-        overlayView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(overlayView)
-        NSLayoutConstraint.activate([
-            overlayView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            overlayView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            overlayView.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.7),
-            overlayView.heightAnchor.constraint(equalTo: overlayView.widthAnchor, multiplier: 0.5)
-        ])
-    }
-     override func viewDidLayoutSubviews() {
-         super.viewDidLayoutSubviews()
-         previewLayer?.frame = view.layer.bounds
-     }
 }

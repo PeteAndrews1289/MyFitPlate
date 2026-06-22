@@ -6,7 +6,7 @@ struct WelcomeView: View {
 
     var body: some View {
         ZStack {
-            Color.backgroundPrimary.ignoresSafeArea()
+            AnimatedBackgroundView()
 
             ScrollView {
                 VStack(spacing: 24) {
@@ -66,6 +66,41 @@ struct WelcomeView: View {
         }
         .sheet(isPresented: $showSignUpView) {
             SignUpView()
+        }
+    }
+}
+
+struct AnimatedBackgroundView: View {
+    @State private var animate = false
+    
+    var body: some View {
+        ZStack {
+            Color.backgroundPrimary.ignoresSafeArea()
+            
+            // Glowing orbs for a dynamic mesh-like feel
+            Circle()
+                .fill(Color.brandPrimary.opacity(0.5))
+                .frame(width: 300, height: 300)
+                .blur(radius: 80)
+                .offset(x: animate ? 120 : -100, y: animate ? -200 : 150)
+            
+            Circle()
+                .fill(Color.purple.opacity(0.5))
+                .frame(width: 350, height: 350)
+                .blur(radius: 90)
+                .offset(x: animate ? -120 : 150, y: animate ? 250 : -100)
+            
+            Circle()
+                .fill(Color.blue.opacity(0.4))
+                .frame(width: 250, height: 250)
+                .blur(radius: 70)
+                .offset(x: animate ? 50 : -150, y: animate ? -100 : 100)
+        }
+        .ignoresSafeArea()
+        .onAppear {
+            withAnimation(.easeInOut(duration: 8).repeatForever(autoreverses: true)) {
+                animate.toggle()
+            }
         }
     }
 }

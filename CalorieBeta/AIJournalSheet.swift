@@ -15,7 +15,7 @@ struct AIJournalSheet: View {
         let entriesToDelete = offsets.map { allEntries[$0] }
         
         for entry in entriesToDelete {
-            dailyLogService.deleteJournalEntry(for: userID, entry: entry)
+            dailyLogService.journalEntryStore.deleteJournalEntry(for: userID, entry: entry)
         }
     }
 
@@ -138,7 +138,7 @@ struct JournalView: View {
             category: selectedCategory
         )
         Task {
-            await dailyLogService.addJournalEntry(for: userID, entry: newEntry)
+            await dailyLogService.journalEntryStore.addJournalEntry(for: userID, entry: newEntry)
         }
         dismiss()
     }

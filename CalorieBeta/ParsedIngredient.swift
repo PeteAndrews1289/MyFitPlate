@@ -14,13 +14,16 @@ struct IngredientParser {
         "teaspoon": ["teaspoons", "tsp.", "tsp", "t."],
         "ounce": ["ounces", "oz.", "oz"],
         "gram": ["grams", "g.", "g"],
-        "pound": ["pounds", "lb.", "lb"],
+        "pound": ["pounds", "lb.", "lb", "lbs.", "lbs"],
         "kilogram": ["kilograms", "kg.", "kg"],
+        "milliliter": ["milliliters", "ml.", "ml"],
+        "liter": ["liters", "l.", "l"],
         "clove": ["cloves"],
         "pinch": ["pinches"],
         "dash": ["dashes"],
         "can": ["cans"],
         "package": ["packages", "pkg"],
+        "piece": ["pieces"],
         "slice": ["slices"],
         "whole": ["whole"]
     ]

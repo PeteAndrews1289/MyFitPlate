@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 
 struct WorkoutRoutinesView: View {
     @StateObject private var workoutService = WorkoutService()
@@ -122,6 +123,10 @@ struct WorkoutRoutinesView: View {
 
                     TrainingReadinessCard(brief: trainingBrief)
 
+                    if workoutService.activeProgram != nil {
+                        MuscleRecoveryMapView()
+                    }
+
                     TrainingDecisionCard(
                         nextWorkout: nextWorkout,
                         activeProgramName: workoutService.activeProgram?.name,
@@ -154,11 +159,12 @@ struct WorkoutRoutinesView: View {
                         ProgramCompleteCard()
                     }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        TrainingSectionHeader(
-                            title: "Plan Library",
-                            subtitle: "Choose a ready-made plan, generate one, or build your own."
-                        )
+                    if workoutService.activeProgram == nil {
+                        VStack(alignment: .leading, spacing: 12) {
+                            TrainingSectionHeader(
+                                title: "Plan Library",
+                                subtitle: "Choose a ready-made plan, generate one, or build your own."
+                            )
 
                         LazyVGrid(columns: planLibraryColumns, spacing: 12) {
                             NavigationLink(destination: PreBuiltProgramsView()
@@ -212,6 +218,7 @@ struct WorkoutRoutinesView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                    }
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
@@ -1112,5 +1119,202 @@ private struct SavedProgramMetric: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+import SwiftUI
+
+enum MuscleGroup: String, CaseIterable {
+    case chest = "Chest"
+    case back = "Back"
+    case legs = "Legs"
+    case arms = "Arms"
+    case core = "Core"
+    case shoulders = "Shoulders"
+    
+    var icon: String {
+        switch self {
+        case .chest: return "shield.fill" // Or figure.strengthtraining.traditional
+        case .back: return "figure.flexibility"
+        case .legs: return "figure.walk"
+        case .arms: return "figure.arms.open"
+        case .core: return "circle.grid.2x2.fill"
+        case .shoulders: return "figure.stand"
+        }
+    }
+}
+
+struct MuscleRecovery: Identifiable {
+    var id: String { group.rawValue }
+    let group: MuscleGroup
+    let lastTrained: Date?
+    
+    var recoveryPercentage: Double {
+        guard let lastTrained = lastTrained else { return 1.0 }
+        let hoursSince = max(0, Date().timeIntervalSince(lastTrained) / 3600)
+        let maxRecoveryTime: Double = 72.0
+        let percent = min(1.0, hoursSince / maxRecoveryTime)
+        return percent
+    }
+    
+    var statusColor: Color {
+        let percent = recoveryPercentage
+        if percent < 0.33 {
+            return .red
+        } else if percent < 0.66 {
+            return .orange
+        } else if percent < 1.0 {
+            return .yellow
+        } else {
+            return .accentPositive
+        }
+    }
+    
+    var statusText: String {
+        let percent = recoveryPercentage
+        if percent < 0.33 {
+            return "Fatigued"
+        } else if percent < 0.66 {
+            return "Recovering"
+        } else if percent < 1.0 {
+            return "Almost Ready"
+        } else {
+            return "Fully Recovered"
+        }
+    }
+}
+
+struct MuscleRecoveryMapView: View {
+    @EnvironmentObject var dailyLogService: DailyLogService
+    @State private var recoveries: [MuscleRecovery] = []
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "figure.mind.and.body")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Muscle Recovery Map")
+                        .appFont(size: 19, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    
+                    Text("Based on your last 72 hours of logged exercises.")
+                        .appFont(size: 13, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(recoveries) { recovery in
+                    muscleCard(for: recovery)
+                }
+            }
+            .padding(.top, 4)
+        }
+        .asCard()
+        .onAppear(perform: calculateRecovery)
+        .onChange(of: dailyLogService.currentDailyLog) { _, _ in
+            calculateRecovery()
+        }
+    }
+    
+    @ViewBuilder
+    private func muscleCard(for recovery: MuscleRecovery) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .stroke(Color.backgroundSecondary, lineWidth: 4)
+                
+                Circle()
+                    .trim(from: 0, to: recovery.recoveryPercentage)
+                    .stroke(recovery.statusColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring(response: 1.0, dampingFraction: 0.8), value: recovery.recoveryPercentage)
+                
+                Image(systemName: recovery.group.icon)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(recovery.statusColor)
+            }
+            .frame(width: 36, height: 36)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(recovery.group.rawValue)
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                
+                Text(recovery.statusText)
+                    .appFont(size: 10, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .lineLimit(1)
+            }
+            
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color.backgroundSecondary.opacity(0.62), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+    
+    private func calculateRecovery() {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        let now = Date()
+        let startDate = Calendar.current.date(byAdding: .day, value: -4, to: now)!
+        
+        Task {
+            let result = await dailyLogService.fetchDailyHistory(for: userID, startDate: startDate, endDate: now)
+            var lastTrainedTimes: [MuscleGroup: Date] = [:]
+            
+            if case .success(let logs) = result {
+                for log in logs {
+                    guard let exercises = log.exercises else { continue }
+                    
+                    for exercise in exercises {
+                        let name = exercise.name.lowercased()
+                        let mappedGroups = extractMuscleGroups(from: name)
+                        for group in mappedGroups {
+                            let currentLast = lastTrainedTimes[group] ?? Date.distantPast
+                            if log.date > currentLast {
+                                lastTrainedTimes[group] = log.date
+                            }
+                        }
+                    }
+                }
+            }
+            
+            DispatchQueue.main.async {
+                self.recoveries = MuscleGroup.allCases.map { group in
+                    MuscleRecovery(group: group, lastTrained: lastTrainedTimes[group])
+                }
+            }
+        }
+    }
+    
+    private func extractMuscleGroups(from name: String) -> [MuscleGroup] {
+        var groups = [MuscleGroup]()
+        
+        if name.contains("bench") || name.contains("chest") || name.contains("pushup") || name.contains("fly") {
+            groups.append(.chest)
+        }
+        if name.contains("row") || name.contains("pullup") || name.contains("lat") || name.contains("back") || name.contains("deadlift") {
+            groups.append(.back)
+        }
+        if name.contains("squat") || name.contains("leg") || name.contains("lunge") || name.contains("calf") || name.contains("glute") || name.contains("deadlift") {
+            groups.append(.legs)
+        }
+        if name.contains("curl") || name.contains("tricep") || name.contains("arm") || name.contains("pushdown") || name.contains("extension") {
+            groups.append(.arms)
+        }
+        if name.contains("crunch") || name.contains("plank") || name.contains("ab") || name.contains("situp") || name.contains("core") {
+            groups.append(.core)
+        }
+        if name.contains("shoulder") || name.contains("lateral") || name.contains("overhead") || name.contains("raise") || name.contains("press") {
+            // Wait, "bench press" could trigger shoulders too if "press" is in it, which is somewhat accurate.
+            groups.append(.shoulders)
+        }
+        
+        return groups
     }
 }

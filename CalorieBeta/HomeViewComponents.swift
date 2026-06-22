@@ -778,4 +778,8 @@ public struct HapticFeedback {
         generator.prepare()
         generator.selectionChanged()
     }
+
+    public static func success() {
+        notify(type: .success)
+    }
 }

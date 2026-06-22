@@ -32,6 +32,13 @@ class HealthKitViewModel: ObservableObject {
     @Published var sleepSummary: SleepHealthSummary = .empty
     @Published var todaySteps: Double = 0
     @Published var todayActiveEnergy: Double = 0
+    
+    // Comprehensive Weekly Trends
+    @Published var weeklySteps: [Double] = Array(repeating: 0, count: 7)
+    @Published var weeklyActiveEnergy: [Double] = Array(repeating: 0, count: 7)
+    @Published var weeklyRestingHeartRate: [Double] = Array(repeating: 0, count: 7)
+    @Published var weeklyHRV: [Double] = Array(repeating: 0, count: 7)
+    
     @Published var authError: String? = nil
     @Published var isSyncing = false
 
@@ -107,6 +114,27 @@ class HealthKitViewModel: ObservableObject {
         fetchTodayWorkouts()
         fetchLastSevenDaysSleep()
         fetchTodayPassiveData()
+        fetchComprehensiveWeeklyData()
+    }
+
+    func fetchComprehensiveWeeklyData() {
+        guard isAuthorized else { return }
+        
+        manager.fetch7DayTrend(for: .stepCount, options: .cumulativeSum, unit: .count()) { [weak self] data in
+            DispatchQueue.main.async { self?.weeklySteps = data }
+        }
+        
+        manager.fetch7DayTrend(for: .activeEnergyBurned, options: .cumulativeSum, unit: .kilocalorie()) { [weak self] data in
+            DispatchQueue.main.async { self?.weeklyActiveEnergy = data }
+        }
+        
+        manager.fetch7DayTrend(for: .restingHeartRate, options: .discreteAverage, unit: HKUnit.count().unitDivided(by: .minute())) { [weak self] data in
+            DispatchQueue.main.async { self?.weeklyRestingHeartRate = data }
+        }
+        
+        manager.fetch7DayTrend(for: .heartRateVariabilitySDNN, options: .discreteAverage, unit: .secondUnit(with: .milli)) { [weak self] data in
+            DispatchQueue.main.async { self?.weeklyHRV = data }
+        }
     }
 
     func fetchTodayPassiveData() {
@@ -177,45 +205,27 @@ class HealthKitViewModel: ObservableObject {
     }
 
     private func makeSleepSummary(from samples: [HKCategorySample]) -> SleepHealthSummary {
-        var nights: [Date: SleepNight] = [:]
         let calendar = Calendar.current
+        let sleepByNight = Dictionary(grouping: samples) { sleepNightKey(for: $0, calendar: calendar) }
+        var validNights: [SleepNight] = []
 
-        for sample in samples {
-            let duration = sample.endDate.timeIntervalSince(sample.startDate)
-            guard duration > 0 else { continue }
-
-            let nightKey = sleepNightKey(for: sample, calendar: calendar)
-            var night = nights[nightKey] ?? SleepNight(date: nightKey)
-
-            switch HKCategoryValueSleepAnalysis(rawValue: sample.value) {
-            case .asleepCore:
-                night.asleep += duration
-            case .asleepDeep:
-                night.asleep += duration
-            case .asleepREM:
-                night.asleep += duration
-            case .asleepUnspecified:
-                night.asleep += duration
-            case .awake:
-                night.awake += duration
-            default:
-                break
+        for (nightKey, relevantSamples) in sleepByNight {
+            let asleepSamples = relevantSamples.filter {
+                guard let value = HKCategoryValueSleepAnalysis(rawValue: $0.value) else { return false }
+                return value == .asleepCore || value == .asleepDeep || value == .asleepREM || value == .asleepUnspecified
             }
+            let awakeSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .awake }
 
-            if night.asleep > 0 {
-                if let currentBedtime = night.bedtime {
-                    night.bedtime = min(currentBedtime, sample.startDate)
-                } else {
-                    night.bedtime = sample.startDate
-                }
+            let timeAsleep = calculateTotalDuration(from: asleepSamples)
+            let timeAwake = calculateTotalDuration(from: awakeSamples)
+            
+            if timeAsleep > 0 {
+                let bedtime = asleepSamples.map { $0.startDate }.min()
+                validNights.append(SleepNight(date: nightKey, asleep: timeAsleep, awake: timeAwake, bedtime: bedtime))
             }
-
-            nights[nightKey] = night
         }
 
-        let validNights = nights.values
-            .filter { $0.asleep > 0 }
-            .sorted { $0.date < $1.date }
+        validNights.sort { $0.date < $1.date }
 
         guard !validNights.isEmpty else {
             return .empty
@@ -248,8 +258,28 @@ class HealthKitViewModel: ObservableObject {
     }
 
     private func sleepNightKey(for sample: HKCategorySample, calendar: Calendar) -> Date {
-        let adjustedWakeDate = calendar.date(byAdding: .hour, value: -4, to: sample.endDate) ?? sample.endDate
-        return calendar.startOfDay(for: adjustedWakeDate)
+        let hour = calendar.component(.hour, from: sample.startDate)
+        let normalizedDate = hour < 18 ? calendar.date(byAdding: .day, value: -1, to: sample.startDate) ?? sample.startDate : sample.startDate
+        return calendar.startOfDay(for: normalizedDate)
+    }
+
+    private func calculateTotalDuration(from samples: [HKCategorySample]) -> TimeInterval {
+        let intervals = samples.map { DateInterval(start: $0.startDate, end: $0.endDate) }
+        guard !intervals.isEmpty else { return 0 }
+        let sorted = intervals.sorted { $0.start < $1.start }
+        var merged: [DateInterval] = [sorted[0]]
+        for interval in sorted.dropFirst() {
+            let lastIndex = merged.count - 1
+            let last = merged[lastIndex]
+            if interval.start <= last.end {
+                if interval.end > last.end {
+                    merged[lastIndex] = DateInterval(start: last.start, end: interval.end)
+                }
+            } else {
+                merged.append(interval)
+            }
+        }
+        return merged.reduce(0) { $0 + $1.duration }
     }
 
     private func averageBedtimeMinutes(from bedtimes: [Date]) -> Double? {
@@ -323,7 +353,7 @@ class HealthKitViewModel: ObservableObject {
             return
         }
 
-        dailyLogService.addOrUpdateHealthKitWorkouts(for: userID, exercises: workouts, date: Date()) {
+        dailyLogService.exerciseLogStore.addOrUpdateHealthKitWorkouts(for: userID, exercises: workouts, date: Date()) {
             DispatchQueue.main.async {
                 self.isSyncing = false
             }

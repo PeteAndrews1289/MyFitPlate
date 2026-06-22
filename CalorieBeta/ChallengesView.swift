@@ -4,33 +4,35 @@ struct ChallengesView: View {
     @EnvironmentObject var achievementService: AchievementService
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Weekly Challenges")
-                    .appFont(size: 34, weight: .bold)
-                    .padding(.bottom)
+        ZStack {
+            AnimatedBackgroundView()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Weekly Challenges")
+                        .appFont(size: 34, weight: .bold)
+                        .padding(.bottom)
 
-                if achievementService.activeChallenges.isEmpty {
-                    Text("No active challenges right now. Check back next week!")
-                        .appFont(size: 17, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .multilineTextAlignment(.center)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.backgroundSecondary)
-                        .cornerRadius(12)
-                        .shadow(radius: 2)
-                } else {
-                    ForEach(achievementService.activeChallenges) { challenge in
-                        ChallengeCardView(challenge: challenge)
+                    if achievementService.activeChallenges.isEmpty {
+                        Text("No active challenges right now. Check back next week!")
+                            .appFont(size: 17, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .multilineTextAlignment(.center)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .padding(20)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    } else {
+                        ForEach(achievementService.activeChallenges) { challenge in
+                            ChallengeCardView(challenge: challenge)
+                        }
                     }
                 }
+                .padding()
             }
-            .padding()
         }
         .navigationTitle("Challenges")
         .navigationBarTitleDisplayMode(.inline)
-        .background(Color.backgroundPrimary.edgesIgnoringSafeArea(.all))
     }
 }
 
@@ -74,9 +76,11 @@ struct ChallengeCardView: View {
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
-        .padding()
-        .background(Color.backgroundSecondary)
-        .cornerRadius(12)
-        .shadow(radius: 2)
+        .padding(20)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.brandPrimary.opacity(0.3), lineWidth: 1)
+        )
     }
 }

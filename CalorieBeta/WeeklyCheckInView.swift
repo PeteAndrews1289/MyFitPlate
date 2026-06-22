@@ -14,6 +14,7 @@ struct WeeklyCheckInView: View {
                     
                     if adaptiveGoalService.dataConfidence == .high || adaptiveGoalService.dataConfidence == .medium {
                         statsSection
+                        TrendDashboardView(weightHistory: goalSettings.weightHistory)
                         actionSection
                     } else {
                         needsDataSection
@@ -25,11 +26,7 @@ struct WeeklyCheckInView: View {
             .navigationTitle("Weekly Check-In")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
+                // Toolbar empty to enforce rigid check-in
             }
         }
     }
@@ -217,5 +214,122 @@ private struct WeeklyCheckInStatCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+import SwiftUI
+import Charts
+
+struct TrendDashboardView: View {
+    var weightHistory: [(id: String, date: Date, weight: Double)]
+    
+    private var chartData: [(date: Date, weight: Double)] {
+        // Filter to last 21 days
+        let cutoff = Calendar.current.date(byAdding: .day, value: -21, to: Date()) ?? Date()
+        let recent = weightHistory.filter { $0.date >= cutoff }.sorted { $0.date < $1.date }
+        
+        // Ensure we have data
+        if recent.isEmpty {
+            return weightHistory.suffix(7).map { (date: $0.date, weight: $0.weight) }
+        }
+        return recent.map { (date: $0.date, weight: $0.weight) }
+    }
+    
+    private var yAxisDomain: ClosedRange<Double> {
+        let weights = chartData.map { $0.weight }
+        let minW = weights.min() ?? 150.0
+        let maxW = weights.max() ?? 150.0
+        let padding = max(2.0, (maxW - minW) * 0.3)
+        return max(0, minW - padding)...(maxW + padding)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Weight Trend (21 Days)")
+                .appFont(size: 18, weight: .bold)
+                .foregroundColor(.textPrimary)
+            
+            Text("Your smoothed weight trend algorithmically adjusts for daily fluctuations.")
+                .appFont(size: 13)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .padding(.bottom, 8)
+            
+            if chartData.isEmpty {
+                VStack {
+                    Spacer()
+                    Text("Not enough data")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .frame(height: 180)
+            } else {
+                Chart {
+                    ForEach(chartData, id: \.date) { item in
+                        // Daily scatter plot (scale weight)
+                        PointMark(
+                            x: .value("Date", item.date),
+                            y: .value("Weight", item.weight)
+                        )
+                        .foregroundStyle(Color.gray.opacity(0.4))
+                        .symbolSize(40)
+                        
+                        // Smoothed trend line
+                        LineMark(
+                            x: .value("Date", item.date),
+                            y: .value("Weight", item.weight)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.brandPrimary, Color.teal],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .interpolationMethod(.monotone)
+                        .lineStyle(StrokeStyle(lineWidth: 4, lineCap: .round))
+                        
+                        // Area under the curve
+                        AreaMark(
+                            x: .value("Date", item.date),
+                            y: .value("Weight", item.weight)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.brandPrimary.opacity(0.3), Color.clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .interpolationMethod(.monotone)
+                    }
+                }
+                .chartYScale(domain: yAxisDomain)
+                .chartXAxis {
+                    AxisMarks(preset: .aligned, values: .automatic(desiredCount: 4)) { value in
+                        if let date = value.as(Date.self) {
+                            AxisValueLabel {
+                                Text(date, format: .dateTime.month().day())
+                                    .appFont(size: 11)
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        AxisValueLabel {
+                            if let val = value.as(Double.self) {
+                                Text("\(Int(val))")
+                                    .appFont(size: 11)
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                            }
+                        }
+                    }
+                }
+                .frame(height: 200)
+            }
+        }
+        .padding(20)
+        .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }

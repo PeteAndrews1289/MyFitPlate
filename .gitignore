@@ -21,6 +21,9 @@ secrets.xcconfig
 Secrets.xcconfig
 **/Secrets.plist
 
+### Local agent handoff notes
+AGENT_HANDOFF.local.md
+
 ### Accidental hidden config duplicates
 **/.plist
 

@@ -12,6 +12,7 @@ struct HomeView: View {
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var cycleService: CycleTrackingService
     @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
+    @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) var colorScheme
 
     @Binding var navigateToProfile: Bool
@@ -37,14 +38,16 @@ struct HomeView: View {
     @State private var tourSpotlightIDs: [String] = []
     @State private var currentSpotlightIndex: Int = 0
     @State private var showingSpotlightTour = false
+    @State private var showingCoachingDashboard = false
 
     @State private var showingWorkoutRoutines = false
 
     @State private var selectedExerciseForDetail: LoggedExercise?
     @State private var showingWorkoutDetail = false
     @State private var showingWeeklyCheckIn = false
+    @State private var showingMenuScanner = false
 
-    private let spotlightOrder = ["nutritionProgress", "quickActions", "waterTracker", "dailyLog"]
+    private let spotlightOrder = ["nutritionProgress", "quickActions", "pantryFeature", "waterTracker", "dailyLog"]
 
     private let spotlightContent: [String: (title: String, text: String)] = [
         "nutritionProgress": (
@@ -54,6 +57,10 @@ struct HomeView: View {
         "quickActions": (
             title: "Command Center",
             text: "Fast access to your core tools. Tap 'Workouts' to train, 'AI Journal' to reflect, or 'AI Insights' for a deep dive into your health trends."
+        ),
+        "pantryFeature": (
+            title: "Smart Pantry",
+            text: "Keep track of your ingredients here! The AI can generate personalized recipes using ONLY what you have. When you log a generated meal, ingredients are automatically deducted."
         ),
         "waterTracker": (
             title: "Stay Hydrated",
@@ -100,7 +107,7 @@ struct HomeView: View {
                             dateNavigationView
                                 .padding(.horizontal)
                                 .padding(.top, 10)
-                                
+
                             if goalSettings.isCheckInReady {
                                 weeklyCheckInBanner
                                     .padding(.horizontal)
@@ -127,12 +134,18 @@ struct HomeView: View {
                                     .featureSpotlight(isActive: isSpotlightActive(for: "waterTracker"))
                                     .id("waterTracker")
                                     .padding(.horizontal)
-                                    
+
                                 FastingTrackerCard()
                                     .padding(.horizontal)
-                                    
+
                                 HealthActivityCard()
                                     .padding(.horizontal)
+                            }
+
+                            if !dailyLogService.smartSuggestions.isEmpty && isToday {
+                                smartSuggestionsSection
+                                    .padding(.horizontal)
+                                    .id("smartSuggestions")
                             }
 
                             foodDiarySection
@@ -144,6 +157,18 @@ struct HomeView: View {
                         .padding(.bottom, 128)
                     }
                     .scrollBounceBehavior(.basedOnSize, axes: .vertical)
+                    .onAppear {
+                        if let userId = Auth.auth().currentUser?.uid {
+                            dailyLogService.loadSmartSuggestions(for: userId)
+                        }
+                    }
+                    .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
+                        if isLoggedIn, let userId = Auth.auth().currentUser?.uid {
+                            dailyLogService.loadSmartSuggestions(for: userId)
+                        } else {
+                            dailyLogService.smartSuggestions = []
+                        }
+                    }
                     .onChange(of: currentSpotlightIndex) { _, newIndex in
                         if showingSpotlightTour && newIndex < tourSpotlightIDs.count {
                             let spotlightID = tourSpotlightIDs[newIndex]
@@ -250,6 +275,9 @@ struct HomeView: View {
                   MealSuggestionDetailView(suggestion: suggestion, onLog: logMealSuggestion)
               }
           }
+          .sheet(isPresented: $showingCoachingDashboard) {
+              CoachingDashboardView()
+          }
           .sheet(isPresented: $showingSuggestionPreferences) {
               SuggestionPreferencesView(goalSettings: goalSettings)
           }
@@ -261,21 +289,24 @@ struct HomeView: View {
           .sheet(isPresented: $showingAddExerciseView) {
               AddExerciseView { newExercise in
                   if let userID = Auth.auth().currentUser?.uid {
-                      self.dailyLogService.addExerciseToLog(for: userID, exercise: newExercise)
+                      self.dailyLogService.exerciseLogStore.addExerciseToLog(for: userID, exercise: newExercise)
                   }
               }
           }
           .sheet(item: $exerciseToEdit) { exerciseToEdit in
               AddExerciseView(exerciseToEdit: exerciseToEdit) { updatedExercise in
                   if let userID = Auth.auth().currentUser?.uid {
-                      self.dailyLogService.deleteExerciseFromLog(for: userID, exerciseID: exerciseToEdit.id)
-                      self.dailyLogService.addExerciseToLog(for: userID, exercise: updatedExercise)
+                      self.dailyLogService.exerciseLogStore.deleteExerciseFromLog(for: userID, exerciseID: exerciseToEdit.id)
+                      self.dailyLogService.exerciseLogStore.addExerciseToLog(for: userID, exercise: updatedExercise)
                   }
               }
           }
           .sheet(isPresented: $showingWeightEntrySheet) {
               CurrentWeightView()
                   .environmentObject(goalSettings)
+          }
+          .sheet(isPresented: $showingMenuScanner) {
+              menuScannerSheet
           }
           .onAppear(perform: onHomeViewAppear)
           .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
@@ -296,7 +327,7 @@ struct HomeView: View {
                   PastWorkoutDetailView(exercise: selectedExerciseForDetail)
               }
           }
-          .sheet(isPresented: $showingWeeklyCheckIn) {
+          .fullScreenCover(isPresented: $showingWeeklyCheckIn) {
               WeeklyCheckInView()
                   .environmentObject(goalSettings)
                   .environmentObject(adaptiveGoalService)
@@ -314,6 +345,12 @@ struct HomeView: View {
         if isToday {
             healthKitViewModel.checkAuthorizationStatus()
             cycleService.fetchAIInsight()
+            
+            if goalSettings.isCheckInReady {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.showingWeeklyCheckIn = true
+                }
+            }
         }
 
         // Check which spotlights haven't been seen yet
@@ -421,7 +458,7 @@ struct HomeView: View {
                 .stroke(Color.white.opacity(0.16), lineWidth: 1)
         )
     }
-    
+
     private var weeklyCheckInBanner: some View {
         Button(action: {
             HapticFeedback.selection()
@@ -431,7 +468,7 @@ struct HomeView: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
-                
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Weekly Check-In Ready")
                         .appFont(size: 16, weight: .bold)
@@ -440,9 +477,9 @@ struct HomeView: View {
                         .appFont(size: 12, weight: .medium)
                         .foregroundColor(.white.opacity(0.8))
                 }
-                
+
                 Spacer()
-                
+
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.white.opacity(0.8))
@@ -474,13 +511,7 @@ struct HomeView: View {
             NutritionProgressView(dailyLog: dailyLog, goal: goalSettings, insight: weeklyInsight)
                 .padding(.top, 10)
 
-            if dailyLog.calorieConsistencyStatus().hasMeaningfulMismatch {
-                NutritionAuditLaunchButton {
-                    showingNutritionAudit = true
-                }
-                .padding(.horizontal, 14)
-                .padding(.bottom, 12)
-            }
+
         }
         .frame(maxWidth: 520)
         .asCard()
@@ -520,6 +551,19 @@ struct HomeView: View {
 
                     Button(action: {
                         HapticFeedback.selection()
+                        self.showingCoachingDashboard = true
+                    }) {
+                        QuickActionButton(
+                            icon: "brain.head.profile",
+                            label: "Coaching",
+                            subtitle: "Maia's Strategy",
+                            color: .brandPrimary
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: {
+                        HapticFeedback.selection()
                         repeatYesterdayMeals()
                     }) {
                         QuickActionButton(
@@ -531,6 +575,19 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
 
+                    Button(action: {
+                        HapticFeedback.selection()
+                        self.showingMenuScanner = true
+                    }) {
+                        QuickActionButton(
+                            icon: "menucard.fill",
+                            label: "Menu Scan",
+                            subtitle: "Find best macros",
+                            color: .orange
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    
                     Button(action: { showingWeightEntrySheet = true }) {
                         QuickActionButton(
                             icon: "scalemass.fill",
@@ -550,6 +607,65 @@ struct HomeView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+        .frame(maxWidth: 520)
+    }
+
+    private var smartSuggestionsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Smart Suggestions")
+                        .appFont(size: 20, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Log recent meals with 1 tap.")
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+                Spacer()
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(dailyLogService.smartSuggestions) { item in
+                        Button(action: {
+                            HapticFeedback.success()
+                            if let userId = Auth.auth().currentUser?.uid {
+                                // Assume adding it to the current time context meal
+                                let hour = Calendar.current.component(.hour, from: Date())
+                                let mealType: String
+                                if hour < 10 { mealType = "Breakfast" }
+                                else if hour < 15 { mealType = "Lunch" }
+                                else if hour < 21 { mealType = "Dinner" }
+                                else { mealType = "Snacks" }
+
+                                dailyLogService.addFoodToLog(for: userId, date: selectedDate, mealName: mealType, foodItem: item, source: "smart_suggestion")
+                            }
+                        }) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(FoodEmojiMapper.getEmoji(for: item.name))
+                                    .font(.system(size: 28))
+
+                                Text(item.name.capitalized)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.textPrimary)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+
+                                Text("\(Int(item.calories)) cal")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                            }
+                            .padding(12)
+                            .frame(width: 120, alignment: .leading)
+                            .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(.horizontal, 4)
             }
@@ -747,7 +863,14 @@ struct HomeView: View {
 
     private func deleteExercise(byID exerciseID: String) {
         guard let userID = Auth.auth().currentUser?.uid else { return }
-        dailyLogService.deleteExerciseFromLog(for: userID, exerciseID: exerciseID)
+        dailyLogService.exerciseLogStore.deleteExerciseFromLog(for: userID, exerciseID: exerciseID)
+    }
+    
+    // MARK: - Menu Scanner View Wrapper
+    private var menuScannerSheet: some View {
+        MenuScannerView()
+            .environmentObject(dailyLogService)
+            .environmentObject(goalSettings)
     }
 }
 

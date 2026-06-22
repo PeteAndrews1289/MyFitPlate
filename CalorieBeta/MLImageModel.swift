@@ -15,6 +15,17 @@ struct AIItemResponse: Codable {
     let fats: Double
 }
 
+struct ReceiptParseResponse: Codable {
+    let items: [ReceiptItemResponse]
+}
+
+struct ReceiptItemResponse: Codable {
+    let name: String
+    let quantity: Double
+    let unit: String
+    let category: String
+}
+
 struct NutritionLabelData: Decodable {
     let foodName: String
     let calories: Double
@@ -161,6 +172,143 @@ class MLImageModel {
             ]
         ]
 
+        performImageAnalysis(messages: messages, retryCount: retryCount, completion: completion)
+    }
+
+    // MARK: - Menu Estimation
+    func estimateMenuFromImage(image: UIImage, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
+        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+            completion(.failure(ImageRecognitionError.imageProcessingError))
+            return
+        }
+        let base64Image = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
+
+        let prompt = """
+        You are an expert nutritional analysis assistant. The user has provided an image of a restaurant menu.
+        Your task is to extract ALL distinct meals, entrees, and beverages listed on this menu, and estimate their nutritional breakdown.
+        We will show these to the user so they can select which ONE meal they actually ordered.
+
+        RULES:
+        1. Response MUST be a valid JSON object. Root key: "foods" (array of objects).
+        2. Keys per object: "itemName", "servingSize" (e.g. '1 meal', '1 plate'), "calories", "protein", "carbs", "fats".
+        3. Do NOT bundle all menu items into a single object. Create a separate object for EACH menu item.
+        """
+
+        let messages: [[String: Any]] = [
+            [
+                "role": "user",
+                "content": [
+                    ["type": "text", "text": prompt],
+                    ["type": "image_url", "image_url": ["url": base64Image]]
+                ]
+            ]
+        ]
+
+        performImageAnalysis(messages: messages, retryCount: 1, completion: completion)
+    }
+
+    // MARK: - Menu Matchmaker
+    func recommendMenuMeals(from image: UIImage, remainingCalories: Double, remainingProtein: Double, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
+        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+            completion(.failure(ImageRecognitionError.imageProcessingError))
+            return
+        }
+        let base64Image = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
+
+        let prompt = """
+        You are an expert nutritional analysis assistant. The user has provided an image of a restaurant menu.
+        The user has \(Int(remainingCalories)) calories and \(Int(remainingProtein))g of protein remaining for their daily goal.
+        
+        Your task is to identify the top 3 meals on this menu that best fit these remaining macro targets.
+        Prioritize meals that hit the protein goal without massively exceeding the calorie limit.
+        
+        RULES:
+        1. Response MUST be a valid JSON object. Root key: "foods" (array of objects).
+        2. Keys per object: "itemName" (include a short reason in the name, e.g. "Grilled Salmon (High Protein)"), "servingSize" (e.g. '1 meal'), "calories", "protein", "carbs", "fats".
+        3. Provide exactly your top 3 recommendations.
+        """
+
+        let messages: [[String: Any]] = [
+            [
+                "role": "user",
+                "content": [
+                    ["type": "text", "text": prompt],
+                    ["type": "image_url", "image_url": ["url": base64Image]]
+                ]
+            ]
+        ]
+
+        performImageAnalysis(messages: messages, retryCount: 1, completion: completion)
+    }
+
+    // MARK: - Grocery Receipt Parsing
+    func parseGroceryReceipt(from image: UIImage, completion: @escaping (Result<[PantryItem], Error>) -> Void) {
+        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+            completion(.failure(ImageRecognitionError.imageProcessingError))
+            return
+        }
+        let base64Image = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
+
+        let prompt = """
+        You are a smart grocery receipt parsing assistant. The user has provided an image of a grocery store receipt.
+        Your task is to identify every food item purchased and convert it into a structured inventory list for a digital pantry.
+        
+        RULES:
+        1. Your response MUST be a valid JSON object.
+        2. The root key MUST be "items" (an array of objects).
+        3. Keys per object MUST be:
+           - "name": Cleaned up name of the ingredient (e.g. "Chicken Breast" instead of "CHK BRST BNLSS").
+           - "quantity": A numerical value representing how much was bought (e.g. 1.0, 2.5).
+           - "unit": The unit of measurement (e.g. "lbs", "oz", "count", "gallon"). Default to "count" if unsure.
+           - "category": The food category (e.g. "Produce", "Meat", "Dairy", "Pantry", "Frozen", "Beverages").
+        4. Exclude non-food items (like toilet paper, batteries, bags, tax).
+        """
+
+        let messages: [[String: Any]] = [
+            [
+                "role": "user",
+                "content": [
+                    ["type": "text", "text": prompt],
+                    ["type": "image_url", "image_url": ["url": base64Image]]
+                ]
+            ]
+        ]
+
+        Task {
+            let result = await AIService.shared.performRequest(
+                messages: messages,
+                model: "gpt-4o", // High accuracy for receipt OCR
+                responseFormat: ["type": "json_object"]
+            )
+
+            switch result {
+            case .success(let jsonString):
+                guard let data = jsonString.data(using: .utf8) else {
+                    completion(.failure(ImageRecognitionError.invalidOutputFormat))
+                    return
+                }
+                do {
+                    let decodedResponse = try JSONDecoder().decode(ReceiptParseResponse.self, from: data)
+                    let pantryItems = decodedResponse.items.map { item -> PantryItem in
+                        return PantryItem(
+                            name: item.name,
+                            quantity: item.quantity,
+                            unit: item.unit,
+                            category: item.category
+                        )
+                    }
+                    DispatchQueue.main.async { completion(.success(pantryItems)) }
+                } catch {
+                    completion(.failure(ImageRecognitionError.decodingError(error)))
+                }
+            case .failure(let error):
+                completion(.failure(ImageRecognitionError.networkError(error)))
+            }
+        }
+    }
+
+    private func performImageAnalysis(messages: [[String: Any]], retryCount: Int, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
+
         Task {
             // Note: We handle the recursion manually here if parsing fails,
             // so we pass retryCount: 0 to the service to avoid double-retrying network errors.
@@ -178,7 +326,7 @@ class MLImageModel {
                 
                 guard let contentData = cleanedContent.data(using: .utf8) else {
                     if retryCount > 0 {
-                        performEstimateRequest(image: image, retryCount: retryCount - 1, completion: completion)
+                        performImageAnalysis(messages: messages, retryCount: retryCount - 1, completion: completion)
                     } else {
                         completion(.failure(ImageRecognitionError.invalidOutputFormat))
                     }
@@ -205,7 +353,7 @@ class MLImageModel {
                 } catch {
                     if retryCount > 0 {
                         AppLog.ai.warning("AI vision response decoding failed. Retrying: \(error.localizedDescription, privacy: .public)")
-                        performEstimateRequest(image: image, retryCount: retryCount - 1, completion: completion)
+                        performImageAnalysis(messages: messages, retryCount: retryCount - 1, completion: completion)
                     } else {
                         completion(.failure(ImageRecognitionError.decodingError(error)))
                     }

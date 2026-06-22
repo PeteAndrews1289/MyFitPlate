@@ -338,7 +338,7 @@ struct WorkoutPlayerView: View {
                 workoutID: routine.id,
                 sessionID: newSessionID
             )
-            dailyLogService.addExerciseToLog(for: userID, exercise: loggedExercise)
+            dailyLogService.exerciseLogStore.addExerciseToLog(for: userID, exercise: loggedExercise)
         }
 
         applyProgressiveOverloadAndReset()

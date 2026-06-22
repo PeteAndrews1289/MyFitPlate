@@ -35,15 +35,24 @@ struct RecipeDetailView: View {
         .navigationTitle("Recipe")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingAddToLogSheet) {
-            AddFoodView(
-                initialFoodItem: recipeService.recipeToFoodItem(recipe: recipe),
-                dailyLog: $dailyLogService.currentDailyLog,
-                date: dailyLogService.activelyViewedDate,
-                source: "recipe_detail",
-                onLogUpdated: {
-                    showingAddToLogSheet = false
-                }
-            )
+            if let _ = recipe.detailedIngredients {
+                RecipeLoggingView(
+                    recipe: recipe,
+                    dailyLog: $dailyLogService.currentDailyLog,
+                    date: dailyLogService.activelyViewedDate,
+                    onLogUpdated: { showingAddToLogSheet = false }
+                )
+            } else {
+                AddFoodView(
+                    initialFoodItem: recipeService.recipeToFoodItem(recipe: recipe),
+                    dailyLog: $dailyLogService.currentDailyLog,
+                    date: dailyLogService.activelyViewedDate,
+                    source: "recipe_detail",
+                    onLogUpdated: {
+                        showingAddToLogSheet = false
+                    }
+                )
+            }
         }
         .sheet(isPresented: $showingAddToPlanSheet) {
             AddRecipeToPlanSheet(recipe: recipe)

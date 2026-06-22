@@ -468,7 +468,7 @@ struct FoodDetailView: View {
         )
         let itemToSave = rawItemToSave.normalizedForEstimatedSource(source)
 
-        dailyLogService.saveCustomFood(for: userID, foodItem: itemToSave) { success in
+        dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
             Task { @MainActor in
                 if success {
                     self.isSavedAsCustom = true
@@ -483,7 +483,7 @@ struct FoodDetailView: View {
     
     private func unsaveCustomFood() {
         guard let userID = Auth.auth().currentUser?.uid, let foodID = customFoodForAction?.id else { return }
-        dailyLogService.deleteCustomFood(for: userID, foodItemID: foodID) { success in
+        dailyLogService.customFoodStore.deleteCustomFood(for: userID, foodItemID: foodID) { success in
             Task { @MainActor in
                 if success {
                     self.isSavedAsCustom = false
@@ -498,7 +498,7 @@ struct FoodDetailView: View {
     
     private func checkIfSaved() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
-        dailyLogService.fetchMyFoodItems(for: userID) { result in
+        dailyLogService.customFoodStore.fetchMyFoodItems(for: userID) { result in
             DispatchQueue.main.async {
                 if case .success(let items) = result,
                    let savedItem = items.first(where: { $0.name == self.foodName }) {

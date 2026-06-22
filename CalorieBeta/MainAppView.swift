@@ -69,6 +69,7 @@ struct CalorieBetaApp: App {
     @StateObject var spotlightManager: SpotlightManager
     @StateObject var cycleService: CycleTrackingService
     @StateObject var adaptiveGoalService: AdaptiveGoalService
+    @StateObject var pantryService: PantryService
     
     @StateObject var connectivityManager = WatchConnectivityManager()
 
@@ -107,6 +108,7 @@ struct CalorieBetaApp: App {
         _spotlightManager = StateObject(wrappedValue: spotlightMgr)
         _cycleService = StateObject(wrappedValue: cycleSvc)
         _adaptiveGoalService = StateObject(wrappedValue: adaptiveSvc)
+        _pantryService = StateObject(wrappedValue: PantryService())
         
         logService.goalSettings = goalsSvc
         goalsSvc.adaptiveGoalService = adaptiveSvc
@@ -136,6 +138,7 @@ struct CalorieBetaApp: App {
                 .environmentObject(spotlightManager)
                 .environmentObject(cycleService)
                 .environmentObject(adaptiveGoalService)
+                .environmentObject(pantryService)
                 .preferredColorScheme(appState.isDarkModeEnabled ? .dark : .light)
                 .onAppear {
                     // Request notification permissions
@@ -157,6 +160,7 @@ struct ContentView: View {
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var connectivityManager: WatchConnectivityManager
     @EnvironmentObject var cycleService: CycleTrackingService
+    @EnvironmentObject var pantryService: PantryService
     @Environment(\.scenePhase) var scenePhase
     
     @State private var isLoadingUserState = true
@@ -288,6 +292,7 @@ struct ContentView: View {
         } else {
             self.isLoadingUserState = false
             self.shouldShowOnboardingSurvey = false
+            self.pantryService.stopListening()
         }
     }
     
@@ -297,8 +302,8 @@ struct ContentView: View {
              checkFirstLoginFirestore(userID: currentUser.uid) { isFirstLogin in
                  DispatchQueue.main.async {
                      self.shouldShowOnboardingSurvey = isFirstLogin
-                     if !isFirstLogin { self.loadMainUserData() }
                      self.isLoadingUserState = false
+                     if !isFirstLogin { self.loadMainUserData() }
                  }
              }
         } else {
@@ -325,6 +330,7 @@ struct ContentView: View {
         guard appState.isUserLoggedIn, !shouldShowOnboardingSurvey, !isLoadingUserState else { return }
         
         if let userID = Auth.auth().currentUser?.uid {
+            pantryService.startListening(userID: userID)
             goalSettings.loadUserGoals(userID: userID) {
                 self.sendNutritionToWatchIfNeeded()
             }

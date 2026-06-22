@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Users Collection - users can only read/write their own data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow the user full access to all subcollections under their own document
+      match /{subcollection}/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Community Hub / Posts Collection
+    match /posts/{postId} {
+      // Anyone logged in can read posts
+      allow read: if request.auth != null;
+      // You can only create a post if you are the author
+      allow create: if request.auth != null && request.resource.data.authorId == request.auth.uid;
+      // You can only edit or delete a post if you are the original author
+      allow update, delete: if request.auth != null && resource.data.authorId == request.auth.uid;
+    }
+    
+    // Groups Collection
+    match /groups/{groupId} {
+      // Anyone logged in can view groups
+      allow read: if request.auth != null;
+      // Anyone logged in can create a group
+      allow create: if request.auth != null;
+      // Only the creator can update the group details
+      allow update: if request.auth != null && resource.data.creatorId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
+    }
+    
+    // Group Memberships
+    match /groupMemberships/{membershipId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Barcodes (Global Database)
+    match /barcodes/{barcodeId} {
+      // Anyone logged in can read or write to the barcode database
+      allow read, write: if request.auth != null;
+    }
+  }
+}

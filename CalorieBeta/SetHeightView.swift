@@ -7,38 +7,92 @@ struct SetHeightView: View {
     var onSave: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Enter Your Height")
-                .appFont(size: 28, weight: .bold)
-                .padding(.bottom)
-
-            HStack {
-                VStack {
-                    TextField("Feet", text: $feetInput)
-                        .keyboardType(.numberPad)
-                        .textFieldStyle(AppTextFieldStyle(iconName: nil))
-                        .frame(width: 100)
+        ZStack {
+            AnimatedBackgroundView()
+            
+            VStack(spacing: 24) {
+                // Header Graphic
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: 100, height: 100)
+                    
+                    Image(systemName: "ruler.fill")
+                        .font(.system(size: 38, weight: .bold))
+                        .foregroundColor(.blue)
+                        .shadow(color: .blue.opacity(0.4), radius: 10, x: 0, y: 5)
+                        .rotationEffect(.degrees(45))
                 }
-                Text("'")
-                    .appFont(size: 28, weight: .semibold)
-                VStack {
-                    TextField("Inches", text: $inchesInput)
-                        .keyboardType(.numberPad)
-                        .textFieldStyle(AppTextFieldStyle(iconName: nil))
-                        .frame(width: 100)
+                .padding(.top, 24)
+
+                VStack(spacing: 8) {
+                    Text("Your Height")
+                        .appFont(size: 28, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    
+                    Text("Accurate height data helps Maia estimate your metabolic rate.")
+                        .appFont(size: 15)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
                 }
-                Text("\"")
-                    .appFont(size: 28, weight: .semibold)
-            }
 
-            Button("Save") {
-                self.onSave()
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .padding()
+                // Inputs
+                HStack(spacing: 16) {
+                    HeightInputCard(title: "Feet", value: $feetInput, unit: "ft")
+                    HeightInputCard(title: "Inches", value: $inchesInput, unit: "in")
+                }
+                .padding(.horizontal, 32)
+                .padding(.top, 16)
 
-            Spacer()
+                Spacer()
+
+                Button(action: {
+                    self.onSave()
+                }) {
+                    Text("Save Height")
+                        .appFont(size: 17, weight: .bold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.blue, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 34)
+            }
         }
-        .padding()
+    }
+}
+
+private struct HeightInputCard: View {
+    let title: String
+    @Binding var value: String
+    let unit: String
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(title)
+                .appFont(size: 13, weight: .semibold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+            
+            HStack(alignment: .bottom, spacing: 4) {
+                TextField("0", text: $value)
+                    .keyboardType(.numberPad)
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .foregroundColor(.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, -6)
+                
+                Text(unit)
+                    .appFont(size: 16, weight: .bold)
+                    .foregroundColor(.blue)
+                    .padding(.bottom, 4)
+            }
+        }
+        .padding(.vertical, 24)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white.opacity(0.15), lineWidth: 1))
     }
 }

@@ -1,11 +1,20 @@
 import SwiftUI
 
-struct CycleInsightCard: View {
+struct MaiaCycleInsightCard: View {
     let insight: AIInsight
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Swapped Text elements for better hierarchy
+            HStack {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.brandPrimary)
+                Text("Maia's Phase Guide")
+                    .appFont(size: 18, weight: .bold)
+                Spacer()
+            }
+            .padding(.bottom, 4)
+
             Text(insight.phaseTitle)
                 .appFont(size: 20, weight: .semibold)
                 .foregroundColor(.accentPositive)
@@ -63,8 +72,11 @@ struct CycleInsightCard: View {
                 .foregroundColor(.secondary)
                 .padding(.top, 8)
         }
-        .padding()
-        .background(Color.backgroundSecondary)
-        .cornerRadius(15)
+        .padding(20)
+        .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.brandPrimary.opacity(0.3), lineWidth: 1)
+        )
     }
 }

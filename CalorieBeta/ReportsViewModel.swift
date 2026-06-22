@@ -178,22 +178,26 @@ class ReportsViewModel: ObservableObject {
         var mostRecentSleepDay: Date? = nil
 
         for (day, samplesForDay) in sleepByNight {
-            var timeInBed: TimeInterval = 0; var timeAsleep: TimeInterval = 0; var timeCore: TimeInterval = 0
-            var timeDeep: TimeInterval = 0; var timeREM: TimeInterval = 0; var timeAwake: TimeInterval = 0
             let relevantSamples = samplesForDay
 
-            for sample in relevantSamples {
-                let duration = sample.endDate.timeIntervalSince(sample.startDate)
-                switch HKCategoryValueSleepAnalysis(rawValue: sample.value) {
-                case .inBed: timeInBed += duration
-                case .asleepCore: timeCore += duration; timeAsleep += duration
-                case .asleepDeep: timeDeep += duration; timeAsleep += duration
-                case .asleepREM: timeREM += duration; timeAsleep += duration
-                case .asleepUnspecified: timeAsleep += duration
-                case .awake: timeAwake += duration; timeInBed += duration
-                default: break
-                }
+            let inBedSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .inBed }
+            let asleepSamples = relevantSamples.filter { 
+                guard let value = HKCategoryValueSleepAnalysis(rawValue: $0.value) else { return false }
+                return value == .asleepCore || value == .asleepDeep || value == .asleepREM || value == .asleepUnspecified
             }
+            
+            let coreSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .asleepCore }
+            let deepSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .asleepDeep }
+            let remSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .asleepREM }
+            let awakeSamples = relevantSamples.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value) == .awake }
+
+            let timeCore = calculateTotalDuration(from: coreSamples)
+            let timeDeep = calculateTotalDuration(from: deepSamples)
+            let timeREM = calculateTotalDuration(from: remSamples)
+            let timeAwake = calculateTotalDuration(from: awakeSamples)
+
+            var timeInBed = calculateTotalDuration(from: inBedSamples)
+            let timeAsleep = calculateTotalDuration(from: asleepSamples)
 
             if timeInBed == 0 && (timeAsleep > 0 || timeAwake > 0) {
                  let firstStart = relevantSamples.map{$0.startDate}.min() ?? day
@@ -258,7 +262,7 @@ class ReportsViewModel: ObservableObject {
             sleepConsistencyMessage: consistencyMessage, dailySleepData: validDays
         )
 
-        if errorMessage == "No data available for the selected period." {
+        if errorMessage == "No data available for the selected timeframe." {
             errorMessage = nil
         }
         self.wellnessScore = nil
@@ -268,8 +272,28 @@ class ReportsViewModel: ObservableObject {
     }
 
     private func sleepNightKey(for sample: HKCategorySample, calendar: Calendar) -> Date {
-        let adjustedWakeDate = calendar.date(byAdding: .hour, value: -4, to: sample.endDate) ?? sample.endDate
-        return calendar.startOfDay(for: adjustedWakeDate)
+        let hour = calendar.component(.hour, from: sample.startDate)
+        let normalizedDate = hour < 18 ? calendar.date(byAdding: .day, value: -1, to: sample.startDate) ?? sample.startDate : sample.startDate
+        return calendar.startOfDay(for: normalizedDate)
+    }
+
+    private func calculateTotalDuration(from samples: [HKCategorySample]) -> TimeInterval {
+        let intervals = samples.map { DateInterval(start: $0.startDate, end: $0.endDate) }
+        guard !intervals.isEmpty else { return 0 }
+        let sorted = intervals.sorted { $0.start < $1.start }
+        var merged: [DateInterval] = [sorted[0]]
+        for interval in sorted.dropFirst() {
+            let lastIndex = merged.count - 1
+            let last = merged[lastIndex]
+            if interval.start <= last.end {
+                if interval.end > last.end {
+                    merged[lastIndex] = DateInterval(start: last.start, end: interval.end)
+                }
+            } else {
+                merged.append(interval)
+            }
+        }
+        return merged.reduce(0) { $0 + $1.duration }
     }
 
 
@@ -529,7 +553,7 @@ class ReportsViewModel: ObservableObject {
              if enhancedSleepReport != nil || weeklyWorkoutReport != nil { self.summary = ReportSummary(timeframe: timeframeName, averageCalories: 0, averageProtein: 0, averageCarbs: 0, averageFats: 0, daysLogged: 0) }
          }
          // If still no summary, no sleep, no workout, no analytics, and no error message, set the error message.
-         if summary == nil && enhancedSleepReport == nil && weeklyWorkoutReport == nil && workoutAnalytics == nil && errorMessage == nil { self.errorMessage = "No data available for the selected period." }
+         if summary == nil && enhancedSleepReport == nil && weeklyWorkoutReport == nil && workoutAnalytics == nil && errorMessage == nil { self.errorMessage = "No data available for the selected timeframe." }
     }
 
 

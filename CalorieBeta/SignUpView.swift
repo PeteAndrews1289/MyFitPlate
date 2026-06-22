@@ -23,7 +23,7 @@ struct SignUpView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.backgroundPrimary.ignoresSafeArea()
+                AnimatedBackgroundView()
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {

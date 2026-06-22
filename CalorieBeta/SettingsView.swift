@@ -52,117 +52,158 @@ struct SettingsView: View {
     @State private var isDeletingAccount = false
 
     var body: some View {
-        List {
-            Section {
-                SettingsHeaderCard(
-                    calorieGoal: goalSettings.calories,
-                    waterGoal: goalSettings.waterGoal,
-                    heightText: "\(goalSettings.getHeightInFeetAndInches().feet)'\(goalSettings.getHeightInFeetAndInches().inches)\""
-                )
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-            }
-
-            Section(header: Text("Appearance")) {
-                Toggle(isOn: $appState.isDarkModeEnabled.animation()) {
-                    SettingsLabel(icon: "moon.fill", title: "Dark Mode", subtitle: "Use the darker app appearance.", color: .purple)
-                }
-            }
+        ZStack {
+            AnimatedBackgroundView()
             
-            Section(header: Text("Integrations")) {
-                Button(action: {
-                    healthKitViewModel.requestAuthorization()
-                }) {
-                    HStack {
-                        Image("Apple_Health")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 20, height: 20)
+            ScrollView {
+                VStack(spacing: 24) {
+                    SettingsHeaderCard(
+                        calorieGoal: goalSettings.calories,
+                        waterGoal: goalSettings.waterGoal,
+                        heightText: "\(goalSettings.getHeightInFeetAndInches().feet)'\(goalSettings.getHeightInFeetAndInches().inches)\""
+                    )
+
+                    SettingsSectionCard(title: "Appearance") {
+                        Toggle(isOn: $appState.isDarkModeEnabled.animation()) {
+                            SettingsLabel(icon: "moon.fill", title: "Dark Mode", subtitle: "Use the darker app appearance.", color: .purple)
+                        }
+                        .padding(16)
+                    }
+                    
+                    SettingsSectionCard(title: "Integrations") {
+                        Button(action: {
+                            healthKitViewModel.requestAuthorization()
+                        }) {
+                            HStack {
+                                Image("Apple_Health")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(healthKitViewModel.isAuthorized ? "Review Health Access & Sync" : "Connect to Apple Health")
+                                        .appFont(size: 15, weight: .semibold)
+                                    Text(healthKitViewModel.isAuthorized ? "Refresh workouts, sleep, and recovery permissions." : "Import workouts and sleep where available.")
+                                        .appFont(size: 12)
+                                        .foregroundColor(Color(UIColor.secondaryLabel))
+                                }
+                                
+                                Spacer()
+                                
+                                if healthKitViewModel.isSyncing {
+                                    ProgressView()
+                                        .frame(width: 20, height: 20)
+                                } else if healthKitViewModel.isAuthorized {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.accentPositive)
+                                }
+                            }
+                        }
+                        .foregroundColor(.textPrimary)
+                        .disabled(healthKitViewModel.isSyncing)
+                        .padding(16)
                         
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(healthKitViewModel.isAuthorized ? "Review Health Access & Sync" : "Connect to Apple Health")
+                        if healthKitViewModel.isAuthorized {
+                            Divider().padding(.leading, 50)
+                            Toggle(isOn: $includeActiveCaloriesInGoal) {
+                                SettingsLabel(
+                                    icon: "flame.fill",
+                                    title: "Include Active Calories",
+                                    subtitle: "Add exercise calories burned to your daily food allowance.",
+                                    color: .orange
+                                )
+                            }
+                            .tint(.brandPrimary)
+                            .padding(16)
+                        }
+                    }
+
+                    SettingsSectionCard(title: "Account") {
+                        Button { showCaloricCalculator = true } label: {
+                            SettingsLabel(icon: "target", title: "Calorie and Macro Goals", subtitle: "Adjust targets and goal method.", color: .brandPrimary)
+                        }
+                        .padding(16)
+                        
+                        Divider().padding(.leading, 50)
+                        
+                        Button {
+                            let currentHeight = goalSettings.getHeightInFeetAndInches()
+                            feetInput = "\(currentHeight.feet)"; inchesInput = "\(currentHeight.inches)"
+                            showHeightEditor = true
+                        } label: {
+                            SettingsLabel(icon: "ruler", title: "Height", subtitle: "Update your body metrics.", color: .blue)
+                        }
+                        .padding(16)
+                        
+                        Divider().padding(.leading, 50)
+                        
+                        Button {
+                            waterGoalInput = String(format: "%.0f", goalSettings.waterGoal)
+                            showingWaterGoalSheet = true
+                        } label: {
+                            SettingsLabel(icon: "drop.fill", title: "Daily Water Goal", subtitle: "\(Int(goalSettings.waterGoal.rounded())) oz per day.", color: .cyan)
+                        }
+                        .padding(16)
+                        
+                        Divider().padding(.leading, 50)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Calorie Goal Method")
                                 .appFont(size: 15, weight: .semibold)
-                            Text(healthKitViewModel.isAuthorized ? "Refresh workouts, sleep, and recovery permissions." : "Import workouts and sleep where available.")
-                                .appFont(size: 12)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
+                                .foregroundColor(.textPrimary)
+                            
+                            Picker("Calorie Goal Method", selection: $goalSettings.calorieGoalMethod) {
+                                ForEach(CalorieGoalMethod.allCases) { method in Text(method.rawValue).tag(method) }
+                            }
+                            .pickerStyle(.segmented)
+                            .onChange(of: goalSettings.calorieGoalMethod) { _, _ in
+                                if let userID = Auth.auth().currentUser?.uid { goalSettings.saveUserGoals(userID: userID) }
+                            }
                         }
+                        .padding(16)
+                    }
+                    
+                    SettingsSectionCard(title: "Help & Support") {
+                        Button {
+                            showingResetTourConfirmation = true
+                        } label: {
+                            SettingsLabel(icon: "questionmark.circle.fill", title: "Reset Feature Tooltips", subtitle: "Replay the guided app tips.", color: .orange)
+                        }
+                        .padding(16)
+                    }
+                    
+                    SettingsSectionCard {
+                        Button(role: .destructive) { showingSignOutAlert = true } label: {
+                            Text("Sign Out")
+                                .appFont(size: 17, weight: .semibold)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                        .padding(16)
                         
-                        Spacer()
+                        Divider()
                         
-                        if healthKitViewModel.isSyncing {
-                            ProgressView()
-                                .frame(width: 20, height: 20)
-                        } else if healthKitViewModel.isAuthorized {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.accentPositive)
+                        if isDeletingAccount {
+                            HStack {
+                                Text("Deleting Account...")
+                                    .appFont(size: 17, weight: .semibold)
+                                Spacer()
+                                ProgressView()
+                            }
+                            .padding(16)
+                        } else {
+                            Button(role: .destructive) { showingDeleteAccountAlert = true } label: {
+                                Text("Delete Account")
+                                    .appFont(size: 17, weight: .semibold)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                            .padding(16)
                         }
                     }
                 }
-                .foregroundColor(.textPrimary)
-                .disabled(healthKitViewModel.isSyncing)
-                
-                if healthKitViewModel.isAuthorized {
-                    Toggle(isOn: $includeActiveCaloriesInGoal) {
-                        SettingsLabel(
-                            icon: "flame.fill",
-                            title: "Include Active Calories",
-                            subtitle: "Add exercise calories burned to your daily food allowance.",
-                            color: .orange
-                        )
-                    }
-                    .tint(.brandPrimary)
-                }
-            }
-
-            Section(header: Text("Account")) {
-                Button { showCaloricCalculator = true } label: {
-                    SettingsLabel(icon: "target", title: "Calorie and Macro Goals", subtitle: "Adjust targets and goal method.", color: .brandPrimary)
-                }
-                Button {
-                    let currentHeight = goalSettings.getHeightInFeetAndInches()
-                    feetInput = "\(currentHeight.feet)"; inchesInput = "\(currentHeight.inches)"
-                    showHeightEditor = true
-                } label: {
-                    SettingsLabel(icon: "ruler", title: "Height", subtitle: "Update your body metrics.", color: .blue)
-                }
-                Button {
-                    waterGoalInput = String(format: "%.0f", goalSettings.waterGoal)
-                    showingWaterGoalSheet = true
-                } label: {
-                    SettingsLabel(icon: "drop.fill", title: "Daily Water Goal", subtitle: "\(Int(goalSettings.waterGoal.rounded())) oz per day.", color: .cyan)
-                }
-                Picker("Calorie Goal Method", selection: $goalSettings.calorieGoalMethod) {
-                    ForEach(CalorieGoalMethod.allCases) { method in Text(method.rawValue).tag(method) }
-                }
-                 .onChange(of: goalSettings.calorieGoalMethod) { _, _ in
-                      if let userID = Auth.auth().currentUser?.uid { goalSettings.saveUserGoals(userID: userID) }
-                  }
-            }
-            
-            Section(header: Text("Help & Support")) {
-                Button {
-                    showingResetTourConfirmation = true
-                } label: {
-                    SettingsLabel(icon: "questionmark.circle.fill", title: "Reset Feature Tooltips", subtitle: "Replay the guided app tips.", color: .orange)
-                }
-            }
-            
-            Section {
-                Button("Sign Out", role: .destructive) { showingSignOutAlert = true }
-                
-                if isDeletingAccount {
-                    HStack {
-                        Text("Deleting Account...")
-                        Spacer()
-                        ProgressView()
-                    }
-                } else {
-                    Button("Delete Account", role: .destructive) { showingDeleteAccountAlert = true }
-                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 24)
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Done") { showSettings = false } } }
@@ -444,6 +485,32 @@ private struct SettingsLabel: View {
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+}
+struct SettingsSectionCard<Content: View>: View {
+    let title: String?
+    let content: Content
+
+    init(title: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let title = title {
+                Text(title.uppercased())
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .padding(.horizontal, 8)
+            }
+            
+            VStack(spacing: 0) {
+                content
+            }
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Color.white.opacity(0.15), lineWidth: 1))
         }
     }
 }

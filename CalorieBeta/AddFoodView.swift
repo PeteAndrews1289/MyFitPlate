@@ -569,7 +569,7 @@ struct AddFoodView: View {
             servingUnit: n.servingUnit
         )
         let itemToSave = rawItemToSave.normalizedForEstimatedSource(source)
-        dailyLogService.saveCustomFood(for: userID, foodItem: itemToSave) { success in
+        dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
             if success {
                 isSavedAsCustom = true
                 customFoodForAction = itemToSave
@@ -579,13 +579,13 @@ struct AddFoodView: View {
     }
     private func unsaveCustomFood() {
         guard let userID = Auth.auth().currentUser?.uid, let id = customFoodForAction?.id else { return }
-        dailyLogService.deleteCustomFood(for: userID, foodItemID: id) { success in
+        dailyLogService.customFoodStore.deleteCustomFood(for: userID, foodItemID: id) { success in
             if success { isSavedAsCustom = false; bannerService.showBanner(title: "Removed", message: "Removed from My Foods") }
         }
     }
     private func checkIfSaved() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
-        dailyLogService.fetchMyFoodItems(for: userID) { result in
+        dailyLogService.customFoodStore.fetchMyFoodItems(for: userID) { result in
             DispatchQueue.main.async {
                 if case .success(let items) = result, let match = items.first(where: { $0.name == foodName }) {
                     isSavedAsCustom = true; customFoodForAction = match

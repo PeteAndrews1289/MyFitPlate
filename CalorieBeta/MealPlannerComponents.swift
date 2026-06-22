@@ -211,6 +211,7 @@ struct WeeklyPlanOverviewCard: View {
     let plans: [MealPlanDay]
     let onOpenGrocery: () -> Void
     let onGenerate: () -> Void
+    let onStartMealPrep: () -> Void
 
     private var plannedDays: Int {
         plans.filter { !$0.meals.isEmpty }.count
@@ -280,6 +281,13 @@ struct WeeklyPlanOverviewCard: View {
             if plannedDays == 0 {
                 Button("Generate This Week", action: onGenerate)
                     .buttonStyle(SecondaryButtonStyle())
+            } else {
+                Button(action: onStartMealPrep) {
+                    Label("Start Meal Prep Mode", systemImage: "flame.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .tint(.orange)
             }
         }
         .padding(16)

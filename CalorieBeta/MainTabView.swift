@@ -228,7 +228,7 @@ struct MainTabView: View {
                 }
             }
             .sheet(isPresented: $showingAITextLog) { AITextLogView() }
-            .sheet(isPresented: $showingAddExerciseView) { AddExerciseView { newExercise in if let userID = Auth.auth().currentUser?.uid { dailyLogService.addExerciseToLog(for: userID, exercise: newExercise) } } }
+            .sheet(isPresented: $showingAddExerciseView) { AddExerciseView { newExercise in if let userID = Auth.auth().currentUser?.uid { dailyLogService.exerciseLogStore.addExerciseToLog(for: userID, exercise: newExercise) } } }
             .sheet(isPresented: $showingRecipeListView) {
                 RecipeListView().environmentObject(recipeService)
             }

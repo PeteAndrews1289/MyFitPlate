@@ -12,6 +12,10 @@ class EcosystemSyncManager {
         HealthKitManager.shared.saveNutrition(for: item)
     }
 
+    func syncWaterToHealthKit(ounces: Double, date: Date = Date()) {
+        HealthKitManager.shared.saveWater(ounces: ounces, date: date)
+    }
+
     func replaceNutritionInHealthKit(oldItem: FoodItem, newItem: FoodItem) {
         HealthKitManager.shared.replaceNutrition(oldItem: oldItem, newItem: newItem)
     }

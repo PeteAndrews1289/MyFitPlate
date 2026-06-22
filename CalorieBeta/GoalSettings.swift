@@ -125,12 +125,16 @@ class GoalSettings: ObservableObject {
         var calorieAdjustmentForWeightGoal: Double = 0
         
         switch goal {
-        case "Lose": calorieAdjustmentForWeightGoal = -500
-        case "Gain": calorieAdjustmentForWeightGoal = 500
+        case "Lose": calorieAdjustmentForWeightGoal = -250
+        case "Gain": calorieAdjustmentForWeightGoal = 250
         default: break
         }
         
         switch self.calorieGoalMethod {
+        case .custom:
+            if self.calories == nil { self.calories = 2000 }
+            self.updateMacros()
+            return
         case .mifflinWithActivity:
             let maintenanceCalories = bmr * activityLevel
             calculatedCalories = maintenanceCalories + calorieAdjustmentForWeightGoal
@@ -331,6 +335,16 @@ class GoalSettings: ObservableObject {
                 "calorieGoalMethod": self.calorieGoalMethod.rawValue
             ]
             self.db.collection("users").document(userID).setData(userData, merge: true)
+        }
+    }
+    
+    func applyWeeklyCheckIn(userID: String, newCalories: Double) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.calories = newCalories
+            self.lastCheckInDate = Date()
+            self.updateMacros()
+            self.saveUserGoals(userID: userID)
         }
     }
     

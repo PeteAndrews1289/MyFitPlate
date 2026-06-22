@@ -10,6 +10,10 @@ protocol HealthKitManaging {
     func fetchLatestHRV(completion: @escaping (HKQuantitySample?) -> Void)
     func fetchTodaySteps(completion: @escaping (Double) -> Void)
     func fetchTodayActiveEnergy(completion: @escaping (Double) -> Void)
+    func fetchBiologicalSex() -> HKBiologicalSexObject?
+    func fetchTodayDistance(completion: @escaping (Double) -> Void)
+    func fetchTodayFlights(completion: @escaping (Double) -> Void)
+    func fetchTodayExerciseTime(completion: @escaping (Double) -> Void)
     func saveNutrition(for foodItem: FoodItem)
     func appFoodMetadataPredicate(for foodItem: FoodItem) -> NSPredicate
     func deleteNutrition(for foodItem: FoodItem, completion: ((Bool) -> Void)?)
@@ -47,7 +51,12 @@ class HealthKitManager: HealthKitManaging {
               let sleepAnalysisType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
               let restingHeartRateType = HKObjectType.quantityType(forIdentifier: .restingHeartRate),
               let stepCountType = HKObjectType.quantityType(forIdentifier: .stepCount),
-              let hrvType = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN) else {
+              let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning),
+              let flightsType = HKObjectType.quantityType(forIdentifier: .flightsClimbed),
+              let exerciseTimeType = HKObjectType.quantityType(forIdentifier: .appleExerciseTime),
+              let biologicalSexType = HKObjectType.characteristicType(forIdentifier: .biologicalSex),
+              let hrvType = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN),
+              let waterType = HKQuantityType.quantityType(forIdentifier: .dietaryWater) else {
             completion(false, NSError(domain: "com.MyFitPlate.HealthKit", code: 2, userInfo: [NSLocalizedDescriptionKey: "Required HealthKit types are unavailable."]))
             return
         }
@@ -57,7 +66,8 @@ class HealthKitManager: HealthKitManaging {
             dietaryProteinType,
             dietaryCarbType,
             dietaryFatType,
-            bodyMassType
+            bodyMassType,
+            waterType
         ]
 
         let typesToRead: Set<HKObjectType> = [
@@ -66,8 +76,13 @@ class HealthKitManager: HealthKitManaging {
             sleepAnalysisType,
             restingHeartRateType,
             stepCountType,
+            distanceType,
+            flightsType,
+            exerciseTimeType,
+            biologicalSexType,
             hrvType,
-            bodyMassType
+            bodyMassType,
+            waterType
         ]
 
         healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
@@ -194,6 +209,92 @@ class HealthKitManager: HealthKitManaging {
         healthStore.execute(query)
     }
 
+    func fetchBiologicalSex() -> HKBiologicalSexObject? {
+        return try? healthStore.biologicalSex()
+    }
+
+    func fetchTodayDistance(completion: @escaping (Double) -> Void) {
+        guard let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) else {
+            completion(0)
+            return
+        }
+        let now = Date()
+        let predicate = HKQuery.predicateForSamples(withStart: Calendar.current.startOfDay(for: now), end: now, options: .strictStartDate)
+        let query = HKStatisticsQuery(quantityType: distanceType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, result, _ in
+            DispatchQueue.main.async { completion(result?.sumQuantity()?.doubleValue(for: .mile()) ?? 0) }
+        }
+        healthStore.execute(query)
+    }
+
+    func fetchTodayFlights(completion: @escaping (Double) -> Void) {
+        guard let flightsType = HKQuantityType.quantityType(forIdentifier: .flightsClimbed) else {
+            completion(0)
+            return
+        }
+        let now = Date()
+        let predicate = HKQuery.predicateForSamples(withStart: Calendar.current.startOfDay(for: now), end: now, options: .strictStartDate)
+        let query = HKStatisticsQuery(quantityType: flightsType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, result, _ in
+            DispatchQueue.main.async { completion(result?.sumQuantity()?.doubleValue(for: .count()) ?? 0) }
+        }
+        healthStore.execute(query)
+    }
+
+    func fetchTodayExerciseTime(completion: @escaping (Double) -> Void) {
+        guard let exerciseTimeType = HKQuantityType.quantityType(forIdentifier: .appleExerciseTime) else {
+            completion(0)
+            return
+        }
+        let now = Date()
+        let predicate = HKQuery.predicateForSamples(withStart: Calendar.current.startOfDay(for: now), end: now, options: .strictStartDate)
+        let query = HKStatisticsQuery(quantityType: exerciseTimeType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, result, _ in
+            DispatchQueue.main.async { completion(result?.sumQuantity()?.doubleValue(for: .minute()) ?? 0) }
+        }
+        healthStore.execute(query)
+    }
+
+    func fetch7DayTrend(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double]) -> Void) {
+        guard let quantityType = HKQuantityType.quantityType(forIdentifier: typeIdentifier) else {
+            completion([])
+            return
+        }
+        
+        let calendar = Calendar.current
+        let now = Date()
+        guard let startDate = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: now)) else {
+            completion([])
+            return
+        }
+        
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: now, options: .strictStartDate)
+        let anchorDate = calendar.startOfDay(for: now)
+        let daily = DateComponents(day: 1)
+        
+        let query = HKStatisticsCollectionQuery(quantityType: quantityType, quantitySamplePredicate: predicate, options: options, anchorDate: anchorDate, intervalComponents: daily)
+        
+        query.initialResultsHandler = { _, results, _ in
+            var trends: [Double] = Array(repeating: 0.0, count: 7)
+            guard let statsCollection = results else {
+                DispatchQueue.main.async { completion(trends) }
+                return
+            }
+            
+            statsCollection.enumerateStatistics(from: startDate, to: now) { statistics, stop in
+                let daysAgo = calendar.dateComponents([.day], from: statistics.startDate, to: calendar.startOfDay(for: now)).day ?? 0
+                if daysAgo >= 0 && daysAgo < 7 {
+                    let index = 6 - daysAgo
+                    if options.contains(.cumulativeSum) {
+                        trends[index] = statistics.sumQuantity()?.doubleValue(for: unit) ?? 0
+                    } else if options.contains(.discreteAverage) {
+                        trends[index] = statistics.averageQuantity()?.doubleValue(for: unit) ?? 0
+                    }
+                }
+            }
+            
+            DispatchQueue.main.async { completion(trends) }
+        }
+        healthStore.execute(query)
+    }
+
     // MARK: - Nutrition Saving
     public func saveNutrition(for foodItem: FoodItem) {
         guard let energyType = HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed),
@@ -235,6 +336,27 @@ class HealthKitManager: HealthKitManaging {
         healthStore.save(nutrientSamples) { success, error in
             if !success, let error = error {
                 AppLog.health.error("Failed to save nutrition samples to HealthKit: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    // MARK: - Water Saving
+    public func saveWater(ounces: Double, date: Date) {
+        guard let waterType = HKQuantityType.quantityType(forIdentifier: .dietaryWater) else { return }
+        
+        // Convert ounces to fluidOuncesUS (or milliliters)
+        let quantity = HKQuantity(unit: .fluidOunceUS(), doubleValue: ounces)
+        
+        let metadata: [String: Any] = [
+            MetadataKey.source: "MyFitPlate",
+            MetadataKey.loggedAt: date.timeIntervalSince1970
+        ]
+        
+        let sample = HKQuantitySample(type: waterType, quantity: quantity, start: date, end: date, metadata: metadata)
+        
+        healthStore.save(sample) { success, error in
+            if !success, let error = error {
+                AppLog.health.error("Failed to save water to HealthKit: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

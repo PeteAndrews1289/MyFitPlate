@@ -13,8 +13,9 @@ struct GroceryListView: View {
     @State private var showingClearConfirmation = false
     @State private var hideCompletedItems = false
     @State private var fetchError: (isShowing: Bool, message: String) = (false, "")
+    @State private var editingItem: GroceryListItem?
     
-    @AppStorage("groceryUnitSystem") private var unitSystem: GroceryUnitSystem = .imperial
+    @AppStorage("groceryUnitSystem") private var unitSystem: GroceryUnitSystem = Locale.current.measurementSystem == .us ? .imperial : .metric
     
     private let foodAPIService = FatSecretFoodAPIService()
 
@@ -98,6 +99,7 @@ struct GroceryListView: View {
                                     items: orderedItems(for: category),
                                     groceryList: $groceryList,
                                     onToggle: saveList,
+                                    onEdit: { item in editingItem = item },
                                     onDelete: deleteItem
                                 )
                             }
@@ -161,6 +163,11 @@ struct GroceryListView: View {
             .sheet(isPresented: $showingManualItemSheet) {
                 ManualGroceryItemSheet { item in
                     addManualItem(item)
+                }
+            }
+            .sheet(item: $editingItem) { itemToEdit in
+                ManualGroceryItemSheet(initialItem: itemToEdit) { updatedItem in
+                    updateManualItem(updatedItem)
                 }
             }
             .sheet(isPresented: $showingBarcodeScanner) {
@@ -268,6 +275,14 @@ struct GroceryListView: View {
         }
         saveList()
         HapticManager.instance.feedback(.medium)
+    }
+
+    private func updateManualItem(_ item: GroceryListItem) {
+        if let existingIndex = groceryList.firstIndex(where: { $0.id == item.id }) {
+            groceryList[existingIndex] = item
+            saveList()
+            HapticManager.instance.feedback(.medium)
+        }
     }
     
     private func loadList() async {
@@ -485,6 +500,7 @@ private struct GroceryCategorySection: View {
     let items: [GroceryListItem]
     @Binding var groceryList: [GroceryListItem]
     let onToggle: () -> Void
+    let onEdit: (GroceryListItem) -> Void
     let onDelete: (GroceryListItem) -> Void
 
     private var remainingCount: Int {
@@ -512,11 +528,13 @@ private struct GroceryCategorySection: View {
                         GroceryItemRow(
                             item: $groceryList[index],
                             onToggle: onToggle,
+                            onEdit: { onEdit(item) },
                             onDelete: { onDelete(item) }
                         )
                     }
                 }
             }
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: groceryList)
         }
     }
 }
@@ -524,6 +542,7 @@ private struct GroceryCategorySection: View {
 private struct GroceryItemRow: View {
     @Binding var item: GroceryListItem
     var onToggle: () -> Void
+    var onEdit: () -> Void
     var onDelete: () -> Void
     
     private var quantityText: String? {
@@ -726,6 +745,7 @@ private struct ManualGroceryItemSheet: View {
     @State private var unit = "item"
     @State private var category = "Misc"
 
+    var initialItem: GroceryListItem? = nil
     let onAdd: (GroceryListItem) -> Void
 
     private let categories = ["Produce", "Protein", "Carbohydrates", "Dairy", "Pantry", "Misc"]
@@ -757,11 +777,11 @@ private struct ManualGroceryItemSheet: View {
                                 .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Add Grocery Item")
+                                Text(initialItem == nil ? "Add Grocery Item" : "Edit Grocery Item")
                                     .font(.system(size: 24, weight: .bold))
                                     .foregroundColor(.textPrimary)
 
-                                Text("Add anything you need outside the generated meal plan.")
+                                Text(initialItem == nil ? "Add anything you need outside the generated meal plan." : "Update this item's details.")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(Color(UIColor.secondaryLabel))
                             }
@@ -842,14 +862,21 @@ private struct ManualGroceryItemSheet: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Button("Add Item") {
-                    onAdd(GroceryListItem(
+                Button(initialItem == nil ? "Add Item" : "Save Changes") {
+                    var newItem = initialItem ?? GroceryListItem(
                         name: trimmedName,
                         quantity: quantityValue,
                         unit: unit,
                         category: category,
                         source: "manual"
-                    ))
+                    )
+                    if initialItem != nil {
+                        newItem.name = trimmedName
+                        newItem.quantity = quantityValue
+                        newItem.unit = unit
+                        newItem.category = category
+                    }
+                    onAdd(newItem)
                     dismiss()
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -858,6 +885,19 @@ private struct ManualGroceryItemSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 12)
                 .background(Color.backgroundPrimary.opacity(0.98).ignoresSafeArea(edges: .bottom))
+            }
+        }
+        .onAppear {
+            if let item = initialItem {
+                name = item.name
+                let formatter = NumberFormatter()
+                formatter.maximumFractionDigits = 2
+                if item.quantity == floor(item.quantity) {
+                    formatter.maximumFractionDigits = 0
+                }
+                quantity = formatter.string(from: NSNumber(value: item.quantity)) ?? "\(item.quantity)"
+                unit = item.unit
+                category = item.category
             }
         }
     }

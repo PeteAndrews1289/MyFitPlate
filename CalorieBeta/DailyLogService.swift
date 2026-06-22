@@ -6,9 +6,13 @@ import FirebaseAnalytics
 class DailyLogService: ObservableObject {
     @Published var currentDailyLog: DailyLog?
     @Published var activelyViewedDate: Date = Calendar.current.startOfDay(for: Date())
+    @Published var smartSuggestions: [FoodItem] = []
     private let db = Firestore.firestore()
+    private let recentFoodStore = DailyLogRecentFoodStore()
+    lazy var journalEntryStore: JournalEntryStore = { JournalEntryStore(dailyLogService: self) }()
+    lazy var exerciseLogStore: ExerciseLogStore = { ExerciseLogStore(dailyLogService: self) }()
+    let customFoodStore = CustomFoodStore()
     private var logListener: ListenerRegistration?
-    private let recentFoodsCollection = "recentFoods"
     private let customFoodsCollection = "customFoods"
     weak var achievementService: AchievementService?
     weak var bannerService: BannerService?
@@ -33,7 +37,7 @@ class DailyLogService: ObservableObject {
         syncCurrentDailyLogToWidgets()
     }
 
-    private func publishCurrentDailyLog(_ log: DailyLog) {
+    func publishCurrentDailyLog(_ log: DailyLog) {
         self.currentDailyLog = log
         syncCurrentDailyLogToWidgets()
     }
@@ -120,8 +124,9 @@ class DailyLogService: ObservableObject {
             let success = await updateDailyLogAsync(for: userID, updatedLog: updatedLog)
 
             if success {
+                DailyLogNotifications.postFoodLogged(itemToAdd, userID: userID)
                 EcosystemSyncManager.shared.syncNutritionToHealthKit(item: itemToAdd)
-                self.addRecentFood(for: userID, foodItem: itemToAdd, source: "recipe")
+                self.recentFoodStore.addRecentFood(for: userID, foodItem: itemToAdd, source: "recipe")
 
                 Analytics.logEvent("food_logged", parameters: [
                     "source": "manual_add",
@@ -148,98 +153,7 @@ class DailyLogService: ObservableObject {
         }
     }
 
-     func addJournalEntry(for userID: String, entry: JournalEntry) async {
-        let dateToLog = self.activelyViewedDate
-        let dateString = dateFormatter.string(from: dateToLog)
-        let logRef = db.collection("users").document(userID).collection("dailyLogs").document(dateString)
 
-        do {
-            let encodedEntry = try Firestore.Encoder().encode(entry)
-
-            if self.currentDailyLog?.date == dateToLog {
-                await MainActor.run {
-                    if self.currentDailyLog?.journalEntries == nil {
-                        self.currentDailyLog?.journalEntries = []
-                    }
-                    self.currentDailyLog?.journalEntries?.append(entry)
-                }
-            }
-
-            try await logRef.updateData([
-                "journalEntries": FieldValue.arrayUnion([encodedEntry])
-            ])
-
-            Analytics.logEvent("journal_entry_added", parameters: [
-                "category": entry.category
-            ])
-
-             await MainActor.run {
-                self.bannerService?.showBanner(title: "Success", message: "Journal entry saved!")
-            }
-
-        } catch let error as NSError where error.domain == FirestoreErrorDomain && error.code == FirestoreErrorCode.notFound.rawValue {
-            let newLog = DailyLog(id: dateString, date: dateToLog, meals: [], journalEntries: [entry])
-
-             await MainActor.run {
-                 self.publishCurrentDailyLog(newLog)
-             }
-
-            do {
-                try logRef.setData(from: newLog)
-
-                Analytics.logEvent("journal_entry_added", parameters: [
-                    "category": entry.category
-                ])
-
-                await MainActor.run {
-                   self.bannerService?.showBanner(title: "Success", message: "Journal entry saved!")
-                }
-            } catch {
-                AppLog.data.error("Failed to create log document for journal entry: \(error.localizedDescription, privacy: .public)")
-                 await MainActor.run {
-                    self.bannerService?.showBanner(title: "Error", message: "Failed to save journal entry.", iconName: "xmark.circle.fill", iconColor: .red)
-                 }
-            }
-        } catch {
-            AppLog.data.error("Failed to update journal entries: \(error.localizedDescription, privacy: .public)")
-             await MainActor.run {
-                self.bannerService?.showBanner(title: "Error", message: "Failed to save journal entry.", iconName: "xmark.circle.fill", iconColor: .red)
-            }
-        }
-    }
-
-    func deleteJournalEntry(for userID: String, entry: JournalEntry) {
-        let dateToLog = self.activelyViewedDate
-        let dateString = dateFormatter.string(from: dateToLog)
-        let logRef = db.collection("users").document(userID).collection("dailyLogs").document(dateString)
-
-        if self.currentDailyLog?.date == dateToLog,
-           let index = self.currentDailyLog?.journalEntries?.firstIndex(where: { $0.id == entry.id }) {
-            DispatchQueue.main.async {
-                self.currentDailyLog?.journalEntries?.remove(at: index)
-            }
-        }
-
-        do {
-            let encodedEntry = try Firestore.Encoder().encode(entry)
-            logRef.updateData([
-                "journalEntries": FieldValue.arrayRemove([encodedEntry])
-            ]) { error in
-                Task { @MainActor in
-                    if let error = error {
-                        self.bannerService?.showBanner(title: "Error", message: "Failed to delete entry.", iconName: "xmark.circle.fill", iconColor: .red)
-                        AppLog.data.error("Failed to delete journal entry: \(error.localizedDescription, privacy: .public)")
-                    } else {
-                        AppLog.data.info("Journal entry deleted.")
-                    }
-                }
-            }
-        } catch {
-            Task { @MainActor in
-                self.bannerService?.showBanner(title: "Error", message: "Failed to encode entry for deletion.", iconName: "xmark.circle.fill", iconColor: .red)
-            }
-        }
-    }
 
     private func fetchLogInternalAsync(for userID: String, date: Date) async throws -> DailyLog {
         if Calendar.current.isDate(date, inSameDayAs: activelyViewedDate), let currentLog = currentDailyLog {
@@ -286,40 +200,7 @@ class DailyLogService: ObservableObject {
         NotificationManager.shared.scheduleCalendarNotification(.dailyLogReminder(hour: 20, minute: 00))
     }
 
-    func saveCustomFood(for userID: String, foodItem: FoodItem, completion: @escaping (Bool) -> Void) {
-        let ref = db.collection("users").document(userID).collection(customFoodsCollection).document(foodItem.id)
-        do {
-            try ref.setData(from: foodItem, merge: true) { error in
-                if error == nil {
-                    Analytics.logEvent("custom_food_saved", parameters: ["item_name": foodItem.name])
-                }
-                completion(error == nil)
-            }
-        } catch {
-            completion(false)
-        }
-    }
 
-    func deleteCustomFood(for userID: String, foodItemID: String, completion: @escaping (Bool) -> Void) {
-        let ref = db.collection("users").document(userID).collection(customFoodsCollection).document(foodItemID)
-        ref.delete { error in
-            completion(error == nil)
-        }
-    }
-
-    func fetchMyFoodItems(for userID: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        let ref = db.collection("users").document(userID).collection(customFoodsCollection).order(by: "name")
-        ref.getDocuments { snapshot, error in
-            if let error = error {
-                completion(.failure(error))
-                return
-            }
-            let foodItems: [FoodItem] = snapshot?.documents.compactMap { doc in
-                try? doc.data(as: FoodItem.self)
-            } ?? []
-            completion(.success(foodItems))
-        }
-    }
 
     func fetchLog(for userID: String, date: Date, completion: @escaping (Result<DailyLog, Error>) -> Void) {
         let startOfDayForRequestedDate = Calendar.current.startOfDay(for: date)
@@ -482,8 +363,9 @@ class DailyLogService: ObservableObject {
 
                 self.updateDailyLog(for: userID, updatedLog: log) { success in
                     if success {
+                        DailyLogNotifications.postFoodLogged(itemToAdd, userID: userID)
                         EcosystemSyncManager.shared.syncNutritionToHealthKit(item: itemToAdd)
-                        self.addRecentFood(for: userID, foodItem: itemToAdd, source: source)
+                        self.recentFoodStore.addRecentFood(for: userID, foodItem: itemToAdd, source: source)
 
                         Analytics.logEvent("food_logged", parameters: [
                             "source": source,
@@ -616,8 +498,9 @@ class DailyLogService: ObservableObject {
                         ])
 
                         allItemsWithTimestamp.forEach { item in
+                            DailyLogNotifications.postFoodLogged(item, userID: userID)
                             EcosystemSyncManager.shared.syncNutritionToHealthKit(item: item)
-                            self.addRecentFood(for: userID, foodItem: item, source: itemSource)
+                            self.recentFoodStore.addRecentFood(for: userID, foodItem: item, source: itemSource)
                         }
                         Task { @MainActor in
                             let message = nonEmptyGroups.count == 1 ? "\(nonEmptyGroups[0].mealName) logged!" : "Planned day logged!"
@@ -709,6 +592,7 @@ class DailyLogService: ObservableObject {
 
                       self.updateDailyLog(for: userID, updatedLog: log) { success in
                           if success && amount > 0 {
+                              EcosystemSyncManager.shared.syncWaterToHealthKit(ounces: amount, date: dateToLog)
                               Analytics.logEvent("water_logged", parameters: ["amount": amount])
                           }
                       }
@@ -722,165 +606,69 @@ class DailyLogService: ObservableObject {
          }
     }
 
-    func addExerciseToLog(for userID: String, exercise: LoggedExercise) {
-        let dateToLog = self.activelyViewedDate
-        fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .success(var log):
-                if log.exercises == nil { log.exercises = [] }
-                var exerciseToLog = exercise
-                exerciseToLog.date = dateToLog
-                log.exercises?.append(exerciseToLog)
-
-                DispatchQueue.main.async {
-                    self.publishCurrentDailyLog(log)
-                }
-
-                self.updateDailyLog(for: userID, updatedLog: log) { success in
-                     Task { @MainActor in
-                        if success {
-                            Analytics.logEvent("exercise_logged", parameters: [
-                                "source": exercise.source,
-                                "duration": exercise.durationMinutes ?? 0,
-                                "exercise_name": exercise.name,
-                                "calories": exercise.caloriesBurned
-                            ])
-
-                            self.bannerService?.showBanner(title: "Success", message: "\(exercise.name) logged!")
-                            self.achievementService?.updateChallengeProgress(for: userID, type: .workoutLogged, amount: 1)
-                            NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
-                        } else {
-                             self.bannerService?.showBanner(title: "Error", message: "Failed to log \(exercise.name).", iconName: "xmark.circle.fill", iconColor: .red)
-                        }
-                    }
-                }
-            case .failure(let error):
-                AppLog.data.error("Failed to fetch log for adding exercise: \(error.localizedDescription, privacy: .public)")
-                Task { @MainActor in
-                    self.bannerService?.showBanner(title: "Error", message: "Could not fetch log to add exercise.", iconName: "xmark.circle.fill", iconColor: .red)
-                }
-            }
-        }
+    func addWorkoutToCurrentLog(for userID: String, exerciseName: String, durationMinutes: Int?, caloriesBurned: Double) {
+        addWorkoutToLog(
+            for: userID,
+            date: activelyViewedDate,
+            exerciseName: exerciseName,
+            durationMinutes: durationMinutes,
+            caloriesBurned: caloriesBurned
+        )
     }
 
-    func deleteExerciseFromLog(for userID: String, exerciseID: String) {
-        let dateToLog = self.activelyViewedDate
+    func addWorkoutToLog(for userID: String, date: Date, exerciseName: String, durationMinutes: Int?, caloriesBurned: Double) {
+        let dateToLog = Calendar.current.startOfDay(for: date)
         fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
             guard let self = self else { return }
             switch result {
             case .success(var log):
-                let initialCount = log.exercises?.count ?? 0
-                var exerciseName: String?
-                 if let exToRemove = log.exercises?.first(where: { $0.id == exerciseID }) {
-                     exerciseName = exToRemove.name
-                 }
-                log.exercises?.removeAll { $0.id == exerciseID }
-                if (log.exercises?.count ?? 0) < initialCount {
+                let exercise = LoggedExercise(
+                    name: exerciseName,
+                    durationMinutes: durationMinutes,
+                    caloriesBurned: caloriesBurned,
+                    date: Date(),
+                    source: "ai_chat"
+                )
+                
+                if log.exercises == nil {
+                    log.exercises = []
+                }
+                log.exercises?.append(exercise)
 
-                    DispatchQueue.main.async {
+                DispatchQueue.main.async {
+                    if let currentLog = self.currentDailyLog, currentLog.id == log.id {
                         self.publishCurrentDailyLog(log)
                     }
 
                     self.updateDailyLog(for: userID, updatedLog: log) { success in
-                         Task { @MainActor in
-                            if success {
-                                 self.bannerService?.showBanner(title: "Deleted", message: "\(exerciseName ?? "Exercise") removed.")
-                                NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
-                             } else {
-                                self.bannerService?.showBanner(title: "Error", message: "Failed to delete exercise.", iconName: "xmark.circle.fill", iconColor: .red)
-                            }
+                        if success {
+                            Analytics.logEvent("workout_logged_ai", parameters: ["exercise_name": exerciseName])
                         }
                     }
                 }
             case .failure(let error):
-                AppLog.data.error("Failed to fetch log for deleting exercise: \(error.localizedDescription, privacy: .public)")
-             Task { @MainActor in
-                 self.bannerService?.showBanner(title: "Error", message: "Could not fetch log to delete exercise.", iconName: "xmark.circle.fill", iconColor: .red)
-             }
-            }
-        }
-    }
-
-    func addOrUpdateHealthKitWorkouts(for userID: String, exercises: [LoggedExercise], date: Date, completion: (() -> Void)? = nil) {
-        let dateToLog = Calendar.current.startOfDay(for: date)
-
-        fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
-            guard let self = self else {
-                completion?()
-                return
-            }
-            switch result {
-            case .success(var log):
-                if log.exercises == nil {
-                    log.exercises = []
-                }
-
-                log.exercises?.removeAll { $0.source == "HealthKit" }
-                log.exercises?.append(contentsOf: exercises)
-
-                DispatchQueue.main.async {
-                    if Calendar.current.isDate(log.date, inSameDayAs: self.activelyViewedDate) {
-                        self.publishCurrentDailyLog(log)
-                    }
-                }
-
-                self.updateDailyLog(for: userID, updatedLog: log) { success in
-                    DispatchQueue.main.async {
-                         if success {
-                            Analytics.logEvent("healthkit_sync_workouts", parameters: [
-                                "count": exercises.count
-                            ])
-                            NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
-                         }
-                         completion?()
-                    }
-                }
-            case .failure(let error):
-                AppLog.health.error("Failed to fetch log for HealthKit workout sync: \(error.localizedDescription, privacy: .public)")
-                completion?()
-            }
-        }
-    }
-
-    private func addRecentFood(for userID: String, foodItem: FoodItem, source: String) {
-        guard !userID.isEmpty else { return }
-        let ref = db.collection("users").document(userID).collection(recentFoodsCollection)
-        let ts = Timestamp(date: Date())
-
-        let stableIDString = foodItem.name
-        let stableID = Data(stableIDString.utf8).base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-")
-
-        do {
-            var data = try Firestore.Encoder().encode(foodItem)
-            data["timestamp"] = ts
-            data["source"] = source
-
-            ref.document(stableID).setData(data, merge: false) { error in
-                if let error = error {
-                    AppLog.data.error("Failed to add or update recent food: \(error.localizedDescription, privacy: .public)")
+                AppLog.data.error("Failed to fetch log for adding workout: \(error.localizedDescription, privacy: .public)")
+                Task { @MainActor in
+                    self.bannerService?.showBanner(title: "Error", message: "Could not log workout.", iconName: "xmark.circle.fill", iconColor: .red)
                 }
             }
-        } catch {
-            AppLog.data.error("Failed to encode recent food: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     func fetchRecentFoodItems(for userID: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        guard !userID.isEmpty else {
-            completion(.failure(NSError(domain: "DailyLogService", code: -1, userInfo: [NSLocalizedDescriptionKey: "User ID is empty."])))
-            return
-        }
-        let ref = db.collection("users").document(userID).collection(recentFoodsCollection).order(by: "timestamp", descending: true).limit(to: 10)
-        ref.getDocuments { snapshot, error in
-            if let e = error {
-                completion(.failure(e))
-                return
+        recentFoodStore.fetchRecentFoodItems(for: userID, completion: completion)
+    }
+
+    func loadSmartSuggestions(for userID: String) {
+        fetchRecentFoodItems(for: userID) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let items):
+                    self?.smartSuggestions = SmartSuggestionBuilder.uniqueRecentFoods(from: items)
+                case .failure(let error):
+                    AppLog.data.error("Failed to load smart suggestions: \(error.localizedDescription, privacy: .public)")
+                }
             }
-            let foodItems: [FoodItem] = snapshot?.documents.compactMap { doc in
-                try? doc.data(as: FoodItem.self)
-            } ?? []
-            completion(.success(foodItems))
         }
     }
 
@@ -928,8 +716,4 @@ class DailyLogService: ObservableObject {
       private func determineMealType() -> String {
           let hour = Calendar.current.component(.hour, from: Date()); switch hour { case 0..<4: return "Snack"; case 4..<11: return "Breakfast"; case 11..<16: return "Lunch"; case 16..<21: return "Dinner"; default: return "Snack" }
       }
-}
-
-extension Notification.Name {
-    static let didUpdateExerciseLog = Notification.Name("didUpdateExerciseLog")
 }

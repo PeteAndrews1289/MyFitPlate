@@ -31,8 +31,7 @@ struct CycleTrackingView: View {
                             .padding()
                             .frame(minHeight: 300)
                     } else if let insight = cycleService.aiInsight {
-                        CyclePhaseDescriptionView(insight: insight)
-                        CycleInsightCard(insight: insight)
+                        MaiaCycleInsightCard(insight: insight)
                     }
 
                 } else {
@@ -120,20 +119,3 @@ struct CyclePhaseRingView: View {
     }
 }
 
-struct CyclePhaseDescriptionView: View {
-    let insight: AIInsight
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(insight.phaseTitle)
-                .appFont(size: 22, weight: .bold)
-                .foregroundColor(.brandPrimary)
-            
-            Text(insight.phaseDescription)
-                .appFont(size: 15)
-        }
-        .padding()
-        .background(Color.backgroundSecondary)
-        .cornerRadius(15)
-    }
-}

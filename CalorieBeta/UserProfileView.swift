@@ -39,22 +39,25 @@ struct UserProfileView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                profileHeader()
-                userLevelAndPointsSection()
-                weeklyChallengesSection()
+        ZStack {
+            AnimatedBackgroundView()
+            
+            ScrollView {
+                VStack(spacing: 18) {
+                    profileHeader()
+                    userLevelAndPointsSection()
+                    weeklyChallengesSection()
 
-                dailyStats()
-                achievementsSection(
-                    definitions: achievementService.achievementDefinitions,
-                    statuses: achievementService.userStatuses,
-                    isLoading: achievementService.isLoading
-                )
+                    dailyStats()
+                    achievementsSection(
+                        definitions: achievementService.achievementDefinitions,
+                        statuses: achievementService.userStatuses,
+                        isLoading: achievementService.isLoading
+                    )
+                }
+                .padding()
             }
-            .padding()
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
         .onAppear {
              if let userID = Auth.auth().currentUser?.uid {
                   goalSettings.loadUserGoals(userID: userID)
@@ -99,15 +102,17 @@ struct UserProfileView: View {
 
                   Text(userLevelDisplay)
                       .appFont(size: 12, weight: .bold)
-                      .foregroundColor(.brandPrimary)
+                      .foregroundColor(.white)
                       .padding(.horizontal, 10)
                       .padding(.vertical, 6)
-                      .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                      .background(Color.brandPrimary, in: Capsule())
+                      .shadow(color: .brandPrimary.opacity(0.4), radius: 4, x: 0, y: 2)
               }
 
              Spacer()
           }
-         .asCard()
+         .padding(20)
+         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
     func userLevelAndPointsSection() -> some View {
@@ -151,7 +156,8 @@ struct UserProfileView: View {
                 }
             }
         }
-        .asCard()
+        .padding(20)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
     func weeklyChallengesSection() -> some View {
@@ -183,7 +189,8 @@ struct UserProfileView: View {
                 Image(systemName: "chevron.right")
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
-            .asCard()
+            .padding(20)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -211,7 +218,8 @@ struct UserProfileView: View {
                 .foregroundColor(Color(UIColor.secondaryLabel))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .asCard()
+        .padding(20)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
     func achievementsSection(definitions: [AchievementDefinition], statuses: [String: UserAchievementStatus], isLoading: Bool) -> some View {
@@ -235,7 +243,7 @@ struct UserProfileView: View {
                     .appFont(size: 15)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .asCard()
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             }
             else {
                  let sortedDefinitions = definitions.sorted { d1, d2 in
@@ -280,42 +288,53 @@ struct AchievementCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: definition.iconName)
+                Image(systemName: isUnlocked ? definition.iconName : "lock.fill")
                     .font(.title2)
-                    .foregroundColor(isUnlocked ? .yellow : Color(UIColor.secondaryLabel))
-                    .frame(width: 34, height: 34)
-                    .background((isUnlocked ? Color.yellow : Color(UIColor.secondaryLabel)).opacity(0.12), in: Circle())
+                    .foregroundColor(isUnlocked ? .white : Color(UIColor.secondaryLabel))
+                    .frame(width: 38, height: 38)
+                    .background((isUnlocked ? Color.brandPrimary : Color(UIColor.secondaryLabel)).opacity(0.8), in: Circle())
+                    .shadow(color: isUnlocked ? .brandPrimary.opacity(0.5) : .clear, radius: 4, x: 0, y: 2)
+                    
                 Text(definition.title)
-                    .appFont(size: 15, weight: .semibold)
+                    .appFont(size: 15, weight: .bold)
                     .foregroundColor(isUnlocked ? .textPrimary : Color(UIColor.secondaryLabel))
                     .lineLimit(1)
                 Spacer()
                 Text("\(definition.pointsValue) pts")
                     .appFont(size: 10, weight: .bold)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background((isUnlocked ? Color.yellow.opacity(0.7) : Color(UIColor.secondaryLabel).opacity(0.3)))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background((isUnlocked ? Color.brandPrimary.opacity(0.2) : Color(UIColor.secondaryLabel).opacity(0.2)))
                     .cornerRadius(5)
-                    .foregroundColor(isUnlocked ? .black.opacity(0.7) : Color(UIColor.secondaryLabel))
+                    .foregroundColor(isUnlocked ? .brandPrimary : Color(UIColor.secondaryLabel))
             }
-            Text(definition.description).appFont(size: 12).foregroundColor(Color(UIColor.secondaryLabel)).frame(minHeight: 30 ,alignment: .top).fixedSize(horizontal: false, vertical: true)
+            
+            Text(definition.description)
+                .appFont(size: 13)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .frame(minHeight: 35 ,alignment: .top)
+                .fixedSize(horizontal: false, vertical: true)
 
             if !isUnlocked && definition.criteriaValue > 0 && definition.criteriaType != .featureUsed {
-                VStack(spacing: 2) {
+                VStack(spacing: 4) {
                     ProgressView(value: progressFraction)
                         .progressViewStyle(LinearProgressViewStyle(tint: .brandPrimary))
                         .frame(height: 6)
+                    
                     if definition.criteriaValue > 1 || (definition.criteriaValue == 1 && progress > 0 && progress < 1 && definition.criteriaType != .featureUsed) {
                         Text(progressText)
-                            .appFont(size: 10)
+                            .appFont(size: 11, weight: .semibold)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
-                }.padding(.top, 4)
+                }.padding(.top, 6)
              } else if isUnlocked {
                  HStack {
-                     Text("Unlocked!")
-                     if let date = status?.unlockedDate { Text(date, style: .date) }
+                     Image(systemName: "checkmark.seal.fill")
+                     Text("Unlocked")
+                     if let date = status?.unlockedDate {
+                         Text(date, style: .date)
+                     }
 
                      Spacer()
 
@@ -326,24 +345,28 @@ struct AchievementCardView: View {
                      ) {
                          Image(systemName: "square.and.arrow.up")
                              .foregroundColor(.brandPrimary)
-                             .font(.system(size: 14, weight: .bold))
-                             .padding(6)
+                             .font(.system(size: 16, weight: .bold))
+                             .padding(8)
                              .background(Color.brandPrimary.opacity(0.15))
                              .clipShape(Circle())
                      }
                  }
                  .appFont(size: 12, weight: .bold)
-                 .foregroundColor(.accentPositive)
-                 .padding(.top, 4)
+                 .foregroundColor(.brandPrimary)
+                 .padding(.top, 8)
             } else {
                  Spacer().frame(height: 12)
             }
              Spacer(minLength: 0)
         }
-        .padding(12)
-        .frame(minHeight: 120)
-        .asCard()
-        .opacity(isUnlocked ? 1.0 : (definition.secret && !isUnlocked ? 0.35 : 0.7))
+        .padding(16)
+        .frame(minHeight: 130)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(isUnlocked ? Color.brandPrimary.opacity(0.5) : Color.clear, lineWidth: 1.5)
+        )
+        .opacity(isUnlocked ? 1.0 : (definition.secret && !isUnlocked ? 0.35 : 0.8))
         .overlay(
             Group {
                 if definition.secret && !isUnlocked {

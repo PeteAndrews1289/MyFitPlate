@@ -224,6 +224,7 @@ struct CaloricCalculatorView: View {
             return
         }
         
+        goalSettings.calorieGoalMethod = .custom
         goalSettings.calories = calorieValue
         if let targetWeightValue = Double(targetWeightInput) {
             goalSettings.targetWeight = targetWeightValue
