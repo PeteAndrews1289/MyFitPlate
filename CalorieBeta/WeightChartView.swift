@@ -13,8 +13,13 @@ struct WeightChartView: View {
         let weightsInHistory = sortedHistory.map { $0.weight }
         let minWeight = weightsInHistory.min() ?? currentWeight
         let maxWeight = weightsInHistory.max() ?? currentWeight
-        let padding = max(5.0, (maxWeight - minWeight) * 0.2)
-        
+        // Tight padding so the area hugs the data instead of leaving a huge empty slab below it.
+        let padding = max(2.0, (maxWeight - minWeight) * 0.25)
+        // Clamp the x-axis to the actual data so the line/area doesn't trail off past the last point.
+        let firstDate = sortedHistory.first?.date ?? Date()
+        let lastRaw = sortedHistory.last?.date ?? Date()
+        let lastDate = lastRaw > firstDate ? lastRaw : (Calendar.current.date(byAdding: .day, value: 1, to: firstDate) ?? firstDate)
+
         Chart {
             ForEach(sortedHistory, id: \.id) { item in
                 LineMark(
@@ -46,6 +51,7 @@ struct WeightChartView: View {
             }
         }
         .chartYScale(domain: max(0, minWeight - padding)...(maxWeight + padding))
+        .chartXScale(domain: firstDate...lastDate)
         .chartXAxis {
             AxisMarks(preset: .aligned, values: .automatic(desiredCount: 5)) { value in
                 if let date = value.as(Date.self) {

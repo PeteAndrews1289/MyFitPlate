@@ -25,6 +25,7 @@ struct HomeView: View {
     @State private var showingAddExerciseView = false
 
     @State private var showingWeightEntrySheet = false
+    @State private var showingFastingSheet = false
     @State private var showingDetailedInsights = false
     @State private var showingNutritionAudit = false
 
@@ -128,32 +129,12 @@ struct HomeView: View {
                                 .padding(.horizontal)
                                 .id("quickActions")
 
-                            if let currentDailyLog = currentLogForSelectedDate {
-                                let insightToShow = insightsService.isLoadingInsights ? nil : weeklyInsight
-
-                                WaterTrackingCardView(date: currentDailyLog.date, insight: insightToShow)
-                                    // Removed shimmering
-                                    .asCard()
-                                    .background(colorScheme == .dark ? Color.backgroundPrimary : Color.brandPrimary.opacity(0.03))
-                                    .cornerRadius(20)
-                                    .featureSpotlight(isActive: isSpotlightActive(for: "waterTracker"))
-                                    .id("waterTracker")
-                                    .padding(.horizontal)
-
-                                FastingTrackerCard()
-                                    .padding(.horizontal)
-
+                            if currentLogForSelectedDate != nil {
                                 HealthActivityCard()
                                     .padding(.horizontal)
 
                                 weightTrackingCard
                                     .padding(.horizontal)
-                            }
-
-                            if !dailyLogService.smartSuggestions.isEmpty && isToday {
-                                smartSuggestionsSection
-                                    .padding(.horizontal)
-                                    .id("smartSuggestions")
                             }
 
                             foodDiarySection
@@ -312,6 +293,22 @@ struct HomeView: View {
           .sheet(isPresented: $showingWeightEntrySheet) {
               CurrentWeightView()
                   .environmentObject(goalSettings)
+          }
+          .sheet(isPresented: $showingFastingSheet) {
+              NavigationStack {
+                  ScrollView {
+                      FastingTrackerCard()
+                          .padding()
+                  }
+                  .background(Color.backgroundPrimary.ignoresSafeArea())
+                  .navigationTitle("Fasting")
+                  .navigationBarTitleDisplayMode(.inline)
+                  .toolbar {
+                      ToolbarItem(placement: .cancellationAction) {
+                          Button("Done") { showingFastingSheet = false }
+                      }
+                  }
+              }
           }
           .sheet(isPresented: $showingMenuScanner) {
               menuScannerSheet
@@ -609,6 +606,32 @@ struct HomeView: View {
                     .buttonStyle(.plain)
                     .featureSpotlight(isActive: isSpotlightActive(for: "menuScanner"))
                     
+                    Button(action: {
+                        HapticFeedback.selection()
+                        self.showingWeightEntrySheet = true
+                    }) {
+                        QuickActionButton(
+                            icon: "scalemass.fill",
+                            label: "Log Weight",
+                            subtitle: "Track body metrics",
+                            color: .teal
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: {
+                        HapticFeedback.selection()
+                        self.showingFastingSheet = true
+                    }) {
+                        QuickActionButton(
+                            icon: "timer",
+                            label: "Fasting",
+                            subtitle: "Start or track a fast",
+                            color: .orange
+                        )
+                    }
+                    .buttonStyle(.plain)
+
                     Button(action: { self.showSettings = true }) {
                         QuickActionButton(
                             icon: "gearshape.fill",

@@ -108,9 +108,14 @@ struct WeightTrackingView: View {
                             .tint(.brandPrimary)
                         }
                         
-                        ProgressView(value: currentProgress)
-                            .progressViewStyle(LinearProgressViewStyle(tint: Color.brandPrimary))
-                            .scaleEffect(x: 1, y: 2, anchor: .center)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Color.brandPrimary.opacity(0.14))
+                                Capsule().fill(Color.brandPrimary)
+                                    .frame(width: max(8, geo.size.width * CGFloat(min(max(currentProgress, 0), 1))))
+                            }
+                        }
+                        .frame(height: 10)
                         
                         HStack {
                             Text("Initial: \(numberFormatter.string(from: NSNumber(value: initial)) ?? "") lb")
@@ -128,9 +133,7 @@ struct WeightTrackingView: View {
                              StatBox(value: weightRemaining.map { String(format: "%.1f lb", abs($0)) } ?? "N/A", label: "To Go")
                         }
                     }
-                    .padding()
-                    .background(Color.backgroundSecondary)
-                    .cornerRadius(15)
+                    .asCard()
                 } else {
                     Button("Set Target Weight & Goals") {
                         targetWeightInput = numberFormatter.string(from: NSNumber(value: goalSettings.weight)) ?? ""
@@ -142,7 +145,7 @@ struct WeightTrackingView: View {
                 Button(action: { showingWeightEntrySheet = true }) {
                     Label("Log Current Weight", systemImage: "plus")
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(PrimaryButtonStyle())
 
                 if let initialWt = initialWeightForCurrentGoalPeriod,
                    let targetWt = goalSettings.targetWeight,

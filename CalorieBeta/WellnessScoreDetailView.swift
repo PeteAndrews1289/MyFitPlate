@@ -85,7 +85,8 @@ struct WellnessScoreDetailView: View {
                                     title: "Nutrition Score",
                                     score: wellnessScore.nutritionScore,
                                     description: "Based on how well you met your calorie, macro, and food quality goals yesterday.",
-                                    color: .accentColor
+                                    color: .accentColor,
+                                    icon: "fork.knife"
                                 )
                             }
                             
@@ -94,7 +95,8 @@ struct WellnessScoreDetailView: View {
                                     title: "Sleep Score",
                                     score: wellnessScore.sleepScore,
                                     description: wellnessScore.sleepScore == nil ? "Sleep data is not available yet. Review Apple Health access." : "Calculated from your total sleep duration.",
-                                    color: .blue
+                                    color: .blue,
+                                    icon: "moon.fill"
                                 )
                             }
                             
@@ -103,7 +105,8 @@ struct WellnessScoreDetailView: View {
                                     title: "Recovery Score",
                                     score: wellnessScore.recoveryScore,
                                     description: "Reflects your body's readiness based on Resting Heart Rate and HRV.",
-                                    color: .purple
+                                    color: .purple,
+                                    icon: "heart.fill"
                                 )
                             }
                         }
@@ -130,38 +133,73 @@ struct WellnessScoreDetailView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 8) {
-            Text("\(wellnessScore.overallScore)")
-                .font(.system(size: 80, weight: .black, design: .rounded))
-                .foregroundColor(wellnessScore.color)
-                .shadow(color: wellnessScore.color.opacity(0.3), radius: 10, x: 0, y: 5)
-            
+        VStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .stroke(wellnessScore.color.opacity(0.16), lineWidth: 12)
+                Circle()
+                    .trim(from: 0, to: CGFloat(min(Double(wellnessScore.overallScore) / 100.0, 1.0)))
+                    .stroke(wellnessScore.color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeInOut(duration: 0.9), value: wellnessScore.overallScore)
+                VStack(spacing: 0) {
+                    Text("\(wellnessScore.overallScore)")
+                        .font(.system(size: 46, weight: .heavy, design: .rounded))
+                        .foregroundColor(.textPrimary)
+                    Text("/ 100")
+                        .appFont(size: 13, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+            }
+            .frame(width: 132, height: 132)
+
             Text(wellnessScore.summary)
-                .font(.title3)
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
+                .appFont(size: 17, weight: .semibold)
+                .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
         }
-        .padding(.vertical, 20)
+        .padding(.vertical, 14)
     }
-    
-    private func detailRow(title: String, score: Int?, description: String, color: Color) -> some View {
+
+    private func detailRow(title: String, score: Int?, description: String, color: Color, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(title).font(.title2).bold()
-                Spacer()
-                Text(score.map { "\($0)/100" } ?? "--")
-                    .font(.title2).bold()
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(color)
+                    .frame(width: 38, height: 38)
+                    .background(color.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                Text(title)
+                    .appFont(size: 17, weight: .bold)
+                    .foregroundColor(.textPrimary)
+
+                Spacer()
+
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text(score.map { "\($0)" } ?? "--")
+                        .appFont(size: 22, weight: .heavy)
+                        .foregroundColor(color)
+                    Text(score != nil ? "/100" : "")
+                        .appFont(size: 12, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
             }
 
-            ProgressView(value: Double(score ?? 0) / 100.0)
-                .tint(color)
-            
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(color.opacity(0.14))
+                    Capsule().fill(color)
+                        .frame(width: max(9, geo.size.width * CGFloat(min(Double(score ?? 0) / 100.0, 1.0))))
+                }
+            }
+            .frame(height: 9)
+
             Text(description)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .appFont(size: 13)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

@@ -13,7 +13,7 @@ struct NutritionProgressView: View {
     @AppStorage("includeActiveCaloriesInGoal") var includeActiveCaloriesInGoal: Bool = false
 
     private let swipeThreshold: CGFloat = 50
-    private let totalViews = 4
+    private let totalViews = 3
 
     @State private var showingAudit = false
 
@@ -29,9 +29,6 @@ struct NutritionProgressView: View {
         let fatsGoal = max(goal.fats, 1)
         let carbsGoal = max(goal.carbs, 1)
         let caloriesPercentage = min(totalCalories / caloriesGoal, 1.0)
-        let proteinPercentage = min(protein / proteinGoal, 1.0)
-        let fatsPercentage = min(fats / fatsGoal, 1.0)
-        let carbsPercentage = min(carbs / carbsGoal, 1.0)
         let consistencyStatus = dailyLog.calorieConsistencyStatus()
 
         VStack(spacing: 16) {
@@ -41,12 +38,9 @@ struct NutritionProgressView: View {
                     summaryView(calories: totalCalories, caloriesGoal: caloriesGoal, caloriesPercentage: caloriesPercentage, protein: protein, proteinGoal: proteinGoal, fats: fats, fatsGoal: fatsGoal, carbs: carbs, carbsGoal: carbsGoal)
                         .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
                  case 1:
-                     bubblesView(calories: totalCalories, caloriesGoal: caloriesGoal, caloriesPercentage: caloriesPercentage, protein: protein, proteinGoal: proteinGoal, proteinPercentage: proteinPercentage, fats: fats, fatsGoal: fatsGoal, fatsPercentage: fatsPercentage, carbs: carbs, carbsGoal: carbsGoal, carbsPercentage: carbsPercentage)
-                     .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+                     WaterTrackingCardView(date: dailyLog.date, insight: nil)
+                         .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
                  case 2:
-                     HorizontalBarChartView(dailyLog: dailyLog, goal: goal)
-                      .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-                 case 3:
                      MicronutrientProgressView(dailyLog: dailyLog, goalSettings: goal)
                          .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
                  default: EmptyView()
@@ -114,7 +108,7 @@ struct NutritionProgressView: View {
                     percentage: caloriesPercentage,
                     label: "",
                     unit: "cal",
-                    color: .red
+                    color: .brandPrimary
                 )
             }
 
@@ -273,7 +267,7 @@ struct NutritionConsistencyNoticeCard: View {
 
 private struct DotIndicator: View {
     @ObservedObject var goalSettings: GoalSettings
-    let totalDots: Int = 4
+    let totalDots: Int = 3
     var body: some View {
         HStack(spacing: 8) {
             ForEach(0..<totalDots, id: \.self) { index in

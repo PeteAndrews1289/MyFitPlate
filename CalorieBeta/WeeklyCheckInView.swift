@@ -304,14 +304,14 @@ struct TrendDashboardView: View {
                                 endPoint: .bottom
                             )
                         )
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
 
                         LineMark(
                             x: .value("Date", item.date),
                             y: .value("Weight", item.weight)
                         )
                         .foregroundStyle(Color.brandPrimary)
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
                         .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
                     }
                 }
@@ -340,6 +340,7 @@ struct TrendDashboardView: View {
                     }
                 }
                 .frame(height: 200)
+                .clipped()
             }
         }
         .padding(20)
