@@ -76,16 +76,6 @@ class AppState: ObservableObject {
     }
 }
 
-// Global helper function to read the API key from the project's configuration.
-func getAPIKey() -> String {
-    if let envKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"], !envKey.isEmpty {
-        return envKey
-    }
-    guard let key = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String else {
-        return ""
-    }
-    return key
-}
 
 enum AppLog {
     static let app = Logger(subsystem: subsystem, category: "App")

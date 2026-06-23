@@ -202,9 +202,9 @@ private struct MealScoreExpandedSection: View {
 
                 VStack(spacing: 16) {
                     MacroBar(title: "Calories", actual: score.actualCalories, goal: score.goalCalories, color: .orange, unit: "kcal")
-                    MacroBar(title: "Protein", actual: score.actualProtein, goal: score.goalProtein, color: .red, unit: "g")
-                    MacroBar(title: "Carbs", actual: score.actualCarbs, goal: score.goalCarbs, color: .blue, unit: "g")
-                    MacroBar(title: "Fats", actual: score.actualFats, goal: score.goalFats, color: .yellow, unit: "g")
+                    MacroBar(title: "Protein", actual: score.actualProtein, goal: score.goalProtein, color: .accentProtein, unit: "g")
+                    MacroBar(title: "Carbs", actual: score.actualCarbs, goal: score.goalCarbs, color: .accentCarbs, unit: "g")
+                    MacroBar(title: "Fats", actual: score.actualFats, goal: score.goalFats, color: .accentFats, unit: "g")
                 }
                 
                 if !score.improvementTips.isEmpty {

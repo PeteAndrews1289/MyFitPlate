@@ -14,14 +14,12 @@ struct ChallengesView: View {
                         .padding(.bottom)
 
                     if achievementService.activeChallenges.isEmpty {
-                        Text("No active challenges right now. Check back next week!")
-                            .appFont(size: 17, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .multilineTextAlignment(.center)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .padding(20)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        GuidanceEmptyState(
+                            icon: "trophy",
+                            title: "No active challenges",
+                            message: "New weekly challenges drop regularly — check back soon to earn more rewards."
+                        )
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                     } else {
                         ForEach(achievementService.activeChallenges) { challenge in
                             ChallengeCardView(challenge: challenge)

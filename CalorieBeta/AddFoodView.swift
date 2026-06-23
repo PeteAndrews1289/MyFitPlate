@@ -264,6 +264,7 @@ struct AddFoodView: View {
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(sourceType: .camera) { image in
                 isProcessingLabel = true
+                AnalyticsManager.aiFeatureUsed(.nutritionLabel)
                 imageModel.parseNutritionLabel(from: image) { result in
                     isProcessingLabel = false
                     switch result {

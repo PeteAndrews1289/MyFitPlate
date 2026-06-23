@@ -1057,6 +1057,7 @@ struct AIChatbotView: View {
 
         let userMsg = ChatMessage(id: UUID(), text: trimmedMessage, isUser: true)
         chatMessages.append(userMsg)
+        AnalyticsManager.aiFeatureUsed(.maiaChat)
         HapticManager.instance.feedback(.light)
 
         let msgToSend = userMessage

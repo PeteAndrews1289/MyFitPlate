@@ -34,7 +34,23 @@ class MockHealthKitManager: HealthKitManaging {
     func fetchTodayActiveEnergy(completion: @escaping (Double) -> Void) {
         completion(300)
     }
-    
+
+    func fetchBiologicalSex() -> HKBiologicalSexObject? {
+        return nil
+    }
+
+    func fetchTodayDistance(completion: @escaping (Double) -> Void) {
+        completion(0)
+    }
+
+    func fetchTodayFlights(completion: @escaping (Double) -> Void) {
+        completion(0)
+    }
+
+    func fetchTodayExerciseTime(completion: @escaping (Double) -> Void) {
+        completion(0)
+    }
+
     func saveNutrition(for foodItem: FoodItem) {
         // no-op for tests
     }

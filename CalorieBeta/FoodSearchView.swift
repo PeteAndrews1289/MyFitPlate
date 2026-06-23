@@ -30,6 +30,7 @@ struct FoodSearchView: View {
     @State private var scanError: (Bool, String) = (false, "")
 
     private let foodAPIService = FatSecretFoodAPIService()
+    private let usdaService = USDAFoodAPIService()
     private let imageModel = MLImageModel()
 
     var body: some View {
@@ -84,20 +85,29 @@ struct FoodSearchView: View {
                     BarcodeScannerView { barcode in
                         self.showingBarcodeScanner = false
                         self.isSearchingAfterScan = true
-                        foodAPIService.fetchFoodByBarcode(barcode: barcode) { result in
-                            self.isSearchingAfterScan = false
-                            switch result {
-                            case .success(let foodItem):
-                                self.scannedFoodItem = foodItem
-                            case .failure(let error):
-                                self.scanError = (true, "Could not find a food for this barcode. Error: \(error.localizedDescription)")
+                        AnalyticsManager.log(.barcodeScanned)
+                        Task { @MainActor in
+                            if let item = await withCheckedContinuation({ cont in
+                                foodAPIService.fetchFoodByBarcode(barcode: barcode) { cont.resume(returning: try? $0.get()) }
+                            }) {
+                                self.isSearchingAfterScan = false
+                                self.scannedFoodItem = item
+                                return
                             }
+                            if let item = await usdaService.lookupBarcode(barcode) {
+                                self.isSearchingAfterScan = false
+                                self.scannedFoodItem = item
+                                return
+                            }
+                            self.isSearchingAfterScan = false
+                            self.scanError = (true, "No food found for this barcode.")
                         }
                     }
                 }
                 .sheet(isPresented: $showingImagePicker) {
                     ImagePicker(sourceType: .camera) { image in
                         self.isProcessingImage = true
+                        AnalyticsManager.aiFeatureUsed(.mealPhoto)
                         imageModel.estimateNutritionFromImage(image: image) { result in
                             self.isProcessingImage = false
                             switch result {
@@ -112,6 +122,7 @@ struct FoodSearchView: View {
                 .sheet(isPresented: $showingMenuImagePicker) {
                     ImagePicker(sourceType: .camera) { image in
                         self.isProcessingImage = true
+                        AnalyticsManager.aiFeatureUsed(.menuPhoto)
                         imageModel.estimateMenuFromImage(image: image) { result in
                             self.isProcessingImage = false
                             switch result {
@@ -142,7 +153,7 @@ struct FoodSearchView: View {
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,
                         date: dailyLogService.activelyViewedDate,
-                        source: "barcode_result",
+                        source: foodItem.id.hasPrefix("usda_") ? "usda_barcode" : "barcode_result",
                         targetMealName: viewModel.selectedMeal,
                         onLogUpdated: {
                             self.scannedFoodItem = nil
@@ -260,7 +271,7 @@ struct FoodSearchView: View {
             FoodSearchEmptyState(
                 icon: "magnifyingglass",
                 title: "No foods found",
-                message: "Try a simpler search like \"chicken breast\" or use Manual to add it yourself."
+                message: "Try a simpler search like \"chicken breast\", or add it manually."
             )
         } else {
             FoodPickerSection(

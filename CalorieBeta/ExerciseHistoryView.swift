@@ -22,9 +22,11 @@ struct ExerciseHistoryView: View {
         if viewModel.isLoading {
             ProgressView("Loading History...")
         } else if viewModel.history.isEmpty {
-            Text("No history found for \(exerciseName).")
-                .foregroundColor(.secondary)
-                .padding()
+            GuidanceEmptyState(
+                icon: "clock.arrow.circlepath",
+                title: "No history yet",
+                message: "Once you log a workout with \(exerciseName), your past sets and trends will show up here."
+            )
         } else {
             List(viewModel.history) { session in
                 SessionRowView(session: session)

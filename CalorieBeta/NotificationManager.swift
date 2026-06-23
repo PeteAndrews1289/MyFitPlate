@@ -97,6 +97,31 @@ class NotificationManager {
             }
         }
     }
+
+    func requestDailyLogReminderAuthorization() {
+        requestAuthorization { granted in
+            guard granted else { return }
+            let hour = UserDefaults.standard.object(forKey: "notificationHour") as? Int ?? 20
+            let minute = UserDefaults.standard.object(forKey: "notificationMinute") as? Int ?? 0
+            self.scheduleCalendarNotification(.dailyLogReminder(hour: hour, minute: minute))
+        }
+    }
+
+    func scheduleDailyLogReminderIfAuthorized() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                let hour = UserDefaults.standard.object(forKey: "notificationHour") as? Int ?? 20
+                let minute = UserDefaults.standard.object(forKey: "notificationMinute") as? Int ?? 0
+                self.scheduleCalendarNotification(.dailyLogReminder(hour: hour, minute: minute))
+            case .denied, .notDetermined:
+                break
+            @unknown default:
+                break
+            }
+        }
+    }
+
     func scheduleSmartNudge(title: String, body: String, delayHours: Double) {
         // Cancel existing nudge to avoid stacking
         cancelNotification(identifier: "smart_ai_nudge")

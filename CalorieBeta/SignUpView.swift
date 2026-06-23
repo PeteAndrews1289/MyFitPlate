@@ -75,6 +75,12 @@ struct SignUpView: View {
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .disabled(!canSubmit)
+
+                        Text("By joining, you agree to our [Terms of Service](https://PeteAndrews1289.github.io/MyFitPlate/terms_of_service.html) and [Privacy Policy](https://PeteAndrews1289.github.io/MyFitPlate/privacy_policy.html).")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 8)
                     }
                     .padding(24)
                 }

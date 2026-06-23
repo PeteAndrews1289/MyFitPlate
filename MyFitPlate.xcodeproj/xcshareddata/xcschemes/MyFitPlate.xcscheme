@@ -30,14 +30,15 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:MyFitPlate.xctestplan"
-            default = "YES">
+            default = "YES"
+            reference = "container:MyFitPlate.xctestplan">
          </TestPlanReference>
       </TestPlans>
       <Testables>
          <TestableReference
             skipped = "NO"
-            parallelizable = "YES">
+            parallelizable = "YES"
+            useTestSelectionWhitelist = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "4BCF27062FE6F92B0054378E"

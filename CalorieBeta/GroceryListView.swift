@@ -18,6 +18,7 @@ struct GroceryListView: View {
     @AppStorage("groceryUnitSystem") private var unitSystem: GroceryUnitSystem = Locale.current.measurementSystem == .us ? .imperial : .metric
     
     private let foodAPIService = FatSecretFoodAPIService()
+    private let usdaService = USDAFoodAPIService()
 
     private var displayedList: [GroceryListItem] {
         hideCompletedItems ? groceryList.filter { !$0.isCompleted } : groceryList
@@ -174,18 +175,24 @@ struct GroceryListView: View {
                 BarcodeScannerView { barcode in
                     showingBarcodeScanner = false
                     isFetchingItemName = true
-                    
-                    foodAPIService.fetchFoodByBarcode(barcode: barcode) { result in
-                        DispatchQueue.main.async {
+                    AnalyticsManager.log(.barcodeScanned)
+                    Task { @MainActor in
+                        if let item = await withCheckedContinuation({ cont in
+                            foodAPIService.fetchFoodByBarcode(barcode: barcode) { cont.resume(returning: try? $0.get()) }
+                        }) {
                             isFetchingItemName = false
-                            switch result {
-                            case .success(let foodItem):
-                                addBarcodeItem(foodItem)
-                                saveList()
-                            case .failure(let error):
-                                fetchError = (true, "Could not find an item for that barcode. \(error.localizedDescription)")
-                            }
+                            addBarcodeItem(item)
+                            saveList()
+                            return
                         }
+                        if let item = await usdaService.lookupBarcode(barcode) {
+                            isFetchingItemName = false
+                            addBarcodeItem(item)
+                            saveList()
+                            return
+                        }
+                        isFetchingItemName = false
+                        fetchError = (true, "No food found for that barcode.")
                     }
                 }
             }

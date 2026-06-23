@@ -36,10 +36,11 @@ struct CycleTrackingView: View {
 
                 } else {
                     VStack(spacing: 16) {
-                        Text("No period start date has been logged.")
-                            .appFont(size: 17)
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(.secondary)
+                        GuidanceEmptyState(
+                            icon: "calendar.badge.clock",
+                            title: "No cycle logged yet",
+                            message: "Log your period start to unlock cycle-aware insights and predictions."
+                        )
                         
                         Button("Log Period Start") {
                             cycleService.logPeriodStart()

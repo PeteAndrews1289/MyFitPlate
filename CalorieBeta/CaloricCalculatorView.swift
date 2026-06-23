@@ -225,7 +225,9 @@ struct CaloricCalculatorView: View {
         }
         
         goalSettings.calorieGoalMethod = .custom
-        goalSettings.calories = calorieValue
+        let minimumGoal: Double = (goalSettings.gender.lowercased() == "male") ? 1500 : 1200
+        let clampedCalories = max(minimumGoal, calorieValue)
+        goalSettings.calories = clampedCalories
         if let targetWeightValue = Double(targetWeightInput) {
             goalSettings.targetWeight = targetWeightValue
         }

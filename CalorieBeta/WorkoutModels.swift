@@ -109,6 +109,7 @@ struct WorkoutSessionLog: Identifiable, Codable {
     var date: Timestamp
     var routineID: String
     var completedExercises: [CompletedExercise]
+    var aiInsights: [WorkoutAnalysisInsight]?
 }
 
 struct CompletedExercise: Identifiable, Codable {

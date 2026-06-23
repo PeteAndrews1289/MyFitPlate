@@ -188,16 +188,44 @@ struct WorkoutCompleteAnalyticsView: View {
     }
     
     private func loadData() {
-        analytics = localAnalytics
         self.muscleSplit = analyticsService.calculateMuscleSplit(log: log)
-        
+
+        // If insights were already generated and saved, use them immediately.
+        if let saved = log.aiInsights, !saved.isEmpty {
+            self.analytics = WorkoutAnalytics(
+                totalVolume: localAnalytics.totalVolume,
+                personalRecords: localAnalytics.personalRecords,
+                aiInsights: saved
+            )
+            Task {
+                let uid = Auth.auth().currentUser?.uid
+                if let uid {
+                    self.comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: uid)
+                    for exercise in log.completedExercises.prefix(3) {
+                        let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: uid)
+                        self.trendData[exercise.exerciseName] = points
+                    }
+                }
+                self.isLoading = false
+            }
+            return
+        }
+
+        // Fresh session: show local insights immediately, then replace with AI insights.
+        analytics = localAnalytics
+
         Task {
             let uid = Auth.auth().currentUser?.uid
-            self.analytics = await analyticsService.generateAnalytics(for: log, userID: uid)
+            let generated = await analyticsService.generateAnalytics(for: log, userID: uid)
+            self.analytics = generated
+
+            // Persist so the History view can show them without re-generating.
+            if let uid, let sessionID = log.id, !generated.aiInsights.isEmpty {
+                await analyticsService.saveInsights(generated.aiInsights, forSessionID: sessionID, userID: uid)
+            }
 
             if let uid {
                 self.comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: uid)
-
                 for exercise in log.completedExercises.prefix(3) {
                     let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: uid)
                     self.trendData[exercise.exerciseName] = points

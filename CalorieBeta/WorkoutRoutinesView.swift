@@ -221,20 +221,6 @@ struct WorkoutRoutinesView: View {
                     }
                     }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        TrainingSectionHeader(
-                            title: "One-off Routines",
-                            subtitle: "Reusable workouts that are not tied to a full program."
-                        )
-
-                        if workoutService.userRoutines.isEmpty {
-                            RoutineEmptyState()
-                        } else {
-                            ForEach(workoutService.userRoutines) { routine in
-                                routineRow(routine)
-                            }
-                        }
-                    }
                 }
                 .padding()
             }
@@ -1185,6 +1171,7 @@ struct MuscleRecovery: Identifiable {
 
 struct MuscleRecoveryMapView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
+    @StateObject private var workoutService = WorkoutService()
     @State private var recoveries: [MuscleRecovery] = []
     
     var body: some View {
@@ -1262,29 +1249,39 @@ struct MuscleRecoveryMapView: View {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         let now = Date()
         let startDate = Calendar.current.date(byAdding: .day, value: -4, to: now)!
-        
+
         Task {
-            let result = await dailyLogService.fetchDailyHistory(for: userID, startDate: startDate, endDate: now)
             var lastTrainedTimes: [MuscleGroup: Date] = [:]
-            
+
+            func record(_ groups: [MuscleGroup], at date: Date) {
+                for group in groups where date > (lastTrainedTimes[group] ?? .distantPast) {
+                    lastTrainedTimes[group] = date
+                }
+            }
+
+            // Primary source: completed routine sessions carry the real exercise names.
+            // (The daily log only stores one summary entry named after the routine, so matching
+            // muscle keywords against it misses almost everything — that was the stale-map bug.)
+            let sessions = await workoutService.fetchRecentSessionLogs(sinceDays: 4)
+            for session in sessions {
+                let date = session.date.dateValue()
+                for completed in session.completedExercises {
+                    record(extractMuscleGroups(from: completed.exerciseName.lowercased()), at: date)
+                }
+            }
+
+            // Secondary source: manually-logged exercises in the daily log.
+            let result = await dailyLogService.fetchDailyHistory(for: userID, startDate: startDate, endDate: now)
             if case .success(let logs) = result {
                 for log in logs {
                     guard let exercises = log.exercises else { continue }
-                    
                     for exercise in exercises {
-                        let name = exercise.name.lowercased()
-                        let mappedGroups = extractMuscleGroups(from: name)
-                        for group in mappedGroups {
-                            let currentLast = lastTrainedTimes[group] ?? Date.distantPast
-                            if log.date > currentLast {
-                                lastTrainedTimes[group] = log.date
-                            }
-                        }
+                        record(extractMuscleGroups(from: exercise.name.lowercased()), at: log.date)
                     }
                 }
             }
-            
-            DispatchQueue.main.async {
+
+            await MainActor.run {
                 self.recoveries = MuscleGroup.allCases.map { group in
                     MuscleRecovery(group: group, lastTrained: lastTrainedTimes[group])
                 }

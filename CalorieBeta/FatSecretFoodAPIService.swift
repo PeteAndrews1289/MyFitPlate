@@ -1,4 +1,5 @@
 import Foundation
+import FirebaseFunctions
 
 struct FatSecretResponse: Decodable {
     let foods: FoodList?
@@ -84,37 +85,28 @@ struct FatSecretServing: Decodable {
 }
 
 class FatSecretFoodAPIService {
-    private static let fallbackProxyURL = "http://34.75.143.244:8080"
-    private static let proxyConfigurationError = "Food search is not configured. Check FATSECRET_PROXY_URL."
+    private lazy var functions = Functions.functions()
 
-    private var proxyBaseURL: URL? {
-        let configuredValue = (Bundle.main.object(forInfoDictionaryKey: "FATSECRET_PROXY_URL") as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let configuredValue,
-           !configuredValue.isEmpty,
-           configuredValue != "$(FATSECRET_PROXY_URL)",
-           configuredValue != "your_proxy_url_here",
-           let configuredURL = Self.validProxyURL(from: configuredValue) {
-            return configuredURL
+    /// Calls FatSecret through the `fatSecretProxy` Cloud Function over HTTPS instead of hitting the
+    /// proxy host directly. The function forwards to the same proxy server-side and returns its JSON
+    /// verbatim, so all decoding below is unchanged — only the transport moved off plaintext HTTP.
+    private func callProxy(path: String, params: [String: String], completion: @escaping (Result<Data, Error>) -> Void) {
+        functions.httpsCallable("fatSecretProxy").call(["path": path, "params": params]) { result, error in
+            if let error = error {
+                completion(.failure(APIError.networkError(error)))
+                return
+            }
+            guard let payload = result?.data, JSONSerialization.isValidJSONObject(payload) else {
+                completion(.failure(APIError.noData))
+                return
+            }
+            do {
+                let data = try JSONSerialization.data(withJSONObject: payload, options: [])
+                completion(.success(data))
+            } catch {
+                completion(.failure(APIError.decodingError(error)))
+            }
         }
-
-        return Self.validProxyURL(from: Self.fallbackProxyURL)
-    }
-
-    private static func validProxyURL(from value: String) -> URL? {
-        guard let url = URL(string: value),
-              url.host != nil,
-              url.scheme?.lowercased().hasPrefix("http") == true else {
-            return nil
-        }
-        return url
-    }
-
-    private func proxyEndpoint(path: String, queryItems: [URLQueryItem]) -> URL? {
-        guard let baseURL = proxyBaseURL else { return nil }
-        var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)
-        components?.queryItems = queryItems
-        return components?.url
     }
 
     private var barcodeCache = Set<String>()
@@ -122,57 +114,42 @@ class FatSecretFoodAPIService {
     func fetchFoodByBarcode(barcode: String, completion: @escaping (Result<FoodItem, Error>) -> Void) {
         if barcodeCache.contains(barcode) { return }
         barcodeCache.insert(barcode)
-        guard let url = proxyEndpoint(path: "barcode", queryItems: [URLQueryItem(name: "barcode", value: barcode)]) else {
-            barcodeCache.remove(barcode)
-            completion(.failure(APIError.apiError(Self.proxyConfigurationError)))
-            return
-        }
-        let request = URLRequest(url: url)
-        
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            defer { self.barcodeCache.remove(barcode) }
-            if let error = error { completion(.failure(APIError.networkError(error))); return }
-            guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
-                completion(.failure(APIError.apiError("Food search returned an invalid server response.")))
-                return
-            }
-            guard let data = data else { completion(.failure(APIError.noData)); return }
-            
-            do {
-                let decodedResponse = try JSONDecoder().decode([String: [String: String]].self, from: data)
-                if let foodId = decodedResponse["food_id"]?["value"] {
-                    self.fetchFoodDetails(foodId: foodId) { (detailsResult: Result<(foodInfo: FoodItem, availableServings: [ServingSizeOption]), Error>) in
-                        switch detailsResult {
-                        case .success(let result):
-                            completion(.success(result.foodInfo))
-                        case .failure(let detailError):
-                            completion(.failure(detailError))
+
+        callProxy(path: "barcode", params: ["barcode": barcode]) { result in
+            self.barcodeCache.remove(barcode)
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let data):
+                do {
+                    let decodedResponse = try JSONDecoder().decode([String: [String: String]].self, from: data)
+                    if let foodId = decodedResponse["food_id"]?["value"] {
+                        self.fetchFoodDetails(foodId: foodId) { detailsResult in
+                            switch detailsResult {
+                            case .success(let details):
+                                completion(.success(details.foodInfo))
+                            case .failure(let detailError):
+                                completion(.failure(detailError))
+                            }
                         }
+                    } else {
+                        completion(.failure(APIError.apiError("No food item found for this barcode.")))
                     }
-                } else {
-                    completion(.failure(APIError.apiError("No food item found for this barcode.")))
+                } catch {
+                    completion(.failure(APIError.decodingError(error)))
                 }
-            } catch {
-                completion(.failure(APIError.decodingError(error)))
             }
-        }.resume()
+        }
     }
     
     public func fetchFoodDetails(foodId: String, completion: @escaping (Result<(foodInfo: FoodItem, availableServings: [ServingSizeOption]), Error>) -> Void) {
-        guard let url = proxyEndpoint(path: "food", queryItems: [URLQueryItem(name: "food_id", value: foodId)]) else {
-            completion(.failure(APIError.apiError(Self.proxyConfigurationError)))
-            return
-        }
-        let request = URLRequest(url: url)
-        
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error { completion(.failure(APIError.networkError(error))); return }
-            guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
-                completion(.failure(APIError.apiError("Food details returned an invalid server response.")))
-                return
+        callProxy(path: "food", params: ["food_id": foodId]) { result in
+            let data: Data
+            switch result {
+            case .failure(let error): completion(.failure(error)); return
+            case .success(let payload): data = payload
             }
-            guard let data = data else { completion(.failure(APIError.noData)); return }
-            
+
             do {
                 let decodedResponse = try JSONDecoder().decode(FatSecretFoodResponse.self, from: data)
                 guard let food = decodedResponse.food else { completion(.failure(APIError.noData)); return }
@@ -256,35 +233,31 @@ class FatSecretFoodAPIService {
                 )
                 
                 completion(.success((foodInfo: baseFoodItem, availableServings: availableServings)))
-                
+
             } catch {
                 completion(.failure(APIError.decodingError(error)))
             }
-        }.resume()
+        }
     }
     
     func fetchFoodByQuery(query: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        guard let url = proxyEndpoint(path: "search", queryItems: [URLQueryItem(name: "query", value: query)]) else {
-            completion(.failure(APIError.apiError(Self.proxyConfigurationError)))
-            return
-        }
-        let request = URLRequest(url: url)
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error { completion(.failure(APIError.networkError(error))); return }
-            guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else { completion(.failure(APIError.apiError("Received an invalid server response."))); return }
-            guard let data = data else { completion(.failure(APIError.noData)); return }
-            do {
-                let decodedResponse = try JSONDecoder().decode(FatSecretResponse.self, from: data)
-                if let foods = decodedResponse.foods?.food {
-                    let foodItems = foods.map { self.mapSearchResultToFoodItem(from: $0) }
-                    completion(.success(foodItems))
-                } else {
-                    completion(.success([]))
+        callProxy(path: "search", params: ["query": query]) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let data):
+                do {
+                    let decodedResponse = try JSONDecoder().decode(FatSecretResponse.self, from: data)
+                    if let foods = decodedResponse.foods?.food {
+                        completion(.success(foods.map { self.mapSearchResultToFoodItem(from: $0) }))
+                    } else {
+                        completion(.success([]))
+                    }
+                } catch {
+                    completion(.failure(APIError.decodingError(error)))
                 }
-            } catch {
-                completion(.failure(APIError.decodingError(error)))
             }
-        }.resume()
+        }
     }
     
     private func mapSearchResultToFoodItem(from fatSecretFoodItem: FatSecretFoodItem) -> FoodItem {

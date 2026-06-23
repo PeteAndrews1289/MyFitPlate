@@ -38,6 +38,7 @@ struct MainTabView: View {
 
     private let imageModel = MLImageModel()
     private let foodAPIService = FatSecretFoodAPIService()
+    private let usdaService = USDAFoodAPIService()
     
     private var containerBackground: Color {
         Color.backgroundSecondary
@@ -49,17 +50,17 @@ struct MainTabView: View {
                 Group {
                     switch appState.selectedTab {
                     case 0:
-                        NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }
+                        NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }.trackScreen(.homeDashboard)
                     case 1:
-                        NavigationStack { AIChatbotView(selectedTab: $appState.selectedTab) }
+                        NavigationStack { AIChatbotView(selectedTab: $appState.selectedTab) }.trackScreen(.maiaChat)
                     case 2:
-                        WorkoutRoutinesView()
+                        WorkoutRoutinesView().trackScreen(.workoutsHome)
                     case 3:
-                        NavigationStack { MealPlannerView() }
+                        NavigationStack { MealPlannerView() }.trackScreen(.mealPlanner)
                     case 4:
-                        NavigationStack { ReportsView(dailyLogService: dailyLogService) }
+                        NavigationStack { ReportsView(dailyLogService: dailyLogService) }.trackScreen(.reports)
                     default:
-                        NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }
+                        NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }.trackScreen(.homeDashboard)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -205,14 +206,22 @@ struct MainTabView: View {
                 BarcodeScannerView { barcode in
                     self.showingBarcodeScanner = false
                     self.isSearchingAfterScan = true
-                    foodAPIService.fetchFoodByBarcode(barcode: barcode) { result in
-                        self.isSearchingAfterScan = false
-                        switch result {
-                        case .success(let foodItem):
-                            self.scannedFoodItem = foodItem
-                        case .failure(let error):
-                            self.scanError = (true, "Could not find a food for this barcode. Error: \(error.localizedDescription)")
+                    AnalyticsManager.log(.barcodeScanned)
+                    Task { @MainActor in
+                        if let item = await withCheckedContinuation({ cont in
+                            foodAPIService.fetchFoodByBarcode(barcode: barcode) { cont.resume(returning: try? $0.get()) }
+                        }) {
+                            self.isSearchingAfterScan = false
+                            self.scannedFoodItem = item
+                            return
                         }
+                        if let item = await usdaService.lookupBarcode(barcode) {
+                            self.isSearchingAfterScan = false
+                            self.scannedFoodItem = item
+                            return
+                        }
+                        self.isSearchingAfterScan = false
+                        self.scanError = (true, "No food found for this barcode.")
                     }
                 }
             }
@@ -222,7 +231,7 @@ struct MainTabView: View {
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLogService.currentDailyLog,
                         date: dailyLogService.activelyViewedDate,
-                        source: "barcode_result",
+                        source: foodItem.id.hasPrefix("usda_") ? "usda_barcode" : "barcode_result",
                         onLogUpdated: { self.scannedFoodItem = nil }
                     )
                 }

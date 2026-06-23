@@ -13,8 +13,23 @@ struct SettingsView: View {
     @EnvironmentObject var recipeService: RecipeService
     
     @AppStorage("includeActiveCaloriesInGoal") var includeActiveCaloriesInGoal: Bool = false
+    @AppStorage("notificationHour") private var notificationHour: Int = 20
+    @AppStorage("notificationMinute") private var notificationMinute: Int = 0
 
     @Binding var showSettings: Bool
+
+    private var notificationTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                Calendar.current.date(bySettingHour: notificationHour, minute: notificationMinute, second: 0, of: Date()) ?? Date()
+            },
+            set: { newDate in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newDate)
+                notificationHour = components.hour ?? 20
+                notificationMinute = components.minute ?? 0
+            }
+        )
+    }
     // Known per-user subcollections, including a few legacy names still worth cleaning up.
     private let userScopedCollections = [
         "achievementStatus",
@@ -45,8 +60,10 @@ struct SettingsView: View {
     @State private var inchesInput: String = ""
     @State private var showingWaterGoalSheet = false
     @State private var waterGoalInput: String = ""
-    
-    // Wire up the reset confirmation
+    @State private var showingHealthDisclaimer = false
+    @State private var showingReauthForDelete = false
+    @State private var reauthPassword = ""
+    @State private var deleteErrorMessage: String? = nil
     @State private var showingResetTourConfirmation = false
     
     @State private var isDeletingAccount = false
@@ -101,6 +118,7 @@ struct SettingsView: View {
                         }
                         .foregroundColor(.textPrimary)
                         .disabled(healthKitViewModel.isSyncing)
+                        .opacity(healthKitViewModel.isSyncing ? 0.55 : 1.0)
                         .padding(16)
                         
                         if healthKitViewModel.isAuthorized {
@@ -163,7 +181,47 @@ struct SettingsView: View {
                         .padding(16)
                     }
                     
+                    SettingsSectionCard(title: "Notifications") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            SettingsLabel(
+                                icon: "bell.fill",
+                                title: "Daily Log Reminder",
+                                subtitle: "Nightly check-in to log your meals.",
+                                color: .orange
+                            )
+                            DatePicker("", selection: notificationTimeBinding, displayedComponents: .hourAndMinute)
+                                .labelsHidden()
+                                .onChange(of: notificationTimeBinding.wrappedValue) { _, _ in
+                                    NotificationManager.shared.scheduleDailyLogReminderIfAuthorized()
+                                }
+                        }
+                        .padding(16)
+                    }
+
                     SettingsSectionCard(title: "Help & Support") {
+                        Button {
+                            showingHealthDisclaimer = true
+                        } label: {
+                            SettingsLabel(icon: "cross.case.fill", title: "Health Disclaimers & Sources", subtitle: "Review medical, nutrition, and AI estimate guidance.", color: .orange)
+                        }
+                        .padding(16)
+
+                        Divider().padding(.leading, 50)
+
+                        Link(destination: URL(string: "https://PeteAndrews1289.github.io/MyFitPlate/privacy_policy.html")!) {
+                            SettingsLabel(icon: "lock.shield.fill", title: "Privacy & Data", subtitle: "See how health, nutrition, and AI data are handled.", color: .blue)
+                        }
+                        .padding(16)
+
+                        Divider().padding(.leading, 50)
+
+                        Link(destination: URL(string: "https://PeteAndrews1289.github.io/MyFitPlate/terms_of_service.html")!) {
+                            SettingsLabel(icon: "doc.text.fill", title: "Terms of Service", subtitle: "Read our terms, conditions, and usage policies.", color: .purple)
+                        }
+                        .padding(16)
+
+                        Divider().padding(.leading, 50)
+
                         Button {
                             showingResetTourConfirmation = true
                         } label: {
@@ -233,14 +291,25 @@ struct SettingsView: View {
             }
             showingWaterGoalSheet = false
         }).environmentObject(goalSettings) }
+        .sheet(isPresented: $showingHealthDisclaimer) {
+            NavigationView {
+                HealthDisclaimerView()
+            }
+        }
         // Alerts
         .alert("Sign Out", isPresented: $showingSignOutAlert, actions: { Button("Cancel", role: .cancel) {}; Button("Sign Out", role: .destructive) { appState.signOut() } }, message: { Text("Are you sure you want to sign out?") })
         .alert("Delete Account", isPresented: $showingDeleteAccountAlert, actions: {
             Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) { deleteAccount() }
+            Button("Delete", role: .destructive) { DispatchQueue.main.async { showingReauthForDelete = true } }
         }, message: {
             Text("Are you sure you want to delete your account? This will permanently delete your profile, logs, recipes, workouts, and account data. This cannot be undone.")
         })
+        .modifier(DeleteAccountAlerts(
+            showingReauthForDelete: $showingReauthForDelete,
+            reauthPassword: $reauthPassword,
+            deleteErrorMessage: $deleteErrorMessage,
+            onConfirm: reauthenticateAndDelete
+        ))
         .alert("Reset Tooltips?", isPresented: $showingResetTourConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Reset", role: .destructive) {
@@ -251,16 +320,43 @@ struct SettingsView: View {
         }
     }
     
-    private func deleteAccount() {
-        guard let user = Auth.auth().currentUser else { return }
+    private func reauthenticateAndDelete() {
+        guard let user = Auth.auth().currentUser, let email = user.email else {
+            deleteErrorMessage = "We couldn't verify your account. Please sign out, sign back in, and try again."
+            reauthPassword = ""
+            return
+        }
+        let password = reauthPassword
+        reauthPassword = ""
+        guard !password.isEmpty else {
+            deleteErrorMessage = "Please enter your password to continue."
+            return
+        }
+
         isDeletingAccount = true
-        
+        // Reauthenticate FIRST so we never delete user data unless we can also remove
+        // the auth account — otherwise a stale session leaves a zombie login with no data.
+        let credential = EmailAuthProvider.credential(withEmail: email, password: password)
+        user.reauthenticate(with: credential) { _, error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    isDeletingAccount = false
+                    deleteErrorMessage = "Re-authentication failed: \(error.localizedDescription)"
+                }
+                return
+            }
+            performAccountDeletion(user: user)
+        }
+    }
+
+    private func performAccountDeletion(user: User) {
         let db = Firestore.firestore()
         deleteUserFirestoreData(userID: user.uid, db: db) { result in
             if case .failure(let error) = result {
                 AppLog.data.error("Failed to delete user data: \(error.localizedDescription, privacy: .public)")
                 DispatchQueue.main.async {
                     isDeletingAccount = false
+                    deleteErrorMessage = "We couldn't delete your data. Please check your connection and try again."
                 }
                 return
             }
@@ -270,6 +366,7 @@ struct SettingsView: View {
                     isDeletingAccount = false
                     if let error = error {
                         AppLog.app.error("Failed to delete auth account: \(error.localizedDescription, privacy: .public)")
+                        deleteErrorMessage = "Your data was removed, but the login couldn't be deleted. Please sign out, sign back in, and delete again."
                     } else {
                         clearLocalAccountData()
                         appState.isUserLoggedIn = false
@@ -317,8 +414,11 @@ struct SettingsView: View {
 
         let topLevelQueries: [Query] = [
             db.collection("groupMemberships").whereField("userID", isEqualTo: userID),
+            db.collection("groupMemberships").whereField("userId", isEqualTo: userID),
             db.collection("groups").whereField("creatorID", isEqualTo: userID),
-            db.collection("posts").whereField("authorID", isEqualTo: userID)
+            db.collection("groups").whereField("creatorId", isEqualTo: userID),
+            db.collection("posts").whereField("authorID", isEqualTo: userID),
+            db.collection("posts").whereField("authorId", isEqualTo: userID)
         ]
 
         for query in topLevelQueries {
@@ -393,6 +493,123 @@ struct SettingsView: View {
                 } else {
                     deleteQueryResults(query, db: db, batchSize: batchSize, completion: completion)
                 }
+            }
+        }
+    }
+}
+
+private struct SettingsLegalSection: Identifiable {
+    let title: String
+    let body: String
+
+    var id: String { title }
+}
+
+private enum SettingsLegalInfoKind {
+    case privacy
+    case terms
+
+    var title: String {
+        switch self {
+        case .privacy: return "Privacy & Data"
+        case .terms: return "Terms & Safety"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .privacy: return "lock.shield.fill"
+        case .terms: return "doc.text.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .privacy: return .blue
+        case .terms: return .purple
+        }
+    }
+
+    var intro: String {
+        switch self {
+        case .privacy:
+            return "This in-app summary is here for transparency. Your App Store privacy policy should remain the full legal source of truth."
+        case .terms:
+            return "MyFitPlate is designed to support everyday nutrition and fitness tracking. It should not replace professional medical, nutrition, or emergency care."
+        }
+    }
+
+    var sections: [SettingsLegalSection] {
+        switch self {
+        case .privacy:
+            return [
+                SettingsLegalSection(title: "Personal Data", body: "MyFitPlate stores account, goal, nutrition, weight, workout, recipe, meal plan, pantry, and progress data so the app can personalize your experience."),
+                SettingsLegalSection(title: "Apple Health", body: "Health data is requested only when you connect Apple Health. You can manage or revoke those permissions in the Health app or iOS Settings."),
+                SettingsLegalSection(title: "AI Features", body: "Maia, food photo analysis, recipe generation, meal planning, and insights may send your prompts and relevant nutrition context to the configured AI service to generate a response."),
+                SettingsLegalSection(title: "Analytics", body: "Analytics should be used only to understand app stability and feature health. Keep your App Store privacy labels aligned with the analytics and SDKs actually enabled in the release build."),
+                SettingsLegalSection(title: "Deleting Your Account", body: "The Delete Account action removes the app's stored user data and then attempts to delete the Firebase Authentication account.")
+            ]
+        case .terms:
+            return [
+                SettingsLegalSection(title: "Not Medical Advice", body: "Nutrition targets, calorie estimates, fasting suggestions, cycle insights, workouts, and AI responses are informational and may not fit every health situation."),
+                SettingsLegalSection(title: "Estimate Accuracy", body: "Food databases, barcode matches, manual entries, and AI-generated estimates can be incomplete or wrong. Review entries before relying on them."),
+                SettingsLegalSection(title: "User Responsibility", body: "Use your judgment and consult a qualified professional before making major diet, exercise, medication, fasting, or weight-change decisions."),
+                SettingsLegalSection(title: "Emergency Care", body: "Do not use MyFitPlate for urgent medical concerns. Contact emergency services or a licensed clinician when immediate care is needed.")
+            ]
+        }
+    }
+}
+
+private struct SettingsLegalInfoView: View {
+    @Environment(\.dismiss) private var dismiss
+    let kind: SettingsLegalInfoKind
+
+    var body: some View {
+        ZStack {
+            AnimatedBackgroundView()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .top, spacing: 14) {
+                        Image(systemName: kind.icon)
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(kind.color)
+                            .frame(width: 46, height: 46)
+                            .background(kind.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                        Text(kind.intro)
+                            .appFont(size: 14)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(18)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 1))
+
+                    ForEach(kind.sections) { section in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(section.title)
+                                .appFont(size: 17, weight: .bold)
+                                .foregroundColor(.textPrimary)
+                            Text(section.body)
+                                .appFont(size: 14)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(18)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 1))
+                    }
+                }
+                .padding(20)
+            }
+        }
+        .navigationTitle(kind.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Done") { dismiss() }
             }
         }
     }
@@ -512,5 +729,32 @@ struct SettingsSectionCard<Content: View>: View {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Color.white.opacity(0.15), lineWidth: 1))
         }
+    }
+}
+
+private struct DeleteAccountAlerts: ViewModifier {
+    @Binding var showingReauthForDelete: Bool
+    @Binding var reauthPassword: String
+    @Binding var deleteErrorMessage: String?
+    let onConfirm: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Confirm Your Password", isPresented: $showingReauthForDelete) {
+                SecureField("Password", text: $reauthPassword)
+                Button("Cancel", role: .cancel) { reauthPassword = "" }
+                Button("Delete Account", role: .destructive) { onConfirm() }
+            } message: {
+                Text("For your security, re-enter your password to permanently delete your account.")
+            }
+            .alert("Couldn't Delete Account", isPresented: errorBinding) {
+                Button("OK", role: .cancel) { deleteErrorMessage = nil }
+            } message: {
+                Text(deleteErrorMessage ?? "")
+            }
+    }
+
+    private var errorBinding: Binding<Bool> {
+        Binding(get: { deleteErrorMessage != nil }, set: { if !$0 { deleteErrorMessage = nil } })
     }
 }

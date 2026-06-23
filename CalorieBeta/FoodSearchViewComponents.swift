@@ -8,10 +8,6 @@ struct FoodSearchRow: View {
     let onQuickLog: ((FoodItem) -> Void)?
     let onDelete: ((FoodItem) -> Void)?
 
-    @State private var offset: CGFloat = 0
-    @State private var isSwipedRight = false
-    @State private var isSwipedLeft = false
-
     private var servingText: String {
         let trimmed = food.servingSize.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "Usual serving" : trimmed
@@ -24,95 +20,42 @@ struct FoodSearchRow: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.clear.contentShape(Rectangle())
+        HStack(spacing: 10) {
+                HStack(spacing: 12) {
+                    Text(FoodEmojiMapper.getEmoji(for: food.name))
+                        .font(.system(size: 23))
+                        .frame(width: 42, height: 42)
+                        .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            if isSwipedRight && onQuickLog != nil {
-                HStack {
-                    Button {
-                        withAnimation(.easeInOut) {
-                            if !isQuickLogged { onQuickLog?(food) }
-                            offset = 0
-                            isSwipedRight = false
-                        }
-                    } label: {
-                        Image(systemName: isQuickLogged ? "checkmark" : "plus")
-                            .foregroundColor(.white)
-                            .frame(width: 60, height: 60, alignment: .center)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(food.name)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.textPrimary)
+                            .lineLimit(2)
+
+                        Text(servingText)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .lineLimit(1)
+
+                        Text(detailText)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.brandPrimary)
+                            .lineLimit(1)
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .background(isQuickLogged ? Color.accentPositive : Color.brandPrimary)
-                    .contentShape(Rectangle())
-                    .cornerRadius(18)
-                    Spacer()
+
+                    Spacer(minLength: 6)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
-                .transition(.move(edge: .leading).combined(with: .opacity))
-            } else if isSwipedLeft && onDelete != nil {
-                HStack {
-                    Spacer()
-                    Button {
-                        withAnimation(.easeInOut) {
-                            onDelete?(food)
-                            offset = 0
-                            isSwipedLeft = false
-                        }
-                    } label: {
-                        Image(systemName: "trash")
-                            .foregroundColor(.white)
-                            .frame(width: 60, height: 60, alignment: .center)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .background(Color.red)
-                    .contentShape(Rectangle())
-                    .cornerRadius(18)
-                }
-                .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
-
-            HStack(spacing: 10) {
-                Button(action: {
-                    if isSwipedRight || isSwipedLeft {
-                        withAnimation(.easeInOut) {
-                            offset = 0
-                            isSwipedRight = false
-                            isSwipedLeft = false
-                        }
-                    } else {
-                        onSelect(food)
-                    }
-                }) {
-                    HStack(spacing: 12) {
-                        Text(FoodEmojiMapper.getEmoji(for: food.name))
-                            .font(.system(size: 23))
-                            .frame(width: 42, height: 42)
-                            .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(food.name)
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(.textPrimary)
-                                .lineLimit(2)
-
-                            Text(servingText)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .lineLimit(1)
-
-                            Text(detailText)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.brandPrimary)
-                                .lineLimit(1)
-                        }
-
-                        Spacer(minLength: 6)
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Color(UIColor.tertiaryLabel))
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                // A tap gesture (not a Button) lets a drag starting on the row pass through to the
+                // ScrollView, so scrolling can begin on a food item — Buttons swallow that touch.
+                .contentShape(Rectangle())
+                .onTapGesture { onSelect(food) }
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
 
                 if let onQuickLog {
                     Button(action: { onQuickLog(food) }) {
@@ -144,43 +87,6 @@ struct FoodSearchRow: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(Color.primary.opacity(0.05), lineWidth: 1)
             )
-            .offset(x: offset)
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        if value.translation.width > 0 && onQuickLog != nil {
-                            if !isSwipedLeft {
-                                offset = min(value.translation.width, 70)
-                            } else {
-                                offset = -70 + value.translation.width
-                            }
-                        } else if value.translation.width < 0 && onDelete != nil {
-                            if !isSwipedRight {
-                                offset = max(value.translation.width, -70)
-                            } else {
-                                offset = 70 + value.translation.width
-                            }
-                        }
-                    }
-                    .onEnded { value in
-                        withAnimation(.easeInOut) {
-                            if value.translation.width > 50 && onQuickLog != nil {
-                                offset = 70
-                                isSwipedRight = true
-                                isSwipedLeft = false
-                            } else if value.translation.width < -50 && onDelete != nil {
-                                offset = -70
-                                isSwipedLeft = true
-                                isSwipedRight = false
-                            } else {
-                                offset = 0
-                                isSwipedRight = false
-                                isSwipedLeft = false
-                            }
-                        }
-                    }
-            )
-        }
     }
 }
 

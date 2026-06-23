@@ -1,6 +1,75 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsUserDoc(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function requestAuthorIsUser() {
+      return request.resource.data.authorID == request.auth.uid ||
+        request.resource.data.authorId == request.auth.uid;
+    }
+
+    function resourceAuthorIsUser() {
+      return resource.data.authorID == request.auth.uid ||
+        resource.data.authorId == request.auth.uid;
+    }
+
+    function requestCreatorIsUser() {
+      return request.resource.data.creatorID == request.auth.uid ||
+        request.resource.data.creatorId == request.auth.uid;
+    }
+
+    function resourceCreatorIsUser() {
+      return resource.data.creatorID == request.auth.uid ||
+        resource.data.creatorId == request.auth.uid;
+    }
+
+    function requestMembershipIsUser() {
+      return request.resource.data.userID == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid;
+    }
+
+    function resourceMembershipIsUser() {
+      return resource.data.userID == request.auth.uid ||
+        resource.data.userId == request.auth.uid;
+    }
+
+    function requestMembershipGroupIsValid() {
+      return (request.resource.data.groupID is string && request.resource.data.groupID.size() > 0) ||
+        (request.resource.data.groupId is string && request.resource.data.groupId.size() > 0);
+    }
+
+    function validMembershipWrite() {
+      return signedIn() &&
+        request.resource.data.keys().hasOnly(["userID", "userId", "groupID", "groupId", "joinedAt"]) &&
+        requestMembershipIsUser() &&
+        requestMembershipGroupIsValid() &&
+        (!request.resource.data.keys().hasAny(["joinedAt"]) || request.resource.data.joinedAt is timestamp);
+    }
+
+    function validBarcodeWrite() {
+      return signedIn() &&
+        request.resource.data.keys().hasOnly(["name", "calories", "createdBy", "updatedAt"]) &&
+        request.resource.data.keys().hasAll(["name", "calories", "createdBy"]) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.name.size() <= 140 &&
+        request.resource.data.calories is number &&
+        request.resource.data.calories >= 0 &&
+        request.resource.data.calories <= 5000 &&
+        request.resource.data.createdBy == request.auth.uid &&
+        (!request.resource.data.keys().hasAny(["updatedAt"]) || request.resource.data.updatedAt is timestamp);
+    }
+
+    function canUpdateBarcode() {
+      return validBarcodeWrite() &&
+        (!resource.data.keys().hasAny(["createdBy"]) || resource.data.createdBy == request.auth.uid);
+    }
     
     // Default deny
     match /{document=**} {
@@ -9,44 +78,49 @@ service cloud.firestore {
     
     // Users Collection - users can only read/write their own data
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if ownsUserDoc(userId);
       
       // Allow the user full access to all subcollections under their own document
       match /{subcollection}/{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if ownsUserDoc(userId);
       }
     }
     
     // Community Hub / Posts Collection
     match /posts/{postId} {
       // Anyone logged in can read posts
-      allow read: if request.auth != null;
+      allow read: if signedIn();
       // You can only create a post if you are the author
-      allow create: if request.auth != null && request.resource.data.authorId == request.auth.uid;
+      allow create: if signedIn() && requestAuthorIsUser();
       // You can only edit or delete a post if you are the original author
-      allow update, delete: if request.auth != null && resource.data.authorId == request.auth.uid;
+      allow update, delete: if signedIn() && resourceAuthorIsUser();
     }
     
     // Groups Collection
     match /groups/{groupId} {
       // Anyone logged in can view groups
-      allow read: if request.auth != null;
-      // Anyone logged in can create a group
-      allow create: if request.auth != null;
+      allow read: if signedIn();
+      // Signed-in users can create groups they own
+      allow create: if signedIn() && requestCreatorIsUser();
       // Only the creator can update the group details
-      allow update: if request.auth != null && resource.data.creatorId == request.auth.uid;
-      allow delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
+      allow update: if signedIn() && resourceCreatorIsUser();
+      allow delete: if signedIn() && resourceCreatorIsUser();
     }
     
     // Group Memberships
     match /groupMemberships/{membershipId} {
-      allow read, write: if request.auth != null;
+      allow read: if signedIn() && resourceMembershipIsUser();
+      allow create, update: if validMembershipWrite();
+      allow delete: if signedIn() && resourceMembershipIsUser();
     }
     
     // Barcodes (Global Database)
     match /barcodes/{barcodeId} {
-      // Anyone logged in can read or write to the barcode database
-      allow read, write: if request.auth != null;
+      // Signed-in users can read the shared database and contribute validated entries.
+      allow read: if signedIn();
+      allow create: if validBarcodeWrite();
+      allow update: if canUpdateBarcode();
+      allow delete: if false;
     }
   }
 }

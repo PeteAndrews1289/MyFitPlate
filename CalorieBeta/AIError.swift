@@ -1,6 +1,7 @@
 
 
 import Foundation
+import FirebaseFunctions
 
 enum AIError: Error, LocalizedError {
     case invalidURL
@@ -38,11 +39,11 @@ protocol AIServiceProtocol {
 class AIService: AIServiceProtocol {
 
     static let shared = AIService()
-    private var apiKey: String { getAPIKey() }
+    private lazy var functions = Functions.functions()
     
     private init() {}
 
-    /// Sends a prompt to OpenAI and returns the string content.
+    /// Sends a prompt to the Firebase Cloud Function and returns the string content.
     /// Handles retries automatically for network errors or empty responses.
     func performRequest(
         messages: [[String: Any]],
@@ -53,70 +54,27 @@ class AIService: AIServiceProtocol {
         retryCount: Int = 1
     ) async -> Result<String, AIError> {
         
-        guard !apiKey.isEmpty, apiKey != "YOUR_API_KEY" else {
-            return .failure(.apiError("API Key is missing or invalid."))
-        }
-
-        guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
-            return .failure(.invalidURL)
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        var requestBody: [String: Any] = [
+        var requestData: [String: Any] = [
             "model": model,
             "messages": messages,
-            "max_tokens": maxTokens,
+            "maxTokens": maxTokens,
             "temperature": temperature
         ]
         
         if let format = responseFormat {
-            requestBody["response_format"] = format
+            requestData["responseFormat"] = format
         }
 
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        } catch {
-            return .failure(.networkError(error))
-        }
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                // If server error (5xx), retry
-                if retryCount > 0 && httpResponse.statusCode >= 500 {
-                    AppLog.ai.warning("AI request returned server status \(httpResponse.statusCode, privacy: .public). Retrying.")
-                    try await Task.sleep(nanoseconds: 1_000_000_000) // Sleep 1s
-                    return await performRequest(messages: messages, model: model, maxTokens: maxTokens, temperature: temperature, responseFormat: responseFormat, retryCount: retryCount - 1)
-                }
-                
-                // Parse error message if possible
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let errorDict = json["error"] as? [String: Any],
-                   let msg = errorDict["message"] as? String {
-                    return .failure(.apiError("Status \(httpResponse.statusCode): \(msg)"))
-                }
-                return .failure(.apiError("Server returned status code \(httpResponse.statusCode)"))
+            let result = try await functions.httpsCallable("generateAIResponse").call(requestData)
+            guard let data = result.data as? [String: Any],
+                  let content = data["content"] as? String else {
+                return .failure(.apiError("Invalid response from cloud function."))
             }
-
-            // Parse Success
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let choices = json["choices"] as? [[String: Any]],
-                  let firstChoice = choices.first,
-                  let message = firstChoice["message"] as? [String: Any],
-                  let content = message["content"] as? String else {
-                return .failure(.decodingError(NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON structure"])))
-            }
-            
             return .success(content.trimmingCharacters(in: .whitespacesAndNewlines))
-
         } catch {
             if retryCount > 0 {
-                AppLog.ai.warning("AI request failed with network error. Retrying: \(error.localizedDescription, privacy: .public)")
+                AppLog.ai.warning("AI request failed. Retrying: \(error.localizedDescription, privacy: .public)")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 return await performRequest(messages: messages, model: model, maxTokens: maxTokens, temperature: temperature, responseFormat: responseFormat, retryCount: retryCount - 1)
             }

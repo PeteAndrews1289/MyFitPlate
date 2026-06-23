@@ -1,10 +1,19 @@
 import SwiftUI
 import Firebase
 import FirebaseAuth
-import AppTrackingTransparency
-import GoogleMobileAds
+import FirebaseAppCheck
+import FirebaseCrashlytics
 import WatchConnectivity
-import FirebaseAnalytics
+
+/// Supplies App Attest tokens so Firebase backends (Functions, Firestore) can verify that calls
+/// come from a genuine build of this app, not a script replaying an auth token.
+final class MyFitPlateAppCheckProviderFactory: NSObject, AppCheckProviderFactory {
+    func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
+        // App Attest requires iOS 14+; this app targets iOS 16+, so it's always available.
+        AppAttestProvider(app: app)
+    }
+}
+
 class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var isReachable: Bool = false
 
@@ -77,10 +86,22 @@ struct CalorieBetaApp: App {
         #if DEBUG
         FirebaseConfiguration.shared.setLoggerLevel(.warning)
         NutritionConsistencySelfCheck.run()
+        // Simulator/dev can't do App Attest, so use the debug provider. On first launch it prints
+        // an App Check debug token — register that in Firebase Console → App Check to allow dev calls.
+        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+        #else
+        AppCheck.setAppCheckProviderFactory(MyFitPlateAppCheckProviderFactory())
         #endif
+        // App Check factory must be set BEFORE configure().
         FirebaseApp.configure()
-        Analytics.setAnalyticsCollectionEnabled(true)
         
+        // Reference Crashlytics so the linker keeps it (it's otherwise never imported) and crash
+        // capture stays live from launch; the custom key tags every report with the build version.
+        Crashlytics.crashlytics().setCustomValue(
+            Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
+            forKey: "app_version"
+        )
+
         let bannerSvc = BannerService()
         let logService = DailyLogService()
         let goalsSvc = GoalSettings(dailyLogService: logService)
@@ -140,14 +161,6 @@ struct CalorieBetaApp: App {
                 .environmentObject(adaptiveGoalService)
                 .environmentObject(pantryService)
                 .preferredColorScheme(appState.isDarkModeEnabled ? .dark : .light)
-                .onAppear {
-                    // Request notification permissions
-                    NotificationManager.shared.requestAuthorization { granted in
-                        if granted {
-                            NotificationManager.shared.scheduleCalendarNotification(.dailyLogReminder(hour: 20, minute: 00))
-                        }
-                    }
-                }
         }
     }
 }
@@ -175,7 +188,6 @@ struct ContentView: View {
                     sendNutritionToWatchIfNeeded()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-                    requestTrackingPermissionIfNeeded()
                     handleAppDidBecomeActive()
                 }
                 .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
@@ -284,6 +296,7 @@ struct ContentView: View {
         }
         self.shouldShowOnboardingSurvey = false
         self.shouldShowFeatureTour = true
+        NotificationManager.shared.requestDailyLogReminderAuthorization()
     }
     
     private func handleLoginStateChange(isLoggedIn: Bool) {
@@ -339,16 +352,9 @@ struct ContentView: View {
             }
             goalSettings.loadWeightHistory()
             insightsService.generateAndFetchInsights()
+            NotificationManager.shared.scheduleDailyLogReminderIfAuthorized()
         }
         
         healthKitViewModel.checkAuthorizationStatus()
-    }
-
-    private func requestTrackingPermissionIfNeeded() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            if #available(iOS 14, *) {
-                ATTrackingManager.requestTrackingAuthorization { status in }
-            }
-        }
     }
 }

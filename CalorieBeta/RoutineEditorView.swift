@@ -870,11 +870,11 @@ struct ExercisePickerView: View {
                         }
 
                         if visibleEntries.isEmpty {
-                            Text("No exercises found.")
-                                .appFont(size: 14, weight: .semibold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.vertical, 24)
+                            GuidanceEmptyState(
+                                icon: "magnifyingglass",
+                                title: "No exercises found",
+                                message: "Try a different search term, or add a custom exercise."
+                            )
                         } else {
                             LazyVStack(spacing: 10) {
                                 ForEach(visibleEntries) { entry in

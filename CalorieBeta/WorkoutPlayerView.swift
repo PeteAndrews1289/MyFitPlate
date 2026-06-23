@@ -114,31 +114,40 @@ struct WorkoutPlayerView: View {
                 // Main Scroll Area
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        ForEach($routine.exercises) { $exercise in
+                        ForEach(Array(routine.exercises.enumerated()), id: \.element.id) { index, exercise in
                             ExerciseCardView(
-                                exercise: $exercise,
+                                exercise: $routine.exercises[index],
                                 restTimer: restTimer,
                                 isAutoRestEnabled: $isAutoRestTimerEnabled,
                                 routineName: routine.name,
                                 previousPerformance: previousPerformance[exercise.name],
                                 onAddNote: {
-                                    self.exerciseForNote = $exercise
-                                    self.noteText = $exercise.wrappedValue.notes ?? PinnedNotesManager.shared.getPinnedNote(for: $exercise.wrappedValue.name) ?? ""
-                                    self.isNotePinned = PinnedNotesManager.shared.isNotePinned(for: $exercise.wrappedValue.name)
+                                    self.exerciseForNote = $routine.exercises[index]
+                                    self.noteText = exercise.notes ?? PinnedNotesManager.shared.getPinnedNote(for: exercise.name) ?? ""
+                                    self.isNotePinned = PinnedNotesManager.shared.isNotePinned(for: exercise.name)
                                     self.showingNoteEditor = true
                                 },
                                 onSwap: {
-                                    self.swappableExercise = SwappableExercise(id: exercise.id, binding: $exercise)
+                                    self.swappableExercise = SwappableExercise(id: exercise.id, binding: $routine.exercises[index])
                                 },
                                 onViewHistory: {
                                     self.showingHistoryFor = exercise
-                                }
+                                },
+                                onMoveUp: index > 0 ? { moveExercise(from: IndexSet(integer: index), to: index - 1) } : nil,
+                                onMoveDown: index < routine.exercises.count - 1 ? { moveExercise(from: IndexSet(integer: index), to: index + 2) } : nil
                             )
                         }
-                        .onMove(perform: moveExercise)
-
                     }
                     .padding()
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") {
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        }
+                    }
                 }
 
                 WorkoutSessionControlBar(
@@ -185,6 +194,7 @@ struct WorkoutPlayerView: View {
         .onAppear {
             totalWorkoutTimer.start()
             LiveActivityManager.shared.startWorkout(routineName: routine.name)
+            AnalyticsManager.log(.workoutStarted, ["routine_name": routine.name])
         }
         .onDisappear {
             // Safety check: Kill Live Activity if user swipes away the app
@@ -269,6 +279,7 @@ struct WorkoutPlayerView: View {
 
         restTimer.stop()
         totalWorkoutTimer.stop()
+        AnalyticsManager.log(.workoutCompleted, ["completed_sets": completedSetCount])
         self.completedSessionLog = sessionLog
         self.showingAnalyticsSheet = true
     }

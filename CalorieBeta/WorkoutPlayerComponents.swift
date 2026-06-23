@@ -336,6 +336,11 @@ struct ExerciseCardView: View {
     var onAddNote: () -> Void
     var onSwap: () -> Void
     var onViewHistory: () -> Void
+    var onMoveUp: (() -> Void)?
+    var onMoveDown: (() -> Void)?
+
+    @State private var showingTargetRepsEditor = false
+    @State private var targetRepsInput = ""
 
     private var completedSetCount: Int {
         exercise.sets.filter(\.isCompleted).count
@@ -503,10 +508,31 @@ struct ExerciseCardView: View {
                     exercise.sets.insert(newWarmupSet, at: 0)
                 }
                 Button("Add/Edit Note", action: onAddNote)
+                if exercise.type == .strength {
+                    Button {
+                        targetRepsInput = exercise.targetReps
+                        showingTargetRepsEditor = true
+                    } label: {
+                        Label("Edit Target Reps", systemImage: "pencil")
+                    }
+                }
                 Button("Swap Exercise", action: onSwap)
                     .disabled(exercise.alternatives?.isEmpty ?? true)
                 Button("View Demo & History", action: onViewHistory)
                 Toggle("Auto-Rest Timer", isOn: $isAutoRestEnabled)
+                if onMoveUp != nil || onMoveDown != nil {
+                    Divider()
+                    if let onMoveUp {
+                        Button(action: onMoveUp) {
+                            Label("Move Up", systemImage: "arrow.up")
+                        }
+                    }
+                    if let onMoveDown {
+                        Button(action: onMoveDown) {
+                            Label("Move Down", systemImage: "arrow.down")
+                        }
+                    }
+                }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 13, weight: .bold))
@@ -514,6 +540,13 @@ struct ExerciseCardView: View {
                     .frame(width: 32, height: 32)
                     .background(Color.backgroundPrimary.opacity(0.72), in: Circle())
             }
+        }
+        .alert("Edit Target Reps", isPresented: $showingTargetRepsEditor) {
+            TextField("e.g. 8-12", text: $targetRepsInput)
+            Button("Save") { exercise.targetReps = targetRepsInput }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Saved to your routine for future workouts.")
         }
     }
 }

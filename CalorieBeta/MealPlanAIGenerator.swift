@@ -22,6 +22,8 @@ struct MealPlanAIGenerator {
         - Cuisines: \(preferredCuisines.joined(separator: ", ")).
 
         **Format:** Valid JSON object: "mealType", "mealName", "calories", "protein", "carbs", "fats", "ingredients", "instructions".
+        
+        **Medical Disclaimer**: Note that generated nutritional values and meal plans are AI estimates and should not be considered medical advice.
         """
 
         let messages: [[String: Any]] = [["role": "user", "content": prompt]]
@@ -87,6 +89,7 @@ struct MealPlanAIGenerator {
         - GROCERY FRIENDLY INGREDIENTS (CRITICAL): Never use fractional whole foods or granular amounts (e.g., DO NOT use '0.5 cup pineapple' or '0.25 onion'). Specify ingredients exactly as bought at the store (e.g., '1 bag frozen broccoli', '1 lb chicken breast', '1 medium onion', '1 carton eggs').
         - Avoid repeating the exact same meal name more than twice, though base ingredients can repeat.
         - Instructions should be concise.
+        - **Medical Disclaimer**: Note that generated nutritional values and meal plans are AI estimates and should not be considered medical advice.
 
         Return valid JSON only:
         {

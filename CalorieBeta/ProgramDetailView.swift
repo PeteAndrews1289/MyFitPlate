@@ -627,11 +627,11 @@ private struct ProgramRoutineBreakdownCard: View {
             }
 
             if routines.isEmpty {
-                Text("No routines in this program yet.")
-                    .appFont(size: 14)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 20)
+                GuidanceEmptyState(
+                    icon: "list.bullet.rectangle",
+                    title: "No routines yet",
+                    message: "This program doesn't have any routines yet. Add one to start training."
+                )
             } else {
                 VStack(spacing: 10) {
                     ForEach(routines) { routine in

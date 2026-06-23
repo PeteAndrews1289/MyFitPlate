@@ -105,7 +105,16 @@ class GoalSettings: ObservableObject {
         DispatchQueue.main.async {
             self._recalculateCalorieGoal()
             self.calculateMicronutrientGoals()
+            self.syncAnalyticsUserProperties()
         }
+    }
+
+    /// Mirrors key profile attributes into Firebase Analytics user properties so dashboards can be
+    /// segmented (e.g. "how do losers vs. gainers use the app", "adaptive-TDEE vs. standard").
+    private func syncAnalyticsUserProperties() {
+        AnalyticsManager.setUserProperty(goal.lowercased(), for: .goalType)
+        AnalyticsManager.setUserProperty(calorieGoalMethod.rawValue, for: .calorieMethod)
+        AnalyticsManager.setUserProperty(gender.lowercased(), for: .biologicalSex)
     }
     
     private func calculateBMR() -> Double {
@@ -130,9 +139,14 @@ class GoalSettings: ObservableObject {
         default: break
         }
         
+        let minimumGoal: Double = (gender.lowercased() == "male") ? 1500 : 1200
+        
         switch self.calorieGoalMethod {
         case .custom:
             if self.calories == nil { self.calories = 2000 }
+            if let current = self.calories, current < minimumGoal {
+                self.calories = minimumGoal
+            }
             self.updateMacros()
             return
         case .mifflinWithActivity:
@@ -148,7 +162,6 @@ class GoalSettings: ObservableObject {
             }
         }
 
-        let minimumGoal: Double = (gender.lowercased() == "male") ? 1500 : 1200
         let finalCalculatedCalories = max(minimumGoal, calculatedCalories)
         
         if self.calories == nil || abs((self.calories ?? 0) - finalCalculatedCalories) > 0.1 {
@@ -341,7 +354,8 @@ class GoalSettings: ObservableObject {
     func applyWeeklyCheckIn(userID: String, newCalories: Double) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.calories = newCalories
+            let minimumGoal: Double = (self.gender.lowercased() == "male") ? 1500 : 1200
+            self.calories = max(minimumGoal, newCalories)
             self.lastCheckInDate = Date()
             self.updateMacros()
             self.saveUserGoals(userID: userID)
@@ -453,6 +467,7 @@ class AdaptiveGoalService: ObservableObject {
     @Published var last21DaysCalorieAverage: Double?
     @Published var weightChangeRatePerDay: Double?
     @Published var dataConfidence: DataConfidence = .insufficient
+    @Published var lastCalculationDate: Date?
     
     private let db = Firestore.firestore()
     
@@ -494,7 +509,8 @@ class AdaptiveGoalService: ObservableObject {
         // 2. Exponential Moving Average (EMA) of Weight
         // EMA smooths out daily water weight fluctuations to find the true biological tissue trend.
         var emaWeights: [Date: Double] = [:]
-        var currentEMA: Double = recentWeights.first!.weight
+        guard let firstRecord = recentWeights.first else { return }
+        var currentEMA: Double = firstRecord.weight
         let smoothingFactor = 2.0 / (7.0 + 1.0) // 7-day EMA
         
         for record in recentWeights {
@@ -551,13 +567,37 @@ class AdaptiveGoalService: ObservableObject {
         let calendar = Calendar.current
         let today = Date()
         guard let twentyOneDaysAgo = calendar.date(byAdding: .day, value: -21, to: today) else { return }
-        
+
         let result = await dailyLogService.fetchDailyHistory(for: userID, startDate: twentyOneDaysAgo, endDate: today)
         switch result {
         case .success(let logs):
             self.calculateExpenditure(weightHistory: goalSettings.weightHistory, dailyLogs: logs)
+            // Close the loop: if the user is already on adaptive TDEE, refresh their
+            // calorie/macro goals so the target tracks the freshly calculated metabolism.
+            // calculatedTDEE is assigned on the main queue inside calculateExpenditure, so this
+            // main-queue hop is guaranteed to run after that assignment (FIFO ordering).
+            await MainActor.run {
+                if goalSettings.calorieGoalMethod == .dynamicTDEE {
+                    goalSettings.recalculateAllGoals()
+                }
+            }
         case .failure(let error):
             print("AdaptiveGoalService Error: \(error.localizedDescription)")
         }
+    }
+
+    /// Throttled wrapper — recalculates at most once per calendar day. Safe to call on every Home
+    /// appearance so the weekly check-in can surface without the user first visiting Reports.
+    func fetchAndCalculateIfNeeded(userID: String, goalSettings: GoalSettings, dailyLogService: DailyLogService) async {
+        let alreadyCalculatedToday = await MainActor.run { () -> Bool in
+            if let last = self.lastCalculationDate {
+                return Calendar.current.isDateInToday(last)
+            }
+            return false
+        }
+        guard !alreadyCalculatedToday else { return }
+
+        await fetchAndCalculate(userID: userID, goalSettings: goalSettings, dailyLogService: dailyLogService)
+        await MainActor.run { self.lastCalculationDate = Date() }
     }
 }

@@ -31,7 +31,11 @@ class WorkoutService: ObservableObject {
     @Published var userRoutines: [WorkoutRoutine] = []
     @Published var userPrograms: [WorkoutProgram] = []
     @Published var preBuiltPrograms: [WorkoutProgram] = []
-    @Published var activeProgram: WorkoutProgram?
+    @Published var activeProgram: WorkoutProgram? {
+        didSet {
+            AnalyticsManager.setUserProperty(activeProgram != nil ? "true" : "false", for: .hasActiveProgram)
+        }
+    }
 
     private let db = Firestore.firestore()
     private var routineListener: ListenerRegistration?
@@ -92,6 +96,22 @@ class WorkoutService: ObservableObject {
             }
         }
         return allLogs
+    }
+
+    /// Fetches completed session logs from the last `days` days (used by the muscle recovery map,
+    /// which needs the real per-exercise names rather than the routine summary in the daily log).
+    func fetchRecentSessionLogs(sinceDays days: Int) async -> [WorkoutSessionLog] {
+        guard let userID = Auth.auth().currentUser?.uid else { return [] }
+        let startDate = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date()
+        do {
+            let snapshot = try await sessionLogsCollectionRef(for: userID)
+                .whereField("date", isGreaterThanOrEqualTo: Timestamp(date: startDate))
+                .getDocuments()
+            return snapshot.documents.compactMap { try? $0.data(as: WorkoutSessionLog.self) }
+        } catch {
+            AppLog.workouts.error("Failed to fetch recent session logs: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
     }
 
     func fetchRoutinesAndPrograms() {

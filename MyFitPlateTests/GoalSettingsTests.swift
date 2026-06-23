@@ -54,7 +54,8 @@ final class GoalSettingsTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         
         XCTAssertNotNil(goalSettings.calories)
-        XCTAssertEqual(goalSettings.calories ?? 0, 1600.6, accuracy: 1.0)
+        // Female BMR 1355.28 × 1.55 activity = 2100.68, minus the 250 cal "Lose" deficit.
+        XCTAssertEqual(goalSettings.calories ?? 0, 1850.68, accuracy: 1.0)
     }
 }
 

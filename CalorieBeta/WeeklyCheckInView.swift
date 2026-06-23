@@ -233,13 +233,25 @@ struct TrendDashboardView: View {
         }
         return recent.map { (date: $0.date, weight: $0.weight) }
     }
-    
+
+    // Exponential moving average — the actual "smoothed trend" the caption promises.
+    private var smoothedData: [(date: Date, weight: Double)] {
+        let raw = chartData
+        guard let first = raw.first else { return [] }
+        let alpha = 0.4
+        var ema = first.weight
+        return raw.map { point in
+            ema = alpha * point.weight + (1 - alpha) * ema
+            return (date: point.date, weight: ema)
+        }
+    }
+
     private var yAxisDomain: ClosedRange<Double> {
-        let weights = chartData.map { $0.weight }
+        let weights = chartData.map { $0.weight } + smoothedData.map { $0.weight }
         let minW = weights.min() ?? 150.0
         let maxW = weights.max() ?? 150.0
-        let padding = max(2.0, (maxW - minW) * 0.3)
-        return max(0, minW - padding)...(maxW + padding)
+        let padding = max(1.5, (maxW - minW) * 0.4)
+        return (minW - padding)...(maxW + padding)
     }
 
     var body: some View {
@@ -248,58 +260,59 @@ struct TrendDashboardView: View {
                 .appFont(size: 18, weight: .bold)
                 .foregroundColor(.textPrimary)
             
-            Text("Your smoothed weight trend algorithmically adjusts for daily fluctuations.")
+            Text("Your smoothed weight trend, adjusted for day-to-day fluctuations.")
                 .appFont(size: 13)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .padding(.bottom, 8)
-            
-            if chartData.isEmpty {
-                VStack {
-                    Spacer()
-                    Text("Not enough data")
-                        .foregroundColor(.secondary)
-                    Spacer()
+
+            if chartData.count < 2 {
+                VStack(spacing: 8) {
+                    Image(systemName: "scalemass")
+                        .font(.system(size: 28))
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                    Text("Log a few more weigh-ins")
+                        .appFont(size: 15, weight: .semibold)
+                        .foregroundColor(.textPrimary)
+                    Text("Your trend line appears once you have at least two recent entries.")
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .multilineTextAlignment(.center)
                 }
+                .frame(maxWidth: .infinity)
                 .frame(height: 180)
             } else {
                 Chart {
+                    // Real weigh-ins as subtle dots
                     ForEach(chartData, id: \.date) { item in
-                        // Daily scatter plot (scale weight)
                         PointMark(
                             x: .value("Date", item.date),
                             y: .value("Weight", item.weight)
                         )
-                        .foregroundStyle(Color.gray.opacity(0.4))
-                        .symbolSize(40)
-                        
-                        // Smoothed trend line
-                        LineMark(
-                            x: .value("Date", item.date),
-                            y: .value("Weight", item.weight)
-                        )
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color.brandPrimary, Color.teal],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .interpolationMethod(.monotone)
-                        .lineStyle(StrokeStyle(lineWidth: 4, lineCap: .round))
-                        
-                        // Area under the curve
+                        .foregroundStyle(Color(UIColor.tertiaryLabel))
+                        .symbolSize(28)
+                    }
+                    // Smoothed trend: area + line
+                    ForEach(smoothedData, id: \.date) { item in
                         AreaMark(
                             x: .value("Date", item.date),
                             y: .value("Weight", item.weight)
                         )
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [Color.brandPrimary.opacity(0.3), Color.clear],
+                                colors: [Color.brandPrimary.opacity(0.22), Color.brandPrimary.opacity(0.02)],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
                         )
-                        .interpolationMethod(.monotone)
+                        .interpolationMethod(.catmullRom)
+
+                        LineMark(
+                            x: .value("Date", item.date),
+                            y: .value("Weight", item.weight)
+                        )
+                        .foregroundStyle(Color.brandPrimary)
+                        .interpolationMethod(.catmullRom)
+                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
                     }
                 }
                 .chartYScale(domain: yAxisDomain)

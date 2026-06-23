@@ -11,7 +11,7 @@ struct WorkoutAnalytics {
     let aiInsights: [WorkoutAnalysisInsight]
 }
 
-struct WorkoutAnalysisInsight: Decodable, Identifiable, Hashable {
+struct WorkoutAnalysisInsight: Codable, Identifiable, Hashable {
     let id = UUID()
     let title: String
     let message: String
@@ -137,6 +137,19 @@ class WorkoutAnalyticsService: ObservableObject {
             personalRecords: personalRecords,
             aiInsights: mergeInsights(local: localInsights, ai: aiInsights)
         )
+    }
+
+    // MARK: - Persist Insights
+
+    func saveInsights(_ insights: [WorkoutAnalysisInsight], forSessionID sessionID: String, userID: String) async {
+        guard !insights.isEmpty else { return }
+        do {
+            let data = try JSONEncoder().encode(insights)
+            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+            try await db.collection("users").document(userID).collection("workoutSessionLogs").document(sessionID).updateData(["aiInsights": jsonArray])
+        } catch {
+            AppLog.workouts.error("Failed to save workout insights: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - New: History & Trends Features

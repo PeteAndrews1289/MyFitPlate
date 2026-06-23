@@ -299,7 +299,7 @@ struct ReportsView: View {
     }
 
     @ViewBuilder private var mealDistributionCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Calories")
@@ -318,52 +318,70 @@ struct ReportsView: View {
             if !viewModel.mealDistributionData.isEmpty {
                 let groupedMeals = Dictionary(grouping: viewModel.mealDistributionData, by: { $0.mealName })
                 let orderedMealNames = ["Breakfast", "Lunch", "Dinner", "Snacks"]
-                
+
                 let processedData: [(meal: String, totalCalories: Double)] = orderedMealNames.compactMap { mealName in
                     let totalCals = groupedMeals[mealName]?.reduce(0) { $0 + $1.totalCalories } ?? 0
-                    if totalCals > 0 {
-                        return (mealName, totalCals)
-                    } else {
-                        return nil
-                    }
+                    return totalCals > 0 ? (mealName, totalCals) : nil
                 }
-                
-                let colorMapping: [String: Color] = [
-                    "Breakfast": .red, "Lunch": .orange, "Dinner": .blue, "Snacks": .green
+
+                // Cohesive warm-to-cool palette (replaces the clashing red/blue/green).
+                let mealColors: [String: Color] = [
+                    "Breakfast": .orange, "Lunch": .teal, "Dinner": .blue, "Snacks": .purple
                 ]
-                
-                Spacer()
-                Chart(processedData, id: \.meal) { dp in
-                    SectorMark(
-                        angle: .value("Calories", dp.totalCalories),
-                        innerRadius: .ratio(0.5),
-                        angularInset: 2
-                    )
-                    .foregroundStyle(colorMapping[dp.meal, default: .gray])
-                    .cornerRadius(6)
-                    .annotation(position: .overlay) {
-                        VStack(spacing: 0) {
-                            Text(dp.meal)
-                                .appFont(size: 10, weight: .bold)
-                            Text("\(dp.totalCalories, specifier: "%.0f") cal")
-                                .appFont(size: 10, weight: .regular)
-                        }
-                        .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                let totalCalories = processedData.reduce(0) { $0 + $1.totalCalories }
+
+                ZStack {
+                    Chart(processedData, id: \.meal) { dp in
+                        SectorMark(
+                            angle: .value("Calories", dp.totalCalories),
+                            innerRadius: .ratio(0.64),
+                            angularInset: 2
+                        )
+                        .foregroundStyle(mealColors[dp.meal, default: .gray])
+                        .cornerRadius(5)
+                    }
+                    .chartLegend(.hidden)
+                    .frame(height: 112)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.7), value: processedData.map { $0.totalCalories })
+
+                    VStack(spacing: 0) {
+                        Text("\(Int(totalCalories))")
+                            .appFont(size: 22, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                        Text("kcal")
+                            .appFont(size: 10, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
                     }
                 }
-                .chartLegend(.hidden)
-                .frame(maxWidth: .infinity, maxHeight: 115)
-                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: processedData.map { $0.totalCalories })
-                Spacer()
+
+                LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 6) {
+                    ForEach(processedData, id: \.meal) { dp in
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(mealColors[dp.meal, default: .gray])
+                                .frame(width: 8, height: 8)
+                            Text(dp.meal)
+                                .appFont(size: 11, weight: .medium)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
+                                .lineLimit(1)
+                        }
+                    }
+                }
             } else if !viewModel.isLoading {
-                Spacer()
-                Text("No meal data available.")
-                    .appFont(size: 13, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Spacer()
+                VStack(spacing: 6) {
+                    Image(systemName: "fork.knife")
+                        .font(.system(size: 24))
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                    Text("No meals logged")
+                        .appFont(size: 13, weight: .semibold)
+                        .foregroundColor(.textPrimary)
+                    Text("Log a meal to see your daily split.")
+                        .appFont(size: 11)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
             }
         }
         .asCard()
@@ -544,20 +562,35 @@ private struct SmartReportInsightCard: View {
 
 private struct ReportsLoadingState: View {
     var body: some View {
-        VStack(spacing: 14) {
-            ProgressView()
-                .tint(.brandPrimary)
-            Text("Building your report")
-                .appFont(size: 17, weight: .semibold)
-                .foregroundColor(.textPrimary)
-            Text("Pulling nutrition, activity, sleep, and weight trends into one view.")
-                .appFont(size: 13)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .multilineTextAlignment(.center)
+        VStack(spacing: 12) {
+            // Overview card placeholder
+            VStack(alignment: .leading, spacing: 12) {
+                SkeletonBlock(width: 140, height: 16)
+                SkeletonBlock(height: 44)
+                HStack(spacing: 10) {
+                    SkeletonBlock(height: 30)
+                    SkeletonBlock(height: 30)
+                    SkeletonBlock(height: 30)
+                }
+            }
+            .padding()
+            .asCard()
+
+            // The two side-by-side cards (meal donut + weight)
+            HStack(spacing: 12) {
+                ForEach(0..<2, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 12) {
+                        SkeletonBlock(width: 80, height: 14)
+                        SkeletonBlock(height: 92, cornerRadius: 12)
+                        SkeletonBlock(width: 100, height: 12)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .asCard()
+                }
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 44)
-        .asCard()
+        .skeletonPulse()
     }
 }
 
