@@ -27,9 +27,11 @@ const DAILY_CALL_LIMIT = 300; // per user, per UTC day
 export const generateAIResponse = onCall(
   {
     secrets: [openAIKey],
-    // NOTE: App Check enforcement is intentionally left OFF until the iOS app ships
-    // with the App Check SDK and we've verified tokens in the Firebase console.
-    // Flip this to `true` only after that, or every AI call will start failing.
+    // NOTE: App Check enforcement is intentionally left OFF. 2.0 ships the App Check
+    // SDK and the debug token is registered, BUT the live 1.x build has NO App Check —
+    // enforcing now would 403 every existing user. Flip this to `true` only once 2.0 is
+    // the dominant installed version (watch the App Check "APIs" metrics drop to mostly
+    // verified), and enforce Firestore/Auth in the console at the same time.
     // enforceAppCheck: true,
   },
   async (request) => {
@@ -129,7 +131,10 @@ export const generateAIResponse = onCall(
 // HTTPS wrapper around the existing FatSecret proxy so the iOS app never speaks plaintext HTTP.
 // App -> (HTTPS) this function -> (server-side) existing proxy -> FatSecret. The proxy is untouched.
 export const fatSecretProxy = onCall(
-  { secrets: [fatSecretProxyUrl] },
+  {
+    secrets: [fatSecretProxyUrl],
+    // enforceAppCheck: true, // flip together with generateAIResponse once 2.0 is dominant
+  },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Authentication required.");
