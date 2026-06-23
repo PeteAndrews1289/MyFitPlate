@@ -517,11 +517,33 @@ class WorkoutAnalyticsService: ObservableObject {
     
     private func guessMuscleGroup(exerciseName: String) -> String {
         let lower = exerciseName.lowercased()
-        if lower.contains("bench") || lower.contains("push") || lower.contains("fly") || lower.contains("chest") { return "Chest" }
-        if lower.contains("squat") || lower.contains("leg") || lower.contains("lunge") || lower.contains("quad") { return "Legs" }
-        if lower.contains("deadlift") || lower.contains("row") || lower.contains("pull") || lower.contains("lat") { return "Back" }
-        if lower.contains("curl") || lower.contains("tricep") || lower.contains("bicep") { return "Arms" }
-        if lower.contains("press") || lower.contains("raise") || lower.contains("shoulder") { return "Shoulders" }
+        // Check leg-specific terms FIRST so "calf raise", "leg press", and "leg curl" don't fall
+        // through to the generic "raise"/"press"/"curl" rules and get mislabeled (e.g. a calf
+        // raise being counted as Shoulders).
+        if lower.contains("squat") || lower.contains("leg") || lower.contains("lunge")
+            || lower.contains("quad") || lower.contains("calf") || lower.contains("calve")
+            || lower.contains("hamstring") || lower.contains("glute") || lower.contains("hip thrust") {
+            return "Legs"
+        }
+        if lower.contains("bench") || lower.contains("push") || lower.contains("fly")
+            || lower.contains("chest") || lower.contains("pec") {
+            return "Chest"
+        }
+        if lower.contains("deadlift") || lower.contains("row") || lower.contains("pull")
+            || lower.contains("lat") || lower.contains("back") {
+            return "Back"
+        }
+        if lower.contains("curl") || lower.contains("tricep") || lower.contains("bicep") {
+            return "Arms"
+        }
+        if lower.contains("crunch") || lower.contains("plank") || lower.contains("oblique")
+            || lower.contains("abs") || lower.contains("core") {
+            return "Core"
+        }
+        if lower.contains("press") || lower.contains("raise") || lower.contains("shoulder")
+            || lower.contains("delt") || lower.contains("shrug") {
+            return "Shoulders"
+        }
         return "Other"
     }
 }

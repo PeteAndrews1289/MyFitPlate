@@ -40,6 +40,7 @@ struct WorkoutPlayerView: View {
     @State private var showingAnalyticsSheet = false
     @State private var completedSessionLog: WorkoutSessionLog? = nil
     @State private var showingFinishConfirmation = false
+    @State private var showingDiscardConfirmation = false
 
     var onWorkoutComplete: () -> Void
 
@@ -92,6 +93,7 @@ struct WorkoutPlayerView: View {
     }
 
     var body: some View {
+        NavigationStack {
         ZStack {
             VStack(spacing: 0) {
                 WorkoutSessionHeaderCard(
@@ -104,7 +106,7 @@ struct WorkoutPlayerView: View {
                     totalExercises: routine.exercises.count,
                     progress: workoutProgress,
                     currentExerciseName: currentExerciseName,
-                    onClose: closeWorkout,
+                    onClose: requestCloseWorkout,
                     onStopRest: restTimer.stop
                 )
                 .padding(.horizontal)
@@ -228,6 +230,18 @@ struct WorkoutPlayerView: View {
                 Text("Completed sets will be saved, but unfinished sets will be skipped.")
             }
         }
+        .confirmationDialog(
+            "Discard this workout?",
+            isPresented: $showingDiscardConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Discard Workout", role: .destructive) {
+                closeWorkout()
+            }
+            Button("Keep Training", role: .cancel) {}
+        } message: {
+            Text("Your progress from this session won't be saved.")
+        }
         .sheet(isPresented: $showingAnalyticsSheet, onDismiss: {
             onWorkoutComplete()
             dismiss()
@@ -237,6 +251,7 @@ struct WorkoutPlayerView: View {
             } else {
                 Text("Error loading analytics")
             }
+        }
         }
     }
 
@@ -252,6 +267,14 @@ struct WorkoutPlayerView: View {
 
     private func moveExercise(from source: IndexSet, to destination: Int) {
         routine.exercises.move(fromOffsets: source, toOffset: destination)
+    }
+
+    private func requestCloseWorkout() {
+        if completedSetCount > 0 {
+            showingDiscardConfirmation = true
+        } else {
+            closeWorkout()
+        }
     }
 
     private func closeWorkout() {

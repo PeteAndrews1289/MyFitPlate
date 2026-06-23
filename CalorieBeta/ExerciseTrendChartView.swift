@@ -6,6 +6,13 @@ struct ExerciseTrendChartView: View {
     let dataPoints: [ExerciseTrendPoint]
     let metric: String
 
+    private var yDomain: ClosedRange<Double> {
+        let values = dataPoints.map { $0.value }
+        guard let minV = values.min(), let maxV = values.max() else { return 0...1 }
+        let pad = Swift.max(5, (maxV - minV) * 0.3)
+        return Swift.max(0, minV - pad)...(maxV + pad)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -42,8 +49,17 @@ struct ExerciseTrendChartView: View {
                         .foregroundStyle(LinearGradient(colors: [Color.brandPrimary.opacity(0.3), Color.brandPrimary.opacity(0.0)], startPoint: .top, endPoint: .bottom))
                 }
                 .frame(height: 180)
+                .chartYScale(domain: yDomain)
                 .chartYAxis { AxisMarks(position: .leading) }
-                .chartXAxis { AxisMarks(values: .stride(by: .day)) { value in if let _ = value.as(Date.self) { AxisValueLabel(format: .dateTime.day().month()) } } }
+                .chartXAxis {
+                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                        if let date = value.as(Date.self) {
+                            AxisValueLabel {
+                                Text(date, format: .dateTime.month().day())
+                            }
+                        }
+                    }
+                }
             }
         }
         .padding().background(Color(UIColor.secondarySystemBackground)).cornerRadius(16)

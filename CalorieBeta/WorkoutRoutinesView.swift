@@ -226,6 +226,14 @@ struct WorkoutRoutinesView: View {
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
             .navigationTitle("Train")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    NavigationLink(destination: WorkoutHistoryView()) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundColor(.brandPrimary)
+                    }
+                }
+            }
             .onAppear {
                 workoutService.fetchRoutinesAndPrograms()
             }
