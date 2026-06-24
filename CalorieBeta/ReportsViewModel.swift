@@ -496,8 +496,9 @@ class ReportsViewModel: ObservableObject {
         // Temporary arrays for chart data points
         var tmpCalT=[DateValuePoint](), tmpProtT=[DateValuePoint](), tmpCarbT=[DateValuePoint](), tmpFatT=[DateValuePoint]()
 
-        // Process workouts first (if any)
-        let allExercises = validLogs.flatMap { $0.exercises ?? [] }
+        // Process workouts first (if any). Dedupe per-day so a routine also recorded on
+        // Apple Health isn't counted twice in the workout count or calories burned.
+        let allExercises = validLogs.flatMap { ($0.exercises ?? []).dedupedAgainstHealthKit() }
         if !allExercises.isEmpty {
             let totalWorkouts = allExercises.count; let totalCaloriesBurned = allExercises.reduce(0){$0 + $1.caloriesBurned}
             // Find most frequent workout type
