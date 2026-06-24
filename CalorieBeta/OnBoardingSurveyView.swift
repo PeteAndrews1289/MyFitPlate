@@ -32,6 +32,7 @@ struct OnboardingSurveyView: View {
     let reminderStyles = ["Gentle", "Direct", "Minimal"]
     let maiaTones = ["Balanced", "Coach", "Analyst"]
     private let activityLevelMap: [String: Double] = ["Sedentary": 1.2, "Lightly Active": 1.375, "Moderately Active": 1.55, "Very Active": 1.725, "Extremely Active": 1.9]
+    private let activityLevelOrder = ["Sedentary", "Lightly Active", "Moderately Active", "Very Active", "Extremely Active"]
 
     public init(onComplete: @escaping () -> Void) {
         self.onComplete = onComplete
@@ -79,11 +80,6 @@ struct OnboardingSurveyView: View {
 
                         Spacer()
 
-                        Text("\(Int((progressValue * 100).rounded()))%")
-                            .appFont(size: 15, weight: .bold)
-                            .foregroundColor(.brandPrimary)
-                            .frame(width: 48, height: 48)
-                            .background(Color.brandPrimary.opacity(0.12), in: Circle())
                     }
 
                     ProgressView(value: Double(currentStep + 1), total: Double(totalSteps))
@@ -236,7 +232,7 @@ struct OnboardingSurveyView: View {
                 .foregroundColor(Color(UIColor.secondaryLabel))
 
             HStack {
-                TextField(title, text: text)
+                TextField("0", text: text)
                     .keyboardType(keyboard)
                     .appFont(size: 24, weight: .bold)
                     .foregroundColor(.textPrimary)
@@ -268,21 +264,41 @@ struct OnboardingSurveyView: View {
                 .appFont(size: 17, weight: .bold)
                 .foregroundColor(.textPrimary)
             
-            Picker("Activity Level", selection: $selectedActivityLevelKey) {
-                ForEach(activityLevels.keys.sorted(), id: \.self) { key in
-                    VStack(alignment: .leading) {
-                        Text(key)
-                            .font(.headline)
-                        Text(activityLevels[key] ?? "")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+            VStack(spacing: 10) {
+                ForEach(activityLevelOrder, id: \.self) { key in
+                    Button {
+                        selectedActivityLevelKey = key
+                    } label: {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(key)
+                                    .appFont(size: 15, weight: .bold)
+                                    .foregroundColor(.textPrimary)
+                                Text(activityLevels[key] ?? "")
+                                    .appFont(size: 12)
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                                    .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 8)
+                            Image(systemName: selectedActivityLevelKey == key ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 20))
+                                .foregroundColor(selectedActivityLevelKey == key ? .brandPrimary : Color(UIColor.tertiaryLabel))
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            (selectedActivityLevelKey == key ? Color.brandPrimary.opacity(0.12) : Color.backgroundSecondary.opacity(0.6)),
+                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(selectedActivityLevelKey == key ? Color.brandPrimary.opacity(0.55) : Color.clear, lineWidth: 1.5)
+                        )
                     }
-                    .padding(.vertical, 4)
-                    .tag(key)
+                    .buttonStyle(.plain)
                 }
             }
-            .pickerStyle(.inline)
-            .labelsHidden()
 
             Text("Primary Goal")
                 .appFont(size: 17, weight: .bold)
@@ -298,14 +314,14 @@ struct OnboardingSurveyView: View {
     @ViewBuilder
     private func coachingPreferencesStepView() -> some View {
         VStack(spacing: 18) {
-            onboardingChoiceSection(title: "Training Intent", selection: $selectedTrainingIntent, options: trainingIntents)
+            onboardingChoiceSection(title: "Training Intent", selection: $selectedTrainingIntent, options: trainingIntents, shortLabels: ["General Fitness": "Fitness", "Muscle Gain": "Muscle"])
             onboardingChoiceSection(title: "Reminder Style", selection: $selectedReminderStyle, options: reminderStyles)
             onboardingChoiceSection(title: "Maia Style", selection: $selectedMaiaTone, options: maiaTones)
         }
         .padding(.top, 4)
     }
 
-    private func onboardingChoiceSection(title: String, selection: Binding<String>, options: [String]) -> some View {
+    private func onboardingChoiceSection(title: String, selection: Binding<String>, options: [String], shortLabels: [String: String] = [:]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .appFont(size: 17, weight: .bold)
@@ -313,7 +329,7 @@ struct OnboardingSurveyView: View {
 
             Picker(title, selection: selection) {
                 ForEach(options, id: \.self) { option in
-                    Text(option).tag(option)
+                    Text(shortLabels[option] ?? option).tag(option)
                 }
             }
             .pickerStyle(.segmented)
