@@ -20,7 +20,7 @@ const fatSecretProxyUrl = defineSecret("FATSECRET_PROXY_URL");
 // client can never escalate cost regardless of what it sends.
 const ALLOWED_MODELS = new Set(["gpt-4o-mini"]);
 const DEFAULT_MODEL = "gpt-4o-mini";
-const MAX_OUTPUT_TOKENS = 2048;
+const MAX_OUTPUT_TOKENS = 6000; // 7-day meal plan legitimately requests ~5000; most calls ask far less. The per-user daily call limit still bounds total cost.
 const MAX_MESSAGES = 50;
 const DAILY_CALL_LIMIT = 300; // per user, per UTC day
 
