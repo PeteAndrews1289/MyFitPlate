@@ -143,6 +143,7 @@ struct MenuScannerView: View {
     @State private var isProcessing = false
     @State private var recommendedMeals: [FoodItem] = []
     @State private var errorMessage: String? = nil
+    @State private var remainingCaloriesSnapshot: Double = 0
     
     private let aiModel = MLImageModel()
     
@@ -230,10 +231,18 @@ struct MenuScannerView: View {
     }
 
     private var resultsState: some View {
-        ScrollView {
+        let remaining = remainingCaloriesSnapshot
+        let fittingCount = recommendedMeals.filter { remaining > 0 && $0.calories <= remaining }.count
+        return ScrollView {
             VStack(spacing: 12) {
+                if remaining > 0 && fittingCount == 0 {
+                    menuBudgetBanner(remaining: remaining)
+                }
+
                 HStack {
-                    Text("Top picks for your remaining macros")
+                    Text(remaining > 0
+                         ? "5 picks · \(fittingCount) fit your remaining \(Int(remaining)) cal"
+                         : "Top picks from this menu")
                         .appFont(size: 13, weight: .semibold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                     Spacer()
@@ -242,7 +251,7 @@ struct MenuScannerView: View {
 
                 ForEach(recommendedMeals) { meal in
                     Button { logMeal(meal) } label: {
-                        menuMealCard(meal)
+                        menuMealCard(meal, fitsBudget: remaining > 0 && meal.calories <= remaining)
                     }
                     .buttonStyle(.plain)
                 }
@@ -257,8 +266,30 @@ struct MenuScannerView: View {
         }
     }
 
+    private func menuBudgetBanner(remaining: Double) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.orange)
+                .frame(width: 30, height: 30)
+                .background(Color.orange.opacity(0.14), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text("All picks exceed your remaining \(Int(remaining)) cal")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Text("These are the closest options on the menu — log mindfully or save room elsewhere.")
+                    .appFont(size: 12)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
     @ViewBuilder
-    private func menuMealCard(_ meal: FoodItem) -> some View {
+    private func menuMealCard(_ meal: FoodItem, fitsBudget: Bool) -> some View {
         HStack(spacing: 14) {
             Image(systemName: "fork.knife")
                 .font(.system(size: 16, weight: .bold))
@@ -280,6 +311,15 @@ struct MenuScannerView: View {
                     Text("F \(Int(meal.fats))g").foregroundColor(.accentFats)
                 }
                 .appFont(size: 12, weight: .semibold)
+
+                if fitsBudget {
+                    Text("Fits your budget")
+                        .appFont(size: 10, weight: .bold)
+                        .foregroundColor(.accentPositive)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.accentPositive.opacity(0.14), in: Capsule())
+                }
             }
 
             Spacer(minLength: 6)
@@ -302,6 +342,7 @@ struct MenuScannerView: View {
         
         let remainingCals = max(0, (goalSettings.calories ?? 2000) - (dailyLogService.currentDailyLog?.totalCalories() ?? 0))
         let remainingPro = max(0, goalSettings.protein - (dailyLogService.currentDailyLog?.totalMacros().protein ?? 0))
+        remainingCaloriesSnapshot = remainingCals
         
         aiModel.recommendMenuMeals(from: image, remainingCalories: remainingCals, remainingProtein: remainingPro) { result in
             isProcessing = false
@@ -310,7 +351,7 @@ struct MenuScannerView: View {
                 if meals.isEmpty {
                     errorMessage = "We couldn't find any good matches on this menu."
                 } else {
-                    recommendedMeals = Array(meals.prefix(3))
+                    recommendedMeals = Array(meals.prefix(5))
                 }
             case .failure(let error):
                 errorMessage = "Failed to analyze menu: \(error.localizedDescription)"

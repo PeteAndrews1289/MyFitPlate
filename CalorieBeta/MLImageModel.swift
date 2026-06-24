@@ -219,14 +219,21 @@ class MLImageModel {
         You are an expert nutritional analysis assistant. The user has provided an image of a restaurant menu.
         For context, the user has about \(Int(remainingCalories)) calories and \(Int(remainingProtein))g of protein left for the day. Use this ONLY to choose which dishes to recommend — never to change a dish's real nutrition.
         
-        Your task: estimate each dish's REAL nutrition using realistic full restaurant portions (entrées are typically 400-900 calories), then recommend the 3 dishes that come closest to the user's remaining protein and calories. Prefer high-protein options. If nothing fits cleanly, recommend the lightest high-protein dishes and say so honestly. NEVER understate a dish's calories or macros to make it "fit" the budget — report the real plate.
+        First, estimate each dish's REAL nutrition using realistic full restaurant portions (entrées are typically 400-900 calories). NEVER understate a dish's calories or macros to make it "fit" the budget — report the real plate.
+
+        Then recommend exactly 5 dishes, chosen for VARIETY (do NOT return five near-identical high-protein entrées):
+        - 3 dishes that best fit the user's remaining calories and protein. Keep these protein-forward, but vary the type (e.g. not three steaks).
+        - 1 dish that is the most nutritious / healthiest option overall (nutrient density, vegetables, balance), regardless of how it fits the macros.
+        - 1 lighter or plant-forward option for variety — a salad or vegetarian dish if the menu offers one.
+        If the menu genuinely lacks a category (e.g. a steakhouse with no salad), pick the closest alternative and still return 5 total.
         
         RULES:
         1. Response MUST be a valid JSON object. Root key: "foods" (array of objects).
-        2. Keys per object: "itemName" (include a short reason in the name, e.g. "Grilled Salmon (High Protein)"), "servingSize" (e.g. '1 meal'), "calories", "protein", "carbs", "fats".
-        3. Calories MUST be consistent with the macros: calories ≈ (protein * 4) + (carbs * 4) + (fats * 9). Re-check this before responding — a high-protein entrée cannot be only a few calories.
-        4. Report each dish's true values even if it exceeds the user's remaining calories.
-        5. Provide exactly your top 3 recommendations.
+        2. Keys per object: "itemName" with a short role label in parentheses — "(Best Macro Fit)" for the 3 macro picks, "(Most Nutritious)" for the healthiest, "(Lighter Pick)" for the variety option — plus "servingSize" (e.g. '1 meal'), "calories", "protein", "carbs", "fats".
+        3. Order the array as: the 3 "(Best Macro Fit)" dishes first, then "(Most Nutritious)", then "(Lighter Pick)".
+        4. Calories MUST be consistent with the macros: calories ≈ (protein * 4) + (carbs * 4) + (fats * 9). Re-check this before responding — a high-protein entrée cannot be only a few calories.
+        5. Report each dish's true values even if it exceeds the user's remaining calories.
+        6. Provide exactly 5 recommendations.
         """
 
         let messages: [[String: Any]] = [
