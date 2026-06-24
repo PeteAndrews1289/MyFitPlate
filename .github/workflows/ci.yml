@@ -1,0 +1,65 @@
+name: CI
+
+# Builds the app and runs the MyFitPlateTests unit suite on every push / PR to main,
+# so logic regressions (nutrition math, model parsing, HealthKit dedupe) are caught
+# automatically before they reach an archive.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: Unit tests
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      # secrets.xcconfig is gitignored. The unit tests are pure logic and never call
+      # OpenAI or FatSecret, so empty placeholders are enough for the app target to
+      # compile. (Keep values free of "//" — xcconfig treats it as a comment.)
+      - name: Provide placeholder build secrets
+        run: |
+          cat > secrets.xcconfig <<'EOF'
+          FATSECRET_PROXY_URL =
+          OPENAI_API_KEY =
+          EOF
+
+      - name: Cache Swift Package dependencies
+        uses: actions/cache@v4
+        with:
+          path: .spm
+          key: spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: spm-
+
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -scheme MyFitPlate \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -only-testing:MyFitPlateTests \
+            -clonedSourcePackagesDirPath .spm \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults.xcresult
+          if-no-files-found: ignore
