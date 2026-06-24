@@ -217,15 +217,16 @@ class MLImageModel {
 
         let prompt = """
         You are an expert nutritional analysis assistant. The user has provided an image of a restaurant menu.
-        The user has \(Int(remainingCalories)) calories and \(Int(remainingProtein))g of protein remaining for their daily goal.
+        For context, the user has about \(Int(remainingCalories)) calories and \(Int(remainingProtein))g of protein left for the day. Use this ONLY to choose which dishes to recommend — never to change a dish's real nutrition.
         
-        Your task is to identify the top 3 meals on this menu that best fit these remaining macro targets.
-        Prioritize meals that hit the protein goal without massively exceeding the calorie limit.
+        Your task: estimate each dish's REAL nutrition using realistic full restaurant portions (entrées are typically 400-900 calories), then recommend the 3 dishes that come closest to the user's remaining protein and calories. Prefer high-protein options. If nothing fits cleanly, recommend the lightest high-protein dishes and say so honestly. NEVER understate a dish's calories or macros to make it "fit" the budget — report the real plate.
         
         RULES:
         1. Response MUST be a valid JSON object. Root key: "foods" (array of objects).
         2. Keys per object: "itemName" (include a short reason in the name, e.g. "Grilled Salmon (High Protein)"), "servingSize" (e.g. '1 meal'), "calories", "protein", "carbs", "fats".
-        3. Provide exactly your top 3 recommendations.
+        3. Calories MUST be consistent with the macros: calories ≈ (protein * 4) + (carbs * 4) + (fats * 9). Re-check this before responding — a high-protein entrée cannot be only a few calories.
+        4. Report each dish's true values even if it exceeds the user's remaining calories.
+        5. Provide exactly your top 3 recommendations.
         """
 
         let messages: [[String: Any]] = [

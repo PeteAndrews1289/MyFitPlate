@@ -150,47 +150,9 @@ struct MenuScannerView: View {
         NavigationStack {
             VStack {
                 if isProcessing {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                        Text("Analyzing menu & crunching macros...")
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    loadingState
                 } else if !recommendedMeals.isEmpty {
-                    List {
-                        Section(header: Text("Top 3 Recommendations")) {
-                            ForEach(recommendedMeals) { meal in
-                                Button(action: { logMeal(meal) }) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(meal.name)
-                                                .font(.headline)
-                                                .foregroundColor(.textPrimary)
-                                            HStack(spacing: 12) {
-                                                Text("\(Int(meal.calories)) kcal")
-                                                Text("\(Int(meal.protein))g Protein")
-                                            }
-                                            .font(.subheadline)
-                                            .foregroundColor(.brandPrimary)
-                                            
-                                            HStack(spacing: 12) {
-                                                Text("\(Int(meal.carbs))g Carbs")
-                                                Text("\(Int(meal.fats))g Fat")
-                                            }
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        }
-                                        Spacer()
-                                        Image(systemName: "plus.circle.fill")
-                                            .foregroundColor(.accentPositive)
-                                            .font(.title2)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.insetGrouped)
+                    resultsState
                 } else {
                     VStack(spacing: 24) {
                         Image(systemName: "menucard")
@@ -242,6 +204,7 @@ struct MenuScannerView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
+            .background(Color.backgroundPrimary.ignoresSafeArea())
             .navigationTitle("Menu Scanner")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -252,6 +215,87 @@ struct MenuScannerView: View {
         }
     }
     
+    private var loadingState: some View {
+        VStack(spacing: 18) {
+            ProgressView()
+                .controlSize(.large)
+                .tint(.brandPrimary)
+            Text("Reading the menu and matching your macros…")
+                .appFont(size: 15, weight: .medium)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var resultsState: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                HStack {
+                    Text("Top picks for your remaining macros")
+                        .appFont(size: 13, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                    Spacer()
+                }
+                .padding(.horizontal, 4)
+
+                ForEach(recommendedMeals) { meal in
+                    Button { logMeal(meal) } label: {
+                        menuMealCard(meal)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Text("AI estimates — double-check before logging.")
+                    .appFont(size: 11)
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 6)
+            }
+            .padding()
+        }
+    }
+
+    @ViewBuilder
+    private func menuMealCard(_ meal: FoodItem) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "fork.knife")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.brandPrimary)
+                .frame(width: 44, height: 44)
+                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(meal.name)
+                    .appFont(size: 16, weight: .semibold)
+                    .foregroundColor(.textPrimary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+
+                HStack(spacing: 9) {
+                    Text("\(Int(meal.calories)) cal").foregroundColor(.brandPrimary)
+                    Text("P \(Int(meal.protein))g").foregroundColor(.accentProtein)
+                    Text("C \(Int(meal.carbs))g").foregroundColor(.accentCarbs)
+                    Text("F \(Int(meal.fats))g").foregroundColor(.accentFats)
+                }
+                .appFont(size: 12, weight: .semibold)
+            }
+
+            Spacer(minLength: 6)
+
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 26))
+                .foregroundColor(.brandPrimary)
+        }
+        .padding(14)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+    }
+
     private func processImage(_ image: UIImage) {
         isProcessing = true
         errorMessage = nil
