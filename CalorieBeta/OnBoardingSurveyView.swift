@@ -131,11 +131,15 @@ struct OnboardingSurveyView: View {
                 currentStep += 1
             }
         } else {
-            guard let age = Int(ageInput),
+            guard let age = Int(ageInput), age > 0,
                   let heightFeet = Int(heightFeetInput),
                   let heightInches = Int(heightInchesInput),
-                  let currentWeight = Double(currentWeightInput),
-                  let targetWeight = Double(targetWeightInput) else {
+                  let currentWeight = Double(currentWeightInput), currentWeight > 0,
+                  let targetWeight = Double(targetWeightInput), targetWeight > 0 else {
+                // A required step was skipped (the paged TabView lets users swipe past the
+                // disabled Next button). Jump back to the first incomplete step instead of
+                // silently doing nothing, which made "Finish Setup" look broken.
+                withAnimation { currentStep = firstIncompleteStep() }
                 return
             }
             
@@ -157,6 +161,14 @@ struct OnboardingSurveyView: View {
             }
             onComplete()
         }
+    }
+
+    private func firstIncompleteStep() -> Int {
+        if ageInput.isEmpty || (Int(ageInput) ?? 0) <= 0 { return 0 }
+        if heightFeetInput.isEmpty || heightInchesInput.isEmpty { return 1 }
+        if currentWeightInput.isEmpty || (Double(currentWeightInput) ?? 0) <= 0 { return 2 }
+        if targetWeightInput.isEmpty || (Double(targetWeightInput) ?? 0) <= 0 { return 5 }
+        return 0
     }
 
     private func hideKeyboard() {
