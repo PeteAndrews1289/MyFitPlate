@@ -197,6 +197,16 @@ private struct SurveySelectionView: View {
     
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
+    private var placeholder: String {
+        switch title {
+        case "Proteins": return "Other (e.g., Lamb)"
+        case "Carbs": return "Other (e.g., Couscous)"
+        case "Vegetables": return "Other (e.g., Asparagus)"
+        case "Snacks": return "Other (e.g., Trail mix)"
+        default: return "Other…"
+        }
+    }
+
     var body: some View {
         VStack {
             LazyVGrid(columns: columns, spacing: 12) {
@@ -222,7 +232,7 @@ private struct SurveySelectionView: View {
                     }
                 }
             }
-            TextField("Other (e.g., Lamb)", text: $customItem)
+            TextField(placeholder, text: $customItem)
                 .textFieldStyle(AppTextFieldStyle(iconName: nil))
                 .padding(.top)
         }

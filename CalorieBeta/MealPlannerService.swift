@@ -174,6 +174,13 @@ class MealPlannerService: ObservableObject {
         return planCache[cacheKey(for: date, userID: userID)]
     }
 
+    /// Clears the in-memory + disk plan cache so the next fetch reads fresh from Firestore.
+    /// Call after generating or editing a plan, otherwise the view can show a stale (e.g. empty) week.
+    public func invalidateCache() {
+        planCache.removeAll()
+        saveCacheToDisk()
+    }
+
     public func prefetchPlans(starting date: Date, userID: String) async {
         for i in 0..<7 {
             guard let fetchDate = Calendar.current.date(byAdding: .day, value: i, to: date) else { continue }

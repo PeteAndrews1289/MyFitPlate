@@ -173,8 +173,11 @@ struct OnboardingSurveyView: View {
 
     @ViewBuilder
     private func stepView<Content: View>(title: String, subtitle: String, iconName: String, @ViewBuilder content: @escaping () -> Content) -> some View {
-        ScrollView {
-            VStack(spacing: 20) {
+        GeometryReader { geo in
+            ScrollView {
+                VStack {
+                    Spacer(minLength: 16)
+                    VStack(spacing: 20) {
                 Image(systemName: iconName)
                     .font(.system(size: 34, weight: .semibold))
                     .foregroundColor(.brandPrimary)
@@ -199,6 +202,10 @@ struct OnboardingSurveyView: View {
             .frame(maxWidth: .infinity)
             .asCard()
             .padding(20)
+                    Spacer(minLength: 16)
+                }
+                .frame(minHeight: geo.size.height)
+            }
         }
     }
 

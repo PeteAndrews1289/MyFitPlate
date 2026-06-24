@@ -470,6 +470,7 @@ struct MealPlannerView: View {
     }
 
     private func handlePlanEditDismiss() {
+        mealPlannerService.invalidateCache()
         fetchPlan()
         refreshWeekOverview()
     }
