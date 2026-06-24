@@ -82,6 +82,7 @@ struct FeatureTourView: View {
     @ViewBuilder
     private func featureCard(for feature: FeatureInfo) -> some View {
         VStack(spacing: 25) {
+            Spacer()
             Image(systemName: feature.iconName)
                 .font(.system(size: 80, weight: .bold))
                 .foregroundColor(feature.color)
@@ -102,6 +103,7 @@ struct FeatureTourView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 320)
                 .lineSpacing(4)
+            Spacer()
         }
         .padding(.horizontal, 20)
     }
