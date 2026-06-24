@@ -811,6 +811,19 @@ struct StrengthSetRow: View {
                 repsInput = newReps > 0 ? "\(newReps)" : ""
             }
         }
+        .onAppear {
+            // Pre-fill an untouched set from last session's matching set, so a repeat is
+            // just "tap the check" instead of starting blank (and risking a 0x0 log).
+            guard !set.isCompleted, let previousSet else { return }
+            if set.weight == 0 {
+                set.weight = previousSet.weight
+                weightInput = previousSet.weight > 0 ? String(format: "%g", previousSet.weight) : ""
+            }
+            if set.reps == 0 {
+                set.reps = previousSet.reps
+                repsInput = previousSet.reps > 0 ? "\(previousSet.reps)" : ""
+            }
+        }
     }
 
     private func fillFromPrevious() {

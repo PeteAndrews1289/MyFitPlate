@@ -201,6 +201,57 @@ struct LoggedExercise: Codable, Identifiable, Hashable {
     static func == (lhs: LoggedExercise, rhs: LoggedExercise) -> Bool { lhs.id == rhs.id }
 }
 
+extension Array where Element == LoggedExercise {
+    /// Collapses a MyFitPlate-logged workout (source "routine"/"manual") that overlaps an
+    /// Apple Health workout in time into a single entry — keeping the MyFitPlate name but
+    /// using Health's *measured* calories and duration. Prevents the same session (e.g. a
+    /// routine you also recorded on your Apple Watch) from being counted twice in the
+    /// activity list, the "burned" total, and any eat-back math.
+    func dedupedAgainstHealthKit(bufferMinutes: Double = 30) -> [LoggedExercise] {
+        let healthKit = filter { $0.source == "HealthKit" }
+        guard !healthKit.isEmpty else { return self }
+
+        let buffer = bufferMinutes * 60
+
+        // Apple Health stores `date` as the workout start; MyFitPlate stores it as the
+        // completion (end) time. Normalize both to an interval before comparing.
+        func interval(_ ex: LoggedExercise) -> (start: Date, end: Date) {
+            let dur = Double(ex.durationMinutes ?? 0) * 60
+            return ex.source == "HealthKit"
+                ? (ex.date, ex.date.addingTimeInterval(dur))
+                : (ex.date.addingTimeInterval(-dur), ex.date)
+        }
+        func overlaps(_ a: LoggedExercise, _ b: LoggedExercise) -> Bool {
+            let ia = interval(a), ib = interval(b)
+            return ia.start.addingTimeInterval(-buffer) <= ib.end
+                && ib.start.addingTimeInterval(-buffer) <= ia.end
+        }
+
+        // Pair each MyFitPlate entry to at most one overlapping Health workout.
+        var consumedHealthKitIDs = Set<String>()
+        var measuredFor: [String: (calories: Double, duration: Int?)] = [:]
+        for ex in self where ex.source != "HealthKit" {
+            if let match = healthKit.first(where: { !consumedHealthKitIDs.contains($0.id) && overlaps(ex, $0) }) {
+                consumedHealthKitIDs.insert(match.id)
+                measuredFor[ex.id] = (match.caloriesBurned, match.durationMinutes)
+            }
+        }
+
+        // Rebuild in original order: drop paired Health workouts, swap matched MyFitPlate
+        // entries to the measured calories/duration.
+        return compactMap { ex in
+            if ex.source == "HealthKit" {
+                return consumedHealthKitIDs.contains(ex.id) ? nil : ex
+            }
+            guard let measured = measuredFor[ex.id] else { return ex }
+            var merged = ex
+            merged.caloriesBurned = measured.calories
+            merged.durationMinutes = measured.duration ?? ex.durationMinutes
+            return merged
+        }
+    }
+}
+
 struct DailyLog: Codable, Identifiable, Equatable {
     var id: String?
     var date: Date

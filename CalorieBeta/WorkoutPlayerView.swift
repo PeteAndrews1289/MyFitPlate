@@ -302,6 +302,7 @@ struct WorkoutPlayerView: View {
 
         restTimer.stop()
         totalWorkoutTimer.stop()
+        LiveActivityManager.shared.endActivity()
         AnalyticsManager.log(.workoutCompleted, ["completed_sets": completedSetCount])
         self.completedSessionLog = sessionLog
         self.showingAnalyticsSheet = true

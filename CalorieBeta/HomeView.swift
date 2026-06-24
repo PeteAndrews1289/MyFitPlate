@@ -807,9 +807,10 @@ struct HomeView: View {
                     foodDiaryGroupedContent(meals: currentLogForDisplay.meals)
                 }
 
-                if let exercises = currentLogForDisplay?.exercises, !exercises.isEmpty {
+                let dedupedExercises = (currentLogForDisplay?.exercises ?? []).dedupedAgainstHealthKit()
+                if !dedupedExercises.isEmpty {
                     Divider().padding(.vertical, 8)
-                    activityWidget(exercises: exercises)
+                    activityWidget(exercises: dedupedExercises)
                 }
             }
         }
@@ -823,7 +824,7 @@ struct HomeView: View {
     @ViewBuilder
     private func dailyLogSummaryStrip(for log: DailyLog) -> some View {
         let foodItems = log.meals.flatMap(\.foodItems)
-        let exercises = log.exercises ?? []
+        let exercises = (log.exercises ?? []).dedupedAgainstHealthKit()
         let calories = log.totalCalories()
         let exerciseCalories = exercises.reduce(0) { $0 + $1.caloriesBurned }
 
