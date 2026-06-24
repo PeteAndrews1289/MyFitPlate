@@ -3,6 +3,7 @@ import SwiftUI
 struct CoachingDashboardView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject var insightsService: InsightsService
 
     var body: some View {
         NavigationStack {
@@ -17,33 +18,12 @@ struct CoachingDashboardView: View {
                                 .appFont(size: 22, weight: .bold)
                         }
 
-                        Text("Here is my reasoning for your macro targets this week.")
+                        Text("What I'm seeing in your recent nutrition, sleep, and activity.")
                             .appFont(size: 15)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                             .padding(.bottom, 10)
 
-                        VStack(alignment: .leading, spacing: 16) {
-                            CoachingInsightRow(
-                                icon: "chart.line.down.forward",
-                                title: "Weight Plateau Detected",
-                                description: "Your average weight has been stable for 10 days. I've adjusted your daily carbohydrates down by 15g to resume fat loss while preserving workout energy.",
-                                color: .orange
-                            )
-
-                            CoachingInsightRow(
-                                icon: "flame.fill",
-                                title: "High Activity Adaptation",
-                                description: "You burned an average of 400 active calories/day this week. Your protein target is elevated to 1.1g/lb to ensure optimal recovery.",
-                                color: .red
-                            )
-
-                            CoachingInsightRow(
-                                icon: "moon.zzz.fill",
-                                title: "Sleep Debt Adjustment",
-                                description: "Your sleep consistency is below 70%. I recommend prioritizing whole-food fats tonight to support hormone production and restorative sleep.",
-                                color: .indigo
-                            )
-                        }
+                        content
                     }
                     .padding(20)
                     .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -61,11 +41,86 @@ struct CoachingDashboardView: View {
             .navigationTitle("Coaching Dashboard")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        insightsService.generateAndFetchInsights()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .disabled(insightsService.isLoadingInsights)
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") { dismiss() }
                         .fontWeight(.bold)
                 }
             }
+            .onAppear {
+                if insightsService.currentInsights.isEmpty && !insightsService.isLoadingInsights {
+                    insightsService.generateAndFetchInsights()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if insightsService.isLoadingInsights && insightsService.currentInsights.isEmpty {
+            HStack(spacing: 12) {
+                ProgressView().tint(.brandPrimary)
+                Text("Reviewing your recent data…")
+                    .appFont(size: 14)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 30)
+        } else if insightsService.currentInsights.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 28))
+                    .foregroundColor(.brandPrimary)
+                Text("Keep logging and I'll build your strategy")
+                    .appFont(size: 15, weight: .semibold)
+                    .foregroundColor(.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text("A few days of meals, workouts, and sleep give me enough to spot patterns and tailor your targets.")
+                    .appFont(size: 13)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(insightsService.currentInsights.sorted { $0.priority > $1.priority }) { insight in
+                    let style = Self.style(for: insight.category)
+                    CoachingInsightRow(
+                        icon: style.icon,
+                        title: insight.title,
+                        description: insight.message,
+                        color: style.color
+                    )
+                }
+            }
+        }
+    }
+
+    private static func style(for category: UserInsight.InsightCategory) -> (icon: String, color: Color) {
+        switch category {
+        case .hydration: return ("drop.fill", .blue)
+        case .macroBalance: return ("chart.pie.fill", .purple)
+        case .microNutrient, .fiberIntake: return ("leaf.fill", .green)
+        case .mealTiming: return ("clock.fill", .orange)
+        case .consistency: return ("flame.fill", .red)
+        case .postWorkout, .exerciseSynergy: return ("figure.strengthtraining.traditional", .accentPositive)
+        case .foodVariety: return ("square.grid.3x3.fill", .teal)
+        case .positiveReinforcement: return ("star.fill", .yellow)
+        case .sugarAwareness: return ("cube.fill", .pink)
+        case .saturatedFat: return ("drop.triangle.fill", .orange)
+        case .smartSuggestion: return ("lightbulb.fill", .yellow)
+        case .sleep: return ("moon.zzz.fill", .indigo)
+        case .calorieFluctuation: return ("waveform.path.ecg", .orange)
+        case .weekendTrends: return ("calendar", .blue)
+        default: return ("fork.knife", .brandPrimary)
         }
     }
 }
