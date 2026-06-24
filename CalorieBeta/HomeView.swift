@@ -49,32 +49,24 @@ struct HomeView: View {
     @State private var showingWeeklyCheckIn = false
     @State private var showingMenuScanner = false
 
-    private let spotlightOrder = ["nutritionProgress", "quickActions", "menuScanner", "pantryFeature", "waterTracker", "dailyLog"]
+    private let spotlightOrder = ["dashboardHeader", "quickActions", "menuScanner", "dailyLog"]
 
     private let spotlightContent: [String: (title: String, text: String)] = [
-        "nutritionProgress": (
+        "dashboardHeader": (
             title: "Your Dashboard",
-            text: "This card shows your daily calorie and macro goals. Swipe it left or right to switch between the Summary, Macro Bubbles, Bar Charts, and Micronutrient views."
+            text: "Your calories and macros for the day, front and center. Swipe left or right to move between the Summary, Hydration, and Micronutrient views."
         ),
         "quickActions": (
             title: "Command Center",
-            text: "Fast access to your core tools. Tap 'Workouts' to train, 'AI Journal' to reflect, or 'AI Insights' for a deep dive into your health trends."
+            text: "Your most-used tools in one tap — start a Workout, open Coaching for Maia's game plan, repeat Yesterday's meals, scan a Menu, log your Weight, or track a Fast."
         ),
         "menuScanner": (
             title: "Menu Matchmaker",
-            text: "At a restaurant? Tap 'Menu Scan' to snap a photo of the menu. Maia will find the Top 3 meals that perfectly fit your remaining macros!"
-        ),
-        "pantryFeature": (
-            title: "Smart Pantry",
-            text: "Tap the receipt icon to scan grocery receipts and auto-populate your pantry! Maia can then generate personalized recipes using ONLY what you have."
-        ),
-        "waterTracker": (
-            title: "Stay Hydrated",
-            text: "Tap the + button to log water. The bottle fills up visually as you get closer to your daily goal."
+            text: "Out to eat? Tap Menu Scan to photograph the menu and Maia returns 5 picks — the three best fits for your remaining macros, plus the most nutritious and a lighter option."
         ),
         "dailyLog": (
-            title: "The Log",
-            text: "Everything you track appears here. You can swipe any food or exercise row to delete it, or tap to edit details."
+            title: "Your Daily Log",
+            text: "Everything you track lands here. Swipe any food or exercise row to delete it, or tap to edit the details."
         )
     ]
 
@@ -126,6 +118,7 @@ struct HomeView: View {
                             }
 
                             quickActions
+                                .featureSpotlight(isActive: isSpotlightActive(for: "quickActions"))
                                 .padding(.horizontal)
                                 .id("quickActions")
 
