@@ -38,13 +38,6 @@ jobs:
           OPENAI_API_KEY =
           EOF
 
-      - name: Cache Swift Package dependencies
-        uses: actions/cache@v4
-        with:
-          path: .spm
-          key: spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: spm-
-
       - name: Run unit tests
         run: |
           set -o pipefail
@@ -52,7 +45,6 @@ jobs:
             -scheme MyFitPlate \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -only-testing:MyFitPlateTests \
-            -clonedSourcePackagesDirPath .spm \
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO
 
