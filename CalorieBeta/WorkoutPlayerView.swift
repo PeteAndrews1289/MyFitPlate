@@ -42,6 +42,7 @@ struct WorkoutPlayerView: View {
     @State private var showingFinishConfirmation = false
     @State private var showingDiscardConfirmation = false
     @State private var isKeyboardVisible = false
+    @State private var showingAddExercise = false
 
     var onWorkoutComplete: () -> Void
 
@@ -138,9 +139,25 @@ struct WorkoutPlayerView: View {
                                     self.showingHistoryFor = exercise
                                 },
                                 onMoveUp: index > 0 ? { moveExercise(from: IndexSet(integer: index), to: index - 1) } : nil,
-                                onMoveDown: index < routine.exercises.count - 1 ? { moveExercise(from: IndexSet(integer: index), to: index + 2) } : nil
+                                onMoveDown: index < routine.exercises.count - 1 ? { moveExercise(from: IndexSet(integer: index), to: index + 2) } : nil,
+                                onRemove: routine.exercises.count > 1 ? { removeExercise(at: index) } : nil
                             )
                         }
+
+                        Button {
+                            showingAddExercise = true
+                        } label: {
+                            Label("Add Exercise", systemImage: "plus.circle.fill")
+                                .appFont(size: 15, weight: .semibold)
+                                .foregroundColor(.brandPrimary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .strokeBorder(Color.brandPrimary.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                                )
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding()
                 }
@@ -216,6 +233,12 @@ struct WorkoutPlayerView: View {
         .sheet(item: $swappableExercise, onDismiss: loadPreviousPerformance) { wrapper in
             SwapExerciseView(exercise: wrapper.binding)
         }
+        .sheet(isPresented: $showingAddExercise) {
+            ExercisePickerView { draft in
+                addExercise(draft)
+                showingAddExercise = false
+            }
+        }
         .sheet(item: $showingHistoryFor) { exercise in
             ExerciseHistoryView(exerciseName: exercise.name)
         }
@@ -277,6 +300,31 @@ struct WorkoutPlayerView: View {
 
     private func moveExercise(from source: IndexSet, to destination: Int) {
         routine.exercises.move(fromOffsets: source, toOffset: destination)
+    }
+
+    private func removeExercise(at index: Int) {
+        guard routine.exercises.indices.contains(index) else { return }
+        withAnimation { _ = routine.exercises.remove(at: index) }
+    }
+
+    private func addExercise(_ draft: ExercisePickerDraft) {
+        let defaultSets: Int
+        let target: String
+        switch draft.type {
+        case .strength:    defaultSets = 3; target = "8-12"
+        case .cardio:      defaultSets = 1; target = "20 min"
+        case .flexibility: defaultSets = 1; target = "30 sec"
+        }
+        let newExercise = RoutineExercise(
+            name: draft.name,
+            type: draft.type,
+            sets: Array(repeating: ExerciseSet(target: target), count: defaultSets),
+            restTimeInSeconds: 90,
+            targetSets: defaultSets,
+            targetReps: target
+        )
+        withAnimation { routine.exercises.append(newExercise) }
+        loadPreviousPerformance()
     }
 
     private func requestCloseWorkout() {

@@ -347,6 +347,7 @@ struct ExerciseCardView: View {
     var onViewHistory: () -> Void
     var onMoveUp: (() -> Void)?
     var onMoveDown: (() -> Void)?
+    var onRemove: (() -> Void)?
 
     @State private var showingTargetRepsEditor = false
     @State private var targetRepsInput = ""
@@ -540,6 +541,12 @@ struct ExerciseCardView: View {
                         Button(action: onMoveDown) {
                             Label("Move Down", systemImage: "arrow.down")
                         }
+                    }
+                }
+                if let onRemove {
+                    Divider()
+                    Button(role: .destructive, action: onRemove) {
+                        Label("Remove Exercise", systemImage: "trash")
                     }
                 }
             } label: {
