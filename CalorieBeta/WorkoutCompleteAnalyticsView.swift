@@ -133,7 +133,7 @@ struct WorkoutCompleteAnalyticsView: View {
 
                         Chart(muscleSplit) { point in
                             BarMark(
-                                x: .value("Volume", point.volume),
+                                x: .value("Sets", point.setCount),
                                 y: .value("Muscle", point.muscleName)
                             )
                             .foregroundStyle(Color.brandPrimary.gradient)

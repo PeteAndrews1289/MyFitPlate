@@ -42,7 +42,9 @@ struct WorkoutComparison {
 struct MuscleSplitPoint: Identifiable {
     let id = UUID()
     let muscleName: String
-    let volume: Double
+    /// Number of working sets for this muscle group. Set count (not lbs of volume) keeps the
+    /// chart readable — otherwise heavy compound lifts make back/legs dwarf everything else.
+    let setCount: Double
 }
 
 // MARK: - Service Class
@@ -234,12 +236,11 @@ class WorkoutAnalyticsService: ObservableObject {
         
         for exercise in log.completedExercises {
             let muscle = guessMuscleGroup(exerciseName: exercise.exerciseName)
-            let vol = exercise.sets.reduce(0) { $0 + ($1.weight * Double($1.reps)) }
-            distribution[muscle, default: 0] += vol
+            distribution[muscle, default: 0] += Double(exercise.sets.count)
         }
         
-        return distribution.map { MuscleSplitPoint(muscleName: $0.key, volume: $0.value) }
-            .sorted { $0.volume > $1.volume }
+        return distribution.map { MuscleSplitPoint(muscleName: $0.key, setCount: $0.value) }
+            .sorted { $0.setCount > $1.setCount }
     }
 
     // MARK: - AI Insights Generation

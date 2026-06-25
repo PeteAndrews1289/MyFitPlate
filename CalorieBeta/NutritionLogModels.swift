@@ -237,6 +237,22 @@ extension Array where Element == LoggedExercise {
             }
         }
 
+        // Same-day strength fallback: a MyFitPlate routine and an Apple Health strength
+        // workout on the same day are almost always the same session, even when the logged
+        // times drift apart (MyFitPlate's stored "duration" is a set-count proxy, not wall
+        // clock, so a parallel Apple Watch session falls outside the overlap buffer). Merge
+        // so the session isn't double-counted in the activity list or the burned total.
+        for ex in self where ex.source != "HealthKit" && measuredFor[ex.id] == nil {
+            if let match = healthKit.first(where: {
+                !consumedHealthKitIDs.contains($0.id)
+                    && $0.name.localizedCaseInsensitiveContains("strength")
+                    && Calendar.current.isDate($0.date, inSameDayAs: ex.date)
+            }) {
+                consumedHealthKitIDs.insert(match.id)
+                measuredFor[ex.id] = (match.caloriesBurned, match.durationMinutes)
+            }
+        }
+
         // Rebuild in original order: drop paired Health workouts, swap matched MyFitPlate
         // entries to the measured calories/duration.
         return compactMap { ex in

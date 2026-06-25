@@ -215,26 +215,31 @@ struct WorkoutSessionHeaderCard: View {
     let currentExerciseName: String
     let onClose: () -> Void
     let onStopRest: () -> Void
+    var isCompact: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: isCompact ? 8 : 14) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Live Workout")
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .textCase(.uppercase)
+                    if !isCompact {
+                        Text("Live Workout")
+                            .appFont(size: 11, weight: .bold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .textCase(.uppercase)
+                    }
 
                     Text(routineName)
-                        .appFont(size: 23, weight: .bold)
+                        .appFont(size: isCompact ? 16 : 23, weight: .bold)
                         .foregroundColor(.textPrimary)
-                        .lineLimit(2)
+                        .lineLimit(isCompact ? 1 : 2)
 
-                    Text("Now: \(currentExerciseName)")
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(.brandPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
+                    if !isCompact {
+                        Text("Now: \(currentExerciseName)")
+                            .appFont(size: 13, weight: .semibold)
+                            .foregroundColor(.brandPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                    }
                 }
 
                 Spacer(minLength: 8)
@@ -251,16 +256,18 @@ struct WorkoutSessionHeaderCard: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("\(completedSets) of \(max(totalSets, 0)) sets")
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                if !isCompact {
+                    HStack {
+                        Text("\(completedSets) of \(max(totalSets, 0)) sets")
+                            .appFont(size: 12, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
 
-                    Spacer()
+                        Spacer()
 
-                    Text("\(Int((progress * 100).rounded()))%")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        Text("\(Int((progress * 100).rounded()))%")
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(.brandPrimary)
+                    }
                 }
 
                 GeometryReader { geometry in
@@ -277,18 +284,20 @@ struct WorkoutSessionHeaderCard: View {
                 .frame(height: 8)
             }
 
-            HStack(spacing: 10) {
-                WorkoutHeaderMetric(title: "Elapsed", value: elapsedTime, icon: "clock.fill", color: .blue)
-                WorkoutHeaderMetric(title: "Exercises", value: "\(completedExercises)/\(totalExercises)", icon: "list.bullet", color: .orange)
+            if !isCompact {
+                HStack(spacing: 10) {
+                    WorkoutHeaderMetric(title: "Elapsed", value: elapsedTime, icon: "clock.fill", color: .blue)
+                    WorkoutHeaderMetric(title: "Exercises", value: "\(completedExercises)/\(totalExercises)", icon: "list.bullet", color: .orange)
 
-                if let restTime {
-                    Button(action: onStopRest) {
-                        WorkoutHeaderMetric(title: "Rest", value: restTime, icon: "timer", color: .accentPositive)
+                    if let restTime {
+                        Button(action: onStopRest) {
+                            WorkoutHeaderMetric(title: "Rest", value: restTime, icon: "timer", color: .accentPositive)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Stop rest timer")
+                    } else {
+                        WorkoutHeaderMetric(title: "Rest", value: "Ready", icon: "timer", color: .accentPositive)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Stop rest timer")
-                } else {
-                    WorkoutHeaderMetric(title: "Rest", value: "Ready", icon: "timer", color: .accentPositive)
                 }
             }
         }

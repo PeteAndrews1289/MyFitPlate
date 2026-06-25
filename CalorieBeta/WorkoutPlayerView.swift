@@ -41,6 +41,7 @@ struct WorkoutPlayerView: View {
     @State private var completedSessionLog: WorkoutSessionLog? = nil
     @State private var showingFinishConfirmation = false
     @State private var showingDiscardConfirmation = false
+    @State private var isKeyboardVisible = false
 
     var onWorkoutComplete: () -> Void
 
@@ -107,7 +108,8 @@ struct WorkoutPlayerView: View {
                     progress: workoutProgress,
                     currentExerciseName: currentExerciseName,
                     onClose: requestCloseWorkout,
-                    onStopRest: restTimer.stop
+                    onStopRest: restTimer.stop,
+                    isCompact: isKeyboardVisible
                 )
                 .padding(.horizontal)
                 .padding(.top, 14)
@@ -205,7 +207,13 @@ struct WorkoutPlayerView: View {
                 try? await workoutService.saveRoutine(routine)
             }
         }
-        .sheet(item: $swappableExercise) { wrapper in
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            withAnimation(.easeOut(duration: 0.22)) { isKeyboardVisible = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            withAnimation(.easeOut(duration: 0.22)) { isKeyboardVisible = false }
+        }
+        .sheet(item: $swappableExercise, onDismiss: loadPreviousPerformance) { wrapper in
             SwapExerciseView(exercise: wrapper.binding)
         }
         .sheet(item: $showingHistoryFor) { exercise in
@@ -257,7 +265,9 @@ struct WorkoutPlayerView: View {
 
     private func loadPreviousPerformance() {
         Task {
-            for exercise in routine.exercises {
+            // Skip already-loaded exercises so this is cheap to re-run after a swap, which is
+            // exactly how a newly swapped-in exercise gets its "last time" history populated.
+            for exercise in routine.exercises where previousPerformance[exercise.name] == nil {
                 if let performance = await workoutService.fetchPreviousPerformance(for: exercise.name) {
                     previousPerformance[exercise.name] = performance
                 }
