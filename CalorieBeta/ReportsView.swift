@@ -692,6 +692,45 @@ struct MetabolismDashboardView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if adaptiveGoalService.dataConfidence == .insufficient {
+                let weighInsLeft = max(0, 7 - adaptiveGoalService.recentWeighInCount)
+                let logsLeft = max(0, 10 - adaptiveGoalService.recentLogCount)
+                let daysToGo = max(weighInsLeft, logsLeft)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "hourglass")
+                            .foregroundColor(.brandPrimary)
+                        Text("Building your estimate")
+                            .appFont(size: 16, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                    }
+
+                    Text(daysToGo > 0
+                         ? "About \(daysToGo) more day\(daysToGo == 1 ? "" : "s") of logging until your first estimate appears."
+                         : "Almost there — keep logging to unlock your estimate.")
+                        .appFont(size: 14)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    AdaptiveProgressRow(label: "Weight check-ins", current: adaptiveGoalService.recentWeighInCount, goal: 7, icon: "scalemass.fill")
+                    AdaptiveProgressRow(label: "Days of food logged", current: adaptiveGoalService.recentLogCount, goal: 10, icon: "fork.knife")
+
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "lightbulb.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(.orange)
+                        Text("Weigh in regularly (ideally daily, around the same time) and log your food honestly — your estimate is only as accurate as the data you give it.")
+                            .appFont(size: 13)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.top, 2)
+                }
+                .padding(20)
+                .background(Color.brandPrimary.opacity(0.06), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            }
+
             // Calculation Card
             VStack(spacing: 16) {
                 HStack(alignment: .top) {
@@ -789,6 +828,38 @@ struct MetabolismDashboardView: View {
             }
             .padding()
             .background(Color.accentPositive.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+}
+
+private struct AdaptiveProgressRow: View {
+    let label: String
+    let current: Int
+    let goal: Int
+    let icon: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.brandPrimary)
+                Text(label)
+                    .appFont(size: 13, weight: .semibold)
+                    .foregroundColor(.textPrimary)
+                Spacer()
+                Text("\(min(current, goal)) / \(goal)")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(current >= goal ? .accentPositive : Color(UIColor.secondaryLabel))
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.brandPrimary.opacity(0.12))
+                    Capsule().fill(current >= goal ? Color.accentPositive : Color.brandPrimary)
+                        .frame(width: geo.size.width * CGFloat(min(Double(current) / Double(max(goal, 1)), 1.0)))
+                }
+            }
+            .frame(height: 7)
         }
     }
 }

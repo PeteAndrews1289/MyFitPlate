@@ -467,6 +467,10 @@ class AdaptiveGoalService: ObservableObject {
     @Published var last21DaysCalorieAverage: Double?
     @Published var weightChangeRatePerDay: Double?
     @Published var dataConfidence: DataConfidence = .insufficient
+    /// How many weigh-ins / food-log days exist in the last 21 days. Drives the
+    /// "progress to your first estimate" UI shown before there's enough data for a TDEE.
+    @Published var recentWeighInCount: Int = 0
+    @Published var recentLogCount: Int = 0
     @Published var lastCalculationDate: Date?
     
     private let db = Firestore.firestore()
@@ -496,6 +500,12 @@ class AdaptiveGoalService: ObservableObject {
         // 1. Filter data to last 21 days
         let recentWeights = weightHistory.filter { $0.date >= twentyOneDaysAgo }.sorted { $0.date < $1.date }
         let recentLogs = dailyLogs.filter { $0.date >= twentyOneDaysAgo }.sorted { $0.date < $1.date }
+
+        // Always expose progress counts so the UI can show how close the user is to a result.
+        DispatchQueue.main.async {
+            self.recentWeighInCount = recentWeights.count
+            self.recentLogCount = recentLogs.count
+        }
         
         // We need at least 7 days of weight data and 10 days of food logs to make a semi-confident guess.
         if recentWeights.count < 7 || recentLogs.count < 10 {
