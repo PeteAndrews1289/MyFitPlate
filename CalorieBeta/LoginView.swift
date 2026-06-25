@@ -7,6 +7,8 @@ struct LoginView: View {
     @State private var password = ""
     @State private var loginError = ""
     @State private var isLoading = false
+    @State private var showingResetAlert = false
+    @State private var resetAlertMessage = ""
     @Environment(\.dismiss) var dismiss
 
     private var canSubmit: Bool {
@@ -57,6 +59,16 @@ struct LoginView: View {
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .disabled(!canSubmit)
+
+                        Button {
+                            sendPasswordReset()
+                        } label: {
+                            Text("Forgot Password?")
+                                .appFont(size: 14, weight: .semibold)
+                                .foregroundColor(.brandPrimary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                        .disabled(isLoading)
                     }
                     .padding(24)
                 }
@@ -67,6 +79,11 @@ struct LoginView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+            }
+            .alert("Reset Link Sent", isPresented: $showingResetAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(resetAlertMessage)
             }
         }
     }
@@ -85,6 +102,26 @@ struct LoginView: View {
 
             if let user = authResult?.user {
                 fetchUserData(user: user)
+            }
+        }
+    }
+
+    private func sendPasswordReset() {
+        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            loginError = "Enter your email above, then tap Forgot Password."
+            return
+        }
+        loginError = ""
+        isLoading = true
+
+        Auth.auth().sendPasswordReset(withEmail: trimmed) { error in
+            isLoading = false
+            if let error = error {
+                loginError = error.localizedDescription
+            } else {
+                resetAlertMessage = "We've sent a password reset link to \(trimmed). Check your inbox (and your spam folder)."
+                showingResetAlert = true
             }
         }
     }
