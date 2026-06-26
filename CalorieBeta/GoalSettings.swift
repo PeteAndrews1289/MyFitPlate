@@ -380,21 +380,23 @@ class GoalSettings: ObservableObject {
             }
     }
     
-    func updateUserWeight(_ newWeight: Double) {
+    func updateUserWeight(_ newWeight: Double, date: Date = Date()) {
         guard let userID = Auth.auth().currentUser?.uid else { return }
-        let currentDate = Date()
 
-        DispatchQueue.main.async {
-            self.weight = newWeight
-            self.recalculateAllGoals()
+        // Only a present-day weigh-in should move the "current" weight and re-run goal math.
+        // A back-dated entry just fills in history so the trend and adaptive TDEE stay accurate.
+        if Calendar.current.isDateInToday(date) {
+            DispatchQueue.main.async {
+                self.weight = newWeight
+                self.recalculateAllGoals()
+            }
+            db.collection("users").document(userID).setData(["weight": newWeight], merge: true)
         }
 
-        db.collection("users").document(userID).setData(["weight": newWeight], merge: true)
-
-        let weightData: [String:Any] = ["weight": newWeight, "timestamp": Timestamp(date: currentDate)]
+        let weightData: [String:Any] = ["weight": newWeight, "timestamp": Timestamp(date: date)]
         db.collection("users").document(userID).collection("weightHistory").addDocument(data: weightData)
 
-        self.healthKitManager.saveWeightSample(weightLbs: newWeight, date: currentDate)
+        self.healthKitManager.saveWeightSample(weightLbs: newWeight, date: date)
     }
     
     func deleteWeightEntry(entryID: String, completion: @escaping (Error?) -> Void) {
