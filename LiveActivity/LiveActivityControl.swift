@@ -9,6 +9,7 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
+@available(iOS 18.0, *)
 struct LiveActivityControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(
@@ -28,6 +29,7 @@ struct LiveActivityControl: ControlWidget {
     }
 }
 
+@available(iOS 18.0, *)
 extension LiveActivityControl {
     struct Provider: ControlValueProvider {
         var previewValue: Bool {
