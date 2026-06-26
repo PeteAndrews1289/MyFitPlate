@@ -131,8 +131,7 @@ class DailyLogService: ObservableObject {
                 Analytics.logEvent("food_logged", parameters: [
                     "source": "manual_add",
                     "meal_type": mealType,
-                    "calories": itemToAdd.calories,
-                    "item_name": itemToAdd.name
+                    "calories": itemToAdd.calories
                 ])
 
                 await MainActor.run {
@@ -372,7 +371,6 @@ class DailyLogService: ObservableObject {
 
                         Analytics.logEvent("food_logged", parameters: [
                             "source": source,
-                            "item_name": itemToAdd.name,
                             "meal_type": mealName,
                             "calories": itemToAdd.calories
                         ])
@@ -645,7 +643,7 @@ class DailyLogService: ObservableObject {
 
                     self.updateDailyLog(for: userID, updatedLog: log) { success in
                         if success {
-                            Analytics.logEvent("workout_logged_ai", parameters: ["exercise_name": exerciseName])
+                            Analytics.logEvent("workout_logged_ai", parameters: nil)
                         }
                     }
                 }

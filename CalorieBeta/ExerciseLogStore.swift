@@ -32,7 +32,6 @@ class ExerciseLogStore {
                             Analytics.logEvent("exercise_logged", parameters: [
                                 "source": exercise.source,
                                 "duration": exercise.durationMinutes ?? 0,
-                                "exercise_name": exercise.name,
                                 "calories": exercise.caloriesBurned
                             ])
 

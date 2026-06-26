@@ -11,7 +11,7 @@ class CustomFoodStore {
         do {
             try ref.setData(from: foodItem, merge: true) { error in
                 if error == nil {
-                    Analytics.logEvent("custom_food_saved", parameters: ["item_name": foodItem.name])
+                    Analytics.logEvent("custom_food_saved", parameters: nil)
                 }
                 completion(error == nil)
             }

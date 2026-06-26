@@ -177,7 +177,7 @@ class WorkoutService: ObservableObject {
             try docRef.setData(from: programToSave, merge: true)
             
             if program.id == nil {
-                Analytics.logEvent("program_created", parameters: ["name": program.name])
+                Analytics.logEvent("program_created", parameters: nil)
             }
             return programToSave
         } catch {

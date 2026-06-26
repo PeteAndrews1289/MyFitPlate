@@ -35,7 +35,7 @@ class RecipeService: ObservableObject {
             do {
                 let recipe = try parseRecipeFromAIResponse(jsonString)
                 let savedRecipe = try await saveRecipe(recipe, for: userID)
-                Analytics.logEvent("ai_recipe_generated", parameters: ["recipe_name": savedRecipe.name])
+                Analytics.logEvent("ai_recipe_generated", parameters: nil)
                 isLoading = false
                 return savedRecipe
             } catch {
@@ -76,7 +76,7 @@ class RecipeService: ObservableObject {
             do {
                 let recipe = try parseRecipeFromAIResponse(jsonString)
                 let savedRecipe = try await saveRecipe(recipe, for: userID)
-                Analytics.logEvent("ai_recipe_text_imported", parameters: ["recipe_name": savedRecipe.name])
+                Analytics.logEvent("ai_recipe_text_imported", parameters: nil)
                 isLoading = false
                 return savedRecipe
             } catch {
@@ -117,7 +117,7 @@ class RecipeService: ObservableObject {
         case .success(let jsonString):
             do {
                 let recipe = try parseRecipeFromAIResponse(jsonString)
-                Analytics.logEvent("ai_recipe_pantry_generated", parameters: ["recipe_name": recipe.name])
+                Analytics.logEvent("ai_recipe_pantry_generated", parameters: nil)
                 isLoading = false
                 return recipe
             } catch {
@@ -231,7 +231,7 @@ class RecipeService: ObservableObject {
             do {
                 let recipe = try parseRecipeFromAIResponse(jsonString)
                 let savedRecipe = try await saveRecipe(recipe, for: userID)
-                Analytics.logEvent("url_recipe_imported", parameters: ["recipe_name": savedRecipe.name])
+                Analytics.logEvent("url_recipe_imported", parameters: nil)
                 isLoading = false
                 return savedRecipe
             } catch {
@@ -277,7 +277,7 @@ class RecipeService: ObservableObject {
             let newDocRef = userRecipesCollection.document()
             recipeToSave.id = newDocRef.documentID
             try newDocRef.setData(from: recipeToSave)
-            Analytics.logEvent("recipe_created", parameters: ["recipe_name": recipe.name])
+            Analytics.logEvent("recipe_created", parameters: nil)
         }
 
         if let recipeID = recipeToSave.id,
