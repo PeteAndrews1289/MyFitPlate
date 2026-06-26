@@ -15,6 +15,8 @@ struct SettingsView: View {
     @AppStorage("includeActiveCaloriesInGoal") var includeActiveCaloriesInGoal: Bool = false
     @AppStorage("notificationHour") private var notificationHour: Int = 20
     @AppStorage("notificationMinute") private var notificationMinute: Int = 0
+    @AppStorage("hydrationRemindersEnabled") private var hydrationRemindersEnabled: Bool = false
+    @AppStorage("weighInReminderEnabled") private var weighInReminderEnabled: Bool = false
 
     @Binding var showSettings: Bool
 
@@ -194,6 +196,34 @@ struct SettingsView: View {
                                 .onChange(of: notificationTimeBinding.wrappedValue) { _, _ in
                                     NotificationManager.shared.scheduleDailyLogReminderIfAuthorized()
                                 }
+
+                            Divider()
+
+                            Toggle(isOn: $hydrationRemindersEnabled) {
+                                SettingsLabel(
+                                    icon: "drop.fill",
+                                    title: "Hydration Reminders",
+                                    subtitle: "Gentle nudges to drink water through the day.",
+                                    color: .blue
+                                )
+                            }
+                            .onChange(of: hydrationRemindersEnabled) { _, enabled in
+                                NotificationManager.shared.setHydrationReminders(enabled: enabled)
+                            }
+
+                            Divider()
+
+                            Toggle(isOn: $weighInReminderEnabled) {
+                                SettingsLabel(
+                                    icon: "scalemass.fill",
+                                    title: "Weigh-In Reminder",
+                                    subtitle: "A morning nudge to log your weight.",
+                                    color: .accentPositive
+                                )
+                            }
+                            .onChange(of: weighInReminderEnabled) { _, enabled in
+                                NotificationManager.shared.setWeighInReminder(enabled: enabled)
+                            }
                         }
                         .padding(16)
                     }

@@ -10,6 +10,7 @@ enum NotificationType {
     case welcomeBack
     case healthTip
     case dailyBriefing
+    case weighInReminder
 
     var id: String {
         switch self {
@@ -20,6 +21,7 @@ enum NotificationType {
         case .welcomeBack: return "welcomeBack"
         case .healthTip: return "healthTip"
         case .dailyBriefing: return "dailyBriefing"
+        case .weighInReminder: return "weighInReminder"
         }
     }
 
@@ -32,6 +34,7 @@ enum NotificationType {
         case .welcomeBack: return "👋 We've Missed You!"
         case .healthTip: return "💡 Health Tip!"
         case .dailyBriefing: return "☀️ Your Daily Briefing"
+        case .weighInReminder: return "⚖️ Time to Weigh In"
         }
     }
 
@@ -54,6 +57,8 @@ enum NotificationType {
             return "Did you know? Eating a variety of colorful foods helps ensure you get a wide range of vitamins."
         case .dailyBriefing:
             return "Here's your personalized tip to start the day strong!"
+        case .weighInReminder:
+            return "A quick morning weigh-in keeps your trend and adaptive targets accurate."
         }
     }
 }
@@ -118,6 +123,57 @@ class NotificationManager {
                 break
             @unknown default:
                 break
+            }
+        }
+    }
+
+    private let hydrationHours = [10, 13, 16, 19]
+
+    /// Enables or disables recurring hydration reminders spread through the day.
+    func setHydrationReminders(enabled: Bool) {
+        let ids = hydrationHours.indices.map { "hydration_\($0)" }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+        guard enabled else { return }
+        requestAuthorization { granted in
+            guard granted else { return }
+            for (index, hour) in self.hydrationHours.enumerated() {
+                let content = UNMutableNotificationContent()
+                content.title = NotificationType.hydrationNudge.title
+                content.body = NotificationType.hydrationNudge.body()
+                content.sound = .default
+                var dateComponents = DateComponents()
+                dateComponents.hour = hour
+                dateComponents.minute = 0
+                let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+                let request = UNNotificationRequest(identifier: "hydration_\(index)", content: content, trigger: trigger)
+                UNUserNotificationCenter.current().add(request) { error in
+                    if let error {
+                        AppLog.notifications.error("Error scheduling hydration reminder: \(error.localizedDescription, privacy: .public)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Enables or disables a repeating morning weigh-in reminder.
+    func setWeighInReminder(enabled: Bool, hour: Int = 7, minute: Int = 30) {
+        cancelNotification(identifier: NotificationType.weighInReminder.id)
+        guard enabled else { return }
+        requestAuthorization { granted in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = NotificationType.weighInReminder.title
+            content.body = NotificationType.weighInReminder.body()
+            content.sound = .default
+            var dateComponents = DateComponents()
+            dateComponents.hour = hour
+            dateComponents.minute = minute
+            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+            let request = UNNotificationRequest(identifier: NotificationType.weighInReminder.id, content: content, trigger: trigger)
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error {
+                    AppLog.notifications.error("Error scheduling weigh-in reminder: \(error.localizedDescription, privacy: .public)")
+                }
             }
         }
     }
