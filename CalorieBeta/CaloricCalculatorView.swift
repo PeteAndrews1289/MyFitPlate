@@ -42,6 +42,7 @@ struct CaloricCalculatorView: View {
     
     @State private var calorieInput: String = ""
     @State private var targetWeightInput: String = ""
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
 
      private let activityLevelStrings = [
          "Sedentary", "Lightly Active", "Moderately Active", "Very Active", "Extremely Active"
@@ -75,7 +76,10 @@ struct CaloricCalculatorView: View {
                 HStack {
                     Text("Current Weight")
                     Spacer()
-                    TextField("lbs", value: $goalSettings.weight, format: .number)
+                    TextField(BodyUnits.weightUnit(metric: useMetric), value: Binding(
+                        get: { BodyUnits.weightDisplayValue(lbs: goalSettings.weight, metric: useMetric) },
+                        set: { goalSettings.weight = BodyUnits.weightToLbs($0, metric: useMetric) }
+                    ), format: .number)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 80)
@@ -83,7 +87,7 @@ struct CaloricCalculatorView: View {
                 HStack {
                     Text("Target Weight")
                     Spacer()
-                    TextField("lbs", text: $targetWeightInput)
+                    TextField(BodyUnits.weightUnit(metric: useMetric), text: $targetWeightInput)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 80)
@@ -213,7 +217,7 @@ struct CaloricCalculatorView: View {
         goalSettings.loadUserGoals(userID: userID) {
             self.calorieInput = String(format: "%.0f", self.goalSettings.calories ?? 0)
             if let targetWeight = self.goalSettings.targetWeight {
-                self.targetWeightInput = String(format: "%.1f", targetWeight)
+                self.targetWeightInput = String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: targetWeight, metric: useMetric))
             }
         }
     }
@@ -229,7 +233,7 @@ struct CaloricCalculatorView: View {
         let clampedCalories = max(minimumGoal, calorieValue)
         goalSettings.calories = clampedCalories
         if let targetWeightValue = Double(targetWeightInput) {
-            goalSettings.targetWeight = targetWeightValue
+            goalSettings.targetWeight = BodyUnits.weightToLbs(targetWeightValue, metric: useMetric)
         }
         
         goalSettings.recalculateAllGoals()

@@ -197,7 +197,10 @@ class DailyLogService: ObservableObject {
     }
 
     private func rescheduleDailyReminder() {
-        NotificationManager.shared.scheduleCalendarNotification(.dailyLogReminder(hour: 20, minute: 00))
+        // Refresh the reminder (its body shows remaining calories) at the user's CHOSEN time and
+        // only if they've enabled it — the old hard-coded 20:00 clobbered the Settings time on
+        // every food log.
+        NotificationManager.shared.scheduleDailyLogReminderIfAuthorized()
     }
 
 
