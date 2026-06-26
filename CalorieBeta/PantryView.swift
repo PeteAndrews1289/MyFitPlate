@@ -160,80 +160,101 @@ struct PantryRecipeGenerationView: View {
     @EnvironmentObject var recipeService: RecipeService
     @ObservedObject var pantryService: PantryService
 
-    @State private var generatedRecipe: Recipe?
+    @State private var generatedRecipes: [Recipe] = []
     @State private var isGenerating = true
-    @State private var isSaving = false
+    @State private var savingName: String?
+    @State private var savedNames: Set<String> = []
     @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
-            VStack {
+            Group {
                 if isGenerating {
-                    ProgressView("Generating recipe...")
-                        .padding()
-                    Text("Only pantry ingredients are included in the prompt.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                } else if let errorMessage {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                        .padding()
-                    Button("Try Again", action: generateRecipe)
-                } else if let recipe = generatedRecipe {
-                    recipePreview(recipe)
-
-                    Button(isSaving ? "Saving..." : "Save Recipe") {
-                        saveAndDismiss(recipe: recipe)
+                    VStack {
+                        ProgressView("Generating recipes...")
+                            .padding()
+                        Text("Only your pantry ingredients are included in the prompt.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isSaving)
-                    .padding()
+                } else if let errorMessage {
+                    VStack {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                            .padding()
+                        Button("Try Again", action: generateRecipe)
+                    }
+                } else {
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            ForEach(Array(generatedRecipes.enumerated()), id: \.offset) { _, recipe in
+                                recipeCard(recipe)
+                            }
+                        }
+                        .padding()
+                    }
                 }
             }
-            .navigationTitle("Pantry Recipe AI")
+            .navigationTitle("Pantry Recipes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button("Done") { dismiss() }
                 }
             }
             .onAppear(perform: generateRecipe)
         }
     }
 
-    private func recipePreview(_ recipe: Recipe) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(recipe.name)
-                    .font(.title)
-                    .bold()
+    private func recipeCard(_ recipe: Recipe) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(recipe.name)
+                .font(.title3)
+                .bold()
 
-                Text("Nutrition per serving")
-                    .font(.headline)
-                HStack {
-                    Text("\(Int(recipe.nutrition.calories)) kcal")
-                    Text("\(Int(recipe.nutrition.protein))g protein")
-                    Text("\(Int(recipe.nutrition.carbs))g carbs")
-                    Text("\(Int(recipe.nutrition.fats))g fat")
-                }
-                .font(.subheadline)
+            HStack(spacing: 12) {
+                Text("\(Int(recipe.nutrition.calories)) kcal")
+                Text("\(Int(recipe.nutrition.protein))g P")
+                Text("\(Int(recipe.nutrition.carbs))g C")
+                Text("\(Int(recipe.nutrition.fats))g F")
+            }
+            .font(.subheadline)
+            .foregroundColor(.secondary)
 
-                Text("Ingredients")
-                    .font(.headline)
-                ForEach(recipe.ingredients, id: \.self) { ingredient in
-                    Text("- \(ingredient)")
-                }
+            Text("Ingredients")
+                .font(.headline)
+            ForEach(recipe.ingredients, id: \.self) { ingredient in
+                Text("• \(ingredient)")
+                    .font(.subheadline)
+            }
 
-                Text("Instructions")
-                    .font(.headline)
-                ForEach(Array(recipe.instructions.enumerated()), id: \.offset) { index, instruction in
-                    Text("\(index + 1). \(instruction)")
+            Text("Instructions")
+                .font(.headline)
+            ForEach(Array(recipe.instructions.enumerated()), id: \.offset) { index, instruction in
+                Text("\(index + 1). \(instruction)")
+                    .font(.subheadline)
+            }
+
+            Button {
+                save(recipe)
+            } label: {
+                if savedNames.contains(recipe.name) {
+                    Label("Saved", systemImage: "checkmark.circle.fill")
+                } else if savingName == recipe.name {
+                    Text("Saving…")
+                } else {
+                    Label("Save Recipe", systemImage: "bookmark")
                 }
             }
-            .padding()
+            .buttonStyle(.borderedProminent)
+            .disabled(savedNames.contains(recipe.name) || savingName != nil)
+            .padding(.top, 4)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func generateRecipe() {
@@ -246,37 +267,34 @@ struct PantryRecipeGenerationView: View {
             .joined(separator: ", ")
 
         Task {
-            let recipe = await recipeService.createRecipeFromPantry(itemsString: items, userID: user.uid)
+            let recipes = await recipeService.createRecipesFromPantry(itemsString: items, userID: user.uid)
             await MainActor.run {
                 isGenerating = false
-                if let recipe {
-                    generatedRecipe = recipe
+                if recipes.isEmpty {
+                    errorMessage = "Failed to generate recipes. Please try again."
                 } else {
-                    errorMessage = "Failed to generate recipe. Please try again."
+                    generatedRecipes = recipes
                 }
             }
         }
     }
 
-    private func saveAndDismiss(recipe: Recipe) {
-        guard !isSaving else { return }
+    private func save(_ recipe: Recipe) {
+        guard savingName == nil, !savedNames.contains(recipe.name) else { return }
+        guard let user = Auth.auth().currentUser else { return }
+        savingName = recipe.name
+        errorMessage = nil
         Task {
-            guard let user = Auth.auth().currentUser else { return }
-            await MainActor.run {
-                isSaving = true
-                errorMessage = nil
-            }
-
             do {
                 _ = try await recipeService.saveRecipe(recipe, for: user.uid)
                 await MainActor.run {
-                    isSaving = false
-                    dismiss()
+                    savedNames.insert(recipe.name)
+                    savingName = nil
                 }
             } catch {
                 await MainActor.run {
-                    isSaving = false
-                    errorMessage = "Failed to save recipe. Please try again."
+                    savingName = nil
+                    errorMessage = "Couldn't save recipe. Please try again."
                 }
             }
         }

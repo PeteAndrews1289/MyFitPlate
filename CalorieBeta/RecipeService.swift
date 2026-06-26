@@ -136,6 +136,46 @@ class RecipeService: ObservableObject {
         }
     }
 
+    func createRecipesFromPantry(itemsString: String, userID: String, retryCount: Int = 1) async -> [Recipe] {
+        isLoading = true
+
+        let prompt = """
+        Generate 3 distinct, healthy, macro-conscious recipes STRICTLY using ONLY the following ingredients: "\(itemsString)".
+        Do NOT assume the user has salt, pepper, oil, water, or any other household staples unless explicitly listed above.
+        Return a JSON object with a single key "recipes" whose value is an array of exactly 3 recipe objects. Each recipe object has keys: "name" (string), "ingredients" (array of strings containing exactly what was used), "instructions" (array of strings), "nutrition" (object with calories, protein, carbs, fats, saturatedFat, fiber, sodium).
+        """
+
+        let messages: [[String: Any]] = [["role": "user", "content": prompt]]
+
+        let result = await AIService.shared.performRequest(
+            messages: messages,
+            temperature: 0.6,
+            responseFormat: ["type": "json_object"],
+            retryCount: 0
+        )
+
+        switch result {
+        case .success(let jsonString):
+            do {
+                let recipes = try parseRecipesFromAIResponse(jsonString)
+                Analytics.logEvent("ai_recipe_pantry_generated", parameters: ["count": recipes.count])
+                isLoading = false
+                return recipes
+            } catch {
+                AppLog.recipes.error("Pantry Recipes parsing failed: \(error.localizedDescription, privacy: .public)")
+                if retryCount > 0 {
+                    return await createRecipesFromPantry(itemsString: itemsString, userID: userID, retryCount: retryCount - 1)
+                }
+                isLoading = false
+                return []
+            }
+        case .failure(let error):
+            AppLog.recipes.error("Pantry Recipes AI request failed: \(error.localizedDescription, privacy: .public)")
+            isLoading = false
+            return []
+        }
+    }
+
     func createRecipeFromURL(url: String, userID: String, retryCount: Int = 1) async -> Recipe? {
         isLoading = true
 
@@ -278,5 +318,19 @@ class RecipeService: ObservableObject {
         }
         let response = try JSONDecoder().decode(AIRecipeResponse.self, from: jsonData)
         return Recipe(name: response.name, ingredients: response.ingredients, detailedIngredients: nil, instructions: response.instructions, nutrition: response.nutrition, servings: 1.0)
+    }
+
+    private struct AIPantryRecipesResponse: Codable {
+        let recipes: [AIRecipeResponse]
+    }
+
+    private func parseRecipesFromAIResponse(_ jsonString: String) throws -> [Recipe] {
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            throw NSError(domain: "RecipeService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert JSON string to data."])
+        }
+        let response = try JSONDecoder().decode(AIPantryRecipesResponse.self, from: jsonData)
+        return response.recipes.map {
+            Recipe(name: $0.name, ingredients: $0.ingredients, detailedIngredients: nil, instructions: $0.instructions, nutrition: $0.nutrition, servings: 1.0)
+        }
     }
 }
