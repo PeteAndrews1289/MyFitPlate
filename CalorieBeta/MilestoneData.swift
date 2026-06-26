@@ -13,6 +13,7 @@ struct MilestoneView: View {
     let initialWeight: Double
     let currentWeight: Double
     let targetWeight: Double
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     let numberOfMilestonesToShow: Int = 5
 
     private var isLosingWeightGoal: Bool {
@@ -49,7 +50,9 @@ struct MilestoneView: View {
                 }
             }
 
-            let displayLabel = String(format: "%@%.1f lb", (isLosingWeightGoal ? "-" : "+"), abs(weightAtThisMilestoneTarget - lastMilestoneWeight))
+            let useMetric = UserDefaults.standard.bool(forKey: "useMetricBodyUnits")
+            let segmentLbs = abs(weightAtThisMilestoneTarget - lastMilestoneWeight)
+            let displayLabel = String(format: "%@%.1f %@", (isLosingWeightGoal ? "-" : "+"), BodyUnits.weightDisplayValue(lbs: segmentLbs, metric: useMetric), BodyUnits.weightUnit(metric: useMetric))
 
             generatedMilestones.append(MilestoneData(
                 milestoneNumber: i,
@@ -130,9 +133,9 @@ struct MilestoneView: View {
                 .frame(height: 80)
 
                 HStack {
-                    Text(String(format: "Initial: %.1f lb", initialWeight))
+                    Text("Initial: \(BodyUnits.weightString(lbs: initialWeight, metric: useMetric))")
                     Spacer()
-                    Text(String(format: "Goal: %.1f lb", targetWeight))
+                    Text("Goal: \(BodyUnits.weightString(lbs: targetWeight, metric: useMetric))")
                 }
                 .font(.caption)
                 .foregroundColor(.gray)

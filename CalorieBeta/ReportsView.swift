@@ -647,6 +647,7 @@ struct MetabolismDashboardView: View {
     @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @Environment(\.dismiss) private var dismiss
 
     @State private var isLoading = true
@@ -779,7 +780,7 @@ struct MetabolismDashboardView: View {
                             .foregroundColor(Color(UIColor.secondaryLabel))
                         if let rate = adaptiveGoalService.weightChangeRatePerDay {
                             let isLosing = rate < 0
-                            Text("\(isLosing ? "" : "+")\(String(format: "%.2f", rate * 7)) lbs/wk")
+                            Text("\(isLosing ? "" : "+")\(String(format: "%.2f", BodyUnits.weightDisplayValue(lbs: rate * 7, metric: useMetric))) \(BodyUnits.weightUnit(metric: useMetric))/wk")
                                 .appFont(size: 16, weight: .bold)
                                 .foregroundColor(isLosing ? .brandPrimary : .orange)
                         } else {

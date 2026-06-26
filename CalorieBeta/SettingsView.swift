@@ -80,7 +80,7 @@ struct SettingsView: View {
                     SettingsHeaderCard(
                         calorieGoal: goalSettings.calories,
                         waterGoal: goalSettings.waterGoal,
-                        heightText: "\(goalSettings.getHeightInFeetAndInches().feet)'\(goalSettings.getHeightInFeetAndInches().inches)\""
+                        heightText: useMetricBodyUnits ? "\(Int(goalSettings.height.rounded())) cm" : "\(goalSettings.getHeightInFeetAndInches().feet)'\(goalSettings.getHeightInFeetAndInches().inches)\""
                     )
 
                     SettingsSectionCard(title: "Appearance") {

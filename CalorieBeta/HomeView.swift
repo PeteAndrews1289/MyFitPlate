@@ -20,6 +20,7 @@ struct HomeView: View {
     @Binding var showSettings: Bool
 
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
 
     @State private var showingProfileSheet = false
     @State private var showingAddExerciseView = false
@@ -673,7 +674,7 @@ struct HomeView: View {
                         HStack(spacing: 3) {
                             Image(systemName: down ? "arrow.down.right" : "arrow.up.right")
                                 .font(.system(size: 10, weight: .bold))
-                            Text("\(String(format: "%.1f", abs(delta))) lb · 7d")
+                            Text("\(String(format: "%.1f", abs(BodyUnits.weightDisplayValue(lbs: delta, metric: useMetric)))) \(BodyUnits.weightUnit(metric: useMetric)) · 7d")
                                 .appFont(size: 11, weight: .semibold)
                         }
                         .foregroundColor(down ? .accentPositive : .orange)

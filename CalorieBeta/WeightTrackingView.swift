@@ -3,6 +3,7 @@ import FirebaseAuth
 
 struct WeightTrackingView: View {
     @EnvironmentObject var goalSettings: GoalSettings
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @State private var showingWeightEntrySheet = false
     @State private var showingTargetWeightSheet = false
     @State private var targetWeightInput: String = ""
@@ -102,7 +103,7 @@ struct WeightTrackingView: View {
                                 .appFont(size: 17, weight: .semibold)
                             Spacer()
                             Button("Edit") {
-                                targetWeightInput = numberFormatter.string(from: NSNumber(value: target)) ?? ""
+                                targetWeightInput = numberFormatter.string(from: NSNumber(value: BodyUnits.weightDisplayValue(lbs: target, metric: useMetric))) ?? ""
                                 showingTargetWeightSheet = true
                             }
                             .tint(.brandPrimary)
@@ -118,9 +119,9 @@ struct WeightTrackingView: View {
                         .frame(height: 10)
                         
                         HStack {
-                            Text("Initial: \(numberFormatter.string(from: NSNumber(value: initial)) ?? "") lb")
+                            Text("Initial: \(numberFormatter.string(from: NSNumber(value: BodyUnits.weightDisplayValue(lbs: initial, metric: useMetric))) ?? "") \(BodyUnits.weightUnit(metric: useMetric))")
                             Spacer()
-                            Text("Goal: \(numberFormatter.string(from: NSNumber(value: target)) ?? "") lb")
+                            Text("Goal: \(numberFormatter.string(from: NSNumber(value: BodyUnits.weightDisplayValue(lbs: target, metric: useMetric))) ?? "") \(BodyUnits.weightUnit(metric: useMetric))")
                         }
                         .appFont(size: 12)
                         .foregroundColor(Color(UIColor.secondaryLabel))
@@ -128,15 +129,15 @@ struct WeightTrackingView: View {
                         Divider()
                         
                         HStack(spacing: 15) {
-                             StatBox(value: totalLossOrGain.map { String(format: "%+.1f lb", $0) } ?? "N/A", label: "Total Change")
+                             StatBox(value: totalLossOrGain.map { String(format: "%+.1f \(BodyUnits.weightUnit(metric: useMetric))", BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric)) } ?? "N/A", label: "Total Change")
                              StatBox(value: goalSettings.calculateWeightProgress().map { String(format: "%.0f%%", $0) } ?? "N/A", label: "Progress")
-                             StatBox(value: weightRemaining.map { String(format: "%.1f lb", abs($0)) } ?? "N/A", label: "To Go")
+                             StatBox(value: weightRemaining.map { String(format: "%.1f \(BodyUnits.weightUnit(metric: useMetric))", abs(BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric))) } ?? "N/A", label: "To Go")
                         }
                     }
                     .asCard()
                 } else {
                     Button("Set Target Weight & Goals") {
-                        targetWeightInput = numberFormatter.string(from: NSNumber(value: goalSettings.weight)) ?? ""
+                        targetWeightInput = numberFormatter.string(from: NSNumber(value: BodyUnits.weightDisplayValue(lbs: goalSettings.weight, metric: useMetric))) ?? ""
                         showingCaloricCalculatorSheet = true
                     }
                     .buttonStyle(PrimaryButtonStyle())
@@ -177,9 +178,9 @@ struct WeightTrackingView: View {
                             onEntrySelected: { entryId in
                                  if let entry = goalSettings.weightHistory.first(where: { $0.id == entryId }) {
                                      self.chartEntryToDeleteID = entryId
-                                     let weightString = numberFormatter.string(from: NSNumber(value: entry.weight)) ?? ""
+                                     let weightString = numberFormatter.string(from: NSNumber(value: BodyUnits.weightDisplayValue(lbs: entry.weight, metric: useMetric))) ?? ""
                                      let dateString = alertItemFormatter.string(from: entry.date)
-                                     self.chartEntryToDeleteDetails = "\(weightString) lbs on \(dateString)"
+                                     self.chartEntryToDeleteDetails = "\(weightString) \(BodyUnits.weightUnit(metric: useMetric)) on \(dateString)"
                                      self.showingChartDeleteAlert = true
                                  }
                              }
@@ -204,12 +205,12 @@ struct WeightTrackingView: View {
 
                     Grid(alignment: .leading, horizontalSpacing: 15, verticalSpacing: 15) {
                         GridRow {
-                            SmallStatCard(title: "Daily Rate", value: chartStats.dailyRate.map { String(format: "%+.2f lb/day", $0) } ?? "N/A", iconName: chartStats.dailyRate.map { $0 == 0 ? "arrow.left.arrow.right" : ($0 < 0 ? "arrow.down.right" : "arrow.up.right") } ?? "scalemass", iconColor: chartStats.dailyRate.map { $0 == 0 ? .gray : ($0 < 0 ? .accentPositive : .red) } ?? .gray)
-                            SmallStatCard(title: "Trend", value: chartStats.trend.map { String(format: "%+.1f lb", $0) } ?? "N/A", iconName: chartStats.trend.map { $0 == 0 ? "arrow.left.arrow.right" : ($0 < 0 ? "arrow.down.right" : "arrow.up.right") } ?? "chart.line.uptrend.xyaxis", iconColor: chartStats.trend.map { $0 == 0 ? .gray : ($0 < 0 ? .accentPositive : .red) } ?? .gray)
+                            SmallStatCard(title: "Daily Rate", value: chartStats.dailyRate.map { String(format: "%+.2f \(BodyUnits.weightUnit(metric: useMetric))/day", BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric)) } ?? "N/A", iconName: chartStats.dailyRate.map { $0 == 0 ? "arrow.left.arrow.right" : ($0 < 0 ? "arrow.down.right" : "arrow.up.right") } ?? "scalemass", iconColor: chartStats.dailyRate.map { $0 == 0 ? .gray : ($0 < 0 ? .accentPositive : .red) } ?? .gray)
+                            SmallStatCard(title: "Trend", value: chartStats.trend.map { String(format: "%+.1f \(BodyUnits.weightUnit(metric: useMetric))", BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric)) } ?? "N/A", iconName: chartStats.trend.map { $0 == 0 ? "arrow.left.arrow.right" : ($0 < 0 ? "arrow.down.right" : "arrow.up.right") } ?? "chart.line.uptrend.xyaxis", iconColor: chartStats.trend.map { $0 == 0 ? .gray : ($0 < 0 ? .accentPositive : .red) } ?? .gray)
                         }
                         GridRow {
-                            SmallStatCard(title: "Highest", value: chartStats.highest.map { (numberFormatter.string(from: NSNumber(value: $0)) ?? "") + " lb" } ?? "N/A", iconName: "arrow.up.to.line", iconColor: .orange)
-                            SmallStatCard(title: "Lowest", value: chartStats.lowest.map { (numberFormatter.string(from: NSNumber(value: $0)) ?? "") + " lb" } ?? "N/A", iconName: "arrow.down.to.line", iconColor: .accentPositive)
+                            SmallStatCard(title: "Highest", value: chartStats.highest.map { (numberFormatter.string(from: NSNumber(value: BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric))) ?? "") + " \(BodyUnits.weightUnit(metric: useMetric))" } ?? "N/A", iconName: "arrow.up.to.line", iconColor: .orange)
+                            SmallStatCard(title: "Lowest", value: chartStats.lowest.map { (numberFormatter.string(from: NSNumber(value: BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric))) ?? "") + " \(BodyUnits.weightUnit(metric: useMetric))" } ?? "N/A", iconName: "arrow.down.to.line", iconColor: .accentPositive)
                         }
                     }
                     .padding(.horizontal)
@@ -231,12 +232,12 @@ struct WeightTrackingView: View {
             NavigationView {
                 Form {
                     Section(header: Text("Set Target Weight")) {
-                        TextField("Target weight (lbs)", text: $targetWeightInput)
+                        TextField("Target weight (\(BodyUnits.weightUnit(metric: useMetric)))", text: $targetWeightInput)
                             .keyboardType(.decimalPad)
                     }
                     Button("Save Target") {
                         if let targetValue = Double(targetWeightInput), targetValue > 0 {
-                            goalSettings.targetWeight = targetValue
+                            goalSettings.targetWeight = BodyUnits.weightToLbs(targetValue, metric: useMetric)
                             if let userID = Auth.auth().currentUser?.uid {
                                 goalSettings.saveUserGoals(userID: userID)
                             }
@@ -274,9 +275,9 @@ struct WeightTrackingView: View {
         .onAppear {
             goalSettings.loadWeightHistory()
             if let target = goalSettings.targetWeight {
-                targetWeightInput = numberFormatter.string(from: NSNumber(value: target)) ?? ""
+                targetWeightInput = numberFormatter.string(from: NSNumber(value: BodyUnits.weightDisplayValue(lbs: target, metric: useMetric))) ?? ""
             } else {
-                 targetWeightInput = numberFormatter.string(from: NSNumber(value: goalSettings.weight)) ?? ""
+                 targetWeightInput = numberFormatter.string(from: NSNumber(value: BodyUnits.weightDisplayValue(lbs: goalSettings.weight, metric: useMetric))) ?? ""
             }
         }
     }

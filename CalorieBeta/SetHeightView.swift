@@ -2,8 +2,10 @@ import SwiftUI
 
 struct SetHeightView: View {
     @EnvironmentObject var goalSettings: GoalSettings
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @Binding var feetInput: String
     @Binding var inchesInput: String
+    @State private var cmInput: String = ""
     var onSave: () -> Void
 
     var body: some View {
@@ -38,16 +40,30 @@ struct SetHeightView: View {
                 }
 
                 // Inputs
-                HStack(spacing: 16) {
-                    HeightInputCard(title: "Feet", value: $feetInput, unit: "ft")
-                    HeightInputCard(title: "Inches", value: $inchesInput, unit: "in")
+                Group {
+                    if useMetric {
+                        HeightInputCard(title: "Height", value: $cmInput, unit: "cm")
+                    } else {
+                        HStack(spacing: 16) {
+                            HeightInputCard(title: "Feet", value: $feetInput, unit: "ft")
+                            HeightInputCard(title: "Inches", value: $inchesInput, unit: "in")
+                        }
+                    }
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 16)
+                .onAppear {
+                    if useMetric { cmInput = String(Int(goalSettings.height.rounded())) }
+                }
 
                 Spacer()
 
                 Button(action: {
+                    if useMetric, let cm = Double(cmInput), cm > 0 {
+                        let totalInches = Int((cm / BodyUnits.cmPerInch).rounded())
+                        feetInput = String(totalInches / 12)
+                        inchesInput = String(totalInches % 12)
+                    }
                     self.onSave()
                 }) {
                     Text("Save Height")

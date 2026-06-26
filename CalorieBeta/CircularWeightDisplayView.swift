@@ -2,7 +2,8 @@ import SwiftUI
 
 struct CircularWeightDisplayView: View {
     @EnvironmentObject var goalSettings: GoalSettings
-    
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
+
     var currentWeight: Double
     var lastUpdateDate: Date?
     var progress: Double
@@ -10,7 +11,7 @@ struct CircularWeightDisplayView: View {
     var initialWeightForGoal: Double?
 
     private var weightString: String {
-        String(format: "%.1f", currentWeight)
+        String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: currentWeight, metric: useMetric))
     }
 
     private var dateString: String {
@@ -42,7 +43,7 @@ struct CircularWeightDisplayView: View {
                     Text(weightString)
                         .font(.system(size: 50, weight: .bold, design: .rounded))
                         .foregroundColor(Color.brandPrimary)
-                    Text("lb")
+                    Text(BodyUnits.weightUnit(metric: useMetric))
                         .appFont(size: 20)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                     Text(dateString)
@@ -55,9 +56,9 @@ struct CircularWeightDisplayView: View {
             
             if let gw = goalWeight, let iw = initialWeightForGoal {
                  HStack {
-                    Text(String(format: "Initial: %.1f lb", iw))
+                    Text("Initial: \(BodyUnits.weightString(lbs: iw, metric: useMetric))")
                     Spacer()
-                    Text(String(format: "Goal: %.1f lb", gw))
+                    Text("Goal: \(BodyUnits.weightString(lbs: gw, metric: useMetric))")
                  }
                  .appFont(size: 12)
                  .foregroundColor(Color(UIColor.secondaryLabel))
