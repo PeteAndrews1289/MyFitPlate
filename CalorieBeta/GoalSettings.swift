@@ -338,6 +338,16 @@ class GoalSettings: ObservableObject {
                 self.activityLevel = goalsMap["activityLevel"] as? Double ?? self.activityLevel
                 self.goal = goalsMap["goal"] as? String ?? self.goal
                 self.waterGoal = goalsMap["waterGoal"] as? Double ?? self.waterGoal
+
+                // Restore saved calorie/macro targets so CUSTOM goals survive launch — the .custom
+                // method preserves self.calories instead of recomputing, so without this a custom
+                // user gets reset to the 2000 default every cold start.
+                if let savedCalories = goalsMap["calories"] as? Double, savedCalories > 0 {
+                    self.calories = savedCalories
+                }
+                self.protein = goalsMap["protein"] as? Double ?? self.protein
+                self.carbs = goalsMap["carbs"] as? Double ?? self.carbs
+                self.fats = goalsMap["fats"] as? Double ?? self.fats
             }
             
             if shouldUpdateFirestore {

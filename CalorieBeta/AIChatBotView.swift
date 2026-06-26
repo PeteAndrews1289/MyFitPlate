@@ -1317,7 +1317,9 @@ struct AIChatbotView: View {
             showAlert = true
             
         case .logWeight(let weightPounds):
-            HealthKitManager.shared.saveWeightSample(weightLbs: weightPounds, date: Date())
+            // Route through the real write path: updates weight history, current weight, Firestore,
+            // adaptive TDEE, and HealthKit (it saves the sample internally) — not HealthKit alone.
+            goalSettings.updateUserWeight(weightPounds)
             let haptic = UINotificationFeedbackGenerator()
             haptic.notificationOccurred(.success)
             let useMetric = UserDefaults.standard.bool(forKey: "useMetricBodyUnits")
