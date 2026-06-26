@@ -25,6 +25,7 @@ class AppState: ObservableObject {
                 if let user = user {
                     self.isUserLoggedIn = true
                     self.loadDarkModePreference(userID: user.uid)
+                    self.recordLastLogin(userID: user.uid)
                 } else {
                     self.isUserLoggedIn = false
                 }
@@ -63,6 +64,20 @@ class AppState: ObservableObject {
         db.collection("users").document(userID).setData(["darkMode": self.isDarkModeEnabled], merge: true) { error in
             if let error {
                 AppLog.app.error("Failed to save dark mode preference: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    /// Stamps the user's last-login / last-active time on their profile doc. The auth listener
+    /// fires on fresh logins, sign-ups, and every launch with a saved session, so this covers
+    /// all three. Uses a server timestamp so it isn't affected by device clock skew.
+    private func recordLastLogin(userID: String) {
+        db.collection("users").document(userID).setData(
+            ["lastLogin": FieldValue.serverTimestamp()],
+            merge: true
+        ) { error in
+            if let error {
+                AppLog.app.error("Failed to record last login: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
