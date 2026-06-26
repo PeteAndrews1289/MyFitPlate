@@ -5,6 +5,35 @@ import HealthKit
 import SwiftUI
 import Combine
 
+/// Body-measurement unit helpers. Weight is stored internally in pounds and height in
+/// centimeters; these convert only at the display/entry edges based on the user's preference
+/// (`useMetricBodyUnits`, defaulted from the device locale). Internal storage stays lbs/cm.
+enum BodyUnits {
+    static let lbsPerKg = 2.2046226218
+    static let cmPerInch = 2.54
+
+    /// Pounds -> the value shown in the user's chosen unit (kg if metric, else lbs).
+    static func weightDisplayValue(lbs: Double, metric: Bool) -> Double {
+        metric ? lbs / lbsPerKg : lbs
+    }
+
+    /// A value the user typed (kg if metric, else lbs) -> pounds for storage.
+    static func weightToLbs(_ value: Double, metric: Bool) -> Double {
+        metric ? value * lbsPerKg : value
+    }
+
+    static func weightUnit(metric: Bool) -> String { metric ? "kg" : "lbs" }
+
+    /// Formatted weight, e.g. "75.0 kg" or "165.3 lbs".
+    static func weightString(lbs: Double, metric: Bool, decimals: Int = 1) -> String {
+        String(format: "%.\(decimals)f %@", weightDisplayValue(lbs: lbs, metric: metric), weightUnit(metric: metric))
+    }
+
+    static func cm(feet: Int, inches: Int) -> Double {
+        Double(feet * 12 + inches) * cmPerInch
+    }
+}
+
 class GoalSettings: ObservableObject {
     // Core Nutrition Goals
     @Published var calories: Double?

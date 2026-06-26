@@ -9,8 +9,10 @@ struct OnboardingSurveyView: View {
     let totalSteps = 6
 
     @State private var ageInput: String = ""
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @State private var heightFeetInput: String = ""
     @State private var heightInchesInput: String = ""
+    @State private var heightCmInput: String = ""
     @State private var currentWeightInput: String = ""
     @State private var targetWeightInput: String = ""
     @State private var selectedGender: String = "Male"
@@ -47,6 +49,9 @@ struct OnboardingSurveyView: View {
         case 0:
             return !ageInput.isEmpty && (Int(ageInput) ?? 0) > 0
         case 1:
+            if useMetric {
+                return !heightCmInput.isEmpty && (Double(heightCmInput) ?? 0) > 0
+            }
             return !heightFeetInput.isEmpty && (Int(heightFeetInput) ?? 0) >= 0 &&
                    !heightInchesInput.isEmpty && (Int(heightInchesInput) ?? 0) >= 0 && (Int(heightInchesInput) ?? 0) < 12
         case 2:
@@ -128,10 +133,9 @@ struct OnboardingSurveyView: View {
             }
         } else {
             guard let age = Int(ageInput), age > 0,
-                  let heightFeet = Int(heightFeetInput),
-                  let heightInches = Int(heightInchesInput),
-                  let currentWeight = Double(currentWeightInput), currentWeight > 0,
-                  let targetWeight = Double(targetWeightInput), targetWeight > 0 else {
+                  let heightCm = parsedHeightCm(),
+                  let currentWeightValue = Double(currentWeightInput), currentWeightValue > 0,
+                  let targetWeightValue = Double(targetWeightInput), targetWeightValue > 0 else {
                 // A required step was skipped (the paged TabView lets users swipe past the
                 // disabled Next button). Jump back to the first incomplete step instead of
                 // silently doing nothing, which made "Finish Setup" look broken.
@@ -140,8 +144,8 @@ struct OnboardingSurveyView: View {
             }
             
             goalSettings.age = age
-            goalSettings.height = Double((heightFeet * 12) + heightInches) * 2.54
-            goalSettings.targetWeight = targetWeight
+            goalSettings.height = heightCm
+            goalSettings.targetWeight = BodyUnits.weightToLbs(targetWeightValue, metric: useMetric)
             goalSettings.gender = selectedGender
             goalSettings.activityLevel = activityLevelMap[selectedActivityLevelKey] ?? 1.2
             goalSettings.goal = selectedGoal
@@ -153,7 +157,7 @@ struct OnboardingSurveyView: View {
             
             if let userID = Auth.auth().currentUser?.uid {
                 goalSettings.saveUserGoals(userID: userID)
-                goalSettings.updateUserWeight(currentWeight)
+                goalSettings.updateUserWeight(BodyUnits.weightToLbs(currentWeightValue, metric: useMetric))
             }
             onComplete()
         }
@@ -161,10 +165,24 @@ struct OnboardingSurveyView: View {
 
     private func firstIncompleteStep() -> Int {
         if ageInput.isEmpty || (Int(ageInput) ?? 0) <= 0 { return 0 }
-        if heightFeetInput.isEmpty || heightInchesInput.isEmpty { return 1 }
+        if useMetric {
+            if heightCmInput.isEmpty || (Double(heightCmInput) ?? 0) <= 0 { return 1 }
+        } else if heightFeetInput.isEmpty || heightInchesInput.isEmpty {
+            return 1
+        }
         if currentWeightInput.isEmpty || (Double(currentWeightInput) ?? 0) <= 0 { return 2 }
         if targetWeightInput.isEmpty || (Double(targetWeightInput) ?? 0) <= 0 { return 5 }
         return 0
+    }
+
+    private func parsedHeightCm() -> Double? {
+        if useMetric {
+            guard let cm = Double(heightCmInput), cm > 0 else { return nil }
+            return cm
+        }
+        guard let feet = Int(heightFeetInput),
+              let inches = Int(heightInchesInput), inches >= 0, inches < 12 else { return nil }
+        return BodyUnits.cm(feet: feet, inches: inches)
     }
 
     private func hideKeyboard() {
@@ -216,20 +234,26 @@ struct OnboardingSurveyView: View {
 
     @ViewBuilder
     private func heightStepView() -> some View {
-        HStack(spacing: 12) {
-            onboardingInputField(title: "Feet", text: $heightFeetInput, unit: "ft", keyboard: .numberPad)
-            onboardingInputField(title: "Inches", text: $heightInchesInput, unit: "in", keyboard: .numberPad)
+        Group {
+            if useMetric {
+                onboardingInputField(title: "Height", text: $heightCmInput, unit: "cm", keyboard: .decimalPad)
+            } else {
+                HStack(spacing: 12) {
+                    onboardingInputField(title: "Feet", text: $heightFeetInput, unit: "ft", keyboard: .numberPad)
+                    onboardingInputField(title: "Inches", text: $heightInchesInput, unit: "in", keyboard: .numberPad)
+                }
+            }
         }
     }
 
     @ViewBuilder
     private func currentWeightStepView() -> some View {
-        onboardingInputField(title: "Current Weight", text: $currentWeightInput, unit: "lbs", keyboard: .decimalPad)
+        onboardingInputField(title: "Current Weight", text: $currentWeightInput, unit: BodyUnits.weightUnit(metric: useMetric), keyboard: .decimalPad)
     }
 
     @ViewBuilder
     private func targetWeightStepView() -> some View {
-        onboardingInputField(title: "Target Weight", text: $targetWeightInput, unit: "lbs", keyboard: .decimalPad)
+        onboardingInputField(title: "Target Weight", text: $targetWeightInput, unit: BodyUnits.weightUnit(metric: useMetric), keyboard: .decimalPad)
     }
 
     private func onboardingInputField(title: String, text: Binding<String>, unit: String, keyboard: UIKeyboardType) -> some View {

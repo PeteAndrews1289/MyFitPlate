@@ -13,6 +13,7 @@ struct SettingsView: View {
     @EnvironmentObject var recipeService: RecipeService
     
     @AppStorage("includeActiveCaloriesInGoal") var includeActiveCaloriesInGoal: Bool = false
+    @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits: Bool = Locale.current.measurementSystem != .us
     @AppStorage("notificationHour") private var notificationHour: Int = 20
     @AppStorage("notificationMinute") private var notificationMinute: Int = 0
     @AppStorage("hydrationRemindersEnabled") private var hydrationRemindersEnabled: Bool = false
@@ -85,6 +86,13 @@ struct SettingsView: View {
                     SettingsSectionCard(title: "Appearance") {
                         Toggle(isOn: $appState.isDarkModeEnabled.animation()) {
                             SettingsLabel(icon: "moon.fill", title: "Dark Mode", subtitle: "Use the darker app appearance.", color: .purple)
+                        }
+                        .padding(16)
+                    }
+
+                    SettingsSectionCard(title: "Units") {
+                        Toggle(isOn: $useMetricBodyUnits) {
+                            SettingsLabel(icon: "ruler.fill", title: "Metric Units", subtitle: "Show weight in kg and height in cm.", color: .teal)
                         }
                         .padding(16)
                     }
