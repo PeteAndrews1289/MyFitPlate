@@ -475,6 +475,7 @@ private struct AIChatFastActionCard: View {
 private struct AIChatWeightActionCard: View {
     let weightPounds: Double
     let onConfirm: () -> Void
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @State private var didConfirm = false
 
     var body: some View {
@@ -500,7 +501,7 @@ private struct AIChatWeightActionCard: View {
             }
 
             HStack(spacing: 12) {
-                MacroLabel(title: "Weight", value: String(format: "%.1f lbs", weightPounds), color: .white, bgColor: .white.opacity(0.2))
+                MacroLabel(title: "Weight", value: String(format: "%.1f %@", BodyUnits.weightDisplayValue(lbs: weightPounds, metric: useMetric), BodyUnits.weightUnit(metric: useMetric)), color: .white, bgColor: .white.opacity(0.2))
             }
         }
         .padding(16)
@@ -1137,6 +1138,7 @@ struct AIChatbotView: View {
         ```
         
         Action: Log Weight
+        The user enters weight in \(BodyUnits.weightUnit(metric: UserDefaults.standard.bool(forKey: "useMetricBodyUnits"))). ALWAYS return "weightPounds" in POUNDS — if the stated weight is in kilograms, convert it (1 kg = 2.20462 lb).
         ```json
         {
           "type": "log_weight",
@@ -1318,7 +1320,8 @@ struct AIChatbotView: View {
             HealthKitManager.shared.saveWeightSample(weightLbs: weightPounds, date: Date())
             let haptic = UINotificationFeedbackGenerator()
             haptic.notificationOccurred(.success)
-            alertMessage = "Weight updated to \(String(format: "%.1f", weightPounds)) lbs!"
+            let useMetric = UserDefaults.standard.bool(forKey: "useMetricBodyUnits")
+            alertMessage = "Weight updated to \(String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: weightPounds, metric: useMetric))) \(BodyUnits.weightUnit(metric: useMetric))!"
             showAlert = true
         }
     }
