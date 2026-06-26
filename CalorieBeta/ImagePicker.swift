@@ -88,3 +88,37 @@ struct ImagePicker: UIViewControllerRepresentable {
         // No updates needed for this implementation.
     }
 }
+
+extension View {
+    /// Lets the user choose a photo source (camera or library) before the picker opens.
+    /// Drop-in replacement for `.sheet(isPresented:) { ImagePicker(sourceType: .camera) { ... } }`
+    /// that adds "Choose from Library". On devices without a camera (e.g. the Simulator) it just
+    /// offers the library, so photo logging works everywhere.
+    func imageSourceDialog(isPresented: Binding<Bool>, onImagePicked: @escaping (UIImage) -> Void) -> some View {
+        modifier(ImageSourceDialog(isPresented: isPresented, onImagePicked: onImagePicked))
+    }
+}
+
+private struct ImageSourceDialog: ViewModifier {
+    @Binding var isPresented: Bool
+    let onImagePicked: (UIImage) -> Void
+    @State private var showCamera = false
+    @State private var showLibrary = false
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog("Add a Photo", isPresented: $isPresented, titleVisibility: .visible) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("Take Photo") { showCamera = true }
+                }
+                Button("Choose from Library") { showLibrary = true }
+                Button("Cancel", role: .cancel) {}
+            }
+            .sheet(isPresented: $showCamera) {
+                ImagePicker(sourceType: .camera, onImagePicked: onImagePicked)
+            }
+            .sheet(isPresented: $showLibrary) {
+                ImagePicker(sourceType: .photoLibrary, onImagePicked: onImagePicked)
+            }
+    }
+}

@@ -104,18 +104,16 @@ struct FoodSearchView: View {
                         }
                     }
                 }
-                .sheet(isPresented: $showingImagePicker) {
-                    ImagePicker(sourceType: .camera) { image in
-                        self.isProcessingImage = true
-                        AnalyticsManager.aiFeatureUsed(.mealPhoto)
-                        imageModel.estimateNutritionFromImage(image: image) { result in
-                            self.isProcessingImage = false
-                            switch result {
-                            case .success(let foodItems):
-                                self.estimatedFoodItemsWrapper = IdentifiableFoodItems(items: foodItems)
-                            case .failure(let error):
-                                self.scanError = (true, "Could not analyze the image. Error: \(error.localizedDescription)")
-                            }
+                .imageSourceDialog(isPresented: $showingImagePicker) { image in
+                    self.isProcessingImage = true
+                    AnalyticsManager.aiFeatureUsed(.mealPhoto)
+                    imageModel.estimateNutritionFromImage(image: image) { result in
+                        self.isProcessingImage = false
+                        switch result {
+                        case .success(let foodItems):
+                            self.estimatedFoodItemsWrapper = IdentifiableFoodItems(items: foodItems)
+                        case .failure(let error):
+                            self.scanError = (true, "Could not analyze the image. Error: \(error.localizedDescription)")
                         }
                     }
                 }
