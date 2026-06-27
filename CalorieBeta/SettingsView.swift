@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseFunctions
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
@@ -389,7 +390,8 @@ struct SettingsView: View {
 
     private func performAccountDeletion(user: User) {
         let db = Firestore.firestore()
-        deleteUserFirestoreData(userID: user.uid, db: db) { result in
+        let userID = user.uid
+        deleteUserFirestoreData(userID: userID, db: db) { result in
             if case .failure(let error) = result {
                 AppLog.data.error("Failed to delete user data: \(error.localizedDescription, privacy: .public)")
                 DispatchQueue.main.async {
@@ -399,27 +401,47 @@ struct SettingsView: View {
                 return
             }
 
-            user.delete { error in
-                DispatchQueue.main.async {
-                    isDeletingAccount = false
-                    if let error = error {
-                        AppLog.app.error("Failed to delete auth account: \(error.localizedDescription, privacy: .public)")
-                        deleteErrorMessage = "Your data was removed, but the login couldn't be deleted. Please sign out, sign back in, and delete again."
-                    } else {
-                        clearLocalAccountData()
-                        appState.isUserLoggedIn = false
-                        showSettings = false
+            // Best-effort: ask the server to remove backend-owned metadata the client can't
+            // delete under the rules (aiUsage / fatSecretUsage); finish locally regardless.
+            Functions.functions().httpsCallable("deleteUserData").call { _, serverError in
+                if let serverError {
+                    AppLog.data.error("Server-side deletion incomplete: \(serverError.localizedDescription, privacy: .public)")
+                }
+                user.delete { error in
+                    DispatchQueue.main.async {
+                        isDeletingAccount = false
+                        if let error = error {
+                            AppLog.app.error("Failed to delete auth account: \(error.localizedDescription, privacy: .public)")
+                            deleteErrorMessage = "Your data was removed, but the login couldn't be deleted. Please sign out, sign back in, and delete again."
+                        } else {
+                            clearLocalAccountData(userID: userID)
+                            appState.isUserLoggedIn = false
+                            showSettings = false
+                        }
                     }
                 }
             }
         }
     }
 
-    private func clearLocalAccountData() {
+    private func clearLocalAccountData(userID: String) {
         spotlightManager.resetSpotlights()
-        UserDefaults.standard.removeObject(forKey: "cycleSettings")
-        UserDefaults.standard.removeObject(forKey: "lastPeriodStartDate")
-        UserDefaults.standard.removeObject(forKey: "pinnedExerciseNotes")
+        let defaults = UserDefaults.standard
+        // Cached user content
+        defaults.removeObject(forKey: "recentFoods_\(userID)")
+        defaults.removeObject(forKey: "chatHistory_\(userID)")
+        defaults.removeObject(forKey: "mealPlanCache")
+        defaults.removeObject(forKey: "cycleSettings")
+        defaults.removeObject(forKey: "lastPeriodStartDate")
+        defaults.removeObject(forKey: "pinnedExerciseNotes")
+        // Preferences, for a true clean slate
+        for key in ["useMetricBodyUnits", "hydrationRemindersEnabled", "weighInReminderEnabled",
+                    "notificationHour", "notificationMinute", "includeActiveCaloriesInGoal",
+                    "isAutoRestTimerEnabled"] {
+            defaults.removeObject(forKey: key)
+        }
+        // App-group data shared with the widget
+        SharedDataManager.shared.clearWidgetData()
     }
 
     private func deleteUserFirestoreData(userID: String, db: Firestore, completion: @escaping (Result<Void, Error>) -> Void) {

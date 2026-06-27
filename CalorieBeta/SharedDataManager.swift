@@ -69,4 +69,11 @@ struct SharedDataManager {
         userDefaults.set(0.0, forKey: SharedDataKeys.pendingWater)
         return pending
     }
+
+    /// Wipes the app-group data shared with the widget — used when an account is deleted.
+    func clearWidgetData() {
+        guard let userDefaults = userDefaults else { return }
+        userDefaults.removeObject(forKey: SharedDataKeys.widgetData)
+        userDefaults.removeObject(forKey: SharedDataKeys.pendingWater)
+    }
 }

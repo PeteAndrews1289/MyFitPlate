@@ -221,3 +221,30 @@ export const fatSecretProxy = onCall(
     }
   }
 );
+
+// Server-owned account deletion. Uses the Admin SDK to remove everything tied to the user —
+// including backend-only metadata (the aiUsage / fatSecretUsage counters) the client can't reach
+// under the security rules — so deletion matches the privacy policy's "all associated data."
+export const deleteUserData = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Authentication required.");
+  }
+  const uid = request.auth.uid;
+
+  // Recursively delete the user's document and every subcollection (logs, weight history,
+  // recent/custom foods, recipes, pantry, etc.).
+  await db.recursiveDelete(db.collection("users").doc(uid));
+
+  // Delete the per-user usage counters stored in top-level collections.
+  for (const collection of ["aiUsage", "fatSecretUsage"]) {
+    const snapshot = await db.collection(collection).where("uid", "==", uid).get();
+    if (snapshot.empty) {
+      continue;
+    }
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+  }
+
+  return { deleted: true };
+});
