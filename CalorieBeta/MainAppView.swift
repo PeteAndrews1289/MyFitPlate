@@ -322,6 +322,13 @@ struct ContentView: View {
     
     private func checkUserStatusAndFirstLogin() {
         self.isLoadingUserState = true
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+            DispatchQueue.main.async {
+                self.shouldShowOnboardingSurvey = false
+                self.isLoadingUserState = false
+            }
+            return
+        }
         if let currentUser = Auth.auth().currentUser {
              checkFirstLoginFirestore(userID: currentUser.uid) { isFirstLogin in
                  DispatchQueue.main.async {

@@ -27,7 +27,7 @@ enum WorkoutServiceError: Error, LocalizedError {
 }
 
 @MainActor
-class WorkoutService: ObservableObject {
+class WorkoutService: ObservableObject, WorkoutServicing {
     @Published var userRoutines: [WorkoutRoutine] = []
     @Published var userPrograms: [WorkoutProgram] = []
     @Published var preBuiltPrograms: [WorkoutProgram] = []

@@ -19,6 +19,11 @@ class AppState: ObservableObject {
     private var authStateHandle: AuthStateDidChangeListenerHandle?
 
     init() {
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+            self.isUserLoggedIn = true
+            return
+        }
+        
         authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in
                 guard let self = self else { return }

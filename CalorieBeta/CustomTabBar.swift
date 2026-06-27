@@ -99,6 +99,7 @@ struct CustomTabBar: View {
                         }
                         .buttonStyle(.plain)
                         .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("tab_\(item.name.lowercased().replacingOccurrences(of: " ", with: "_"))")
                     }
                 }
             }.frame(height: 60).padding(.bottom, 24).padding(.horizontal, 16)

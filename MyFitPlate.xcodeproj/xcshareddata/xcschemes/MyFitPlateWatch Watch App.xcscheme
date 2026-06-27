@@ -54,6 +54,17 @@
                ReferencedContainer = "container:MyFitPlate.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "4BC912E62FF0481C00C46AA9"
+               BuildableName = "MyFitPlateUITests.xctest"
+               BlueprintName = "MyFitPlateUITests"
+               ReferencedContainer = "container:MyFitPlate.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
