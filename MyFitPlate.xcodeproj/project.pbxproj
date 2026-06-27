@@ -68,6 +68,7 @@
 		4B15AD1F2E358F1A00F0A0BB /* PlateCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B15AD1E2E358F1A00F0A0BB /* PlateCalculatorView.swift */; };
 		4B15AD212E3592A700F0A0BB /* AIWorkoutGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B15AD202E3592A700F0A0BB /* AIWorkoutGeneratorView.swift */; };
 		4B15AD232E3592BC00F0A0BB /* ContinueProgramCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B15AD222E3592BC00F0A0BB /* ContinueProgramCard.swift */; };
+		4BCAFE020000000000F0A0BB /* TodaysNextStepSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BCAFE010000000000F0A0BB /* TodaysNextStepSlider.swift */; };
 		4B15AD252E3695DB00F0A0BB /* ProgramDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B15AD242E3695DB00F0A0BB /* ProgramDetailView.swift */; };
 		4B15AD272E37E68B00F0A0BB /* ExerciseNoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B15AD262E37E68B00F0A0BB /* ExerciseNoteView.swift */; };
 		4B15AD292E37F29200F0A0BB /* PinnedNotesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B15AD282E37F29200F0A0BB /* PinnedNotesManager.swift */; };
@@ -329,6 +330,7 @@
 		4B15AD1E2E358F1A00F0A0BB /* PlateCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlateCalculatorView.swift; sourceTree = "<group>"; };
 		4B15AD202E3592A700F0A0BB /* AIWorkoutGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIWorkoutGeneratorView.swift; sourceTree = "<group>"; };
 		4B15AD222E3592BC00F0A0BB /* ContinueProgramCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueProgramCard.swift; sourceTree = "<group>"; };
+		4BCAFE010000000000F0A0BB /* TodaysNextStepSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodaysNextStepSlider.swift; sourceTree = "<group>"; };
 		4B15AD242E3695DB00F0A0BB /* ProgramDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramDetailView.swift; sourceTree = "<group>"; };
 		4B15AD262E37E68B00F0A0BB /* ExerciseNoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseNoteView.swift; sourceTree = "<group>"; };
 		4B15AD282E37F29200F0A0BB /* PinnedNotesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedNotesManager.swift; sourceTree = "<group>"; };
@@ -618,6 +620,7 @@
 				3E676A1F2CDBC2220019DC51 /* CommentsView.swift */,
 				3E676A1B2CDBC1C30019DC51 /* CommunityHubView.swift */,
 				4B15AD222E3592BC00F0A0BB /* ContinueProgramCard.swift */,
+				4BCAFE010000000000F0A0BB /* TodaysNextStepSlider.swift */,
 				3E676A232CE3C0080019DC51 /* CreateGroupView.swift */,
 				3E676A212CDBC2390019DC51 /* CreatePostView.swift */,
 				4B4694192DCD1186006F1F86 /* CreateRecipeView.swift */,
@@ -1032,6 +1035,7 @@
 				4B15AD192E31671700F0A0BB /* CycleInsightCard.swift in Sources */,
 				3E7821092CC02464007E219A /* FoodSearchView.swift in Sources */,
 				4B15AD232E3592BC00F0A0BB /* ContinueProgramCard.swift in Sources */,
+				4BCAFE020000000000F0A0BB /* TodaysNextStepSlider.swift in Sources */,
 				4B4878E22DF3C950009AB665 /* NotificationBanner.swift in Sources */,
 				3E78210B2CC0294B007E219A /* CaloricCalculatorView.swift in Sources */,
 				4B444E0B2DF4B6F400C6F094 /* ChallengesView.swift in Sources */,

@@ -10,6 +10,8 @@ struct WorkoutRoutinesView: View {
     @State private var routineToPlay: WorkoutRoutine?
     @State private var showingAIGenerator = false
     @State private var routineToEdit: WorkoutRoutine?
+    @State private var sessionLogs: [WorkoutSessionLog] = []
+    @State private var reviewLog: WorkoutSessionLog?
 
     private let planLibraryColumns = [
         GridItem(.flexible(), spacing: 12),
@@ -142,21 +144,16 @@ struct WorkoutRoutinesView: View {
                         TrainingWeekPreviewCard(program: program, nextWorkout: nextWorkout)
                     }
 
-                    if let (program, routine, title) = nextWorkout {
-                        ContinueProgramCard(
+                    if let program = workoutService.activeProgram {
+                        TodaysNextStepSlider(
                             program: program,
-                            nextWorkout: (routine: routine, title: title),
-                            onStartWorkout: {
-                                self.routineToPlay = routine
-                            }
+                            completedLogsByIndex: completedLogsByIndex(for: program),
+                            onStart: { routine in self.routineToPlay = routine },
+                            onSkipTo: { target in
+                                Task { await workoutService.skipToIndex(target, in: program) }
+                            },
+                            onReview: { log in self.reviewLog = log }
                         )
-                        .environmentObject(workoutService)
-                        .environmentObject(goalSettings)
-                        .environmentObject(dailyLogService)
-                        .environmentObject(achievementService)
-                        
-                    } else if workoutService.activeProgram != nil {
-                        ProgramCompleteCard()
                     }
 
                     if workoutService.activeProgram == nil {
@@ -237,15 +234,23 @@ struct WorkoutRoutinesView: View {
             .onAppear {
                 workoutService.fetchRoutinesAndPrograms()
             }
+            .task(id: workoutService.activeProgram?.id) {
+                await refreshSessionLogs(for: workoutService.activeProgram)
+            }
             .fullScreenCover(item: $routineToPlay) { routine in
                 WorkoutPlayerView(routine: routine, onWorkoutComplete: {
                     if let program = workoutService.activeProgram, var currentIndex = program.currentProgressIndex {
                         currentIndex += 1
                         var mutableProgram = program
                         mutableProgram.currentProgressIndex = currentIndex
+                        let expectedLogCount = sessionLogs.count + 1
 
                         Task {
-                            await workoutService.saveProgram(mutableProgram)
+                            let savedProgram = await workoutService.saveProgram(mutableProgram) ?? mutableProgram
+                            if savedProgram.id == workoutService.activeProgram?.id {
+                                workoutService.activeProgram = savedProgram
+                            }
+                            await refreshSessionLogs(for: savedProgram, expectingAtLeast: expectedLogCount)
                         }
                     }
                 })
@@ -270,7 +275,51 @@ struct WorkoutRoutinesView: View {
                     }
                 )
             }
+            .sheet(item: $reviewLog) { log in
+                NavigationStack {
+                    WorkoutCompleteAnalyticsView(log: log)
+                        .navigationTitle("Session Review")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button("Done") { reviewLog = nil }
+                            }
+                        }
+                }
+            }
         }
+    }
+
+    /// Maps each completed session log to its program slot index, in completion order, skipping
+    /// slots the user explicitly skipped. Order-based so it's robust to a workout logged a day off
+    /// its scheduled date.
+    private func refreshSessionLogs(for program: WorkoutProgram?, expectingAtLeast expectedCount: Int? = nil) async {
+        guard let program else {
+            sessionLogs = []
+            return
+        }
+
+        var logs = await workoutService.fetchSessionLogs(for: program)
+        if let expectedCount, logs.count < expectedCount {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            let retryLogs = await workoutService.fetchSessionLogs(for: program)
+            if retryLogs.count > logs.count {
+                logs = retryLogs
+            }
+        }
+        sessionLogs = logs
+    }
+
+    private func completedLogsByIndex(for program: WorkoutProgram) -> [Int: WorkoutSessionLog] {
+        let current = program.currentProgressIndex ?? 0
+        let skipped = Set(program.skippedIndices ?? [])
+        let completedSlots = (0..<current).filter { !skipped.contains($0) }
+        let sortedLogs = sessionLogs.sorted { $0.date.dateValue() < $1.date.dateValue() }
+        var result: [Int: WorkoutSessionLog] = [:]
+        for (slot, log) in zip(completedSlots, sortedLogs) {
+            result[slot] = log
+        }
+        return result
     }
 
     @ViewBuilder

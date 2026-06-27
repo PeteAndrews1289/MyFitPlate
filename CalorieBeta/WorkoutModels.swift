@@ -17,6 +17,9 @@ struct WorkoutProgram: Identifiable, Codable {
     var startDate: Timestamp?
     var daysOfWeek: [Int]?
     var currentProgressIndex: Int? = 0
+    /// Slot indices the user explicitly skipped (advanced past without training). Kept so the
+    /// calendar can mark them "Skipped" — distinct from completed days, which have a session log.
+    var skippedIndices: [Int]? = nil
 }
 
 class WorkoutRoutine: Identifiable, ObservableObject, Codable, Hashable {

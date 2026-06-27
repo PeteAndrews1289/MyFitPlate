@@ -15,7 +15,9 @@ struct ProgramDetailView: View {
     
     @State private var nextRoutineToPlay: WorkoutRoutine?
     @State private var calendarRoutineToPlay: WorkoutRoutine?
-    @State private var completedSessions: [Date: Bool] = [:]
+    @State private var completedLogs: [Date: WorkoutSessionLog] = [:]
+    @State private var sessionLogs: [WorkoutSessionLog] = []
+    @State private var reviewLog: WorkoutSessionLog?
     @State private var routineToEdit: WorkoutRoutine?
 
     init(program: WorkoutProgram, isPreview: Bool = false, isSelectingProgram: Bool = false, onSelectProgram: (() -> Void)? = nil) {
@@ -86,6 +88,25 @@ struct ProgramDetailView: View {
         return map
     }
     
+    private var skippedDates: Set<Date> {
+        guard let skipped = program.skippedIndices else { return [] }
+        var dates: Set<Date> = []
+        for index in skipped {
+            if let date = program.date(forSlot: index) { dates.insert(date) }
+        }
+        return dates
+    }
+
+    private var completedLogsByIndex: [Int: WorkoutSessionLog] {
+        let current = program.currentProgressIndex ?? 0
+        let skipped = Set(program.skippedIndices ?? [])
+        let completedSlots = (0..<current).filter { !skipped.contains($0) }
+        let sortedLogs = sessionLogs.sorted { $0.date.dateValue() < $1.date.dateValue() }
+        var result: [Int: WorkoutSessionLog] = [:]
+        for (slot, log) in zip(completedSlots, sortedLogs) { result[slot] = log }
+        return result
+    }
+
     private var nextWorkoutInfo: (routine: WorkoutRoutine, title: String)? {
         guard let progressIndex = program.currentProgressIndex,
               !program.routines.isEmpty,
@@ -157,20 +178,27 @@ struct ProgramDetailView: View {
                 }
 
                 if program.startDate != nil {
-                    if let nextWorkout = nextWorkoutInfo {
-                        ProgramNextWorkoutCard(
-                            nextWorkout: nextWorkout,
-                            onStart: { self.nextRoutineToPlay = nextWorkout.routine }
-                        )
-                    } else {
-                        ProgramCompleteSummaryCard()
-                    }
+                    TodaysNextStepSlider(
+                        program: program,
+                        completedLogsByIndex: completedLogsByIndex,
+                        onStart: { routine in self.nextRoutineToPlay = routine },
+                        onSkipTo: { target in
+                            Task {
+                                if let updated = await workoutService.skipToIndex(target, in: program) {
+                                    program = updated
+                                }
+                            }
+                        },
+                        onReview: { log in self.reviewLog = log }
+                    )
 
                     ProgramCalendarCard {
                         CalendarView(
                             workoutMap: calendarWorkoutMap,
-                            completedSessions: completedSessions,
-                            routineToPlay: $calendarRoutineToPlay
+                            completedLogs: completedLogs,
+                            skippedDates: skippedDates,
+                            routineToPlay: $calendarRoutineToPlay,
+                            onReview: { log in self.reviewLog = log }
                         )
                     }
                 }
@@ -205,9 +233,15 @@ struct ProgramDetailView: View {
         .fullScreenCover(item: $nextRoutineToPlay) { routine in
             WorkoutPlayerView(routine: routine) {
                 if let currentIndex = program.currentProgressIndex {
-                    program.currentProgressIndex = currentIndex + 1
+                    var programToSave = program
+                    programToSave.currentProgressIndex = currentIndex + 1
+                    program = programToSave
+                    let expectedLogCount = sessionLogs.count + 1
+
                     Task {
-                        await workoutService.saveProgram(program)
+                        let savedProgram = await workoutService.saveProgram(programToSave) ?? programToSave
+                        program = savedProgram
+                        await refreshSessionLogs(for: savedProgram, expectingAtLeast: expectedLogCount)
                     }
                 }
             }
@@ -217,25 +251,54 @@ struct ProgramDetailView: View {
             .environmentObject(achievementService)
         }
         .fullScreenCover(item: $calendarRoutineToPlay) { routine in
-            WorkoutPlayerView(routine: routine) {}
+            WorkoutPlayerView(routine: routine) {
+                let programForRefresh = program
+                let expectedLogCount = sessionLogs.count + 1
+                Task {
+                    await refreshSessionLogs(for: programForRefresh, expectingAtLeast: expectedLogCount)
+                }
+            }
                 .environmentObject(goalSettings)
                 .environmentObject(dailyLogService)
                 .environmentObject(workoutService)
                 .environmentObject(achievementService)
         }
-        .onAppear {
-            guard !isPreview else { return }
-            Task {
-                let logs = await workoutService.fetchSessionLogs(for: program)
-                var completedMap: [Date: Bool] = [:]
-                let calendar = Calendar.current
-                for log in logs {
-                    let date = calendar.startOfDay(for: log.date.dateValue())
-                    completedMap[date] = true
-                }
-                self.completedSessions = completedMap
+        .sheet(item: $reviewLog) { log in
+            NavigationStack {
+                WorkoutCompleteAnalyticsView(log: log)
+                    .navigationTitle("Session Review")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") { reviewLog = nil }
+                        }
+                    }
             }
         }
+        .onAppear {
+            guard !isPreview else { return }
+            Task { await refreshSessionLogs(for: program) }
+        }
+    }
+
+    private func refreshSessionLogs(for program: WorkoutProgram, expectingAtLeast expectedCount: Int? = nil) async {
+        var logs = await workoutService.fetchSessionLogs(for: program)
+        if let expectedCount, logs.count < expectedCount {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            let retryLogs = await workoutService.fetchSessionLogs(for: program)
+            if retryLogs.count > logs.count {
+                logs = retryLogs
+            }
+        }
+
+        self.sessionLogs = logs
+        var completedMap: [Date: WorkoutSessionLog] = [:]
+        let calendar = Calendar.current
+        for log in logs {
+            let date = calendar.startOfDay(for: log.date.dateValue())
+            completedMap[date] = log
+        }
+        self.completedLogs = completedMap
     }
 }
 
@@ -734,8 +797,10 @@ private struct ProgramRoutineCard: View {
 
 private struct CalendarView: View {
     let workoutMap: [Date: WorkoutRoutine]
-    let completedSessions: [Date: Bool]
+    let completedLogs: [Date: WorkoutSessionLog]
+    let skippedDates: Set<Date>
     @Binding var routineToPlay: WorkoutRoutine?
+    let onReview: (WorkoutSessionLog) -> Void
     @State private var month: Date = Date()
     
     private let days = ["S", "M", "T", "W", "T", "F", "S"]
@@ -745,7 +810,12 @@ private struct CalendarView: View {
         let id = UUID()
         let date: Date
         let workout: WorkoutRoutine?
-        let isCompleted: Bool
+        let completedLog: WorkoutSessionLog?
+        let isSkipped: Bool
+
+        var isCompleted: Bool {
+            completedLog != nil
+        }
     }
 
     var body: some View {
@@ -794,7 +864,9 @@ private struct CalendarView: View {
                             .frame(height: 38)
                     } else {
                         Button(action: {
-                            if let workout = dayEntry.workout {
+                            if let log = dayEntry.completedLog {
+                                onReview(log)
+                            } else if let workout = dayEntry.workout {
                                 self.routineToPlay = workout
                             }
                         }) {
@@ -818,11 +890,17 @@ private struct CalendarView: View {
                                         .foregroundColor(.accentPositive)
                                         .background(Color.backgroundPrimary, in: Circle())
                                         .offset(x: 1, y: -1)
+                                } else if dayEntry.isSkipped {
+                                    Image(systemName: "forward.end.fill")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(Color(UIColor.secondaryLabel))
+                                        .background(Color.backgroundPrimary, in: Circle())
+                                        .offset(x: 1, y: -1)
                                 }
                             }
                         }
                         .buttonStyle(.plain)
-                        .disabled(dayEntry.workout == nil)
+                        .disabled(dayEntry.workout == nil && dayEntry.completedLog == nil)
                     }
                 }
             }
@@ -845,7 +923,7 @@ private struct CalendarView: View {
         let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth)
         if firstWeekday > 1 {
             for _ in 1..<firstWeekday {
-                entries.append(DayEntry(date: Date.distantPast, workout: nil, isCompleted: false))
+                entries.append(DayEntry(date: Date.distantPast, workout: nil, completedLog: nil, isSkipped: false))
             }
         }
 
@@ -855,8 +933,14 @@ private struct CalendarView: View {
                 components.day = day
                 if let date = calendar.date(from: components) {
                     let normalizedDate = calendar.startOfDay(for: date)
-                    let isCompleted = completedSessions[normalizedDate] ?? false
-                    entries.append(DayEntry(date: normalizedDate, workout: workoutMap[normalizedDate], isCompleted: isCompleted))
+                    entries.append(
+                        DayEntry(
+                            date: normalizedDate,
+                            workout: workoutMap[normalizedDate],
+                            completedLog: completedLogs[normalizedDate],
+                            isSkipped: skippedDates.contains(normalizedDate)
+                        )
+                    )
                 }
             }
         }
@@ -880,6 +964,10 @@ private struct CalendarView: View {
             return Color.accentPositive.opacity(0.14)
         }
 
+        if dayEntry.isSkipped {
+            return Color(UIColor.secondaryLabel).opacity(0.12)
+        }
+
         if dayEntry.workout != nil {
             return Color.brandPrimary.opacity(0.14)
         }
@@ -890,6 +978,10 @@ private struct CalendarView: View {
     private func dayColor(for dayEntry: DayEntry) -> Color {
         if dayEntry.isCompleted {
             return .accentPositive
+        }
+
+        if dayEntry.isSkipped {
+            return Color(UIColor.secondaryLabel)
         }
 
         if dayEntry.workout != nil || isSameDay(dayEntry.date, Date()) {

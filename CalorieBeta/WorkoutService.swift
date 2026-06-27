@@ -186,6 +186,35 @@ class WorkoutService: ObservableObject {
         }
     }
 
+    /// Advances the program's pointer to `targetIndex`, marking every slot in between as skipped.
+    /// Skipping never writes a session log, daily-log entry, or HealthKit sample, so it can't
+    /// collide with the Apple Health strength-dedup logic. Updates `activeProgram` and persists.
+    @discardableResult
+    func skipToIndex(_ targetIndex: Int, in program: WorkoutProgram) async -> WorkoutProgram? {
+        let current = program.currentProgressIndex ?? 0
+        guard targetIndex > current else { return program }
+
+        var updated = program
+        var skipped = Set(updated.skippedIndices ?? [])
+        for index in current..<targetIndex {
+            skipped.insert(index)
+        }
+        updated.skippedIndices = skipped.sorted()
+        updated.currentProgressIndex = targetIndex
+
+        let saved = await saveProgram(updated)
+        if let saved, saved.id == activeProgram?.id {
+            activeProgram = saved
+        }
+        return saved
+    }
+
+    /// Skips just the current workout: advances the pointer by one and marks it skipped.
+    @discardableResult
+    func skipCurrentWorkout(in program: WorkoutProgram) async -> WorkoutProgram? {
+        await skipToIndex((program.currentProgressIndex ?? 0) + 1, in: program)
+    }
+
     func deleteProgram(_ program: WorkoutProgram) {
         guard let userID = Auth.auth().currentUser?.uid, let programID = program.id else { return }
         if activeProgram?.id == programID {
