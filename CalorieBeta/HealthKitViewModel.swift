@@ -42,6 +42,12 @@ class HealthKitViewModel: ObservableObject {
     @Published var authError: String? = nil
     @Published var isSyncing = false
 
+    /// The moment we last successfully READ non-empty data from HealthKit — the only honest proof
+    /// that read access actually works. `getRequestStatusForAuthorization` returns `.unnecessary`
+    /// whether the user granted OR denied reads (iOS deliberately hides read denials), so it can
+    /// never be trusted on its own to mean "connected."
+    @Published var lastSyncedAt: Date?
+
     private let manager = HealthKitManager.shared
     private weak var dailyLogService: DailyLogService?
 
@@ -96,6 +102,9 @@ class HealthKitViewModel: ObservableObject {
 
                 switch status {
                 case .unnecessary:
+                    // ".unnecessary" only means iOS won't show a prompt — it does NOT prove the
+                    // user granted read access (a denied read looks identical). We optimistically
+                    // attempt a sync; `lastSyncedAt` is the honest signal of whether data actually flows.
                     self.isAuthorized = true
                     self.syncAllHealthData()
                 case .shouldRequest:
@@ -143,6 +152,8 @@ class HealthKitViewModel: ObservableObject {
         manager.fetchTodaySteps { [weak self] steps in
             DispatchQueue.main.async {
                 self?.todaySteps = steps
+                // A non-zero read is concrete proof read access is working.
+                if steps > 0 { self?.lastSyncedAt = Date() }
             }
         }
 
