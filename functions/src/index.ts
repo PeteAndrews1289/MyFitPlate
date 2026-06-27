@@ -15,14 +15,80 @@ const fatSecretProxyUrl = defineSecret("FATSECRET_PROXY_URL");
 
 // --- Server-side guardrails ---------------------------------------------------
 // The client used to be trusted to pick the model and token count, which meant a
-// modified client (or a replayed auth token) could request an expensive model in
-// a loop and drain the OpenAI budget. These limits are now enforced here so the
-// client can never escalate cost regardless of what it sends.
+// modified client (or a replayed auth token) could request an expensive model in a
+// loop and drain the budget. These limits are enforced here so the client can never
+// escalate cost or send abusive payloads regardless of what it sends.
 const ALLOWED_MODELS = new Set(["gpt-4o-mini"]);
 const DEFAULT_MODEL = "gpt-4o-mini";
-const MAX_OUTPUT_TOKENS = 6000; // 7-day meal plan legitimately requests ~5000; most calls ask far less. The per-user daily call limit still bounds total cost.
+const MAX_OUTPUT_TOKENS = 6000; // 7-day meal plan legitimately requests ~5000; most calls ask far less.
 const MAX_MESSAGES = 50;
-const DAILY_CALL_LIMIT = 300; // per user, per UTC day
+const MAX_CONTENT_CHARS = 50000; // generous: long prompts include the daily context summary
+const MAX_CONTENT_PARTS = 12; // vision messages send a few text / image_url parts
+const DAILY_CALL_LIMIT = 300; // AI calls, per user, per UTC day
+const FATSECRET_DAILY_LIMIT = 600; // food lookups are cheap + frequent, but still bounded
+const ALLOWED_ROLES = new Set(["system", "user", "assistant"]);
+const ALLOWED_FATSECRET_PARAMS = new Set(["query", "barcode", "food_id", "page", "max_results"]);
+const MAX_PARAM_LENGTH = 200;
+
+/// Atomic per-user, per-day counter. Throws resource-exhausted when the limit is hit.
+async function enforceDailyLimit(uid: string, collection: string, limit: number): Promise<void> {
+  const day = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+  const ref = db.collection(collection).doc(`${uid}_${day}`);
+  const withinLimit = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const count = snap.exists ? (snap.data()?.count ?? 0) : 0;
+    if (count >= limit) {
+      return false;
+    }
+    tx.set(
+      ref,
+      { uid, day, count: count + 1, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+    return true;
+  });
+  if (!withinLimit) {
+    throw new HttpsError(
+      "resource-exhausted",
+      "Daily usage limit reached. Please try again tomorrow."
+    );
+  }
+}
+
+/// Validates the chat payload shape without rejecting legitimate vision messages, whose
+/// `content` is an array of text / image_url parts rather than a plain string.
+function validateMessages(messages: unknown): void {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    throw new HttpsError("invalid-argument", "Request must include a non-empty 'messages' array.");
+  }
+  if (messages.length > MAX_MESSAGES) {
+    throw new HttpsError("invalid-argument", "Too many messages in a single request.");
+  }
+  for (const message of messages as any[]) {
+    if (typeof message !== "object" || message === null) {
+      throw new HttpsError("invalid-argument", "Each message must be an object.");
+    }
+    if (!ALLOWED_ROLES.has(message.role)) {
+      throw new HttpsError("invalid-argument", "Unsupported message role.");
+    }
+    if (typeof message.content === "string") {
+      if (message.content.length > MAX_CONTENT_CHARS) {
+        throw new HttpsError("invalid-argument", "Message content is too long.");
+      }
+    } else if (Array.isArray(message.content)) {
+      if (message.content.length > MAX_CONTENT_PARTS) {
+        throw new HttpsError("invalid-argument", "Too many content parts in a message.");
+      }
+      for (const part of message.content) {
+        if (typeof part !== "object" || part === null || typeof part.type !== "string") {
+          throw new HttpsError("invalid-argument", "Invalid message content part.");
+        }
+      }
+    } else {
+      throw new HttpsError("invalid-argument", "Message content must be text or content parts.");
+    }
+  }
+}
 
 export const generateAIResponse = onCall(
   {
@@ -44,45 +110,13 @@ export const generateAIResponse = onCall(
     }
     const uid = request.auth.uid;
 
-    // 2. Per-user daily rate limit (atomic counter in Firestore via Admin SDK)
-    const day = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
-    const counterRef = db.collection("aiUsage").doc(`${uid}_${day}`);
-    const withinLimit = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(counterRef);
-      const count = snap.exists ? (snap.data()?.count ?? 0) : 0;
-      if (count >= DAILY_CALL_LIMIT) {
-        return false;
-      }
-      tx.set(
-        counterRef,
-        { uid, day, count: count + 1, updatedAt: FieldValue.serverTimestamp() },
-        { merge: true }
-      );
-      return true;
-    });
-    if (!withinLimit) {
-      throw new HttpsError(
-        "resource-exhausted",
-        "Daily AI usage limit reached. Please try again tomorrow."
-      );
-    }
-
-    // 3. Validate input
+    // 2. Validate the payload BEFORE counting usage, so a malformed request can't burn quota.
     const data = request.data;
     const { messages, model, maxTokens, temperature, responseFormat } = data;
+    validateMessages(messages);
 
-    if (!messages || !Array.isArray(messages)) {
-      throw new HttpsError(
-        "invalid-argument",
-        "The function must be called with an array of 'messages'."
-      );
-    }
-    if (messages.length > MAX_MESSAGES) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Too many messages in a single request."
-      );
-    }
+    // 3. Per-user daily rate limit (atomic counter via Admin SDK), only for valid requests.
+    await enforceDailyLimit(uid, "aiUsage", DAILY_CALL_LIMIT);
 
     // 4. Clamp model / tokens / temperature to safe server-side values
     const safeModel =
@@ -100,6 +134,12 @@ export const generateAIResponse = onCall(
         ? temperature
         : 0.7;
 
+    // 5. Only allow the JSON-object response format (or none) — never pass an arbitrary one through.
+    const safeResponseFormat =
+      responseFormat && responseFormat.type === "json_object"
+        ? { type: "json_object" as const }
+        : undefined;
+
     try {
       const openai = new OpenAI({ apiKey: openAIKey.value() });
 
@@ -109,8 +149,8 @@ export const generateAIResponse = onCall(
         temperature: safeTemperature,
         max_tokens: safeMaxTokens,
       };
-      if (responseFormat) {
-        params.response_format = responseFormat;
+      if (safeResponseFormat) {
+        params.response_format = safeResponseFormat;
       }
 
       const completion = await openai.chat.completions.create(params);
@@ -139,6 +179,7 @@ export const fatSecretProxy = onCall(
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Authentication required.");
     }
+    const uid = request.auth.uid;
 
     const { path, params } = request.data || {};
     const allowedPaths = new Set(["search", "barcode", "food"]);
@@ -146,13 +187,24 @@ export const fatSecretProxy = onCall(
       throw new HttpsError("invalid-argument", "Unsupported lookup path.");
     }
 
+    // Validate params against an allowlist with length caps before building the URL.
     const base = fatSecretProxyUrl.value().replace(/\/+$/, "");
     const url = new URL(`${base}/${path}`);
     if (params && typeof params === "object") {
       for (const [key, value] of Object.entries(params)) {
-        url.searchParams.set(key, String(value));
+        if (!ALLOWED_FATSECRET_PARAMS.has(key)) {
+          throw new HttpsError("invalid-argument", "Unsupported lookup parameter.");
+        }
+        const stringValue = String(value);
+        if (stringValue.length > MAX_PARAM_LENGTH) {
+          throw new HttpsError("invalid-argument", "Lookup parameter is too long.");
+        }
+        url.searchParams.set(key, stringValue);
       }
     }
+
+    // Per-user daily rate limit for food lookups (after validation).
+    await enforceDailyLimit(uid, "fatSecretUsage", FATSECRET_DAILY_LIMIT);
 
     try {
       const response = await fetch(url.toString());
