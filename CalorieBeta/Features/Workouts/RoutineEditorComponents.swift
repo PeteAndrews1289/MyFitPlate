@@ -422,3 +422,350 @@ struct SectionLabel: View {
         }
     }
 }
+
+
+struct ExerciseSetEditorView: View {
+    @State private var editableExercise: RoutineExercise
+    @State private var alternativesText: String
+    var onSave: (RoutineExercise) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private var setTarget: String {
+        RoutineEditorDefaults.setTarget(for: editableExercise.type, target: editableExercise.targetReps)
+    }
+
+    init(exercise: RoutineExercise, onSave: @escaping (RoutineExercise) -> Void) {
+        self._editableExercise = State(initialValue: exercise)
+        self._alternativesText = State(initialValue: exercise.alternatives?.joined(separator: ", ") ?? "")
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 16) {
+                    ExerciseEditorHero(exercise: editableExercise)
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        SectionLabel(title: "Movement", icon: "slider.horizontal.3")
+
+                        TextField("Exercise name", text: $editableExercise.name)
+                            .appFont(size: 18, weight: .bold)
+                            .padding(12)
+                            .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                        Picker("Type", selection: $editableExercise.type) {
+                            ForEach(ExerciseType.allCases, id: \.self) { type in
+                                Label(type.rawValue, systemImage: type.icon).tag(type)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: editableExercise.type) { _, newType in
+                            applyTypeDefaults(newType)
+                        }
+                    }
+                    .asCard()
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        SectionLabel(title: "Prescription", icon: "target")
+
+                        Stepper("Sets: \(editableExercise.targetSets)", value: $editableExercise.targetSets, in: 1...15) { _ in
+                            updateSetCount()
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(editableExercise.type.targetLabel)
+                                .appFont(size: 12, weight: .bold)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
+
+                            TextField(editableExercise.type.targetPlaceholder, text: $editableExercise.targetReps)
+                                .appFont(size: 16, weight: .semibold)
+                                .padding(12)
+                                .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .onChange(of: editableExercise.targetReps) { _, _ in
+                                    applyTargetToAllSets()
+                                }
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Rest")
+                                .appFont(size: 12, weight: .bold)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
+
+                            HStack(spacing: 8) {
+                                ForEach(editableExercise.type.restPresets, id: \.self) { seconds in
+                                    Button {
+                                        editableExercise.restTimeInSeconds = seconds
+                                    } label: {
+                                        Text(RoutineEditorDefaults.restLabel(seconds))
+                                            .appFont(size: 12, weight: .bold)
+                                            .foregroundColor(editableExercise.restTimeInSeconds == seconds ? .white : editableExercise.type.color)
+                                            .padding(.horizontal, 11)
+                                            .padding(.vertical, 8)
+                                            .background(
+                                                editableExercise.restTimeInSeconds == seconds ? editableExercise.type.color : editableExercise.type.color.opacity(0.10),
+                                                in: Capsule()
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                    .asCard()
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            SectionLabel(title: "Set Targets", icon: "list.number")
+                            Spacer()
+                            Button("Apply All") {
+                                applyTargetToAllSets()
+                            }
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(.brandPrimary)
+                        }
+
+                        ForEach(editableExercise.sets.indices, id: \.self) { index in
+                            HStack(spacing: 10) {
+                                Text("\(index + 1)")
+                                    .appFont(size: 12, weight: .black)
+                                    .foregroundColor(editableExercise.type.color)
+                                    .frame(width: 30, height: 30)
+                                    .background(editableExercise.type.color.opacity(0.10), in: Circle())
+
+                                TextField("Target", text: Binding(
+                                    get: { editableExercise.sets[index].target ?? "" },
+                                    set: { editableExercise.sets[index].target = $0.trimmed.isEmpty ? nil : $0 }
+                                ))
+                                .appFont(size: 14, weight: .semibold)
+                                .padding(10)
+                                .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }
+                        }
+                    }
+                    .asCard()
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        SectionLabel(title: "Notes", icon: "note.text")
+
+                        TextEditor(text: Binding(
+                            get: { editableExercise.notes ?? "" },
+                            set: { editableExercise.notes = $0.trimmed.isEmpty ? nil : $0 }
+                        ))
+                        .appFont(size: 14)
+                        .frame(minHeight: 90)
+                        .padding(8)
+                        .scrollContentBackground(.hidden)
+                        .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .asCard()
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        SectionLabel(title: "Swap Options", icon: "arrow.triangle.2.circlepath")
+
+                        Text("Add alternatives separated by commas. These appear in the workout player when you need a substitute.")
+                            .appFont(size: 12, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+
+                        TextField("Dumbbell Bench Press, Push-up", text: $alternativesText)
+                            .appFont(size: 14, weight: .semibold)
+                            .textInputAutocapitalization(.words)
+                            .padding(12)
+                            .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .asCard()
+                }
+                .padding()
+                .padding(.bottom, 20)
+            }
+            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .navigationTitle("Edit Exercise")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        normalizeExerciseBeforeSave()
+                        onSave(editableExercise)
+                        dismiss()
+                    }
+                    .disabled(editableExercise.name.trimmed.isEmpty)
+                }
+            }
+        }
+    }
+
+    private func updateSetCount() {
+        let currentSetCount = editableExercise.sets.count
+        let targetSetCount = editableExercise.targetSets
+
+        if targetSetCount > currentSetCount {
+            let setsToAdd = targetSetCount - currentSetCount
+            for _ in 0..<setsToAdd {
+                editableExercise.sets.append(ExerciseSet(target: setTarget))
+            }
+        } else if targetSetCount < currentSetCount {
+            editableExercise.sets.removeLast(currentSetCount - targetSetCount)
+        }
+    }
+
+    private func applyTargetToAllSets() {
+        let target = setTarget
+        for index in editableExercise.sets.indices {
+            editableExercise.sets[index].target = target
+        }
+    }
+
+    private func applyTypeDefaults(_ type: ExerciseType) {
+        let defaults = RoutineEditorDefaults.defaults(for: type)
+        editableExercise.targetSets = defaults.sets
+        editableExercise.targetReps = defaults.target
+        editableExercise.restTimeInSeconds = defaults.rest
+        updateSetCount()
+        applyTargetToAllSets()
+    }
+
+    private func normalizeExerciseBeforeSave() {
+        editableExercise.name = editableExercise.name.trimmed
+        editableExercise.alternatives = alternativesText
+            .split(separator: ",")
+            .map { String($0).trimmed }
+            .filter { !$0.isEmpty }
+            .nilIfEmpty
+        updateSetCount()
+        applyTargetToAllSets()
+    }
+}
+
+struct ExercisePickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+    @State private var selectedCategory = "All"
+    @State private var customExerciseName = ""
+    @State private var customExerciseType: ExerciseType = .strength
+
+    var onSelect: (ExercisePickerDraft) -> Void
+
+    private let categorizedExercises = ExerciseList.categorizedExercises
+
+    private var categories: [String] {
+        ["All"] + categorizedExercises.keys.sorted()
+    }
+
+    private var visibleEntries: [ExercisePickerEntry] {
+        let entries = categorizedExercises.flatMap { category, exercises in
+            exercises.map { ExercisePickerEntry(name: $0, category: category) }
+        }
+        let categoryFiltered = selectedCategory == "All" ? entries : entries.filter { $0.category == selectedCategory }
+        guard !searchText.trimmed.isEmpty else {
+            return categoryFiltered.sorted()
+        }
+        return categoryFiltered
+            .filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.category.localizedCaseInsensitiveContains(searchText) }
+            .sorted()
+    }
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(title: "Custom Movement", icon: "plus.circle.fill")
+
+                        HStack(spacing: 10) {
+                            TextField("Add your own exercise", text: $customExerciseName)
+                                .appFont(size: 15, weight: .semibold)
+                                .textInputAutocapitalization(.words)
+                                .padding(12)
+                                .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                            Button {
+                                selectCustomExercise()
+                            } label: {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 42, height: 42)
+                                    .background(Color.brandPrimary, in: Circle())
+                            }
+                            .disabled(customExerciseName.trimmed.isEmpty)
+                        }
+
+                        Picker("Type", selection: $customExerciseType) {
+                            ForEach(ExerciseType.allCases, id: \.self) { type in
+                                Text(type.shortTitle).tag(type)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .asCard()
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(title: "Exercise Library", icon: "magnifyingglass")
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(categories, id: \.self) { category in
+                                    Button {
+                                        selectedCategory = category
+                                    } label: {
+                                        Text(category)
+                                            .appFont(size: 12, weight: .bold)
+                                            .foregroundColor(selectedCategory == category ? .white : .brandPrimary)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(selectedCategory == category ? Color.brandPrimary : Color.brandPrimary.opacity(0.10), in: Capsule())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+
+                        if visibleEntries.isEmpty {
+                            GuidanceEmptyState(
+                                icon: "magnifyingglass",
+                                title: "No exercises found",
+                                message: "Try a different search term, or add a custom exercise."
+                            )
+                        } else {
+                            LazyVStack(spacing: 10) {
+                                ForEach(visibleEntries) { entry in
+                                    ExercisePickerRow(entry: entry) {
+                                        onSelect(ExercisePickerDraft(
+                                            name: entry.name,
+                                            category: entry.category,
+                                            type: RoutineEditorDefaults.inferredType(name: entry.name, category: entry.category)
+                                        ))
+                                        dismiss()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .asCard()
+                }
+                .padding()
+            }
+            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .searchable(text: $searchText, prompt: "Search exercises")
+            .navigationTitle("Add Exercise")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func selectCustomExercise() {
+        onSelect(ExercisePickerDraft(
+            name: customExerciseName.trimmed,
+            category: "Custom",
+            type: customExerciseType
+        ))
+        dismiss()
+    }
+}

@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseAuth
 
+@MainActor
 class AIChatbotViewModel: ObservableObject {
     @Published var userMessage = ""
     @Published var chatMessages: [ChatMessage] = []

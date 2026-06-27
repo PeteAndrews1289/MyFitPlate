@@ -29,7 +29,7 @@ struct AIChatbotView: View {
     private var starterSuggestions: [String] {
         var suggestions: [String] = []
 
-        if dailyLogService.currentDailyLog?.first?.calorieConsistencyStatus().hasMeaningfulMismatch == true {
+        if dailyLogService.currentDailyLog?.calorieConsistencyStatus().hasMeaningfulMismatch == true {
             suggestions.append("Audit today's calorie and macro mismatch.")
         }
 

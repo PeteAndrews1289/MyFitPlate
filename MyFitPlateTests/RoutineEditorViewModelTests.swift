@@ -1,10 +1,11 @@
 import XCTest
+import FirebaseFirestore
 @testable import MyFitPlate
 
 final class RoutineEditorViewModelTests: XCTestCase {
 
     func testViewModelInitialization() {
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Leg Day", dateCreated: Date(), exercises: [])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Leg Day", dateCreated: Timestamp(date: Date()), exercises: [])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         XCTAssertEqual(vm.routineName, "Leg Day")
@@ -13,7 +14,7 @@ final class RoutineEditorViewModelTests: XCTestCase {
     }
 
     func testCanSaveReturnsFalseWhenNameIsEmpty() {
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "", dateCreated: Date(), exercises: [])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "", dateCreated: Timestamp(date: Date()), exercises: [])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         XCTAssertFalse(vm.canSave)
@@ -26,7 +27,7 @@ final class RoutineEditorViewModelTests: XCTestCase {
     }
 
     func testApplyTemplate() {
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "", dateCreated: Date(), exercises: [])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "", dateCreated: Timestamp(date: Date()), exercises: [])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         let template = RoutineEditorTemplate.templates.first(where: { $0.name == "Push Day" })!
@@ -35,11 +36,11 @@ final class RoutineEditorViewModelTests: XCTestCase {
         XCTAssertEqual(vm.routineName, "Push Day")
         XCTAssertEqual(vm.exercises.count, 4)
         XCTAssertEqual(vm.exercises[0].name, "Barbell Bench Press")
-        XCTAssertEqual(vm.exercises[0].type, .strength)
+        XCTAssertEqual(vm.exercises[0].type, ExerciseType.strength)
     }
 
     func testAddExerciseFromDraft() {
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Date(), exercises: [])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Timestamp(date: Date()), exercises: [])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         let draft = ExercisePickerDraft(name: "Running", category: "Cardio", type: .cardio)
@@ -47,13 +48,13 @@ final class RoutineEditorViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.exercises.count, 1)
         XCTAssertEqual(vm.exercises[0].name, "Running")
-        XCTAssertEqual(vm.exercises[0].type, .cardio)
+        XCTAssertEqual(vm.exercises[0].type, ExerciseType.cardio)
         XCTAssertEqual(vm.exercises[0].targetSets, 1)
     }
 
     func testDuplicateExercise() {
         let ex = RoutineExercise(name: "Squat", type: .strength, sets: [ExerciseSet(target: "10 reps")], restTimeInSeconds: 60, targetSets: 1, targetReps: "10")
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Date(), exercises: [ex])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Timestamp(date: Date()), exercises: [ex])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         XCTAssertEqual(vm.exercises.count, 1)
@@ -67,7 +68,7 @@ final class RoutineEditorViewModelTests: XCTestCase {
     func testDeleteExercise() {
         let ex1 = RoutineExercise(name: "Squat", type: .strength, sets: [], restTimeInSeconds: 60, targetSets: 3, targetReps: "10")
         let ex2 = RoutineExercise(name: "Deadlift", type: .strength, sets: [], restTimeInSeconds: 60, targetSets: 3, targetReps: "10")
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Date(), exercises: [ex1, ex2])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Timestamp(date: Date()), exercises: [ex1, ex2])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         vm.deleteExercise(ex1)
@@ -79,15 +80,15 @@ final class RoutineEditorViewModelTests: XCTestCase {
     func testMoveExercise() {
         let ex1 = RoutineExercise(name: "Squat", type: .strength, sets: [], restTimeInSeconds: 60, targetSets: 3, targetReps: "10")
         let ex2 = RoutineExercise(name: "Deadlift", type: .strength, sets: [], restTimeInSeconds: 60, targetSets: 3, targetReps: "10")
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Date(), exercises: [ex1, ex2])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Timestamp(date: Date()), exercises: [ex1, ex2])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
-        vm.moveExercise(ex1, direction: .down)
+        vm.moveExercise(ex1, direction: RoutineMoveDirection.down)
 
         XCTAssertEqual(vm.exercises[0].name, "Deadlift")
         XCTAssertEqual(vm.exercises[1].name, "Squat")
 
-        vm.moveExercise(ex2, direction: .down)
+        vm.moveExercise(ex2, direction: RoutineMoveDirection.down)
         
         XCTAssertEqual(vm.exercises[0].name, "Squat")
         XCTAssertEqual(vm.exercises[1].name, "Deadlift")
