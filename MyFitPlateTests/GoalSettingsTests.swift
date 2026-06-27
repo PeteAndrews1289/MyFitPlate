@@ -57,6 +57,41 @@ final class GoalSettingsTests: XCTestCase {
         // Female BMR 1355.28 × 1.55 activity = 2100.68, minus the 250 cal "Lose" deficit.
         XCTAssertEqual(goalSettings.calories ?? 0, 1850.68, accuracy: 1.0)
     }
+
+    @MainActor
+    func testCustomCalorieGoalSurvivesRecalculation() async throws {
+        // Regression: a user-entered custom calorie goal must be preserved through a
+        // recalculation pass, not recomputed away (the bug behind custom goals resetting).
+        goalSettings.gender = "Male"
+        goalSettings.age = 30
+        goalSettings.weight = 180.0
+        goalSettings.height = 180.0
+        goalSettings.calorieGoalMethod = .custom
+        goalSettings.calories = 2500
+
+        goalSettings.recalculateAllGoals()
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(goalSettings.calories ?? 0, 2500, accuracy: 0.001,
+                       "A custom calorie goal should survive recalculation untouched.")
+    }
+
+    @MainActor
+    func testCustomCalorieGoalFlooredToSafeMinimum() async throws {
+        // A custom goal below the safety floor is raised to it rather than left dangerously low.
+        goalSettings.gender = "Female"
+        goalSettings.age = 30
+        goalSettings.weight = 140.0
+        goalSettings.height = 165.0
+        goalSettings.calorieGoalMethod = .custom
+        goalSettings.calories = 800
+
+        goalSettings.recalculateAllGoals()
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(goalSettings.calories ?? 0, 1200, accuracy: 0.001,
+                       "A custom goal below the female minimum (1200) should be floored to it.")
+    }
 }
 
 final class ServingNutritionCalculatorTests: XCTestCase {
@@ -183,5 +218,51 @@ final class ServingNutritionCalculatorTests: XCTestCase {
             quantityValue: quantityValue,
             servingUnit: servingUnit
         )
+    }
+}
+
+final class BodyUnitsConversionTests: XCTestCase {
+    func testMetricWeightRoundTrips() {
+        // A weight typed in kg is stored as lbs and shown again in kg — it must come back equal.
+        let typedKg = 75.0
+        let storedLbs = BodyUnits.weightToLbs(typedKg, metric: true)
+        XCTAssertEqual(storedLbs, 165.3467, accuracy: 0.001)
+        XCTAssertEqual(BodyUnits.weightDisplayValue(lbs: storedLbs, metric: true), typedKg, accuracy: 0.0001)
+    }
+
+    func testImperialWeightIsIdentity() {
+        XCTAssertEqual(BodyUnits.weightToLbs(165, metric: false), 165, accuracy: 0.0001)
+        XCTAssertEqual(BodyUnits.weightDisplayValue(lbs: 165, metric: false), 165, accuracy: 0.0001)
+    }
+
+    func testWeightUnitAndStringMatchPreference() {
+        XCTAssertEqual(BodyUnits.weightUnit(metric: true), "kg")
+        XCTAssertEqual(BodyUnits.weightUnit(metric: false), "lbs")
+        XCTAssertEqual(BodyUnits.weightString(lbs: 165.3467, metric: true), "75.0 kg")
+        XCTAssertEqual(BodyUnits.weightString(lbs: 165.3, metric: false), "165.3 lbs")
+    }
+
+    func testHeightFeetInchesToCentimeters() {
+        XCTAssertEqual(BodyUnits.cm(feet: 5, inches: 10), 177.8, accuracy: 0.001)
+        XCTAssertEqual(BodyUnits.cm(feet: 6, inches: 0), 182.88, accuracy: 0.001)
+    }
+}
+
+final class PendingWaterDrainTests: XCTestCase {
+    func testPendingWaterDrainsExactlyOnce() {
+        // Regression for the widget water button: queued ounces must be readable once and then
+        // cleared, so foregrounding the app logs them a single time instead of repeatedly.
+        let manager = SharedDataManager.shared
+        manager.clearWidgetData()
+
+        manager.logPendingWater(ounces: 8)
+        manager.logPendingWater(ounces: 8)
+
+        XCTAssertEqual(manager.getAndClearPendingWater(), 16, accuracy: 0.001,
+                       "Both queued widget taps should be summed when drained.")
+        XCTAssertEqual(manager.getAndClearPendingWater(), 0, accuracy: 0.001,
+                       "After draining, the pending value must be cleared so it isn't applied again.")
+
+        manager.clearWidgetData()
     }
 }
