@@ -287,7 +287,18 @@ struct ContentView: View {
         if appState.isUserLoggedIn && !shouldShowOnboardingSurvey {
             healthKitViewModel.checkAuthorizationStatus()
             sendNutritionToWatchIfNeeded()
+            drainPendingWidgetWater()
         }
+    }
+
+    /// Logs water queued by the home-screen widget's button while the app was backgrounded, then
+    /// clears the pending value so it's applied exactly once.
+    private func drainPendingWidgetWater() {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        let pending = SharedDataManager.shared.getAndClearPendingWater()
+        guard pending > 0 else { return }
+        dailyLogService.addWaterToCurrentLog(for: userID, amount: pending, goalOunces: goalSettings.waterGoal)
+        bannerService.showBanner(title: "Water Logged", message: "Added \(Int(pending)) oz from your widget.")
     }
     
     private func handleOnboardingComplete() {
