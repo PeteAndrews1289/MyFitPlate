@@ -38,7 +38,7 @@ struct CreatePostView: View {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
 
-        db.collection("users").document(userID).getDocument { document, error in
+        db.collection(FirestoreCollection.users).document(userID).getDocument { document, error in
             if let error = error {
                 AppLog.social.error("Failed to fetch username for post creation: \(error.localizedDescription, privacy: .public)")
                 return

@@ -39,7 +39,7 @@ struct RoutineEditorHeaderCard: View {
                 Spacer()
 
                 Text(ExerciseEmojiMapper.getEmoji(for: exercises.first?.name ?? routineName))
-                    .font(.system(size: 30))
+                    .appFont(size: 30)
                     .frame(width: 58, height: 58)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
@@ -63,7 +63,7 @@ struct RoutineEditorMetric: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: .bold))
+                .appFont(size: 12, weight: .bold)
                 .foregroundColor(color)
 
             Text(value)
@@ -133,7 +133,7 @@ struct RoutineTemplateStrip: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
                                     Image(systemName: template.icon)
-                                        .font(.system(size: 14, weight: .bold))
+                                        .appFont(size: 14, weight: .bold)
                                         .foregroundColor(template.color)
                                         .frame(width: 30, height: 30)
                                         .background(template.color.opacity(0.12), in: Circle())
@@ -299,7 +299,7 @@ struct RoutineExerciseEditorRow: View {
                         Image(systemName: "trash")
                     }
                 }
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .buttonStyle(.borderless)
                 .foregroundColor(Color(UIColor.secondaryLabel))
             }
@@ -315,7 +315,7 @@ struct RoutineEmptyBuilderCard: View {
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "figure.strengthtraining.traditional")
-                .font(.system(size: 34, weight: .bold))
+                .appFont(size: 34, weight: .bold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 68, height: 68)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -345,7 +345,7 @@ struct ExerciseEditorHero: View {
     var body: some View {
         HStack(spacing: 14) {
             Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                .font(.system(size: 32))
+                .appFont(size: 32)
                 .frame(width: 64, height: 64)
                 .background(exercise.type.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
 
@@ -414,7 +414,7 @@ struct SectionLabel: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .foregroundColor(.brandPrimary)
             Text(title)
                 .appFont(size: 18, weight: .bold)
@@ -685,7 +685,7 @@ struct ExercisePickerView: View {
                                 selectCustomExercise()
                             } label: {
                                 Image(systemName: "plus")
-                                    .font(.system(size: 14, weight: .bold))
+                                    .appFont(size: 14, weight: .bold)
                                     .foregroundColor(.white)
                                     .frame(width: 42, height: 42)
                                     .background(Color.brandPrimary, in: Circle())

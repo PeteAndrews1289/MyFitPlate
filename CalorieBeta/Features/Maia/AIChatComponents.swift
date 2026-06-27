@@ -483,10 +483,10 @@ struct MacroLabel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .appFont(size: 11, weight: .semibold)
                 .foregroundColor(color == .white ? .white.opacity(0.8) : Color(UIColor.secondaryLabel))
             Text(value)
-                .font(.system(size: 14, weight: .bold))
+                .appFont(size: 14, weight: .bold)
                 .foregroundColor(color)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -614,7 +614,7 @@ struct MaiaContextChip: View {
     var body: some View {
         HStack(spacing: 7) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .bold))
+                .appFont(size: 11, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 24, height: 24)
                 .background(color.opacity(0.12), in: Circle())

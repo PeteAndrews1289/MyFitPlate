@@ -445,7 +445,7 @@ struct SettingsView: View {
     }
 
     private func deleteUserFirestoreData(userID: String, db: Firestore, completion: @escaping (Result<Void, Error>) -> Void) {
-        let userRef = db.collection("users").document(userID)
+        let userRef = db.collection(FirestoreCollection.users).document(userID)
         deleteUserFirestoreData(userID: userID, userRef: userRef, db: db, completion: completion)
     }
 
@@ -473,12 +473,12 @@ struct SettingsView: View {
         }
 
         let topLevelQueries: [Query] = [
-            db.collection("groupMemberships").whereField("userID", isEqualTo: userID),
-            db.collection("groupMemberships").whereField("userId", isEqualTo: userID),
-            db.collection("groups").whereField("creatorID", isEqualTo: userID),
-            db.collection("groups").whereField("creatorId", isEqualTo: userID),
-            db.collection("posts").whereField("authorID", isEqualTo: userID),
-            db.collection("posts").whereField("authorId", isEqualTo: userID)
+            db.collection(FirestoreCollection.groupMemberships).whereField("userID", isEqualTo: userID),
+            db.collection(FirestoreCollection.groupMemberships).whereField("userId", isEqualTo: userID),
+            db.collection(FirestoreCollection.groups).whereField("creatorID", isEqualTo: userID),
+            db.collection(FirestoreCollection.groups).whereField("creatorId", isEqualTo: userID),
+            db.collection(FirestoreCollection.posts).whereField("authorID", isEqualTo: userID),
+            db.collection(FirestoreCollection.posts).whereField("authorId", isEqualTo: userID)
         ]
 
         for query in topLevelQueries {
@@ -632,7 +632,7 @@ private struct SettingsLegalInfoView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .top, spacing: 14) {
                         Image(systemName: kind.icon)
-                            .font(.system(size: 22, weight: .bold))
+                            .appFont(size: 22, weight: .bold)
                             .foregroundColor(kind.color)
                             .frame(width: 46, height: 46)
                             .background(kind.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -684,7 +684,7 @@ private struct SettingsHeaderCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 20, weight: .bold))
+                    .appFont(size: 20, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 46, height: 46)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -748,7 +748,7 @@ private struct SettingsLabel: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .bold))
+                .appFont(size: 15, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 32, height: 32)
                 .background(color.opacity(0.12), in: Circle())

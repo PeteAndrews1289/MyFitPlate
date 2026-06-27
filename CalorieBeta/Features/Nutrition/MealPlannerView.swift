@@ -223,7 +223,7 @@ struct MealPlannerView: View {
                 if plan.meals.contains(where: { $0.foodItem != nil }) {
                     Button(action: { showingLogDayConfirmation = true }) {
                         Label("Log Day", systemImage: "checkmark.circle.fill")
-                            .font(.system(size: 13, weight: .bold))
+                            .appFont(size: 13, weight: .bold)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .background(Color.accentPositive.opacity(0.12), in: Capsule())
@@ -234,7 +234,7 @@ struct MealPlannerView: View {
 
                 Button(action: { showingAddMealToPlan = true }) {
                     Label("Add", systemImage: "plus")
-                        .font(.system(size: 13, weight: .bold))
+                        .appFont(size: 13, weight: .bold)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(Color.brandPrimary.opacity(0.12), in: Capsule())
@@ -288,7 +288,7 @@ struct MealPlannerView: View {
                     Text("Chef Maia is analyzing...")
                 } else {
                     Image(systemName: "camera.macro")
-                        .font(.system(size: 20, weight: .bold))
+                        .appFont(size: 20, weight: .bold)
                     VStack(alignment: .leading) {
                         Text("Scan Pantry")
                             .appFont(size: 16, weight: .bold)

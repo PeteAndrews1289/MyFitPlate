@@ -114,7 +114,7 @@ struct DailySnapshotStrip: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: coach.icon)
-                    .font(.system(size: 16, weight: .bold))
+                    .appFont(size: 16, weight: .bold)
                     .foregroundColor(coach.color)
                     .frame(width: 36, height: 36)
                     .background(coach.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -179,7 +179,7 @@ struct DiaryMetricPill: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 30, height: 30)
                 .background(color.opacity(0.12), in: Circle())
@@ -209,7 +209,7 @@ struct NutritionAuditLaunchButton: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Image(systemName: "checklist")
-                    .font(.system(size: 13, weight: .bold))
+                    .appFont(size: 13, weight: .bold)
                     .foregroundColor(.orange)
                     .frame(width: 28, height: 28)
                     .background(Color.orange.opacity(0.12), in: Circle())
@@ -228,7 +228,7 @@ struct NutritionAuditLaunchButton: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .bold))
+                    .appFont(size: 11, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(12)
@@ -328,7 +328,7 @@ private struct NutritionAuditFoodRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Text(FoodEmojiMapper.getEmoji(for: food.name))
-                .font(.system(size: 24))
+                .appFont(size: 24)
                 .frame(width: 42, height: 42)
                 .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
@@ -364,7 +364,7 @@ private struct NutritionAuditEmptyState: View {
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 28, weight: .bold))
+                .appFont(size: 28, weight: .bold)
                 .foregroundColor(.accentPositive)
                 .frame(width: 54, height: 54)
                 .background(Color.accentPositive.opacity(0.12), in: Circle())
@@ -391,7 +391,7 @@ struct EmptyDailyLogView: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "plus.viewfinder")
-                .font(.system(size: 28, weight: .semibold))
+                .appFont(size: 28, weight: .semibold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 56, height: 56)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -424,7 +424,7 @@ struct QuickActionButton: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 17, weight: .semibold))
+                    .appFont(size: 17, weight: .semibold)
                     .foregroundColor(color)
                     .frame(width: 38, height: 38)
                     .background(color.opacity(0.13), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
@@ -432,7 +432,7 @@ struct QuickActionButton: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
 
@@ -528,7 +528,7 @@ struct SwipeableExerciseRowView: View {
                 }
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .bold))
+                    .appFont(size: 11, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(.vertical, 10)
@@ -643,7 +643,7 @@ struct SwipeableFoodItemView: View {
                 }
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .bold))
+                    .appFont(size: 11, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(.vertical, 10)

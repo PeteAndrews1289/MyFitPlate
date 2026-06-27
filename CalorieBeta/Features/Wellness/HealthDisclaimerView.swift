@@ -58,7 +58,7 @@ private struct DisclaimerCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             Image(systemName: icon)
-                .font(.system(size: 24, weight: .bold))
+                .appFont(size: 24, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 48, height: 48)
                 .background(color.opacity(0.15), in: RoundedRectangle(cornerRadius: 14, style: .continuous))

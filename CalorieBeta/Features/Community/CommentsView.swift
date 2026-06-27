@@ -43,7 +43,7 @@ struct CommentsView: View {
         }
 
         let db = Firestore.firestore()
-        db.collection("posts").document(postId).updateData([
+        db.collection(FirestoreCollection.posts).document(postId).updateData([
             "comments": post.comments.map { try? Firestore.Encoder().encode($0) }
         ]) { error in
             if let error = error {

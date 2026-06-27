@@ -267,7 +267,7 @@ class GoalSettings: ObservableObject {
     // MARK: - Firestore Persistence
     
     func loadUserGoals(userID: String, completion: @escaping () -> Void = {}) {
-        db.collection("users").document(userID).getDocument { [weak self] document, error in
+        db.collection(FirestoreCollection.users).document(userID).getDocument { [weak self] document, error in
             guard let self = self else { completion(); return }
             
             var shouldUpdateFirestore = false
@@ -386,7 +386,7 @@ class GoalSettings: ObservableObject {
                 "goals": goalsDict, "height": self.height, "age": self.age, "gender": self.gender, "isFirstLogin": false,
                 "calorieGoalMethod": self.calorieGoalMethod.rawValue
             ]
-            self.db.collection("users").document(userID).setData(userData, merge: true)
+            self.db.collection(FirestoreCollection.users).document(userID).setData(userData, merge: true)
         }
     }
     
@@ -406,7 +406,7 @@ class GoalSettings: ObservableObject {
     func loadWeightHistory() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         if weightHistoryListener != nil { return }
-        weightHistoryListener = db.collection("users").document(userID).collection("weightHistory").order(by: "timestamp", descending: false)
+        weightHistoryListener = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.weightHistory).order(by: "timestamp", descending: false)
             .addSnapshotListener { [weak self] snap, err in
                 guard let self = self, let docs = snap?.documents else { return }
                 self.weightHistory = docs.compactMap { d -> (id: String, date: Date, weight: Double)? in
@@ -429,18 +429,18 @@ class GoalSettings: ObservableObject {
                 self.weight = newWeight
                 self.recalculateAllGoals()
             }
-            db.collection("users").document(userID).setData(["weight": newWeight], merge: true)
+            db.collection(FirestoreCollection.users).document(userID).setData(["weight": newWeight], merge: true)
         }
 
         let weightData: [String:Any] = ["weight": newWeight, "timestamp": Timestamp(date: date)]
-        db.collection("users").document(userID).collection("weightHistory").addDocument(data: weightData)
+        db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.weightHistory).addDocument(data: weightData)
 
         self.healthKitManager.saveWeightSample(weightLbs: newWeight, date: date)
     }
     
     func deleteWeightEntry(entryID: String, completion: @escaping (Error?) -> Void) {
         guard let userID = Auth.auth().currentUser?.uid else { completion(NSError(domain:"App",code:401));return}
-        db.collection("users").document(userID).collection("weightHistory").document(entryID).delete(completion: completion)
+        db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.weightHistory).document(entryID).delete(completion: completion)
     }
     
     // MARK: - Helpers
@@ -495,7 +495,7 @@ class GoalSettings: ObservableObject {
     
     func updateUserAsOnboarded(userID: String) {
         guard !userID.isEmpty else { return }
-        db.collection("users").document(userID).setData(["isFirstLogin": false], merge: true)
+        db.collection(FirestoreCollection.users).document(userID).setData(["isFirstLogin": false], merge: true)
     }
 }
 

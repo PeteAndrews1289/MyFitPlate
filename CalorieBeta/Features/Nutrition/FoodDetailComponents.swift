@@ -8,18 +8,18 @@ struct FoodDetailHeroCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Text(FoodEmojiMapper.getEmoji(for: foodName))
-                .font(.system(size: 34))
+                .appFont(size: 34)
                 .frame(width: 62, height: 62)
                 .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(foodName)
-                    .font(.system(size: 24, weight: .bold))
+                    .appFont(size: 24, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Label(servingDescription, systemImage: "scalemass.fill")
-                    .font(.system(size: 13, weight: .semibold))
+                    .appFont(size: 13, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .lineLimit(2)
             }
@@ -58,7 +58,7 @@ struct FoodDetailMacroTile: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .bold))
+                    .appFont(size: 14, weight: .bold)
                     .foregroundColor(color)
                     .frame(width: 30, height: 30)
                     .background(color.opacity(0.12), in: Circle())
@@ -69,18 +69,18 @@ struct FoodDetailMacroTile: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text(value)
-                        .font(.system(size: 24, weight: .bold))
+                        .appFont(size: 24, weight: .bold)
                         .foregroundColor(.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
 
                     Text(unit)
-                        .font(.system(size: 12, weight: .bold))
+                        .appFont(size: 12, weight: .bold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
 
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .appFont(size: 12, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
@@ -97,11 +97,11 @@ struct FoodDetailLoadingCard: View {
                 .tint(.brandPrimary)
 
             Text("Loading serving options")
-                .font(.system(size: 17, weight: .bold))
+                .appFont(size: 17, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             Text("Pulling the most accurate nutrition details for this food.")
-                .font(.system(size: 13, weight: .medium))
+                .appFont(size: 13, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
         }
@@ -119,18 +119,18 @@ struct FoodDetailNoticeCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 16, weight: .bold))
+                .appFont(size: 16, weight: .bold)
                 .foregroundColor(.orange)
                 .frame(width: 34, height: 34)
                 .background(Color.orange.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 14, weight: .bold))
+                    .appFont(size: 14, weight: .bold)
                     .foregroundColor(.textPrimary)
 
                 Text(message)
-                    .font(.system(size: 12, weight: .medium))
+                    .appFont(size: 12, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -147,25 +147,25 @@ struct FoodDetailLabelScanCard: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: "camera.viewfinder")
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Nutrition label looks different?")
-                        .font(.system(size: 15, weight: .bold))
+                        .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text("Take a label photo to replace these numbers.")
-                        .font(.system(size: 12, weight: .medium))
+                        .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(14)

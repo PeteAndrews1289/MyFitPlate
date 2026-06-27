@@ -95,7 +95,7 @@ struct PreBuiltProgramsView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: profile.icon)
-                    .font(.system(size: 18, weight: .bold))
+                    .appFont(size: 18, weight: .bold)
                     .foregroundColor(profile.color)
                     .frame(width: 42, height: 42)
                     .background(profile.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -147,7 +147,7 @@ struct PreBuiltProgramsView: View {
                     Text(isSelecting ? "Selecting..." : "Preview Plan")
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .bold))
+                        .appFont(size: 12, weight: .bold)
                 }
             }
             .buttonStyle(PrimaryButtonStyle())
@@ -327,7 +327,7 @@ private struct ProgramCatalogSearchCard: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .bold))
+                .appFont(size: 14, weight: .bold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
 
             TextField("Search goal, equipment, or exercise", text: $searchText)
@@ -340,7 +340,7 @@ private struct ProgramCatalogSearchCard: View {
                     searchText = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 15, weight: .bold))
+                        .appFont(size: 15, weight: .bold)
                         .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
                 .buttonStyle(.plain)
@@ -365,7 +365,7 @@ private struct ProgramCatalogFilterBar: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: filter.icon)
-                                .font(.system(size: 11, weight: .bold))
+                                .appFont(size: 11, weight: .bold)
                             Text(filter.rawValue)
                                 .appFont(size: 12, weight: .bold)
                         }
@@ -386,7 +386,7 @@ private struct ProgramCatalogEmptyState: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 28, weight: .semibold))
+                .appFont(size: 28, weight: .semibold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 58, height: 58)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -414,7 +414,7 @@ private struct ProgramSelectionErrorCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 17, weight: .bold))
+                .appFont(size: 17, weight: .bold)
                 .foregroundColor(.orange)
                 .frame(width: 38, height: 38)
                 .background(Color.orange.opacity(0.12), in: Circle())

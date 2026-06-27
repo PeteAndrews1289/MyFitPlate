@@ -127,7 +127,7 @@ struct WorkoutHistoryRow: View {
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .foregroundColor(Color(UIColor.tertiaryLabel))
         }
         .padding()
@@ -157,7 +157,7 @@ private struct WorkoutHistoryHeaderCard: View {
                 Spacer()
 
                 Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.system(size: 18, weight: .bold))
+                    .appFont(size: 18, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 40, height: 40)
                     .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -204,7 +204,7 @@ private struct WorkoutHistoryPill: View {
     var body: some View {
         HStack(spacing: 5) {
             Image(systemName: icon)
-                .font(.system(size: 9, weight: .bold))
+                .appFont(size: 9, weight: .bold)
             Text(title)
                 .appFont(size: 11, weight: .bold)
             Text(subtitle)
@@ -221,7 +221,7 @@ private struct WorkoutHistoryEmptyState: View {
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 42, weight: .bold))
+                .appFont(size: 42, weight: .bold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 74, height: 74)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())

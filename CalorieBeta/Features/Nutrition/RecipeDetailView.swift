@@ -68,13 +68,13 @@ private struct RecipeHeroCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-                .font(.system(size: 38))
+                .appFont(size: 38)
                 .frame(width: 68, height: 68)
                 .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(recipe.name)
-                    .font(.system(size: 25, weight: .bold))
+                    .appFont(size: 25, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -97,7 +97,7 @@ private struct RecipeHeroChip: View {
 
     var body: some View {
         Label(text, systemImage: icon)
-            .font(.system(size: 11, weight: .bold))
+            .appFont(size: 11, weight: .bold)
             .foregroundColor(.brandPrimary)
             .padding(.horizontal, 9)
             .padding(.vertical, 6)
@@ -128,7 +128,7 @@ private struct RecipeMacroTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .bold))
+                .appFont(size: 14, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 30, height: 30)
                 .background(color.opacity(0.12), in: Circle())
@@ -136,18 +136,18 @@ private struct RecipeMacroTile: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text(value)
-                        .font(.system(size: 24, weight: .bold))
+                        .appFont(size: 24, weight: .bold)
                         .foregroundColor(.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
 
                     Text(unit)
-                        .font(.system(size: 12, weight: .bold))
+                        .appFont(size: 12, weight: .bold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
 
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .appFont(size: 12, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
@@ -168,12 +168,12 @@ private struct RecipeIngredientsCard: View {
                 ForEach(ingredients, id: \.self) { ingredient in
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 15, weight: .bold))
+                            .appFont(size: 15, weight: .bold)
                             .foregroundColor(.brandPrimary)
                             .padding(.top, 1)
 
                         Text(ingredient)
-                            .font(.system(size: 14, weight: .medium))
+                            .appFont(size: 14, weight: .medium)
                             .foregroundColor(.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
 
@@ -200,13 +200,13 @@ private struct RecipeInstructionsCard: View {
                 ForEach(Array(instructions.enumerated()), id: \.offset) { index, instruction in
                     HStack(alignment: .top, spacing: 12) {
                         Text("\(index + 1)")
-                            .font(.system(size: 13, weight: .bold))
+                            .appFont(size: 13, weight: .bold)
                             .foregroundColor(.white)
                             .frame(width: 28, height: 28)
                             .background(Color.brandPrimary, in: Circle())
 
                         Text(instruction)
-                            .font(.system(size: 14, weight: .medium))
+                            .appFont(size: 14, weight: .medium)
                             .foregroundColor(.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
 
@@ -257,13 +257,13 @@ private struct RecipeNutrientDetailsCard: View {
         if let value, value > 0 {
             HStack {
                 Text(label)
-                    .font(.system(size: 14, weight: .medium))
+                    .appFont(size: 14, weight: .medium)
                     .foregroundColor(.textPrimary)
 
                 Spacer()
 
                 Text("\(String(format: "%.1f", value)) \(unit)")
-                    .font(.system(size: 14, weight: .semibold))
+                    .appFont(size: 14, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
@@ -277,13 +277,13 @@ private struct RecipeSectionHeader: View {
     var body: some View {
         HStack(spacing: 9) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .bold))
+                .appFont(size: 14, weight: .bold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 30, height: 30)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
 
             Text(title)
-                .font(.system(size: 18, weight: .bold))
+                .appFont(size: 18, weight: .bold)
                 .foregroundColor(.textPrimary)
         }
     }
@@ -299,7 +299,7 @@ private struct RecipeDetailActionBar: View {
                 onPlan()
             } label: {
                 Label("Plan", systemImage: "calendar.badge.plus")
-                    .font(.system(size: 16, weight: .bold))
+                    .appFont(size: 16, weight: .bold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
             }
@@ -315,7 +315,7 @@ private struct RecipeDetailActionBar: View {
                 onLog()
             } label: {
                 Label("Add to Log", systemImage: "plus.circle.fill")
-                    .font(.system(size: 16, weight: .bold))
+                    .appFont(size: 16, weight: .bold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
             }
@@ -514,18 +514,18 @@ private struct AddRecipeToPlanHero: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-                .font(.system(size: 34))
+                .appFont(size: 34)
                 .frame(width: 62, height: 62)
                 .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(recipe.name)
-                    .font(.system(size: 22, weight: .bold))
+                    .appFont(size: 22, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text("Choose where this recipe should appear in your plan.")
-                    .font(.system(size: 13, weight: .medium))
+                    .appFont(size: 13, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -549,7 +549,7 @@ private struct AddRecipeMealTypePicker: View {
                     HapticManager.instance.feedback(.light)
                 } label: {
                     Text(mealType)
-                        .font(.system(size: 13, weight: .bold))
+                        .appFont(size: 13, weight: .bold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
                         .foregroundColor(selectedMealType == mealType ? .brandPrimary : Color(UIColor.secondaryLabel))
@@ -578,7 +578,7 @@ private struct AddRecipePlanModeCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("\(mealType) already has \(mealCount) \(mealLabel)")
-                .font(.system(size: 15, weight: .bold))
+                .appFont(size: 15, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             Picker("Add mode", selection: $replaceExistingMealType) {

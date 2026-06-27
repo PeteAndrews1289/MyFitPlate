@@ -272,7 +272,7 @@ struct WorkoutSummaryHeroCard: View {
                 Spacer()
 
                 Image(systemName: "trophy.fill")
-                    .font(.system(size: 36, weight: .bold))
+                    .appFont(size: 36, weight: .bold)
                     .foregroundColor(.yellow)
                     .scaleEffect(isAnimated ? 1.0 : 0.65)
                     .animation(.spring(response: 0.45, dampingFraction: 0.62), value: isAnimated)
@@ -295,7 +295,7 @@ private struct SummaryHeroPill: View {
     var body: some View {
         HStack(spacing: 9) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 30, height: 30)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -336,7 +336,7 @@ private struct SessionExerciseBreakdownCard: View {
                 Spacer()
 
                 Image(systemName: "list.bullet.rectangle.fill")
-                    .font(.system(size: 15, weight: .bold))
+                    .appFont(size: 15, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 34, height: 34)
                     .background(Color.brandPrimary.opacity(0.12), in: Circle())

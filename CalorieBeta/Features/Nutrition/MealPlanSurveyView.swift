@@ -128,7 +128,7 @@ struct MealPlanSurveyView: View {
         ScrollView {
             VStack(spacing: 20) {
                 Image(systemName: iconName)
-                    .font(.system(size: 40))
+                    .appFont(size: 40)
                     .foregroundColor(.brandPrimary)
                     .padding(.bottom, 5)
                 Text(title)
@@ -346,7 +346,7 @@ private struct CookingStyleSelectionView: View {
         var body: some View {
             HStack(spacing: 16) {
                 Image(systemName: style.iconName)
-                    .font(.system(size: 24))
+                    .appFont(size: 24)
                     .foregroundColor(isSelected ? .white : .brandPrimary)
                     .frame(width: 44, height: 44)
                     .background(isSelected ? Color.brandPrimary.opacity(0.8) : Color.brandPrimary.opacity(0.1))

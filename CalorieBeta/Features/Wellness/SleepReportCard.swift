@@ -143,7 +143,7 @@ struct SleepDetailView: View {
             VStack(spacing: 24) {
                 VStack {
                     Text("\(report.averageSleepScore)")
-                        .font(.system(size: 72, weight: .bold, design: .rounded))
+                        .appFont(size: 72, weight: .bold)
                         .foregroundColor(sleepScoreColor(report.averageSleepScore))
                     Text("Weekly Average Score (\(report.dateRange))")
                         .font(.headline).foregroundColor(.secondary).multilineTextAlignment(.center).padding(.horizontal)

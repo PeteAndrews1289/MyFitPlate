@@ -43,7 +43,7 @@ class AppState: ObservableObject {
     }
     
     private func loadDarkModePreference(userID: String) {
-        db.collection("users").document(userID).getDocument { [weak self] document, error in
+        db.collection(FirestoreCollection.users).document(userID).getDocument { [weak self] document, error in
             Task { @MainActor in
                 guard let self = self else { return }
                 if let error {
@@ -66,7 +66,7 @@ class AppState: ObservableObject {
 
     private func saveDarkModePreference() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
-        db.collection("users").document(userID).setData(["darkMode": self.isDarkModeEnabled], merge: true) { error in
+        db.collection(FirestoreCollection.users).document(userID).setData(["darkMode": self.isDarkModeEnabled], merge: true) { error in
             if let error {
                 AppLog.app.error("Failed to save dark mode preference: \(error.localizedDescription, privacy: .public)")
             }
@@ -77,7 +77,7 @@ class AppState: ObservableObject {
     /// fires on fresh logins, sign-ups, and every launch with a saved session, so this covers
     /// all three. Uses a server timestamp so it isn't affected by device clock skew.
     private func recordLastLogin(userID: String) {
-        db.collection("users").document(userID).setData(
+        db.collection(FirestoreCollection.users).document(userID).setData(
             ["lastLogin": FieldValue.serverTimestamp()],
             merge: true
         ) { error in

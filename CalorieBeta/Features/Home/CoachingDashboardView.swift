@@ -12,7 +12,7 @@ struct CoachingDashboardView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Image(systemName: "brain.head.profile")
-                                .font(.system(size: 24, weight: .bold))
+                                .appFont(size: 24, weight: .bold)
                                 .foregroundColor(.brandPrimary)
                             Text("Maia's Strategy")
                                 .appFont(size: 22, weight: .bold)
@@ -76,7 +76,7 @@ struct CoachingDashboardView: View {
         } else if insightsService.currentInsights.isEmpty {
             VStack(spacing: 10) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 28))
+                    .appFont(size: 28)
                     .foregroundColor(.brandPrimary)
                 Text("Keep logging and I'll build your strategy")
                     .appFont(size: 15, weight: .semibold)
@@ -134,7 +134,7 @@ private struct CoachingInsightRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 20, weight: .bold))
+                .appFont(size: 20, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 44, height: 44)
                 .background(color.opacity(0.12), in: Circle())

@@ -104,7 +104,7 @@ struct CommunityHubView: View {
     private func checkGroupMembership(groupID: String) {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         let membershipID = "\(userID)_\(groupID)"
-        Firestore.firestore().collection("groupMemberships").document(membershipID).getDocument { document, error in
+        Firestore.firestore().collection(FirestoreCollection.groupMemberships).document(membershipID).getDocument { document, error in
             if error != nil {
                 return
             }
@@ -120,7 +120,7 @@ struct CommunityHubView: View {
 
     private func fetchPostsForGroup(groupID: String) {
         let db = Firestore.firestore()
-        db.collection("posts")
+        db.collection(FirestoreCollection.posts)
             .whereField("groupID", isEqualTo: groupID)
             .order(by: "timestamp", descending: true)
             .addSnapshotListener { snapshot, error in
@@ -140,7 +140,7 @@ struct CommunityHubView: View {
             return
         }
         do {
-            try db.collection("posts").document(postId).setData(from: post)
+            try db.collection(FirestoreCollection.posts).document(postId).setData(from: post)
         } catch {
         }
     }

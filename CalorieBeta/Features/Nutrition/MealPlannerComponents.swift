@@ -80,7 +80,7 @@ struct MealPlanSummaryCard: View {
                 Spacer()
 
                 Image(systemName: "calendar.badge.clock")
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 38, height: 38)
                     .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -239,11 +239,11 @@ struct WeeklyPlanOverviewCard: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Week at a Glance")
-                        .font(.system(size: 20, weight: .bold))
+                        .appFont(size: 20, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text(plannedDays == 0 ? "No meals planned yet." : "\(plannedDays) of 7 days planned.")
-                        .font(.system(size: 13, weight: .medium))
+                        .appFont(size: 13, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
 
@@ -251,7 +251,7 @@ struct WeeklyPlanOverviewCard: View {
 
                 Button(action: onOpenGrocery) {
                     Image(systemName: "list.bullet.clipboard")
-                        .font(.system(size: 15, weight: .bold))
+                        .appFont(size: 15, weight: .bold)
                         .foregroundColor(.brandPrimary)
                         .frame(width: 38, height: 38)
                         .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -340,7 +340,7 @@ struct MealPlannerEmptyState: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "wand.and.stars")
-                .font(.system(size: 32, weight: .semibold))
+                .appFont(size: 32, weight: .semibold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 68, height: 68)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -410,7 +410,7 @@ struct MealCardView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: mealIcon)
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -440,7 +440,7 @@ struct MealCardView: View {
 
                 Button(role: .destructive, action: onDelete) {
                     Image(systemName: "trash")
-                        .font(.system(size: 14, weight: .semibold))
+                        .appFont(size: 14, weight: .semibold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .frame(width: 34, height: 34)
                 }

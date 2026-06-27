@@ -571,7 +571,7 @@ class ReportsViewModel: ObservableObject {
     // Fetches historical meal scores from Firestore.
     func fetchMealScoreHistory(for userID: String) {
         // Reference to the dailySummaries collection for the user
-        let ref = db.collection("users").document(userID).collection("dailySummaries").order(by: "date", descending: true).limit(to: 30) // Get last 30 summaries
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailySummaries).order(by: "date", descending: true).limit(to: 30) // Get last 30 summaries
         ref.getDocuments { [weak self] snapshot, error in
             guard let self = self, let documents = snapshot?.documents else { return } // Ensure self and documents exist
             // Map Firestore documents to DateValuePoint objects
@@ -658,7 +658,7 @@ class ReportsViewModel: ObservableObject {
     // *** This is the correct "live" version that saves the numeric score and totals ***
     private func saveMealScore(for userID: String, date: Date, score: MealScore) {
         let dateString = dailyLogService.dateFormatter.string(from: date)
-        let ref = db.collection("users").document(userID).collection("dailySummaries").document(dateString)
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailySummaries).document(dateString)
         let data: [String: Any] = [
             "date": Timestamp(date: date),
             "mealScore": score.grade, // Save grade for quick display

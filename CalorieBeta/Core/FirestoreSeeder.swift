@@ -40,7 +40,7 @@ func addSampleLog() {
  
     if let userID = Auth.auth().currentUser?.uid {
        
-        db.collection("users").document(userID).collection("dailyLogs").addDocument(data: dailyLog) { error in
+        db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs).addDocument(data: dailyLog) { error in
             if let error = error {
                 AppLog.data.error("Failed to add sample log: \(error.localizedDescription, privacy: .public)")
             } else {

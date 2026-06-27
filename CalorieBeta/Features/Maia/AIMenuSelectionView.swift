@@ -42,11 +42,11 @@ struct AIMenuSelectionView: View {
                                     if selectedItemIDs.contains(item.id) {
                                         Image(systemName: "checkmark.circle.fill")
                                             .foregroundColor(.brandPrimary)
-                                            .font(.system(size: 22))
+                                            .appFont(size: 22)
                                     } else {
                                         Image(systemName: "circle")
                                             .foregroundColor(.secondary)
-                                            .font(.system(size: 22))
+                                            .appFont(size: 22)
                                     }
                                 }
                             }

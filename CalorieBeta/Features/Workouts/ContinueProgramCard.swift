@@ -30,7 +30,7 @@ struct ContinueProgramCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.system(size: 20, weight: .bold))
+                    .appFont(size: 20, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 46, height: 46)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -58,7 +58,7 @@ struct ContinueProgramCard: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 15, weight: .bold))
+                        .appFont(size: 15, weight: .bold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .frame(width: 34, height: 34)
                         .background(Color.backgroundPrimary.opacity(0.7), in: Circle())

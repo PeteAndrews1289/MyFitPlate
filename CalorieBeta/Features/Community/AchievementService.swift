@@ -109,7 +109,7 @@ class AchievementService: ObservableObject {
 
     func listenToUserProfile(userID: String) {
         userProfileListener?.remove()
-        userProfileListener = db.collection("users").document(userID)
+        userProfileListener = db.collection(FirestoreCollection.users).document(userID)
             .addSnapshotListener { [weak self] documentSnapshot, error in
                 guard let self = self, let document = documentSnapshot else { return }
                 DispatchQueue.main.async {
@@ -122,7 +122,7 @@ class AchievementService: ObservableObject {
     func fetchUserStatuses(userID: String) {
         guard !userID.isEmpty, self.currentUserID == userID else { return }
         isLoading = true
-        let ref = db.collection("users").document(userID).collection("achievementStatus")
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.achievementStatus)
         userStatusListener?.remove()
         userStatusListener = ref.addSnapshotListener { [weak self] snap, err in
             guard let self = self else { return }
@@ -160,7 +160,7 @@ class AchievementService: ObservableObject {
     
     private func updateStatusInFirestore(userID: String, status: UserAchievementStatus) {
         guard !userID.isEmpty, self.currentUserID == userID, let statusDocID = status.id else { return }
-        let ref = db.collection("users").document(userID).collection("achievementStatus").document(statusDocID)
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.achievementStatus).document(statusDocID)
         do {
             try ref.setData(from: status, merge: true)
         } catch {
@@ -169,7 +169,7 @@ class AchievementService: ObservableObject {
     }
 
     private func awardPointsAndCheckLevel(userID: String, points: Int) {
-        let userRef = db.collection("users").document(userID)
+        let userRef = db.collection(FirestoreCollection.users).document(userID)
         db.runTransaction { (transaction, errorPointer) -> Any? in
             let userDocument: DocumentSnapshot
             do {
@@ -261,7 +261,7 @@ class AchievementService: ObservableObject {
     private func checkTargetWeightAchievement(userID: String, goals: GoalSettings) { let id = "target_reached"; guard shouldCheck(id), let target = goals.targetWeight else { return }; let current = goals.weight; if abs(current - target) <= 0.5 { unlockAchievement(userID: userID, achievementID: id) } }
     
     func checkRecipeCountAchievements(userID: String) {
-        let recipeCollection = db.collection("users").document(userID).collection("recipes")
+        let recipeCollection = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.recipes)
         Task {
             do {
                 let snapshot = try await recipeCollection.count.getAggregation(source: .server)
@@ -281,7 +281,7 @@ class AchievementService: ObservableObject {
     }
 
     func checkWorkoutCountAchievements(userID: String) {
-        let workoutCollection = db.collection("users").document(userID).collection("workoutSessionLogs")
+        let workoutCollection = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
         Task {
             do {
                 let snapshot = try await workoutCollection.count.getAggregation(source: .server)
@@ -344,7 +344,7 @@ class AchievementService: ObservableObject {
     }
 
     func listenToActiveChallenges(for userID: String) {
-        let challengesRef = db.collection("users").document(userID).collection("activeChallenges")
+        let challengesRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.activeChallenges)
         challengesListener?.remove()
         challengesListener = challengesRef.whereField("expiresAt", isGreaterThan: Timestamp(date: Date()))
             .addSnapshotListener { [weak self] querySnapshot, error in
@@ -367,7 +367,7 @@ class AchievementService: ObservableObject {
     }
 
     func generateWeeklyChallenges(for userID: String) {
-        let challengesRef = db.collection("users").document(userID).collection("activeChallenges")
+        let challengesRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.activeChallenges)
         challengesRef.whereField("expiresAt", isGreaterThan: Timestamp(date: Date())).getDocuments { snapshot, error in
             guard snapshot?.documents.isEmpty ?? true else { return }
 
@@ -399,7 +399,7 @@ class AchievementService: ObservableObject {
     }
 
     func updateChallengeProgress(for userID: String, type: ChallengeType, amount: Double) {
-        let challengesRef = db.collection("users").document(userID).collection("activeChallenges")
+        let challengesRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.activeChallenges)
         challengesRef
             .whereField("type", isEqualTo: type.rawValue)
             .whereField("isCompleted", isEqualTo: false)

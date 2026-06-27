@@ -15,7 +15,7 @@ struct WorkoutReportCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "figure.run")
-                    .font(.system(size: 18, weight: .bold))
+                    .appFont(size: 18, weight: .bold)
                     .foregroundColor(.blue)
                     .frame(width: 42, height: 42)
                     .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -33,7 +33,7 @@ struct WorkoutReportCard: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             
@@ -54,7 +54,7 @@ struct WorkoutReportCard: View {
 
             HStack(spacing: 10) {
                 Image(systemName: "star.fill")
-                    .font(.system(size: 13, weight: .bold))
+                    .appFont(size: 13, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 30, height: 30)
                     .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -79,7 +79,7 @@ struct WorkoutReportCard: View {
     private func workoutStatBox(value: String, label: String, icon: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 28, height: 28)
                 .background(color.opacity(0.12), in: Circle())

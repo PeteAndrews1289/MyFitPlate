@@ -41,7 +41,7 @@ struct RecipeLoggingView: View {
                         RecipeLoggingHero(recipe: recipe, nutrition: totalNutrition)
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Meal").font(.system(size: 16, weight: .bold)).foregroundColor(.textPrimary)
+                            Text("Meal").appFont(size: 16, weight: .bold).foregroundColor(.textPrimary)
                             Picker("Meal", selection: $selectedMeal) {
                                 ForEach(meals, id: \.self) { meal in
                                     Text(meal).tag(meal)
@@ -54,11 +54,11 @@ struct RecipeLoggingView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text("Ingredients")
-                                    .font(.system(size: 18, weight: .bold))
+                                    .appFont(size: 18, weight: .bold)
                                     .foregroundColor(.textPrimary)
                                 Spacer()
                                 Text("Swipe to delete")
-                                    .font(.system(size: 12))
+                                    .appFont(size: 12)
                                     .foregroundColor(.secondary)
                             }
                             
@@ -135,12 +135,12 @@ private struct RecipeLoggingHero: View {
     var body: some View {
         VStack(spacing: 12) {
             Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-                .font(.system(size: 48))
+                .appFont(size: 48)
                 .padding(16)
                 .background(Color.brandPrimary.opacity(0.1), in: Circle())
 
             Text(recipe.name)
-                .font(.system(size: 24, weight: .bold))
+                .appFont(size: 24, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             HStack(spacing: 16) {
@@ -161,10 +161,10 @@ private struct MacroPill: View {
     var body: some View {
         VStack(spacing: 2) {
             Text("\(value)")
-                .font(.system(size: 16, weight: .bold))
+                .appFont(size: 16, weight: .bold)
                 .foregroundColor(color)
             Text(title)
-                .font(.system(size: 10, weight: .medium))
+                .appFont(size: 10, weight: .medium)
                 .foregroundColor(.secondary)
         }
         .padding(.horizontal, 12)
@@ -190,11 +190,11 @@ private struct RecipeLoggingIngredientRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(ingredient.name)
-                    .font(.system(size: 16, weight: .semibold))
+                    .appFont(size: 16, weight: .semibold)
                     .foregroundColor(.textPrimary)
                 
                 Text("\(Int(ingredient.calories)) cal | P:\(Int(ingredient.protein)) C:\(Int(ingredient.carbs)) F:\(Int(ingredient.fats))")
-                    .font(.system(size: 12))
+                    .appFont(size: 12)
                     .foregroundColor(.secondary)
             }
             
@@ -214,7 +214,7 @@ private struct RecipeLoggingIngredientRow: View {
                 }
             
             Text(ingredient.servingUnit ?? "g")
-                .font(.system(size: 14, weight: .medium))
+                .appFont(size: 14, weight: .medium)
                 .foregroundColor(.secondary)
                 .frame(width: 30, alignment: .leading)
         }

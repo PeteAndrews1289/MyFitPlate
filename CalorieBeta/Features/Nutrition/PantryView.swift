@@ -371,7 +371,7 @@ struct ReceiptScannerView: View {
                 } else {
                     VStack(spacing: 24) {
                         Image(systemName: "doc.text.viewfinder")
-                            .font(.system(size: 60))
+                            .appFont(size: 60)
                             .foregroundColor(.brandPrimary)
                         
                         Text("Scan a Grocery Receipt")

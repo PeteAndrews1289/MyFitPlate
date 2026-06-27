@@ -282,7 +282,7 @@ struct AddFoodView: View {
     @ViewBuilder private var servingControlsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Serving")
-                .font(.system(size: 18, weight: .bold))
+                .appFont(size: 18, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             HStack(spacing: 12) {
@@ -324,16 +324,16 @@ struct AddFoodView: View {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "list.bullet.rectangle")
-                            .font(.system(size: 14, weight: .bold))
+                            .appFont(size: 14, weight: .bold)
                             .foregroundColor(.brandPrimary)
 
                         VStack(alignment: .leading, spacing: 3) {
                             Text("Detected serving options")
-                                .font(.system(size: 13, weight: .semibold))
+                                .appFont(size: 13, weight: .semibold)
                                 .foregroundColor(Color(UIColor.secondaryLabel))
 
                             Text(selectedServingOption?.description ?? "Choose serving")
-                                .font(.system(size: 15, weight: .bold))
+                                .appFont(size: 15, weight: .bold)
                                 .foregroundColor(.textPrimary)
                                 .lineLimit(2)
                         }
@@ -341,7 +341,7 @@ struct AddFoodView: View {
                         Spacer()
 
                         Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 12, weight: .bold))
+                            .appFont(size: 12, weight: .bold)
                             .foregroundColor(Color(UIColor.tertiaryLabel))
                     }
                     .padding(14)
@@ -357,7 +357,7 @@ struct AddFoodView: View {
     @ViewBuilder private var detailControlsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Details")
-                .font(.system(size: 18, weight: .bold))
+                .appFont(size: 18, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             ManualFoodTextInput(
@@ -374,25 +374,25 @@ struct AddFoodView: View {
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 17, weight: .bold))
+                        .appFont(size: 17, weight: .bold)
                         .foregroundColor(.brandPrimary)
                         .frame(width: 42, height: 42)
                         .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Scan nutrition label")
-                            .font(.system(size: 15, weight: .bold))
+                            .appFont(size: 15, weight: .bold)
                             .foregroundColor(.textPrimary)
 
                         Text("Use a label photo to fill the numbers faster.")
-                            .font(.system(size: 12, weight: .medium))
+                            .appFont(size: 12, weight: .medium)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     }
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .bold))
+                        .appFont(size: 12, weight: .bold)
                         .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
                 .padding(14)
@@ -618,17 +618,17 @@ private struct ManualFoodIdentityCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Text(displayEmoji)
-                .font(.system(size: 34))
+                .appFont(size: 34)
                 .frame(width: 62, height: 62)
                 .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Food name")
-                    .font(.system(size: 13, weight: .bold))
+                    .appFont(size: 13, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
 
                 TextField("Chicken bowl, protein bar, oatmeal...", text: $foodName)
-                    .font(.system(size: 22, weight: .bold))
+                    .appFont(size: 22, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .textInputAutocapitalization(.words)
                     .submitLabel(.next)
@@ -668,7 +668,7 @@ private struct ManualFoodTextInput: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .bold))
+                    .appFont(size: 14, weight: .bold)
                     .foregroundColor(color)
                     .frame(width: 30, height: 30)
                     .background(color.opacity(0.12), in: Circle())
@@ -677,19 +677,19 @@ private struct ManualFoodTextInput: View {
 
                 if let unit {
                     Text(unit)
-                        .font(.system(size: 12, weight: .bold))
+                        .appFont(size: 12, weight: .bold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
             }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .appFont(size: 12, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
 
                 TextField(placeholder, text: $text)
                     .keyboardType(keyboardType)
-                    .font(.system(size: 22, weight: .bold))
+                    .appFont(size: 22, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .submitLabel(.next)
             }
@@ -712,11 +712,11 @@ private struct ManualFoodPreviewCard: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Preview")
-                        .font(.system(size: 18, weight: .bold))
+                        .appFont(size: 18, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text(servingDescription)
-                        .font(.system(size: 12, weight: .semibold))
+                        .appFont(size: 12, weight: .semibold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .lineLimit(2)
                 }
@@ -724,10 +724,10 @@ private struct ManualFoodPreviewCard: View {
                 Spacer()
 
                 Text("\(Int(calories.rounded()))")
-                    .font(.system(size: 30, weight: .bold))
+                    .appFont(size: 30, weight: .bold)
                     .foregroundColor(.orange)
                 Text("cal")
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
 
@@ -750,9 +750,9 @@ private struct ManualFoodMacroPill: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(label)
-                .font(.system(size: 12, weight: .bold))
+                .appFont(size: 12, weight: .bold)
             Text("\(Int(value.rounded()))g")
-                .font(.system(size: 12, weight: .semibold))
+                .appFont(size: 12, weight: .semibold)
         }
         .foregroundColor(color)
         .frame(maxWidth: .infinity)
@@ -768,7 +768,7 @@ private struct ManualFoodLoadingCard: View {
                 .tint(.brandPrimary)
 
             Text("Loading serving details")
-                .font(.system(size: 16, weight: .bold))
+                .appFont(size: 16, weight: .bold)
                 .foregroundColor(.textPrimary)
         }
         .frame(maxWidth: .infinity)
@@ -784,18 +784,18 @@ private struct ManualFoodNoticeCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 16, weight: .bold))
+                .appFont(size: 16, weight: .bold)
                 .foregroundColor(.orange)
                 .frame(width: 34, height: 34)
                 .background(Color.orange.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 14, weight: .bold))
+                    .appFont(size: 14, weight: .bold)
                     .foregroundColor(.textPrimary)
 
                 Text(message)
-                    .font(.system(size: 12, weight: .medium))
+                    .appFont(size: 12, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .fixedSize(horizontal: false, vertical: true)
             }

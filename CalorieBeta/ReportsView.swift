@@ -268,7 +268,7 @@ struct ReportsView: View {
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             
@@ -310,7 +310,7 @@ struct ReportsView: View {
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .foregroundColor(.textPrimary)
@@ -370,7 +370,7 @@ struct ReportsView: View {
             } else if !viewModel.isLoading {
                 VStack(spacing: 6) {
                     Image(systemName: "fork.knife")
-                        .font(.system(size: 24))
+                        .appFont(size: 24)
                         .foregroundColor(Color(UIColor.tertiaryLabel))
                     Text("No meals logged")
                         .appFont(size: 13, weight: .semibold)
@@ -443,7 +443,7 @@ private struct ReportsOverviewCard: View {
 
                 Button(action: onOpenInsights) {
                     Image(systemName: "wand.and.stars")
-                        .font(.system(size: 16, weight: .bold))
+                        .appFont(size: 16, weight: .bold)
                         .foregroundColor(.brandPrimary)
                         .frame(width: 40, height: 40)
                         .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -501,7 +501,7 @@ private struct ReportMetricTile: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 13, weight: .bold))
+                    .appFont(size: 13, weight: .bold)
                     .foregroundColor(color)
                     .frame(width: 30, height: 30)
                     .background(color.opacity(0.12), in: Circle())
@@ -540,7 +540,7 @@ private struct SmartReportInsightCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "sparkles")
-                .font(.system(size: 16, weight: .bold))
+                .appFont(size: 16, weight: .bold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 38, height: 38)
                 .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
@@ -603,7 +603,7 @@ private struct ReportsMessageState: View {
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 28, weight: .semibold))
+                .appFont(size: 28, weight: .semibold)
                 .foregroundColor(color)
                 .frame(width: 62, height: 62)
                 .background(color.opacity(0.12), in: Circle())
@@ -719,7 +719,7 @@ struct MetabolismDashboardView: View {
 
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "lightbulb.fill")
-                            .font(.system(size: 12))
+                            .appFont(size: 12)
                             .foregroundColor(.orange)
                         Text("Weigh in regularly (ideally daily, around the same time) and log your food honestly — your estimate is only as accurate as the data you give it.")
                             .appFont(size: 13)
@@ -749,7 +749,7 @@ struct MetabolismDashboardView: View {
                                     .appFont(size: 48, weight: .heavy)
                                     .foregroundColor(.textPrimary)
                                 Text(" kcal")
-                                    .font(.system(size: 20, weight: .bold))
+                                    .appFont(size: 20, weight: .bold)
                                     .foregroundColor(Color(UIColor.secondaryLabel))
                             }
                         } else {
@@ -843,7 +843,7 @@ private struct AdaptiveProgressRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(.brandPrimary)
                 Text(label)
                     .appFont(size: 13, weight: .semibold)
@@ -886,7 +886,7 @@ private struct MetabolismReportCard: View {
             Spacer()
             
             Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
+                .appFont(size: 14, weight: .semibold)
                 .foregroundColor(Color(UIColor.tertiaryLabel))
         }
         .padding(16)
@@ -909,7 +909,7 @@ struct CycleTrackingCard: View {
                         .frame(width: 50, height: 50)
                     
                     Image(systemName: "drop.fill")
-                        .font(.system(size: 20, weight: .semibold))
+                        .appFont(size: 20, weight: .semibold)
                         .foregroundColor(.pink)
                 }
                 
@@ -932,7 +932,7 @@ struct CycleTrackingCard: View {
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .appFont(size: 14, weight: .semibold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding()
@@ -1013,7 +1013,7 @@ struct ComprehensiveHealthCard: View {
     private func healthRow(icon: String, color: Color, title: String, value: String, unit: String, trend: Trend) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .bold))
+                .appFont(size: 16, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 32, height: 32)
                 .background(color.opacity(0.12), in: Circle())
@@ -1027,13 +1027,16 @@ struct ComprehensiveHealthCard: View {
             HStack(spacing: 6) {
                 if trend != .neutral {
                     Image(systemName: trend == .up ? "arrow.up.right" : "arrow.down.right")
-                        .font(.system(size: 10, weight: .bold))
+                        .appFont(size: 10, weight: .bold)
                         .foregroundColor(trend.color)
                 }
                 
-                (Text(value).fontWeight(.bold) + Text(" \(unit)").font(.system(size: 12)).foregroundColor(.secondary))
-                    .appFont(size: 16)
-                    .foregroundColor(.textPrimary)
+                HStack(spacing: 0) {
+                    Text(value).fontWeight(.bold)
+                    Text(" \(unit)").appFont(size: 12).foregroundColor(.secondary)
+                }
+                .appFont(size: 16)
+                .foregroundColor(.textPrimary)
             }
         }
     }

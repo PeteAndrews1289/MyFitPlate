@@ -281,7 +281,7 @@ class NotificationManager {
     }
     
     private func fetchUserData(userID: String, completion: @escaping (Double, Double) -> Void) {
-        db.collection("users").document(userID).getDocument { document, error in
+        db.collection(FirestoreCollection.users).document(userID).getDocument { document, error in
             var calorieGoal: Double = 2000
             if let document = document, document.exists,
                let data = document.data(),
@@ -295,7 +295,7 @@ class NotificationManager {
             dateFormatter.dateFormat = "yyyy-MM-dd"
             let dateString = dateFormatter.string(from: today)
             
-            self.db.collection("users").document(userID).collection("dailyLogs").document(dateString).getDocument { logDoc, logErr in
+            self.db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs).document(dateString).getDocument { logDoc, logErr in
                 var caloriesConsumed: Double = 0
                 if let logDoc = logDoc, logDoc.exists, let data = logDoc.data(), let meals = data["meals"] as? [[String: Any]] {
                     for meal in meals {

@@ -12,7 +12,7 @@ final class DailyLogRecentFoodStore {
     func addRecentFood(for userID: String, foodItem: FoodItem, source: String) {
         guard !userID.isEmpty else { return }
 
-        let ref = db.collection("users").document(userID).collection(collectionName)
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(collectionName)
         let timestamp = Timestamp(date: Date())
         let stableID = stableID(for: foodItem)
 
@@ -49,7 +49,7 @@ final class DailyLogRecentFoodStore {
         }
 
         // 2. Fetch fresh data from Firestore in background
-        db.collection("users").document(userID).collection(collectionName)
+        db.collection(FirestoreCollection.users).document(userID).collection(collectionName)
             .order(by: "timestamp", descending: true)
             .limit(to: 10)
             .getDocuments { snapshot, error in

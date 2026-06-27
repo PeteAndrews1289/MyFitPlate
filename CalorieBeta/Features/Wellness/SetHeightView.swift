@@ -20,7 +20,7 @@ struct SetHeightView: View {
                         .frame(width: 100, height: 100)
                     
                     Image(systemName: "ruler.fill")
-                        .font(.system(size: 38, weight: .bold))
+                        .appFont(size: 38, weight: .bold)
                         .foregroundColor(.blue)
                         .shadow(color: .blue.opacity(0.4), radius: 10, x: 0, y: 5)
                         .rotationEffect(.degrees(45))
@@ -94,7 +94,7 @@ private struct HeightInputCard: View {
             HStack(alignment: .bottom, spacing: 4) {
                 TextField("0", text: $value)
                     .keyboardType(.numberPad)
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .appFont(size: 42, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .multilineTextAlignment(.center)
                     .padding(.bottom, -6)

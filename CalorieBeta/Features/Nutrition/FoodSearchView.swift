@@ -367,7 +367,7 @@ private struct FoodSearchHeader: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 17, weight: .semibold))
+                .appFont(size: 17, weight: .semibold)
                 .foregroundColor(.brandPrimary)
 
             TextField(placeholder, text: $searchText)
@@ -378,7 +378,7 @@ private struct FoodSearchHeader: View {
             if !searchText.isEmpty {
                 Button(action: onClear) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                        .appFont(size: 18, weight: .semibold)
                         .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
                 .buttonStyle(.plain)
@@ -407,7 +407,7 @@ private struct YesterdayLogActions: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Copy Yesterday")
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
 
             HStack(spacing: 10) {
@@ -441,19 +441,19 @@ private struct YesterdayLogActions: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 15, weight: .bold))
+                    .appFont(size: 15, weight: .bold)
                     .foregroundColor(isEnabled ? .brandPrimary : Color(UIColor.tertiaryLabel))
                     .frame(width: 30, height: 30)
                     .background((isEnabled ? Color.brandPrimary : Color(UIColor.tertiaryLabel)).opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 14, weight: .bold))
+                        .appFont(size: 14, weight: .bold)
                         .foregroundColor(isEnabled ? .textPrimary : Color(UIColor.secondaryLabel))
                         .lineLimit(1)
 
                     Text(detail)
-                        .font(.system(size: 11, weight: .medium))
+                        .appFont(size: 11, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -502,19 +502,19 @@ private struct FoodSearchActionTile: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 9) {
                 Image(systemName: icon)
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 34, height: 34)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 14, weight: .bold))
+                        .appFont(size: 14, weight: .bold)
                         .foregroundColor(.textPrimary)
                         .lineLimit(1)
 
                     Text(subtitle)
-                        .font(.system(size: 11, weight: .medium))
+                        .appFont(size: 11, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -539,7 +539,7 @@ private struct FoodSearchMealPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Log to")
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
 
             HStack(spacing: 7) {
@@ -548,7 +548,7 @@ private struct FoodSearchMealPicker: View {
                         selectedMeal = meal
                     } label: {
                         Text(meal)
-                            .font(.system(size: 12, weight: .bold))
+                            .appFont(size: 12, weight: .bold)
                             .lineLimit(1)
                             .minimumScaleFactor(0.74)
                             .frame(maxWidth: .infinity)
@@ -575,7 +575,7 @@ private struct FoodSearchCompactMealPicker: View {
     var body: some View {
         HStack(spacing: 10) {
             Text("Log to")
-                .font(.system(size: 12, weight: .bold))
+                .appFont(size: 12, weight: .bold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
 
             Menu {
@@ -587,9 +587,9 @@ private struct FoodSearchCompactMealPicker: View {
             } label: {
                 HStack(spacing: 6) {
                     Text(selectedMeal)
-                        .font(.system(size: 13, weight: .bold))
+                        .appFont(size: 13, weight: .bold)
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 10, weight: .bold))
+                        .appFont(size: 10, weight: .bold)
                 }
                 .foregroundColor(.brandPrimary)
                 .padding(.horizontal, 12)
@@ -620,12 +620,12 @@ private struct FoodPickerSection: View {
         VStack(alignment: .leading, spacing: 11) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 18, weight: .bold))
+                    .appFont(size: 18, weight: .bold)
                     .foregroundColor(.textPrimary)
 
                 if !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.system(size: 12, weight: .medium))
+                        .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
             }
@@ -735,23 +735,23 @@ private struct FoodPickerRow: View {
                 }) {
                     HStack(spacing: 12) {
                         Text(FoodEmojiMapper.getEmoji(for: food.name))
-                            .font(.system(size: 23))
+                            .appFont(size: 23)
                             .frame(width: 42, height: 42)
                             .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text(food.name)
-                                .font(.system(size: 15, weight: .bold))
+                                .appFont(size: 15, weight: .bold)
                                 .foregroundColor(.textPrimary)
                                 .lineLimit(2)
 
                             Text(servingText)
-                                .font(.system(size: 12, weight: .medium))
+                                .appFont(size: 12, weight: .medium)
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                                 .lineLimit(1)
 
                             Text(detailText)
-                                .font(.system(size: 11, weight: .semibold))
+                                .appFont(size: 11, weight: .semibold)
                                 .foregroundColor(.brandPrimary)
                                 .lineLimit(1)
                         }
@@ -759,7 +759,7 @@ private struct FoodPickerRow: View {
                         Spacer(minLength: 6)
 
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .bold))
+                            .appFont(size: 12, weight: .bold)
                             .foregroundColor(Color(UIColor.tertiaryLabel))
                     }
                     .contentShape(Rectangle())
@@ -769,7 +769,7 @@ private struct FoodPickerRow: View {
                 if let onQuickLog {
                     Button(action: { onQuickLog(food) }) {
                         Image(systemName: isQuickLogged ? "checkmark" : "plus")
-                            .font(.system(size: 16, weight: .bold))
+                            .appFont(size: 16, weight: .bold)
                             .foregroundColor(.white)
                             .frame(width: 36, height: 36)
                             .background(isQuickLogged ? Color.accentPositive : Color.brandPrimary, in: Circle())
@@ -782,7 +782,7 @@ private struct FoodPickerRow: View {
                 if let onDelete {
                     Button(role: .destructive, action: { onDelete(food) }) {
                         Image(systemName: "trash")
-                            .font(.system(size: 14, weight: .semibold))
+                            .appFont(size: 14, weight: .semibold)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                             .frame(width: 34, height: 34)
                     }

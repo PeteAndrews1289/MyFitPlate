@@ -98,18 +98,18 @@ private struct CalorieLogSummaryCard: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Today Logged")
-                        .font(.system(size: 23, weight: .bold))
+                        .appFont(size: 23, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text("\(log.meals.flatMap(\.foodItems).count) foods across \(log.meals.filter { !$0.foodItems.isEmpty }.count) meals")
-                        .font(.system(size: 13, weight: .medium))
+                        .appFont(size: 13, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
 
                 Spacer()
 
                 Image(systemName: "fork.knife.circle.fill")
-                    .font(.system(size: 28, weight: .bold))
+                    .appFont(size: 28, weight: .bold)
                     .foregroundColor(.brandPrimary)
             }
 
@@ -135,18 +135,18 @@ private struct CalorieLogMetric: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value)
-                    .font(.system(size: 22, weight: .bold))
+                    .appFont(size: 22, weight: .bold)
                     .foregroundColor(color)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
 
                 Text(unit)
-                    .font(.system(size: 11, weight: .bold))
+                    .appFont(size: 11, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
 
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .appFont(size: 11, weight: .semibold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -169,11 +169,11 @@ private struct CalorieLogMealSection: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(meal.name)
-                        .font(.system(size: 19, weight: .bold))
+                        .appFont(size: 19, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text("\(meal.foodItems.count) items - \(Int(calories.rounded())) cal")
-                        .font(.system(size: 12, weight: .semibold))
+                        .appFont(size: 12, weight: .semibold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
 
@@ -203,18 +203,18 @@ private struct CalorieLogFoodRow: View {
             Button(action: onEdit) {
                 HStack(spacing: 12) {
                     Text(FoodEmojiMapper.getEmoji(for: foodItem.name))
-                        .font(.system(size: 23))
+                        .appFont(size: 23)
                         .frame(width: 42, height: 42)
                         .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(foodItem.name)
-                            .font(.system(size: 15, weight: .bold))
+                            .appFont(size: 15, weight: .bold)
                             .foregroundColor(.textPrimary)
                             .lineLimit(2)
 
                         Text(foodItem.servingSize.isEmpty ? "Serving details" : foodItem.servingSize)
-                            .font(.system(size: 12, weight: .medium))
+                            .appFont(size: 12, weight: .medium)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                             .lineLimit(1)
 
@@ -228,7 +228,7 @@ private struct CalorieLogFoodRow: View {
                     Spacer(minLength: 4)
 
                     Text("\(Int(foodItem.calories.rounded()))")
-                        .font(.system(size: 17, weight: .bold))
+                        .appFont(size: 17, weight: .bold)
                         .foregroundColor(.orange)
                 }
                 .contentShape(Rectangle())
@@ -237,7 +237,7 @@ private struct CalorieLogFoodRow: View {
 
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "trash")
-                    .font(.system(size: 14, weight: .semibold))
+                    .appFont(size: 14, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(width: 34, height: 34)
             }
@@ -256,7 +256,7 @@ private struct CalorieLogMacroText: View {
 
     var body: some View {
         Text("\(label) \(Int(value.rounded()))g")
-            .font(.system(size: 11, weight: .bold))
+            .appFont(size: 11, weight: .bold)
             .foregroundColor(color)
     }
 }
@@ -267,16 +267,16 @@ private struct CalorieLogEmptyState: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "fork.knife.circle.fill")
-                .font(.system(size: 42, weight: .bold))
+                .appFont(size: 42, weight: .bold)
                 .foregroundColor(.brandPrimary)
 
             VStack(spacing: 5) {
                 Text("No foods logged yet")
-                    .font(.system(size: 22, weight: .bold))
+                    .appFont(size: 22, weight: .bold)
                     .foregroundColor(.textPrimary)
 
                 Text("Add a food manually or use search, camera, barcode, or Maia from the main log flow.")
-                    .font(.system(size: 14, weight: .medium))
+                    .appFont(size: 14, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)

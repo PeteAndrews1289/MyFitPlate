@@ -89,6 +89,7 @@
 		4BE15BDB2ED0C61B00342C86 /* LiveActivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4BE15BCA2ED0C61900342C86 /* LiveActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4BE15BE22ED0C85A00342C86 /* BuildFile in Sources */ = {isa = PBXBuildFile; };
 		4BF46DE02DF76A6F0018668F /* AddMealToPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF46DDF2DF76A6F0018668F /* AddMealToPlanView.swift */; };
+		4C33041334A21BB0243616A7 /* FirestoreConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A991E02D268562D213F8595C /* FirestoreConstants.swift */; };
 		4E046507FB9FE22F9234F8D2 /* AIWorkoutGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E6023B20616D001326784A2 /* AIWorkoutGeneratorView.swift */; };
 		51760A8BEF53C9B7B3A405BD /* CaloricCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D4A8B19674D4F6C103913C /* CaloricCalculatorView.swift */; };
 		544269FEB74BBB6C47F7497D /* FoodSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA5B2E12B72BCB3BC0388DE5 /* FoodSearchViewModel.swift */; };
@@ -170,6 +171,7 @@
 		B9A82E1779C8E04297FE1E8F /* ChallengesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19668B4582E36E32D2E8F45 /* ChallengesView.swift */; };
 		BA444BB02E987A88DE390A92 /* ExerciseHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E4CCCD18AD29D24D2D3212E /* ExerciseHistoryView.swift */; };
 		BA4AA0B46A87C193E03FEC50 /* WorkoutAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 965EF55A4AE8DC6A24B91225 /* WorkoutAttributes.swift */; };
+		BADFABBFAE8572B85E143FB4 /* DailyLogServicing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EF37585737E4A8C14E02C74 /* DailyLogServicing.swift */; };
 		BDDC544C295113E1DE520DAA /* MilestoneData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4E8F31ECC79D95E7A3820DB /* MilestoneData.swift */; };
 		BF285DAE3EB6B114ACF5A38C /* AIJournalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDC55C94648C85CB5676711E /* AIJournalSheet.swift */; };
 		C3E9913A884091879ED8B085 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F4F9AAB73ED0E3461738A51 /* WelcomeView.swift */; };
@@ -299,6 +301,7 @@
 		0C1CF52DA1681A7CD91E9EDA /* MealPlanSurveyView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealPlanSurveyView.swift; sourceTree = "<group>"; };
 		0D4455D80012C3486B38C2DD /* CustomTabBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomTabBar.swift; sourceTree = "<group>"; };
 		0DA77751A3F64DE4D3F27F3E /* MealPlannerComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealPlannerComponents.swift; sourceTree = "<group>"; };
+		0EF37585737E4A8C14E02C74 /* DailyLogServicing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DailyLogServicing.swift; sourceTree = "<group>"; };
 		0F978BE9AC991632CAE296D5 /* AchievementService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AchievementService.swift; sourceTree = "<group>"; };
 		11724B6CF0880B1B6768AFC3 /* USDAFoodAPIService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = USDAFoodAPIService.swift; sourceTree = "<group>"; };
 		117353E7EA2909653B880F5E /* WellnessScoreCardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WellnessScoreCardView.swift; sourceTree = "<group>"; };
@@ -431,6 +434,7 @@
 		A314E4E4DA84B9119ED26E82 /* MealSuggestionCardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealSuggestionCardView.swift; sourceTree = "<group>"; };
 		A411836458D36A8BCD415382 /* MainAppView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MainAppView.swift; sourceTree = "<group>"; };
 		A896E13159DE2DC991820706 /* WorkoutDashboardComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutDashboardComponents.swift; sourceTree = "<group>"; };
+		A991E02D268562D213F8595C /* FirestoreConstants.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreConstants.swift; sourceTree = "<group>"; };
 		A9B6CAA2F33CE7778731D3E0 /* GroupService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GroupService.swift; sourceTree = "<group>"; };
 		AA35EC4B09FD1B723285F84B /* CreatePostView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CreatePostView.swift; sourceTree = "<group>"; };
 		ABE8EEF39C0A5B2679662DF4 /* MealSuggestionDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealSuggestionDetailView.swift; sourceTree = "<group>"; };
@@ -665,6 +669,7 @@
 				9B70A1B483BCD68DC3285CDB /* SpotlightManager.swift */,
 				C8056CD07F00749B9752FEBA /* SpotlightModifier.swift */,
 				7B3E034A455426CB42B0556E /* TTSManager.swift */,
+				A991E02D268562D213F8595C /* FirestoreConstants.swift */,
 			);
 			name = Core;
 			path = Core;
@@ -935,6 +940,7 @@
 				54473EE46835F753086266F6 /* SetWaterGoalView.swift */,
 				6F205CCE1C9A9F38DEB82AD7 /* WaterBottleUI.swift */,
 				CEC2D8304CEC81747A4503D5 /* WaterTrackingCardView.swift */,
+				0EF37585737E4A8C14E02C74 /* DailyLogServicing.swift */,
 			);
 			name = Nutrition;
 			path = Nutrition;
@@ -1435,6 +1441,8 @@
 				B3766EBB4E84B3A67F2838B1 /* WorkoutPlayerViewModel.swift in Sources */,
 				4B52090C5864D02B7F5FB8D9 /* WorkoutReport.swift in Sources */,
 				E9419459ABD24C111332CFDF /* PreBuiltProgramsView.swift in Sources */,
+				4C33041334A21BB0243616A7 /* FirestoreConstants.swift in Sources */,
+				BADFABBFAE8572B85E143FB4 /* DailyLogServicing.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

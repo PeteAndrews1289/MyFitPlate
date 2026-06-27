@@ -80,7 +80,7 @@ struct FastingTrackerCard: View {
                             .font(.caption2.weight(.bold))
                             .foregroundColor(.secondary)
                         Text(format(remaining))
-                            .font(.system(size: 34, weight: .bold))
+                            .appFont(size: 34, weight: .bold)
                             .monospacedDigit()
                             .foregroundColor(.orange)
                         Text("\(Int((progress * 100).rounded()))% complete")

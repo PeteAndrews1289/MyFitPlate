@@ -140,7 +140,7 @@ struct TodaysNextStepSlider: View {
     private func chevron(systemName: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .foregroundColor(enabled ? .brandPrimary : Color(UIColor.tertiaryLabel))
                 .frame(width: 34, height: 34)
                 .background(Color.brandPrimary.opacity(enabled ? 0.10 : 0.04), in: Circle())

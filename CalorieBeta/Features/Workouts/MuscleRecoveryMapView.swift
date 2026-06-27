@@ -85,7 +85,7 @@ struct MuscleRecoveryMapView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "figure.mind.and.body")
-                    .font(.system(size: 18, weight: .bold))
+                    .appFont(size: 18, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -132,7 +132,7 @@ struct MuscleRecoveryMapView: View {
                     .animation(.spring(response: 1.0, dampingFraction: 0.8), value: recovery.recoveryPercentage)
                 
                 Image(systemName: recovery.group.icon)
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(recovery.statusColor)
             }
             .frame(width: 36, height: 36)

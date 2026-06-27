@@ -53,7 +53,7 @@ struct AIJournalSheet: View {
                     VStack(spacing: 16) {
                         Spacer()
                         Image(systemName: "book.closed")
-                            .font(.system(size: 50))
+                            .appFont(size: 50)
                             .foregroundColor(.secondary)
                             .opacity(0.5)
                         

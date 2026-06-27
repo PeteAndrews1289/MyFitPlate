@@ -23,23 +23,23 @@ struct FoodSearchRow: View {
         HStack(spacing: 10) {
                 HStack(spacing: 12) {
                     Text(FoodEmojiMapper.getEmoji(for: food.name))
-                        .font(.system(size: 23))
+                        .appFont(size: 23)
                         .frame(width: 42, height: 42)
                         .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(food.name)
-                            .font(.system(size: 15, weight: .bold))
+                            .appFont(size: 15, weight: .bold)
                             .foregroundColor(.textPrimary)
                             .lineLimit(2)
 
                         Text(servingText)
-                            .font(.system(size: 12, weight: .medium))
+                            .appFont(size: 12, weight: .medium)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                             .lineLimit(1)
 
                         Text(detailText)
-                            .font(.system(size: 11, weight: .semibold))
+                            .appFont(size: 11, weight: .semibold)
                             .foregroundColor(.brandPrimary)
                             .lineLimit(1)
                     }
@@ -47,7 +47,7 @@ struct FoodSearchRow: View {
                     Spacer(minLength: 6)
 
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .bold))
+                        .appFont(size: 12, weight: .bold)
                         .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
                 // A tap gesture (not a Button) lets a drag starting on the row pass through to the
@@ -60,7 +60,7 @@ struct FoodSearchRow: View {
                 if let onQuickLog {
                     Button(action: { onQuickLog(food) }) {
                         Image(systemName: isQuickLogged ? "checkmark" : "plus")
-                            .font(.system(size: 16, weight: .bold))
+                            .appFont(size: 16, weight: .bold)
                             .foregroundColor(.white)
                             .frame(width: 36, height: 36)
                             .background(isQuickLogged ? Color.accentPositive : Color.brandPrimary, in: Circle())
@@ -73,7 +73,7 @@ struct FoodSearchRow: View {
                 if let onDelete {
                     Button(role: .destructive, action: { onDelete(food) }) {
                         Image(systemName: "trash")
-                            .font(.system(size: 14, weight: .semibold))
+                            .appFont(size: 14, weight: .semibold)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                             .frame(width: 34, height: 34)
                     }
@@ -104,12 +104,12 @@ struct FoodHorizontalScroller: View {
         VStack(alignment: .leading, spacing: 11) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 18, weight: .bold))
+                    .appFont(size: 18, weight: .bold)
                     .foregroundColor(.textPrimary)
 
                 if !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.system(size: 12, weight: .medium))
+                        .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
             }
@@ -153,7 +153,7 @@ struct FoodCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
                     Text(FoodEmojiMapper.getEmoji(for: food.name))
-                        .font(.system(size: 32))
+                        .appFont(size: 32)
 
                     Spacer()
 
@@ -164,7 +164,7 @@ struct FoodCard: View {
                             onQuickLog(food)
                         }) {
                             Image(systemName: isQuickLogged ? "checkmark.circle.fill" : "plus.circle.fill")
-                                .font(.system(size: 24))
+                                .appFont(size: 24)
                                 .foregroundColor(isQuickLogged ? .accentPositive : .brandPrimary)
                         }
                         .disabled(isQuickLogged)
@@ -176,18 +176,18 @@ struct FoodCard: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(food.name)
-                        .font(.system(size: 15, weight: .bold))
+                        .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
 
                     Text(servingText)
-                        .font(.system(size: 11, weight: .medium))
+                        .appFont(size: 11, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .lineLimit(1)
 
                     Text("\(Int(food.calories.rounded())) cal")
-                        .font(.system(size: 13, weight: .medium))
+                        .appFont(size: 13, weight: .medium)
                         .foregroundColor(.brandPrimary)
                 }
             }
@@ -208,11 +208,11 @@ struct FoodSearchLoadingState: View {
                 .tint(.brandPrimary)
 
             Text("Searching foods")
-                .font(.system(size: 17, weight: .bold))
+                .appFont(size: 17, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             Text(query.trimmingCharacters(in: .whitespacesAndNewlines))
-                .font(.system(size: 13, weight: .medium))
+                .appFont(size: 13, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .lineLimit(1)
         }
@@ -230,18 +230,18 @@ struct FoodSearchEmptyState: View {
     var body: some View {
         VStack(spacing: 11) {
             Image(systemName: icon)
-                .font(.system(size: 22, weight: .semibold))
+                .appFont(size: 22, weight: .semibold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 48, height: 48)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
 
             VStack(spacing: 4) {
                 Text(title)
-                    .font(.system(size: 16, weight: .bold))
+                    .appFont(size: 16, weight: .bold)
                     .foregroundColor(.textPrimary)
 
                 Text(message)
-                    .font(.system(size: 13, weight: .medium))
+                    .appFont(size: 13, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)

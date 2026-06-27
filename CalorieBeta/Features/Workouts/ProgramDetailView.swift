@@ -419,7 +419,7 @@ private struct ProgramPreviewActionCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -472,7 +472,7 @@ private struct ProgramScheduleSetupCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "calendar.badge.clock")
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -523,7 +523,7 @@ private struct ProgramNextWorkoutCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "play.circle.fill")
-                    .font(.system(size: 20, weight: .bold))
+                    .appFont(size: 20, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 44, height: 44)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
@@ -605,7 +605,7 @@ private struct ProgramCompleteSummaryCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 21, weight: .bold))
+                .appFont(size: 21, weight: .bold)
                 .foregroundColor(.accentPositive)
                 .frame(width: 44, height: 44)
                 .background(Color.accentPositive.opacity(0.12), in: Circle())
@@ -636,7 +636,7 @@ private struct ProgramCalendarCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "calendar")
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(.blue)
                     .frame(width: 42, height: 42)
                     .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -671,7 +671,7 @@ private struct ProgramRoutineBreakdownCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "list.bullet.rectangle.fill")
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(.orange)
                     .frame(width: 42, height: 42)
                     .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -750,7 +750,7 @@ private struct ProgramRoutineCard: View {
                 if allowsEditing {
                     Button(action: onEdit) {
                         Image(systemName: "pencil")
-                            .font(.system(size: 12, weight: .bold))
+                            .appFont(size: 12, weight: .bold)
                             .foregroundColor(.blue)
                             .frame(width: 31, height: 31)
                             .background(Color.blue.opacity(0.10), in: Circle())
@@ -761,7 +761,7 @@ private struct ProgramRoutineCard: View {
                 if allowsStarting {
                     Button(action: onStart) {
                         Image(systemName: "play.fill")
-                            .font(.system(size: 11, weight: .bold))
+                            .appFont(size: 11, weight: .bold)
                             .foregroundColor(.white)
                             .frame(width: 31, height: 31)
                             .background(Color.brandPrimary, in: Circle())
@@ -823,7 +823,7 @@ private struct CalendarView: View {
             HStack(spacing: 10) {
                 Button(action: { self.month = Calendar.current.date(byAdding: .month, value: -1, to: self.month) ?? self.month }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 12, weight: .bold))
+                        .appFont(size: 12, weight: .bold)
                         .foregroundColor(.brandPrimary)
                         .frame(width: 32, height: 32)
                         .background(Color.brandPrimary.opacity(0.10), in: Circle())
@@ -840,7 +840,7 @@ private struct CalendarView: View {
 
                 Button(action: { self.month = Calendar.current.date(byAdding: .month, value: 1, to: self.month) ?? self.month }) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .bold))
+                        .appFont(size: 12, weight: .bold)
                         .foregroundColor(.brandPrimary)
                         .frame(width: 32, height: 32)
                         .background(Color.brandPrimary.opacity(0.10), in: Circle())
@@ -886,13 +886,13 @@ private struct CalendarView: View {
 
                                 if dayEntry.isCompleted {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 12, weight: .bold))
+                                        .appFont(size: 12, weight: .bold)
                                         .foregroundColor(.accentPositive)
                                         .background(Color.backgroundPrimary, in: Circle())
                                         .offset(x: 1, y: -1)
                                 } else if dayEntry.isSkipped {
                                     Image(systemName: "forward.end.fill")
-                                        .font(.system(size: 10, weight: .bold))
+                                        .appFont(size: 10, weight: .bold)
                                         .foregroundColor(Color(UIColor.secondaryLabel))
                                         .background(Color.backgroundPrimary, in: Circle())
                                         .offset(x: 1, y: -1)

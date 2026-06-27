@@ -106,11 +106,11 @@ private struct RecipeLibrarySummaryCard: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Recipe Library")
-                        .font(.system(size: 24, weight: .bold))
+                        .appFont(size: 24, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text("Saved meals ready to log or reuse.")
-                        .font(.system(size: 13, weight: .medium))
+                        .appFont(size: 13, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
 
@@ -118,7 +118,7 @@ private struct RecipeLibrarySummaryCard: View {
 
                 Button(action: onCreate) {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .bold))
+                        .appFont(size: 16, weight: .bold)
                         .foregroundColor(.white)
                         .frame(width: 40, height: 40)
                         .background(Color.brandPrimary, in: Circle())
@@ -145,12 +145,12 @@ private struct RecipeLibraryMetric: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
-                .font(.system(size: 22, weight: .bold))
+                .appFont(size: 22, weight: .bold)
                 .foregroundColor(color)
                 .lineLimit(1)
 
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .appFont(size: 11, weight: .semibold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -165,7 +165,7 @@ private struct RecipeSearchField: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 17, weight: .semibold))
+                .appFont(size: 17, weight: .semibold)
                 .foregroundColor(.brandPrimary)
 
             TextField("Search recipes or ingredients...", text: $searchText)
@@ -176,7 +176,7 @@ private struct RecipeSearchField: View {
                     searchText = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                        .appFont(size: 18, weight: .semibold)
                         .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
                 .buttonStyle(.plain)
@@ -202,22 +202,22 @@ private struct RecipeCardRow: View {
             NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
                 HStack(spacing: 12) {
                     Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-                        .font(.system(size: 28))
+                        .appFont(size: 28)
                         .frame(width: 50, height: 50)
                         .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 5) {
                         Text(recipe.name)
-                            .font(.system(size: 16, weight: .bold))
+                            .appFont(size: 16, weight: .bold)
                             .foregroundColor(.textPrimary)
                             .lineLimit(2)
 
                         Text("\(recipe.ingredients.count) ingredients")
-                            .font(.system(size: 12, weight: .medium))
+                            .appFont(size: 12, weight: .medium)
                             .foregroundColor(Color(UIColor.secondaryLabel))
 
                         Text("Cal \(Int(recipe.nutrition.calories.rounded()))  P \(Int(recipe.nutrition.protein.rounded()))g  C \(Int(recipe.nutrition.carbs.rounded()))g  F \(Int(recipe.nutrition.fats.rounded()))g")
-                            .font(.system(size: 11, weight: .bold))
+                            .appFont(size: 11, weight: .bold)
                             .foregroundColor(.brandPrimary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
@@ -226,7 +226,7 @@ private struct RecipeCardRow: View {
                     Spacer(minLength: 6)
 
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .bold))
+                        .appFont(size: 12, weight: .bold)
                         .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
                 .contentShape(Rectangle())
@@ -235,7 +235,7 @@ private struct RecipeCardRow: View {
 
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "trash")
-                    .font(.system(size: 14, weight: .semibold))
+                    .appFont(size: 14, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(width: 34, height: 34)
             }
@@ -254,7 +254,7 @@ private struct RecipeListLoadingState: View {
                 .tint(.brandPrimary)
 
             Text("Loading recipes")
-                .font(.system(size: 17, weight: .bold))
+                .appFont(size: 17, weight: .bold)
                 .foregroundColor(.textPrimary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -268,18 +268,18 @@ private struct RecipeListEmptyState: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "book.closed.fill")
-                .font(.system(size: 40, weight: .bold))
+                .appFont(size: 40, weight: .bold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 76, height: 76)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
 
             VStack(spacing: 5) {
                 Text("No saved recipes yet")
-                    .font(.system(size: 22, weight: .bold))
+                    .appFont(size: 22, weight: .bold)
                     .foregroundColor(.textPrimary)
 
                 Text("Create one with Maia or build it manually from foods you already log.")
-                    .font(.system(size: 14, weight: .medium))
+                    .appFont(size: 14, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -300,17 +300,17 @@ private struct RecipeListNoMatchesState: View {
     var body: some View {
         VStack(spacing: 11) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 22, weight: .semibold))
+                .appFont(size: 22, weight: .semibold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 48, height: 48)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
 
             Text("No matching recipes")
-                .font(.system(size: 16, weight: .bold))
+                .appFont(size: 16, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines))
-                .font(.system(size: 13, weight: .medium))
+                .appFont(size: 13, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .lineLimit(1)
         }

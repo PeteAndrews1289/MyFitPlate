@@ -348,7 +348,7 @@ struct ContentView: View {
 
      private func checkFirstLoginFirestore(userID: String, completion: @escaping (Bool) -> Void) {
          let db = Firestore.firestore()
-         db.collection("users").document(userID).getDocument { document, error in
+         db.collection(FirestoreCollection.users).document(userID).getDocument { document, error in
              if let document = document, document.exists, let data = document.data() {
                  completion(data["isFirstLogin"] as? Bool ?? true)
              } else {

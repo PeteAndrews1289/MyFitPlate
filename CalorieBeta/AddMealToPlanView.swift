@@ -227,18 +227,18 @@ private struct AddMealToPlanHero: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "calendar.badge.plus")
-                    .font(.system(size: 18, weight: .bold))
+                    .appFont(size: 18, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Add a Saved Recipe")
-                        .font(.system(size: 24, weight: .bold))
+                        .appFont(size: 24, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text(dateText)
-                        .font(.system(size: 13, weight: .medium))
+                        .appFont(size: 13, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
 
@@ -246,7 +246,7 @@ private struct AddMealToPlanHero: View {
 
                 Button(action: onCreate) {
                     Image(systemName: "plus")
-                        .font(.system(size: 15, weight: .bold))
+                        .appFont(size: 15, weight: .bold)
                         .foregroundColor(.white)
                         .frame(width: 38, height: 38)
                         .background(Color.brandPrimary, in: Circle())
@@ -256,7 +256,7 @@ private struct AddMealToPlanHero: View {
             }
 
             Text("Choose a slot, then add a recipe to this day's plan. You can still regenerate meals around it later.")
-                .font(.system(size: 13, weight: .medium))
+                .appFont(size: 13, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -277,7 +277,7 @@ private struct AddMealTypePicker: View {
                     HapticManager.instance.feedback(.light)
                 } label: {
                     Text(mealType)
-                        .font(.system(size: 13, weight: .bold))
+                        .appFont(size: 13, weight: .bold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
                         .foregroundColor(selectedMealType == mealType ? .brandPrimary : Color(UIColor.secondaryLabel))
@@ -307,18 +307,18 @@ private struct AddMealSlotModeCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "square.stack.3d.up.fill")
-                    .font(.system(size: 15, weight: .bold))
+                    .appFont(size: 15, weight: .bold)
                     .foregroundColor(.orange)
                     .frame(width: 36, height: 36)
                     .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(mealType) already has \(mealCount) \(mealLabel)")
-                        .font(.system(size: 15, weight: .bold))
+                        .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text("Add another recipe to this slot, or replace the current \(mealType.lowercased()) plan.")
-                        .font(.system(size: 12, weight: .medium))
+                        .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -341,7 +341,7 @@ private struct AddMealRecipeSearchField: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 17, weight: .semibold))
+                .appFont(size: 17, weight: .semibold)
                 .foregroundColor(.brandPrimary)
 
             TextField("Search recipes or ingredients...", text: $searchText)
@@ -352,7 +352,7 @@ private struct AddMealRecipeSearchField: View {
                     searchText = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                        .appFont(size: 18, weight: .semibold)
                         .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
                 .buttonStyle(.plain)
@@ -378,22 +378,22 @@ private struct AddMealRecipeCard: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-                .font(.system(size: 27))
+                .appFont(size: 27)
                 .frame(width: 50, height: 50)
                 .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(recipe.name)
-                    .font(.system(size: 16, weight: .bold))
+                    .appFont(size: 16, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .lineLimit(2)
 
                 Text("\(recipe.ingredients.count) ingredients")
-                    .font(.system(size: 12, weight: .medium))
+                    .appFont(size: 12, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
 
                 Text("Cal \(Int(recipe.nutrition.calories.rounded()))  P \(Int(recipe.nutrition.protein.rounded()))g  C \(Int(recipe.nutrition.carbs.rounded()))g  F \(Int(recipe.nutrition.fats.rounded()))g")
-                    .font(.system(size: 11, weight: .bold))
+                    .appFont(size: 11, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -408,7 +408,7 @@ private struct AddMealRecipeCard: View {
                         .frame(width: 42, height: 42)
                 } else {
                     Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .bold))
+                        .appFont(size: 18, weight: .bold)
                         .foregroundColor(.white)
                         .frame(width: 42, height: 42)
                 }
@@ -430,11 +430,11 @@ private struct AddMealToPlanLoadingState: View {
                 .tint(.brandPrimary)
 
             Text("Loading recipes")
-                .font(.system(size: 17, weight: .bold))
+                .appFont(size: 17, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             Text("Getting your saved meals ready to add.")
-                .font(.system(size: 13, weight: .medium))
+                .appFont(size: 13, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -448,18 +448,18 @@ private struct AddMealToPlanEmptyState: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "book.closed.fill")
-                .font(.system(size: 40, weight: .bold))
+                .appFont(size: 40, weight: .bold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 76, height: 76)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
 
             VStack(spacing: 5) {
                 Text("No saved recipes yet")
-                    .font(.system(size: 22, weight: .bold))
+                    .appFont(size: 22, weight: .bold)
                     .foregroundColor(.textPrimary)
 
                 Text("Create recipes first, then come back here to place them into a meal plan.")
-                    .font(.system(size: 14, weight: .medium))
+                    .appFont(size: 14, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -479,17 +479,17 @@ private struct AddMealNoMatchesState: View {
     var body: some View {
         VStack(spacing: 11) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 22, weight: .semibold))
+                .appFont(size: 22, weight: .semibold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 48, height: 48)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
 
             Text("No matching recipes")
-                .font(.system(size: 16, weight: .bold))
+                .appFont(size: 16, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines))
-                .font(.system(size: 13, weight: .medium))
+                .appFont(size: 13, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .lineLimit(1)
         }

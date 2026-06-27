@@ -203,7 +203,7 @@ private struct InsightCategoryPill: View {
     var body: some View {
         HStack(spacing: 7) {
             Image(systemName: category.iconName)
-                .font(.system(size: 11, weight: .bold))
+                .appFont(size: 11, weight: .bold)
 
             Text(category.displayName)
                 .appFont(size: 12, weight: .bold)
@@ -248,7 +248,7 @@ private struct InsightsEmptyState: View {
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "chart.line.text.clipboard")
-                .font(.system(size: 30, weight: .semibold))
+                .appFont(size: 30, weight: .semibold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 62, height: 62)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -274,7 +274,7 @@ private struct InsightDisclaimerCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "info.circle.fill")
-                .font(.system(size: 15, weight: .bold))
+                .appFont(size: 15, weight: .bold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .padding(.top, 1)
 
@@ -324,7 +324,7 @@ struct InsightDetailCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: insight.category.iconName)
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(insight.category.tintColor)
                     .frame(width: 40, height: 40)
                     .background(insight.category.tintColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))

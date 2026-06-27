@@ -14,7 +14,7 @@ class JournalEntryStore {
         guard let service = dailyLogService else { return }
         let dateToLog = service.activelyViewedDate
         let dateString = service.dateFormatter.string(from: dateToLog)
-        let logRef = db.collection("users").document(userID).collection("dailyLogs").document(dateString)
+        let logRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs).document(dateString)
 
         do {
             let encodedEntry = try Firestore.Encoder().encode(entry)
@@ -74,7 +74,7 @@ class JournalEntryStore {
         guard let service = dailyLogService else { return }
         let dateToLog = service.activelyViewedDate
         let dateString = service.dateFormatter.string(from: dateToLog)
-        let logRef = db.collection("users").document(userID).collection("dailyLogs").document(dateString)
+        let logRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs).document(dateString)
 
         if service.currentDailyLog?.date == dateToLog,
            let index = service.currentDailyLog?.journalEntries?.firstIndex(where: { $0.id == entry.id }) {

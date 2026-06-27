@@ -125,7 +125,7 @@ struct SavedProgramsEmptyState: View {
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "folder.badge.plus")
-                .font(.system(size: 30, weight: .semibold))
+                .appFont(size: 30, weight: .semibold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 62, height: 62)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -200,7 +200,7 @@ struct SavedProgramCard<Destination: View>: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: isActive ? "checkmark.seal.fill" : "calendar.badge.clock")
-                    .font(.system(size: 18, weight: .bold))
+                    .appFont(size: 18, weight: .bold)
                     .foregroundColor(statusColor)
                     .frame(width: 42, height: 42)
                     .background(statusColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -233,7 +233,7 @@ struct SavedProgramCard<Destination: View>: View {
                     Button("Delete", role: .destructive) { onDelete() }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 14, weight: .bold))
+                        .appFont(size: 14, weight: .bold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .frame(width: 34, height: 34)
                         .background(Color.backgroundPrimary.opacity(0.68), in: Circle())

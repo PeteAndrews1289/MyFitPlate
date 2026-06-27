@@ -48,15 +48,15 @@ class WorkoutService: ObservableObject, WorkoutServicing {
     }
 
     private func programsCollectionRef(for userID: String) -> CollectionReference{
-        return db.collection("users").document(userID).collection("workoutPrograms")
+        return db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutPrograms)
     }
 
     private func routinesCollectionRef(for userID: String) -> CollectionReference {
-        return db.collection("users").document(userID).collection("workoutRoutines")
+        return db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutRoutines)
     }
 
     private func sessionLogsCollectionRef(for userID: String) -> CollectionReference {
-        return db.collection("users").document(userID).collection("workoutSessionLogs")
+        return db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
     }
 
     // MARK: - Fetching & Saving

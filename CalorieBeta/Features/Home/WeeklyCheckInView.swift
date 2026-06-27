@@ -34,7 +34,7 @@ struct WeeklyCheckInView: View {
     private var headerSection: some View {
         VStack(spacing: 12) {
             Image(systemName: "sparkles")
-                .font(.system(size: 32, weight: .bold))
+                .appFont(size: 32, weight: .bold)
                 .foregroundColor(.brandPrimary)
                 .padding()
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -136,7 +136,7 @@ struct WeeklyCheckInView: View {
     private var needsDataSection: some View {
         VStack(spacing: 16) {
             Image(systemName: "chart.bar.doc.horizontal")
-                .font(.system(size: 40))
+                .appFont(size: 40)
                 .foregroundColor(.gray)
             
             Text("Needs More Data")
@@ -194,7 +194,7 @@ private struct WeeklyCheckInStatCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .bold))
+                .appFont(size: 16, weight: .bold)
                 .foregroundColor(color)
                 .padding(8)
                 .background(color.opacity(0.12), in: Circle())
@@ -268,7 +268,7 @@ struct TrendDashboardView: View {
             if chartData.count < 2 {
                 VStack(spacing: 8) {
                     Image(systemName: "scalemass")
-                        .font(.system(size: 28))
+                        .appFont(size: 28)
                         .foregroundColor(Color(UIColor.tertiaryLabel))
                     Text("Log a few more weigh-ins")
                         .appFont(size: 15, weight: .semibold)

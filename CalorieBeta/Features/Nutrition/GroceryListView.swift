@@ -227,11 +227,11 @@ struct GroceryListView: View {
 
                     VStack(spacing: 3) {
                         Text("Finding item")
-                            .font(.system(size: 17, weight: .bold))
+                            .appFont(size: 17, weight: .bold)
                             .foregroundColor(.textPrimary)
 
                         Text("Looking up that barcode...")
-                            .font(.system(size: 13, weight: .medium))
+                            .appFont(size: 13, weight: .medium)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     }
                 }
@@ -354,11 +354,11 @@ private struct GrocerySummaryCard: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Shopping Run")
-                        .font(.system(size: 24, weight: .bold))
+                        .appFont(size: 24, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text("\(remainingCount) left across \(categoryCount) \(categoryLabel).")
-                        .font(.system(size: 13, weight: .medium))
+                        .appFont(size: 13, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
 
@@ -367,7 +367,7 @@ private struct GrocerySummaryCard: View {
                 HStack(spacing: 8) {
                     Button(action: onAddManual) {
                         Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .bold))
+                            .appFont(size: 16, weight: .bold)
                             .foregroundColor(.white)
                             .frame(width: 42, height: 42)
                             .background(Color.brandPrimary, in: Circle())
@@ -377,7 +377,7 @@ private struct GrocerySummaryCard: View {
 
                     Button(action: onScan) {
                         Image(systemName: "barcode.viewfinder")
-                            .font(.system(size: 16, weight: .bold))
+                            .appFont(size: 16, weight: .bold)
                             .foregroundColor(.brandPrimary)
                             .frame(width: 42, height: 42)
                             .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -407,7 +407,7 @@ private struct GrocerySummaryCard: View {
                 .frame(height: 8)
 
                 Text(completedCount == totalCount ? "All set for this list." : "\(Int((progress * 100).rounded()))% checked off")
-                    .font(.system(size: 12, weight: .semibold))
+                    .appFont(size: 12, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
@@ -424,12 +424,12 @@ private struct GroceryMetricTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
-                .font(.system(size: 21, weight: .bold))
+                .appFont(size: 21, weight: .bold)
                 .foregroundColor(color)
                 .lineLimit(1)
 
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .appFont(size: 11, weight: .semibold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -452,7 +452,7 @@ private struct GroceryListDisplayControls: View {
                     hideCompletedItems ? "Show Done" : "Hide Done",
                     systemImage: hideCompletedItems ? "eye.fill" : "eye.slash.fill"
                 )
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .foregroundColor(completedCount == 0 ? Color(UIColor.tertiaryLabel) : .brandPrimary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 11)
@@ -462,7 +462,7 @@ private struct GroceryListDisplayControls: View {
             .disabled(completedCount == 0)
 
             Text("\(completedCount) checked")
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 11)
@@ -477,18 +477,18 @@ private struct GroceryAllCompleteState: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 30, weight: .bold))
+                .appFont(size: 30, weight: .bold)
                 .foregroundColor(.accentPositive)
                 .frame(width: 58, height: 58)
                 .background(Color.accentPositive.opacity(0.12), in: Circle())
 
             VStack(spacing: 4) {
                 Text("Everything visible is checked off")
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(.textPrimary)
 
                 Text("Completed items are hidden for a cleaner shopping run.")
-                    .font(.system(size: 13, weight: .medium))
+                    .appFont(size: 13, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .multilineTextAlignment(.center)
             }
@@ -518,13 +518,13 @@ private struct GroceryCategorySection: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text(category)
-                    .font(.system(size: 19, weight: .bold))
+                    .appFont(size: 19, weight: .bold)
                     .foregroundColor(.textPrimary)
 
                 Spacer()
 
                 Text("\(remainingCount) left")
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(remainingCount == 0 ? .accentPositive : Color(UIColor.secondaryLabel))
             }
             .padding(.horizontal, 2)
@@ -609,20 +609,20 @@ private struct GroceryItemRow: View {
             }) {
                 HStack(spacing: 12) {
                     Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20, weight: .semibold))
+                        .appFont(size: 20, weight: .semibold)
                         .foregroundColor(item.isCompleted ? .accentPositive : Color(UIColor.tertiaryLabel))
                         .scaleEffect(item.isCompleted ? 1.15 : 1.0)
                         .animation(.spring(response: 0.3, dampingFraction: 0.5), value: item.isCompleted)
 
                     Text(FoodEmojiMapper.getEmoji(for: item.name))
-                        .font(.system(size: 24))
+                        .appFont(size: 24)
                         .frame(width: 44, height: 44)
                         .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .opacity(item.isCompleted ? 0.6 : 1.0)
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.name.capitalized)
-                            .font(.system(size: 15, weight: .bold))
+                            .appFont(size: 15, weight: .bold)
                             .foregroundColor(item.isCompleted ? Color(UIColor.secondaryLabel) : .textPrimary)
                             .strikethrough(item.isCompleted, color: Color(UIColor.secondaryLabel))
                             .lineLimit(2)
@@ -630,7 +630,7 @@ private struct GroceryItemRow: View {
                         HStack(spacing: 6) {
                             if let quantityText {
                                 Text(quantityText)
-                                    .font(.system(size: 12, weight: .bold))
+                                    .appFont(size: 12, weight: .bold)
                                     .foregroundColor(.brandPrimary)
                                     .padding(.horizontal, 9)
                                     .padding(.vertical, 4)
@@ -639,7 +639,7 @@ private struct GroceryItemRow: View {
 
                             if let sourceText {
                                 Text(sourceText)
-                                    .font(.system(size: 12, weight: .bold))
+                                    .appFont(size: 12, weight: .bold)
                                     .foregroundColor(.accentCarbs)
                                     .padding(.horizontal, 9)
                                     .padding(.vertical, 4)
@@ -657,7 +657,7 @@ private struct GroceryItemRow: View {
 
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "trash")
-                    .font(.system(size: 14, weight: .semibold))
+                    .appFont(size: 14, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(width: 34, height: 34)
             }
@@ -689,11 +689,11 @@ private struct GroceryListLoadingState: View {
                 .tint(.brandPrimary)
 
             Text("Loading grocery list")
-                .font(.system(size: 17, weight: .bold))
+                .appFont(size: 17, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             Text("Pulling together your planned ingredients.")
-                .font(.system(size: 13, weight: .medium))
+                .appFont(size: 13, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
         }
@@ -709,18 +709,18 @@ private struct GroceryListEmptyState: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "cart.fill")
-                .font(.system(size: 39, weight: .bold))
+                .appFont(size: 39, weight: .bold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 76, height: 76)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
 
             VStack(spacing: 5) {
                 Text("No grocery list yet")
-                    .font(.system(size: 22, weight: .bold))
+                    .appFont(size: 22, weight: .bold)
                     .foregroundColor(.textPrimary)
 
                 Text("Generate a meal plan to build one automatically, add an item, or scan as you shop.")
-                    .font(.system(size: 14, weight: .medium))
+                    .appFont(size: 14, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -778,18 +778,18 @@ private struct ManualGroceryItemSheet: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 12) {
                             Image(systemName: "cart.badge.plus")
-                                .font(.system(size: 18, weight: .bold))
+                                .appFont(size: 18, weight: .bold)
                                 .foregroundColor(.brandPrimary)
                                 .frame(width: 42, height: 42)
                                 .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(initialItem == nil ? "Add Grocery Item" : "Edit Grocery Item")
-                                    .font(.system(size: 24, weight: .bold))
+                                    .appFont(size: 24, weight: .bold)
                                     .foregroundColor(.textPrimary)
 
                                 Text(initialItem == nil ? "Add anything you need outside the generated meal plan." : "Update this item's details.")
-                                    .font(.system(size: 13, weight: .medium))
+                                    .appFont(size: 13, weight: .medium)
                                     .foregroundColor(Color(UIColor.secondaryLabel))
                             }
                         }
@@ -799,7 +799,7 @@ private struct ManualGroceryItemSheet: View {
 
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Item")
-                            .font(.system(size: 15, weight: .bold))
+                            .appFont(size: 15, weight: .bold)
                             .foregroundColor(.textPrimary)
 
                         TextField("Chicken breast, blueberries, paper towels...", text: $name)
@@ -831,7 +831,7 @@ private struct ManualGroceryItemSheet: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Category")
-                            .font(.system(size: 15, weight: .bold))
+                            .appFont(size: 15, weight: .bold)
                             .foregroundColor(.textPrimary)
 
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
@@ -841,7 +841,7 @@ private struct ManualGroceryItemSheet: View {
                                     HapticManager.instance.feedback(.light)
                                 } label: {
                                     Text(option)
-                                        .font(.system(size: 13, weight: .bold))
+                                        .appFont(size: 13, weight: .bold)
                                         .foregroundColor(category == option ? .brandPrimary : Color(UIColor.secondaryLabel))
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 11)

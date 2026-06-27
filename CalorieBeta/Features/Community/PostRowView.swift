@@ -51,7 +51,7 @@ struct PostRowView: View {
         }
 
         let db = Firestore.firestore()
-        db.collection("posts").document(postId).updateData([
+        db.collection(FirestoreCollection.posts).document(postId).updateData([
             "likes": post.likes,
             "isLikedByCurrentUser": post.isLikedByCurrentUser
         ]) { error in

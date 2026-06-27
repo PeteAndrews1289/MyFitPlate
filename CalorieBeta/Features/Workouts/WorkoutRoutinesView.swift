@@ -233,7 +233,7 @@ struct WorkoutRoutinesView: View {
                 routineToPlay = routine
             } label: {
                 Image(systemName: "play.fill")
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(.white)
                     .frame(width: 34, height: 34)
                     .background(Color.brandPrimary, in: Circle())
@@ -249,7 +249,7 @@ struct WorkoutRoutinesView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 14, weight: .bold))
+                    .appFont(size: 14, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(width: 32, height: 32)
                     .background(Color.backgroundPrimary.opacity(0.68), in: Circle())

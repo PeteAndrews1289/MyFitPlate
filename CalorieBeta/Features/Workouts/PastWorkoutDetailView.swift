@@ -26,7 +26,7 @@ struct PastWorkoutDetailView: View {
                 // FAILURE: Could not find the detailed session log (maybe it was a manual entry)
                 VStack(spacing: 20) {
                     Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 60))
+                        .appFont(size: 60)
                         .foregroundColor(.orange)
                     Text("Simple Log Entry")
                         .appFont(size: 24, weight: .bold)

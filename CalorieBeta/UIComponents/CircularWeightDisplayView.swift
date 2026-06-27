@@ -41,7 +41,7 @@ struct CircularWeightDisplayView: View {
 
                 VStack {
                     Text(weightString)
-                        .font(.system(size: 50, weight: .bold, design: .rounded))
+                        .appFont(size: 50, weight: .bold)
                         .foregroundColor(Color.brandPrimary)
                     Text(BodyUnits.weightUnit(metric: useMetric))
                         .appFont(size: 20)

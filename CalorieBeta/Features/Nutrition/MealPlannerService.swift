@@ -56,7 +56,7 @@ class MealPlannerService: ObservableObject {
 
     // MARK: - Grocery List
     public func saveGroceryList(_ list: [GroceryListItem], for userID: String) {
-        let listRef = db.collection("users").document(userID).collection("userSettings").document("groceryList")
+        let listRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.userSettings).document(FirestoreDocument.groceryList)
         do {
             let listData = try list.map { try Firestore.Encoder().encode($0) }
             listRef.setData(["items": listData, "lastUpdated": Timestamp(date: Date())], merge: true)
@@ -66,7 +66,7 @@ class MealPlannerService: ObservableObject {
     }
 
     public func fetchGroceryList(for userID: String) async -> [GroceryListItem] {
-        let listRef = db.collection("users").document(userID).collection("userSettings").document("groceryList")
+        let listRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.userSettings).document(FirestoreDocument.groceryList)
         do {
             let document = try await listRef.getDocument()
             guard let data = document.data(), let itemsData = data["items"] as? [[String: Any]] else { return [] }
@@ -195,7 +195,7 @@ class MealPlannerService: ObservableObject {
         }
 
         let dateString = dateString(for: date)
-        let planRef = db.collection("users").document(userID).collection("mealPlans").document(dateString)
+        let planRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.mealPlans).document(dateString)
         do {
             let plan = try await planRef.getDocument(as: MealPlanDay.self)
             planCache[key] = plan
@@ -207,7 +207,7 @@ class MealPlannerService: ObservableObject {
     }
 
     public func savePlan(_ plan: MealPlanDay, for userID: String) async {
-        guard let planID = plan.id else { return }; let planRef = db.collection("users").document(userID).collection("mealPlans").document(planID)
+        guard let planID = plan.id else { return }; let planRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.mealPlans).document(planID)
         do {
             let data = try Firestore.Encoder().encode(MealPlanPayload(date: plan.date, meals: plan.meals))
             try await planRef.setData(data, merge: true)
@@ -219,7 +219,7 @@ class MealPlannerService: ObservableObject {
     }
 
     public func saveFullMealPlan(days: [MealPlanDay], for userID: String) async {
-        let batch = db.batch(); let collectionRef = db.collection("users").document(userID).collection("mealPlans")
+        let batch = db.batch(); let collectionRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.mealPlans)
         for day in days {
             if let dayId = day.id {
                 do {

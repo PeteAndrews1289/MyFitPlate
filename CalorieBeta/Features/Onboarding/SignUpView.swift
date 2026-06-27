@@ -159,12 +159,12 @@ struct SignUpView: View {
             "userLevel": 1
         ]
 
-        db.collection("users").document(user.uid).setData(userData) { error in
+        db.collection(FirestoreCollection.users).document(user.uid).setData(userData) { error in
             if let error = error {
                 isLoading = false
                 signUpError = "Failed to save user data: \(error.localizedDescription)"
             } else {
-                db.collection("users").document(user.uid).collection("calorieHistory").addDocument(data: [
+                db.collection(FirestoreCollection.users).document(user.uid).collection(FirestoreCollection.calorieHistory).addDocument(data: [
                     "date": Timestamp(date: Date()),
                     "calories": 0.0
                 ]) { historyError in

@@ -3,7 +3,7 @@ import FirebaseAuth
 import FirebaseFirestore
 import FirebaseAnalytics
 
-class DailyLogService: ObservableObject {
+class DailyLogService: ObservableObject, DailyLogServicing {
     @Published var currentDailyLog: DailyLog?
     @Published var activelyViewedDate: Date = Calendar.current.startOfDay(for: Date())
     @Published var smartSuggestions: [FoodItem] = []
@@ -176,7 +176,7 @@ class DailyLogService: ObservableObject {
 
     func updateDailyLog(for userID: String, updatedLog: DailyLog, completion: ((Bool) -> Void)? = nil) {
         guard let logID = updatedLog.id else { completion?(false); return }
-        let ref = db.collection("users").document(userID).collection("dailyLogs").document(logID)
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs).document(logID)
         do {
             try ref.setData(from: updatedLog, merge: true) { err in
                  if err == nil {
@@ -216,7 +216,7 @@ class DailyLogService: ObservableObject {
 
         self.activelyViewedDate = startOfDayForRequestedDate
         let dateString = dateFormatter.string(from: startOfDayForRequestedDate)
-        let logRef = db.collection("users").document(userID).collection("dailyLogs").document(dateString)
+        let logRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs).document(dateString)
 
         logListener?.remove()
         self.activeListenerDate = startOfDayForRequestedDate
@@ -270,7 +270,7 @@ class DailyLogService: ObservableObject {
     func fetchLogInternal(for userID: String, date: Date, completion: @escaping (Result<DailyLog, Error>) -> Void) {
         let startOfDay = Calendar.current.startOfDay(for: date)
         let dateString = dateFormatter.string(from: startOfDay)
-        let logRef = db.collection("users").document(userID).collection("dailyLogs").document(dateString)
+        let logRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs).document(dateString)
         logRef.getDocument { document, error in
             if let e = error { completion(.failure(e)); return }
             if let d = document, d.exists, let data = d.data() {
@@ -294,7 +294,7 @@ class DailyLogService: ObservableObject {
             return
         }
 
-        db.collection("users").document(userID).collection("dailyLogs")
+        db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs)
             .whereField("date", isGreaterThanOrEqualTo: Timestamp(date: startDate))
             .whereField("date", isLessThanOrEqualTo: Timestamp(date: endDate))
             .getDocuments { snapshot, error in
@@ -674,7 +674,7 @@ class DailyLogService: ObservableObject {
     }
 
     func fetchDailyHistory(for userID: String, startDate: Date? = nil, endDate: Date? = nil) async -> Result<[DailyLog], Error> {
-        var query: Query = db.collection("users").document(userID).collection("dailyLogs")
+        var query: Query = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs)
         let queryStartDate = startDate.map { Calendar.current.startOfDay(for: $0) }
         let queryEndDate = endDate.map { Calendar.current.startOfDay(for: $0) }
 

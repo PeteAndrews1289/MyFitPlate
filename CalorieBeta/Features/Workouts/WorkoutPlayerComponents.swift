@@ -142,7 +142,7 @@ struct WorkoutSessionControlBar: View {
             HStack(spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "timer")
-                        .font(.system(size: 12, weight: .bold))
+                        .appFont(size: 12, weight: .bold)
                         .foregroundColor(isAutoRestEnabled ? .accentPositive : Color(UIColor.secondaryLabel))
 
                     VStack(alignment: .leading, spacing: 1) {
@@ -165,7 +165,7 @@ struct WorkoutSessionControlBar: View {
                 Button(action: onPlateCalculator) {
                     VStack(spacing: 4) {
                         Image(systemName: "square.stack.3d.up.fill")
-                            .font(.system(size: 15, weight: .bold))
+                            .appFont(size: 15, weight: .bold)
                         Text("Plates")
                             .appFont(size: 11, weight: .bold)
                     }
@@ -246,7 +246,7 @@ struct WorkoutSessionHeaderCard: View {
 
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
+                        .appFont(size: 13, weight: .bold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .frame(width: 34, height: 34)
                         .background(Color.backgroundPrimary.opacity(0.72), in: Circle())
@@ -315,7 +315,7 @@ struct WorkoutHeaderMetric: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .bold))
+                    .appFont(size: 10, weight: .bold)
                     .foregroundColor(color)
 
                 Text(title)
@@ -504,7 +504,7 @@ struct ExerciseCardView: View {
                     restTimer.start(duration: TimeInterval(exercise.restTimeInSeconds), routineName: routineName)
                 } label: {
                     Image(systemName: "timer")
-                        .font(.system(size: 13, weight: .bold))
+                        .appFont(size: 13, weight: .bold)
                         .foregroundColor(.brandPrimary)
                         .frame(width: 32, height: 32)
                         .background(Color.brandPrimary.opacity(0.10), in: Circle())
@@ -551,7 +551,7 @@ struct ExerciseCardView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 13, weight: .bold))
+                    .appFont(size: 13, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(width: 32, height: 32)
                     .background(Color.backgroundPrimary.opacity(0.72), in: Circle())
@@ -734,7 +734,7 @@ struct StrengthSetRow: View {
                 Button(action: fillFromPrevious) {
                     Text(previousSet.map { "\(String(format: "%g", $0.weight)) lb x \($0.reps)" } ?? "No prior")
                         .foregroundColor(previousSet == nil ? .secondary : .brandPrimary)
-                        .font(.system(size: 13, weight: .semibold))
+                        .appFont(size: 13, weight: .semibold)
                         .lineLimit(1)
                         .minimumScaleFactor(0.76)
                 }
@@ -766,7 +766,7 @@ struct StrengthSetRow: View {
                 Button(action: { showingPlateMath = true }) {
                     Image(systemName: "circle.grid.cross")
                         .foregroundColor(.brandPrimary)
-                        .font(.system(size: 14, weight: .bold))
+                        .appFont(size: 14, weight: .bold)
                 }.buttonStyle(.plain).padding(.leading, 4)
             }
             .frame(maxWidth: .infinity, alignment: .center)
@@ -1160,7 +1160,7 @@ struct PlateView: View {
                 )
 
             Text(weight.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(weight))" : "\(weight, specifier: "%.1f")")
-                .font(.system(size: 8, weight: .bold))
+                .appFont(size: 8, weight: .bold)
                 .foregroundColor(.white)
                 .rotationEffect(.degrees(-90))
         }

@@ -22,7 +22,7 @@ struct HealthActivityCard: View {
                 
                 HStack(alignment: .lastTextBaseline, spacing: 4) {
                     Text("\(Int(healthViewModel.todaySteps))")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .appFont(size: 24, weight: .bold)
                         .foregroundColor(.primary)
                     Text("/ \(Int(stepGoal))")
                         .font(.caption)
@@ -61,7 +61,7 @@ struct HealthActivityCard: View {
                 
                 HStack(alignment: .lastTextBaseline, spacing: 4) {
                     Text("\(Int(healthViewModel.todayActiveEnergy))")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .appFont(size: 24, weight: .bold)
                         .foregroundColor(.primary)
                     Text("kcal")
                         .font(.caption)

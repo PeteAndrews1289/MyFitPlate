@@ -157,7 +157,7 @@ struct MenuScannerView: View {
                 } else {
                     VStack(spacing: 24) {
                         Image(systemName: "menucard")
-                            .font(.system(size: 60))
+                            .appFont(size: 60)
                             .foregroundColor(.brandPrimary)
                         
                         Text("Menu Matchmaker")
@@ -269,7 +269,7 @@ struct MenuScannerView: View {
     private func menuBudgetBanner(remaining: Double) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 14, weight: .bold))
+                .appFont(size: 14, weight: .bold)
                 .foregroundColor(.orange)
                 .frame(width: 30, height: 30)
                 .background(Color.orange.opacity(0.14), in: Circle())
@@ -292,7 +292,7 @@ struct MenuScannerView: View {
     private func menuMealCard(_ meal: FoodItem, fitsBudget: Bool) -> some View {
         HStack(spacing: 14) {
             Image(systemName: "fork.knife")
-                .font(.system(size: 16, weight: .bold))
+                .appFont(size: 16, weight: .bold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 44, height: 44)
                 .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -325,7 +325,7 @@ struct MenuScannerView: View {
             Spacer(minLength: 6)
 
             Image(systemName: "plus.circle.fill")
-                .font(.system(size: 26))
+                .appFont(size: 26)
                 .foregroundColor(.brandPrimary)
         }
         .padding(14)

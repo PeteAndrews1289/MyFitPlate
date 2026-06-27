@@ -85,7 +85,7 @@ struct UserProfileView: View {
     func profileHeader() -> some View {
          HStack(alignment: .top, spacing: 14) {
               Image(systemName: "person.crop.circle.fill")
-                 .font(.system(size: 58, weight: .regular))
+                 .appFont(size: 58, weight: .regular)
                  .foregroundColor(.brandPrimary)
                  .frame(width: 72, height: 72)
                  .background(Color.brandPrimary.opacity(0.10), in: Circle())
@@ -164,7 +164,7 @@ struct UserProfileView: View {
         Button(action: { showingChallenges = true }) {
             HStack(spacing: 12) {
                 Image(systemName: "flame.fill")
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(.orange)
                     .frame(width: 40, height: 40)
                     .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -206,7 +206,7 @@ struct UserProfileView: View {
     func statBox(title: String, subtitle: String, icon: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .bold))
+                .appFont(size: 15, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 34, height: 34)
                 .background(color.opacity(0.12), in: Circle())
@@ -345,7 +345,7 @@ struct AchievementCardView: View {
                      ) {
                          Image(systemName: "square.and.arrow.up")
                              .foregroundColor(.brandPrimary)
-                             .font(.system(size: 16, weight: .bold))
+                             .appFont(size: 16, weight: .bold)
                              .padding(8)
                              .background(Color.brandPrimary.opacity(0.15))
                              .clipShape(Circle())
@@ -375,7 +375,7 @@ struct AchievementCardView: View {
                         HStack{
                             Spacer()
                             Image(systemName: "questionmark.diamond.fill")
-                                .font(.system(size: 50))
+                                .appFont(size: 50)
                                 .foregroundColor(Color(UIColor.secondaryLabel).opacity(0.2))
                                 .padding()
                             Spacer()

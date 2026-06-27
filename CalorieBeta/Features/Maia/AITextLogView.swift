@@ -21,7 +21,7 @@ struct AITextLogView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 12) {
                                 Image(systemName: "text.bubble.fill")
-                                    .font(.system(size: 18, weight: .bold))
+                                    .appFont(size: 18, weight: .bold)
                                     .foregroundColor(.brandPrimary)
                                     .frame(width: 42, height: 42)
                                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))

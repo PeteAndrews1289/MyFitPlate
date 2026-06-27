@@ -255,7 +255,7 @@ class RecipeService: ObservableObject {
     func fetchUserRecipes() async {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         isLoading = true
-        let userRecipesCollection = db.collection("users").document(userID).collection("recipes")
+        let userRecipesCollection = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.recipes)
         do {
             let snapshot = try await userRecipesCollection.getDocuments()
             self.userRecipes = snapshot.documents.compactMap { document -> Recipe? in
@@ -269,7 +269,7 @@ class RecipeService: ObservableObject {
 
     @discardableResult
     func saveRecipe(_ recipe: Recipe, for userID: String) async throws -> Recipe {
-        let userRecipesCollection = db.collection("users").document(userID).collection("recipes")
+        let userRecipesCollection = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.recipes)
         var recipeToSave = recipe
         if let id = recipeToSave.id {
             try userRecipesCollection.document(id).setData(from: recipeToSave)
@@ -293,7 +293,7 @@ class RecipeService: ObservableObject {
     func deleteRecipe(recipe: Recipe) async {
         guard let userID = Auth.auth().currentUser?.uid, let recipeID = recipe.id else { return }
         do {
-            try await db.collection("users").document(userID).collection("recipes").document(recipeID).delete()
+            try await db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.recipes).document(recipeID).delete()
             if let index = userRecipes.firstIndex(where: { $0.id == recipeID }) { userRecipes.remove(at: index) }
         } catch {
             AppLog.recipes.error("Failed to delete recipe: \(error.localizedDescription, privacy: .public)")

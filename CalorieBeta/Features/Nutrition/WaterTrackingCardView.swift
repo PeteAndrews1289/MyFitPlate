@@ -30,7 +30,7 @@ struct WaterTrackingCardView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
                         Image(systemName: "drop.fill")
-                            .font(.system(size: 14, weight: .bold))
+                            .appFont(size: 14, weight: .bold)
                             .foregroundColor(.cyan)
                             .frame(width: 30, height: 30)
                             .background(Color.cyan.opacity(0.12), in: Circle())
@@ -111,7 +111,7 @@ struct WaterTrackingCardView: View {
             if let insight = insight {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "lightbulb.fill")
-                        .font(.system(size: 13, weight: .bold))
+                        .appFont(size: 13, weight: .bold)
                         .foregroundColor(.yellow)
                         .frame(width: 28, height: 28)
                         .background(Color.yellow.opacity(0.14), in: Circle())
@@ -156,7 +156,7 @@ private struct WaterAdjustButton: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                 Text(title)
                     .appFont(size: 12, weight: .semibold)
             }

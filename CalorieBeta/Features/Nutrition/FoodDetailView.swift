@@ -196,18 +196,18 @@ struct FoodDetailView: View {
     @ViewBuilder private var servingControlsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Serving")
-                .font(.system(size: 18, weight: .bold))
+                .appFont(size: 18, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(isLoggedItem ? "Logged servings" : "Number of servings")
-                        .font(.system(size: 13, weight: .semibold))
+                        .appFont(size: 13, weight: .semibold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
 
                     TextField("Quantity", text: $quantity)
                         .keyboardType(.decimalPad)
-                        .font(.system(size: 28, weight: .bold))
+                        .appFont(size: 28, weight: .bold)
                         .foregroundColor(.textPrimary)
                         .multilineTextAlignment(.leading)
                 }
@@ -215,7 +215,7 @@ struct FoodDetailView: View {
                 Spacer()
 
                 Image(systemName: "number")
-                    .font(.system(size: 17, weight: .bold))
+                    .appFont(size: 17, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -234,16 +234,16 @@ struct FoodDetailView: View {
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: "fork.knife")
-                                .font(.system(size: 14, weight: .bold))
+                                .appFont(size: 14, weight: .bold)
                                 .foregroundColor(.brandPrimary)
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Serving size")
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .appFont(size: 13, weight: .semibold)
                                     .foregroundColor(Color(UIColor.secondaryLabel))
 
                                 Text(selectedServingOption?.description ?? "Select...")
-                                    .font(.system(size: 15, weight: .bold))
+                                    .appFont(size: 15, weight: .bold)
                                     .foregroundColor(.textPrimary)
                                     .lineLimit(2)
                             }
@@ -251,7 +251,7 @@ struct FoodDetailView: View {
                             Spacer()
 
                             Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 12, weight: .bold))
+                                .appFont(size: 12, weight: .bold)
                                 .foregroundColor(Color(UIColor.tertiaryLabel))
                         }
                         .padding(14)
@@ -260,12 +260,12 @@ struct FoodDetailView: View {
                     .buttonStyle(.plain)
                 } else if !isLoadingDetails {
                     Text("No other serving sizes available.")
-                        .font(.system(size: 12, weight: .medium))
+                        .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
             } else if let baseNutrients = baseLoggedItemNutrientsPerUnit {
                 Text("Base serving: \(baseNutrients.description)")
-                    .font(.system(size: 13, weight: .medium))
+                    .appFont(size: 13, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
@@ -279,7 +279,7 @@ struct FoodDetailView: View {
 
         VStack(alignment: .leading, spacing: 13) {
             Text("Nutrition Details")
-                .font(.system(size: 18, weight: .bold))
+                .appFont(size: 18, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             DisclosureGroup("Fat & Fiber") {

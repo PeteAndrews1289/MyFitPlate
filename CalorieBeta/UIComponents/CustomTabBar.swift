@@ -7,7 +7,7 @@ struct AnimatedActionButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "plus")
-                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .appFont(size: 26, weight: .bold)
                 .foregroundColor(.white)
                 .rotationEffect(Angle(degrees: isActive ? 45 : 0))
                 .frame(width: 62, height: 62)

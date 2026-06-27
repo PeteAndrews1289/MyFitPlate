@@ -28,7 +28,7 @@ class GroupService: ObservableObject {
         ]
 
         // Save the new group document to Firestore
-        db.collection("groups").document(groupID).setData(groupData) { error in
+        db.collection(FirestoreCollection.groups).document(groupID).setData(groupData) { error in
             if let error = error {
                 completion(.failure(error))
             } else {
@@ -39,7 +39,7 @@ class GroupService: ObservableObject {
 
     // MARK: - Fetch All Groups
     func fetchGroups(completion: @escaping (Result<[CommunityGroup], Error>) -> Void) {
-        db.collection("groups").getDocuments { snapshot, error in
+        db.collection(FirestoreCollection.groups).getDocuments { snapshot, error in
             if let error = error {
                 completion(.failure(error))
                 return
@@ -76,7 +76,7 @@ class GroupService: ObservableObject {
             "joinedAt": Timestamp(date: Date())
         ]
 
-        db.collection("groupMemberships").document(membershipID).setData(membershipData) { error in
+        db.collection(FirestoreCollection.groupMemberships).document(membershipID).setData(membershipData) { error in
             if let error = error {
                 completion(error)
             } else {
@@ -88,7 +88,7 @@ class GroupService: ObservableObject {
     // MARK: - Leave Group
     func leaveGroup(userID: String, groupID: String, completion: @escaping (Error?) -> Void) {
         let membershipID = "\(userID)_\(groupID)"
-        db.collection("groupMemberships").document(membershipID).delete { error in
+        db.collection(FirestoreCollection.groupMemberships).document(membershipID).delete { error in
             completion(error)
         }
     }

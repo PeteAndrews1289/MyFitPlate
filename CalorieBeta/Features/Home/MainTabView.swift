@@ -122,7 +122,7 @@ struct MainTabView: View {
                                 }
                             } label: {
                                 Image(systemName: "xmark")
-                                    .font(.system(size: 13, weight: .bold))
+                                    .appFont(size: 13, weight: .bold)
                                     .foregroundColor(Color(UIColor.secondaryLabel))
                                     .frame(width: 32, height: 32)
                                     .background(Color.backgroundPrimary.opacity(0.78), in: Circle())
@@ -292,7 +292,7 @@ struct MainTabView: View {
                         .fill(tint.opacity(0.14))
 
                     Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
+                        .appFont(size: 18, weight: .semibold)
                         .foregroundColor(tint)
                 }
                 .frame(width: 44, height: 44)
@@ -312,7 +312,7 @@ struct MainTabView: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(.vertical, 10)

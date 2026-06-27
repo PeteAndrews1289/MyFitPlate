@@ -114,7 +114,7 @@ private struct WelcomeFeatureRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .bold))
+                .appFont(size: 18, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 42, height: 42)
                 .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))

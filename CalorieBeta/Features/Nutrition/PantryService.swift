@@ -53,7 +53,7 @@ class PantryService: ObservableObject {
         listeningUserID = userID
         isLoading = true
 
-        let ref = db.collection("users").document(userID).collection("pantryItems")
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.pantryItems)
         listenerRegistration = ref.addSnapshotListener { [weak self] snapshot, error in
             guard let self else { return }
             self.isLoading = false
@@ -95,7 +95,7 @@ class PantryService: ObservableObject {
             itemToSave.dateAdded = existing.dateAdded ?? item.dateAdded
         }
 
-        let ref = db.collection("users").document(userID).collection("pantryItems").document(itemToSave.id.uuidString)
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.pantryItems).document(itemToSave.id.uuidString)
         do {
             try ref.setData(from: itemToSave)
         } catch {
@@ -104,7 +104,7 @@ class PantryService: ObservableObject {
     }
 
     func deleteItem(_ item: PantryItem, userID: String) {
-        let ref = db.collection("users").document(userID).collection("pantryItems").document(item.id.uuidString)
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.pantryItems).document(item.id.uuidString)
         ref.delete { error in
             if let error {
                 AppLog.data.error("Error deleting pantry item: \(error.localizedDescription, privacy: .public)")

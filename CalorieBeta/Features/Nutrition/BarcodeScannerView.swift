@@ -30,7 +30,7 @@ struct BarcodeScannerView: View {
             // Fallback for unsupported devices (like Simulators)
             VStack(spacing: 20) {
                 Image(systemName: "camera.viewfinder")
-                    .font(.system(size: 60))
+                    .appFont(size: 60)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                 Text("Barcode scanning is not supported or camera access was denied on this device.")
                     .font(.headline)

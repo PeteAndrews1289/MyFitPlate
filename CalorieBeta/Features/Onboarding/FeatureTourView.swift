@@ -84,7 +84,7 @@ struct FeatureTourView: View {
         VStack(spacing: 25) {
             Spacer()
             Image(systemName: feature.iconName)
-                .font(.system(size: 80, weight: .bold))
+                .appFont(size: 80, weight: .bold)
                 .foregroundColor(feature.color)
                 .padding()
                 .background(

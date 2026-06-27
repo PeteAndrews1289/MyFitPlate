@@ -144,7 +144,7 @@ struct WellnessScoreDetailView: View {
                     .animation(.easeInOut(duration: 0.9), value: wellnessScore.overallScore)
                 VStack(spacing: 0) {
                     Text("\(wellnessScore.overallScore)")
-                        .font(.system(size: 46, weight: .heavy, design: .rounded))
+                        .appFont(size: 46, weight: .heavy)
                         .foregroundColor(.textPrimary)
                     Text("/ 100")
                         .appFont(size: 13, weight: .semibold)
@@ -166,7 +166,7 @@ struct WellnessScoreDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .bold))
+                    .appFont(size: 16, weight: .bold)
                     .foregroundColor(color)
                     .frame(width: 38, height: 38)
                     .background(color.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -216,7 +216,7 @@ private struct MealScoreExpandedSection: View {
                         .font(.title2).bold()
                     Spacer()
                     Text(score.grade)
-                        .font(.system(size: 32, weight: .black, design: .rounded))
+                        .appFont(size: 32, weight: .black)
                         .foregroundColor(score.color)
                 }
                 
@@ -322,7 +322,7 @@ private struct SleepExpandedSection: View {
         VStack(spacing: 20) {
             VStack(spacing: 8) {
                 Text("\(report.averageSleepScore)")
-                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                    .appFont(size: 64, weight: .bold)
                     .foregroundColor(sleepScoreColor(report.averageSleepScore))
                 Text("Weekly Average Score (\(report.dateRange))")
                     .font(.subheadline).foregroundColor(.secondary).multilineTextAlignment(.center)
@@ -353,7 +353,7 @@ private struct SleepExpandedSection: View {
         VStack(spacing: 20) {
             VStack(spacing: 8) {
                 Text(formatDuration(data.timeAsleep))
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .appFont(size: 48, weight: .bold)
                     .foregroundColor(.accentColor)
                 Text("Total Sleep Last Night")
                     .font(.subheadline).foregroundColor(.secondary)

@@ -48,7 +48,7 @@ class WeightTrackingViewController: UIViewController {
         let group = DispatchGroup()
 
         group.enter()
-        db.collection("users").document(userID).getDocument { document, error in
+        db.collection(FirestoreCollection.users).document(userID).getDocument { document, error in
             defer { group.leave() }
             if let document = document, document.exists, let weight = document.data()?["weight"] as? Double {
                 self.currentWeight = weight
@@ -58,7 +58,7 @@ class WeightTrackingViewController: UIViewController {
         }
 
         group.enter()
-        db.collection("users").document(userID).collection("weightHistory")
+        db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.weightHistory)
             .order(by: "timestamp", descending: false)
             .getDocuments { snapshot, error in
                 defer { group.leave() }

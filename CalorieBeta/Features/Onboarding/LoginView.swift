@@ -128,7 +128,7 @@ struct LoginView: View {
 
     private func fetchUserData(user: FirebaseAuth.User) {
         let db = Firestore.firestore()
-        db.collection("users").document(user.uid).getDocument { document, error in
+        db.collection(FirestoreCollection.users).document(user.uid).getDocument { document, error in
             if let document = document, document.exists {
                 dismiss()
             } else {
@@ -146,7 +146,7 @@ struct AuthHeaderCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 22, weight: .bold))
+                .appFont(size: 22, weight: .bold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 50, height: 50)
                 .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))

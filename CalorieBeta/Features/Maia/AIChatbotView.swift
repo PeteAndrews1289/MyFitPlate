@@ -128,7 +128,7 @@ struct AIChatbotView: View {
 
                     Button(action: { viewModel.sendMessage() }) {
                         Image(systemName: "arrow.up")
-                            .font(.system(size: 16, weight: .bold))
+                            .appFont(size: 16, weight: .bold)
                             .foregroundColor(.white)
                             .frame(width: 42, height: 42)
                             .background(

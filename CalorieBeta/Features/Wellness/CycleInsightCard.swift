@@ -7,7 +7,7 @@ struct MaiaCycleInsightCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Image(systemName: "brain.head.profile")
-                    .font(.system(size: 20, weight: .bold))
+                    .appFont(size: 20, weight: .bold)
                     .foregroundColor(.brandPrimary)
                 Text("Maia's Phase Guide")
                     .appFont(size: 18, weight: .bold)

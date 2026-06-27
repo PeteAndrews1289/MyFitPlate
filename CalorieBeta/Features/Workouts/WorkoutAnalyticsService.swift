@@ -148,7 +148,7 @@ class WorkoutAnalyticsService: ObservableObject {
         do {
             let data = try JSONEncoder().encode(insights)
             guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
-            try await db.collection("users").document(userID).collection("workoutSessionLogs").document(sessionID).updateData(["aiInsights": jsonArray])
+            try await db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs).document(sessionID).updateData(["aiInsights": jsonArray])
         } catch {
             AppLog.workouts.error("Failed to save workout insights: \(error.localizedDescription, privacy: .public)")
         }
@@ -158,7 +158,7 @@ class WorkoutAnalyticsService: ObservableObject {
     
     /// Fetches a paginated list of past workout logs for the History View
     func fetchWorkoutHistory(userID: String, limit: Int = 20) async -> [WorkoutSessionLog] {
-        let ref = db.collection("users").document(userID).collection("workoutSessionLogs")
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
             .order(by: "date", descending: true)
             .limit(to: limit)
         
@@ -174,7 +174,7 @@ class WorkoutAnalyticsService: ObservableObject {
     /// Fetches historical performance for a specific exercise to plot charts
     func fetchTrends(for exerciseName: String, userID: String) async -> [ExerciseTrendPoint] {
         // Query recent logs to find this exercise
-        let ref = db.collection("users").document(userID).collection("workoutSessionLogs")
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
             .order(by: "date", descending: true)
             .limit(to: 30)
             
@@ -203,7 +203,7 @@ class WorkoutAnalyticsService: ObservableObject {
 
     /// Compares a current session against the last time this Routine ID was logged
     func compareAgainstPrevious(currentLog: WorkoutSessionLog, userID: String) async -> WorkoutComparison? {
-        let ref = db.collection("users").document(userID).collection("workoutSessionLogs")
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
             .whereField("routineID", isEqualTo: currentLog.routineID)
             .order(by: "date", descending: true)
             .limit(to: 2) // [0] is current, [1] is previous
@@ -373,7 +373,7 @@ class WorkoutAnalyticsService: ObservableObject {
     }
 
     private func detectPersonalRecords(in currentLog: WorkoutSessionLog, userID: String) async -> [String: String] {
-        let ref = db.collection("users").document(userID).collection("workoutSessionLogs")
+        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
             .order(by: "date", descending: true)
             .limit(to: 60)
 

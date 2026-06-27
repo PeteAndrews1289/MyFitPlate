@@ -197,7 +197,7 @@ struct OnboardingSurveyView: View {
                     Spacer(minLength: 16)
                     VStack(spacing: 20) {
                 Image(systemName: iconName)
-                    .font(.system(size: 34, weight: .semibold))
+                    .appFont(size: 34, weight: .semibold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 72, height: 72)
                     .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -313,7 +313,7 @@ struct OnboardingSurveyView: View {
                             }
                             Spacer(minLength: 8)
                             Image(systemName: selectedActivityLevelKey == key ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 20))
+                                .appFont(size: 20)
                                 .foregroundColor(selectedActivityLevelKey == key ? .brandPrimary : Color(UIColor.tertiaryLabel))
                         }
                         .padding(12)

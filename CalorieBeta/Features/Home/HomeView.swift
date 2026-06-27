@@ -428,7 +428,7 @@ struct HomeView: View {
                 changeSelectedDate(by: -1)
             }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .bold))
+                    .appFont(size: 14, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 38, height: 38)
                     .background(Color.backgroundPrimary.opacity(0.82), in: Circle())
@@ -452,7 +452,7 @@ struct HomeView: View {
                 changeSelectedDate(by: 1)
             }) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .bold))
+                    .appFont(size: 14, weight: .bold)
                     .foregroundColor(isToday ? Color(UIColor.tertiaryLabel) : .brandPrimary)
                     .frame(width: 38, height: 38)
                     .background(Color.backgroundPrimary.opacity(isToday ? 0.36 : 0.82), in: Circle())
@@ -477,7 +477,7 @@ struct HomeView: View {
         }) {
             HStack(spacing: 12) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 20, weight: .bold))
+                    .appFont(size: 20, weight: .bold)
                     .foregroundColor(.white)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -492,7 +492,7 @@ struct HomeView: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .bold))
+                    .appFont(size: 14, weight: .bold)
                     .foregroundColor(.white.opacity(0.8))
             }
             .padding(16)
@@ -655,7 +655,7 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         Image(systemName: "scalemass.fill")
-                            .font(.system(size: 13, weight: .bold))
+                            .appFont(size: 13, weight: .bold)
                             .foregroundColor(.teal)
                         Text("Weight")
                             .appFont(size: 13, weight: .semibold)
@@ -673,7 +673,7 @@ struct HomeView: View {
                         let down = delta < 0
                         HStack(spacing: 3) {
                             Image(systemName: down ? "arrow.down.right" : "arrow.up.right")
-                                .font(.system(size: 10, weight: .bold))
+                                .appFont(size: 10, weight: .bold)
                             Text("\(String(format: "%.1f", abs(BodyUnits.weightDisplayValue(lbs: delta, metric: useMetric)))) \(BodyUnits.weightUnit(metric: useMetric)) · 7d")
                                 .appFont(size: 11, weight: .semibold)
                         }
@@ -748,16 +748,16 @@ struct HomeView: View {
                         }) {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(FoodEmojiMapper.getEmoji(for: item.name))
-                                    .font(.system(size: 28))
+                                    .appFont(size: 28)
 
                                 Text(item.name.capitalized)
-                                    .font(.system(size: 14, weight: .bold))
+                                    .appFont(size: 14, weight: .bold)
                                     .foregroundColor(.textPrimary)
                                     .lineLimit(2)
                                     .multilineTextAlignment(.leading)
 
                                 Text("\(Int(item.calories)) cal")
-                                    .font(.system(size: 12, weight: .medium))
+                                    .appFont(size: 12, weight: .medium)
                                     .foregroundColor(Color(UIColor.secondaryLabel))
                             }
                             .padding(12)

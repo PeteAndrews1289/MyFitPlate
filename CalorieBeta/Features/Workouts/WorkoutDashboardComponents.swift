@@ -22,7 +22,7 @@ struct TrainingHeroCard: View {
                 Spacer()
 
                 Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.system(size: 18, weight: .bold))
+                    .appFont(size: 18, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: Circle())
@@ -52,7 +52,7 @@ struct TrainingReadinessCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: brief.icon)
-                    .font(.system(size: 18, weight: .bold))
+                    .appFont(size: 18, weight: .bold)
                     .foregroundColor(brief.color)
                     .frame(width: 42, height: 42)
                     .background(brief.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -99,7 +99,7 @@ struct TrainingSignalPill: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: signal.icon)
-                .font(.system(size: 11, weight: .bold))
+                .appFont(size: 11, weight: .bold)
                 .foregroundColor(signal.color)
                 .frame(width: 24, height: 24)
                 .background(signal.color.opacity(0.12), in: Circle())
@@ -170,7 +170,7 @@ struct TrainingWeekPreviewCard: View {
 
             HStack(spacing: 9) {
                 Image(systemName: "arrow.forward.circle.fill")
-                    .font(.system(size: 15, weight: .bold))
+                    .appFont(size: 15, weight: .bold)
                     .foregroundColor(.brandPrimary)
 
                 Text(nextWorkout.map { "Next: \($0.routine.name)" } ?? "Set a schedule in program details.")
@@ -250,7 +250,7 @@ struct TrainingDecisionCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: nextWorkout == nil ? "point.topleft.down.curvedto.point.bottomright.up" : "play.circle.fill")
-                    .font(.system(size: 18, weight: .bold))
+                    .appFont(size: 18, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -321,7 +321,7 @@ struct TrainingPathPill: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
+                .appFont(size: 13, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 30, height: 30)
                 .background(color.opacity(0.12), in: Circle())
@@ -371,7 +371,7 @@ struct ProgramCompleteCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 20, weight: .bold))
+                .appFont(size: 20, weight: .bold)
                 .foregroundColor(.accentPositive)
                 .frame(width: 44, height: 44)
                 .background(Color.accentPositive.opacity(0.12), in: Circle())
@@ -416,7 +416,7 @@ struct TrainingActionTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .bold))
+                .appFont(size: 18, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 42, height: 42)
                 .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -442,7 +442,7 @@ struct RoutineEmptyState: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "plus.square.dashed")
-                .font(.system(size: 30, weight: .semibold))
+                .appFont(size: 30, weight: .semibold)
                 .foregroundColor(.brandPrimary)
                 .frame(width: 60, height: 60)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())

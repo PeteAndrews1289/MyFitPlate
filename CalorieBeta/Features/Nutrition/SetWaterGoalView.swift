@@ -19,7 +19,7 @@ struct SetWaterGoalView: View {
                         .frame(width: 100, height: 100)
                     
                     Image(systemName: "drop.fill")
-                        .font(.system(size: 44, weight: .bold))
+                        .appFont(size: 44, weight: .bold)
                         .foregroundColor(.cyan)
                         .shadow(color: .cyan.opacity(0.4), radius: 10, x: 0, y: 5)
                 }
@@ -41,7 +41,7 @@ struct SetWaterGoalView: View {
                 HStack(alignment: .bottom, spacing: 8) {
                     TextField("0", text: $waterGoalInput)
                         .keyboardType(.numberPad)
-                        .font(.system(size: 54, weight: .bold, design: .rounded))
+                        .appFont(size: 54, weight: .bold)
                         .foregroundColor(.textPrimary)
                         .multilineTextAlignment(.center)
                         .frame(width: 120)
