@@ -1,6 +1,4 @@
 import Foundation
-import FirebaseFirestore
-import FirebaseAuth
 import FirebaseAnalytics
 
 // MARK: - Data Models for Analytics
@@ -52,7 +50,6 @@ struct MuscleSplitPoint: Identifiable {
 @MainActor
 class WorkoutAnalyticsService: ObservableObject {
     private let workoutService = WorkoutService()
-    private let db = Firestore.firestore()
     
     // MARK: - Core Analytics Calculation (Existing Logic)
 
@@ -93,11 +90,18 @@ class WorkoutAnalyticsService: ObservableObject {
         return WorkoutAnalytics(totalVolume: totalVolume, personalRecords: prStrings, aiInsights: aiInsights)
     }
     
+    func generateInsightsForPastSession(sessionID: String, workoutName: String, userID: String) async -> [WorkoutAnalysisInsight] {
+        let sessionResult = await workoutService.fetchWorkoutSessionLog(workoutID: "unknown", sessionID: sessionID)
+        guard case .success(let sessionLog) = sessionResult else { return [] }
+
+        return await generateAIWorkoutInsights(for: sessionLog, totalVolume: calculateTotalVolume(log: sessionLog), personalRecords: [:])
+    }
+    
     func generateAnalyticsForPastSession(sessionID: String, workoutName: String, date: Date) async -> WorkoutAnalytics? {
         let sessionResult = await workoutService.fetchWorkoutSessionLog(workoutID: "unknown", sessionID: sessionID)
         guard case .success(let sessionLog) = sessionResult else { return nil }
 
-        return await generateAnalytics(for: sessionLog, userID: Auth.auth().currentUser?.uid)
+        return await generateAnalytics(for: sessionLog, userID: DIContainer.shared.authService.currentUserID)
     }
 
     func generateImmediateSessionAnalytics(for sessionLog: WorkoutSessionLog) -> WorkoutAnalytics {
@@ -148,7 +152,7 @@ class WorkoutAnalyticsService: ObservableObject {
         do {
             let data = try JSONEncoder().encode(insights)
             guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
-            try await db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs).document(sessionID).updateData(["aiInsights": jsonArray])
+            try await DIContainer.shared.workoutRepository.saveWorkoutInsights(userID: userID, sessionID: sessionID, insights: jsonArray)
         } catch {
             AppLog.workouts.error("Failed to save workout insights: \(error.localizedDescription, privacy: .public)")
         }
@@ -158,13 +162,8 @@ class WorkoutAnalyticsService: ObservableObject {
     
     /// Fetches a paginated list of past workout logs for the History View
     func fetchWorkoutHistory(userID: String, limit: Int = 20) async -> [WorkoutSessionLog] {
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
-            .order(by: "date", descending: true)
-            .limit(to: limit)
-        
         do {
-            let snapshot = try await ref.getDocuments()
-            return snapshot.documents.compactMap { try? $0.data(as: WorkoutSessionLog.self) }
+            return try await DIContainer.shared.workoutRepository.fetchWorkoutHistory(userID: userID, limit: limit)
         } catch {
             AppLog.workouts.error("Failed to fetch workout history: \(error.localizedDescription, privacy: .public)")
             return []
@@ -173,14 +172,8 @@ class WorkoutAnalyticsService: ObservableObject {
 
     /// Fetches historical performance for a specific exercise to plot charts
     func fetchTrends(for exerciseName: String, userID: String) async -> [ExerciseTrendPoint] {
-        // Query recent logs to find this exercise
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
-            .order(by: "date", descending: true)
-            .limit(to: 30)
-            
         do {
-            let snapshot = try await ref.getDocuments()
-            let logs = snapshot.documents.compactMap { try? $0.data(as: WorkoutSessionLog.self) }
+            let logs = try await DIContainer.shared.workoutRepository.fetchWorkoutHistory(userID: userID, limit: 30)
             
             var points: [ExerciseTrendPoint] = []
             
@@ -203,14 +196,9 @@ class WorkoutAnalyticsService: ObservableObject {
 
     /// Compares a current session against the last time this Routine ID was logged
     func compareAgainstPrevious(currentLog: WorkoutSessionLog, userID: String) async -> WorkoutComparison? {
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
-            .whereField("routineID", isEqualTo: currentLog.routineID)
-            .order(by: "date", descending: true)
-            .limit(to: 2) // [0] is current, [1] is previous
-            
+        guard let routineID = currentLog.routineID else { return nil }
         do {
-            let snapshot = try await ref.getDocuments()
-            let logs = snapshot.documents.compactMap { try? $0.data(as: WorkoutSessionLog.self) }
+            let logs = try await DIContainer.shared.workoutRepository.fetchWorkoutHistory(userID: userID, routineID: routineID, limit: 2)
             
             guard logs.count >= 2 else { return nil }
             
@@ -373,14 +361,8 @@ class WorkoutAnalyticsService: ObservableObject {
     }
 
     private func detectPersonalRecords(in currentLog: WorkoutSessionLog, userID: String) async -> [String: String] {
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
-            .order(by: "date", descending: true)
-            .limit(to: 60)
-
         do {
-            let snapshot = try await ref.getDocuments()
-            let historicalLogs = snapshot.documents
-                .compactMap { try? $0.data(as: WorkoutSessionLog.self) }
+            let historicalLogs = try await DIContainer.shared.workoutRepository.fetchWorkoutHistory(userID: userID, limit: 60)
                 .filter { log in
                     if let currentID = currentLog.id, log.id == currentID { return false }
                     return log.date.dateValue() < currentLog.date.dateValue()

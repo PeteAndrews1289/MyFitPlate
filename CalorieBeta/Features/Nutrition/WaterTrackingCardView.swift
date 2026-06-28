@@ -73,13 +73,13 @@ struct WaterTrackingCardView: View {
 
                     HStack(spacing: 10) {
                         WaterAdjustButton(icon: "minus", title: "-\(Int(waterIncrement)) oz") {
-                            HapticFeedback.impact(style: .light)
+                            HapticManager.instance.feedback(.light)
                             adjustWater(by: -waterIncrement)
                         }
                         .disabled(waterIntake < waterIncrement && waterIntake != 0)
 
                         WaterAdjustButton(icon: "plus", title: "+\(Int(waterIncrement)) oz") {
-                            HapticFeedback.impact(style: .medium)
+                            HapticManager.instance.feedback(.medium)
                             adjustWater(by: waterIncrement)
                         }
                     }

@@ -1,7 +1,4 @@
-import SwiftUI
 import FirebaseAuth
-import FirebaseFirestore
-import FirebaseFunctions
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
@@ -389,36 +386,37 @@ struct SettingsView: View {
     }
 
     private func performAccountDeletion(user: User) {
-        let db = Firestore.firestore()
         let userID = user.uid
-        deleteUserFirestoreData(userID: userID, db: db) { result in
-            if case .failure(let error) = result {
-                AppLog.data.error("Failed to delete user data: \(error.localizedDescription, privacy: .public)")
-                DispatchQueue.main.async {
-                    isDeletingAccount = false
-                    deleteErrorMessage = "We couldn't delete your data. Please check your connection and try again."
-                }
-                return
-            }
-
-            // Best-effort: ask the server to remove backend-owned metadata the client can't
-            // delete under the rules (aiUsage / fatSecretUsage); finish locally regardless.
-            Functions.functions().httpsCallable("deleteUserData").call { _, serverError in
-                if let serverError {
-                    AppLog.data.error("Server-side deletion incomplete: \(serverError.localizedDescription, privacy: .public)")
-                }
-                user.delete { error in
-                    DispatchQueue.main.async {
-                        isDeletingAccount = false
-                        if let error = error {
-                            AppLog.app.error("Failed to delete auth account: \(error.localizedDescription, privacy: .public)")
-                            deleteErrorMessage = "Your data was removed, but the login couldn't be deleted. Please sign out, sign back in, and delete again."
-                        } else {
-                            clearLocalAccountData(userID: userID)
-                            appState.isUserLoggedIn = false
-                            showSettings = false
+        Task {
+            do {
+                try await DIContainer.shared.databaseService.deleteUserAllData(userID: userID)
+                
+                // Best-effort: ask the server to remove backend-owned metadata the client can't
+                // delete under the rules (aiUsage / fatSecretUsage); finish locally regardless.
+                // We'll leave the Functions call for now or move it later.
+                Functions.functions().httpsCallable("deleteUserData").call { _, serverError in
+                    if let serverError = serverError {
+                        AppLog.data.error("Server-side deletion incomplete: \(serverError.localizedDescription, privacy: .public)")
+                    }
+                    user.delete { error in
+                        DispatchQueue.main.async {
+                            isDeletingAccount = false
+                            if let error = error {
+                                AppLog.app.error("Failed to delete auth account: \(error.localizedDescription, privacy: .public)")
+                                deleteErrorMessage = "Your data was removed, but the login couldn't be deleted. Please sign out, sign back in, and delete again."
+                            } else {
+                                clearLocalAccountData(userID: userID)
+                                appState.isUserLoggedIn = false
+                                showSettings = false
+                            }
                         }
                     }
+                }
+            } catch {
+                AppLog.data.error("Failed to delete user data: \(error.localizedDescription, privacy: .public)")
+                await MainActor.run {
+                    isDeletingAccount = false
+                    deleteErrorMessage = "We couldn't delete your data. Please check your connection and try again."
                 }
             }
         }
@@ -444,118 +442,8 @@ struct SettingsView: View {
         SharedDataManager.shared.clearWidgetData()
     }
 
-    private func deleteUserFirestoreData(userID: String, db: Firestore, completion: @escaping (Result<Void, Error>) -> Void) {
-        let userRef = db.collection(FirestoreCollection.users).document(userID)
-        deleteUserFirestoreData(userID: userID, userRef: userRef, db: db, completion: completion)
-    }
 
-    private func deleteUserFirestoreData(userID: String, userRef: DocumentReference, db: Firestore, completion: @escaping (Result<Void, Error>) -> Void) {
-        let group = DispatchGroup()
-        let lock = NSLock()
-        var firstError: Error?
 
-        func recordError(_ error: Error) {
-            lock.lock()
-            if firstError == nil {
-                firstError = error
-            }
-            lock.unlock()
-        }
-
-        for collectionName in userScopedCollections {
-            group.enter()
-            deleteCollection(userRef.collection(collectionName), db: db) { error in
-                if let error = error {
-                    recordError(error)
-                }
-                group.leave()
-            }
-        }
-
-        let topLevelQueries: [Query] = [
-            db.collection(FirestoreCollection.groupMemberships).whereField("userID", isEqualTo: userID),
-            db.collection(FirestoreCollection.groupMemberships).whereField("userId", isEqualTo: userID),
-            db.collection(FirestoreCollection.groups).whereField("creatorID", isEqualTo: userID),
-            db.collection(FirestoreCollection.groups).whereField("creatorId", isEqualTo: userID),
-            db.collection(FirestoreCollection.posts).whereField("authorID", isEqualTo: userID),
-            db.collection(FirestoreCollection.posts).whereField("authorId", isEqualTo: userID)
-        ]
-
-        for query in topLevelQueries {
-            group.enter()
-            deleteQueryResults(query, db: db) { error in
-                if let error = error {
-                    recordError(error)
-                }
-                group.leave()
-            }
-        }
-
-        group.notify(queue: .main) {
-            if let firstError = firstError {
-                completion(.failure(firstError))
-                return
-            }
-
-            userRef.delete { error in
-                if let error = error {
-                    completion(.failure(error))
-                } else {
-                    completion(.success(()))
-                }
-            }
-        }
-    }
-
-    private func deleteCollection(_ collection: CollectionReference, db: Firestore, batchSize: Int = 100, completion: @escaping (Error?) -> Void) {
-        collection.limit(to: batchSize).getDocuments { snapshot, error in
-            if let error = error {
-                completion(error)
-                return
-            }
-
-            guard let documents = snapshot?.documents, !documents.isEmpty else {
-                completion(nil)
-                return
-            }
-
-            let batch = db.batch()
-            documents.forEach { batch.deleteDocument($0.reference) }
-
-            batch.commit { error in
-                if let error = error {
-                    completion(error)
-                } else {
-                    deleteCollection(collection, db: db, batchSize: batchSize, completion: completion)
-                }
-            }
-        }
-    }
-
-    private func deleteQueryResults(_ query: Query, db: Firestore, batchSize: Int = 100, completion: @escaping (Error?) -> Void) {
-        query.limit(to: batchSize).getDocuments { snapshot, error in
-            if let error = error {
-                completion(error)
-                return
-            }
-
-            guard let documents = snapshot?.documents, !documents.isEmpty else {
-                completion(nil)
-                return
-            }
-
-            let batch = db.batch()
-            documents.forEach { batch.deleteDocument($0.reference) }
-
-            batch.commit { error in
-                if let error = error {
-                    completion(error)
-                } else {
-                    deleteQueryResults(query, db: db, batchSize: batchSize, completion: completion)
-                }
-            }
-        }
-    }
 }
 
 private struct SettingsLegalSection: Identifiable {

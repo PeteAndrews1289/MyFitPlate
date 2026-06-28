@@ -1,5 +1,4 @@
 import Foundation
-import FirebaseFirestore
 import FirebaseAnalytics
 
 class ExerciseLogStore {

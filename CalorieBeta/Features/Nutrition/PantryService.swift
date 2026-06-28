@@ -1,6 +1,5 @@
 import Combine
 import Foundation
-import FirebaseFirestore
 
 struct PantryItem: Identifiable, Codable, Equatable {
     var id = UUID()
@@ -16,8 +15,7 @@ class PantryService: ObservableObject {
     @Published var pantryItems: [PantryItem] = []
     @Published var isLoading = false
 
-    private let db = Firestore.firestore()
-    private var listenerRegistration: ListenerRegistration?
+    private var listenerRegistration: Any?
     private var listeningUserID: String?
     private var foodLoggedObserver: NSObjectProtocol?
 
@@ -42,38 +40,39 @@ class PantryService: ObservableObject {
         if let foodLoggedObserver {
             NotificationCenter.default.removeObserver(foodLoggedObserver)
         }
-        listenerRegistration?.remove()
+        if let handle = listenerRegistration {
+            DIContainer.shared.nutritionRepository.removePantrySnapshotListener(handle)
+        }
     }
 
     func startListening(userID: String) {
         guard !userID.isEmpty else { return }
         if listeningUserID == userID, listenerRegistration != nil { return }
 
-        listenerRegistration?.remove()
+        if let handle = listenerRegistration {
+            DIContainer.shared.nutritionRepository.removePantrySnapshotListener(handle)
+        }
         listeningUserID = userID
         isLoading = true
 
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.pantryItems)
-        listenerRegistration = ref.addSnapshotListener { [weak self] snapshot, error in
-            guard let self else { return }
-            self.isLoading = false
-
-            if let error {
-                AppLog.data.error("Error fetching pantry items: \(error.localizedDescription, privacy: .public)")
-                return
+        listenerRegistration = DIContainer.shared.nutritionRepository.addPantrySnapshotListener(userID: userID) { [weak self] result in
+            Task { @MainActor in
+                guard let self = self else { return }
+                self.isLoading = false
+                switch result {
+                case .success(let items):
+                    self.pantryItems = items.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending })
+                case .failure(let error):
+                    AppLog.data.error("Error fetching pantry items: \(error.localizedDescription, privacy: .public)")
+                }
             }
-
-            guard let documents = snapshot?.documents else { return }
-
-            self.pantryItems = documents.compactMap { doc -> PantryItem? in
-                try? doc.data(as: PantryItem.self)
-            }
-            .sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending })
         }
     }
 
     func stopListening(clearItems: Bool = true) {
-        listenerRegistration?.remove()
+        if let handle = listenerRegistration {
+            DIContainer.shared.nutritionRepository.removePantrySnapshotListener(handle)
+        }
         listenerRegistration = nil
         listeningUserID = nil
         isLoading = false
@@ -95,18 +94,20 @@ class PantryService: ObservableObject {
             itemToSave.dateAdded = existing.dateAdded ?? item.dateAdded
         }
 
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.pantryItems).document(itemToSave.id.uuidString)
-        do {
-            try ref.setData(from: itemToSave)
-        } catch {
-            AppLog.data.error("Error saving pantry item: \(error.localizedDescription, privacy: .public)")
+        Task {
+            do {
+                try await DIContainer.shared.nutritionRepository.savePantryItem(userID: userID, item: itemToSave)
+            } catch {
+                AppLog.data.error("Error saving pantry item: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
     func deleteItem(_ item: PantryItem, userID: String) {
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.pantryItems).document(item.id.uuidString)
-        ref.delete { error in
-            if let error {
+        Task {
+            do {
+                try await DIContainer.shared.nutritionRepository.deletePantryItem(userID: userID, itemID: item.id.uuidString)
+            } catch {
                 AppLog.data.error("Error deleting pantry item: \(error.localizedDescription, privacy: .public)")
             }
         }

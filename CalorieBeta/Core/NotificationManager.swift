@@ -1,6 +1,5 @@
 import UserNotifications
 import FirebaseAuth
-import FirebaseFirestore
 
 enum NotificationType {
     case dailyLogReminder(hour: Int, minute: Int)
@@ -65,7 +64,6 @@ enum NotificationType {
 
 class NotificationManager {
     static let shared = NotificationManager()
-    private let db = Firestore.firestore()
     
     private init() {}
     
@@ -281,33 +279,37 @@ class NotificationManager {
     }
     
     private func fetchUserData(userID: String, completion: @escaping (Double, Double) -> Void) {
-        db.collection(FirestoreCollection.users).document(userID).getDocument { document, error in
+        Task {
             var calorieGoal: Double = 2000
-            if let document = document, document.exists,
-               let data = document.data(),
-               let goals = data["goals"] as? [String: Any],
-               let goalCalories = goals["calories"] as? Double {
-                calorieGoal = goalCalories
+            
+            // 1. Fetch Goal
+            await withCheckedContinuation { continuation in
+                DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { data in
+                    if let goals = data?["goals"] as? [String: Any],
+                       let goalCalories = goals["calories"] as? Double {
+                        calorieGoal = goalCalories
+                    }
+                    continuation.resume()
+                }
             }
-
+            
+            // 2. Fetch Daily Log
             let today = Calendar.current.startOfDay(for: Date())
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyy-MM-dd"
             let dateString = dateFormatter.string(from: today)
             
-            self.db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs).document(dateString).getDocument { logDoc, logErr in
-                var caloriesConsumed: Double = 0
-                if let logDoc = logDoc, logDoc.exists, let data = logDoc.data(), let meals = data["meals"] as? [[String: Any]] {
-                    for meal in meals {
-                        if let foodItems = meal["foodItems"] as? [[String: Any]] {
-                            for item in foodItems {
-                                if let calories = item["calories"] as? Double {
-                                    caloriesConsumed += calories
-                                }
-                            }
-                        }
-                    }
-                }
+            var caloriesConsumed: Double = 0
+            
+            let result = await DIContainer.shared.nutritionRepository.fetchDailyLog(userID: userID, dateID: dateString)
+            switch result {
+            case .success(let log):
+                caloriesConsumed = log?.totalCalories() ?? 0
+            case .failure:
+                break
+            }
+            
+            DispatchQueue.main.async {
                 completion(calorieGoal, caloriesConsumed)
             }
         }

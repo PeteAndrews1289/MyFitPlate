@@ -164,7 +164,7 @@ struct WeeklyCheckInView: View {
     }
     
     private func acceptTargets() {
-        HapticFeedback.selection()
+        HapticManager.instance.feedback(.light)
         goalSettings.calorieGoalMethod = .dynamicTDEE
         goalSettings.lastCheckInDate = Date()
         goalSettings.recalculateAllGoals()
@@ -175,7 +175,7 @@ struct WeeklyCheckInView: View {
     }
     
     private func skipCheckIn() {
-        HapticFeedback.selection()
+        HapticManager.instance.feedback(.light)
         goalSettings.lastCheckInDate = Date()
         if let userID = Auth.auth().currentUser?.uid {
             goalSettings.saveUserGoals(userID: userID)

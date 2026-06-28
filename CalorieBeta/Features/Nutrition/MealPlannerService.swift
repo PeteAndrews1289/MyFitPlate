@@ -1,11 +1,8 @@
 import Foundation
-import FirebaseFirestore
-import FirebaseAuth
 import FirebaseAnalytics
 
 @MainActor
 class MealPlannerService: ObservableObject {
-    private let db = Firestore.firestore()
     private let recipeService: RecipeService
     private var planCache: [String: MealPlanDay] = [:]
 
@@ -56,28 +53,18 @@ class MealPlannerService: ObservableObject {
 
     // MARK: - Grocery List
     public func saveGroceryList(_ list: [GroceryListItem], for userID: String) {
-        let listRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.userSettings).document(FirestoreDocument.groceryList)
-        do {
-            let listData = try list.map { try Firestore.Encoder().encode($0) }
-            listRef.setData(["items": listData, "lastUpdated": Timestamp(date: Date())], merge: true)
-        } catch {
-            AppLog.mealPlanner.error("Failed to encode grocery list: \(error.localizedDescription, privacy: .public)")
+        Task {
+            do {
+                try await DIContainer.shared.nutritionRepository.saveGroceryList(userID: userID, items: list)
+            } catch {
+                AppLog.mealPlanner.error("Failed to encode grocery list: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
     public func fetchGroceryList(for userID: String) async -> [GroceryListItem] {
-        let listRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.userSettings).document(FirestoreDocument.groceryList)
         do {
-            let document = try await listRef.getDocument()
-            guard let data = document.data(), let itemsData = data["items"] as? [[String: Any]] else { return [] }
-            return itemsData.compactMap { itemData in
-                do {
-                    return try Firestore.Decoder().decode(GroceryListItem.self, from: itemData)
-                } catch {
-                    AppLog.mealPlanner.error("Failed to decode grocery list item: \(error.localizedDescription, privacy: .public)")
-                    return nil
-                }
-            }
+            return try await DIContainer.shared.nutritionRepository.fetchGroceryList(userID: userID)
         } catch {
             AppLog.mealPlanner.error("Failed to fetch grocery list: \(error.localizedDescription, privacy: .public)")
             return []
@@ -195,22 +182,22 @@ class MealPlannerService: ObservableObject {
         }
 
         let dateString = dateString(for: date)
-        let planRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.mealPlans).document(dateString)
         do {
-            let plan = try await planRef.getDocument(as: MealPlanDay.self)
-            planCache[key] = plan
-            saveCacheToDisk()
-            return plan
+            if let plan = try await DIContainer.shared.nutritionRepository.fetchMealPlan(userID: userID, dateString: dateString) {
+                planCache[key] = plan
+                saveCacheToDisk()
+                return plan
+            }
+            return nil
         } catch {
             return nil
         }
     }
 
     public func savePlan(_ plan: MealPlanDay, for userID: String) async {
-        guard let planID = plan.id else { return }; let planRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.mealPlans).document(planID)
+        guard let planID = plan.id else { return }
         do {
-            let data = try Firestore.Encoder().encode(MealPlanPayload(date: plan.date, meals: plan.meals))
-            try await planRef.setData(data, merge: true)
+            try await DIContainer.shared.nutritionRepository.saveMealPlan(userID: userID, plan: plan)
             planCache[cacheKey(for: plan.date.dateValue(), userID: userID)] = plan
             saveCacheToDisk()
         } catch {
@@ -219,19 +206,8 @@ class MealPlannerService: ObservableObject {
     }
 
     public func saveFullMealPlan(days: [MealPlanDay], for userID: String) async {
-        let batch = db.batch(); let collectionRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.mealPlans)
-        for day in days {
-            if let dayId = day.id {
-                do {
-                    let data = try Firestore.Encoder().encode(MealPlanPayload(date: day.date, meals: day.meals))
-                    batch.setData(data, forDocument: collectionRef.document(dayId), merge: true)
-                } catch {
-                    AppLog.mealPlanner.error("Failed to encode meal plan day \(dayId, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                }
-            }
-        }
         do {
-            try await batch.commit()
+            try await DIContainer.shared.nutritionRepository.saveFullMealPlanBatch(userID: userID, plans: days)
             days.forEach { day in
                 planCache[cacheKey(for: day.date.dateValue(), userID: userID)] = day
             }
@@ -239,11 +215,6 @@ class MealPlannerService: ObservableObject {
         } catch {
             AppLog.mealPlanner.error("Failed to save full meal plan batch: \(error.localizedDescription, privacy: .public)")
         }
-    }
-
-    private struct MealPlanPayload: Codable {
-        let date: Timestamp
-        let meals: [PlannedMeal]
     }
 
     private func cacheKey(for date: Date, userID: String) -> String {

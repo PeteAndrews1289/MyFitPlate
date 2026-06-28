@@ -2,7 +2,6 @@ import SwiftUI
 import Charts
 import FirebaseAuth
 import HealthKit
-import FirebaseFirestore
 
 // Defines the structure for the daily meal score.
 struct MealScore {
@@ -145,7 +144,6 @@ class ReportsViewModel: ObservableObject {
 
     private var currentGoals: GoalSettings?
     private var currentUserID: String? { Auth.auth().currentUser?.uid }
-    private let db = Firestore.firestore()
     private var yesterdaysLog: DailyLog? = nil
     private var didCalculateYesterdaysMealScore = false // Prevents duplicate score saving
 
@@ -570,27 +568,13 @@ class ReportsViewModel: ObservableObject {
 
     // Fetches historical meal scores from Firestore.
     func fetchMealScoreHistory(for userID: String) {
-        // Reference to the dailySummaries collection for the user
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailySummaries).order(by: "date", descending: true).limit(to: 30) // Get last 30 summaries
-        ref.getDocuments { [weak self] snapshot, error in
-            guard let self = self, let documents = snapshot?.documents else { return } // Ensure self and documents exist
-            // Map Firestore documents to DateValuePoint objects
-            let history = documents.compactMap { doc -> DateValuePoint? in
-                // Try decoding modern 'mealOverallScore' (Double) first
-                guard let timestamp = doc.data()["date"] as? Timestamp, let scoreValue = doc.data()["mealOverallScore"] as? Double else {
-                    // Fallback for older 'mealScore' (String grade)
-                    if let timestamp = doc.data()["date"] as? Timestamp, let scoreString = doc.data()["mealScore"] as? String {
-                        let fallbackScoreValue: Double
-                         switch scoreString { case "A+": fallbackScoreValue = 95; case "A-": fallbackScoreValue = 85; case "B": fallbackScoreValue = 75; case "C": fallbackScoreValue = 65; case "D": fallbackScoreValue = 55; default: fallbackScoreValue = 0 } // Convert grade to approximate score
-                         return DateValuePoint(date: timestamp.dateValue(), value: fallbackScoreValue)
-                    }
-                    return nil // Skip if neither format is found
-                }
-                // Return point with modern score format
-                return DateValuePoint(date: timestamp.dateValue(), value: scoreValue)
+        Task {
+            do {
+                let history = try await DIContainer.shared.reportsRepository.fetchMealScoreHistory(userID: userID)
+                DispatchQueue.main.async { self.mealScoreHistory = history }
+            } catch {
+                AppLog.data.error("Failed to fetch meal score history: \(error.localizedDescription, privacy: .public)")
             }
-            // Update the published history property on the main thread, sorted by date
-            DispatchQueue.main.async { self.mealScoreHistory = history.sorted { $0.date < $1.date } }
         }
     }
 
@@ -654,27 +638,12 @@ class ReportsViewModel: ObservableObject {
     private func fetchLatestRHR() async -> HKQuantitySample? { await withCheckedContinuation { c in healthKitManager.fetchLatestRestingHeartRate { c.resume(returning: $0) } } }
     private func fetchLatestHRV() async -> HKQuantitySample? { await withCheckedContinuation { c in healthKitManager.fetchLatestHRV { c.resume(returning: $0) } } }
     
-    // Saves the calculated meal score to Firestore.
-    // *** This is the correct "live" version that saves the numeric score and totals ***
     private func saveMealScore(for userID: String, date: Date, score: MealScore) {
-        let dateString = dailyLogService.dateFormatter.string(from: date)
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailySummaries).document(dateString)
-        let data: [String: Any] = [
-            "date": Timestamp(date: date),
-            "mealScore": score.grade, // Save grade for quick display
-            "mealOverallScore": score.overallScore, // *** SAVE THE NUMERIC SCORE ***
-            "calorieScore": score.calorieScore,
-            "macroScore": score.macroScore,
-            "qualityScore": score.qualityScore,
-            // Future-proofing: Saving raw totals
-            "totalCalories": score.actualCalories,
-            "totalProtein": score.actualProtein,
-            "totalCarbs": score.actualCarbs,
-            "totalFats": score.actualFats
-        ]
-        ref.setData(data, merge: true) { e in
-            if let e = e {
-                AppLog.data.error("Failed to save meal score: \(e.localizedDescription, privacy: .public)")
+        Task {
+            do {
+                try await DIContainer.shared.reportsRepository.saveMealScore(userID: userID, date: date, score: score)
+            } catch {
+                AppLog.data.error("Failed to save meal score: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

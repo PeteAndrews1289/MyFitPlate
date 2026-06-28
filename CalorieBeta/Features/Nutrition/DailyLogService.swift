@@ -1,18 +1,17 @@
 import Foundation
 import FirebaseAuth
-import FirebaseFirestore
 import FirebaseAnalytics
 
 class DailyLogService: ObservableObject, DailyLogServicing {
     @Published var currentDailyLog: DailyLog?
     @Published var activelyViewedDate: Date = Calendar.current.startOfDay(for: Date())
     @Published var smartSuggestions: [FoodItem] = []
-    private let db = Firestore.firestore()
+    
     private let recentFoodStore = DailyLogRecentFoodStore()
     lazy var journalEntryStore: JournalEntryStore = { JournalEntryStore(dailyLogService: self) }()
     lazy var exerciseLogStore: ExerciseLogStore = { ExerciseLogStore(dailyLogService: self) }()
     let customFoodStore = CustomFoodStore()
-    private var logListener: ListenerRegistration?
+    private var logListener: Any?
     private let customFoodsCollection = "customFoods"
     weak var achievementService: AchievementService?
     weak var bannerService: BannerService?
@@ -175,23 +174,15 @@ class DailyLogService: ObservableObject, DailyLogServicing {
     }
 
     func updateDailyLog(for userID: String, updatedLog: DailyLog, completion: ((Bool) -> Void)? = nil) {
-        guard let logID = updatedLog.id else { completion?(false); return }
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs).document(logID)
-        do {
-            try ref.setData(from: updatedLog, merge: true) { err in
-                 if err == nil {
-                     DispatchQueue.main.async {
-                        self.syncCurrentDailyLogToWidgets()
-                     }
-                     completion?(true)
-                 } else {
-                     AppLog.data.error("Failed to update daily log: \(err?.localizedDescription ?? "Unknown error", privacy: .public)")
-                     completion?(false)
-                 }
+        DIContainer.shared.nutritionRepository.updateDailyLog(userID: userID, log: updatedLog) { [weak self] success in
+            if success {
+                DispatchQueue.main.async {
+                    self?.syncCurrentDailyLogToWidgets()
+                }
+            } else {
+                AppLog.data.error("Failed to update daily log via repository")
             }
-        } catch {
-            AppLog.data.error("Failed to encode daily log for update: \(error.localizedDescription, privacy: .public)")
-            completion?(false)
+            completion?(success)
         }
     }
 
@@ -215,71 +206,32 @@ class DailyLogService: ObservableObject, DailyLogServicing {
         }
 
         self.activelyViewedDate = startOfDayForRequestedDate
-        let dateString = dateFormatter.string(from: startOfDayForRequestedDate)
-        let logRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs).document(dateString)
 
-        logListener?.remove()
+        if let listener = logListener {
+            DIContainer.shared.nutritionRepository.removeLogSnapshotListener(listener)
+        }
         self.activeListenerDate = startOfDayForRequestedDate
 
-        logListener = logRef.addSnapshotListener { [weak self] documentSnapshot, error in
-             guard let self = self else { return }
+        logListener = DIContainer.shared.nutritionRepository.addLogSnapshotListener(userID: userID, date: startOfDayForRequestedDate) { [weak self] result in
+            guard let self = self else { return }
 
-            if let error = error {
-                AppLog.data.error("Daily log listener failed for \(dateString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                completion(.failure(error))
-                return
-            }
-            guard let document = documentSnapshot else {
-                AppLog.data.error("Daily log listener returned nil snapshot for \(dateString, privacy: .public)")
-                completion(.failure(NSError(domain:"App", code: -1, userInfo: [NSLocalizedDescriptionKey:"Snapshot nil for \(dateString)"])))
-                return
-            }
-
-             DispatchQueue.main.async {
-                if document.exists, let data = document.data() {
-                    let fetchedLog = self.decodeDailyLog(from: data, documentID: dateString)
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let fetchedLog):
                     if Calendar.current.isDate(fetchedLog.date, inSameDayAs: self.activelyViewedDate) {
                         self.publishCurrentDailyLog(fetchedLog)
                         completion(.success(fetchedLog))
                     }
-                } else {
-                    let newLog = DailyLog(id: dateString, date: startOfDayForRequestedDate, meals: [], journalEntries: [])
-                    do {
-                         try logRef.setData(from: newLog) { setError in
-                             DispatchQueue.main.async {
-                                if let setError = setError {
-                                    AppLog.data.error("Failed to create new log document \(dateString, privacy: .public): \(setError.localizedDescription, privacy: .public)")
-                                    completion(.failure(setError))
-                                } else {
-                                    if Calendar.current.isDate(newLog.date, inSameDayAs: self.activelyViewedDate) {
-                                        self.publishCurrentDailyLog(newLog)
-                                        completion(.success(newLog))
-                                    }
-                                }
-                            }
-                        }
-                    } catch {
-                        AppLog.data.error("Failed to encode new log for \(dateString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                         completion(.failure(error))
-                    }
+                case .failure(let error):
+                    AppLog.data.error("Daily log listener failed: \(error.localizedDescription, privacy: .public)")
+                    completion(.failure(error))
                 }
             }
         }
     }
 
     func fetchLogInternal(for userID: String, date: Date, completion: @escaping (Result<DailyLog, Error>) -> Void) {
-        let startOfDay = Calendar.current.startOfDay(for: date)
-        let dateString = dateFormatter.string(from: startOfDay)
-        let logRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs).document(dateString)
-        logRef.getDocument { document, error in
-            if let e = error { completion(.failure(e)); return }
-            if let d = document, d.exists, let data = d.data() {
-                completion(.success(self.decodeDailyLog(from: data, documentID: dateString)))
-            } else {
-                let newLog = DailyLog(id: dateString, date: startOfDay, meals: [], journalEntries: [])
-                completion(.success(newLog))
-            }
-        }
+        DIContainer.shared.nutritionRepository.fetchLogInternal(userID: userID, date: date, completion: completion)
     }
 
     func fetchOrCreateTodayLog(for userID: String, completion: @escaping (Result<DailyLog, Error>) -> Void) {
@@ -288,49 +240,7 @@ class DailyLogService: ObservableObject, DailyLogServicing {
 
 
     func fetchRecommendedFoods(for userID: String, mealName: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        let endDate = Date()
-        guard let startDate = Calendar.current.date(byAdding: .day, value: -30, to: endDate) else {
-            completion(.success([]))
-            return
-        }
-
-        db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs)
-            .whereField("date", isGreaterThanOrEqualTo: Timestamp(date: startDate))
-            .whereField("date", isLessThanOrEqualTo: Timestamp(date: endDate))
-            .getDocuments { snapshot, error in
-                if let error = error {
-                    completion(.failure(error))
-                    return
-                }
-
-                guard let documents = snapshot?.documents else {
-                    completion(.success([]))
-                    return
-                }
-
-                var foodFrequency: [String: (food: FoodItem, count: Int)] = [:]
-
-                let logs = documents.compactMap { try? $0.data(as: DailyLog.self) }
-
-                for log in logs {
-                    if let meal = log.meals.first(where: { $0.name.lowercased() == mealName.lowercased() }) {
-                        for food in meal.foodItems {
-                            if var entry = foodFrequency[food.name] {
-                                entry.count += 1
-                                foodFrequency[food.name] = entry
-                            } else {
-                                foodFrequency[food.name] = (food: food, count: 1)
-                            }
-                        }
-                    }
-                }
-
-                let sortedFoods = foodFrequency.values
-                    .sorted { $0.count > $1.count }
-                    .map { $0.food }
-
-                completion(.success(Array(sortedFoods.prefix(10))))
-            }
+        DIContainer.shared.nutritionRepository.fetchRecommendedFoods(userID: userID, mealName: mealName, completion: completion)
     }
 
     func addFoodToCurrentLog(for userID: String, foodItem: FoodItem, source: String = "unknown") {
@@ -674,45 +584,15 @@ class DailyLogService: ObservableObject, DailyLogServicing {
     }
 
     func fetchDailyHistory(for userID: String, startDate: Date? = nil, endDate: Date? = nil) async -> Result<[DailyLog], Error> {
-        var query: Query = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.dailyLogs)
-        let queryStartDate = startDate.map { Calendar.current.startOfDay(for: $0) }
-        let queryEndDate = endDate.map { Calendar.current.startOfDay(for: $0) }
-
-        if let start = queryStartDate { query = query.whereField("date", isGreaterThanOrEqualTo: Timestamp(date: start)) }
-        if let end = queryEndDate {
-            let endOfQueryDay = Calendar.current.date(byAdding: .day, value: 1, to: end) ?? end
-            query = query.whereField("date", isLessThan: Timestamp(date: endOfQueryDay))
-        }
-        query = query.order(by: "date", descending: true)
-
         do {
-            let snapshot = try await query.getDocuments()
-            let logs: [DailyLog] = snapshot.documents.compactMap { d in self.decodeDailyLog(from: d.data(), documentID: d.documentID) }
+            let logs = try await DIContainer.shared.nutritionRepository.fetchDailyHistory(userID: userID, startDate: startDate, endDate: endDate)
             return .success(logs)
         } catch {
             return .failure(error)
         }
     }
 
-    private func encodeDailyLog(_ log: DailyLog) -> [String: Any] {
-        do {
-            return try Firestore.Encoder().encode(log)
-        } catch {
-            AppLog.data.error("Failed to encode DailyLog: \(error.localizedDescription, privacy: .public)")
-            return [:]
-        }
-    }
 
-     private func decodeDailyLog(from data: [String: Any], documentID: String) -> DailyLog {
-        do {
-            let decodedLog = try Firestore.Decoder().decode(DailyLog.self, from: data)
-            return decodedLog
-        } catch {
-            AppLog.data.error("Failed to decode DailyLog \(documentID, privacy: .public). Returning default: \(error.localizedDescription, privacy: .public)")
-            let dateFromDocID = dateFormatter.date(from: documentID) ?? Calendar.current.startOfDay(for: Date())
-            return DailyLog(id: documentID, date: dateFromDocID, meals: [], journalEntries: [])
-        }
-     }
 
       private func determineMealType() -> String {
           let hour = Calendar.current.component(.hour, from: Date()); switch hour { case 0..<4: return "Snack"; case 4..<11: return "Breakfast"; case 11..<16: return "Lunch"; case 16..<21: return "Dinner"; default: return "Snack" }

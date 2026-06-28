@@ -1,6 +1,6 @@
 import SwiftUI
-import FirebaseFirestore
 import FirebaseAuth
+import Combine
 
 struct CommunityHubView: View {
     @EnvironmentObject var groupService: GroupService
@@ -10,6 +10,7 @@ struct CommunityHubView: View {
     @State private var selectedGroup: CommunityGroup?
     @State private var groups: [CommunityGroup] = []
     @State private var isMemberOfSelectedGroup = false
+    @State private var cancellables = Set<AnyCancellable>()
     
     let presetGroups = [
         CommunityGroup(id: "1", name: "Health & Wellness", description: "Discuss health tips and wellness strategies", creatorID: "preset", isPreset: true),
@@ -103,45 +104,46 @@ struct CommunityHubView: View {
 
     private func checkGroupMembership(groupID: String) {
         guard let userID = Auth.auth().currentUser?.uid else { return }
-        let membershipID = "\(userID)_\(groupID)"
-        Firestore.firestore().collection(FirestoreCollection.groupMemberships).document(membershipID).getDocument { document, error in
-            if error != nil {
-                return
-            }
-            if document?.exists == true {
-                isMemberOfSelectedGroup = true
-                fetchPostsForGroup(groupID: groupID)
-            } else {
-                isMemberOfSelectedGroup = false
-                self.posts = []
+        Task {
+            do {
+                let isMember = try await DIContainer.shared.groupRepository.checkGroupMembership(userID: userID, groupID: groupID)
+                await MainActor.run {
+                    self.isMemberOfSelectedGroup = isMember
+                    if isMember {
+                        self.fetchPostsForGroup(groupID: groupID)
+                    } else {
+                        self.posts = []
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.isMemberOfSelectedGroup = false
+                    self.posts = []
+                }
             }
         }
     }
 
     private func fetchPostsForGroup(groupID: String) {
-        let db = Firestore.firestore()
-        db.collection(FirestoreCollection.posts)
-            .whereField("groupID", isEqualTo: groupID)
-            .order(by: "timestamp", descending: true)
-            .addSnapshotListener { snapshot, error in
-                if error != nil {
-                    return
+        DIContainer.shared.postRepository.fetchPostsForGroup(groupID: groupID)
+            .receive(on: DispatchQueue.main)
+            .sink { completion in
+                if case .failure(let error) = completion {
+                    AppLog.community.error("Failed to fetch posts: \(error.localizedDescription, privacy: .public)")
                 }
-                guard let documents = snapshot?.documents else { return }
-                self.posts = documents.compactMap { doc -> CommunityPost? in
-                    try? doc.data(as: CommunityPost.self)
-                }
+            } receiveValue: { fetchedPosts in
+                self.posts = fetchedPosts
             }
+            .store(in: &cancellables)
     }
 
     private func savePostToFirebase(post: CommunityPost) {
-        let db = Firestore.firestore()
-        guard let postId = post.id else {
-            return
-        }
-        do {
-            try db.collection(FirestoreCollection.posts).document(postId).setData(from: post)
-        } catch {
+        Task {
+            do {
+                try await DIContainer.shared.postRepository.savePost(post: post)
+            } catch {
+                AppLog.community.error("Failed to save post: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 

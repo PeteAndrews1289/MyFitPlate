@@ -1,12 +1,9 @@
 import Foundation
-import FirebaseFirestore
-import FirebaseAuth
 import FirebaseAnalytics
 import SwiftSoup
 
 @MainActor
 class RecipeService: ObservableObject {
-    private let db = Firestore.firestore()
 
     @Published var userRecipes: [Recipe] = []
     @Published var isLoading = false
@@ -253,14 +250,10 @@ class RecipeService: ObservableObject {
     // ... [CRUD Operations - Keep Existing] ...
 
     func fetchUserRecipes() async {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         isLoading = true
-        let userRecipesCollection = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.recipes)
         do {
-            let snapshot = try await userRecipesCollection.getDocuments()
-            self.userRecipes = snapshot.documents.compactMap { document -> Recipe? in
-                try? document.data(as: Recipe.self)
-            }
+            self.userRecipes = try await DIContainer.shared.nutritionRepository.fetchRecipes(userID: userID)
         } catch {
             AppLog.recipes.error("Failed to fetch user recipes: \(error.localizedDescription, privacy: .public)")
         }
@@ -269,31 +262,23 @@ class RecipeService: ObservableObject {
 
     @discardableResult
     func saveRecipe(_ recipe: Recipe, for userID: String) async throws -> Recipe {
-        let userRecipesCollection = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.recipes)
-        var recipeToSave = recipe
-        if let id = recipeToSave.id {
-            try userRecipesCollection.document(id).setData(from: recipeToSave)
-        } else {
-            let newDocRef = userRecipesCollection.document()
-            recipeToSave.id = newDocRef.documentID
-            try newDocRef.setData(from: recipeToSave)
-            Analytics.logEvent("recipe_created", parameters: nil)
-        }
+        let savedRecipe = try await DIContainer.shared.nutritionRepository.saveRecipe(userID: userID, recipe: recipe)
+        Analytics.logEvent("recipe_created", parameters: nil)
 
-        if let recipeID = recipeToSave.id,
+        if let recipeID = savedRecipe.id,
            let index = userRecipes.firstIndex(where: { $0.id == recipeID }) {
-            userRecipes[index] = recipeToSave
+            userRecipes[index] = savedRecipe
         } else {
-            userRecipes.append(recipeToSave)
+            userRecipes.append(savedRecipe)
         }
 
-        return recipeToSave
+        return savedRecipe
     }
 
     func deleteRecipe(recipe: Recipe) async {
-        guard let userID = Auth.auth().currentUser?.uid, let recipeID = recipe.id else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID, let recipeID = recipe.id else { return }
         do {
-            try await db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.recipes).document(recipeID).delete()
+            try await DIContainer.shared.nutritionRepository.deleteRecipe(userID: userID, recipeID: recipeID)
             if let index = userRecipes.firstIndex(where: { $0.id == recipeID }) { userRecipes.remove(at: index) }
         } catch {
             AppLog.recipes.error("Failed to delete recipe: \(error.localizedDescription, privacy: .public)")

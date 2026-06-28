@@ -1,5 +1,5 @@
 import SwiftUI
-import Firebase
+
 
 struct CommentsView: View {
     @Binding var post: CommunityPost
@@ -42,11 +42,10 @@ struct CommentsView: View {
             return
         }
 
-        let db = Firestore.firestore()
-        db.collection(FirestoreCollection.posts).document(postId).updateData([
-            "comments": post.comments.map { try? Firestore.Encoder().encode($0) }
-        ]) { error in
-            if let error = error {
+        Task {
+            do {
+                try await DIContainer.shared.postRepository.updatePostComments(postId: postId, comments: post.comments)
+            } catch {
                 AppLog.social.error("Failed to save comment: \(error.localizedDescription, privacy: .public)")
             }
         }

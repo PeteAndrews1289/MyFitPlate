@@ -87,7 +87,7 @@ struct MealPrepCookingView: View {
                 timerRemaining -= 1
             } else if isTimerRunning && timerRemaining == 0 {
                 isTimerRunning = false
-                HapticFeedback.success()
+                HapticManager.instance.notification(.success)
                 // You could play a sound here
             }
         }

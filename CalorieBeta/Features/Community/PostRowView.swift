@@ -1,5 +1,4 @@
 import SwiftUI
-import Firebase
 
 struct PostRowView: View {
     @State private var post: CommunityPost
@@ -50,12 +49,10 @@ struct PostRowView: View {
             return
         }
 
-        let db = Firestore.firestore()
-        db.collection(FirestoreCollection.posts).document(postId).updateData([
-            "likes": post.likes,
-            "isLikedByCurrentUser": post.isLikedByCurrentUser
-        ]) { error in
-            if let error = error {
+        Task {
+            do {
+                try await DIContainer.shared.postRepository.updatePostLikes(postId: postId, likes: post.likes, isLikedByCurrentUser: post.isLikedByCurrentUser)
+            } catch {
                 AppLog.social.error("Failed to update like status: \(error.localizedDescription, privacy: .public)")
             }
         }

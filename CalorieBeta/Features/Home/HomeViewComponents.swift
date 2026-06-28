@@ -2,6 +2,497 @@ import SwiftUI
 import FirebaseAuth
 
 
+import Charts
+
+struct HomeQuickActionsView: View {
+    @Binding var showingWorkoutRoutines: Bool
+    @Binding var showingCoachingDashboard: Bool
+    @Binding var showingMenuScanner: Bool
+    @Binding var showingWeightEntrySheet: Bool
+    @Binding var showingFastingSheet: Bool
+    @Binding var showSettings: Bool
+
+    var isMenuScannerSpotlightActive: Bool
+    var onRepeatYesterdayMeals: () -> Void
+
+    var body: some View {
+VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Command Center")
+                        .appFont(size: 20, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Jump into the tools you use most.")
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Spacer()
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    Button(action: {
+                        HapticManager.instance.feedback(.light)
+                        showingWorkoutRoutines = true
+                    }) {
+                        QuickActionButton(
+                            icon: "dumbbell.fill",
+                            label: "Workouts",
+                            subtitle: "Train or resume a plan",
+                            color: .blue
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: {
+                        HapticManager.instance.feedback(.light)
+                        showingCoachingDashboard = true
+                    }) {
+                        QuickActionButton(
+                            icon: "brain.head.profile",
+                            label: "Coaching",
+                            subtitle: "Maia's Strategy",
+                            color: .brandPrimary
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: {
+                        HapticManager.instance.feedback(.light)
+                        onRepeatYesterdayMeals()
+                    }) {
+                        QuickActionButton(
+                            icon: "clock.arrow.circlepath",
+                            label: "Yesterday",
+                            subtitle: "Repeat meals",
+                            color: .accentPositive
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: {
+                        HapticManager.instance.feedback(.light)
+                        showingMenuScanner = true
+                    }) {
+                        QuickActionButton(
+                            icon: "menucard.fill",
+                            label: "Menu Scan",
+                            subtitle: "Find best macros",
+                            color: .orange
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .featureSpotlight(isActive: isMenuScannerSpotlightActive)
+
+                    Button(action: {
+                        HapticManager.instance.feedback(.light)
+                        showingWeightEntrySheet = true
+                    }) {
+                        QuickActionButton(
+                            icon: "scalemass.fill",
+                            label: "Log Weight",
+                            subtitle: "Track body metrics",
+                            color: .teal
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: {
+                        HapticManager.instance.feedback(.light)
+                        showingFastingSheet = true
+                    }) {
+                        QuickActionButton(
+                            icon: "timer",
+                            label: "Fasting",
+                            subtitle: "Start or track a fast",
+                            color: .orange
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: { showSettings = true }) {
+                        QuickActionButton(
+                            icon: "gearshape.fill",
+                            label: "Settings",
+                            subtitle: "Manage your goals",
+                            color: .gray
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+        .frame(maxWidth: 520)
+
+}
+}
+
+
+struct HomeWeightTrackingCard: View {
+    @EnvironmentObject var goalSettings: GoalSettings
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
+    @Binding var showingWeightEntrySheet: Bool
+
+    var body: some View {
+let history = goalSettings.weightHistory.sorted { $0.date < $1.date }
+        let current = history.last?.weight ?? goalSettings.weight
+        let recent = Array(history.suffix(30))
+        let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        let prior = history.last(where: { $0.date <= weekAgo })?.weight ?? history.first?.weight
+        let delta = prior.map { current - $0 }
+
+        return Button(action: { showingWeightEntrySheet = true }) {
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "scalemass.fill")
+                            .appFont(size: 13, weight: .bold)
+                            .foregroundColor(.teal)
+                        Text("Weight")
+                            .appFont(size: 13, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(current > 0 ? String(format: "%.1f", current) : "--")
+                            .appFont(size: 26, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                        Text("lb")
+                            .appFont(size: 13, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                    if let delta, abs(delta) >= 0.05 {
+                        let down = delta < 0
+                        HStack(spacing: 3) {
+                            Image(systemName: down ? "arrow.down.right" : "arrow.up.right")
+                                .appFont(size: 10, weight: .bold)
+                            Text("\(String(format: "%.1f", abs(BodyUnits.weightDisplayValue(lbs: delta, metric: useMetric)))) \(BodyUnits.weightUnit(metric: useMetric)) · 7d")
+                                .appFont(size: 11, weight: .semibold)
+                        }
+                        .foregroundColor(down ? .accentPositive : .orange)
+                    } else {
+                        Text("Tap to log today's weight")
+                            .appFont(size: 11, weight: .medium)
+                            .foregroundColor(Color(UIColor.tertiaryLabel))
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                if recent.count >= 2 {
+                    Chart {
+                        ForEach(recent, id: \.id) { entry in
+                            LineMark(x: .value("Date", entry.date), y: .value("Weight", entry.weight))
+                                .interpolationMethod(.catmullRom)
+                                .foregroundStyle(Color.teal)
+                                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        }
+                    }
+                    .chartXAxis(.hidden)
+                    .chartYAxis(.hidden)
+                    .chartYScale(domain: .automatic(includesZero: false))
+                    .frame(width: 88, height: 42)
+                }
+
+                Text("Log")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(Color.teal, in: Capsule())
+            }
+        }
+        .buttonStyle(AnimatedCardButtonStyle())
+        .asCard()
+
+}
+}
+
+
+struct HomeSmartSuggestionsSection: View {
+    @EnvironmentObject var dailyLogService: DailyLogService
+    var selectedDate: Date
+
+    var body: some View {
+VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Smart Suggestions")
+                        .appFont(size: 20, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Log recent meals with 1 tap.")
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+                Spacer()
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(dailyLogService.smartSuggestions) { item in
+                        Button(action: {
+                            HapticManager.instance.notification(.success)
+                            if let userId = Auth.auth().currentUser?.uid {
+                                // Assume adding it to the current time context meal
+                                let hour = Calendar.current.component(.hour, from: Date())
+                                let mealType: String
+                                if hour < 10 { mealType = "Breakfast" }
+                                else if hour < 15 { mealType = "Lunch" }
+                                else if hour < 21 { mealType = "Dinner" }
+                                else { mealType = "Snacks" }
+
+                                dailyLogService.addFoodToLog(for: userId, date: selectedDate, mealName: mealType, foodItem: item, source: "smart_suggestion")
+                            }
+                        }) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(FoodEmojiMapper.getEmoji(for: item.name))
+                                    .appFont(size: 28)
+
+                                Text(item.name.capitalized)
+                                    .appFont(size: 14, weight: .bold)
+                                    .foregroundColor(.textPrimary)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+
+                                Text("\(Int(item.calories)) cal")
+                                    .appFont(size: 12, weight: .medium)
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                            }
+                            .padding(12)
+                            .frame(width: 120, alignment: .leading)
+                            .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+        .frame(maxWidth: 520)
+
+}
+}
+
+
+struct HomeDashboardHeader: View {
+    @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject var insightsService: InsightsService
+
+    var dailyLog: DailyLog
+    var isToday: Bool
+    var selectedDateFormattedString: String
+    var weeklyInsight: UserInsight?
+    var isHeaderSpotlightActive: Bool
+    @Binding var showingDetailedInsights: Bool
+
+    var body: some View {
+VStack(alignment: .leading, spacing: 0) {
+            DailySnapshotStrip(
+                dailyLog: dailyLog,
+                goalSettings: goalSettings,
+                isToday: isToday,
+                dateTitle: selectedDateFormattedString,
+                onOpenInsights: {
+                    insightsService.generateAndFetchInsights(forLastDays: 7)
+                    showingDetailedInsights = true
+                }
+            )
+            .padding(.top, 4)
+            .padding(.bottom, 6)
+
+            Divider()
+                .padding(.horizontal, 14)
+
+            NutritionProgressView(dailyLog: dailyLog, goal: goalSettings, insight: weeklyInsight)
+                .padding(.top, 10)
+
+
+        }
+        .frame(maxWidth: 520)
+        .asCard()
+        .featureSpotlight(isActive: isHeaderSpotlightActive)
+
+}
+}
+
+
+struct HomeDailyLogSummaryStrip: View {
+    var log: DailyLog
+    var body: some View {
+let foodItems = log.meals.flatMap(\.foodItems)
+        let exercises = (log.exercises ?? []).dedupedAgainstHealthKit()
+        let calories = log.totalCalories()
+        let exerciseCalories = exercises.reduce(0) { $0 + $1.caloriesBurned }
+
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            DiaryMetricPill(title: "Food", value: "\(foodItems.count)", subtitle: "items", icon: "fork.knife", color: .brandPrimary)
+            DiaryMetricPill(title: "Calories", value: "\(Int(calories.rounded()))", subtitle: "logged", icon: "flame.fill", color: .orange)
+            DiaryMetricPill(title: "Activity", value: "\(exercises.count)", subtitle: "sessions", icon: "figure.run", color: .blue)
+            DiaryMetricPill(title: "Burned", value: "\(Int(exerciseCalories.rounded()))", subtitle: "cal", icon: "bolt.fill", color: .accentPositive)
+        }
+
+}
+}
+
+
+struct HomeActivityWidget: View {
+    var exercises: [LoggedExercise]
+    @Binding var showingAddExerciseView: Bool
+    @Binding var selectedExerciseForDetail: LoggedExercise?
+    @Binding var showingWorkoutDetail: Bool
+    var onDeleteExercise: (String) -> Void
+
+    var body: some View {
+VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Activity")
+                        .appFont(size: 20, weight: .semibold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("\(exercises.count) \(exercises.count == 1 ? "session" : "sessions") logged")
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Spacer()
+
+                Button("Add") { showingAddExerciseView = true }
+                    .appFont(size: 15, weight: .semibold)
+                    .foregroundColor(.brandPrimary)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(exercises) { exercise in
+                    SwipeableExerciseRowView(
+                        exercise: exercise,
+                        onDelete: { exerciseID in onDeleteExercise(exerciseID) },
+                        onTap: { exerciseToView in
+                            selectedExerciseForDetail = exerciseToView
+                            showingWorkoutDetail = true
+                        }
+                    )
+                }
+            }
+        }
+
+}
+}
+
+
+struct HomeFoodDiaryGroupedContent: View {
+    @EnvironmentObject var dailyLogService: DailyLogService
+    var meals: [Meal]
+    var selectedDate: Date
+    var onDeleteFood: (String) -> Void
+
+    var body: some View {
+VStack(alignment: .leading, spacing: 16) {
+            ForEach(meals) { meal in
+                if !meal.foodItems.isEmpty {
+                    let mealCalories = meal.foodItems.reduce(0) { $0 + $1.calories }
+                    let itemCount = meal.foodItems.count
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(meal.name)
+                                .appFont(size: 20, weight: .semibold)
+                                .foregroundColor(.textPrimary)
+
+                            Spacer()
+
+                            Text("\(itemCount) \(itemCount == 1 ? "item" : "items") • \(Int(mealCalories.rounded())) cal")
+                                .appFont(size: 12, weight: .medium)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
+                        }
+
+                        VStack(spacing: 8) {
+                            ForEach(meal.foodItems) { foodItem in
+                                SwipeableFoodItemView(
+                                    initialFoodItem: foodItem,
+                                    dailyLog: $dailyLogService.currentDailyLog,
+                                    onDelete: { itemID in onDeleteFood(itemID) },
+                                    onLogUpdated: { },
+                                    date: selectedDate
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+}
+}
+
+
+struct HomeFoodDiarySection: View {
+    @EnvironmentObject var dailyLogService: DailyLogService
+    @Environment(\.colorScheme) var colorScheme
+
+    var currentLogForDisplay: DailyLog?
+    var isToday: Bool
+    var selectedDate: Date
+    var isDailyLogSpotlightActive: Bool
+
+    @Binding var showingAddExerciseView: Bool
+    @Binding var selectedExerciseForDetail: LoggedExercise?
+    @Binding var showingWorkoutDetail: Bool
+
+    var onDeleteFood: (String) -> Void
+    var onDeleteExercise: (String) -> Void
+
+    var body: some View {
+VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Daily Log")
+                        .appFont(size: 22, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Food, activity, and edits for this day.")
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
+                Spacer()
+
+
+            }
+
+            if let currentLogForDisplay,
+               currentLogForDisplay.meals.flatMap({ $0.foodItems }).isEmpty,
+               currentLogForDisplay.exercises?.isEmpty ?? true {
+                EmptyDailyLogView(isToday: isToday)
+            } else {
+                if let currentLogForDisplay {
+                    HomeDailyLogSummaryStrip(log: currentLogForDisplay)
+                    HomeFoodDiaryGroupedContent(meals: currentLogForDisplay.meals, selectedDate: selectedDate, onDeleteFood: onDeleteFood)
+                }
+
+                let dedupedExercises = (currentLogForDisplay?.exercises ?? []).dedupedAgainstHealthKit()
+                if !dedupedExercises.isEmpty {
+                    Divider().padding(.vertical, 8)
+                    HomeActivityWidget(exercises: dedupedExercises, showingAddExerciseView: $showingAddExerciseView, selectedExerciseForDetail: $selectedExerciseForDetail, showingWorkoutDetail: $showingWorkoutDetail, onDeleteExercise: onDeleteExercise)
+                }
+            }
+        }
+        .frame(maxWidth: 520)
+        .asCard()
+        .background(colorScheme == .dark ? Color.backgroundPrimary : Color.brandPrimary.opacity(0.03))
+        .cornerRadius(20)
+        .featureSpotlight(isActive: isDailyLogSpotlightActive)
+
+}
+}
+
+
+
+
+
 struct DailySnapshotStrip: View {
     let dailyLog: DailyLog
     @ObservedObject var goalSettings: GoalSettings
@@ -757,29 +1248,5 @@ public extension View {
         } else {
             self
         }
-    }
-}
-
-public struct HapticFeedback {
-    public static func impact(style: UIImpactFeedbackGenerator.FeedbackStyle = .light) {
-        let generator = UIImpactFeedbackGenerator(style: style)
-        generator.prepare()
-        generator.impactOccurred()
-    }
-
-    public static func notify(type: UINotificationFeedbackGenerator.FeedbackType) {
-        let generator = UINotificationFeedbackGenerator()
-        generator.prepare()
-        generator.notificationOccurred(type)
-    }
-
-    public static func selection() {
-        let generator = UISelectionFeedbackGenerator()
-        generator.prepare()
-        generator.selectionChanged()
-    }
-
-    public static func success() {
-        notify(type: .success)
     }
 }

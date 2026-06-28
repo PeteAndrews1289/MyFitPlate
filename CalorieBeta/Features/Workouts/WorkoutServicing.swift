@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 protocol WorkoutServicing: AnyObject {
     var userRoutines: [WorkoutRoutine] { get set }
     var userPrograms: [WorkoutProgram] { get set }

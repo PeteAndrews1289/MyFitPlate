@@ -2,7 +2,6 @@ import UIKit
 import SwiftUI
 import DGCharts
 import FirebaseAuth
-import FirebaseFirestore
 
 class WeightTrackingViewController: UIViewController {
     var weightHistory: [(id: String, date: Date, weight: Double)] = []
@@ -44,46 +43,38 @@ class WeightTrackingViewController: UIViewController {
         guard let userID = Auth.auth().currentUser?.uid else {
             return
         }
-        let db = Firestore.firestore()
-        let group = DispatchGroup()
-
-        group.enter()
-        db.collection(FirestoreCollection.users).document(userID).getDocument { document, error in
-            defer { group.leave() }
-            if let document = document, document.exists, let weight = document.data()?["weight"] as? Double {
-                self.currentWeight = weight
-            } else if let error = error {
-                AppLog.health.error("Failed to fetch current weight: \(error.localizedDescription, privacy: .public)")
-            }
-        }
-
-        group.enter()
-        db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.weightHistory)
-            .order(by: "timestamp", descending: false)
-            .getDocuments { snapshot, error in
-                defer { group.leave() }
-                if let error = error {
-                    AppLog.health.error("Failed to fetch weight history: \(error.localizedDescription, privacy: .public)")
-                    return
-                }
-
-                self.weightHistory = snapshot?.documents.compactMap { doc in
-                    let data = doc.data()
-                    if let weight = data["weight"] as? Double,
-                       let timestamp = data["timestamp"] as? Timestamp {
-                        return (id: doc.documentID, date: timestamp.dateValue(), weight: weight)
+        
+        Task {
+            var fetchedWeight = self.currentWeight
+            var fetchedHistory: [(id: String, date: Date, weight: Double)] = []
+            
+            // Fetch Current Weight
+            await withCheckedContinuation { continuation in
+                DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { data in
+                    if let weight = data?["weight"] as? Double {
+                        fetchedWeight = weight
                     }
-                    return nil
-                } ?? []
-                self.weightHistory.sort { $0.date < $1.date }
+                    continuation.resume()
+                }
             }
-
-        group.notify(queue: .main) {
-             if self.hostingController == nil {
-                 self.setupSwiftUIChart()
-             } else {
-                 self.updateChart()
-             }
+            
+            // Fetch History
+            do {
+                fetchedHistory = try await DIContainer.shared.settingsRepository.fetchWeightHistory(userID: userID)
+            } catch {
+                AppLog.health.error("Failed to fetch weight history: \(error.localizedDescription, privacy: .public)")
+            }
+            
+            await MainActor.run {
+                self.currentWeight = fetchedWeight
+                self.weightHistory = fetchedHistory
+                
+                if self.hostingController == nil {
+                    self.setupSwiftUIChart()
+                } else {
+                    self.updateChart()
+                }
+            }
         }
     }
 

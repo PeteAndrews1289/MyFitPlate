@@ -1,5 +1,4 @@
 import Foundation
-import FirebaseFirestore
 import FirebaseAuth
 import Combine
 
@@ -15,10 +14,9 @@ class AchievementService: ObservableObject {
     
     @Published var activeChallenges: [Challenge] = []
 
-    private let db = Firestore.firestore()
-    private var userStatusListener: ListenerRegistration?
-    private var userProfileListener: ListenerRegistration?
-    private var challengesListener: ListenerRegistration?
+    private var userStatusCancellable: AnyCancellable?
+    private var userProfileCancellable: AnyCancellable?
+    private var challengesCancellable: AnyCancellable?
     private var authStateListenerHandle: AuthStateDidChangeListenerHandle?
     private var currentUserID: String?
     private weak var dailyLogService: DailyLogService?
@@ -33,9 +31,9 @@ class AchievementService: ObservableObject {
     }
 
     deinit {
-        userStatusListener?.remove()
-        userProfileListener?.remove()
-        challengesListener?.remove()
+        userStatusCancellable?.cancel()
+        userProfileCancellable?.cancel()
+        challengesCancellable?.cancel()
         if let handle = authStateListenerHandle { Auth.auth().removeStateDidChangeListener(handle) }
     }
 
@@ -68,9 +66,9 @@ class AchievementService: ObservableObject {
                      }
                  } else {
                      self.currentUserID = nil
-                     self.userStatusListener?.remove()
-                     self.userProfileListener?.remove()
-                     self.challengesListener?.remove()
+                     self.userStatusCancellable?.cancel()
+                     self.userProfileCancellable?.cancel()
+                     self.challengesCancellable?.cancel()
                      self.userStatuses = [:]
                      self.unlockedAchievementsCount = 0
                      self.userTotalAchievementPoints = 0
@@ -108,13 +106,14 @@ class AchievementService: ObservableObject {
     }
 
     func listenToUserProfile(userID: String) {
-        userProfileListener?.remove()
-        userProfileListener = db.collection(FirestoreCollection.users).document(userID)
-            .addSnapshotListener { [weak self] documentSnapshot, error in
-                guard let self = self, let document = documentSnapshot else { return }
-                DispatchQueue.main.async {
-                    self.userTotalAchievementPoints = document.data()?["totalAchievementPoints"] as? Int ?? 0
-                    self.userAchievementLevel = document.data()?["userLevel"] as? Int ?? 1
+        userProfileCancellable?.cancel()
+        userProfileCancellable = DIContainer.shared.achievementRepository.userProfilePublisher(userID: userID)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] profile in
+                guard let self = self else { return }
+                if let profile = profile {
+                    self.userTotalAchievementPoints = profile.points
+                    self.userAchievementLevel = profile.level
                 }
             }
     }
@@ -122,32 +121,28 @@ class AchievementService: ObservableObject {
     func fetchUserStatuses(userID: String) {
         guard !userID.isEmpty, self.currentUserID == userID else { return }
         isLoading = true
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.achievementStatus)
-        userStatusListener?.remove()
-        userStatusListener = ref.addSnapshotListener { [weak self] snap, err in
-            guard let self = self else { return }
-            Task { @MainActor in
+        userStatusCancellable?.cancel()
+        userStatusCancellable = DIContainer.shared.achievementRepository.userStatusesPublisher(userID: userID)
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { [weak self] completion in
+                self?.isLoading = false
+            }, receiveValue: { [weak self] statuses in
+                guard let self = self else { return }
                 self.isLoading = false
-                if err != nil { return }
-                guard let docs = snap?.documents else {
+                
+                if statuses.isEmpty {
                     self.userStatuses = self.createDefaultStatuses()
                     self.unlockedAchievementsCount = 0
                     return
                 }
+                
                 var newStatuses = self.createDefaultStatuses()
-                for doc in docs {
-                    do {
-                        var status = try doc.data(as: UserAchievementStatus.self)
-                        status.id = doc.documentID
-                        newStatuses[status.achievementID] = status
-                    } catch {
-                        AppLog.app.error("Failed to decode achievement status \(doc.documentID, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                    }
+                for status in statuses {
+                    newStatuses[status.achievementID] = status
                 }
                 self.userStatuses = newStatuses
                 self.unlockedAchievementsCount = newStatuses.values.filter { $0.isUnlocked }.count
-            }
-        }
+            })
     }
     
     private func createDefaultStatuses() -> [String: UserAchievementStatus] {
@@ -159,46 +154,26 @@ class AchievementService: ObservableObject {
     }
     
     private func updateStatusInFirestore(userID: String, status: UserAchievementStatus) {
-        guard !userID.isEmpty, self.currentUserID == userID, let statusDocID = status.id else { return }
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.achievementStatus).document(statusDocID)
-        do {
-            try ref.setData(from: status, merge: true)
-        } catch {
-            AppLog.app.error("Failed to save achievement status \(status.achievementID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        guard !userID.isEmpty, self.currentUserID == userID else { return }
+        Task {
+            do {
+                try await DIContainer.shared.achievementRepository.saveUserStatus(userID: userID, status: status)
+            } catch {
+                AppLog.app.error("Failed to save achievement status \(status.achievementID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
     private func awardPointsAndCheckLevel(userID: String, points: Int) {
-        let userRef = db.collection(FirestoreCollection.users).document(userID)
-        db.runTransaction { (transaction, errorPointer) -> Any? in
-            let userDocument: DocumentSnapshot
+        Task {
             do {
-                try userDocument = transaction.getDocument(userRef)
-            } catch let fetchError as NSError {
-                errorPointer?.pointee = fetchError
-                return nil
-            }
-
-            let oldPoints = userDocument.data()?["totalAchievementPoints"] as? Int ?? 0
-            let newPoints = oldPoints + points
-            
-            var newLevel = 1
-            for (index, threshold) in self.levelThresholds.enumerated().reversed() {
-                if newPoints >= threshold {
-                    newLevel = index + 1
-                    break
+                let result = try await DIContainer.shared.achievementRepository.awardPointsAndCheckLevel(userID: userID, points: points, levelThresholds: self.levelThresholds)
+                await MainActor.run {
+                    self.userTotalAchievementPoints = result.newPoints
+                    self.userAchievementLevel = result.newLevel
                 }
-            }
-            if newLevel < 1 { newLevel = 1 }
-
-            transaction.updateData(["totalAchievementPoints": newPoints, "userLevel": newLevel], forDocument: userRef)
-            return nil
-        } completion: { (object, error) in
-            if error == nil {
-                DispatchQueue.main.async {
-                   self.userTotalAchievementPoints = self.userTotalAchievementPoints + points
-                   self.userAchievementLevel = self.calculateLevel(for: self.userTotalAchievementPoints)
-                }
+            } catch {
+                AppLog.app.error("Failed to award points: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -261,11 +236,9 @@ class AchievementService: ObservableObject {
     private func checkTargetWeightAchievement(userID: String, goals: GoalSettings) { let id = "target_reached"; guard shouldCheck(id), let target = goals.targetWeight else { return }; let current = goals.weight; if abs(current - target) <= 0.5 { unlockAchievement(userID: userID, achievementID: id) } }
     
     func checkRecipeCountAchievements(userID: String) {
-        let recipeCollection = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.recipes)
         Task {
             do {
-                let snapshot = try await recipeCollection.count.getAggregation(source: .server)
-                let recipeCount = snapshot.count.intValue
+                let recipeCount = try await DIContainer.shared.achievementRepository.fetchRecipeCount(userID: userID)
                 let chefAchievementIDs = ["novice_chef", "apprentice_chef", "adept_chef", "expert_chef"]
                 for id in chefAchievementIDs {
                     guard let def = getDefinition(id: id) else { continue }
@@ -281,11 +254,9 @@ class AchievementService: ObservableObject {
     }
 
     func checkWorkoutCountAchievements(userID: String) {
-        let workoutCollection = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
         Task {
             do {
-                let snapshot = try await workoutCollection.count.getAggregation(source: .server)
-                let workoutCount = snapshot.count.intValue
+                let workoutCount = try await DIContainer.shared.achievementRepository.fetchWorkoutCount(userID: userID)
                 let workoutAchievementIDs = ["first_workout", "workout_streak_3", "workout_streak_7", "workout_streak_15"]
                 for id in workoutAchievementIDs {
                     guard let def = getDefinition(id: id) else { continue }
@@ -344,88 +315,61 @@ class AchievementService: ObservableObject {
     }
 
     func listenToActiveChallenges(for userID: String) {
-        let challengesRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.activeChallenges)
-        challengesListener?.remove()
-        challengesListener = challengesRef.whereField("expiresAt", isGreaterThan: Timestamp(date: Date()))
-            .addSnapshotListener { [weak self] querySnapshot, error in
-                guard let self = self else { return }
-                guard let documents = querySnapshot?.documents else {
-                    self.activeChallenges = []
-                    return
-                }
-
-                var newChallenges: [Challenge] = []
-                for doc in documents {
-                    do {
-                        let challenge = try doc.data(as: Challenge.self)
-                        newChallenges.append(challenge)
-                    } catch {
-                    }
-                }
-                self.activeChallenges = newChallenges
-            }
+        challengesCancellable?.cancel()
+        challengesCancellable = DIContainer.shared.achievementRepository.activeChallengesPublisher(userID: userID)
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] challenges in
+                self?.activeChallenges = challenges
+            })
     }
 
     func generateWeeklyChallenges(for userID: String) {
-        let challengesRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.activeChallenges)
-        challengesRef.whereField("expiresAt", isGreaterThan: Timestamp(date: Date())).getDocuments { snapshot, error in
-            guard snapshot?.documents.isEmpty ?? true else { return }
-
-            let weekFromNow = Timestamp(date: Date().addingTimeInterval(7 * 24 * 60 * 60))
-            
-            let potentialChallenges: [Challenge] = [
-                Challenge(title: "Workout Warrior", description: "Log 3 separate workouts this week.", type: .workoutLogged, goal: 3, pointsValue: 75, expiresAt: weekFromNow),
-                Challenge(title: "Protein Power", description: "Meet your daily protein goal 4 times.", type: .proteinGoalHit, goal: 4, pointsValue: 75, expiresAt: weekFromNow),
-                Challenge(title: "Calorie Controller", description: "Stay within 100 calories of your goal for 3 days.", type: .calorieRange, goal: 3, pointsValue: 60, expiresAt: weekFromNow),
-                Challenge(title: "Dedicated Dieter", description: "Log your food for all 7 days of the week.", type: .loggingStreak, goal: 7, pointsValue: 150, expiresAt: weekFromNow),
-                Challenge(title: "Weekend Warrior", description: "Log at least one workout on Saturday or Sunday.", type: .workoutLogged, goal: 1, pointsValue: 40, expiresAt: weekFromNow),
-                Challenge(title: "Five-a-Day", description: "Log at least 5 days in a row this week.", type: .loggingStreak, goal: 5, pointsValue: 100, expiresAt: weekFromNow),
-                Challenge(title: "Macro-Minded", description: "Hit your protein goal 2 times in a row.", type: .proteinGoalHit, goal: 2, pointsValue: 50, expiresAt: weekFromNow),
-                Challenge(title: "Active Start", description: "Log 2 workouts before Wednesday.", type: .workoutLogged, goal: 2, pointsValue: 50, expiresAt: weekFromNow)
-            ]
-            
-            let challengesToSet = Array(potentialChallenges.shuffled().prefix(5))
-            let batch = Firestore.firestore().batch()
-            for challenge in challengesToSet {
-                let newDocRef = challengesRef.document()
-                do {
-                    try batch.setData(from: challenge, forDocument: newDocRef)
-                } catch {
-                }
-            }
-            batch.commit { err in
+        let weekFromNow = Date().addingTimeInterval(7 * 24 * 60 * 60)
+        
+        let potentialChallenges: [Challenge] = [
+            Challenge(title: "Workout Warrior", description: "Log 3 separate workouts this week.", type: .workoutLogged, goal: 3, pointsValue: 75, expiresAt: weekFromNow),
+            Challenge(title: "Protein Power", description: "Meet your daily protein goal 4 times.", type: .proteinGoalHit, goal: 4, pointsValue: 75, expiresAt: weekFromNow),
+            Challenge(title: "Calorie Controller", description: "Stay within 100 calories of your goal for 3 days.", type: .calorieRange, goal: 3, pointsValue: 60, expiresAt: weekFromNow),
+            Challenge(title: "Dedicated Dieter", description: "Log your food for all 7 days of the week.", type: .loggingStreak, goal: 7, pointsValue: 150, expiresAt: weekFromNow),
+            Challenge(title: "Weekend Warrior", description: "Log at least one workout on Saturday or Sunday.", type: .workoutLogged, goal: 1, pointsValue: 40, expiresAt: weekFromNow),
+            Challenge(title: "Five-a-Day", description: "Log at least 5 days in a row this week.", type: .loggingStreak, goal: 5, pointsValue: 100, expiresAt: weekFromNow),
+            Challenge(title: "Macro-Minded", description: "Hit your protein goal 2 times in a row.", type: .proteinGoalHit, goal: 2, pointsValue: 50, expiresAt: weekFromNow),
+            Challenge(title: "Active Start", description: "Log 2 workouts before Wednesday.", type: .workoutLogged, goal: 2, pointsValue: 50, expiresAt: weekFromNow)
+        ]
+        
+        let challengesToSet = Array(potentialChallenges.shuffled().prefix(5))
+        Task {
+            do {
+                try await DIContainer.shared.achievementRepository.generateWeeklyChallenges(userID: userID, challengesToSet: challengesToSet)
+            } catch {
+                AppLog.app.error("Failed to generate weekly challenges: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
 
     func updateChallengeProgress(for userID: String, type: ChallengeType, amount: Double) {
-        let challengesRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.activeChallenges)
-        challengesRef
-            .whereField("type", isEqualTo: type.rawValue)
-            .whereField("isCompleted", isEqualTo: false)
-            .whereField("expiresAt", isGreaterThan: Timestamp(date: Date()))
-            .getDocuments { [weak self] snapshot, error in
-                guard let self = self, let documents = snapshot?.documents, !documents.isEmpty else { return }
-
-                for document in documents {
-                    do {
-                        var challenge = try document.data(as: Challenge.self)
-                        challenge.progress += amount
-                        
-                        if challenge.progress >= challenge.goal {
-                            challenge.isCompleted = true
-                            let pointsValue = challenge.pointsValue
-                            let challengeTitle = challenge.title
-                            Task { @MainActor in
-                                self.awardPointsAndCheckLevel(userID: userID, points: pointsValue)
-                                self.bannerService?.showBanner(title: "Challenge Complete!", message: challengeTitle, iconName: "star.fill", iconColor: .yellow)
-                            }
+        Task {
+            do {
+                let challenges = try await DIContainer.shared.achievementRepository.fetchActiveChallenges(userID: userID, type: type)
+                
+                for var challenge in challenges {
+                    challenge.progress += amount
+                    
+                    if challenge.progress >= challenge.goal {
+                        challenge.isCompleted = true
+                        let pointsValue = challenge.pointsValue
+                        let challengeTitle = challenge.title
+                        await MainActor.run {
+                            self.awardPointsAndCheckLevel(userID: userID, points: pointsValue)
+                            self.bannerService?.showBanner(title: "Challenge Complete!", message: challengeTitle, iconName: "star.fill", iconColor: .yellow)
                         }
-                        
-                        try challengesRef.document(document.documentID).setData(from: challenge, merge: true)
-                    } catch {
                     }
+                    
+                    try await DIContainer.shared.achievementRepository.updateChallenge(userID: userID, challenge: challenge)
                 }
+            } catch {
+                AppLog.app.error("Failed to update challenge progress: \(error.localizedDescription, privacy: .public)")
             }
+        }
     }
 }

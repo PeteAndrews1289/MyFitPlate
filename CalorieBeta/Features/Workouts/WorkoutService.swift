@@ -1,6 +1,4 @@
 import Foundation
-import FirebaseFirestore
-import FirebaseAuth
 import FirebaseAnalytics
 
 enum WorkoutServiceError: Error, LocalizedError {
@@ -37,9 +35,8 @@ class WorkoutService: ObservableObject, WorkoutServicing {
         }
     }
 
-    private let db = Firestore.firestore()
-    private var routineListener: ListenerRegistration?
-    private var programListener: ListenerRegistration?
+    private var routineListener: Any?
+    private var programListener: Any?
     private var listenerUserID: String?
     private let activeProgramIDKey = "activeWorkoutProgramID"
 
@@ -47,27 +44,14 @@ class WorkoutService: ObservableObject, WorkoutServicing {
         loadPreBuiltPrograms()
     }
 
-    private func programsCollectionRef(for userID: String) -> CollectionReference{
-        return db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutPrograms)
-    }
-
-    private func routinesCollectionRef(for userID: String) -> CollectionReference {
-        return db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutRoutines)
-    }
-
-    private func sessionLogsCollectionRef(for userID: String) -> CollectionReference {
-        return db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.workoutSessionLogs)
-    }
-
     // MARK: - Fetching & Saving
     
     func fetchWorkoutSessionLog(workoutID: String, sessionID: String) async -> Result<WorkoutSessionLog, Error> {
-        guard let userID = Auth.auth().currentUser?.uid else {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
             return .failure(WorkoutServiceError.userNotLoggedIn)
         }
         do {
-            let document = try await sessionLogsCollectionRef(for: userID).document(sessionID).getDocument()
-            let sessionLog = try document.data(as: WorkoutSessionLog.self)
+            let sessionLog = try await DIContainer.shared.workoutRepository.fetchWorkoutSessionLog(userID: userID, sessionID: sessionID)
             return .success(sessionLog)
         } catch {
             return .failure(error)
@@ -75,39 +59,22 @@ class WorkoutService: ObservableObject, WorkoutServicing {
     }
     
     func fetchSessionLogs(for program: WorkoutProgram) async -> [WorkoutSessionLog] {
-        guard let userID = Auth.auth().currentUser?.uid else { return [] }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return [] }
         let routineIDs = program.routines.map { $0.id }
-        
-        // Chunk queries to avoid Firestore limits (max 10 in 'in' query usually, but safe with chunks)
-        let chunks = routineIDs.chunked(into: 10)
-        var allLogs: [WorkoutSessionLog] = []
-
-        for chunk in chunks {
-            guard !chunk.isEmpty else { continue }
-            do {
-                let snapshot = try await sessionLogsCollectionRef(for: userID)
-                    .whereField("routineID", in: chunk)
-                    .getDocuments()
-                
-                let logs = snapshot.documents.compactMap { try? $0.data(as: WorkoutSessionLog.self) }
-                allLogs.append(contentsOf: logs)
-            } catch {
-                AppLog.workouts.error("Failed to fetch workout session log chunk: \(error.localizedDescription, privacy: .public)")
-            }
+        do {
+            return try await DIContainer.shared.workoutRepository.fetchSessionLogs(userID: userID, routineIDs: routineIDs)
+        } catch {
+            AppLog.workouts.error("Failed to fetch session logs: \(error.localizedDescription, privacy: .public)")
+            return []
         }
-        return allLogs
     }
 
     /// Fetches completed session logs from the last `days` days (used by the muscle recovery map,
     /// which needs the real per-exercise names rather than the routine summary in the daily log).
     func fetchRecentSessionLogs(sinceDays days: Int) async -> [WorkoutSessionLog] {
-        guard let userID = Auth.auth().currentUser?.uid else { return [] }
-        let startDate = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date()
+        guard let userID = DIContainer.shared.authService.currentUserID else { return [] }
         do {
-            let snapshot = try await sessionLogsCollectionRef(for: userID)
-                .whereField("date", isGreaterThanOrEqualTo: Timestamp(date: startDate))
-                .getDocuments()
-            return snapshot.documents.compactMap { try? $0.data(as: WorkoutSessionLog.self) }
+            return try await DIContainer.shared.workoutRepository.fetchRecentSessionLogs(userID: userID, sinceDays: days)
         } catch {
             AppLog.workouts.error("Failed to fetch recent session logs: \(error.localizedDescription, privacy: .public)")
             return []
@@ -115,42 +82,38 @@ class WorkoutService: ObservableObject, WorkoutServicing {
     }
 
     func fetchRoutinesAndPrograms() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         if listenerUserID == userID, routineListener != nil, programListener != nil {
             return
         }
 
-        programListener?.remove()
-        routineListener?.remove()
+        if let pListener = programListener { DIContainer.shared.workoutRepository.removeListener(pListener) }
+        if let rListener = routineListener { DIContainer.shared.workoutRepository.removeListener(rListener) }
         listenerUserID = userID
 
-        self.programListener = programsCollectionRef(for: userID).order(by: "dateCreated", descending: true)
-            .addSnapshotListener { querySnapshot, error in
-                guard let documents = querySnapshot?.documents else {
-                    AppLog.workouts.error("Failed to fetch user programs: \(error?.localizedDescription ?? "Unknown error", privacy: .public)")
-                    return
-                }
-                self.userPrograms = documents.compactMap { doc -> WorkoutProgram? in
-                   try? doc.data(as: WorkoutProgram.self)
-                }
-                self.restoreActiveProgram()
+        self.programListener = DIContainer.shared.workoutRepository.addProgramsSnapshotListener(userID: userID) { [weak self] result in
+            switch result {
+            case .success(let programs):
+                self?.userPrograms = programs
+                self?.restoreActiveProgram()
+            case .failure(let error):
+                AppLog.workouts.error("Failed to fetch user programs: \(error.localizedDescription, privacy: .public)")
             }
+        }
 
-        self.routineListener = routinesCollectionRef(for: userID).order(by: "dateCreated", descending: true)
-            .addSnapshotListener { querySnapshot, error in
-                guard let documents = querySnapshot?.documents else {
-                    AppLog.workouts.error("Failed to fetch user routines: \(error?.localizedDescription ?? "Unknown error", privacy: .public)")
-                    return
-                }
-                self.userRoutines = documents.compactMap { doc -> WorkoutRoutine? in
-                    try? doc.data(as: WorkoutRoutine.self)
-                }
+        self.routineListener = DIContainer.shared.workoutRepository.addRoutinesSnapshotListener(userID: userID) { [weak self] result in
+            switch result {
+            case .success(let routines):
+                self?.userRoutines = routines
+            case .failure(let error):
+                AppLog.workouts.error("Failed to fetch user routines: \(error.localizedDescription, privacy: .public)")
             }
+        }
     }
 
     deinit {
-        programListener?.remove()
-        routineListener?.remove()
+        if let pListener = programListener { DIContainer.shared.workoutRepository.removeListener(pListener) }
+        if let rListener = routineListener { DIContainer.shared.workoutRepository.removeListener(rListener) }
     }
 
     func setActiveProgram(_ program: WorkoutProgram) {
@@ -162,24 +125,15 @@ class WorkoutService: ObservableObject, WorkoutServicing {
 
     @discardableResult
     func saveProgram(_ program: WorkoutProgram) async -> WorkoutProgram? {
-        guard let userID = Auth.auth().currentUser?.uid else { return nil }
-        var programToSave = program
-        programToSave.userID = userID
-
+        guard let userID = DIContainer.shared.authService.currentUserID else { return nil }
+        
         do {
-            let docRef: DocumentReference
-            if let programID = programToSave.id {
-                docRef = programsCollectionRef(for: userID).document(programID)
-            } else {
-                docRef = programsCollectionRef(for: userID).document()
-            }
-            programToSave.id = docRef.documentID
-            try docRef.setData(from: programToSave, merge: true)
+            let savedProgram = try await DIContainer.shared.workoutRepository.saveProgram(userID: userID, program: program)
             
             if program.id == nil {
                 Analytics.logEvent("program_created", parameters: nil)
             }
-            return programToSave
+            return savedProgram
         } catch {
             AppLog.workouts.error("Failed to save workout program: \(error.localizedDescription, privacy: .public)")
             return nil
@@ -216,74 +170,59 @@ class WorkoutService: ObservableObject, WorkoutServicing {
     }
 
     func deleteProgram(_ program: WorkoutProgram) {
-        guard let userID = Auth.auth().currentUser?.uid, let programID = program.id else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID, let programID = program.id else { return }
         if activeProgram?.id == programID {
             activeProgram = nil
             UserDefaults.standard.removeObject(forKey: activeProgramIDKey)
         }
-        programsCollectionRef(for: userID).document(programID).delete { error in
-             if let error = error {
+        
+        Task {
+            do {
+                try await DIContainer.shared.workoutRepository.deleteProgram(userID: userID, programID: programID)
+            } catch {
                 AppLog.workouts.error("Failed to delete workout program: \(error.localizedDescription, privacy: .public)")
-             }
+            }
         }
     }
 
     func saveRoutine(_ routine: WorkoutRoutine) async throws {
-        guard let userID = Auth.auth().currentUser?.uid else {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
             throw WorkoutServiceError.userNotLoggedIn
         }
-        let routineToSave = routine
-        routineToSave.userID = userID
-
+        
         do {
-            try routinesCollectionRef(for: userID).document(routine.id).setData(from: routineToSave, merge: true)
+            try await DIContainer.shared.workoutRepository.saveRoutine(userID: userID, routine: routine)
         } catch {
             throw WorkoutServiceError.firestoreError(error)
         }
     }
 
     func deleteRoutine(_ routine: WorkoutRoutine) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
-        routinesCollectionRef(for: userID).document(routine.id).delete { error in
-             if let error = error {
-                 AppLog.workouts.error("Failed to delete workout routine: \(error.localizedDescription, privacy: .public)")
-             }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        
+        Task {
+            do {
+                try await DIContainer.shared.workoutRepository.deleteRoutine(userID: userID, routineID: routine.id)
+            } catch {
+                AppLog.workouts.error("Failed to delete workout routine: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
     func saveWorkoutSessionLog(_ log: WorkoutSessionLog) async {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         do {
-            let docRef: DocumentReference
-            if let logID = log.id {
-                docRef = sessionLogsCollectionRef(for: userID).document(logID)
-            } else {
-                docRef = sessionLogsCollectionRef(for: userID).document()
-            }
-            var logToSave = log
-            logToSave.id = docRef.documentID
-            try docRef.setData(from: logToSave)
+            try await DIContainer.shared.workoutRepository.saveWorkoutSessionLog(userID: userID, log: log)
         } catch {
             AppLog.workouts.error("Failed to save workout session log: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     func fetchHistory(for exerciseName: String) async -> [WorkoutSessionLog] {
-        guard let userID = Auth.auth().currentUser?.uid else { return [] }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return [] }
 
         do {
-            let snapshot = try await sessionLogsCollectionRef(for: userID)
-                .order(by: "date", descending: true)
-                .getDocuments()
-
-            let logs = snapshot.documents.compactMap { try? $0.data(as: WorkoutSessionLog.self) }
-
-            let filteredLogs = logs.filter { log in
-                log.completedExercises.contains { $0.exerciseName == exerciseName }
-            }
-
-            return filteredLogs
-
+            return try await DIContainer.shared.workoutRepository.fetchHistory(userID: userID, exerciseName: exerciseName)
         } catch {
             AppLog.workouts.error("Failed to fetch exercise history: \(error.localizedDescription, privacy: .public)")
             return []
@@ -291,19 +230,9 @@ class WorkoutService: ObservableObject, WorkoutServicing {
     }
 
     func fetchPreviousPerformance(for exerciseName: String) async -> CompletedExercise? {
-        guard let userID = Auth.auth().currentUser?.uid else { return nil }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return nil }
         do {
-             let snapshot = try await sessionLogsCollectionRef(for: userID)
-                 .order(by: "date", descending: true)
-                 .limit(to: 10)
-                 .getDocuments()
-             let recentLogs = snapshot.documents.compactMap { try? $0.data(as: WorkoutSessionLog.self) }
-             for log in recentLogs {
-                 if let exercise = log.completedExercises.first(where: { $0.exerciseName == exerciseName }) {
-                     return exercise
-                 }
-             }
-             return nil
+             return try await DIContainer.shared.workoutRepository.fetchPreviousPerformance(userID: userID, exerciseName: exerciseName)
         } catch {
             AppLog.workouts.error("Failed to fetch previous performance for \(exerciseName, privacy: .public): \(error.localizedDescription, privacy: .public)")
             return nil

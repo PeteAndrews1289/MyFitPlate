@@ -4,6 +4,7 @@ import FirebaseAuth
 import FirebaseAppCheck
 import FirebaseCrashlytics
 import WatchConnectivity
+import HealthKit
 
 /// Supplies App Attest tokens so Firebase backends (Functions, Firestore) can verify that calls
 /// come from a genuine build of this app, not a script replaying an auth token.
@@ -330,7 +331,7 @@ struct ContentView: View {
             return
         }
         if let currentUser = Auth.auth().currentUser {
-             checkFirstLoginFirestore(userID: currentUser.uid) { isFirstLogin in
+             checkFirstLogin(userID: currentUser.uid) { isFirstLogin in
                  DispatchQueue.main.async {
                      self.shouldShowOnboardingSurvey = isFirstLogin
                      self.isLoadingUserState = false
@@ -346,13 +347,12 @@ struct ContentView: View {
         }
     }
 
-     private func checkFirstLoginFirestore(userID: String, completion: @escaping (Bool) -> Void) {
-         let db = Firestore.firestore()
-         db.collection(FirestoreCollection.users).document(userID).getDocument { document, error in
-             if let document = document, document.exists, let data = document.data() {
-                 completion(data["isFirstLogin"] as? Bool ?? true)
+     private func checkFirstLogin(userID: String, completion: @escaping (Bool) -> Void) {
+         DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { data in
+             if let data = data, let isFirstLogin = data["isFirstLogin"] as? Bool {
+                 completion(isFirstLogin)
              } else {
-                 completion(true)
+                 completion(false) // Default if field missing
              }
          }
      }

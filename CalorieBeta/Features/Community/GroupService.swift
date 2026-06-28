@@ -1,11 +1,6 @@
 import Foundation
-import FirebaseFirestore
-import FirebaseAuth
-
-
 
 class GroupService: ObservableObject {
-    private let db = Firestore.firestore()
 
     // MARK: - Create Group
     func createGroup(name: String, description: String, creatorID: String, completion: @escaping (Result<CommunityGroup, Error>) -> Void) {
@@ -18,78 +13,65 @@ class GroupService: ObservableObject {
             isPreset: false
         )
 
-        // Prepare Firestore document data
-        let groupData: [String: Any] = [
-            "id": newGroup.id ?? "",
-            "name": newGroup.name,
-            "description": newGroup.description,
-            "creatorID": newGroup.creatorID,
-            "isPreset": newGroup.isPreset
-        ]
-
-        // Save the new group document to Firestore
-        db.collection(FirestoreCollection.groups).document(groupID).setData(groupData) { error in
-            if let error = error {
-                completion(.failure(error))
-            } else {
-                completion(.success(newGroup))
+        Task {
+            do {
+                try await DIContainer.shared.groupRepository.createGroup(group: newGroup)
+                DispatchQueue.main.async {
+                    completion(.success(newGroup))
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion(.failure(error))
+                }
             }
         }
     }
 
     // MARK: - Fetch All Groups
     func fetchGroups(completion: @escaping (Result<[CommunityGroup], Error>) -> Void) {
-        db.collection(FirestoreCollection.groups).getDocuments { snapshot, error in
-            if let error = error {
-                completion(.failure(error))
-                return
-            }
-
-            let groups: [CommunityGroup] = snapshot?.documents.compactMap { document in
-                let data = document.data()
-                guard let id = data["id"] as? String,
-                      let name = data["name"] as? String,
-                      let description = data["description"] as? String,
-                      let creatorID = data["creatorID"] as? String,
-                      let isPreset = data["isPreset"] as? Bool else {
-                    return nil
+        Task {
+            do {
+                let groups = try await DIContainer.shared.groupRepository.fetchGroups()
+                DispatchQueue.main.async {
+                    completion(.success(groups))
                 }
-                return CommunityGroup(
-                    id: id,
-                    name: name,
-                    description: description,
-                    creatorID: creatorID,
-                    isPreset: isPreset
-                )
-            } ?? []
-
-            completion(.success(groups))
+            } catch {
+                DispatchQueue.main.async {
+                    completion(.failure(error))
+                }
+            }
         }
     }
 
     // MARK: - Join Group
     func joinGroup(userID: String, groupID: String, completion: @escaping (Error?) -> Void) {
-        let membershipID = "\(userID)_\(groupID)"
-        let membershipData: [String: Any] = [
-            "userID": userID,
-            "groupID": groupID,
-            "joinedAt": Timestamp(date: Date())
-        ]
-
-        db.collection(FirestoreCollection.groupMemberships).document(membershipID).setData(membershipData) { error in
-            if let error = error {
-                completion(error)
-            } else {
-                completion(nil)
+        Task {
+            do {
+                try await DIContainer.shared.groupRepository.joinGroup(userID: userID, groupID: groupID)
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion(error)
+                }
             }
         }
     }
 
     // MARK: - Leave Group
     func leaveGroup(userID: String, groupID: String, completion: @escaping (Error?) -> Void) {
-        let membershipID = "\(userID)_\(groupID)"
-        db.collection(FirestoreCollection.groupMemberships).document(membershipID).delete { error in
-            completion(error)
+        Task {
+            do {
+                try await DIContainer.shared.groupRepository.leaveGroup(userID: userID, groupID: groupID)
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion(error)
+                }
+            }
         }
     }
 }

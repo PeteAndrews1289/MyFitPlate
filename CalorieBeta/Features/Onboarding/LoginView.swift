@@ -1,6 +1,5 @@
 import SwiftUI
 import FirebaseAuth
-import Firebase
 
 struct LoginView: View {
     @State private var email = ""
@@ -127,9 +126,8 @@ struct LoginView: View {
     }
 
     private func fetchUserData(user: FirebaseAuth.User) {
-        let db = Firestore.firestore()
-        db.collection(FirestoreCollection.users).document(user.uid).getDocument { document, error in
-            if let document = document, document.exists {
+        DIContainer.shared.settingsRepository.fetchUserGoals(userID: user.uid) { data in
+            if data != nil {
                 dismiss()
             } else {
                 loginError = "User data not found."

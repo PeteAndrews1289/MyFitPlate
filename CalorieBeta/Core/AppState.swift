@@ -1,6 +1,4 @@
 import SwiftUI
-import FirebaseAuth
-import FirebaseFirestore
 import OSLog
 
 @MainActor
@@ -15,8 +13,7 @@ class AppState: ObservableObject {
     @Published var selectedTab: Int = 0
     @Published var pendingChatPrompt: String? = nil
     
-    private let db = Firestore.firestore()
-    private var authStateHandle: AuthStateDidChangeListenerHandle?
+    private var authStateHandle: Any?
 
     init() {
         if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
@@ -24,13 +21,13 @@ class AppState: ObservableObject {
             return
         }
         
-        authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+        authStateHandle = DIContainer.shared.authService.observeAuthState { [weak self] userID in
             Task { @MainActor in
                 guard let self = self else { return }
-                if let user = user {
+                if let userID = userID {
                     self.isUserLoggedIn = true
-                    self.loadDarkModePreference(userID: user.uid)
-                    self.recordLastLogin(userID: user.uid)
+                    self.loadDarkModePreference(userID: userID)
+                    self.recordLastLogin(userID: userID)
                 } else {
                     self.isUserLoggedIn = false
                 }
@@ -43,19 +40,17 @@ class AppState: ObservableObject {
     }
     
     private func loadDarkModePreference(userID: String) {
-        db.collection(FirestoreCollection.users).document(userID).getDocument { [weak self] document, error in
-            Task { @MainActor in
-                guard let self = self else { return }
-                if let error {
-                    AppLog.app.error("Failed to load dark mode preference: \(error.localizedDescription, privacy: .public)")
-                    self.isDarkModeEnabled = false
-                } else if let document = document, document.exists,
-                          let data = document.data(),
-                          let darkMode = data["darkMode"] as? Bool {
+        Task {
+            do {
+                let darkMode = try await DIContainer.shared.databaseService.loadDarkModePreference(userID: userID)
+                await MainActor.run {
                     if self.isDarkModeEnabled != darkMode {
-                         self.isDarkModeEnabled = darkMode
+                        self.isDarkModeEnabled = darkMode
                     }
-                } else {
+                }
+            } catch {
+                AppLog.app.error("Failed to load dark mode preference: \(error.localizedDescription, privacy: .public)")
+                await MainActor.run {
                     if self.isDarkModeEnabled != false {
                          self.isDarkModeEnabled = false
                     }
@@ -65,23 +60,23 @@ class AppState: ObservableObject {
     }
 
     private func saveDarkModePreference() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
-        db.collection(FirestoreCollection.users).document(userID).setData(["darkMode": self.isDarkModeEnabled], merge: true) { error in
-            if let error {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        let isEnabled = self.isDarkModeEnabled
+        Task {
+            do {
+                try await DIContainer.shared.databaseService.saveDarkModePreference(userID: userID, isEnabled: isEnabled)
+            } catch {
                 AppLog.app.error("Failed to save dark mode preference: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
 
-    /// Stamps the user's last-login / last-active time on their profile doc. The auth listener
-    /// fires on fresh logins, sign-ups, and every launch with a saved session, so this covers
-    /// all three. Uses a server timestamp so it isn't affected by device clock skew.
+    /// Stamps the user's last-login / last-active time on their profile doc.
     private func recordLastLogin(userID: String) {
-        db.collection(FirestoreCollection.users).document(userID).setData(
-            ["lastLogin": FieldValue.serverTimestamp()],
-            merge: true
-        ) { error in
-            if let error {
+        Task {
+            do {
+                try await DIContainer.shared.databaseService.recordLastLogin(userID: userID)
+            } catch {
                 AppLog.app.error("Failed to record last login: \(error.localizedDescription, privacy: .public)")
             }
         }
@@ -89,7 +84,7 @@ class AppState: ObservableObject {
 
     func signOut() {
         do {
-            try Auth.auth().signOut()
+            try DIContainer.shared.authService.signOut()
         } catch {
             AppLog.app.error("Failed to sign out: \(error.localizedDescription, privacy: .public)")
         }

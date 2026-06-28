@@ -1,37 +1,26 @@
 import Foundation
-import FirebaseFirestore
 
 final class DailyLogRecentFoodStore {
-    private let db: Firestore
     private let collectionName = "recentFoods"
 
-    init(db: Firestore = Firestore.firestore()) {
-        self.db = db
+    init() {
     }
 
     func addRecentFood(for userID: String, foodItem: FoodItem, source: String) {
         guard !userID.isEmpty else { return }
-
-        let ref = db.collection(FirestoreCollection.users).document(userID).collection(collectionName)
-        let timestamp = Timestamp(date: Date())
+        
         let stableID = stableID(for: foodItem)
 
         // 1. Update local cache immediately
         updateLocalCache(userID: userID, adding: foodItem)
 
         // 2. Sync to Firestore
-        do {
-            var data = try Firestore.Encoder().encode(foodItem)
-            data["timestamp"] = timestamp
-            data["source"] = source
-
-            ref.document(stableID).setData(data, merge: false) { error in
-                if let error {
-                    AppLog.data.error("Failed to add or update recent food: \(error.localizedDescription, privacy: .public)")
-                }
+        Task {
+            do {
+                try await DIContainer.shared.nutritionRepository.saveRecentFood(userID: userID, foodItem: foodItem, source: source, stableID: stableID)
+            } catch {
+                AppLog.data.error("Failed to encode recent food: \(error.localizedDescription, privacy: .public)")
             }
-        } catch {
-            AppLog.data.error("Failed to encode recent food: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -49,29 +38,23 @@ final class DailyLogRecentFoodStore {
         }
 
         // 2. Fetch fresh data from Firestore in background
-        db.collection(FirestoreCollection.users).document(userID).collection(collectionName)
-            .order(by: "timestamp", descending: true)
-            .limit(to: 10)
-            .getDocuments { snapshot, error in
-                if let error {
-                    // Only surface the error if we didn't already succeed with cache
-                    if UserDefaults.standard.data(forKey: cacheKey) == nil {
-                        completion(.failure(error))
-                    }
-                    return
-                }
-
-                let foodItems: [FoodItem] = snapshot?.documents.compactMap { doc in
-                    try? doc.data(as: FoodItem.self)
-                } ?? []
+        Task {
+            do {
+                let foodItems = try await DIContainer.shared.nutritionRepository.fetchRecentFoods(userID: userID, limit: 10)
                 
                 // Update local cache
                 if let encoded = try? JSONEncoder().encode(foodItems) {
                     UserDefaults.standard.set(encoded, forKey: cacheKey)
                 }
 
-                completion(.success(foodItems))
+                DispatchQueue.main.async { completion(.success(foodItems)) }
+            } catch {
+                // Only surface the error if we didn't already succeed with cache
+                if UserDefaults.standard.data(forKey: cacheKey) == nil {
+                    DispatchQueue.main.async { completion(.failure(error)) }
+                }
             }
+        }
     }
     
     private func updateLocalCache(userID: String, adding newFood: FoodItem) {

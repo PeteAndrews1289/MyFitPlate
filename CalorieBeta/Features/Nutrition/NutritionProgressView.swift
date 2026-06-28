@@ -9,7 +9,7 @@ struct NutritionProgressView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     var insight: UserInsight?
-    
+
     @AppStorage("includeActiveCaloriesInGoal") var includeActiveCaloriesInGoal: Bool = false
 
     private let swipeThreshold: CGFloat = 50

@@ -1,6 +1,6 @@
 import SwiftUI
 import FirebaseAuth
-import Firebase
+
 
 struct CreatePostView: View {
     @Environment(\.dismiss) var dismiss
@@ -36,31 +36,31 @@ struct CreatePostView: View {
 
     private func createPost() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
 
-        db.collection(FirestoreCollection.users).document(userID).getDocument { document, error in
-            if let error = error {
+        Task {
+            do {
+                if let username = try await DIContainer.shared.postRepository.fetchUserName(userID: userID) {
+                    let newPost = CommunityPost(
+                        id: UUID().uuidString,
+                        authorID: userID,
+                        author: username,
+                        content: content,
+                        likes: 0,
+                        isLikedByCurrentUser: false,
+                        reactions: [:],
+                        comments: [],
+                        timestamp: Date(),
+                        groupID: groupID
+                    )
+                    await MainActor.run {
+                        onPostCreated(newPost)
+                        dismiss()
+                    }
+                } else {
+                    AppLog.social.warning("Username missing for user \(userID, privacy: .private).")
+                }
+            } catch {
                 AppLog.social.error("Failed to fetch username for post creation: \(error.localizedDescription, privacy: .public)")
-                return
-            }
-
-            if let document = document, let data = document.data(), let username = data["username"] as? String {
-                let newPost = CommunityPost(
-                    id: UUID().uuidString,
-                    authorID: userID,
-                    author: username,
-                    content: content,
-                    likes: 0,
-                    isLikedByCurrentUser: false,
-                    reactions: [:],
-                    comments: [],
-                    timestamp: Date(),
-                    groupID: groupID
-                )
-                onPostCreated(newPost)
-                dismiss()
-            } else {
-                AppLog.social.warning("Username missing for user \(userID, privacy: .private).")
             }
         }
     }
