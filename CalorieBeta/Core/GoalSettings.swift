@@ -1,6 +1,7 @@
 import Foundation
 import FirebaseAuth
 import HealthKit
+import FirebaseFirestore
 import SwiftUI
 import Combine
 

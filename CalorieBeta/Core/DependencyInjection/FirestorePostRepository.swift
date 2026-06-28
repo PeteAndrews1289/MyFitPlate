@@ -36,7 +36,7 @@ class FirestorePostRepository: PostRepositoryProtocol {
         try db.collection(FirestoreCollection.posts).document(postId).setData(from: post)
     }
 
-    func updatePostComments(postId: String, comments: [Comment]) async throws {
+    func updatePostComments(postId: String, comments: [CommunityPost.Comment]) async throws {
         let encoder = Firestore.Encoder()
         let encodedComments = comments.compactMap { try? encoder.encode($0) }
         try await db.collection(FirestoreCollection.posts).document(postId).updateData([

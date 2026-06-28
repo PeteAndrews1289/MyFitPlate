@@ -382,7 +382,7 @@ struct WorkoutPlayerView: View {
 
         let sessionLog = WorkoutSessionLog(
             id: newSessionID,
-            date: Timestamp(date: Date()),
+            date: Date(),
             routineID: routine.id,
             completedExercises: completedExercisesForLog
         )

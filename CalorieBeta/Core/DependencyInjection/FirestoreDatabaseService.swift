@@ -37,8 +37,10 @@ class FirestoreDatabaseService: DatabaseServiceProtocol {
         FirestoreCollection.dailyLogs,
         FirestoreCollection.weightHistory,
         FirestoreCollection.calorieHistory,
-        FirestoreCollection.goals,
-        FirestoreCollection.workouts,
+        FirestoreCollection.userSettings,
+        FirestoreCollection.workoutSessionLogs,
+        FirestoreCollection.workoutRoutines,
+        FirestoreCollection.workoutPrograms,
         FirestoreCollection.dailySummaries
     ]
 

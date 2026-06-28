@@ -190,7 +190,7 @@ struct MuscleRecoveryMapView: View {
                         muscleSets[g, default: 0] += completed.sets.count
                     }
                 }
-                record(muscleSets, at: session.date.dateValue())
+                record(muscleSets, at: session.date)
             }
 
             // Secondary source: manually-logged exercises in the daily log.

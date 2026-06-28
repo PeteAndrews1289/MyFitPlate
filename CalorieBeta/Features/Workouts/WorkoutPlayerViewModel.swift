@@ -68,7 +68,7 @@ class WorkoutPlayerViewModel: ObservableObject {
         if !completedExercisesForLog.isEmpty {
             let sessionLog = WorkoutSessionLog(
                 id: newSessionID, // Assign ID for potential reference
-                date: Timestamp(date: Date()),
+                date: Date(),
                 routineID: routine.id,
                 completedExercises: completedExercisesForLog
             )

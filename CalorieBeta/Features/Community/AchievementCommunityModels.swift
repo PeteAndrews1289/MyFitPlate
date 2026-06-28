@@ -21,7 +21,7 @@ struct Challenge: Identifiable, Codable {
     var progress: Double = 0
     var pointsValue: Int
     var isCompleted: Bool = false
-    var expiresAt: Timestamp
+    var expiresAt: Date
 }
 
 enum CalorieGoalMethod: String, CaseIterable, Identifiable, Codable { case custom = "Custom (Manual Entry)"; case dynamicTDEE = "Dynamic (TDEE + Activity)"; case mifflinWithActivity = "Standard (Mifflin + Activity Level)"; var id: String { self.rawValue } }

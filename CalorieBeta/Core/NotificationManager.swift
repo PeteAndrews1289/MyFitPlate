@@ -295,16 +295,18 @@ class NotificationManager {
             
             // 2. Fetch Daily Log
             let today = Calendar.current.startOfDay(for: Date())
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            let dateString = dateFormatter.string(from: today)
             
             var caloriesConsumed: Double = 0
             
-            let result = await DIContainer.shared.nutritionRepository.fetchDailyLog(userID: userID, dateID: dateString)
+            let result: Result<DailyLog, Error> = await withCheckedContinuation { continuation in
+                DIContainer.shared.nutritionRepository.fetchLogInternal(userID: userID, date: today) { res in
+                    continuation.resume(returning: res)
+                }
+            }
+            
             switch result {
             case .success(let log):
-                caloriesConsumed = log?.totalCalories() ?? 0
+                caloriesConsumed = log.totalCalories()
             case .failure:
                 break
             }

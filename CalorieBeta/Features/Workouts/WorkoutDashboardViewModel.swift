@@ -114,7 +114,7 @@ class WorkoutDashboardViewModel: ObservableObject {
         let current = program.currentProgressIndex ?? 0
         let skipped = Set(program.skippedIndices ?? [])
         let completedSlots = (0..<current).filter { !skipped.contains($0) }
-        let sortedLogs = sessionLogs.sorted { $0.date.dateValue() < $1.date.dateValue() }
+        let sortedLogs = sessionLogs.sorted { $0.date < $1.date }
         var result: [Int: WorkoutSessionLog] = [:]
         for (slot, log) in zip(completedSlots, sortedLogs) {
             result[slot] = log

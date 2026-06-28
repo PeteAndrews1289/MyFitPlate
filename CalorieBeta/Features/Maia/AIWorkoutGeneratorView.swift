@@ -44,7 +44,7 @@ struct AIWorkoutGeneratorView: View {
                 if var program = generatedProgram {
                     GeneratedProgramPreviewView(program: program, onSave: {
                         // Assign the schedule to the program before saving
-                        program.startDate = Timestamp(date: startDate)
+                        program.startDate = startDate
                         program.daysOfWeek = selectedDaysOfWeek
                         Task {
                             await workoutService.saveProgram(program)

@@ -24,6 +24,10 @@ Secrets.xcconfig
 ### Local agent handoff notes
 AGENT_HANDOFF.local.md
 
+### Local build logs
+build_output.log
+test_build_output.log
+
 ### Accidental hidden config duplicates
 **/.plist
 

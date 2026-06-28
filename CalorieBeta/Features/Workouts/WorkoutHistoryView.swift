@@ -42,7 +42,7 @@ struct WorkoutHistoryView: View {
                         sessionCount: logs.count,
                         totalVolume: totalLoggedVolume,
                         totalSets: totalLoggedSets,
-                        latestDate: logs.first?.date.dateValue()
+                        latestDate: logs.first?.date
                     )
 
                     ForEach(logs) { log in
@@ -91,10 +91,10 @@ struct WorkoutHistoryRow: View {
     var body: some View {
         HStack(spacing: 14) {
             VStack(spacing: 3) {
-                Text(log.date.dateValue().formatted(.dateTime.day()))
+                Text(log.date.formatted(.dateTime.day()))
                     .appFont(size: 21, weight: .black)
                     .foregroundColor(.brandPrimary)
-                Text(log.date.dateValue().formatted(.dateTime.month(.abbreviated)))
+                Text(log.date.formatted(.dateTime.month(.abbreviated)))
                     .appFont(size: 11, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .textCase(.uppercase)
@@ -109,7 +109,7 @@ struct WorkoutHistoryRow: View {
                         .foregroundColor(.textPrimary)
                         .lineLimit(1)
 
-                    Text(log.date.dateValue().formatted(date: .omitted, time: .shortened))
+                    Text(log.date.formatted(date: .omitted, time: .shortened))
                         .appFont(size: 12, weight: .semibold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }

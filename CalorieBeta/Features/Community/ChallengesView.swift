@@ -69,7 +69,7 @@ struct ChallengeCardView: View {
                 Text("Progress: \(Int(challenge.progress)) / \(Int(challenge.goal))")
                     .appFont(size: 12)
                 Spacer()
-                Text("Ends: \(challenge.expiresAt.dateValue(), style: .relative)")
+                Text("Ends: \(challenge.expiresAt, style: .relative)")
                     .appFont(size: 12)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }

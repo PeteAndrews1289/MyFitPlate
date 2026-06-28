@@ -250,7 +250,7 @@ class WorkoutService: ObservableObject, WorkoutServicing {
         details: String,
         goalSettings: GoalSettings
     ) async -> Result<WorkoutProgram, WorkoutServiceError> {
-        guard let userID = Auth.auth().currentUser?.uid else {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
             return .failure(.userNotLoggedIn)
         }
         
@@ -364,21 +364,21 @@ class WorkoutService: ObservableObject, WorkoutServicing {
                 let exerciseType = ExerciseType(rawValue: aiExercise.type.rawValue) ?? .strength
                 return RoutineExercise(name: aiExercise.name, type: exerciseType, sets: sets, alternatives: aiExercise.alternatives)
             }
-            return WorkoutRoutine(id: UUID().uuidString, userID: userID, name: aiRoutine.name, dateCreated: Timestamp(date: Date()), exercises: exercises)
+            return WorkoutRoutine(id: UUID().uuidString, userID: userID, name: aiRoutine.name, dateCreated: Date(), exercises: exercises)
         }
 
-        return WorkoutProgram(userID: userID, name: response.programName, dateCreated: Timestamp(date: Date()), routines: routines)
+        return WorkoutProgram(userID: userID, name: response.programName, dateCreated: Date(), routines: routines)
     }
 
     func detachListener(){
-        programListener?.remove()
-        routineListener?.remove()
+        if let l = programListener { DIContainer.shared.workoutRepository.removeListener(l) }
+        if let l = routineListener { DIContainer.shared.workoutRepository.removeListener(l) }
     }
 
     private func loadPreBuiltPrograms() {
         var programs: [WorkoutProgram] = []
         let systemUserID = "system_prebuilt"
-        let now = Timestamp(date: Date())
+        let now = Date()
 
         func exercise(
             _ name: String,
@@ -588,17 +588,17 @@ class WorkoutService: ObservableObject, WorkoutServicing {
     /// Copies a pre-built program and saves it as a user program
     @discardableResult
     func selectPreBuiltProgram(_ program: WorkoutProgram) async -> WorkoutProgram? {
-        guard let userID = Auth.auth().currentUser?.uid else { return nil }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return nil }
         
         Analytics.logEvent("prebuilt_program_selected", parameters: ["program_name": program.name])
 
         var userProgramCopy = program
         userProgramCopy.id = nil
         userProgramCopy.userID = userID
-        userProgramCopy.startDate = Timestamp(date: Date())
+        userProgramCopy.startDate = Date()
         userProgramCopy.daysOfWeek = program.daysOfWeek?.isEmpty == false ? program.daysOfWeek : [2, 4, 6]
         userProgramCopy.currentProgressIndex = 0
-        userProgramCopy.dateCreated = Timestamp(date: Date())
+        userProgramCopy.dateCreated = Date()
 
         userProgramCopy.routines = userProgramCopy.routines.map { routine in
             let copiedExercises = routine.exercises.map { exercise in
@@ -623,7 +623,7 @@ class WorkoutService: ObservableObject, WorkoutServicing {
                 id: UUID().uuidString,
                 userID: userID,
                 name: routine.name,
-                dateCreated: Timestamp(date: Date()),
+                dateCreated: Date(),
                 exercises: copiedExercises,
                 notes: routine.notes
             )

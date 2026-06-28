@@ -58,7 +58,7 @@ struct WorkoutCompleteAnalyticsView: View {
         ScrollView {
             VStack(spacing: 18) {
                 WorkoutSummaryHeroCard(
-                    date: log.date.dateValue(),
+                    date: log.date,
                     totalVolume: totalVolume,
                     exerciseCount: log.completedExercises.count,
                     setCount: completedSetCount,

@@ -190,7 +190,7 @@ struct SavedProgramCard<Destination: View>: View {
     }
 
     private var scheduleText: String {
-        guard let startDate = program.startDate?.dateValue() else {
+        guard let startDate = program.startDate else {
             return "No start date"
         }
         return "Starts \(startDate.formatted(date: .abbreviated, time: .omitted))"

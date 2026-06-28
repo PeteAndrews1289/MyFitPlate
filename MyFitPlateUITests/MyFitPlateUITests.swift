@@ -10,34 +10,50 @@ import XCTest
 final class MyFitPlateUITests: XCTestCase {
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
 
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
+        let app = XCUIApplication()
+        app.launchArguments.append("-ui-testing")
+        app.launch()
     }
 
     override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testHomeDashboardLoads() throws {
         let app = XCUIApplication()
-        app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+        // Wait for the home dashboard to load
+        let homeTitle = app.staticTexts["Home"]
+        XCTAssertTrue(homeTitle.waitForExistence(timeout: 10), "Home dashboard should be visible")
+
+        // Check for key elements like the weekly check-in or progress circles
+        let progressElement = app.otherElements["MetabolismProgress"]
+        if progressElement.exists {
+            XCTAssertTrue(progressElement.isHittable)
+        }
     }
 
     @MainActor
-    func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
-        measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
-        }
+    func testFoodSearchNavigation() throws {
+        let app = XCUIApplication()
+
+        let quickLogButton = app.buttons["Quick log"]
+        XCTAssertTrue(quickLogButton.waitForExistence(timeout: 5), "Quick log button should be visible")
+        quickLogButton.tap()
+
+        let searchFoodButton = app.buttons["Search Food"]
+        XCTAssertTrue(searchFoodButton.waitForExistence(timeout: 2), "Search Food option should be visible")
+        searchFoodButton.tap()
+
+        let searchField = app.searchFields["Search foods, meals, brands..."]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5), "Food search field should appear")
+
+        searchField.tap()
+        searchField.typeText("Apple")
+
+        let firstResult = app.cells.firstMatch
+        XCTAssertTrue(firstResult.waitForExistence(timeout: 5), "Search results should populate")
     }
 }

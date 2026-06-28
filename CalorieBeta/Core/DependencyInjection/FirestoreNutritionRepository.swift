@@ -163,6 +163,18 @@ class FirestoreNutritionRepository: NutritionRepositoryProtocol {
         }
     }
     
+    func saveDailyLog(userID: String, log: DailyLog) async throws {
+        let db = Firestore.firestore()
+        let ref = db.collection(FirestoreCollection.users)
+            .document(userID)
+            .collection(FirestoreCollection.dailyLogs)
+            .document(log.id ?? "")
+            
+        try ref.setData(from: log)
+    }
+    
+    // MARK: - Generic Firestore Fetch (Internal)y List
+    
     // MARK: - Meal Plans & Grocery List
     
     func fetchMealPlan(userID: String, dateString: String) async throws -> MealPlanDay? {

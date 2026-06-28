@@ -29,6 +29,14 @@
         "identifier" : "4BCF27062FE6F92B0054378E",
         "name" : "MyFitPlateTests"
       }
+    },
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:MyFitPlate.xcodeproj",
+        "identifier" : "4BC912E62FF0481C00C46AA9",
+        "name" : "MyFitPlateUITests"
+      }
     }
   ],
   "version" : 1

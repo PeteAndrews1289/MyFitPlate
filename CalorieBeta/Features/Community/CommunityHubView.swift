@@ -129,7 +129,7 @@ struct CommunityHubView: View {
             .receive(on: DispatchQueue.main)
             .sink { completion in
                 if case .failure(let error) = completion {
-                    AppLog.community.error("Failed to fetch posts: \(error.localizedDescription, privacy: .public)")
+                    AppLog.social.error("Failed to fetch posts: \(error.localizedDescription, privacy: .public)")
                 }
             } receiveValue: { fetchedPosts in
                 self.posts = fetchedPosts
@@ -142,7 +142,7 @@ struct CommunityHubView: View {
             do {
                 try await DIContainer.shared.postRepository.savePost(post: post)
             } catch {
-                AppLog.community.error("Failed to save post: \(error.localizedDescription, privacy: .public)")
+                AppLog.social.error("Failed to save post: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

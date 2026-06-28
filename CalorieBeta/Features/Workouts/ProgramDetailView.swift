@@ -67,7 +67,7 @@ struct ProgramDetailView: View {
     }
 
     private var calendarWorkoutMap: [Date: WorkoutRoutine] {
-        guard let startDate = program.startDate?.dateValue(), let daysOfWeek = program.daysOfWeek, !daysOfWeek.isEmpty else { return [:] }
+        guard let startDate = program.startDate, let daysOfWeek = program.daysOfWeek, !daysOfWeek.isEmpty else { return [:] }
 
         var map: [Date: WorkoutRoutine] = [:]
         let calendar = Calendar.current
@@ -101,7 +101,7 @@ struct ProgramDetailView: View {
         let current = program.currentProgressIndex ?? 0
         let skipped = Set(program.skippedIndices ?? [])
         let completedSlots = (0..<current).filter { !skipped.contains($0) }
-        let sortedLogs = sessionLogs.sorted { $0.date.dateValue() < $1.date.dateValue() }
+        let sortedLogs = sessionLogs.sorted { $0.date < $1.date }
         var result: [Int: WorkoutSessionLog] = [:]
         for (slot, log) in zip(completedSlots, sortedLogs) { result[slot] = log }
         return result
@@ -132,8 +132,8 @@ struct ProgramDetailView: View {
 
     private var startDateBinding: Binding<Date> {
         Binding<Date>(
-            get: { self.program.startDate?.dateValue() ?? Date() },
-            set: { self.program.startDate = Timestamp(date: $0) }
+            get: { self.program.startDate ?? Date() },
+            set: { self.program.startDate = $0 }
         )
     }
 
@@ -295,7 +295,7 @@ struct ProgramDetailView: View {
         var completedMap: [Date: WorkoutSessionLog] = [:]
         let calendar = Calendar.current
         for log in logs {
-            let date = calendar.startOfDay(for: log.date.dateValue())
+            let date = calendar.startOfDay(for: log.date)
             completedMap[date] = log
         }
         self.completedLogs = completedMap

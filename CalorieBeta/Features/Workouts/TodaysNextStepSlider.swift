@@ -23,7 +23,7 @@ extension WorkoutProgram {
 
     /// The calendar date the Nth scheduled training day falls on, walking forward from the start date.
     func date(forSlot index: Int) -> Date? {
-        guard let start = startDate?.dateValue(), let days = daysOfWeek, !days.isEmpty else { return nil }
+        guard let start = startDate, let days = daysOfWeek, !days.isEmpty else { return nil }
         let calendar = Calendar.current
         var matched = 0
         for offset in 0..<(7 * 13) {

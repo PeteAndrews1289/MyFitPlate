@@ -77,7 +77,7 @@ class ExerciseHistoryViewModel: ObservableObject {
             
             self.history = logs.compactMap { log -> ExerciseHistorySession? in
                 if let exercise = log.completedExercises.first(where: { $0.exerciseName == exerciseName }) {
-                    return ExerciseHistorySession(date: log.date.dateValue(), sets: exercise.sets)
+                    return ExerciseHistorySession(date: log.date, sets: exercise.sets)
                 }
                 return nil
             }

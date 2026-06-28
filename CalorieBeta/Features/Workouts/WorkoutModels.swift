@@ -12,9 +12,9 @@ struct WorkoutProgram: Identifiable, Codable {
     @DocumentID var id: String?
     var userID: String
     var name: String
-    var dateCreated: Timestamp
+    var dateCreated: Date
     var routines: [WorkoutRoutine]
-    var startDate: Timestamp?
+    var startDate: Date?
     var daysOfWeek: [Int]?
     var currentProgressIndex: Int? = 0
     /// Slot indices the user explicitly skipped (advanced past without training). Kept so the
@@ -26,7 +26,7 @@ class WorkoutRoutine: Identifiable, ObservableObject, Codable, Hashable {
     var id: String
     var userID: String
     @Published var name: String
-    var dateCreated: Timestamp
+    var dateCreated: Date
     @Published var exercises: [RoutineExercise]
     var notes: String?
 
@@ -34,7 +34,7 @@ class WorkoutRoutine: Identifiable, ObservableObject, Codable, Hashable {
         case id, userID, name, dateCreated, exercises, notes
     }
 
-    init(id: String = UUID().uuidString, userID: String, name: String, dateCreated: Timestamp, exercises: [RoutineExercise] = [], notes: String? = nil) {
+    init(id: String = UUID().uuidString, userID: String, name: String, dateCreated: Date, exercises: [RoutineExercise] = [], notes: String? = nil) {
         self.id = id
         self.userID = userID
         self.name = name
@@ -48,7 +48,7 @@ class WorkoutRoutine: Identifiable, ObservableObject, Codable, Hashable {
         id = try container.decode(String.self, forKey: .id)
         userID = try container.decode(String.self, forKey: .userID)
         name = try container.decode(String.self, forKey: .name)
-        dateCreated = try container.decode(Timestamp.self, forKey: .dateCreated)
+        dateCreated = try container.decode(Date.self, forKey: .dateCreated)
         exercises = try container.decode([RoutineExercise].self, forKey: .exercises)
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
     }
@@ -109,7 +109,7 @@ struct ExerciseSet: Identifiable, Codable {
 
 struct WorkoutSessionLog: Identifiable, Codable {
     @DocumentID var id: String?
-    var date: Timestamp
+    var date: Date
     var routineID: String
     var completedExercises: [CompletedExercise]
     var aiInsights: [WorkoutAnalysisInsight]?

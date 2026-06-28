@@ -183,7 +183,7 @@ class WorkoutAnalyticsService: ObservableObject {
                     // Calculate "Max Weight Used" as the metric for the chart
                     let maxWeight = completedExercise.sets.map { $0.weight }.max() ?? 0
                     if maxWeight > 0 {
-                        points.append(ExerciseTrendPoint(date: log.date.dateValue(), value: maxWeight))
+                        points.append(ExerciseTrendPoint(date: log.date, value: maxWeight))
                     }
                 }
             }
@@ -196,7 +196,7 @@ class WorkoutAnalyticsService: ObservableObject {
 
     /// Compares a current session against the last time this Routine ID was logged
     func compareAgainstPrevious(currentLog: WorkoutSessionLog, userID: String) async -> WorkoutComparison? {
-        guard let routineID = currentLog.routineID else { return nil }
+        let routineID = currentLog.routineID
         do {
             let logs = try await DIContainer.shared.workoutRepository.fetchWorkoutHistory(userID: userID, routineID: routineID, limit: 2)
             
@@ -211,7 +211,7 @@ class WorkoutAnalyticsService: ObservableObject {
             let volDiff = previousVolume > 0 ? (currentVolume - previousVolume) / previousVolume : 0.0
             let durDiff = previousDuration > 0 ? (Double(currentDuration) - Double(previousDuration)) / Double(previousDuration) : 0.0
             
-            return WorkoutComparison(volumeDiffPercent: volDiff, durationDiffPercent: durDiff, previousDate: previousLog.date.dateValue())
+            return WorkoutComparison(volumeDiffPercent: volDiff, durationDiffPercent: durDiff, previousDate: previousLog.date)
         } catch {
             AppLog.workouts.error("Failed to compare workouts: \(error.localizedDescription, privacy: .public)")
             return nil
@@ -255,7 +255,7 @@ class WorkoutAnalyticsService: ObservableObject {
         You are Maia, a precise fitness coach inside MyFitPlate. Analyze this just-completed workout and produce exactly 3 short coaching insights.
 
         SESSION DATA:
-        - Date: \(sessionLog.date.dateValue().formatted(date: .abbreviated, time: .shortened))
+        - Date: \(sessionLog.date.formatted(date: .abbreviated, time: .shortened))
         - Total volume: \(Int(totalVolume)) lb
         - Exercises:
         \(exerciseSummary)
@@ -365,7 +365,7 @@ class WorkoutAnalyticsService: ObservableObject {
             let historicalLogs = try await DIContainer.shared.workoutRepository.fetchWorkoutHistory(userID: userID, limit: 60)
                 .filter { log in
                     if let currentID = currentLog.id, log.id == currentID { return false }
-                    return log.date.dateValue() < currentLog.date.dateValue()
+                    return log.date < currentLog.date
                 }
 
             guard !historicalLogs.isEmpty else { return [:] }

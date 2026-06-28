@@ -2,6 +2,7 @@ import Foundation
 
 protocol NutritionRepositoryProtocol: Sendable {
     func updateDailyLog(userID: String, log: DailyLog, completion: @escaping (Bool) -> Void)
+    func saveDailyLog(userID: String, log: DailyLog) async throws
     func fetchLogInternal(userID: String, date: Date, completion: @escaping (Result<DailyLog, Error>) -> Void)
     func addLogSnapshotListener(userID: String, date: Date, onChange: @escaping (Result<DailyLog, Error>) -> Void) -> Any
     func removeLogSnapshotListener(_ handle: Any)

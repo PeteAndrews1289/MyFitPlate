@@ -32,7 +32,7 @@ struct ProgramCreatorView: View {
                         self.routines.remove(atOffsets: offsets)
                     },
                     onAdd: {
-                        let newRoutine = WorkoutRoutine(userID: Auth.auth().currentUser?.uid ?? "", name: "New Routine", dateCreated: Timestamp())
+                        let newRoutine = WorkoutRoutine(userID: Auth.auth().currentUser?.uid ?? "", name: "New Routine", dateCreated: Date())
                         self.routines.append(newRoutine)
                     }
                 )
@@ -69,7 +69,7 @@ struct ProgramCreatorView: View {
         if let program = programToEdit {
             name = program.name
             routines = program.routines.map { $0 }
-            startDate = program.startDate?.dateValue() ?? Date()
+            startDate = program.startDate ?? Date()
             selectedDaysOfWeek = program.daysOfWeek ?? []
         }
     }
@@ -79,9 +79,9 @@ struct ProgramCreatorView: View {
             id: programToEdit?.id ?? UUID().uuidString,
             userID: programToEdit?.userID ?? "",
             name: name,
-            dateCreated: programToEdit?.dateCreated ?? Timestamp(date: Date()),
+            dateCreated: programToEdit?.dateCreated ?? Date(),
             routines: self.routines,
-            startDate: Timestamp(date: startDate),
+            startDate: startDate,
             daysOfWeek: selectedDaysOfWeek,
             currentProgressIndex: programToEdit?.currentProgressIndex ?? 0
         )
