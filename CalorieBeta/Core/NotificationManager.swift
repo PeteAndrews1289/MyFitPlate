@@ -284,12 +284,14 @@ class NotificationManager {
             
             // 1. Fetch Goal
             await withCheckedContinuation { continuation in
-                DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { data in
-                    if let goals = data?["goals"] as? [String: Any],
-                       let goalCalories = goals["calories"] as? Double {
-                        calorieGoal = goalCalories
+                Task { @MainActor in
+                    DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { data in
+                        if let goals = data?["goals"] as? [String: Any],
+                           let goalCalories = goals["calories"] as? Double {
+                            calorieGoal = goalCalories
+                        }
+                        continuation.resume()
                     }
-                    continuation.resume()
                 }
             }
             
@@ -299,8 +301,10 @@ class NotificationManager {
             var caloriesConsumed: Double = 0
             
             let result: Result<DailyLog, Error> = await withCheckedContinuation { continuation in
-                DIContainer.shared.nutritionRepository.fetchLogInternal(userID: userID, date: today) { res in
-                    continuation.resume(returning: res)
+                Task { @MainActor in
+                    DIContainer.shared.nutritionRepository.fetchLogInternal(userID: userID, date: today) { res in
+                        continuation.resume(returning: res)
+                    }
                 }
             }
             

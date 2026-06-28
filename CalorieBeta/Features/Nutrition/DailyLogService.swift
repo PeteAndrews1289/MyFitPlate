@@ -2,6 +2,7 @@ import Foundation
 import FirebaseAuth
 import FirebaseAnalytics
 
+@MainActor
 class DailyLogService: ObservableObject, DailyLogServicing {
     @Published var currentDailyLog: DailyLog?
     @Published var activelyViewedDate: Date = Calendar.current.startOfDay(for: Date())

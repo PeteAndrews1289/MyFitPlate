@@ -156,6 +156,7 @@ class GoalSettings: ObservableObject {
         }
     }
     
+    @MainActor
     private func _recalculateCalorieGoal() {
         let bmr = calculateBMR()
         var calculatedCalories: Double
@@ -265,6 +266,7 @@ class GoalSettings: ObservableObject {
     
     // MARK: - Firestore Persistence
     
+    @MainActor
     func loadUserGoals(userID: String, completion: @escaping () -> Void = {}) {
         DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { [weak self] data in
             guard let self = self else { completion(); return }
@@ -407,6 +409,7 @@ class GoalSettings: ObservableObject {
     
     // MARK: - Weight Tracking
     
+    @MainActor
     func loadWeightHistory() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         weightHistoryCancellable?.cancel()

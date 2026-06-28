@@ -13,6 +13,8 @@ class DIContainer: ObservableObject {
     let settingsRepository: SettingsRepositoryProtocol
     let reportsRepository: ReportsRepositoryProtocol
     let postRepository: PostRepositoryProtocol
+    let cloudFunctionService: CloudFunctionServiceProtocol
+    let accountDeletionService: AccountDeletionServicing
     
     // We will expand this to include AnalyticsServiceProtocol, etc.
     
@@ -24,7 +26,9 @@ class DIContainer: ObservableObject {
          achievementRepository: AchievementRepositoryProtocol = FirestoreAchievementRepository(),
          settingsRepository: SettingsRepositoryProtocol = FirestoreSettingsRepository(),
          reportsRepository: ReportsRepositoryProtocol = FirestoreReportsRepository(),
-         postRepository: PostRepositoryProtocol = FirestorePostRepository()) {
+         postRepository: PostRepositoryProtocol = FirestorePostRepository(),
+         cloudFunctionService: CloudFunctionServiceProtocol = FirebaseCloudFunctionService(),
+         accountDeletionService: AccountDeletionServicing? = nil) {
         self.authService = authService
         self.databaseService = databaseService
         self.nutritionRepository = nutritionRepository
@@ -34,5 +38,11 @@ class DIContainer: ObservableObject {
         self.settingsRepository = settingsRepository
         self.reportsRepository = reportsRepository
         self.postRepository = postRepository
+        self.cloudFunctionService = cloudFunctionService
+        self.accountDeletionService = accountDeletionService ?? AccountDeletionService(
+            authService: authService,
+            databaseService: databaseService,
+            cloudFunctionService: cloudFunctionService
+        )
     }
 }

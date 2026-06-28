@@ -1,11 +1,10 @@
 import XCTest
-import FirebaseFirestore
 @testable import MyFitPlate
 
 final class RoutineEditorViewModelTests: XCTestCase {
 
     func testViewModelInitialization() {
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Leg Day", dateCreated: Timestamp(date: Date()), exercises: [])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Leg Day", dateCreated: Date(), exercises: [])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         XCTAssertEqual(vm.routineName, "Leg Day")
@@ -14,7 +13,7 @@ final class RoutineEditorViewModelTests: XCTestCase {
     }
 
     func testCanSaveReturnsFalseWhenNameIsEmpty() {
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "", dateCreated: Timestamp(date: Date()), exercises: [])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "", dateCreated: Date(), exercises: [])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         XCTAssertFalse(vm.canSave)
@@ -27,7 +26,7 @@ final class RoutineEditorViewModelTests: XCTestCase {
     }
 
     func testApplyTemplate() {
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "", dateCreated: Timestamp(date: Date()), exercises: [])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "", dateCreated: Date(), exercises: [])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         let template = RoutineEditorTemplate.templates.first(where: { $0.name == "Push Day" })!
@@ -40,7 +39,7 @@ final class RoutineEditorViewModelTests: XCTestCase {
     }
 
     func testAddExerciseFromDraft() {
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Timestamp(date: Date()), exercises: [])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Date(), exercises: [])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         let draft = ExercisePickerDraft(name: "Running", category: "Cardio", type: .cardio)
@@ -54,7 +53,7 @@ final class RoutineEditorViewModelTests: XCTestCase {
 
     func testDuplicateExercise() {
         let ex = RoutineExercise(name: "Squat", type: .strength, sets: [ExerciseSet(target: "10 reps")], restTimeInSeconds: 60, targetSets: 1, targetReps: "10")
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Timestamp(date: Date()), exercises: [ex])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Date(), exercises: [ex])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         XCTAssertEqual(vm.exercises.count, 1)
@@ -68,7 +67,7 @@ final class RoutineEditorViewModelTests: XCTestCase {
     func testDeleteExercise() {
         let ex1 = RoutineExercise(name: "Squat", type: .strength, sets: [], restTimeInSeconds: 60, targetSets: 3, targetReps: "10")
         let ex2 = RoutineExercise(name: "Deadlift", type: .strength, sets: [], restTimeInSeconds: 60, targetSets: 3, targetReps: "10")
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Timestamp(date: Date()), exercises: [ex1, ex2])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Date(), exercises: [ex1, ex2])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         vm.deleteExercise(ex1)
@@ -80,7 +79,7 @@ final class RoutineEditorViewModelTests: XCTestCase {
     func testMoveExercise() {
         let ex1 = RoutineExercise(name: "Squat", type: .strength, sets: [], restTimeInSeconds: 60, targetSets: 3, targetReps: "10")
         let ex2 = RoutineExercise(name: "Deadlift", type: .strength, sets: [], restTimeInSeconds: 60, targetSets: 3, targetReps: "10")
-        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Timestamp(date: Date()), exercises: [ex1, ex2])
+        let routine = WorkoutRoutine(id: "123", userID: "user", name: "Routine", dateCreated: Date(), exercises: [ex1, ex2])
         let vm = RoutineEditorViewModel(routine: routine) { _ in }
 
         vm.moveExercise(ex1, direction: RoutineMoveDirection.down)

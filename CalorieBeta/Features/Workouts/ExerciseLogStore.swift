@@ -1,6 +1,7 @@
 import Foundation
 import FirebaseAnalytics
 
+@MainActor
 class ExerciseLogStore {
     private weak var dailyLogService: DailyLogService?
 

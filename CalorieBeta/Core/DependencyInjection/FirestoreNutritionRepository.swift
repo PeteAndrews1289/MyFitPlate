@@ -2,7 +2,7 @@ import Foundation
 import FirebaseFirestore
 import OSLog
 
-class FirestoreNutritionRepository: NutritionRepositoryProtocol {
+final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecked Sendable {
     private let db = Firestore.firestore()
     
     private let dateFormatter: DateFormatter = {

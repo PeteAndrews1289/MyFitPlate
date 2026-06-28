@@ -2,7 +2,7 @@ import Foundation
 import FirebaseFirestore
 import OSLog
 
-class FirestoreWorkoutRepository: WorkoutRepositoryProtocol {
+final class FirestoreWorkoutRepository: WorkoutRepositoryProtocol, @unchecked Sendable {
     private let db = Firestore.firestore()
     
     private func programsCollectionRef(for userID: String) -> CollectionReference {
@@ -104,7 +104,7 @@ class FirestoreWorkoutRepository: WorkoutRepositoryProtocol {
     }
     
     func saveRoutine(userID: String, routine: WorkoutRoutine) async throws {
-        var routineToSave = routine
+        let routineToSave = routine
         routineToSave.userID = userID
         try routinesCollectionRef(for: userID).document(routineToSave.id).setData(from: routineToSave, merge: true)
     }

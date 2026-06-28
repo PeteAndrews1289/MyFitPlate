@@ -1,6 +1,4 @@
 import SwiftUI
-import FirebaseAuth
-import FirebaseFunctions
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
@@ -33,14 +31,6 @@ struct SettingsView: View {
             }
         )
     }
-    
-    // Known per-user subcollections, including a few legacy names still worth cleaning up.
-    private let userScopedCollections = [
-        "achievementStatus", "activeChallenges", "calorieHistory", "customFoods",
-        "dailyLogs", "dailySummaries", "mealPlans", "pinnedNotes", "recentFoods",
-        "recipes", "savedPrograms", "userSettings", "weightHistory", "workoutHistory",
-        "workoutPrograms", "workoutRoutines", "workoutSessionLogs", "workouts"
-    ]
     
     @State private var showingSignOutAlert = false
     @State private var showingDeleteAccountAlert = false
@@ -110,14 +100,14 @@ struct SettingsView: View {
         .sheet(isPresented: $showHeightEditor) { SetHeightView(feetInput: $feetInput, inchesInput: $inchesInput, onSave: {
              if let feet = Int(feetInput), let inches = Int(inchesInput) {
                  goalSettings.setHeight(feet: feet, inches: inches)
-                 if let userID = Auth.auth().currentUser?.uid { goalSettings.saveUserGoals(userID: userID) }
+                 if let userID = DIContainer.shared.authService.currentUserID { goalSettings.saveUserGoals(userID: userID) }
              }
              showHeightEditor = false
          }).environmentObject(goalSettings) }
         .sheet(isPresented: $showingWaterGoalSheet) { SetWaterGoalView(waterGoalInput: $waterGoalInput, onSave: {
             if let goalValue = Double(waterGoalInput), goalValue > 0 {
                 goalSettings.waterGoal = goalValue
-                if let userID = Auth.auth().currentUser?.uid { goalSettings.saveUserGoals(userID: userID) }
+                if let userID = DIContainer.shared.authService.currentUserID { goalSettings.saveUserGoals(userID: userID) }
                  if var currentLog = goalSettings.dailyLogService?.currentDailyLog {
                     if var waterTracker = currentLog.waterTracker {
                         waterTracker.goalOunces = goalValue
@@ -125,7 +115,7 @@ struct SettingsView: View {
                     } else {
                         currentLog.waterTracker = WaterTracker(totalOunces: 0, goalOunces: goalValue, date: currentLog.date)
                     }
-                    if let userID = Auth.auth().currentUser?.uid { dailyLogService.updateDailyLog(for: userID, updatedLog: currentLog) }
+                    if let userID = DIContainer.shared.authService.currentUserID { dailyLogService.updateDailyLog(for: userID, updatedLog: currentLog) }
                 }
             }
             showingWaterGoalSheet = false
@@ -160,61 +150,24 @@ struct SettingsView: View {
     }
     
     private func reauthenticateAndDelete() {
-        guard let user = Auth.auth().currentUser, let email = user.email else {
-            deleteErrorMessage = "We couldn't verify your account. Please sign out, sign back in, and try again."
-            reauthPassword = ""
-            return
-        }
+        let accountDeletionService = DIContainer.shared.accountDeletionService
         let password = reauthPassword
         reauthPassword = ""
-        guard !password.isEmpty else {
-            deleteErrorMessage = "Please enter your password to continue."
-            return
-        }
 
         isDeletingAccount = true
-        let credential = EmailAuthProvider.credential(withEmail: email, password: password)
-        user.reauthenticate(with: credential) { _, error in
-            if let error = error {
-                DispatchQueue.main.async {
-                    isDeletingAccount = false
-                    deleteErrorMessage = "Re-authentication failed: \(error.localizedDescription)"
-                }
-                return
-            }
-            performAccountDeletion(user: user)
-        }
-    }
-
-    private func performAccountDeletion(user: User) {
-        let userID = user.uid
         Task {
             do {
-                try await DIContainer.shared.databaseService.deleteUserAllData(userID: userID)
-                
-                Functions.functions().httpsCallable("deleteUserData").call { _, serverError in
-                    if let serverError = serverError {
-                        AppLog.data.error("Server-side deletion incomplete: \(serverError.localizedDescription, privacy: .public)")
-                    }
-                    user.delete { error in
-                        DispatchQueue.main.async {
-                            isDeletingAccount = false
-                            if let error = error {
-                                AppLog.app.error("Failed to delete auth account: \(error.localizedDescription, privacy: .public)")
-                                deleteErrorMessage = "Your data was removed, but the login couldn't be deleted. Please sign out, sign back in, and delete again."
-                            } else {
-                                clearLocalAccountData(userID: userID)
-                                appState.isUserLoggedIn = false
-                                showSettings = false
-                            }
-                        }
-                    }
-                }
-            } catch {
-                AppLog.data.error("Failed to delete user data: \(error.localizedDescription, privacy: .public)")
+                let outcome = try await accountDeletionService.deleteCurrentAccount(password: password)
                 await MainActor.run {
                     isDeletingAccount = false
-                    deleteErrorMessage = "We couldn't delete your data. Please check your connection and try again."
+                    clearLocalAccountData(userID: outcome.userID)
+                    appState.isUserLoggedIn = false
+                    showSettings = false
+                }
+            } catch {
+                await MainActor.run {
+                    isDeletingAccount = false
+                    deleteErrorMessage = error.localizedDescription
                 }
             }
         }

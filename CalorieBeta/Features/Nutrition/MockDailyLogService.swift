@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 class MockDailyLogService: DailyLogServicing {
     var currentDailyLog: DailyLog? = nil
     var activelyViewedDate: Date = Date()

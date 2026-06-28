@@ -2,7 +2,7 @@ import Foundation
 import FirebaseFirestore
 import Combine
 
-class FirestorePostRepository: PostRepositoryProtocol {
+final class FirestorePostRepository: PostRepositoryProtocol, @unchecked Sendable {
     private let db = Firestore.firestore()
 
     func fetchPostsForGroup(groupID: String) -> AnyPublisher<[CommunityPost], Error> {

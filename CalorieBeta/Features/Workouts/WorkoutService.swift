@@ -112,8 +112,13 @@ class WorkoutService: ObservableObject, WorkoutServicing {
     }
 
     deinit {
-        if let pListener = programListener { DIContainer.shared.workoutRepository.removeListener(pListener) }
-        if let rListener = routineListener { DIContainer.shared.workoutRepository.removeListener(rListener) }
+        let pListener = programListener
+        let rListener = routineListener
+
+        Task { @MainActor in
+            if let pListener { DIContainer.shared.workoutRepository.removeListener(pListener) }
+            if let rListener { DIContainer.shared.workoutRepository.removeListener(rListener) }
+        }
     }
 
     func setActiveProgram(_ program: WorkoutProgram) {

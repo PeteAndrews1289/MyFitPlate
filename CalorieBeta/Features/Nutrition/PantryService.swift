@@ -40,8 +40,12 @@ class PantryService: ObservableObject {
         if let foodLoggedObserver {
             NotificationCenter.default.removeObserver(foodLoggedObserver)
         }
-        if let handle = listenerRegistration {
-            DIContainer.shared.nutritionRepository.removePantrySnapshotListener(handle)
+
+        let handle = listenerRegistration
+        Task { @MainActor in
+            if let handle {
+                DIContainer.shared.nutritionRepository.removePantrySnapshotListener(handle)
+            }
         }
     }
 

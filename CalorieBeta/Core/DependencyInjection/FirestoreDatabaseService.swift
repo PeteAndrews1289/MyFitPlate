@@ -1,7 +1,7 @@
 import Foundation
 import FirebaseFirestore
 
-class FirestoreDatabaseService: DatabaseServiceProtocol {
+final class FirestoreDatabaseService: DatabaseServiceProtocol, @unchecked Sendable {
     private let db = Firestore.firestore()
     
     func loadDarkModePreference(userID: String) async throws -> Bool {

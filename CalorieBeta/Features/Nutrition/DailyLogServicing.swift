@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 protocol DailyLogReading: AnyObject {
     var currentDailyLog: DailyLog? { get set }
     var activelyViewedDate: Date { get set }
@@ -10,6 +11,7 @@ protocol DailyLogReading: AnyObject {
     func fetchDailyHistory(for userID: String, startDate: Date?, endDate: Date?) async -> Result<[DailyLog], Error>
 }
 
+@MainActor
 protocol FoodLogging: AnyObject {
     func logFoodItem(_ foodItem: FoodItem, mealType: String) async
     func addFoodToCurrentLog(for userID: String, foodItem: FoodItem, source: String)
@@ -25,15 +27,18 @@ protocol FoodLogging: AnyObject {
     func fetchRecentFoodItems(for userID: String, completion: @escaping (Result<[FoodItem], Error>) -> Void)
 }
 
+@MainActor
 protocol WaterLogging: AnyObject {
     func addWaterToCurrentLog(for userID: String, amount: Double, goalOunces: Double)
 }
 
+@MainActor
 protocol WorkoutLogging: AnyObject {
     func addWorkoutToCurrentLog(for userID: String, exerciseName: String, durationMinutes: Int?, caloriesBurned: Double)
     func addWorkoutToLog(for userID: String, date: Date, exerciseName: String, durationMinutes: Int?, caloriesBurned: Double)
 }
 
+@MainActor
 protocol SmartSuggestionProviding: AnyObject {
     var smartSuggestions: [FoodItem] { get set }
 
@@ -41,6 +46,7 @@ protocol SmartSuggestionProviding: AnyObject {
     func loadSmartSuggestions(for userID: String)
 }
 
+@MainActor
 protocol DailyLogStateManaging: AnyObject {
     func setupDependencies(goalSettings: GoalSettings, bannerService: BannerService, achievementService: AchievementService)
     func updateWidgetData()
@@ -50,4 +56,5 @@ protocol DailyLogStateManaging: AnyObject {
 
 /// The umbrella protocol that encompasses all Daily Log capabilities.
 /// Over time, objects should depend on the smaller segregated protocols above.
+@MainActor
 protocol DailyLogServicing: DailyLogReading, FoodLogging, WaterLogging, WorkoutLogging, SmartSuggestionProviding, DailyLogStateManaging {}

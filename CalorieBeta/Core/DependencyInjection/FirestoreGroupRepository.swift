@@ -2,7 +2,7 @@ import Foundation
 import FirebaseFirestore
 import OSLog
 
-class FirestoreGroupRepository: GroupRepositoryProtocol {
+final class FirestoreGroupRepository: GroupRepositoryProtocol, @unchecked Sendable {
     private let db = Firestore.firestore()
     
     func createGroup(group: CommunityGroup) async throws {

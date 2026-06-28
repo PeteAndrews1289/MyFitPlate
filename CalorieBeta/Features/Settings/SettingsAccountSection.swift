@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct SettingsAccountSection: View {
     @EnvironmentObject var goalSettings: GoalSettings
