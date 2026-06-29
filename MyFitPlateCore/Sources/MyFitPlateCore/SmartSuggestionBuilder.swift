@@ -1,7 +1,7 @@
 import Foundation
 
 public enum SmartSuggestionBuilder {
-    static func uniqueRecentFoods(from items: [FoodItem], limit: Int = 5) -> [FoodItem] {
+    public static func uniqueRecentFoods(from items: [FoodItem], limit: Int = 5) -> [FoodItem] {
         var uniqueItems: [FoodItem] = []
         var seenNames = Set<String>()
 

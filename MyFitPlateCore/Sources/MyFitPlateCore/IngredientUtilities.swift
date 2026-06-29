@@ -38,7 +38,7 @@ public enum IngredientUnitNormalizer {
 }
 
 public enum IngredientNameMatcher {
-    static func matches(_ lhs: String, _ rhs: String) -> Bool {
+    public static func matches(_ lhs: String, _ rhs: String) -> Bool {
         let left = normalized(lhs)
         let right = normalized(rhs)
         guard !left.isEmpty, !right.isEmpty else { return false }
@@ -111,7 +111,7 @@ public enum IngredientQuantityResolver {
 }
 
 public enum IngredientLineParser {
-    static func normalizedIngredient(from raw: String) -> ParsedIngredient {
+    public static func normalizedIngredient(from raw: String) -> ParsedIngredient {
         let cleanRaw = raw
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: #"^[\-•\s]*"#, with: "", options: .regularExpression)
@@ -159,7 +159,7 @@ public enum IngredientCategoryMapper {
         return "Misc"
     }
 
-    static func mealPrepCategory(for ingredient: String) -> String {
+    public static func mealPrepCategory(for ingredient: String) -> String {
         switch groceryCategory(for: ingredient) {
         case "Meat & Seafood":
             return "Protein"

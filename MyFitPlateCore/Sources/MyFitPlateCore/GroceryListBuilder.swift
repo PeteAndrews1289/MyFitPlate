@@ -1,7 +1,7 @@
 import Foundation
 
 public enum GroceryListBuilder {
-    static func makeGroceryList(
+    public static func makeGroceryList(
         from days: [MealPlanDay],
         unitSystem: GroceryUnitSystem = currentUnitSystem()
     ) -> [GroceryListItem] {
@@ -97,7 +97,7 @@ public enum GroceryListBuilder {
         return newItem
     }
 
-    private static func currentUnitSystem() -> GroceryUnitSystem {
+    public static func currentUnitSystem() -> GroceryUnitSystem {
         let rawPreference = UserDefaults.standard.string(forKey: "groceryUnitSystem") ?? "imperial"
         return GroceryUnitSystem(rawValue: rawPreference) ?? .imperial
     }

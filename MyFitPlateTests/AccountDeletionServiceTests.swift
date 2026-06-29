@@ -177,7 +177,8 @@ private final class MockAccountDeletionCloudFunctionService: CloudFunctionServic
         }
     }
     
-    func callFatSecretProxy(path: String, params: [String: String], completion: @escaping @Sendable (Result<Data, Error>) -> Void) {
+    func callFunction(_ name: String, with data: [String: Any]) async throws -> Any? {
         // Not used in account deletion tests
+        return nil
     }
 }

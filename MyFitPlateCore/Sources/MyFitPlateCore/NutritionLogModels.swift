@@ -111,7 +111,7 @@ public struct FoodItem: Codable, Identifiable, Hashable, Sendable {
     public var servingWeight: Double
     public var timestamp: Date?
 
-    public init(id: String = UUID().uuidString, name: String, calories: Double = 0, protein: Double = 0, carbs: Double = 0, fats: Double = 0, saturatedFat: Double? = nil, polyunsaturatedFat: Double? = nil, monounsaturatedFat: Double? = nil, fiber: Double? = nil, servingSize: String = "1 serving", servingWeight: Double = 1.0, timestamp: Date? = nil, calcium: Double? = nil, iron: Double? = nil, potassium: Double? = nil, sodium: Double? = nil, vitaminA: Double? = nil, vitaminC: Double? = nil, vitaminD: Double? = nil, vitaminB12: Double? = nil, folate: Double? = nil, magnesium: Double? = nil, phosphorus: Double? = nil, zinc: Double? = nil, copper: Double? = nil, manganese: Double? = nil, selenium: Double? = nil, vitaminB1: Double? = nil, vitaminB2: Double? = nil, vitaminB3: Double? = nil, vitaminB5: Double? = nil, vitaminB6: Double? = nil, vitaminE: Double? = nil, vitaminK: Double? = nil) {
+    public init(id: String = UUID().uuidString, name: String, calories: Double = 0, protein: Double = 0, carbs: Double = 0, fats: Double = 0, saturatedFat: Double? = nil, polyunsaturatedFat: Double? = nil, monounsaturatedFat: Double? = nil, fiber: Double? = nil, servingSize: String = "1 serving", servingWeight: Double = 1.0, timestamp: Date? = nil, calcium: Double? = nil, iron: Double? = nil, potassium: Double? = nil, sodium: Double? = nil, vitaminA: Double? = nil, vitaminC: Double? = nil, vitaminD: Double? = nil, vitaminB12: Double? = nil, folate: Double? = nil, magnesium: Double? = nil, phosphorus: Double? = nil, zinc: Double? = nil, copper: Double? = nil, manganese: Double? = nil, selenium: Double? = nil, vitaminB1: Double? = nil, vitaminB2: Double? = nil, vitaminB3: Double? = nil, vitaminB5: Double? = nil, vitaminB6: Double? = nil, vitaminE: Double? = nil, vitaminK: Double? = nil, quantityValue: Double? = nil, servingUnit: String? = nil) {
         self.id = id; self.name = name; self.calories = calories; self.protein = protein; self.carbs = carbs; self.fats = fats
         self.saturatedFat = saturatedFat; self.polyunsaturatedFat = polyunsaturatedFat; self.monounsaturatedFat = monounsaturatedFat; self.fiber = fiber
         self.servingSize = servingSize; self.servingWeight = servingWeight; self.timestamp = timestamp
@@ -120,6 +120,7 @@ public struct FoodItem: Codable, Identifiable, Hashable, Sendable {
         self.magnesium = magnesium; self.phosphorus = phosphorus; self.zinc = zinc; self.copper = copper; self.manganese = manganese; self.selenium = selenium
         self.vitaminB1 = vitaminB1; self.vitaminB2 = vitaminB2; self.vitaminB3 = vitaminB3; self.vitaminB5 = vitaminB5; self.vitaminB6 = vitaminB6
         self.vitaminE = vitaminE; self.vitaminK = vitaminK
+        self.quantityValue = quantityValue; self.servingUnit = servingUnit
     }
 
     // Micros
