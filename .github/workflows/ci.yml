@@ -47,7 +47,12 @@ jobs:
             -scheme MyFitPlate
 
       - name: Run Core package tests
-        run: swift test --package-path MyFitPlateCore
+        run: swift test --enable-code-coverage --package-path MyFitPlateCore
+
+      - name: Check Core coverage floor
+        env:
+          CORE_COVERAGE_MINIMUM: "7.0"
+        run: ./scripts/check_core_coverage.sh
 
       - name: Run unit tests
         run: |
