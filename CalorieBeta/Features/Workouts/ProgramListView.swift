@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct ProgramListView: View {
@@ -8,7 +10,7 @@ struct ProgramListView: View {
     @EnvironmentObject var achievementService: AchievementService
     
     @State private var showingProgramCreator = false
-    @State private var programToEdit: WorkoutProgram? = nil
+    @State private var programToEdit: WorkoutProgram?
 
     var body: some View {
         ScrollView {
@@ -311,8 +313,6 @@ struct SavedProgramMetric: View {
         .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
-import SwiftUI
-
 enum MuscleGroup: String, CaseIterable {
     case chest = "Chest"
     case back = "Back"

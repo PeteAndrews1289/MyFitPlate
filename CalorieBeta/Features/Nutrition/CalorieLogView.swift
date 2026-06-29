@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct CalorieLogView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -80,7 +79,7 @@ struct CalorieLogView: View {
     }
 
     private func deleteFood(_ foodItem: FoodItem) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         dailyLogService.deleteFoodFromCurrentLog(for: userID, foodItemID: foodItem.id)
         HapticManager.instance.feedback(.light)
     }

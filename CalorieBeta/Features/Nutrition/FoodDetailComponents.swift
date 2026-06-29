@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct FoodDetailHeroCard: View {
     let foodName: String

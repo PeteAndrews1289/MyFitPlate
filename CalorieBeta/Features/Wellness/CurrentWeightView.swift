@@ -1,7 +1,4 @@
 import SwiftUI
-import FirebaseFirestore
-import FirebaseAuth
-
 struct CurrentWeightView: View {
     @EnvironmentObject var goalSettings: GoalSettings
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us

@@ -1,6 +1,6 @@
-import SwiftUI
-import FirebaseFirestore
+import MyFitPlateCore
 
+import SwiftUI
 struct ProgramDetailView: View {
     @State private var program: WorkoutProgram
     let isPreview: Bool

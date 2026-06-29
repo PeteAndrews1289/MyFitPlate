@@ -1,7 +1,4 @@
 import SwiftUI
-import FirebaseAuth
-
-
 struct CreatePostView: View {
     @Environment(\.dismiss) var dismiss
     @State private var content = ""
@@ -35,7 +32,7 @@ struct CreatePostView: View {
     }
 
     private func createPost() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
 
         Task {
             do {

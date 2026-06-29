@@ -1,4 +1,3 @@
-
 import AppIntents
 import SwiftUI
 
@@ -17,7 +16,7 @@ enum MacroMetric: String, AppEnum {
     case fats
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Metric"
-    static var caseDisplayRepresentations: [MacroMetric : DisplayRepresentation] = [
+    static var caseDisplayRepresentations: [MacroMetric: DisplayRepresentation] = [
         .calories: "Calories",
         .protein: "Protein",
         .carbs: "Carbs",

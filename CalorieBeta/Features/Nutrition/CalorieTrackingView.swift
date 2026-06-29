@@ -1,6 +1,5 @@
 import SwiftUI
 import Charts
-import FirebaseAuth
 
 struct CalorieTrackingView: View {
     @StateObject private var viewModel: ReportsViewModel
@@ -152,8 +151,8 @@ struct CalorieTrackingView: View {
     }
 
     var body: some View {
-        ScrollView{
-            VStack{
+        ScrollView {
+            VStack {
                 calorieChartCard
                 macroChartCard
                 micronutrientReportCard

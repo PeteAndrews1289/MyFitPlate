@@ -352,9 +352,7 @@ class MLImageModel {
                             carbs: item.carbs,
                             fats: item.fats,
                             servingSize: item.servingSize,
-                            servingWeight: 0,
-                            quantityValue: 1.0,
-                            servingUnit: item.servingSize
+                            servingWeight: 0
                         )
                     }
                     DispatchQueue.main.async { completion(.success(foodItems)) }

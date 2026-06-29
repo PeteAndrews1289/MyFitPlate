@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct FoodDetailView: View {
     var initialFoodItem: FoodItem
@@ -18,10 +17,10 @@ struct FoodDetailView: View {
 
     @State private var foodName: String
     @State private var availableServings: [ServingSizeOption] = []
-    @State private var selectedServingID: UUID? = nil
+    @State private var selectedServingID: UUID?
     @State private var quantity: String = "1"
     @State private var isLoadingDetails: Bool = false
-    @State private var errorLoading: String? = nil
+    @State private var errorLoading: String?
 
     @State private var isLoggedItem: Bool
     @State private var baseLoggedItemNutrientsPerUnit: ServingSizeOption?
@@ -422,10 +421,7 @@ struct FoodDetailView: View {
             magnesium: finalNutrients.magnesium, phosphorus: finalNutrients.phosphorus, zinc: finalNutrients.zinc,
             copper: finalNutrients.copper, manganese: finalNutrients.manganese, selenium: finalNutrients.selenium,
             vitaminB1: finalNutrients.vitaminB1, vitaminB2: finalNutrients.vitaminB2, vitaminB3: finalNutrients.vitaminB3,
-            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK,
-            // Save the structured quantity
-            quantityValue: finalNutrients.quantityValue,
-            servingUnit: finalNutrients.servingUnit
+            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK
         )
         let updatedFoodItem = rawUpdatedFoodItem.normalizedForEstimatedSource(source)
         onUpdate(updatedFoodItem)
@@ -446,7 +442,7 @@ struct FoodDetailView: View {
     }
 
     private func saveAsCustomFood() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let finalNutrients = adjustedNutrients
         
         let rawItemToSave = FoodItem(
@@ -462,9 +458,7 @@ struct FoodDetailView: View {
             magnesium: finalNutrients.magnesium, phosphorus: finalNutrients.phosphorus, zinc: finalNutrients.zinc,
             copper: finalNutrients.copper, manganese: finalNutrients.manganese, selenium: finalNutrients.selenium,
             vitaminB1: finalNutrients.vitaminB1, vitaminB2: finalNutrients.vitaminB2, vitaminB3: finalNutrients.vitaminB3,
-            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK,
-            quantityValue: finalNutrients.quantityValue,
-            servingUnit: finalNutrients.servingUnit
+            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK
         )
         let itemToSave = rawItemToSave.normalizedForEstimatedSource(source)
 
@@ -482,7 +476,7 @@ struct FoodDetailView: View {
     }
     
     private func unsaveCustomFood() {
-        guard let userID = Auth.auth().currentUser?.uid, let foodID = customFoodForAction?.id else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID, let foodID = customFoodForAction?.id else { return }
         dailyLogService.customFoodStore.deleteCustomFood(for: userID, foodItemID: foodID) { success in
             Task { @MainActor in
                 if success {
@@ -497,7 +491,7 @@ struct FoodDetailView: View {
     }
     
     private func checkIfSaved() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         dailyLogService.customFoodStore.fetchMyFoodItems(for: userID) { result in
             DispatchQueue.main.async {
                 if case .success(let items) = result,
@@ -559,7 +553,7 @@ struct FoodDetailView: View {
                             self.errorLoading = "No servings found for item."
                         }
                     case .failure(let error):
-                        errorLoading = error.localizedDescription;
+                        errorLoading = error.localizedDescription
                         self.availableServings = [self.createFallbackServing(from: self.initialFoodItem)]
                         self.selectedServingID = self.availableServings.first?.id
                     }
@@ -578,7 +572,7 @@ struct FoodDetailView: View {
 
     // MARK: - Save Data (Robust)
     private func logAdjustedFood() {
-        guard let userID = Auth.auth().currentUser?.uid, logButtonEnabled, selectedServingOption != nil else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID, logButtonEnabled, selectedServingOption != nil else { return }
         guard let quantityValue = Double(quantity), quantityValue > 0 else { return }
 
         dailyLogService.activelyViewedDate = self.date
@@ -621,9 +615,7 @@ struct FoodDetailView: View {
             magnesium: finalNutrients.magnesium, phosphorus: finalNutrients.phosphorus, zinc: finalNutrients.zinc,
             copper: finalNutrients.copper, manganese: finalNutrients.manganese, selenium: finalNutrients.selenium,
             vitaminB1: finalNutrients.vitaminB1, vitaminB2: finalNutrients.vitaminB2, vitaminB3: finalNutrients.vitaminB3,
-            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK,
-            quantityValue: finalNutrients.quantityValue,
-            servingUnit: finalNutrients.servingUnit
+            vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK
         )
         let loggedFoodItem = rawLoggedFoodItem.normalizedForEstimatedSource(itemSourceToLog)
 
@@ -641,6 +633,7 @@ struct FoodDetailView: View {
             dailyLogService.addFoodToCurrentLog(for: userID, foodItem: loggedFoodItem, source: itemSourceToLog)
         }
         
+        HapticManager.instance.feedback(.medium)
         onLogUpdated(); dismiss()
     }
 

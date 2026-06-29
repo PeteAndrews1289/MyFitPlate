@@ -11,29 +11,27 @@ struct WeightTracker: View {
     @EnvironmentObject var appDelegate: AppDelegate
     
     var body: some View {
-        VStack (spacing: 50) {
+        VStack(spacing: 50) {
 
             ZStack {
                 ProgressView(value: 0.3)
                     .progressViewStyle(.circular)
                     .scaleEffect(3)
                     .tint(.green)
-                    .padding(.top,20)
+                    .padding(.top, 20)
                 
                 Text("\(Int(appDelegate.userWeight))")
-                    .padding(.top,20)
+                    .padding(.top, 20)
             }
             
             Text("Goal: \(Int(appDelegate.goalWeight)) lbs")
                 .padding(.top, 20)
         }
         
-        
-            
     }
 }
 //
-//#Preview {
+// #Preview {
 //    WeightTracker()
 //        
-//}
+// }

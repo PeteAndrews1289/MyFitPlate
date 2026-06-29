@@ -1,6 +1,6 @@
+import MyFitPlateCore
+
 import SwiftUI
-import FirebaseAuth
-import FirebaseFirestore
 import ActivityKit
 
 struct ExerciseCardView: View {
@@ -251,7 +251,7 @@ struct StrengthExerciseView: View {
             .appFont(size: 12, weight: .semibold)
             .foregroundColor(.secondary)
 
-            ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
+            ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, _ in
                 StrengthSetRow(
                     set: $exercise.sets[index],
                     setIndex: index + 1,
@@ -285,7 +285,7 @@ struct CardioExerciseView: View {
             .appFont(size: 12, weight: .semibold)
             .foregroundColor(.secondary)
 
-            ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
+            ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, _ in
                 CardioSetRow(set: $exercise.sets[index], setIndex: index + 1)
             }
             .onDelete(perform: deleteCardioSet)
@@ -311,7 +311,7 @@ struct FlexibilityExerciseView: View {
             .appFont(size: 12, weight: .semibold)
             .foregroundColor(.secondary)
 
-            ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
+            ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, _ in
                 FlexibilitySetRow(set: $exercise.sets[index], setIndex: index + 1)
             }
             .onDelete(perform: deleteFlexibilitySet)
@@ -463,7 +463,6 @@ struct StrengthSetRow: View {
                 }.buttonStyle(.plain)
             }
             .frame(maxWidth: .infinity, alignment: .center)
-
 
             HStack(spacing: 2) {
                 if isPersonalBest {
@@ -705,4 +704,3 @@ struct FlexibilitySetRow: View {
         return lowercasedTarget.contains("min") ? firstNumber * 60 : firstNumber
     }
 }
-

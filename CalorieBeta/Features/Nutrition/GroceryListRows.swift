@@ -179,4 +179,3 @@ struct GroceryItemRow: View {
         HapticManager.instance.feedback(.light)
     }
 }
-

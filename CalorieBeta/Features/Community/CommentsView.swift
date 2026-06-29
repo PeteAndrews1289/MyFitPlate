@@ -1,6 +1,5 @@
 import SwiftUI
 
-
 struct CommentsView: View {
     @Binding var post: CommunityPost
     @State private var newCommentText = ""

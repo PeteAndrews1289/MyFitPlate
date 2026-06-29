@@ -1,8 +1,7 @@
 name: CI
 
-# Builds the app and runs the MyFitPlateTests unit suite on every push / PR to main,
-# so logic regressions (nutrition math, model parsing, HealthKit dedupe) are caught
-# automatically before they reach an archive.
+# Builds the app, runs the app unit suite, and runs the Core package tests on every
+# push / PR to main so logic regressions are caught before they reach an archive.
 
 on:
   push:
@@ -28,6 +27,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
       # secrets.xcconfig is gitignored. The unit tests are pure logic and never call
       # OpenAI or FatSecret, so empty placeholders are enough for the app target to
       # compile. (Keep values free of "//" — xcconfig treats it as a comment.)
@@ -38,15 +40,33 @@ jobs:
           OPENAI_API_KEY =
           EOF
 
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project MyFitPlate.xcodeproj \
+            -scheme MyFitPlate
+
+      - name: Run Core package tests
+        run: swift test --package-path MyFitPlateCore
+
       - name: Run unit tests
         run: |
+          gem install xcpretty
           set -o pipefail
           xcodebuild test \
+            -project MyFitPlate.xcodeproj \
             -scheme MyFitPlate \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -only-testing:MyFitPlateTests \
+            -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            OTHER_SWIFT_FLAGS="-D UI_TESTING" | xcpretty
+
+      - name: Check coverage floor
+        env:
+          COVERAGE_MINIMUM: "3.5"
+        run: python3 scripts/check_xcode_coverage.py TestResults.xcresult --target MyFitPlate.app
 
       - name: Upload test results
         if: always()
@@ -55,3 +75,35 @@ jobs:
           name: test-results
           path: TestResults.xcresult
           if-no-files-found: ignore
+
+  firebase-rules:
+    name: Firebase rules
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tests/firebase-rules/package-lock.json
+
+      - name: Set up Java for Firebase Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install rule-test dependencies
+        working-directory: tests/firebase-rules
+        run: npm ci
+
+      - name: Run Firestore rule tests
+        run: |
+          npx -y firebase-tools emulators:exec \
+            --project myfitplate-test-project \
+            --only firestore \
+            "npm test --prefix tests/firebase-rules"

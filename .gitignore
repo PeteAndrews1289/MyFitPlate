@@ -7,6 +7,7 @@ xcuserdata/
 *.xcbkptlist
 DerivedData/
 build/
+.codex_xcode*/
 .xcode-home/
 .swiftpm-cache/
 SourcePackages/
@@ -25,8 +26,13 @@ Secrets.xcconfig
 AGENT_HANDOFF.local.md
 
 ### Local build logs
+*.log
 build_output.log
 test_build_output.log
+
+### Node dependencies
+node_modules/
+**/node_modules/
 
 ### Accidental hidden config duplicates
 **/.plist
@@ -35,3 +41,6 @@ test_build_output.log
 # Keep tracked Firebase config only if this repo stays private and your
 # Firebase rules/API restrictions are locked down.
 # GoogleService-Info.plist
+
+# SwiftPM build cache (MyFitPlateCore)
+.build/

@@ -1,3 +1,4 @@
+#if canImport(ActivityKit)
 //
 //  LiveActivityControl.swift
 //  LiveActivity
@@ -54,3 +55,5 @@ struct StartTimerIntent: SetValueIntent {
         return .result()
     }
 }
+
+#endif

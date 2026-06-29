@@ -104,9 +104,14 @@ class WellnessScoreService {
         // A lower RHR is better, so it gets more points.
         if let rhr = restingHeartRate {
             switch rhr {
-            case ..<50: score += 50; case 50..<55: score += 45; case 55..<60: score += 40
-            case 60..<65: score += 35; case 65..<70: score += 30; case 70..<75: score += 25
-            case 75..<80: score += 20; default: score += 10
+            case ..<50: score += 50
+            case 50..<55: score += 45
+            case 55..<60: score += 40
+            case 60..<65: score += 35
+            case 65..<70: score += 30
+            case 70..<75: score += 25
+            case 75..<80: score += 20
+            default: score += 10
             }
         } else { score += 25 } // Give an average score (25/50) if no RHR data is available.
 
@@ -114,8 +119,11 @@ class WellnessScoreService {
         // A higher HRV is better, so it gets more points.
         if let hrv = hrv {
             switch hrv {
-            case 70...: score += 50; case 50..<70: score += 40; case 30..<50: score += 30
-            case 20..<30: score += 20; default: score += 10
+            case 70...: score += 50
+            case 50..<70: score += 40
+            case 30..<50: score += 30
+            case 20..<30: score += 20
+            default: score += 10
             }
         } else { score += 25 } // Give an average score (25/50) if no HRV data is available.
 

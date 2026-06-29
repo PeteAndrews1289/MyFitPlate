@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct RecipeListView: View {
     @EnvironmentObject var recipeService: RecipeService

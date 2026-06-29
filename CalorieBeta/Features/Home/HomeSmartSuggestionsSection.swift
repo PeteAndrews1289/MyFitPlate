@@ -1,12 +1,11 @@
 import SwiftUI
-import FirebaseAuth
 
 struct HomeSmartSuggestionsSection: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     var selectedDate: Date
 
     var body: some View {
-VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Smart Suggestions")
@@ -25,14 +24,11 @@ VStack(alignment: .leading, spacing: 14) {
                     ForEach(dailyLogService.smartSuggestions) { item in
                         Button(action: {
                             HapticManager.instance.notification(.success)
-                            if let userId = Auth.auth().currentUser?.uid {
+                            if let userId = DIContainer.shared.authService.currentUserID {
                                 // Assume adding it to the current time context meal
                                 let hour = Calendar.current.component(.hour, from: Date())
                                 let mealType: String
-                                if hour < 10 { mealType = "Breakfast" }
-                                else if hour < 15 { mealType = "Lunch" }
-                                else if hour < 21 { mealType = "Dinner" }
-                                else { mealType = "Snacks" }
+                                if hour < 10 { mealType = "Breakfast" } else if hour < 15 { mealType = "Lunch" } else if hour < 21 { mealType = "Dinner" } else { mealType = "Snacks" }
 
                                 dailyLogService.addFoodToLog(for: userId, date: selectedDate, mealName: mealType, foodItem: item, source: "smart_suggestion")
                             }
@@ -62,6 +58,5 @@ VStack(alignment: .leading, spacing: 14) {
             }
         }
         .frame(maxWidth: 520)
-
-}
+    }
 }

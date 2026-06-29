@@ -52,8 +52,8 @@ private struct DisclaimerCard: View {
     let color: Color
     let title: String
     let description: String
-    var sourceText: String? = nil
-    var sourceURL: String? = nil
+    var sourceText: String?
+    var sourceURL: String?
     
     var body: some View {
         HStack(alignment: .top, spacing: 16) {

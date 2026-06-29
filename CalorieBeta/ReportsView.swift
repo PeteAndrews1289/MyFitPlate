@@ -1,6 +1,5 @@
 import SwiftUI
 import Charts
-import FirebaseAuth
 
 struct ReportsView: View {
     @StateObject private var viewModel: ReportsViewModel
@@ -66,25 +65,7 @@ struct ReportsView: View {
 
                 timeframeSelectorAndPickers
 
-                if viewModel.isLoading {
-                    ReportsLoadingState()
-                } else if let errorMessage = viewModel.errorMessage {
-                    ReportsMessageState(
-                        icon: "exclamationmark.triangle.fill",
-                        title: "Reports need attention",
-                        message: errorMessage,
-                        color: .orange
-                    )
-                } else if hasReportContent {
-                    reportsContentSection
-                } else {
-                    ReportsMessageState(
-                        icon: "chart.line.uptrend.xyaxis",
-                        title: "No report data yet",
-                        message: "Log meals, workouts, weight, or sleep for this timeframe and this tab will turn it into trends.",
-                        color: .brandPrimary
-                    )
-                }
+                contentStateView
             }
             .padding(.horizontal)
             .padding(.top, 12)
@@ -97,7 +78,7 @@ struct ReportsView: View {
             viewModel.setup(goals: goalSettings, healthKitViewModel: healthKitViewModel)
             fetchDataForCurrentSelection()
             insightsService.generateDailySmartInsight()
-            if let userID = Auth.auth().currentUser?.uid {
+            if let userID = DIContainer.shared.authService.currentUserID {
                 viewModel.fetchMealScoreHistory(for: userID)
             }
             if healthKitViewModel.isAuthorized {
@@ -109,14 +90,37 @@ struct ReportsView: View {
                 fetchDataForCurrentSelection()
             }
         }
-        .onChange(of: customStartDate) {
+        .onChange(of: customStartDate) { _, _ in
             if selectedTimeframe == .custom { fetchDataForCurrentSelection() }
         }
-        .onChange(of: customEndDate) {
+        .onChange(of: customEndDate) { _, _ in
              if selectedTimeframe == .custom { fetchDataForCurrentSelection() }
         }
         .onChange(of: healthKitViewModel.sleepSamples) { _, newSamples in
             viewModel.processAndScoreSleepData(samples: newSamples)
+        }
+    }
+
+    @ViewBuilder
+    private var contentStateView: some View {
+        if viewModel.isLoading {
+            ReportsLoadingState()
+        } else if let errorMessage = viewModel.errorMessage {
+            ReportsMessageState(
+                icon: "exclamationmark.triangle.fill",
+                title: "Reports need attention",
+                message: errorMessage,
+                color: .orange
+            )
+        } else if hasReportContent {
+            reportsContentSection
+        } else {
+            ReportsMessageState(
+                icon: "chart.line.uptrend.xyaxis",
+                title: "No report data yet",
+                message: "Log meals, workouts, weight, or sleep for this timeframe and this tab will turn it into trends.",
+                color: .brandPrimary
+            )
         }
     }
 

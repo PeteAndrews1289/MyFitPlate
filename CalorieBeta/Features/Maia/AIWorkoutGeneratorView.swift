@@ -1,6 +1,6 @@
-import SwiftUI
-import FirebaseFirestore
+import MyFitPlateCore
 
+import SwiftUI
 struct AIWorkoutGeneratorView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var workoutService: WorkoutService

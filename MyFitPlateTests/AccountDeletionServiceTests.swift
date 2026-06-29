@@ -111,6 +111,16 @@ private final class MockAccountDeletionAuthService: AuthServiceProtocol, @unchec
 
     func removeObserver(_ handle: Any) {}
 
+    func signIn(email: String, password: String) async throws -> AuthUserSession {
+        AuthUserSession(userID: currentUserID ?? "user-123", email: email)
+    }
+
+    func createUser(email: String, password: String) async throws -> AuthUserSession {
+        AuthUserSession(userID: currentUserID ?? "user-123", email: email)
+    }
+
+    func sendPasswordReset(email: String) async throws {}
+
     func reauthenticateCurrentUser(password: String) async throws {
         reauthenticatedPassword = password
         if let reauthenticationError {
@@ -165,5 +175,9 @@ private final class MockAccountDeletionCloudFunctionService: CloudFunctionServic
         if let deleteError {
             throw deleteError
         }
+    }
+    
+    func callFatSecretProxy(path: String, params: [String: String], completion: @escaping @Sendable (Result<Data, Error>) -> Void) {
+        // Not used in account deletion tests
     }
 }

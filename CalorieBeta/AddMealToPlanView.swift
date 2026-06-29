@@ -1,7 +1,4 @@
 import SwiftUI
-import FirebaseAuth
-import FirebaseFirestore
-
 struct AddMealToPlanView: View {
     let date: Date
     @Binding var isPresented: Bool
@@ -129,13 +126,13 @@ struct AddMealToPlanView: View {
     }
 
     private func loadExistingPlan() async {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         existingPlan = await mealPlannerService.fetchPlan(for: date, userID: userID)
     }
 
     private func addRecipeToPlan(_ recipe: Recipe) {
         guard savingRecipeKey == nil else { return }
-        guard let userID = Auth.auth().currentUser?.uid else {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
             alertMessage = "You need to be signed in to update a meal plan."
             return
         }
@@ -175,7 +172,7 @@ struct AddMealToPlanView: View {
         let startOfDay = Calendar.current.startOfDay(for: date)
         return MealPlanDay(
             id: mealPlanID(for: startOfDay),
-            date: Timestamp(date: startOfDay),
+            date: startOfDay,
             meals: []
         )
     }

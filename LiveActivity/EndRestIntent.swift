@@ -1,12 +1,11 @@
+#if canImport(ActivityKit)
 import AppIntents
 import ActivityKit
+import MyFitPlateCore
 
 struct EndRestIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "End Rest"
     static var description = IntentDescription("Skip the rest timer and continue the workout.")
-    
-    // Empty init is required
-    init() {}
     
     func perform() async throws -> some IntentResult {
         // Find the active workout live activity
@@ -22,3 +21,5 @@ struct EndRestIntent: LiveActivityIntent {
         return .result()
     }
 }
+
+#endif

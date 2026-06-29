@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct SignUpView: View {
     @Environment(\.dismiss) var dismiss
@@ -114,25 +113,21 @@ struct SignUpView: View {
         isLoading = true
         signUpError = ""
 
-        Auth.auth().createUser(withEmail: trimmedEmail, password: password) { authResult, error in
-            if let error = error {
+        Task { @MainActor in
+            do {
+                let session = try await DIContainer.shared.authService.createUser(email: trimmedEmail, password: password)
+                saveUserData(userID: session.userID, email: session.email ?? trimmedEmail, username: trimmedUsername)
+            } catch {
                 isLoading = false
                 signUpError = error.localizedDescription
-                return
-            }
-            if let user = authResult?.user {
-                saveUserData(user: user, username: trimmedUsername)
-            } else {
-                isLoading = false
-                signUpError = "Account creation failed. Please try again."
             }
         }
     }
 
-    private func saveUserData(user: FirebaseAuth.User, username: String) {
+    private func saveUserData(userID: String, email: String, username: String) {
         Task {
             do {
-                try await DIContainer.shared.settingsRepository.createInitialUserData(userID: user.uid, email: user.email ?? "", username: username)
+                try await DIContainer.shared.settingsRepository.createInitialUserData(userID: userID, email: email, username: username)
                 await MainActor.run {
                     isLoading = false
                     dismiss()

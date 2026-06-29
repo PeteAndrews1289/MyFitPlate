@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct AITextLogView: View {
     @Environment(\.dismiss) var dismiss

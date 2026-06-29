@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct RecipeLoggingView: View {
     let recipe: Recipe
@@ -107,7 +106,7 @@ struct RecipeLoggingView: View {
     }
 
     private func logRecipe() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
 
         // We log the recipe as a single FoodItem, but its macros reflect the edited ingredients
         let loggedItem = FoodItem(
@@ -123,6 +122,7 @@ struct RecipeLoggingView: View {
         )
 
         dailyLogService.addFoodToLog(for: userID, date: self.date, mealName: selectedMeal, foodItem: loggedItem, source: "recipe")
+        HapticManager.instance.feedback(.medium)
         onLogUpdated()
         dismiss()
     }

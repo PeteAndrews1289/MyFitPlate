@@ -1,0 +1,17 @@
+{
+  "name": "firebase-rules",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha firestore.test.js --timeout 10000"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "chai": "^6.2.2",
+    "mocha": "^11.7.6"
+  }
+}

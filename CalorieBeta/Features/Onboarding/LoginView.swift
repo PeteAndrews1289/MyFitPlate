@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct LoginView: View {
     @State private var email = ""
@@ -92,15 +91,16 @@ struct LoginView: View {
         isLoading = true
         loginError = ""
 
-        Auth.auth().signIn(withEmail: email.trimmingCharacters(in: .whitespacesAndNewlines), password: password) { authResult, error in
-            isLoading = false
-            if let error = error {
+        Task { @MainActor in
+            do {
+                let session = try await DIContainer.shared.authService.signIn(
+                    email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+                    password: password
+                )
+                fetchUserData(userID: session.userID)
+            } catch {
+                isLoading = false
                 loginError = error.localizedDescription
-                return
-            }
-
-            if let user = authResult?.user {
-                fetchUserData(user: user)
             }
         }
     }
@@ -114,22 +114,25 @@ struct LoginView: View {
         loginError = ""
         isLoading = true
 
-        Auth.auth().sendPasswordReset(withEmail: trimmed) { error in
-            isLoading = false
-            if let error = error {
-                loginError = error.localizedDescription
-            } else {
+        Task { @MainActor in
+            do {
+                try await DIContainer.shared.authService.sendPasswordReset(email: trimmed)
+                isLoading = false
                 resetAlertMessage = "We've sent a password reset link to \(trimmed). Check your inbox (and your spam folder)."
                 showingResetAlert = true
+            } catch {
+                isLoading = false
+                loginError = error.localizedDescription
             }
         }
     }
 
-    private func fetchUserData(user: FirebaseAuth.User) {
-        DIContainer.shared.settingsRepository.fetchUserGoals(userID: user.uid) { data in
+    private func fetchUserData(userID: String) {
+        DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { data in
             if data != nil {
                 dismiss()
             } else {
+                isLoading = false
                 loginError = "User data not found."
             }
         }

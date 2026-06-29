@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct WeightTrackingView: View {
     @EnvironmentObject var goalSettings: GoalSettings
@@ -12,7 +11,7 @@ struct WeightTrackingView: View {
     @State private var selectedChartTimeframe: WeightChartTimeframe = .month
     
     @State private var showingChartDeleteAlert = false
-    @State private var chartEntryToDeleteID: String? = nil
+    @State private var chartEntryToDeleteID: String?
     @State private var chartEntryToDeleteDetails: String = ""
 
     private var numberFormatter: NumberFormatter {
@@ -238,7 +237,7 @@ struct WeightTrackingView: View {
                     Button("Save Target") {
                         if let targetValue = Double(targetWeightInput), targetValue > 0 {
                             goalSettings.targetWeight = BodyUnits.weightToLbs(targetValue, metric: useMetric)
-                            if let userID = Auth.auth().currentUser?.uid {
+                            if let userID = DIContainer.shared.authService.currentUserID {
                                 goalSettings.saveUserGoals(userID: userID)
                             }
                         }

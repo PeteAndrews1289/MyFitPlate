@@ -1,6 +1,7 @@
+import MyFitPlateCore
+
 import SwiftUI
 import Charts
-import FirebaseAuth
 
 struct CycleTrackingCard: View {
     @EnvironmentObject var cycleService: CycleTrackingService
@@ -174,4 +175,3 @@ struct ComprehensiveHealthCard: View {
         }
     }
 }
-

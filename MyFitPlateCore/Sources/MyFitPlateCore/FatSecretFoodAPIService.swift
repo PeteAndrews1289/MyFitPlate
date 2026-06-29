@@ -1,0 +1,321 @@
+import Foundation
+public struct FatSecretResponse: Decodable {
+    public let foods: FoodList?
+}
+
+public struct FoodList: Decodable {
+    public let food: [FatSecretFoodItem]?
+}
+
+public struct FatSecretFoodItem: Decodable {
+    public let foodID: String
+    public let foodName: String?
+    public let brandName: String?
+    public let foodDescription: String?
+
+    public enum CodingKeys: String, CodingKey {
+        case foodID = "food_id"
+        case foodName = "food_name"
+        case brandName = "brand_name"
+        case foodDescription = "food_description"
+    }
+}
+
+public struct FatSecretFoodResponse: Decodable { let food: FatSecretFood? }
+public struct FatSecretFood: Decodable { let foodID: String; let foodName: String; let brandName: String?; let servings: FatSecretServings; enum CodingKeys: String, CodingKey { case foodID = "food_id"; case foodName = "food_name"; case brandName = "brand_name"; case servings } }
+public struct FatSecretServings: Decodable { let serving: [FatSecretServing]; enum CodingKeys: String, CodingKey { case serving }; public init(from decoder: Decoder) throws { let c = try decoder.container(keyedBy: CodingKeys.self); if let a = try? c.decode([FatSecretServing].self, forKey: .serving) { self.serving = a } else if let s = try? c.decode(FatSecretServing.self, forKey: .serving) { self.serving = [s] } else { self.serving = [] } } }
+
+public struct FatSecretServing: Decodable {
+    public let calories: String?; let protein: String?; let carbohydrate: String?; let fat: String?
+    public let saturatedFat: String?; let polyunsaturatedFat: String?; let monounsaturatedFat: String?; let fiber: String?
+    public let servingDescription: String?; let metricServingAmount: String?; let metricServingUnit: String?
+    public let calcium: String?; let iron: String?; let potassium: String?; let sodium: String?
+    public let vitamin_a: String?; let vitamin_c: String?; let vitamin_d: String?; let vitamin_b12: String?; let folate: String?
+    public let magnesium: String?; let phosphorus: String?; let zinc: String?; let copper: String?; let manganese: String?; let selenium: String?
+    public let vitamin_b1: String?; let vitamin_b2: String?; let vitamin_b3: String?; let vitamin_b5: String?; let vitamin_b6: String?; let vitamin_e: String?; let vitamin_k: String?
+
+    public enum CodingKeys: String, CodingKey {
+        case calories, protein, carbohydrate, fat, calcium, iron, potassium, sodium, vitamin_a, vitamin_c, vitamin_d, vitamin_b12, folate, magnesium, phosphorus, zinc, copper, manganese, selenium
+        case vitamin_b1 = "thiamin"; case vitamin_b2 = "riboflavin"; case vitamin_b3 = "niacin"; case vitamin_b5 = "pantothenic_acid"; case vitamin_b6 = "vitamin_b6"
+        case vitamin_e = "vitamin_e"; case vitamin_k = "vitamin_k"
+        case saturatedFat = "saturated_fat"; case polyunsaturatedFat = "polyunsaturated_fat"; case monounsaturatedFat = "monounsaturated_fat"; case fiber
+        case servingDescription = "serving_description"; case metricServingAmount = "metric_serving_amount"; case metricServingUnit = "metric_serving_unit"
+    }
+
+    private func parseDouble(from string: String?) -> Double { guard let s = string?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty, s.lowercased() != "n/a" else { return 0.0 }; let cleaned = s.replacingOccurrences(of: ",", with: ".").replacingOccurrences(of: "<", with: "").replacingOccurrences(of: ">", with: ""); return Double(cleaned) ?? 0.0 }
+    public func parsedNutrient(_ key: CodingKeys) -> Double {
+        switch key {
+        case .calories: return parseDouble(from: calories)
+        case .protein: return parseDouble(from: protein)
+        case .carbohydrate: return parseDouble(from: carbohydrate)
+        case .fat: return parseDouble(from: fat)
+        case .saturatedFat: return parseDouble(from: saturatedFat)
+        case .polyunsaturatedFat: return parseDouble(from: polyunsaturatedFat)
+        case .monounsaturatedFat: return parseDouble(from: monounsaturatedFat)
+        case .fiber: return parseDouble(from: fiber)
+        case .calcium: return parseDouble(from: calcium)
+        case .iron: return parseDouble(from: iron)
+        case .potassium: return parseDouble(from: potassium)
+        case .sodium: return parseDouble(from: sodium)
+        case .vitamin_a: return parseDouble(from: vitamin_a)
+        case .vitamin_c: return parseDouble(from: vitamin_c)
+        case .vitamin_d: return parseDouble(from: vitamin_d)
+        case .vitamin_b12: return parseDouble(from: vitamin_b12)
+        case .folate: return parseDouble(from: folate)
+        case .magnesium: return parseDouble(from: magnesium)
+        case .phosphorus: return parseDouble(from: phosphorus)
+        case .zinc: return parseDouble(from: zinc)
+        case .copper: return parseDouble(from: copper)
+        case .manganese: return parseDouble(from: manganese)
+        case .selenium: return parseDouble(from: selenium)
+        case .vitamin_b1: return parseDouble(from: vitamin_b1)
+        case .vitamin_b2: return parseDouble(from: vitamin_b2)
+        case .vitamin_b3: return parseDouble(from: vitamin_b3)
+        case .vitamin_b5: return parseDouble(from: vitamin_b5)
+        case .vitamin_b6: return parseDouble(from: vitamin_b6)
+        case .vitamin_e: return parseDouble(from: vitamin_e)
+        case .vitamin_k: return parseDouble(from: vitamin_k)
+        default: return 0.0
+        }
+    }
+    public var parsedServingWeightGrams: Double? { guard let amountStr = metricServingAmount, let unit = metricServingUnit?.lowercased(), let amount = Double(amountStr), amount > 0 else { return nil }; if unit == "g" { return amount }; if unit == "ml" { return amount }; if unit == "oz" { return amount * 28.3495 }; if unit == "fl oz" { return amount * 29.5735 }; return nil }
+    public var displayDescription: String { servingDescription ?? "Serving" }
+}
+
+public class FatSecretFoodAPIService {
+    public init() {}
+    
+
+    /// Calls FatSecret through the `fatSecretProxy` Cloud Function over HTTPS instead of hitting the
+    /// proxy host directly. The function forwards to the same proxy server-side and returns its JSON
+    /// verbatim, so all decoding below is unchanged — only the transport moved off plaintext HTTP.
+    private func callProxy(path: String, params: [String: String], completion: @escaping (Result<Data, Error>) -> Void) {
+        Task {
+            do {
+                let data = try await DIContainer.shared.cloudFunctionService.callFunction("fatSecretProxy", with: ["path": path, "params": params])
+                guard let payload = data, JSONSerialization.isValidJSONObject(payload) else {
+                    completion(.failure(APIError.noData))
+                    return
+                }
+                let jsonData = try JSONSerialization.data(withJSONObject: payload)
+                completion(.success(jsonData))
+            } catch {
+                completion(.failure(APIError.networkError(error)))
+            }
+        }
+    }
+
+    private var barcodeCache = Set<String>()
+    
+    public func fetchFoodByBarcode(barcode: String, completion: @escaping (Result<FoodItem, Error>) -> Void) {
+        if barcodeCache.contains(barcode) { return }
+        barcodeCache.insert(barcode)
+
+        callProxy(path: "barcode", params: ["barcode": barcode]) { result in
+            self.barcodeCache.remove(barcode)
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let data):
+                do {
+                    let decodedResponse = try JSONDecoder().decode([String: [String: String]].self, from: data)
+                    if let foodId = decodedResponse["food_id"]?["value"] {
+                        self.fetchFoodDetails(foodId: foodId) { detailsResult in
+                            switch detailsResult {
+                            case .success(let details):
+                                completion(.success(details.foodInfo))
+                            case .failure(let detailError):
+                                completion(.failure(detailError))
+                            }
+                        }
+                    } else {
+                        completion(.failure(APIError.apiError("No food item found for this barcode.")))
+                    }
+                } catch {
+                    completion(.failure(APIError.decodingError(error)))
+                }
+            }
+        }
+    }
+    
+    public func fetchFoodDetails(foodId: String, completion: @escaping (Result<(foodInfo: FoodItem, availableServings: [ServingSizeOption]), Error>) -> Void) {
+        callProxy(path: "food", params: ["food_id": foodId]) { result in
+            let data: Data
+            switch result {
+            case .failure(let error): completion(.failure(error)); return
+            case .success(let payload): data = payload
+            }
+
+            do {
+                let decodedResponse = try JSONDecoder().decode(FatSecretFoodResponse.self, from: data)
+                guard let food = decodedResponse.food else { completion(.failure(APIError.noData)); return }
+
+                guard !food.servings.serving.isEmpty else { completion(.failure(APIError.apiError("No serving information was found for this item."))); return }
+
+                var availableServings: [ServingSizeOption] = []
+                for serving in food.servings.serving {
+                    let option = ServingSizeOption(
+                        description: serving.displayDescription,
+                        servingWeightGrams: serving.parsedServingWeightGrams,
+                        calories: serving.parsedNutrient(.calories),
+                        protein: serving.parsedNutrient(.protein),
+                        carbs: serving.parsedNutrient(.carbohydrate),
+                        fats: serving.parsedNutrient(.fat),
+                        saturatedFat: serving.parsedNutrient(.saturatedFat),
+                        polyunsaturatedFat: serving.parsedNutrient(.polyunsaturatedFat),
+                        monounsaturatedFat: serving.parsedNutrient(.monounsaturatedFat),
+                        fiber: serving.parsedNutrient(.fiber),
+                        calcium: serving.parsedNutrient(.calcium) > 0 ? serving.parsedNutrient(.calcium) : nil,
+                        iron: serving.parsedNutrient(.iron) > 0 ? serving.parsedNutrient(.iron) : nil,
+                        potassium: serving.parsedNutrient(.potassium) > 0 ? serving.parsedNutrient(.potassium) : nil,
+                        sodium: serving.parsedNutrient(.sodium) > 0 ? serving.parsedNutrient(.sodium) : nil,
+                        vitaminA: serving.parsedNutrient(.vitamin_a) > 0 ? serving.parsedNutrient(.vitamin_a) : nil,
+                        vitaminC: serving.parsedNutrient(.vitamin_c) > 0 ? serving.parsedNutrient(.vitamin_c) : nil,
+                        vitaminD: serving.parsedNutrient(.vitamin_d) > 0 ? serving.parsedNutrient(.vitamin_d) : nil,
+                        vitaminB12: serving.parsedNutrient(.vitamin_b12) > 0 ? serving.parsedNutrient(.vitamin_b12) : nil,
+                        folate: serving.parsedNutrient(.folate) > 0 ? serving.parsedNutrient(.folate) : nil,
+                        magnesium: serving.parsedNutrient(.magnesium) > 0 ? serving.parsedNutrient(.magnesium) : nil,
+                        phosphorus: serving.parsedNutrient(.phosphorus) > 0 ? serving.parsedNutrient(.phosphorus) : nil,
+                        zinc: serving.parsedNutrient(.zinc) > 0 ? serving.parsedNutrient(.zinc) : nil,
+                        copper: serving.parsedNutrient(.copper) > 0 ? serving.parsedNutrient(.copper) : nil,
+                        manganese: serving.parsedNutrient(.manganese) > 0 ? serving.parsedNutrient(.manganese) : nil,
+                        selenium: serving.parsedNutrient(.selenium) > 0 ? serving.parsedNutrient(.selenium) : nil,
+                        vitaminB1: serving.parsedNutrient(.vitamin_b1) > 0 ? serving.parsedNutrient(.vitamin_b1) : nil,
+                        vitaminB2: serving.parsedNutrient(.vitamin_b2) > 0 ? serving.parsedNutrient(.vitamin_b2) : nil,
+                        vitaminB3: serving.parsedNutrient(.vitamin_b3) > 0 ? serving.parsedNutrient(.vitamin_b3) : nil,
+                        vitaminB5: serving.parsedNutrient(.vitamin_b5) > 0 ? serving.parsedNutrient(.vitamin_b5) : nil,
+                        vitaminB6: serving.parsedNutrient(.vitamin_b6) > 0 ? serving.parsedNutrient(.vitamin_b6) : nil,
+                        vitaminE: serving.parsedNutrient(.vitamin_e) > 0 ? serving.parsedNutrient(.vitamin_e) : nil,
+                        vitaminK: serving.parsedNutrient(.vitamin_k) > 0 ? serving.parsedNutrient(.vitamin_k) : nil
+                    )
+                    availableServings.append(option)
+                }
+                
+                guard let baseServing = food.servings.serving.first(where: { $0.parsedServingWeightGrams == 100.0 && $0.metricServingUnit?.lowercased() == "g" }) ?? food.servings.serving.first else {
+                    return completion(.failure(NSError(domain: "FatSecretFoodAPIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No serving options were returned for this food."])))
+                }
+                let baseFoodItem = FoodItem(
+                    id: food.foodID, name: food.brandName.map { "\($0) \(food.foodName)" } ?? food.foodName,
+                    calories: baseServing.parsedNutrient(.calories), protein: baseServing.parsedNutrient(.protein),
+                    carbs: baseServing.parsedNutrient(.carbohydrate), fats: baseServing.parsedNutrient(.fat),
+                    saturatedFat: baseServing.parsedNutrient(.saturatedFat),
+                    polyunsaturatedFat: baseServing.parsedNutrient(.polyunsaturatedFat),
+                    monounsaturatedFat: baseServing.parsedNutrient(.monounsaturatedFat),
+                    fiber: baseServing.parsedNutrient(.fiber),
+                    servingSize: baseServing.displayDescription, servingWeight: baseServing.parsedServingWeightGrams ?? 100.0,
+                    timestamp: nil,
+                    calcium: baseServing.parsedNutrient(.calcium) > 0 ? baseServing.parsedNutrient(.calcium) : nil,
+                    iron: baseServing.parsedNutrient(.iron) > 0 ? baseServing.parsedNutrient(.iron) : nil,
+                    potassium: baseServing.parsedNutrient(.potassium) > 0 ? baseServing.parsedNutrient(.potassium) : nil,
+                    sodium: baseServing.parsedNutrient(.sodium) > 0 ? baseServing.parsedNutrient(.sodium) : nil,
+                    vitaminA: baseServing.parsedNutrient(.vitamin_a) > 0 ? baseServing.parsedNutrient(.vitamin_a) : nil,
+                    vitaminC: baseServing.parsedNutrient(.vitamin_c) > 0 ? baseServing.parsedNutrient(.vitamin_c) : nil,
+                    vitaminD: baseServing.parsedNutrient(.vitamin_d) > 0 ? baseServing.parsedNutrient(.vitamin_d) : nil,
+                    vitaminB12: baseServing.parsedNutrient(.vitamin_b12) > 0 ? baseServing.parsedNutrient(.vitamin_b12) : nil,
+                    folate: baseServing.parsedNutrient(.folate) > 0 ? baseServing.parsedNutrient(.folate) : nil,
+                    magnesium: baseServing.parsedNutrient(.magnesium) > 0 ? baseServing.parsedNutrient(.magnesium) : nil,
+                    phosphorus: baseServing.parsedNutrient(.phosphorus) > 0 ? baseServing.parsedNutrient(.phosphorus) : nil,
+                    zinc: baseServing.parsedNutrient(.zinc) > 0 ? baseServing.parsedNutrient(.zinc) : nil,
+                    copper: baseServing.parsedNutrient(.copper) > 0 ? baseServing.parsedNutrient(.copper) : nil,
+                    manganese: baseServing.parsedNutrient(.manganese) > 0 ? baseServing.parsedNutrient(.manganese) : nil,
+                    selenium: baseServing.parsedNutrient(.selenium) > 0 ? baseServing.parsedNutrient(.selenium) : nil,
+                    vitaminB1: baseServing.parsedNutrient(.vitamin_b1) > 0 ? baseServing.parsedNutrient(.vitamin_b1) : nil,
+                    vitaminB2: baseServing.parsedNutrient(.vitamin_b2) > 0 ? baseServing.parsedNutrient(.vitamin_b2) : nil,
+                    vitaminB3: baseServing.parsedNutrient(.vitamin_b3) > 0 ? baseServing.parsedNutrient(.vitamin_b3) : nil,
+                    vitaminB5: baseServing.parsedNutrient(.vitamin_b5) > 0 ? baseServing.parsedNutrient(.vitamin_b5) : nil,
+                    vitaminB6: baseServing.parsedNutrient(.vitamin_b6) > 0 ? baseServing.parsedNutrient(.vitamin_b6) : nil,
+                    vitaminE: baseServing.parsedNutrient(.vitamin_e) > 0 ? baseServing.parsedNutrient(.vitamin_e) : nil,
+                    vitaminK: baseServing.parsedNutrient(.vitamin_k) > 0 ? baseServing.parsedNutrient(.vitamin_k) : nil
+                )
+                
+                completion(.success((foodInfo: baseFoodItem, availableServings: availableServings)))
+
+            } catch {
+                completion(.failure(APIError.decodingError(error)))
+            }
+        }
+    }
+    
+    public func fetchFoodByQuery(query: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
+        callProxy(path: "search", params: ["query": query]) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let data):
+                do {
+                    let decodedResponse = try JSONDecoder().decode(FatSecretResponse.self, from: data)
+                    if let foods = decodedResponse.foods?.food {
+                        completion(.success(foods.map { self.mapSearchResultToFoodItem(from: $0) }))
+                    } else {
+                        completion(.success([]))
+                    }
+                } catch {
+                    completion(.failure(APIError.decodingError(error)))
+                }
+            }
+        }
+    }
+    
+    private func mapSearchResultToFoodItem(from fatSecretFoodItem: FatSecretFoodItem) -> FoodItem {
+        let fullName = fatSecretFoodItem.brandName.map { "\($0) \(fatSecretFoodItem.foodName ?? "")" } ?? (fatSecretFoodItem.foodName ?? "Unknown")
+        let preview = parseSearchNutritionPreview(from: fatSecretFoodItem.foodDescription)
+
+        return FoodItem(
+            id: fatSecretFoodItem.foodID, name: fullName,
+            calories: preview.calories, protein: preview.protein, carbs: preview.carbs, fats: preview.fats,
+            saturatedFat: 0, polyunsaturatedFat: 0, monounsaturatedFat: 0, fiber: 0,
+            servingSize: preview.servingDescription, servingWeight: preview.servingWeightGrams, timestamp: nil,
+            calcium: nil, iron: nil, potassium: nil, sodium: nil,
+            vitaminA: nil, vitaminC: nil, vitaminD: nil,
+            vitaminB12: nil, folate: nil
+        )
+    }
+
+    private func parseSearchNutritionPreview(from description: String?) -> (servingDescription: String, servingWeightGrams: Double, calories: Double, protein: Double, carbs: Double, fats: Double) {
+        guard let description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return ("Tap to see details", 0, 0, 0, 0, 0)
+        }
+
+        let servingDescription = description.components(separatedBy: " - ").first?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let servingWeight = parseServingWeightGrams(from: servingDescription ?? "")
+
+        return (
+            servingDescription: servingDescription ?? "Tap to see details",
+            servingWeightGrams: servingWeight,
+            calories: extractNutritionValue(afterAny: ["Calories"], in: description) ?? 0,
+            protein: extractNutritionValue(afterAny: ["Protein"], in: description) ?? 0,
+            carbs: extractNutritionValue(afterAny: ["Carbs", "Carbohydrate"], in: description) ?? 0,
+            fats: extractNutritionValue(afterAny: ["Fat", "Fats"], in: description) ?? 0
+        )
+    }
+
+    private func extractNutritionValue(afterAny labels: [String], in text: String) -> Double? {
+        for label in labels {
+            if let value = extractNutritionValue(after: label, in: text) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private func extractNutritionValue(after label: String, in text: String) -> Double? {
+        guard let range = text.range(of: "\(label):", options: .caseInsensitive) else { return nil }
+        let remainder = text[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+        let numberText = remainder.prefix { character in
+            character.isNumber || character == "." || character == ","
+        }
+        return Double(String(numberText).replacingOccurrences(of: ",", with: "."))
+    }
+
+    private func parseServingWeightGrams(from servingDescription: String) -> Double {
+        let lowercased = servingDescription.lowercased()
+        guard lowercased.contains("g") else { return 0 }
+        let numberText = lowercased
+            .replacingOccurrences(of: "per", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .prefix { character in
+                character.isNumber || character == "." || character == ","
+            }
+        return Double(String(numberText).replacingOccurrences(of: ",", with: ".")) ?? 0
+    }
+}

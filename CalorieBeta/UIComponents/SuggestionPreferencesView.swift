@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct SuggestionPreferencesView: View {
     @EnvironmentObject var goalSettings: GoalSettings
@@ -101,7 +100,7 @@ struct SuggestionPreferencesView: View {
         goalSettings.suggestionCarbs = Array(selectedCarbs)
         goalSettings.suggestionVeggies = Array(selectedVeggies)
         goalSettings.suggestionCuisines = Array(selectedCuisines)
-        if let userID = Auth.auth().currentUser?.uid {
+        if let userID = DIContainer.shared.authService.currentUserID {
             goalSettings.saveUserGoals(userID: userID)
         }
         dismiss()

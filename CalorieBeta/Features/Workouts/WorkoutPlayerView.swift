@@ -1,6 +1,6 @@
+import MyFitPlateCore
+
 import SwiftUI
-import FirebaseAuth
-import FirebaseFirestore
 import ActivityKit
 
 struct WorkoutPlayerView: View {
@@ -38,7 +38,7 @@ struct WorkoutPlayerView: View {
 
     // Analytics / Summary Sheet
     @State private var showingAnalyticsSheet = false
-    @State private var completedSessionLog: WorkoutSessionLog? = nil
+    @State private var completedSessionLog: WorkoutSessionLog?
     @State private var showingFinishConfirmation = false
     @State private var showingDiscardConfirmation = false
     @State private var isKeyboardVisible = false
@@ -215,7 +215,7 @@ struct WorkoutPlayerView: View {
         .onAppear {
             totalWorkoutTimer.start()
             LiveActivityManager.shared.startWorkout(routineName: routine.name)
-            AnalyticsManager.log(.workoutStarted, ["routine_name": routine.name])
+            DIContainer.shared.analyticsManager.log(.workoutStarted, ["routine_name": routine.name])
         }
         .onDisappear {
             // Safety check: Kill Live Activity if user swipes away the app
@@ -361,13 +361,13 @@ struct WorkoutPlayerView: View {
         restTimer.stop()
         totalWorkoutTimer.stop()
         LiveActivityManager.shared.endActivity()
-        AnalyticsManager.log(.workoutCompleted, ["completed_sets": completedSetCount])
+        DIContainer.shared.analyticsManager.log(.workoutCompleted, ["completed_sets": completedSetCount])
         self.completedSessionLog = sessionLog
         self.showingAnalyticsSheet = true
     }
 
     private func logAllCompletedExercises() -> WorkoutSessionLog? {
-        guard let userID = Auth.auth().currentUser?.uid else { return nil }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return nil }
 
         let completedExercisesForLog = routine.exercises.compactMap { exercise -> CompletedExercise? in
             let completedSets = exercise.sets.filter { $0.isCompleted }.map {
@@ -452,10 +452,8 @@ struct WorkoutPlayerView: View {
                     let allSetsMetTarget = completedNonWarmupSets.allSatisfy { $0.reps >= targetMaxReps }
                     if allSetsMetTarget {
                         // Increase weight by 5 lbs for progression
-                        for j in 0..<routine.exercises[i].sets.count {
-                            if !routine.exercises[i].sets[j].isWarmup {
-                                routine.exercises[i].sets[j].weight += 5.0
-                            }
+                        for j in 0..<routine.exercises[i].sets.count where !routine.exercises[i].sets[j].isWarmup {
+                            routine.exercises[i].sets[j].weight += 5.0
                         }
                     }
                 }
@@ -480,4 +478,3 @@ struct WorkoutPlayerView: View {
 }
 
 // MARK: - Subviews
-

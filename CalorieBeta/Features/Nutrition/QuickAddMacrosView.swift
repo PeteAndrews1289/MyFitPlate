@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct QuickAddMacrosView: View {
     @Environment(\.dismiss) var dismiss
@@ -78,7 +77,7 @@ struct QuickAddMacrosView: View {
     }
 
     private func saveMacros() {
-        guard let userID = Auth.auth().currentUser?.uid else {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
             errorMessage = "Not logged in."
             return
         }
@@ -132,17 +131,16 @@ struct QuickAddMacrosView: View {
     }
 }
 
-
 struct MenuScannerView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var goalSettings: GoalSettings
     
-    @State private var capturedImage: UIImage? = nil
+    @State private var capturedImage: UIImage?
     @State private var showingCamera = false
     @State private var isProcessing = false
     @State private var recommendedMeals: [FoodItem] = []
-    @State private var errorMessage: String? = nil
+    @State private var errorMessage: String?
     @State private var remainingCaloriesSnapshot: Double = 0
     
     private let aiModel = MLImageModel()
@@ -360,7 +358,7 @@ struct MenuScannerView: View {
     }
     
     private func logMeal(_ meal: FoodItem) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         dailyLogService.addFoodToCurrentLog(for: userID, foodItem: meal, source: "MenuMatchmaker")
         dismiss()
     }

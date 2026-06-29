@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct RoutineEditorHeaderCard: View {
@@ -423,7 +425,6 @@ struct SectionLabel: View {
     }
 }
 
-
 struct ExerciseSetEditorView: View {
     @State private var editableExercise: RoutineExercise
     @State private var alternativesText: String
@@ -708,17 +709,7 @@ struct ExercisePickerView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(categories, id: \.self) { category in
-                                    Button {
-                                        selectedCategory = category
-                                    } label: {
-                                        Text(category)
-                                            .appFont(size: 12, weight: .bold)
-                                            .foregroundColor(selectedCategory == category ? .white : .brandPrimary)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(selectedCategory == category ? Color.brandPrimary : Color.brandPrimary.opacity(0.10), in: Capsule())
-                                    }
-                                    .buttonStyle(.plain)
+                                    categoryButton(for: category)
                                 }
                             }
                         }
@@ -767,5 +758,24 @@ struct ExercisePickerView: View {
             type: customExerciseType
         ))
         dismiss()
+    }
+
+    @ViewBuilder
+    private func categoryButton(for category: String) -> some View {
+        let isSelected = (selectedCategory == category)
+        let fgColor: Color = isSelected ? .white : .brandPrimary
+        let bgColor: Color = isSelected ? Color.brandPrimary : Color.brandPrimary.opacity(0.10)
+        
+        Button {
+            selectedCategory = category
+        } label: {
+            Text(category)
+                .appFont(size: 12, weight: .bold)
+                .foregroundColor(fgColor)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(bgColor, in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }

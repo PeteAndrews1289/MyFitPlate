@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 func dateKey(for date: Date) -> String {
     let formatter = DateFormatter()
@@ -518,7 +517,6 @@ struct MealCardView: View {
         .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
-
 
 struct WeekView: View {
     @Binding var selectedDate: Date

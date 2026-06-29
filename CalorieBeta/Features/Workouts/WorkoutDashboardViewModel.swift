@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct TrainingReadinessBrief {

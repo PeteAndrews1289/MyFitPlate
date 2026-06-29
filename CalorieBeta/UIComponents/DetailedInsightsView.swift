@@ -62,7 +62,7 @@ struct DetailedInsightsView: View {
         
         let url = URL.documentsDirectory.appending(path: "MyFitPlate_Insights.pdf")
         
-        renderer.render { size, context in
+        renderer.render { _, context in
             var box = CGRect(x: 0, y: 0, width: 612, height: 792)
             
             guard let pdf = CGContext(url as CFURL, mediaBox: &box, nil) else {

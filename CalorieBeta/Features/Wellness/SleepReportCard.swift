@@ -12,8 +12,7 @@ struct SleepReportCard: View {
         let totalMinutes = Int(round(interval / 60.0))
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        if hours > 0 { return "\(hours)h \(minutes)m" }
-        else { return "\(minutes)m" }
+        if hours > 0 { return "\(hours)h \(minutes)m" } else { return "\(minutes)m" }
     }
 
     private let stageColumns: [GridItem] = [ GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8) ]
@@ -77,7 +76,7 @@ struct SleepReportCard: View {
                     }
                 }
                 .chartForegroundStyleScale(["Deep": Color.indigo.gradient, "Core": Color.blue.gradient, "REM": Color.purple.gradient, "Awake": Color.gray.gradient])
-                 .chartYAxis { AxisMarks(position: .leading) { value in AxisGridLine(); AxisValueLabel { if let h = value.as(Double.self){ Text("\(h, specifier: "%.0f")h")}}}}
+                 .chartYAxis { AxisMarks(position: .leading) { value in AxisGridLine(); AxisValueLabel { if let h = value.as(Double.self) { Text("\(h, specifier: "%.0f")h")}}}}
                  .chartXAxis { AxisMarks(values: .automatic) { AxisValueLabel() }}
                  .chartLegend(.hidden)
                  .frame(height: 150)
@@ -124,7 +123,12 @@ struct SleepReportCard: View {
      }
 
     private func sleepScoreColor(_ score: Int) -> Color {
-        switch score { case 85...: return .green; case 70..<85: return .yellow; case 50..<70: return .orange; default: return .red }
+        switch score {
+        case 85...: return .green
+        case 70..<85: return .yellow
+        case 50..<70: return .orange
+        default: return .red
+        }
     }
 }
 
@@ -181,6 +185,11 @@ struct SleepDetailView: View {
       }
 
     private func sleepScoreColor(_ score: Int) -> Color {
-        switch score { case 85...: return .green; case 70..<85: return .yellow; case 50..<70: return .orange; default: return .red }
+        switch score {
+        case 85...: return .green
+        case 70..<85: return .yellow
+        case 50..<70: return .orange
+        default: return .red
+        }
     }
 }

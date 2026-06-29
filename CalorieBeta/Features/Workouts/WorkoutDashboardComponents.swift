@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct TrainingHeroCard: View {
@@ -37,8 +39,6 @@ struct TrainingHeroCard: View {
         .asCard()
     }
 }
-
-
 
 struct TrainingReadinessCard: View {
     let brief: TrainingReadinessBrief
@@ -90,6 +90,8 @@ struct TrainingReadinessCard: View {
             }
         }
         .asCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(brief.status). \(brief.message). Readiness score is \(brief.score) out of 100.")
     }
 }
 
@@ -122,6 +124,8 @@ struct TrainingSignalPill: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
         .background(Color.backgroundSecondary.opacity(0.68), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(signal.title): \(signal.value)")
     }
 }
 
@@ -462,4 +466,3 @@ struct RoutineEmptyState: View {
         .background(Color.backgroundSecondary.opacity(0.70), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
-

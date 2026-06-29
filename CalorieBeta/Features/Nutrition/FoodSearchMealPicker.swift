@@ -72,4 +72,3 @@ struct FoodSearchCompactMealPicker: View {
         .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
-

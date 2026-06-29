@@ -1,6 +1,4 @@
 import SwiftUI
-import FirebaseAuth
-import FirebaseFirestore
 import ActivityKit
 
 struct PlateMathVisualizer: View {
@@ -129,4 +127,3 @@ struct PlateView: View {
         }
     }
 }
-

@@ -1,3 +1,4 @@
+#if canImport(ActivityKit)
 import ActivityKit
 import Foundation
 
@@ -18,3 +19,4 @@ public struct FastingActivityAttributes: ActivityAttributes {
         self.fastType = fastType
     }
 }
+#endif

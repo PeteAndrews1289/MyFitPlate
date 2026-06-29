@@ -1,6 +1,6 @@
-import SwiftUI
-import FirebaseFirestore
+import MyFitPlateCore
 
+import SwiftUI
 struct ProgramDetailHeroCard: View {
     let programName: String
     let statusText: String
@@ -689,4 +689,3 @@ struct CalendarView: View {
         return Color(UIColor.secondaryLabel)
     }
 }
-

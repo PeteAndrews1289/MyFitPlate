@@ -1,0 +1,30 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Run linting and tests"
+  lane :test do
+    swiftlint(
+      mode: "lint",
+      strict: true
+    )
+    scan(
+      project: "MyFitPlate.xcodeproj",
+      scheme: "MyFitPlate",
+      devices: ["iPhone 15"],
+      only_testing: ["MyFitPlateTests"],
+      code_coverage: true,
+      result_bundle: true,
+      clean: true,
+      xcargs: "CODE_SIGNING_ALLOWED=NO"
+    )
+  end
+
+  desc "Build the app for App Store"
+  lane :build do
+    gym(
+      project: "MyFitPlate.xcodeproj",
+      scheme: "MyFitPlate",
+      export_method: "app-store"
+    )
+  end
+end

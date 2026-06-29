@@ -1,3 +1,4 @@
+#if canImport(ActivityKit)
 import WidgetKit
 import SwiftUI
 
@@ -12,3 +13,5 @@ struct LiveActivityBundle: WidgetBundle {
         // MyHomeScreenWidget()
     }
 }
+
+#endif

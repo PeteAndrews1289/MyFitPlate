@@ -403,7 +403,12 @@ private struct SleepExpandedSection: View {
     }
 
     private func sleepScoreColor(_ score: Int) -> Color {
-        switch score { case 85...: return .green; case 70..<85: return .yellow; case 50..<70: return .orange; default: return .red }
+        switch score {
+        case 85...: return .green
+        case 70..<85: return .yellow
+        case 50..<70: return .orange
+        default: return .red
+        }
     }
 }
 

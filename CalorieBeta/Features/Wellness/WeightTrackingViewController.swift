@@ -1,7 +1,6 @@
 import UIKit
 import SwiftUI
 import DGCharts
-import FirebaseAuth
 
 class WeightTrackingViewController: UIViewController {
     var weightHistory: [(id: String, date: Date, weight: Double)] = []
@@ -40,7 +39,7 @@ class WeightTrackingViewController: UIViewController {
     }
 
     private func loadWeightData() {
-        guard let userID = Auth.auth().currentUser?.uid else {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
             return
         }
         

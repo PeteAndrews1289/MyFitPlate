@@ -1,7 +1,4 @@
 import SwiftUI
-import Firebase
-import FirebaseAuth
-
 struct GenderButtonPicker: View {
     @Binding var selectedGender: String
     let genders = ["🙋‍♂️ Male", "🙋‍♀️ Female"]
@@ -211,7 +208,7 @@ struct CaloricCalculatorView: View {
      }
 
     private func fetchAndSetGoals() {
-        guard let userID = Auth.auth().currentUser?.uid else {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
             return
         }
         goalSettings.loadUserGoals(userID: userID) {
@@ -223,7 +220,7 @@ struct CaloricCalculatorView: View {
     }
     
     private func saveCaloricGoal() {
-        guard let userID = Auth.auth().currentUser?.uid,
+        guard let userID = DIContainer.shared.authService.currentUserID,
               let calorieValue = Double(calorieInput) else {
             return
         }

@@ -1,8 +1,7 @@
 import SwiftUI
-import FirebaseAuth
 
 struct WaterTrackingCardView: View {
-    @EnvironmentObject var dailyLogService : DailyLogService
+    @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var goalSettings: GoalSettings
     
     var date: Date
@@ -135,7 +134,7 @@ struct WaterTrackingCardView: View {
     }
     
     private func adjustWater(by amount: Double) {
-        guard let userID = Auth.auth().currentUser?.uid else {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
             return
         }
         let newIntake = waterIntake + amount

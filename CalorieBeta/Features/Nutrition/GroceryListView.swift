@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct GroceryListView: View {
     @EnvironmentObject var mealPlannerService: MealPlannerService
@@ -75,42 +74,7 @@ struct GroceryListView: View {
         ZStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    if isLoading {
-                        GroceryListLoadingState()
-                    } else if !groceryList.isEmpty {
-                        GrocerySummaryCard(
-                            items: groceryList,
-                            onScan: { showingBarcodeScanner = true },
-                            onAddManual: { showingManualItemSheet = true }
-                        )
-
-                        GroceryListDisplayControls(
-                            completedCount: groceryList.filter(\.isCompleted).count,
-                            hideCompletedItems: $hideCompletedItems
-                        )
-
-                        if sortedCategories.isEmpty {
-                            GroceryAllCompleteState {
-                                hideCompletedItems = false
-                            }
-                        } else {
-                            ForEach(sortedCategories, id: \.self) { category in
-                                GroceryCategorySection(
-                                    category: category,
-                                    items: orderedItems(for: category),
-                                    groceryList: $groceryList,
-                                    onToggle: saveList,
-                                    onEdit: { item in editingItem = item },
-                                    onDelete: deleteItem
-                                )
-                            }
-                        }
-                    } else {
-                        GroceryListEmptyState(
-                            onScan: { showingBarcodeScanner = true },
-                            onAddManual: { showingManualItemSheet = true }
-                        )
-                    }
+                    mainContent
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity)
@@ -123,42 +87,7 @@ struct GroceryListView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 16) {
-                        Button(action: { showingBarcodeScanner = true }) {
-                            Image(systemName: "barcode.viewfinder")
-                        }
-                        .accessibilityLabel("Scan barcode")
-                        
-                        Button(action: { showingManualItemSheet = true }) {
-                            Image(systemName: "plus")
-                        }
-                        .accessibilityLabel("Add grocery item")
-
-                        if !groceryList.isEmpty {
-                            Menu {
-                                ShareLink(item: shareText) {
-                                    Label("Share List", systemImage: "square.and.arrow.up")
-                                }
-                                
-                                Picker(selection: $unitSystem, label: Text("Units")) {
-                                    Text("Imperial (lbs, oz)").tag(GroceryUnitSystem.imperial)
-                                    Text("Metric (kg, g)").tag(GroceryUnitSystem.metric)
-                                }
-                                
-                                if groceryList.contains(where: \.isCompleted) {
-                                    Button(role: .destructive, action: clearCompleted) {
-                                        Label("Clear Completed", systemImage: "checkmark.circle.badge.xmark")
-                                    }
-                                }
-                                
-                                Button(role: .destructive, action: { showingClearConfirmation = true }) {
-                                    Label("Clear All", systemImage: "trash")
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
-                            }
-                        }
-                    }
+                    trailingToolbarItems
                 }
             }
             .sheet(isPresented: $showingManualItemSheet) {
@@ -175,7 +104,7 @@ struct GroceryListView: View {
                 BarcodeScannerView { barcode in
                     showingBarcodeScanner = false
                     isFetchingItemName = true
-                    AnalyticsManager.log(.barcodeScanned)
+                    DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                     Task { @MainActor in
                         if let item = await withCheckedContinuation({ cont in
                             foodAPIService.fetchFoodByBarcode(barcode: barcode) { cont.resume(returning: try? $0.get()) }
@@ -293,7 +222,7 @@ struct GroceryListView: View {
     }
     
     private func loadList() async {
-        guard let userID = Auth.auth().currentUser?.uid else {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
             self.isLoading = false
             return
         }
@@ -302,7 +231,7 @@ struct GroceryListView: View {
     }
     
     private func saveList() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         mealPlannerService.saveGroceryList(groceryList, for: userID)
     }
 
@@ -317,5 +246,84 @@ struct GroceryListView: View {
         saveList()
         HapticManager.instance.feedback(.medium)
     }
-}
 
+    @ViewBuilder
+    private var trailingToolbarItems: some View {
+        HStack(spacing: 16) {
+            Button(action: { showingBarcodeScanner = true }) {
+                Image(systemName: "barcode.viewfinder")
+            }
+            .accessibilityLabel("Scan barcode")
+            
+            Button(action: { showingManualItemSheet = true }) {
+                Image(systemName: "plus")
+            }
+            .accessibilityLabel("Add grocery item")
+
+            if !groceryList.isEmpty {
+                Menu {
+                    ShareLink(item: shareText) {
+                        Label("Share List", systemImage: "square.and.arrow.up")
+                    }
+                    
+                    Picker(selection: $unitSystem, label: Text("Units")) {
+                        Text("Imperial (lbs, oz)").tag(GroceryUnitSystem.imperial)
+                        Text("Metric (kg, g)").tag(GroceryUnitSystem.metric)
+                    }
+                    
+                    if groceryList.contains(where: \.isCompleted) {
+                        Button(role: .destructive, action: clearCompleted) {
+                            Label("Clear Completed", systemImage: "checkmark.circle.badge.xmark")
+                        }
+                    }
+                    
+                    Button(role: .destructive, action: { showingClearConfirmation = true }) {
+                        Label("Clear All", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+        if isLoading {
+            GroceryListLoadingState()
+        } else if !groceryList.isEmpty {
+            GrocerySummaryCard(
+                items: groceryList,
+                onScan: { showingBarcodeScanner = true },
+                onAddManual: { showingManualItemSheet = true }
+            )
+
+            GroceryListDisplayControls(
+                completedCount: groceryList.filter(\.isCompleted).count,
+                hideCompletedItems: $hideCompletedItems
+            )
+
+            if sortedCategories.isEmpty {
+                GroceryAllCompleteState {
+                    hideCompletedItems = false
+                }
+            } else {
+                ForEach(sortedCategories, id: \.self) { category in
+                    GroceryCategorySection(
+                        category: category,
+                        items: orderedItems(for: category),
+                        groceryList: $groceryList,
+                        onToggle: saveList,
+                        onEdit: { item in editingItem = item },
+                        onDelete: deleteItem
+                    )
+                }
+            }
+        } else {
+            GroceryListEmptyState(
+                onScan: { showingBarcodeScanner = true },
+                onAddManual: { showingManualItemSheet = true }
+            )
+        }
+    }
+}

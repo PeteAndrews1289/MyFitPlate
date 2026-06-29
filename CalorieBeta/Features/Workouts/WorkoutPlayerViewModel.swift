@@ -1,8 +1,7 @@
+import MyFitPlateCore
+
 import Foundation
 import SwiftUI
-import FirebaseAuth
-import FirebaseFirestore
-
 @MainActor
 class WorkoutPlayerViewModel: ObservableObject {
     @Published var routine: WorkoutRoutine
@@ -52,7 +51,7 @@ class WorkoutPlayerViewModel: ObservableObject {
 
     // Log completed exercises to Firestore and DailyLogService
     func logAllCompletedExercises() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
 
         let completedExercisesForLog = routine.exercises.compactMap { exercise -> CompletedExercise? in
             let completedSets = exercise.sets.filter { $0.isCompleted }.map {
@@ -90,7 +89,6 @@ class WorkoutPlayerViewModel: ObservableObject {
             // Estimate duration based on sets (e.g., 1 minute per set) - refine this logic if possible
             let estimatedDurationMinutes = Double(completedSets.count) * 1.0
             let totalCaloriesBurned = (metValue * 3.5 * bodyweightKg) / 200.0 * estimatedDurationMinutes
-
 
             if totalCaloriesBurned > 0 {
                 let loggedExercise = LoggedExercise(

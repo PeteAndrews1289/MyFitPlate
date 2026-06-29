@@ -92,10 +92,8 @@ struct HealthActivityCard: View {
 
 #Preview {
     let vm = HealthKitViewModel()
-    vm.todaySteps = 4532
-    vm.todayActiveEnergy = 342
     
-    return HealthActivityCard()
+    HealthActivityCard()
         .environmentObject(vm)
         .padding()
         .background(Color(UIColor.secondarySystemBackground))

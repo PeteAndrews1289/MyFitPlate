@@ -1,6 +1,5 @@
 import SwiftUI
 import Charts
-import FirebaseAuth
 
 struct NutritionProgressView: View {
     var dailyLog: DailyLog
@@ -224,7 +223,7 @@ struct NutritionConsistencyNoticeCard: View {
 
     let status: NutritionCalorieConsistency.Status
     var style: Style = .detail
-    var messageOverride: String? = nil
+    var messageOverride: String?
 
     private var title: String {
         style == .compact ? "Calorie check" : "Calories and macros differ"

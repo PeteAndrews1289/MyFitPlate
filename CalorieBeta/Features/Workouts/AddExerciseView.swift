@@ -11,7 +11,7 @@ struct AddExerciseView: View {
     var onSave: (LoggedExercise) -> Void
     
     @State private var isEditing: Bool = false
-    @State private var alertMessage: String? = nil
+    @State private var alertMessage: String?
     @State private var showingAlert = false
 
     init(exerciseToEdit: LoggedExercise? = nil, onSave: @escaping (LoggedExercise) -> Void) {
