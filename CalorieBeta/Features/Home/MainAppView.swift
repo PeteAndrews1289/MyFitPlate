@@ -138,7 +138,7 @@ struct CalorieBetaApp: App {
                 accountDeletionService: AccountDeletionService(authService: auth, databaseService: db, cloudFunctionService: cloud),
                 analyticsManager: FirebaseAnalyticsManager(),
                 crashManager: FirebaseCrashManager(),
-                featureFlagService: FeatureFlagService(),
+                featureFlagService: FeatureFlagService(remoteProvider: FirebaseRemoteConfigFeatureFlagProvider.makeIfConfigured()),
                 aiService: AIService.shared
             )
         }

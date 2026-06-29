@@ -1,12 +1,15 @@
-/*
 import Foundation
 import MyFitPlateCore
 import FirebaseCore
 import FirebaseRemoteConfig
 
-final class FirebaseRemoteConfigFeatureFlagProvider: FeatureFlagServiceProtocol {
+/// App-layer adapter that backs MyFitPlateCore's feature flags with Firebase Remote Config.
+/// Kept in the app target so Core stays SDK-free; injected into `FeatureFlagService`.
+final class FirebaseRemoteConfigFeatureFlagProvider: FeatureFlagRemoteProviding {
     private let remoteConfig: RemoteConfig
 
+    /// Returns a provider only when Firebase is configured (nil in previews/tests so the
+    /// service falls back to compiled defaults).
     static func makeIfConfigured() -> FirebaseRemoteConfigFeatureFlagProvider? {
         guard FirebaseApp.app() != nil else { return nil }
         return FirebaseRemoteConfigFeatureFlagProvider()
@@ -24,9 +27,10 @@ final class FirebaseRemoteConfigFeatureFlagProvider: FeatureFlagServiceProtocol 
         remoteConfig.setDefaults(defaultValues)
     }
 
-    func isEnabled(_ flag: FeatureFlag) -> Bool {
+    func remoteValue(for flag: FeatureFlag) -> Bool? {
         let value = remoteConfig.configValue(forKey: flag.remoteConfigKey)
-        guard value.source == .remote else { return flag.defaultValue }
+        // Only treat genuinely-remote values as overrides; otherwise let Core use its default.
+        guard value.source == .remote else { return nil }
         return value.boolValue
     }
 
@@ -44,4 +48,3 @@ final class FirebaseRemoteConfigFeatureFlagProvider: FeatureFlagServiceProtocol 
         })
     }
 }
-*/
