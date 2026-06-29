@@ -17,11 +17,11 @@ public enum AITextLogError: Error, LocalizedError {
     }
 }
 
-private struct AILogResponse: Codable {
+struct AILogResponse: Codable {
     public let foods: [AILoggedItem]
 }
 
-private struct AILoggedItem: Codable {
+struct AILoggedItem: Codable {
     public let itemName: String
     public let servingSize: String
     public let calories: Double
@@ -40,24 +40,8 @@ private struct AILoggedItem: Codable {
     public let folate: Double?
 }
 
-@MainActor
-public class AITextLogService {
-    public init() {}
-    public func estimateNutrition(from text: String) async -> Result<[FoodItem], AITextLogError> {
-        let prompt = createPrompt(for: text)
-        
-        do {
-            let aiResponse = try await fetchAIResponse(prompt: prompt)
-            let foodItems = parseAIResponse(aiResponse)
-            return .success(foodItems)
-        } catch let error as AITextLogError {
-            return .failure(error)
-        } catch {
-            return .failure(.parsingError(error.localizedDescription))
-        }
-    }
-
-    private func createPrompt(for text: String) -> String {
+enum AITextLogParser {
+    static func createPrompt(for text: String) -> String {
         return """
         You are an expert nutritional analysis assistant named Maia. A user has provided a text description of a meal they ate.
         Your task is to identify each distinct food item and provide a full nutritional breakdown.
@@ -72,7 +56,7 @@ public class AITextLogService {
         5.  **Food Object Keys**: Each food object must contain these exact keys: "itemName", "servingSize", "calories", "protein", "carbs", "fats", "fiber", "calcium", "iron", "potassium", "sodium", "vitaminA", "vitaminC", "vitaminD", "vitaminB12", "folate".
         6.  **Numeric Values**: All nutritional values must be numbers. If a micronutrient is not applicable or is unknown, its value should be 0.
         7.  **Medical Disclaimer**: Note that generated nutritional values are AI estimates and should not be considered medical advice.
-        
+
         Example for a specific user input "6 oz salmon, 1 cup of rice":
         {
             "foods": [
@@ -81,6 +65,68 @@ public class AITextLogService {
             ]
         }
         """
+    }
+
+    static func decodeResponse(from contentString: String) throws -> AILogResponse {
+        guard let contentData = contentString.data(using: .utf8) else {
+            throw AITextLogError.parsingError("Could not convert the AI's content string to data.")
+        }
+        do {
+            return try JSONDecoder().decode(AILogResponse.self, from: contentData)
+        } catch {
+            throw AITextLogError.parsingError(error.localizedDescription)
+        }
+    }
+
+    static func parse(
+        _ aiResponse: AILogResponse,
+        timestamp: Date = Date(),
+        idProvider: () -> String = { UUID().uuidString }
+    ) -> [FoodItem] {
+        return aiResponse.foods.map { item in
+            FoodItem(
+                id: idProvider(),
+                name: item.itemName,
+                calories: item.calories,
+                protein: item.protein,
+                carbs: item.carbs,
+                fats: item.fats,
+                saturatedFat: nil,
+                polyunsaturatedFat: nil,
+                monounsaturatedFat: nil,
+                fiber: item.fiber,
+                servingSize: item.servingSize,
+                servingWeight: 0,
+                timestamp: timestamp,
+                calcium: item.calcium,
+                iron: item.iron,
+                potassium: item.potassium,
+                sodium: item.sodium,
+                vitaminA: item.vitaminA,
+                vitaminC: item.vitaminC,
+                vitaminD: item.vitaminD,
+                vitaminB12: item.vitaminB12,
+                folate: item.folate
+            )
+        }
+    }
+}
+
+@MainActor
+public class AITextLogService {
+    public init() {}
+    public func estimateNutrition(from text: String) async -> Result<[FoodItem], AITextLogError> {
+        let prompt = AITextLogParser.createPrompt(for: text)
+
+        do {
+            let aiResponse = try await fetchAIResponse(prompt: prompt)
+            let foodItems = parseAIResponse(aiResponse)
+            return .success(foodItems)
+        } catch let error as AITextLogError {
+            return .failure(error)
+        } catch {
+            return .failure(.parsingError(error.localizedDescription))
+        }
     }
 
     private func fetchAIResponse(prompt: String) async throws -> AILogResponse {
@@ -92,31 +138,13 @@ public class AITextLogService {
 
         switch result {
         case .success(let contentString):
-            guard let contentData = contentString.data(using: .utf8) else {
-                throw AITextLogError.parsingError("Could not convert the AI's content string to data.")
-            }
-            do {
-                return try JSONDecoder().decode(AILogResponse.self, from: contentData)
-            } catch {
-                throw AITextLogError.parsingError(error.localizedDescription)
-            }
+            return try AITextLogParser.decodeResponse(from: contentString)
         case .failure(let error):
             throw AITextLogError.apiError(error.localizedDescription)
         }
     }
     
     private func parseAIResponse(_ aiResponse: AILogResponse) -> [FoodItem] {
-        return aiResponse.foods.map { item in
-            FoodItem(
-                id: UUID().uuidString, name: item.itemName,
-                calories: item.calories, protein: item.protein, carbs: item.carbs, fats: item.fats,
-                saturatedFat: nil, polyunsaturatedFat: nil, monounsaturatedFat: nil,
-                fiber: item.fiber, servingSize: item.servingSize, servingWeight: 0,
-                timestamp: Date(), calcium: item.calcium, iron: item.iron,
-                potassium: item.potassium, sodium: item.sodium, vitaminA: item.vitaminA,
-                vitaminC: item.vitaminC, vitaminD: item.vitaminD, vitaminB12: item.vitaminB12,
-                folate: item.folate
-            )
-        }
+        AITextLogParser.parse(aiResponse)
     }
 }

@@ -54,24 +54,12 @@ public class CycleTrackingService: ObservableObject {
         let components = Calendar.current.dateComponents([.day], from: startDate, to: today)
         let dayNumber = (components.day ?? 0) + 1
         
-        let phase = determinePhase(cycleDay: dayNumber)
+        let phase = CycleTrackingRules.determinePhase(
+            cycleDay: dayNumber,
+            typicalPeriodLength: cycleSettings.typicalPeriodLength,
+            typicalCycleLength: cycleSettings.typicalCycleLength
+        )
         self.cycleDay = CycleDay(date: today, cycleDayNumber: dayNumber, phase: phase)
-    }
-
-    private func determinePhase(cycleDay: Int) -> MenstrualPhase {
-        let periodEnd = cycleSettings.typicalPeriodLength
-        let ovulationStart = (cycleSettings.typicalCycleLength / 2) - 2
-        let ovulationEnd = (cycleSettings.typicalCycleLength / 2) + 2
-
-        if cycleDay <= periodEnd {
-            return .menstrual
-        } else if cycleDay > periodEnd && cycleDay < ovulationStart {
-            return .follicular
-        } else if cycleDay >= ovulationStart && cycleDay <= ovulationEnd {
-            return .ovulatory
-        } else {
-            return .luteal
-        }
     }
     
     private func saveCycleSettings() {
@@ -93,40 +81,30 @@ public class CycleTrackingService: ObservableObject {
 
     public func fetchAIInsight() {
         guard let currentPhase = cycleDay?.phase, let goalSettings = goalSettings else { return }
+        let currentCycleDayNum = cycleDay?.cycleDayNumber ?? 1
+        let goalString = goalSettings.goal
         isLoadingInsight = true
         
         Task {
             let recentLogsResult = await dailyLogService?.fetchDailyHistory(for: DIContainer.shared.authService.currentUserID ?? "", startDate: Calendar.current.date(byAdding: .day, value: -3, to: Date()), endDate: Date())
-            var logSummary = "No recent activity logged."
-            if let recentLogs = recentLogsResult, case .success(let logs) = recentLogs, !logs.isEmpty {
-                logSummary = logs.map { log in
-                    let macros = log.totalMacros()
-                    return "Date: \(log.date.formatted(date: .abbreviated, time: .omitted)), Cals: \(Int(log.totalCalories())), P: \(Int(macros.protein))g, C: \(Int(macros.carbs))g, F: \(Int(macros.fats))g"
-                }.joined(separator: "\n")
+            var logs: [DailyLog] = []
+            if let recentLogs = recentLogsResult, case .success(let fetchedLogs) = recentLogs {
+                logs = fetchedLogs
             }
 
-            let prompt = """
-            You are an elite female physiology and performance coach for the MyFitPlate app.
-            The user is on Day \(cycleDay?.cycleDayNumber ?? 1) of their cycle, in the \(currentPhase.rawValue) phase.
-            Their primary goal is to \(goalSettings.goal) weight.
-            Their recent activity:\n\(logSummary)
+            let prompt = CycleTrackingRules.createAIInsightPrompt(
+                cycleDayNumber: currentCycleDayNum,
+                phase: currentPhase,
+                goal: goalString,
+                recentLogs: logs
+            )
             
-            Your response MUST be a valid JSON object. Do not include any other text.
-            The JSON object must have these exact keys: "phaseTitle", "phaseDescription", "trainingFocus", "hormonalState", "energyLevel", "nutritionTip", "symptomTip".
-            - "phaseTitle": A short, empowering title for this phase (e.g., "Your Power Phase").
-            - "phaseDescription": A detailed, scientific-yet-accessible description of what's happening in her body.
-            - "trainingFocus": An object with "title" and "description" keys for workout advice.
-            - "hormonalState": A summary of key hormone levels (e.g., "Peak Estrogen, Rising Progesterone").
-            - "energyLevel": A simple descriptor (e.g., "Peak", "High", "Moderate", "Low").
-            - "nutritionTip": A specific, actionable nutrition tip for this phase, referencing her recent logs if possible.
-            - "symptomTip": A helpful tip for managing common symptoms of this phase.
-            """
             let response = await fetchAIResponse(prompt: prompt)
             
             self.isLoadingInsight = false
-            if let responseData = response?.data(using: .utf8) {
+            if let responseDataString = response {
                 do {
-                    self.aiInsight = try JSONDecoder().decode(AIInsight.self, from: responseData)
+                    self.aiInsight = try CycleTrackingRules.parseAIInsightResponse(responseDataString)
                 } catch {
                     AppLog.app.error("Error decoding cycle AI insight: \(error.localizedDescription, privacy: .public)")
                 }

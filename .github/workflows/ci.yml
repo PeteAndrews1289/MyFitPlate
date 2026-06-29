@@ -51,7 +51,7 @@ jobs:
 
       - name: Check Core coverage floor
         env:
-          CORE_COVERAGE_MINIMUM: "10.0"
+          CORE_COVERAGE_MINIMUM: "50.0"
         run: ./scripts/check_core_coverage.sh
 
       - name: Run unit tests
@@ -70,9 +70,8 @@ jobs:
 
       - name: Check coverage floor
         env:
-          # Most logic now lives in the MyFitPlateCore package (run by `swift test` above), so the
-          # app target is thin UI and reports ~1.2% line coverage. This floor only guards the app
-          # target against regressing to zero. TODO(#3): add a real coverage gate on MyFitPlateCore.
+          # Most logic now lives in the MyFitPlateCore package, which has its own coverage gate
+          # above. This floor only guards the thin app target against regressing to zero.
           COVERAGE_MINIMUM: "1.0"
         run: python3 scripts/check_xcode_coverage.py TestResults.xcresult --target MyFitPlate.app
 

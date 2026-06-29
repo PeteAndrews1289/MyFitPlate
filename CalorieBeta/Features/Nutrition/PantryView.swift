@@ -10,6 +10,10 @@ struct PantryView: View {
         Dictionary(grouping: pantryService.pantryItems, by: { $0.category })
     }
 
+    private var isReceiptScannerEnabled: Bool {
+        DIContainer.shared.featureFlagService?.isFeatureEnabled(.receiptScanner) ?? FeatureFlag.receiptScanner.defaultValue
+    }
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
@@ -26,7 +30,9 @@ struct PantryView: View {
                 PantryRecipeGenerationView(pantryService: pantryService)
             }
             .sheet(isPresented: $showingReceiptScanner) {
-                ReceiptScannerView()
+                if isReceiptScannerEnabled {
+                    ReceiptScannerView()
+                }
             }
         }
     }
@@ -66,10 +72,12 @@ struct PantryView: View {
         VStack(spacing: 0) {
             Divider()
             HStack {
-                Button(action: { showingReceiptScanner = true }) {
-                    Image(systemName: "camera.viewfinder")
-                        .font(.title2)
-                        .foregroundColor(.brandPrimary)
+                if isReceiptScannerEnabled {
+                    Button(action: { showingReceiptScanner = true }) {
+                        Image(systemName: "camera.viewfinder")
+                            .font(.title2)
+                            .foregroundColor(.brandPrimary)
+                    }
                 }
                 
                 TextField("Add ingredient", text: $newItemName)

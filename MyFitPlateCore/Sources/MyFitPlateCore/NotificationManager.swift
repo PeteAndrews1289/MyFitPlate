@@ -111,6 +111,7 @@ public class NotificationManager {
     }
 
     public func scheduleDailyLogReminderIfAuthorized() {
+        if NSClassFromString("XCTest") != nil { return }
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             switch settings.authorizationStatus {
             case .authorized, .provisional, .ephemeral:

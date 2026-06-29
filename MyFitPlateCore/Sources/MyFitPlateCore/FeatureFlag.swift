@@ -4,14 +4,19 @@ public enum FeatureFlag: String, CaseIterable {
     case newMealPlanner
     case newWorkoutRoutine
     case premiumFeatures
+    case menuScanner
+    case receiptScanner
 
     /// Value used when neither a local override nor a remote value is present.
-    /// Conservative defaults (off) so new/gated features stay dark until deliberately enabled.
+    /// New/gated features stay dark until deliberately enabled. Already-shipped, higher-risk
+    /// surfaces default on so Remote Config can act as a kill switch without hiding them locally.
     public var defaultValue: Bool {
         switch self {
         case .newMealPlanner: return false
         case .newWorkoutRoutine: return false
         case .premiumFeatures: return false
+        case .menuScanner: return true
+        case .receiptScanner: return true
         }
     }
 

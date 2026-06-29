@@ -10,7 +10,7 @@
 set -euo pipefail
 
 PKG="MyFitPlateCore"
-FLOOR="${CORE_COVERAGE_MINIMUM:-7.0}"
+FLOOR="${CORE_COVERAGE_MINIMUM:-10.0}"
 
 PROF="$(find "$PKG/.build" -name 'default.profdata' 2>/dev/null | head -1)"
 BIN="$(find "$PKG/.build" -type f -name "${PKG}PackageTests" 2>/dev/null | head -1)"

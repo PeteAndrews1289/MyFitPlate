@@ -11,7 +11,6 @@ import HealthKit
 /// come from a genuine build of this app, not a script replaying an auth token.
 final class MyFitPlateAppCheckProviderFactory: NSObject, AppCheckProviderFactory {
     func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
-        // App Attest requires iOS 14+; this app targets iOS 16+, so it's always available.
         AppAttestProvider(app: app)
     }
 }
@@ -85,6 +84,7 @@ struct CalorieBetaApp: App {
     @StateObject var connectivityManager = WatchConnectivityManager()
 
     init() {
+        #if ENABLE_APP_CHECK
         #if DEBUG
         FirebaseConfiguration.shared.setLoggerLevel(.warning)
         NutritionConsistencySelfCheck.run()
@@ -94,7 +94,13 @@ struct CalorieBetaApp: App {
         #else
         AppCheck.setAppCheckProviderFactory(MyFitPlateAppCheckProviderFactory())
         #endif
-        // App Check factory must be set BEFORE configure().
+        #else
+        #if DEBUG
+        FirebaseConfiguration.shared.setLoggerLevel(.warning)
+        NutritionConsistencySelfCheck.run()
+        #endif
+        #endif
+        // When ENABLE_APP_CHECK is defined, the App Check factory must be set BEFORE configure().
         FirebaseApp.configure()
         
         let isUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")

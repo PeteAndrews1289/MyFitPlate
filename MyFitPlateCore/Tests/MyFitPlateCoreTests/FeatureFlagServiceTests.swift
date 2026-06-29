@@ -16,11 +16,17 @@ final class FeatureFlagServiceTests: XCTestCase {
         let service = FeatureFlagService()
         XCTAssertEqual(service.boolValue(for: .newMealPlanner), FeatureFlag.newMealPlanner.defaultValue)
         XCTAssertEqual(service.isFeatureEnabled(.premiumFeatures), FeatureFlag.premiumFeatures.defaultValue)
+        XCTAssertTrue(service.isFeatureEnabled(.menuScanner))
+        XCTAssertTrue(service.isFeatureEnabled(.receiptScanner))
     }
 
     func testRemoteValueOverridesDefault() {
-        let service = FeatureFlagService(remoteProvider: StubProvider([.newMealPlanner: true]))
+        let service = FeatureFlagService(remoteProvider: StubProvider([
+            .newMealPlanner: true,
+            .menuScanner: false
+        ]))
         XCTAssertTrue(service.boolValue(for: .newMealPlanner))
+        XCTAssertFalse(service.boolValue(for: .menuScanner))
         // A flag with no remote value still falls back to its default.
         XCTAssertEqual(service.boolValue(for: .premiumFeatures), FeatureFlag.premiumFeatures.defaultValue)
     }
@@ -53,5 +59,7 @@ final class FeatureFlagServiceTests: XCTestCase {
         let keys = FeatureFlag.allCases.map(\.remoteConfigKey)
         XCTAssertEqual(Set(keys).count, FeatureFlag.allCases.count, "Remote config keys must be unique.")
         XCTAssertEqual(FeatureFlag.newMealPlanner.remoteConfigKey, "feature_newMealPlanner")
+        XCTAssertEqual(FeatureFlag.menuScanner.remoteConfigKey, "feature_menuScanner")
+        XCTAssertEqual(FeatureFlag.receiptScanner.remoteConfigKey, "feature_receiptScanner")
     }
 }

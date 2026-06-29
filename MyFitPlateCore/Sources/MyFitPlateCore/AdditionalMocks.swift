@@ -9,10 +9,16 @@ public final class MockDatabaseService: DatabaseServiceProtocol {
     public func deleteUserAllData(userID: String) async throws {}
 }
 
-public final class MockCloudFunctionService: CloudFunctionServiceProtocol {
+public final class MockCloudFunctionService: CloudFunctionServiceProtocol, @unchecked Sendable {
     public init() {}
+    public var mockCallFunctionResult: Result<Any?, Error>?
     public func deleteUserData() async throws {}
-    public func callFunction(_ name: String, with data: [String: Any]) async throws -> Any? { return nil }
+    public func callFunction(_ name: String, with data: [String: Any]) async throws -> Any? { 
+        if let result = mockCallFunctionResult {
+            return try result.get()
+        }
+        return nil 
+    }
 }
 
 public final class MockGroupRepository: GroupRepositoryProtocol {
@@ -26,28 +32,80 @@ public final class MockGroupRepository: GroupRepositoryProtocol {
 
 public final class MockAchievementRepository: AchievementRepositoryProtocol {
     public init() {}
+    
+    private let lock = NSLock()
+    
+    public var mockProfilePublisher = PassthroughSubject<(points: Int, level: Int)?, Never>()
     public func userProfilePublisher(userID: String) -> AnyPublisher<(points: Int, level: Int)?, Never> {
-        return Just(nil).eraseToAnyPublisher()
+        return mockProfilePublisher.eraseToAnyPublisher()
     }
+    
+    public var mockStatusesPublisher = PassthroughSubject<[UserAchievementStatus], Error>()
     public func userStatusesPublisher(userID: String) -> AnyPublisher<[UserAchievementStatus], Error> {
-        return Just([]).setFailureType(to: Error.self).eraseToAnyPublisher()
+        return mockStatusesPublisher.eraseToAnyPublisher()
     }
+    
+    public var mockChallengesPublisher = PassthroughSubject<[Challenge], Error>()
     public func activeChallengesPublisher(userID: String) -> AnyPublisher<[Challenge], Error> {
-        return Just([]).setFailureType(to: Error.self).eraseToAnyPublisher()
+        return mockChallengesPublisher.eraseToAnyPublisher()
     }
-    public func saveUserStatus(userID: String, status: UserAchievementStatus) async throws {}
-    public func awardPointsAndCheckLevel(userID: String, points: Int, levelThresholds: [Int]) async throws -> (newPoints: Int, newLevel: Int) { return (0, 1) }
-    public func fetchRecipeCount(userID: String) async throws -> Int { return 0 }
-    public func fetchWorkoutCount(userID: String) async throws -> Int { return 0 }
-    public func generateWeeklyChallenges(userID: String, challengesToSet: [Challenge]) async throws {}
-    public func fetchActiveChallenges(userID: String, type: ChallengeType) async throws -> [Challenge] { return [] }
-    public func updateChallenge(userID: String, challenge: Challenge) async throws {}
+    
+    private var _savedStatuses: [UserAchievementStatus] = []
+    public var savedStatuses: [UserAchievementStatus] {
+        lock.lock(); defer { lock.unlock() }; return _savedStatuses
+    }
+    public func saveUserStatus(userID: String, status: UserAchievementStatus) async throws {
+        lock.lock(); _savedStatuses.append(status); lock.unlock()
+    }
+    
+    public var mockAwardPointsResult = (newPoints: 0, newLevel: 1)
+    private var _awardPointsCalledCount = 0
+    public var awardPointsCalledCount: Int {
+        lock.lock(); defer { lock.unlock() }; return _awardPointsCalledCount
+    }
+    public func awardPointsAndCheckLevel(userID: String, points: Int, levelThresholds: [Int]) async throws -> (newPoints: Int, newLevel: Int) { 
+        lock.lock(); _awardPointsCalledCount += 1; lock.unlock()
+        return mockAwardPointsResult 
+    }
+    
+    public var mockRecipeCount = 0
+    public func fetchRecipeCount(userID: String) async throws -> Int { return mockRecipeCount }
+    
+    public var mockWorkoutCount = 0
+    public func fetchWorkoutCount(userID: String) async throws -> Int { return mockWorkoutCount }
+    
+    private var _generatedChallenges: [Challenge] = []
+    public var generatedChallenges: [Challenge] {
+        lock.lock(); defer { lock.unlock() }; return _generatedChallenges
+    }
+    public func generateWeeklyChallenges(userID: String, challengesToSet: [Challenge]) async throws {
+        lock.lock(); _generatedChallenges = challengesToSet; lock.unlock()
+    }
+    
+    public var mockActiveChallenges: [Challenge] = []
+    public func fetchActiveChallenges(userID: String, type: ChallengeType) async throws -> [Challenge] { return mockActiveChallenges }
+    
+    private var _updatedChallenges: [Challenge] = []
+    public var updatedChallenges: [Challenge] {
+        lock.lock(); defer { lock.unlock() }; return _updatedChallenges
+    }
+    public func updateChallenge(userID: String, challenge: Challenge) async throws {
+        lock.lock(); _updatedChallenges.append(challenge); lock.unlock()
+    }
 }
 
-public final class MockSettingsRepository: SettingsRepositoryProtocol {
+public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecked Sendable {
     public init() {}
-    public func fetchUserGoals(userID: String, completion: @escaping ([String: Any]?) -> Void) { completion(nil) }
-    public func saveUserGoals(userID: String, data: [String: Any]) async throws {}
+    public var mockFetchUserGoalsResult: [String: Any]?
+    public var savedUserGoals: [String: Any]?
+    public func fetchUserGoals(userID: String, completion: @escaping ([String: Any]?) -> Void) { completion(mockFetchUserGoalsResult) }
+    
+    public var onSave: (() -> Void)?
+    
+    public func saveUserGoals(userID: String, data: [String: Any]) async throws {
+        savedUserGoals = data
+        onSave?()
+    }
     public func weightHistoryPublisher(userID: String) -> AnyPublisher<[(id: String, date: Date, weight: Double)], Error> {
         return Just([]).setFailureType(to: Error.self).eraseToAnyPublisher()
     }
@@ -80,7 +138,10 @@ public final class MockAccountDeletionService: AccountDeletionServicing {
     public func deleteCurrentAccount(password: String) async throws -> AccountDeletionOutcome { return AccountDeletionOutcome(userID: "") }
 }
 
-public final class MockAIService: AIServiceProtocol {
+public final class MockAIService: AIServiceProtocol, @unchecked Sendable {
+    public var mockResult: Result<String, AIError> = .success("Mock response")
+    public var mockResults: [Result<String, AIError>] = []
+    
     public init() {}
     public func performRequest(
         messages: [[String: Any]],
@@ -90,6 +151,9 @@ public final class MockAIService: AIServiceProtocol {
         responseFormat: [String: Any]?,
         retryCount: Int
     ) async -> Result<String, AIError> {
-        return .success("Mock response")
+        if !mockResults.isEmpty {
+            return mockResults.removeFirst()
+        }
+        return mockResult
     }
 }

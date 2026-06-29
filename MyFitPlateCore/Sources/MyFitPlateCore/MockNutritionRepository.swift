@@ -1,27 +1,87 @@
 import Foundation
 import Combine
 
-public final class MockNutritionRepository: NutritionRepositoryProtocol {
+public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchecked Sendable {
     public init() {}
-    public func updateDailyLog(userID: String, log: DailyLog, completion: @escaping (Bool) -> Void) {}
-    public func saveDailyLog(userID: String, log: DailyLog) async throws {}
-    public func fetchLogInternal(userID: String, date: Date, completion: @escaping (Result<DailyLog, Error>) -> Void) {}
-    public func addLogSnapshotListener(userID: String, date: Date, onChange: @escaping (Result<DailyLog, Error>) -> Void) -> Any { return UUID() }
+    
+    // Properties for testing
+    public var lastUpdatedLog: DailyLog?
+    public var updateLogSuccess: Bool = true
+    public var mockFetchLogResult: Result<DailyLog, Error>?
+    public var mockFetchDailyHistoryResult: Result<[DailyLog], Error>?
+    public var mockRecommendedFoods: [FoodItem] = []
+    
+    public func updateDailyLog(userID: String, log: DailyLog, completion: @escaping (Bool) -> Void) {
+        lastUpdatedLog = log
+        completion(updateLogSuccess)
+    }
+    public func saveDailyLog(userID: String, log: DailyLog) async throws {
+        lastUpdatedLog = log
+    }
+    public func fetchLogInternal(userID: String, date: Date, completion: @escaping (Result<DailyLog, Error>) -> Void) {
+        if let result = mockFetchLogResult {
+            completion(result)
+        } else {
+            let emptyLog = DailyLog(id: "test", date: date, meals: [])
+            completion(.success(emptyLog))
+        }
+    }
+    public func addLogSnapshotListener(userID: String, date: Date, onChange: @escaping (Result<DailyLog, Error>) -> Void) -> Any { 
+        if let result = mockFetchLogResult {
+            onChange(result)
+        } else {
+            let emptyLog = DailyLog(id: "test", date: date, meals: [])
+            onChange(.success(emptyLog))
+        }
+        return UUID() 
+    }
     public func removeLogSnapshotListener(_ handle: Any) {}
-    public func fetchDailyHistory(userID: String, startDate: Date?, endDate: Date?) async throws -> [DailyLog] { return [] }
-    public func fetchRecommendedFoods(userID: String, mealName: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {}
-    public func fetchMealPlan(userID: String, dateString: String) async throws -> MealPlanDay? { return nil }
-    public func saveMealPlan(userID: String, plan: MealPlanDay) async throws {}
-    public func saveFullMealPlanBatch(userID: String, plans: [MealPlanDay]) async throws {}
-    public func fetchGroceryList(userID: String) async throws -> [GroceryListItem] { return [] }
-    public func saveGroceryList(userID: String, items: [GroceryListItem]) async throws {}
+    public func fetchDailyHistory(userID: String, startDate: Date?, endDate: Date?) async throws -> [DailyLog] { 
+        if let mock = mockFetchDailyHistoryResult {
+            return try mock.get()
+        }
+        return [] 
+    }
+    public func fetchRecommendedFoods(userID: String, mealName: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
+        completion(.success(mockRecommendedFoods))
+    }
+    public var mockFetchMealPlanResult: MealPlanDay?
+    public var mockFetchGroceryListResult: [GroceryListItem] = []
+    public var savedMealPlans: [MealPlanDay] = []
+    public var savedGroceryLists: [GroceryListItem] = []
+    public var batchSavedMealPlans: [MealPlanDay] = []
+    
+    public func fetchMealPlan(userID: String, dateString: String) async throws -> MealPlanDay? { 
+        return mockFetchMealPlanResult 
+    }
+    public func saveMealPlan(userID: String, plan: MealPlanDay) async throws {
+        savedMealPlans.append(plan)
+    }
+    public func saveFullMealPlanBatch(userID: String, plans: [MealPlanDay]) async throws {
+        batchSavedMealPlans.append(contentsOf: plans)
+    }
+    public func fetchGroceryList(userID: String) async throws -> [GroceryListItem] { 
+        return mockFetchGroceryListResult 
+    }
+    public func saveGroceryList(userID: String, items: [GroceryListItem]) async throws {
+        savedGroceryLists = items
+    }
     public func addPantrySnapshotListener(userID: String, onChange: @escaping (Result<[PantryItem], Error>) -> Void) -> Any { return UUID() }
     public func removePantrySnapshotListener(_ handle: Any) {}
     public func savePantryItem(userID: String, item: PantryItem) async throws {}
     public func deletePantryItem(userID: String, itemID: String) async throws {}
-    public func fetchRecipes(userID: String) async throws -> [Recipe] { return [] }
-    public func saveRecipe(userID: String, recipe: Recipe) async throws -> Recipe { return recipe }
-    public func deleteRecipe(userID: String, recipeID: String) async throws {}
+    public var mockRecipes: [Recipe] = []
+    public var savedRecipes: [Recipe] = []
+    public var deletedRecipeIDs: [String] = []
+    
+    public func fetchRecipes(userID: String) async throws -> [Recipe] { return mockRecipes }
+    public func saveRecipe(userID: String, recipe: Recipe) async throws -> Recipe { 
+        savedRecipes.append(recipe)
+        return recipe 
+    }
+    public func deleteRecipe(userID: String, recipeID: String) async throws {
+        deletedRecipeIDs.append(recipeID)
+    }
     public func saveCustomFood(userID: String, foodItem: FoodItem) async throws {}
     public func deleteCustomFood(userID: String, foodItemID: String) async throws {}
     public func fetchCustomFoods(userID: String) async throws -> [FoodItem] { return [] }

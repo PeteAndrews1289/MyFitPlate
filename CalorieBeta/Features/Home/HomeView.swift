@@ -51,7 +51,18 @@ struct HomeView: View {
     @State private var showingWeeklyCheckIn = false
     @State private var showingMenuScanner = false
 
-    private let spotlightOrder = ["dashboardHeader", "quickActions", "menuScanner", "dailyLog"]
+    private var isMenuScannerEnabled: Bool {
+        DIContainer.shared.featureFlagService?.isFeatureEnabled(.menuScanner) ?? FeatureFlag.menuScanner.defaultValue
+    }
+
+    private var spotlightOrder: [String] {
+        var ids = ["dashboardHeader", "quickActions"]
+        if isMenuScannerEnabled {
+            ids.append("menuScanner")
+        }
+        ids.append("dailyLog")
+        return ids
+    }
 
     private let spotlightContent: [String: (title: String, text: String)] = [
         "dashboardHeader": (
@@ -133,7 +144,8 @@ struct HomeView: View {
                                 showingWeightEntrySheet: $showingWeightEntrySheet,
                                 showingFastingSheet: $showingFastingSheet,
                                 showSettings: $showSettings,
-                                isMenuScannerSpotlightActive: isSpotlightActive(for: "menuScanner"),
+                                isMenuScannerEnabled: isMenuScannerEnabled,
+                                isMenuScannerSpotlightActive: isMenuScannerEnabled && isSpotlightActive(for: "menuScanner"),
                                 onRepeatYesterdayMeals: { repeatYesterdayMeals() }
                             )
                                 .featureSpotlight(isActive: isSpotlightActive(for: "quickActions"))
@@ -332,7 +344,9 @@ struct HomeView: View {
               }
           }
           .sheet(isPresented: $showingMenuScanner) {
-              menuScannerSheet
+              if isMenuScannerEnabled {
+                  menuScannerSheet
+              }
           }
           .onAppear(perform: onHomeViewAppear)
           .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in

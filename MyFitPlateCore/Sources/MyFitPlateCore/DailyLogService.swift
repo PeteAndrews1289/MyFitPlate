@@ -60,15 +60,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
 
             switch result {
             case .success(let sourceLog):
-                let mealGroups: [(mealName: String, foodItems: [FoodItem])] = sourceLog.meals.compactMap { meal in
-                    let repeatedItems = meal.foodItems.map { item -> FoodItem in
-                        var repeated = item
-                        repeated.id = UUID().uuidString
-                        repeated.timestamp = Date()
-                        return repeated
-                    }
-                    return repeatedItems.isEmpty ? nil : (mealName: meal.name, foodItems: repeatedItems)
-                }
+                let mealGroups = DailyLogRules.repeatFoods(from: sourceLog)
 
                 guard !mealGroups.isEmpty else {
                     Task { @MainActor in
@@ -104,14 +96,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         do {
             var log = try await fetchLogInternalAsync(for: userID, date: dateToLog)
 
-            var itemToAdd = normalizedFoodForLogging(foodItem, source: "manual_add")
-            if itemToAdd.timestamp == nil { itemToAdd.timestamp = Date() }
-
-            if let index = log.meals.firstIndex(where: { $0.name == mealType }) {
-                log.meals[index].foodItems.append(itemToAdd)
-            } else {
-                log.meals.append(Meal(name: mealType, foodItems: [itemToAdd]))
-            }
+            let itemToAdd = DailyLogRules.addFoodToLog(log: &log, foodItem: foodItem, mealName: mealType, source: "manual_add")
 
             let updatedLog = log
             await MainActor.run {
@@ -245,7 +230,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         addFoodToLog(
             for: userID,
             date: activelyViewedDate,
-            mealName: determineMealType(),
+            mealName: DailyLogRules.determineMealType(),
             foodItem: foodItem,
             source: source
         )
@@ -257,13 +242,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
             guard let self = self else { return }
             switch result {
             case .success(var log):
-                var itemToAdd = normalizedFoodForLogging(foodItem, source: source)
-                if itemToAdd.timestamp == nil { itemToAdd.timestamp = Date() }
-                if let index = log.meals.firstIndex(where: { $0.name == mealName }) {
-                    log.meals[index].foodItems.append(itemToAdd)
-                } else {
-                    log.meals.append(Meal(name: mealName, foodItems: [itemToAdd]))
-                }
+                let itemToAdd = DailyLogRules.addFoodToLog(log: &log, foodItem: foodItem, mealName: mealName, source: source)
 
                 if Calendar.current.isDate(dateToLog, inSameDayAs: self.activelyViewedDate) {
                     DispatchQueue.main.async {
@@ -309,16 +288,8 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
             guard let self = self else { return }
             switch result {
             case .success(var log):
-                var itemUpdated = false
-                var previousFoodItem: FoodItem?
-                for i in 0..<log.meals.count {
-                    if let index = log.meals[i].foodItems.firstIndex(where: { $0.id == updatedFoodItem.id }) {
-                        previousFoodItem = log.meals[i].foodItems[index]
-                        log.meals[i].foodItems[index] = updatedFoodItem
-                        itemUpdated = true
-                        break
-                    }
-                }
+                let (itemUpdated, previousItem) = DailyLogRules.updateFoodInLog(log: &log, updatedFoodItem: updatedFoodItem)
+                let previousFoodItem = previousItem
 
                 if itemUpdated {
                     DispatchQueue.main.async {
@@ -367,29 +338,12 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         let dateToLog = Calendar.current.startOfDay(for: date)
         let nonEmptyGroups = mealGroups.filter { !$0.foodItems.isEmpty }
         guard !nonEmptyGroups.isEmpty else { return }
-        let itemSource = nonEmptyGroups.contains(where: { $0.mealName.lowercased().contains("ai") }) ? "ai_bulk" : source
 
         fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
             guard let self = self else { return }
             switch result {
             case .success(var log):
-                var allItemsWithTimestamp: [FoodItem] = []
-
-                for group in nonEmptyGroups {
-                    let itemsWithTimestamp = group.foodItems.map { item -> FoodItem in
-                        var mutableItem = self.normalizedFoodForLogging(item, source: itemSource)
-                        if mutableItem.timestamp == nil { mutableItem.timestamp = Date() }
-                        return mutableItem
-                    }
-                    allItemsWithTimestamp.append(contentsOf: itemsWithTimestamp)
-
-                    if let index = log.meals.firstIndex(where: { $0.name == group.mealName }) {
-                        log.meals[index].foodItems.append(contentsOf: itemsWithTimestamp)
-                    } else {
-                        let newMeal = Meal(name: group.mealName, foodItems: itemsWithTimestamp)
-                        log.meals.append(newMeal)
-                    }
-                }
+                let (allItemsWithTimestamp, itemSource) = DailyLogRules.addMealGroupsToLog(log: &log, mealGroups: mealGroups, defaultSource: source)
 
                 if Calendar.current.isDate(dateToLog, inSameDayAs: self.activelyViewedDate) {
                     DispatchQueue.main.async {
@@ -437,18 +391,9 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
             guard let self = self else { return }
             switch result {
             case .success(var log):
-                var deleted = false
-                var foodName: String?
-                var removedFoodItem: FoodItem?
-                for i in log.meals.indices {
-                     let initialCount = log.meals[i].foodItems.count
-                     if let itemToRemove = log.meals[i].foodItems.first(where: { $0.id == foodItemID }) {
-                         foodName = itemToRemove.name
-                         removedFoodItem = itemToRemove
-                     }
-                     log.meals[i].foodItems.removeAll { $0.id == foodItemID }
-                     if log.meals[i].foodItems.count < initialCount { deleted = true }
-                 }
+                let (deleted, removedItem, name) = DailyLogRules.deleteFoodFromLog(log: &log, foodItemID: foodItemID)
+                let removedFoodItem = removedItem
+                let foodName = name
                 if deleted {
                      DispatchQueue.main.async {
                          self.publishCurrentDailyLog(log)
@@ -482,17 +427,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
              guard let self = self else { return }
               switch result {
               case .success(var log):
-                  if var waterTracker = log.waterTracker {
-                      waterTracker.totalOunces += amount
-                      if waterTracker.totalOunces < 0 {
-                          waterTracker.totalOunces = 0
-                      }
-                      waterTracker.goalOunces = goalOunces
-                      log.waterTracker = waterTracker
-                  } else {
-                      let initialAmount = max(0, amount)
-                      log.waterTracker = WaterTracker(totalOunces: initialAmount, goalOunces: goalOunces, date: Calendar.current.startOfDay(for: dateToLog))
-                  }
+                  DailyLogRules.addWaterToLog(log: &log, amount: amount, goalOunces: goalOunces, dateToLog: dateToLog)
 
                   DispatchQueue.main.async {
                       if let currentLog = self.currentDailyLog, currentLog.id == log.id {
@@ -531,18 +466,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
             guard let self = self else { return }
             switch result {
             case .success(var log):
-                let exercise = LoggedExercise(
-                    name: exerciseName,
-                    durationMinutes: durationMinutes,
-                    caloriesBurned: caloriesBurned,
-                    date: Date(),
-                    source: "ai_chat"
-                )
-                
-                if log.exercises == nil {
-                    log.exercises = []
-                }
-                log.exercises?.append(exercise)
+                DailyLogRules.addWorkoutToLog(log: &log, exerciseName: exerciseName, durationMinutes: durationMinutes, caloriesBurned: caloriesBurned)
 
                 DispatchQueue.main.async {
                     if let currentLog = self.currentDailyLog, currentLog.id == log.id {
@@ -592,7 +516,4 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
 
 
 
-      private func determineMealType() -> String {
-          let hour = Calendar.current.component(.hour, from: Date()); switch hour { case 0..<4: return "Snack"; case 4..<11: return "Breakfast"; case 11..<16: return "Lunch"; case 16..<21: return "Dinner"; default: return "Snack" }
-      }
 }

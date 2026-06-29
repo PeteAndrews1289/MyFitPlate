@@ -145,6 +145,63 @@ final class GroceryListBuilderTests: XCTestCase {
         }
         return item
     }
+
+    func testParseGroceryList() {
+        let text = """
+        Produce:
+        - Apples (3)
+        - Bananas
+        Protein:
+        - Chicken Breast (1 lb)
+        """
+        
+        let items = GroceryListBuilder.parseGroceryList(from: text)
+        XCTAssertEqual(items.count, 3)
+        
+        XCTAssertEqual(items[0].name, "Apples")
+        XCTAssertEqual(items[0].category, "Produce")
+        
+        XCTAssertEqual(items[1].name, "Bananas")
+        XCTAssertEqual(items[1].category, "Produce")
+        
+        XCTAssertEqual(items[2].name, "Chicken Breast")
+        XCTAssertEqual(items[2].category, "Protein")
+    }
+
+    func testIsManualGroceryItem() {
+        let manual1 = GroceryListItem(name: "Test", quantity: 1, unit: "item", category: "Misc", source: "manual")
+        XCTAssertTrue(GroceryListBuilder.isManualGroceryItem(manual1))
+        
+        let manual2 = GroceryListItem(name: "Test", quantity: 1, unit: "item", category: "Misc", source: "barcode")
+        XCTAssertTrue(GroceryListBuilder.isManualGroceryItem(manual2))
+        
+        let manual3 = GroceryListItem(name: "Test", quantity: 1, unit: "item", category: "Misc", source: nil)
+        XCTAssertTrue(GroceryListBuilder.isManualGroceryItem(manual3))
+        
+        let generated = GroceryListItem(name: "Test", quantity: 1, unit: "cup", category: "Produce", source: "mealPlan")
+        XCTAssertFalse(GroceryListBuilder.isManualGroceryItem(generated))
+    }
+
+    func testMergeGroceryItems() {
+        let generated = [
+            GroceryListItem(name: "Apple", quantity: 2, unit: "item", category: "Produce", source: "mealPlan")
+        ]
+        var existingCompletedApple = GroceryListItem(name: "Apple", quantity: 1, unit: "item", category: "Produce", source: "mealPlan")
+        existingCompletedApple.isCompleted = true
+        
+        let manualItem = GroceryListItem(name: "Cookies", quantity: 1, unit: "item", category: "Misc", source: "manual")
+        
+        let existing = [existingCompletedApple, manualItem]
+        
+        let merged = GroceryListBuilder.mergeGroceryItems(generatedItems: generated, existingItems: existing)
+        
+        XCTAssertEqual(merged.count, 2)
+        XCTAssertEqual(merged[0].name, "Apple")
+        XCTAssertEqual(merged[0].quantity, 2) // from generated
+        XCTAssertTrue(merged[0].isCompleted) // kept from existing
+        
+        XCTAssertEqual(merged[1].name, "Cookies") // manual is preserved
+    }
 }
 
 final class SmartSuggestionBuilderTests: XCTestCase {

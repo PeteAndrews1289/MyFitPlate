@@ -10,6 +10,7 @@ struct HomeQuickActionsView: View {
     @Binding var showingFastingSheet: Bool
     @Binding var showSettings: Bool
 
+    var isMenuScannerEnabled: Bool
     var isMenuScannerSpotlightActive: Bool
     var onRepeatYesterdayMeals: () -> Void
 
@@ -70,19 +71,21 @@ VStack(alignment: .leading, spacing: 10) {
                     }
                     .buttonStyle(.plain)
 
-                    Button(action: {
-                        HapticManager.instance.feedback(.light)
-                        showingMenuScanner = true
-                    }) {
-                        QuickActionButton(
-                            icon: "menucard.fill",
-                            label: "Menu Scan",
-                            subtitle: "Find best macros",
-                            color: .orange
-                        )
+                    if isMenuScannerEnabled {
+                        Button(action: {
+                            HapticManager.instance.feedback(.light)
+                            showingMenuScanner = true
+                        }) {
+                            QuickActionButton(
+                                icon: "menucard.fill",
+                                label: "Menu Scan",
+                                subtitle: "Find best macros",
+                                color: .orange
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .featureSpotlight(isActive: isMenuScannerSpotlightActive)
                     }
-                    .buttonStyle(.plain)
-                    .featureSpotlight(isActive: isMenuScannerSpotlightActive)
 
                     Button(action: {
                         HapticManager.instance.feedback(.light)

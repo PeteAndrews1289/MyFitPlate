@@ -9,68 +9,126 @@ public struct MilestoneData: Identifiable {
     public var progressToNextMilestone: Double
 }
 
+public enum MilestoneGenerator {
+    public static func makeMilestones(
+        initialWeight: Double,
+        currentWeight: Double,
+        targetWeight: Double,
+        numberOfMilestones: Int = 5,
+        useMetric: Bool
+    ) -> [MilestoneData] {
+        var generatedMilestones: [MilestoneData] = []
+        let totalWeightToChange = initialWeight - targetWeight
+
+        guard abs(totalWeightToChange) > 0.01 else { return [] }
+
+        let isLosingWeightGoal = targetWeight < initialWeight
+        let numSteps = max(1, numberOfMilestones)
+        let idealStepValue = abs(totalWeightToChange) / Double(numSteps)
+        var lastMilestoneWeight = initialWeight
+
+        for index in 1...numSteps {
+            let isFinalStep = index == numSteps
+            let milestoneTarget = targetWeightForMilestone(
+                index: index,
+                isFinalStep: isFinalStep,
+                initialWeight: initialWeight,
+                targetWeight: targetWeight,
+                idealStepValue: idealStepValue,
+                isLosingWeightGoal: isLosingWeightGoal
+            )
+
+            let isCompleted = isLosingWeightGoal ? currentWeight <= milestoneTarget : currentWeight >= milestoneTarget
+            let progressToNext = progressToNextMilestone(
+                currentWeight: currentWeight,
+                lastMilestoneWeight: lastMilestoneWeight,
+                milestoneTarget: milestoneTarget,
+                isCompleted: isCompleted,
+                isLosingWeightGoal: isLosingWeightGoal
+            )
+
+            let segmentLbs = abs(milestoneTarget - lastMilestoneWeight)
+            let displayLabel = String(
+                format: "%@%.1f %@",
+                isLosingWeightGoal ? "-" : "+",
+                BodyUnits.weightDisplayValue(lbs: segmentLbs, metric: useMetric),
+                BodyUnits.weightUnit(metric: useMetric)
+            )
+
+            generatedMilestones.append(MilestoneData(
+                milestoneNumber: index,
+                targetWeightForMilestone: milestoneTarget,
+                displayLabel: displayLabel,
+                isCompleted: isCompleted,
+                progressToNextMilestone: progressToNext
+            ))
+
+            lastMilestoneWeight = milestoneTarget
+        }
+
+        return generatedMilestones
+    }
+
+    private static func targetWeightForMilestone(
+        index: Int,
+        isFinalStep: Bool,
+        initialWeight: Double,
+        targetWeight: Double,
+        idealStepValue: Double,
+        isLosingWeightGoal: Bool
+    ) -> Double {
+        if isFinalStep {
+            return targetWeight
+        }
+        let stepChange = idealStepValue * Double(index)
+        return isLosingWeightGoal ? initialWeight - stepChange : initialWeight + stepChange
+    }
+
+    private static func progressToNextMilestone(
+        currentWeight: Double,
+        lastMilestoneWeight: Double,
+        milestoneTarget: Double,
+        isCompleted: Bool,
+        isLosingWeightGoal: Bool
+    ) -> Double {
+        if isCompleted {
+            return 1.0
+        }
+
+        let hasReachedStartOfSegment = isLosingWeightGoal
+            ? currentWeight < lastMilestoneWeight
+            : currentWeight > lastMilestoneWeight
+        guard hasReachedStartOfSegment else { return 0.0 }
+
+        let segmentTotalDistance = abs(milestoneTarget - lastMilestoneWeight)
+        guard segmentTotalDistance > 0 else { return 0.0 }
+
+        let progressWithinSegment = abs(currentWeight - lastMilestoneWeight)
+        return min(max(0, progressWithinSegment / segmentTotalDistance), 1.0)
+    }
+}
+
 public struct MilestoneView: View {
     public let initialWeight: Double
     public let currentWeight: Double
     public let targetWeight: Double
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     public let numberOfMilestonesToShow: Int = 5
-    
+
     public init(initialWeight: Double, currentWeight: Double, targetWeight: Double) {
         self.initialWeight = initialWeight
         self.currentWeight = currentWeight
         self.targetWeight = targetWeight
     }
 
-    private var isLosingWeightGoal: Bool {
-        targetWeight < initialWeight
-    }
-
     private var milestones: [MilestoneData] {
-        var generatedMilestones: [MilestoneData] = []
-        let totalWeightToChange = initialWeight - targetWeight
-
-        guard abs(totalWeightToChange) > 0.01 else { return [] }
-
-        let numSteps = max(1, numberOfMilestonesToShow)
-        let idealStepValue = abs(totalWeightToChange) / Double(numSteps)
-        var lastMilestoneWeight = initialWeight
-
-        for i in 1...numSteps {
-            let isFinalStep = (i == numSteps)
-            let weightAtThisMilestoneTarget = isFinalStep ? targetWeight : (isLosingWeightGoal ? (initialWeight - (idealStepValue * Double(i))) : (initialWeight + (idealStepValue * Double(i))))
-            
-            let isCompleted = isLosingWeightGoal ? (currentWeight <= weightAtThisMilestoneTarget) : (currentWeight >= weightAtThisMilestoneTarget)
-            
-            var progressToNext: Double = 0.0
-            if isCompleted {
-                progressToNext = 1.0
-            } else {
-                let hasReachedStartOfSegment = isLosingWeightGoal ? (currentWeight < lastMilestoneWeight) : (currentWeight > lastMilestoneWeight)
-                if hasReachedStartOfSegment {
-                    let segmentTotalDistance = abs(weightAtThisMilestoneTarget - lastMilestoneWeight)
-                    let progressWithinSegment = abs(currentWeight - lastMilestoneWeight)
-                    if segmentTotalDistance > 0 {
-                        progressToNext = min(max(0, progressWithinSegment / segmentTotalDistance), 1.0)
-                    }
-                }
-            }
-
-            let useMetric = UserDefaults.standard.bool(forKey: "useMetricBodyUnits")
-            let segmentLbs = abs(weightAtThisMilestoneTarget - lastMilestoneWeight)
-            let displayLabel = String(format: "%@%.1f %@", (isLosingWeightGoal ? "-" : "+"), BodyUnits.weightDisplayValue(lbs: segmentLbs, metric: useMetric), BodyUnits.weightUnit(metric: useMetric))
-
-            generatedMilestones.append(MilestoneData(
-                milestoneNumber: i,
-                targetWeightForMilestone: weightAtThisMilestoneTarget,
-                displayLabel: displayLabel,
-                isCompleted: isCompleted,
-                progressToNextMilestone: progressToNext
-            ))
-            
-            lastMilestoneWeight = weightAtThisMilestoneTarget
-        }
-        return generatedMilestones
+        MilestoneGenerator.makeMilestones(
+            initialWeight: initialWeight,
+            currentWeight: currentWeight,
+            targetWeight: targetWeight,
+            numberOfMilestones: numberOfMilestonesToShow,
+            useMetric: useMetric
+        )
     }
 
     private var completedMilestonesCount: Int {

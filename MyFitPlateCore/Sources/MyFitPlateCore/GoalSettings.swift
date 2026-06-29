@@ -38,7 +38,7 @@ public class GoalSettings: ObservableObject {
     @Published public var protein: Double = 150
     @Published public var fats: Double = 70
     @Published public var carbs: Double = 250
-    
+
     // User Stats
     @Published public var weight: Double = 150.0
     @Published public var height: Double = 170.0
@@ -144,52 +144,34 @@ public class GoalSettings: ObservableObject {
     }
     
     private func calculateBMR() -> Double {
-        guard age > 0 else { return 1500 }
-        let kg = weight * 0.453592
-        let cm = height
-        if gender.lowercased() == "male" {
-            return (10 * kg) + (6.25 * cm) - (5 * Double(age)) + 5
-        } else {
-            return (10 * kg) + (6.25 * cm) - (5 * Double(age)) - 161
-        }
+        return GoalSettingsRules.calculateBMR(age: age, weightKg: weight * 0.453592, heightCm: height, gender: gender)
     }
     
     @MainActor
     private func _recalculateCalorieGoal() {
-        let bmr = calculateBMR()
-        var calculatedCalories: Double
-        var calorieAdjustmentForWeightGoal: Double = 0
-        
-        switch goal {
-        case "Lose": calorieAdjustmentForWeightGoal = -250
-        case "Gain": calorieAdjustmentForWeightGoal = 250
-        default: break
-        }
-        
-        let minimumGoal: Double = (gender.lowercased() == "male") ? 1500 : 1200
-        
-        switch self.calorieGoalMethod {
-        case .custom:
+        if self.calorieGoalMethod == .custom {
             if self.calories == nil { self.calories = 2000 }
+            let minimumGoal: Double = (gender.lowercased() == "male") ? 1500 : 1200
             if let current = self.calories, current < minimumGoal {
                 self.calories = minimumGoal
             }
             self.updateMacros()
             return
-        case .mifflinWithActivity:
-            let maintenanceCalories = bmr * activityLevel
-            calculatedCalories = maintenanceCalories + calorieAdjustmentForWeightGoal
-            
-        case .dynamicTDEE:
-            if let adaptiveTDEE = self.adaptiveGoalService?.calculatedTDEE {
-                calculatedCalories = adaptiveTDEE + calorieAdjustmentForWeightGoal
-            } else {
-                // Fallback if we don't have enough data
-                calculatedCalories = bmr + (self.dailyLogService?.currentDailyLog?.totalCaloriesBurnedFromManualExercises() ?? 0) + calorieAdjustmentForWeightGoal
-            }
         }
-
-        let finalCalculatedCalories = max(minimumGoal, calculatedCalories)
+        
+        let bmr = calculateBMR()
+        let manualCaloriesBurned = dailyLogService?.currentDailyLog?.totalCaloriesBurnedFromManualExercises() ?? 0
+        
+        let finalCalculatedCalories = GoalSettingsRules.calculateCalorieGoal(
+            bmr: bmr,
+            goal: goal,
+            gender: gender,
+            calorieGoalMethod: calorieGoalMethod,
+            activityLevel: activityLevel,
+            adaptiveTDEE: adaptiveGoalService?.calculatedTDEE,
+            manualCaloriesBurned: manualCaloriesBurned,
+            currentCalories: calories
+        )
         
         if self.calories == nil || abs((self.calories ?? 0) - finalCalculatedCalories) > 0.1 {
             self.calories = finalCalculatedCalories
@@ -200,66 +182,39 @@ public class GoalSettings: ObservableObject {
     }
     
     private func updateMacros() {
-        guard let calGoal = self.calories, calGoal > 0 else {
-            self.protein = 150; self.fats = 70; self.carbs = 250
-            return
-        }
-        let totalPct = proteinPercentage + carbsPercentage + fatsPercentage
-        guard abs(totalPct - 100.0) < 1.0 else {
-            // Reset to defaults if percentages are invalid
-            self.proteinPercentage = 30; self.carbsPercentage = 50; self.fatsPercentage = 20
+        let macroGoals = GoalSettingsRules.updateMacros(
+            calories: calories,
+            proteinPercentage: proteinPercentage,
+            carbsPercentage: carbsPercentage,
+            fatsPercentage: fatsPercentage
+        )
+        
+        if !macroGoals.validPercentages {
+            self.proteinPercentage = 30
+            self.carbsPercentage = 50
+            self.fatsPercentage = 20
             DispatchQueue.main.async { self.updateMacros() }
             return
         }
-        let pCals = (proteinPercentage / 100) * calGoal
-        let cCals = (carbsPercentage / 100) * calGoal
-        let fCals = (fatsPercentage / 100) * calGoal
-        self.protein = pCals / 4
-        self.carbs = cCals / 4
-        self.fats = fCals / 9
+        
+        self.protein = macroGoals.protein
+        self.carbs = macroGoals.carbs
+        self.fats = macroGoals.fats
     }
     
     private func calculateMicronutrientGoals() {
-        // Basic DRI approximations based on age/gender
-        let age = self.age
-        let gender = self.gender.lowercased()
+        let micronutrientGoals = GoalSettingsRules.calculateMicronutrientGoals(age: age, gender: gender)
         
-        switch age {
-            case 0...3: calciumGoal = 700; case 4...8: calciumGoal = 1000; case 9...18: calciumGoal = 1300
-            case 19...50: calciumGoal = 1000; case 51...70: calciumGoal = (gender == "female") ? 1200 : 1000
-            case 71...: calciumGoal = 1200; default: calciumGoal = 1000
-        }
-        switch age {
-            case 0...3: ironGoal = 7; case 4...8: ironGoal = 10; case 9...13: ironGoal = 8
-            case 14...18: ironGoal = (gender == "female") ? 15 : 11
-            case 19...50: ironGoal = (gender == "female") ? 18 : 8
-            case 51...: ironGoal = 8; default: ironGoal = (gender == "female") ? 18 : 8
-        }
-        switch age {
-            case 0...3: potassiumGoal = 2000; case 4...8: potassiumGoal = 2300
-            case 9...13: potassiumGoal = (gender == "female") ? 2300 : 2500
-            case 14...18: potassiumGoal = (gender == "female") ? 2300 : 3000
-            case 19...: potassiumGoal = (gender == "female") ? 2600 : 3400
-            default: potassiumGoal = (gender == "female") ? 2600 : 3400
-        }
-        sodiumGoal = 2300
-        switch age {
-            case 0...3: vitaminAGoal = 300; case 4...8: vitaminAGoal = 400; case 9...13: vitaminAGoal = 600
-            case 14...18: vitaminAGoal = (gender == "female") ? 700 : 900
-            case 19...: vitaminAGoal = (gender == "female") ? 700 : 900
-            default: vitaminAGoal = (gender == "female") ? 700 : 900
-        }
-        switch age {
-            case 0...3: vitaminCGoal = 15; case 4...8: vitaminCGoal = 25; case 9...13: vitaminCGoal = 45
-            case 14...18: vitaminCGoal = (gender == "female") ? 65 : 75
-            case 19...: vitaminCGoal = (gender == "female") ? 75 : 90
-            default: vitaminCGoal = (gender == "female") ? 75 : 90
-        }
-        switch age {
-            case 0...70: vitaminDGoal = 15; case 71...: vitaminDGoal = 20; default: vitaminDGoal = 15
-        }
-        vitaminB12Goal = 2.4
-        folateGoal = 400
+        self.calciumGoal = micronutrientGoals.calcium
+        self.ironGoal = micronutrientGoals.iron
+        self.potassiumGoal = micronutrientGoals.potassium
+        self.sodiumGoal = micronutrientGoals.sodium
+        self.vitaminAGoal = micronutrientGoals.vitaminA
+        self.vitaminCGoal = micronutrientGoals.vitaminC
+        self.vitaminDGoal = micronutrientGoals.vitaminD
+        self.vitaminB12Goal = micronutrientGoals.vitaminB12
+        self.folateGoal = micronutrientGoals.folate
+        self.waterGoal = micronutrientGoals.water
     }
     
     // MARK: - Firestore Persistence
@@ -385,7 +340,7 @@ public class GoalSettings: ObservableObject {
                 goalsDict["lastCheckInDate"] = lastDate
             }
             let userData:[String:Any] = [
-                "goals": goalsDict, "height": self.height, "age": self.age, "gender": self.gender, "isFirstLogin": false,
+                "goals": goalsDict, "height": self.height, "weight": self.weight, "age": self.age, "gender": self.gender, "isFirstLogin": false,
                 "calorieGoalMethod": self.calorieGoalMethod.rawValue
             ]
             Task {
@@ -541,86 +496,122 @@ public class AdaptiveGoalService: ObservableObject {
             }
         }
     }
-    
-    /// Calculate the true TDEE based on weight changes and caloric intake over the last 21 days.
-    public func calculateExpenditure(weightHistory: [(id: String, date: Date, weight: Double)], dailyLogs: [DailyLog]) {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        guard let twentyOneDaysAgo = calendar.date(byAdding: .day, value: -21, to: today) else { return }
-        
-        // 1. Filter data to last 21 days
+
+    public struct ExpenditureSnapshot: Equatable {
+        public let recentWeighInCount: Int
+        public let recentLogCount: Int
+        public let last21DaysCalorieAverage: Double?
+        public let weightChangeRatePerDay: Double?
+        public let calculatedTDEE: Double?
+        public let dataConfidence: DataConfidence
+
+        public init(
+            recentWeighInCount: Int,
+            recentLogCount: Int,
+            last21DaysCalorieAverage: Double?,
+            weightChangeRatePerDay: Double?,
+            calculatedTDEE: Double?,
+            dataConfidence: DataConfidence
+        ) {
+            self.recentWeighInCount = recentWeighInCount
+            self.recentLogCount = recentLogCount
+            self.last21DaysCalorieAverage = last21DaysCalorieAverage
+            self.weightChangeRatePerDay = weightChangeRatePerDay
+            self.calculatedTDEE = calculatedTDEE
+            self.dataConfidence = dataConfidence
+        }
+    }
+
+    public static func expenditureSnapshot(
+        weightHistory: [(id: String, date: Date, weight: Double)],
+        dailyLogs: [DailyLog],
+        today: Date = Date(),
+        calendar: Calendar = .current
+    ) -> ExpenditureSnapshot? {
+        let today = calendar.startOfDay(for: today)
+        guard let twentyOneDaysAgo = calendar.date(byAdding: .day, value: -21, to: today) else { return nil }
+
         let recentWeights = weightHistory.filter { $0.date >= twentyOneDaysAgo }.sorted { $0.date < $1.date }
         let recentLogs = dailyLogs.filter { $0.date >= twentyOneDaysAgo }.sorted { $0.date < $1.date }
 
-        // Always expose progress counts so the UI can show how close the user is to a result.
-        DispatchQueue.main.async {
-            self.recentWeighInCount = recentWeights.count
-            self.recentLogCount = recentLogs.count
+        let recentWeighInCount = recentWeights.count
+        let recentLogCount = recentLogs.count
+
+        guard recentWeighInCount >= 7, recentLogCount >= 10 else {
+            return ExpenditureSnapshot(
+                recentWeighInCount: recentWeighInCount,
+                recentLogCount: recentLogCount,
+                last21DaysCalorieAverage: nil,
+                weightChangeRatePerDay: nil,
+                calculatedTDEE: nil,
+                dataConfidence: .insufficient
+            )
         }
-        
-        // We need at least 7 days of weight data and 10 days of food logs to make a semi-confident guess.
-        if recentWeights.count < 7 || recentLogs.count < 10 {
-            DispatchQueue.main.async {
-                self.dataConfidence = .insufficient
-                self.calculatedTDEE = nil
-            }
-            return
-        }
-        
-        // 2. Exponential Moving Average (EMA) of Weight
-        // EMA smooths out daily water weight fluctuations to find the true biological tissue trend.
+
         var emaWeights: [Date: Double] = [:]
-        guard let firstRecord = recentWeights.first else { return }
-        var currentEMA: Double = firstRecord.weight
-        let smoothingFactor = 2.0 / (7.0 + 1.0) // 7-day EMA
-        
+        guard let firstRecord = recentWeights.first else { return nil }
+        var currentEMA = firstRecord.weight
+        let smoothingFactor = 2.0 / (7.0 + 1.0)
+
         for record in recentWeights {
             currentEMA = (record.weight - currentEMA) * smoothingFactor + currentEMA
             let dayStart = calendar.startOfDay(for: record.date)
             emaWeights[dayStart] = currentEMA
         }
-        
-        // Get start and end EMA to find total weight change rate
-        guard let firstEmaRecord = recentWeights.first, let lastEmaRecord = recentWeights.last else { return }
+
+        guard let firstEmaRecord = recentWeights.first, let lastEmaRecord = recentWeights.last else { return nil }
         let firstDay = calendar.startOfDay(for: firstEmaRecord.date)
         let lastDay = calendar.startOfDay(for: lastEmaRecord.date)
-        
-        guard let startWeight = emaWeights[firstDay], let endWeight = emaWeights[lastDay] else { return }
+
+        guard let startWeight = emaWeights[firstDay], let endWeight = emaWeights[lastDay] else { return nil }
         let daysBetween = Double(calendar.dateComponents([.day], from: firstDay, to: lastDay).day ?? 1)
-        
-        var ratePerDay = 0.0
-        if daysBetween > 0 {
-            ratePerDay = (endWeight - startWeight) / daysBetween
-        }
-        
-        // 3. Average Calorie Intake
-        // Only count days where user actually logged a meaningful amount of food (> 500 cals)
+
+        let ratePerDay = daysBetween > 0 ? (endWeight - startWeight) / daysBetween : 0
+
         let validLogs = recentLogs.filter { $0.totalCalories() > 500 }
         let totalCaloriesLogged = validLogs.reduce(0.0) { $0 + $1.totalCalories() }
         let averageCalories = validLogs.isEmpty ? 0 : totalCaloriesLogged / Double(validLogs.count)
-        
-        // 4. Calculate True TDEE
-        // 1 lb of body tissue = ~3500 kcal
+
         let dailyCalorieDeficitOrSurplus = ratePerDay * 3500.0
-        
         let rawTDEE = averageCalories - dailyCalorieDeficitOrSurplus
-        
-        // 5. Calculate Confidence
+
         let loggingConsistency = Double(validLogs.count) / 21.0
         let weightConsistency = Double(recentWeights.count) / 21.0
-        
+
         var confidence: DataConfidence = .low
         if loggingConsistency > 0.8 && weightConsistency > 0.6 {
             confidence = .high
         } else if loggingConsistency > 0.6 && weightConsistency > 0.4 {
             confidence = .medium
         }
-        
+
+        return ExpenditureSnapshot(
+            recentWeighInCount: recentWeighInCount,
+            recentLogCount: recentLogCount,
+            last21DaysCalorieAverage: averageCalories,
+            weightChangeRatePerDay: ratePerDay,
+            calculatedTDEE: max(1000, min(rawTDEE, 5000)),
+            dataConfidence: confidence
+        )
+    }
+
+    /// Calculate the true TDEE based on weight changes and caloric intake over the last 21 days.
+    public func calculateExpenditure(weightHistory: [(id: String, date: Date, weight: Double)], dailyLogs: [DailyLog]) {
+        guard let snapshot = Self.expenditureSnapshot(weightHistory: weightHistory, dailyLogs: dailyLogs) else { return }
+
         DispatchQueue.main.async {
-            self.last21DaysCalorieAverage = averageCalories
-            self.weightChangeRatePerDay = ratePerDay
-            self.calculatedTDEE = max(1000, min(rawTDEE, 5000))
-            self.dataConfidence = confidence
+            self.recentWeighInCount = snapshot.recentWeighInCount
+            self.recentLogCount = snapshot.recentLogCount
+
+            if let calculatedTDEE = snapshot.calculatedTDEE {
+                self.last21DaysCalorieAverage = snapshot.last21DaysCalorieAverage
+                self.weightChangeRatePerDay = snapshot.weightChangeRatePerDay
+                self.calculatedTDEE = calculatedTDEE
+                self.dataConfidence = snapshot.dataConfidence
+            } else {
+                self.dataConfidence = .insufficient
+                self.calculatedTDEE = nil
+            }
         }
     }
     

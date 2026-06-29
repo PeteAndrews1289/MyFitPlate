@@ -211,7 +211,7 @@ public struct MealPlanAIGenerator {
         }
     }
 
-    private func generateLocalFullWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String]) -> [MealPlanDay] {
+    func generateLocalFullWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String]) -> [MealPlanDay] {
         let startDate = Calendar.current.startOfDay(for: Date())
         let foods = preferredFoods.filter { !$0.localizedCaseInsensitiveContains("Any") }
         let snacks = preferredSnacks.filter { !$0.localizedCaseInsensitiveContains("Any") }
@@ -299,7 +299,7 @@ public struct MealPlanAIGenerator {
         let mealType: String; let mealName: String; let calories: Double; let protein: Double; let carbs: Double; let fats: Double; let ingredients: [String]; let instructions: [String]
     }
 
-    private func parseFullWeekPlanFromAIResponse(_ jsonString: String, startDate: Date) throws -> [MealPlanDay] {
+    func parseFullWeekPlanFromAIResponse(_ jsonString: String, startDate: Date) throws -> [MealPlanDay] {
         guard let jsonData = jsonString.data(using: .utf8) else { throw NSError(domain: "MealPlanner", code: 1) }
         let response = try JSONDecoder().decode(AIWeekPlanResponse.self, from: jsonData)
 
@@ -318,13 +318,13 @@ public struct MealPlanAIGenerator {
             }
     }
 
-    private func parsePlanFromAIResponse(_ jsonString: String) throws -> [PlannedMeal] {
+    func parsePlanFromAIResponse(_ jsonString: String) throws -> [PlannedMeal] {
         guard let jsonData = jsonString.data(using: .utf8) else { throw NSError(domain: "MealPlanner", code: 1) }
         let response = try JSONDecoder().decode(AIPlanResponse.self, from: jsonData)
         return response.meals.map(mapAIMealToPlannedMeal)
     }
 
-    private func parseSingleMealFromAIResponse(_ jsonString: String) throws -> PlannedMeal {
+    func parseSingleMealFromAIResponse(_ jsonString: String) throws -> PlannedMeal {
         guard let jsonData = jsonString.data(using: .utf8) else { throw NSError(domain: "MealPlanner", code: 1) }
         let aiMeal = try JSONDecoder().decode(AIMeal.self, from: jsonData)
         return mapAIMealToPlannedMeal(aiMeal)

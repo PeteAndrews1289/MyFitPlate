@@ -84,20 +84,9 @@ public class MealPlannerService: ObservableObject {
 
         let existingItems = await fetchGroceryList(for: userID)
         let generatedItems = makeGroceryList(from: days)
-        let generatedKeys = Set(generatedItems.map { GroceryListBuilder.mergeKey(for: $0.name) })
-        let manualItems = existingItems.filter { item in
-            isManualGroceryItem(item) && !generatedKeys.contains(GroceryListBuilder.mergeKey(for: item.name))
-        }
+        let mergedItems = GroceryListBuilder.mergeGroceryItems(generatedItems: generatedItems, existingItems: existingItems)
 
-        let mergedGeneratedItems = generatedItems.map { generatedItem -> GroceryListItem in
-            var item = generatedItem
-            if let existing = existingItems.first(where: { GroceryListBuilder.mergeKey(for: $0.name) == GroceryListBuilder.mergeKey(for: generatedItem.name) }) {
-                item.isCompleted = existing.isCompleted
-            }
-            return item
-        }
-
-        saveGroceryList(mergedGeneratedItems + manualItems, for: userID)
+        saveGroceryList(mergedItems, for: userID)
     }
 
     private func generateAndSaveGroceryList(from days: [MealPlanDay], userID: String) {
@@ -115,44 +104,11 @@ public class MealPlannerService: ObservableObject {
         let result = await DIContainer.shared.aiService.performRequest(messages: messages)
 
         if case .success(let content) = result {
-            let items = parseGroceryList(from: content)
+            let items = GroceryListBuilder.parseGroceryList(from: content)
             if !items.isEmpty { saveGroceryList(items, for: userID) }
         } else if case .failure(let error) = result {
             AppLog.mealPlanner.error("Failed to generate grocery list: \(error.localizedDescription, privacy: .public)")
         }
-    }
-
-    private func parseGroceryList(from text: String) -> [GroceryListItem] {
-        // (Keep existing parsing logic unchanged)
-        var items: [GroceryListItem] = []
-        var currentCategory = "Misc"
-        let categories = ["Produce", "Protein", "Pantry", "Dairy & Misc", "Carbohydrates"]
-
-        text.split(whereSeparator: \.isNewline).forEach { line in
-            let trimmedLine = String(line).trimmingCharacters(in: .whitespaces)
-            if let category = categories.first(where: { trimmedLine.hasPrefix($0 + ":") }) {
-                currentCategory = category
-                return
-            }
-            if trimmedLine.hasPrefix("-") {
-                let itemString = trimmedLine.dropFirst().trimmingCharacters(in: .whitespaces)
-                var name = String(itemString); let quantity: Double = 1; let unit = "item"
-                // Simple regex parsing placeholder (Reuse your existing regex logic here if needed)
-                if let parenIndex = itemString.lastIndex(of: "(") {
-                    name = String(itemString[..<parenIndex]).trimmingCharacters(in: .whitespaces)
-                }
-                items.append(GroceryListItem(name: name.capitalized, quantity: quantity, unit: unit, category: currentCategory, source: "mealPlan"))
-            }
-        }
-        return items
-    }
-
-    private func isManualGroceryItem(_ item: GroceryListItem) -> Bool {
-        if item.source == "manual" || item.source == "barcode" { return true }
-        if item.source == nil {
-            return item.unit.lowercased() == "item" && item.category == "Misc"
-        }
-        return false
     }
 
     public func cachedPlan(for date: Date, userID: String) -> MealPlanDay? {
