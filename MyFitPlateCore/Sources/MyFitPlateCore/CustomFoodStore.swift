@@ -6,7 +6,7 @@ public class CustomFoodStore {
         Task {
             do {
                 try await DIContainer.shared.nutritionRepository.saveCustomFood(userID: userID, foodItem: foodItem)
-                // Analytics.logEvent("custom_food_saved", parameters: nil)
+                await DIContainer.shared.analyticsManager?.logEvent("custom_food_saved", parameters: nil)
                 DispatchQueue.main.async { completion(true) }
             } catch {
                 DispatchQueue.main.async { completion(false) }

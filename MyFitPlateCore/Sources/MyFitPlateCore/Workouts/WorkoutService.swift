@@ -134,7 +134,7 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
             let savedProgram = try await DIContainer.shared.workoutRepository.saveProgram(userID: userID, program: program)
             
             if program.id == nil {
-                // Analytics.logEvent("program_created", parameters: nil)
+                DIContainer.shared.analyticsManager?.logEvent("program_created", parameters: nil)
             }
             return savedProgram
         } catch {
@@ -343,11 +343,11 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
                     return .failure(.apiError(decodedResponse.programName))
                 }
                 
-                // Analytics.logEvent("ai_workout_generated", parameters: [
-                //     "goal": goal,
-                //     "days_per_week": daysPerWeek,
-                //     "fitness_level": fitnessLevel
-                // ])
+                DIContainer.shared.analyticsManager?.logEvent("ai_workout_generated", parameters: [
+                    "goal": goal,
+                    "days_per_week": daysPerWeek,
+                    "fitness_level": fitnessLevel
+                ])
                 
                 let program = mapResponseToProgram(decodedResponse, userID: userID)
                 return .success(program)
@@ -595,7 +595,7 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
     public func selectPreBuiltProgram(_ program: WorkoutProgram) async -> WorkoutProgram? {
         guard let userID = DIContainer.shared.authService.currentUserID else { return nil }
         
-        // Analytics.logEvent("prebuilt_program_selected", parameters: ["program_name": program.name])
+        DIContainer.shared.analyticsManager?.logEvent("prebuilt_program_selected", parameters: ["program_name": program.name])
 
         var userProgramCopy = program
         userProgramCopy.id = nil

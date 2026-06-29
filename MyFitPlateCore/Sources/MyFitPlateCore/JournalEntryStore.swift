@@ -25,9 +25,9 @@ public class JournalEntryStore {
             let logToSave = service.currentDailyLog ?? DailyLog(id: dateString, date: dateToLog, meals: [], journalEntries: [entry])
             try await DIContainer.shared.nutritionRepository.saveDailyLog(userID: userID, log: logToSave)
 
-            // Analytics.logEvent("journal_entry_added", parameters: [
-//                 "category": entry.category
-//             ])
+            DIContainer.shared.analyticsManager?.logEvent("journal_entry_added", parameters: [
+                "category": entry.category
+            ])
 
             await MainActor.run {
                 service.bannerService?.showBanner(title: "Success", message: "Journal entry saved!")

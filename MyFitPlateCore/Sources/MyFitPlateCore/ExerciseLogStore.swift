@@ -27,11 +27,11 @@ public class ExerciseLogStore {
                 service.updateDailyLog(for: userID, updatedLog: log) { success in
                      Task { @MainActor in
                         if success {
-                            // Analytics.logEvent("exercise_logged", parameters: [
-//                                 "source": exercise.source,
-//                                 "duration": exercise.durationMinutes ?? 0,
-//                                 "calories": exercise.caloriesBurned
-//                             ])
+                            DIContainer.shared.analyticsManager?.logEvent("exercise_logged", parameters: [
+                                "source": exercise.source,
+                                "duration": exercise.durationMinutes ?? 0,
+                                "calories": exercise.caloriesBurned
+                            ])
 
                             service.bannerService?.showBanner(title: "Success", message: "\(exercise.name) logged!")
                             service.achievementService?.updateChallengeProgress(for: userID, type: .workoutLogged, amount: 1)
@@ -120,9 +120,9 @@ public class ExerciseLogStore {
                 service.updateDailyLog(for: userID, updatedLog: log) { success in
                     DispatchQueue.main.async {
                          if success {
-                            // Analytics.logEvent("healthkit_sync_workouts", parameters: [
-//                                 "count": exercises.count
-//                             ])
+                            DIContainer.shared.analyticsManager?.logEvent("healthkit_sync_workouts", parameters: [
+                                "count": exercises.count
+                            ])
                             NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
                          }
                          completion?()

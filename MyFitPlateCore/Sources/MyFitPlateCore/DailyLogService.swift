@@ -83,10 +83,10 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     mealGroups: mealGroups,
                     source: "repeat_yesterday"
                 )
-                // Analytics.logEvent("food_repeat_day", parameters: [
-//                     "meal_count": mealGroups.count,
-//                     "item_count": mealGroups.reduce(0) { $0 + $1.foodItems.count }
-//                 ])
+                DIContainer.shared.analyticsManager?.logEvent("food_repeat_day", parameters: [
+                    "meal_count": mealGroups.count,
+                    "item_count": mealGroups.reduce(0) { $0 + $1.foodItems.count }
+                ])
 
             case .failure(let error):
                 AppLog.data.error("Failed to fetch source day for repeat logging: \(error.localizedDescription, privacy: .public)")
@@ -125,11 +125,11 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                 EcosystemSyncManager.shared.syncNutritionToHealthKit(item: itemToAdd)
                 self.recentFoodStore.addRecentFood(for: userID, foodItem: itemToAdd, source: "recipe")
 
-                // Analytics.logEvent("food_logged", parameters: [
-//                     "source": "manual_add",
-//                     "meal_type": mealType,
-//                     "calories": itemToAdd.calories
-//                 ])
+                DIContainer.shared.analyticsManager?.logEvent("food_logged", parameters: [
+                    "source": "manual_add",
+                    "meal_type": mealType,
+                    "calories": itemToAdd.calories
+                ])
 
                 await MainActor.run {
                     self.bannerService?.showBanner(title: "Success", message: "\(foodItem.name) logged to \(mealType)!")
@@ -277,11 +277,11 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                         EcosystemSyncManager.shared.syncNutritionToHealthKit(item: itemToAdd)
                         self.recentFoodStore.addRecentFood(for: userID, foodItem: itemToAdd, source: source)
 
-                        // Analytics.logEvent("food_logged", parameters: [
-//                             "source": source,
-//                             "meal_type": mealName,
-//                             "calories": itemToAdd.calories
-//                         ])
+                        DIContainer.shared.analyticsManager?.logEvent("food_logged", parameters: [
+                            "source": source,
+                            "meal_type": mealName,
+                            "calories": itemToAdd.calories
+                        ])
 
                         Task { @MainActor in
                             self.bannerService?.showBanner(title: "Success", message: "\(itemToAdd.name) logged!")
@@ -399,12 +399,12 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
 
                 self.updateDailyLog(for: userID, updatedLog: log) { success in
                     if success {
-                        // Analytics.logEvent("food_logged_bulk", parameters: [
-//                             "source": itemSource,
-//                             "item_count": allItemsWithTimestamp.count,
-//                             "meal_count": nonEmptyGroups.count,
-//                             "meal_type": nonEmptyGroups.map { $0.mealName }.joined(separator: ",")
-//                         ])
+                        DIContainer.shared.analyticsManager?.logEvent("food_logged_bulk", parameters: [
+                            "source": itemSource,
+                            "item_count": allItemsWithTimestamp.count,
+                            "meal_count": nonEmptyGroups.count,
+                            "meal_type": nonEmptyGroups.map { $0.mealName }.joined(separator: ",")
+                        ])
 
                         allItemsWithTimestamp.forEach { item in
                             DailyLogNotifications.postFoodLogged(item, userID: userID)
@@ -502,7 +502,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                       self.updateDailyLog(for: userID, updatedLog: log) { success in
                           if success && amount > 0 {
                               EcosystemSyncManager.shared.syncWaterToHealthKit(ounces: amount, date: dateToLog)
-                              // Analytics.logEvent("water_logged", parameters: ["amount": amount])
+                              DIContainer.shared.analyticsManager?.logEvent("water_logged", parameters: ["amount": amount])
                           }
                       }
                   }
@@ -551,7 +551,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
 
                     self.updateDailyLog(for: userID, updatedLog: log) { success in
                         if success {
-                            // Analytics.logEvent("workout_logged_ai", parameters: nil)
+                            DIContainer.shared.analyticsManager?.logEvent("workout_logged_ai", parameters: nil)
                         }
                     }
                 }

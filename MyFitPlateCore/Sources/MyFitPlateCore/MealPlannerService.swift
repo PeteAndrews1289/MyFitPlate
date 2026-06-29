@@ -39,7 +39,7 @@ public class MealPlannerService: ObservableObject {
 
         guard generatedPlans.count == 7 else { return false }
 
-        // Analytics.logEvent("meal_plan_generated", parameters: ["cuisine_count": preferredCuisines.count])
+        DIContainer.shared.analyticsManager?.logEvent("meal_plan_generated", parameters: ["cuisine_count": preferredCuisines.count])
 
         generateAndSaveGroceryList(from: generatedPlans, userID: userID)
         await saveFullMealPlan(days: generatedPlans, for: userID)

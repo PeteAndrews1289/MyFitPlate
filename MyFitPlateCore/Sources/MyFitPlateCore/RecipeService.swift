@@ -33,7 +33,7 @@ public class RecipeService: ObservableObject {
             do {
                 let recipe = try parseRecipeFromAIResponse(jsonString)
                 let savedRecipe = try await saveRecipe(recipe, for: userID)
-                // Analytics.logEvent("ai_recipe_generated", parameters: nil)
+                DIContainer.shared.analyticsManager?.logEvent("ai_recipe_generated", parameters: nil)
                 isLoading = false
                 return savedRecipe
             } catch {
@@ -74,7 +74,7 @@ public class RecipeService: ObservableObject {
             do {
                 let recipe = try parseRecipeFromAIResponse(jsonString)
                 let savedRecipe = try await saveRecipe(recipe, for: userID)
-                // Analytics.logEvent("ai_recipe_text_imported", parameters: nil)
+                DIContainer.shared.analyticsManager?.logEvent("ai_recipe_text_imported", parameters: nil)
                 isLoading = false
                 return savedRecipe
             } catch {
@@ -115,7 +115,7 @@ public class RecipeService: ObservableObject {
         case .success(let jsonString):
             do {
                 let recipe = try parseRecipeFromAIResponse(jsonString)
-                // Analytics.logEvent("ai_recipe_pantry_generated", parameters: nil)
+                DIContainer.shared.analyticsManager?.logEvent("ai_recipe_pantry_generated", parameters: nil)
                 isLoading = false
                 return recipe
             } catch {
@@ -156,7 +156,7 @@ public class RecipeService: ObservableObject {
         case .success(let jsonString):
             do {
                 let recipes = try parseRecipesFromAIResponse(jsonString)
-                // Analytics.logEvent("ai_recipe_pantry_generated", parameters: ["count": recipes.count])
+                DIContainer.shared.analyticsManager?.logEvent("ai_recipe_pantry_generated", parameters: ["count": recipes.count])
                 isLoading = false
                 return recipes
             } catch {
@@ -229,7 +229,7 @@ public class RecipeService: ObservableObject {
             do {
                 let recipe = try parseRecipeFromAIResponse(jsonString)
                 let savedRecipe = try await saveRecipe(recipe, for: userID)
-                // Analytics.logEvent("url_recipe_imported", parameters: nil)
+                DIContainer.shared.analyticsManager?.logEvent("url_recipe_imported", parameters: nil)
                 isLoading = false
                 return savedRecipe
             } catch {
@@ -264,7 +264,7 @@ public class RecipeService: ObservableObject {
     @discardableResult
     public func saveRecipe(_ recipe: Recipe, for userID: String) async throws -> Recipe {
         let savedRecipe = try await DIContainer.shared.nutritionRepository.saveRecipe(userID: userID, recipe: recipe)
-        // Analytics.logEvent("recipe_created", parameters: nil)
+        DIContainer.shared.analyticsManager?.logEvent("recipe_created", parameters: nil)
 
         if let recipeID = savedRecipe.id,
            let index = userRecipes.firstIndex(where: { $0.id == recipeID }) {
