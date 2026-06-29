@@ -82,9 +82,22 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
     public func deleteRecipe(userID: String, recipeID: String) async throws {
         deletedRecipeIDs.append(recipeID)
     }
-    public func saveCustomFood(userID: String, foodItem: FoodItem) async throws {}
-    public func deleteCustomFood(userID: String, foodItemID: String) async throws {}
-    public func fetchCustomFoods(userID: String) async throws -> [FoodItem] { return [] }
+    public var savedCustomFoods: [FoodItem] = []
+    public var deletedCustomFoodIDs: [String] = []
+    public var customFoodsToReturn: [FoodItem] = []
+    public var customFoodError: Error?
+    public func saveCustomFood(userID: String, foodItem: FoodItem) async throws {
+        if let customFoodError { throw customFoodError }
+        savedCustomFoods.append(foodItem)
+    }
+    public func deleteCustomFood(userID: String, foodItemID: String) async throws {
+        if let customFoodError { throw customFoodError }
+        deletedCustomFoodIDs.append(foodItemID)
+    }
+    public func fetchCustomFoods(userID: String) async throws -> [FoodItem] {
+        if let customFoodError { throw customFoodError }
+        return customFoodsToReturn
+    }
     public func saveRecentFood(userID: String, foodItem: FoodItem, source: String, stableID: String) async throws {}
     public func fetchRecentFoods(userID: String, limit: Int) async throws -> [FoodItem] { return [] }
 }
