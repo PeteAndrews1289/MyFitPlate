@@ -1,88 +1,77 @@
 import Foundation
 
 public class OpenFoodFactsAPIService {
-    
+
     private let baseURL = "https://world.openfoodfacts.org/api/v0/product/"
 
     public func fetchFoodItem(barcode: String, completion: @escaping (Result<FoodItem, APIError>) -> Void) {
-        
+
         let urlString = "\(baseURL)\(barcode).json"
-        
+
         guard let url = URL(string: urlString) else {
             completion(.failure(.invalidURL))
             return
         }
-        
+
         URLSession.shared.dataTask(with: url) { data, response, error in
-            
+
             if let error = error {
-                DispatchQueue.main.async {
-                    completion(.failure(.networkError(error)))
-                }
+                DispatchQueue.main.async { completion(.failure(.networkError(error))) }
                 return
             }
-            
+
             guard let data = data else {
-                DispatchQueue.main.async {
-                    completion(.failure(.noData))
-                }
+                DispatchQueue.main.async { completion(.failure(.noData)) }
                 return
             }
-            
+
             do {
-                let decoder = JSONDecoder()
-                let productResponse = try decoder.decode(ProductResponse.self, from: data)
-                
-                if productResponse.status == 0 {
-                    DispatchQueue.main.async {
-                        completion(.failure(.noData))
-                    }
-                    return
+                if let foodItem = try OpenFoodFactsParser.foodItem(from: data) {
+                    DispatchQueue.main.async { completion(.success(foodItem)) }
+                } else {
+                    DispatchQueue.main.async { completion(.failure(.noData)) }
                 }
-
-                guard let product = productResponse.product else {
-                    DispatchQueue.main.async {
-                        completion(.failure(.noData))
-                    }
-                    return
-                }
-
-                let nutriments = product.nutriments
-                let servingSize = product.servingSize ?? "100g"
-                
-                let foodItem = FoodItem(
-                    id: product.id,
-                    name: product.productName ?? "Unknown Product",
-                    calories: nutriments.energyKcal100g ?? 0,
-                    protein: nutriments.proteins100g ?? 0,
-                    carbs: nutriments.carbohydrates100g ?? 0,
-                    fats: nutriments.fat100g ?? 0,
-                    saturatedFat: nutriments.saturatedFat100g,
-                    polyunsaturatedFat: nutriments.polyunsaturatedFat100g,
-                    monounsaturatedFat: nutriments.monounsaturatedFat100g,
-                    fiber: nutriments.fiber100g,
-                    servingSize: servingSize,
-                    servingWeight: 100,
-                    timestamp: nil,
-                    calcium: nutriments.calcium100g.map { $0 * 1000 },
-                    iron: nutriments.iron100g.map { $0 * 1000 },
-                    potassium: nutriments.potassium100g,
-                    sodium: nutriments.sodium100g.map { $0 * 1000 },
-                    vitaminA: nutriments.vitaminA100g,
-                    vitaminC: nutriments.vitaminC100g.map { $0 * 1000 },
-                    vitaminD: nutriments.vitaminD100g
-                )
-                
-                DispatchQueue.main.async {
-                    completion(.success(foodItem))
-                }
-                
             } catch {
-                DispatchQueue.main.async {
-                    completion(.failure(.decodingError(error)))
-                }
+                DispatchQueue.main.async { completion(.failure(.decodingError(error))) }
             }
         }.resume()
+    }
+}
+
+/// Pure, testable parsing of an Open Food Facts product payload into a `FoodItem` (per 100g).
+/// Extracted from the network call so the mapping (unit conversions, defaults, missing-product
+/// handling) can be unit-tested without hitting the network.
+public enum OpenFoodFactsParser {
+    /// Returns nil when the response has no usable product (status 0 / missing product) — the
+    /// network layer treats that as `.noData`. Throws on malformed JSON.
+    public static func foodItem(from data: Data) throws -> FoodItem? {
+        let response = try JSONDecoder().decode(ProductResponse.self, from: data)
+        guard response.status != 0, let product = response.product else { return nil }
+
+        let n = product.nutriments
+        return FoodItem(
+            id: product.id,
+            name: product.productName ?? "Unknown Product",
+            calories: n.energyKcal100g ?? 0,
+            protein: n.proteins100g ?? 0,
+            carbs: n.carbohydrates100g ?? 0,
+            fats: n.fat100g ?? 0,
+            saturatedFat: n.saturatedFat100g,
+            polyunsaturatedFat: n.polyunsaturatedFat100g,
+            monounsaturatedFat: n.monounsaturatedFat100g,
+            fiber: n.fiber100g,
+            servingSize: product.servingSize ?? "100g",
+            servingWeight: 100,
+            timestamp: nil,
+            // Open Food Facts reports these minerals in grams/100g; the app stores mg.
+            calcium: n.calcium100g.map { $0 * 1000 },
+            iron: n.iron100g.map { $0 * 1000 },
+            potassium: n.potassium100g,
+            sodium: n.sodium100g.map { $0 * 1000 },
+            vitaminA: n.vitaminA100g,
+            vitaminC: n.vitaminC100g.map { $0 * 1000 },
+            vitaminD: n.vitaminD100g
+        )
     }
 }
 

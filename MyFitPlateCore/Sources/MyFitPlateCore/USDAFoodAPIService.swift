@@ -24,8 +24,7 @@ public class USDAFoodAPIService {
         guard let url = components.url else { return [] }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            let response = try JSONDecoder().decode(USDASearchResponse.self, from: data)
-            return response.foods.map { mapToFoodItem($0) }
+            return try USDAFoodParser.foodItems(from: data)
         } catch {
             return []
         }
@@ -43,14 +42,23 @@ public class USDAFoodAPIService {
         guard let url = components.url else { return nil }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            let response = try JSONDecoder().decode(USDASearchResponse.self, from: data)
-            return response.foods.first.map { mapToFoodItem($0) }
+            return try USDAFoodParser.foodItems(from: data).first
         } catch {
             return nil
         }
     }
+}
 
-    private func mapToFoodItem(_ food: USDAFood) -> FoodItem {
+/// Pure, testable parsing of a USDA FoodData Central search response into `FoodItem`s.
+/// Extracted from the network call so the per-serving scaling, zero-filtering and name/serving
+/// cleanup can be unit-tested without hitting the network.
+public enum USDAFoodParser {
+    public static func foodItems(from data: Data) throws -> [FoodItem] {
+        let response = try JSONDecoder().decode(USDASearchResponse.self, from: data)
+        return response.foods.map { foodItem(from: $0) }
+    }
+
+    fileprivate static func foodItem(from food: USDAFood) -> FoodItem {
         // Build lookup by standard nutrient number string ("208", "203", etc.)
         var nutrients = [String: Double]()
         for n in food.foodNutrients {
@@ -59,7 +67,7 @@ public class USDAFoodAPIService {
             }
         }
 
-        // USDA reports per 100 g; scale to the item's declared serving size
+        // USDA reports per 100 g; scale to the item's declared serving size (grams only).
         let servingGrams = (food.servingSizeUnit?.lowercased() == "g" ? food.servingSize : nil) ?? 100.0
         let scale = servingGrams / 100.0
 
