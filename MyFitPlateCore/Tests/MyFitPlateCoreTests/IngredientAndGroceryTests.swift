@@ -1,6 +1,5 @@
-import FirebaseFirestore
 import XCTest
-@testable import MyFitPlate
+@testable import MyFitPlateCore
 
 final class IngredientLineParserTests: XCTestCase {
     func testParsesCommonQuantitiesAndUnits() {
