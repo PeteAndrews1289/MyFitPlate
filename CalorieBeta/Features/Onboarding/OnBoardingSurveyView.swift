@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct OnboardingSurveyView: View {
     @EnvironmentObject var goalSettings: GoalSettings
@@ -155,7 +154,7 @@ struct OnboardingSurveyView: View {
 
             goalSettings.recalculateAllGoals()
             
-            if let userID = Auth.auth().currentUser?.uid {
+            if let userID = DIContainer.shared.authService.currentUserID {
                 goalSettings.saveUserGoals(userID: userID)
                 goalSettings.updateUserWeight(BodyUnits.weightToLbs(currentWeightValue, metric: useMetric))
             }

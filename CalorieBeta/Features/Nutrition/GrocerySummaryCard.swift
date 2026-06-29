@@ -118,4 +118,3 @@ struct GroceryMetricTile: View {
         .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 }
-

@@ -479,7 +479,7 @@ struct MacroLabel: View {
     let title: String
     let value: String
     var color: Color = .textPrimary
-    var bgColor: Color? = nil
+    var bgColor: Color?
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)

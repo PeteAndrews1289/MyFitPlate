@@ -179,7 +179,7 @@ final class ServingNutritionCalculatorTests: XCTestCase {
         quantityValue: Double?,
         servingUnit: String?
     ) -> FoodItem {
-        FoodItem(
+        var item = FoodItem(
             id: "test-food",
             name: "Test Food",
             calories: calories,
@@ -214,10 +214,11 @@ final class ServingNutritionCalculatorTests: XCTestCase {
             vitaminB5: nil,
             vitaminB6: nil,
             vitaminE: nil,
-            vitaminK: nil,
-            quantityValue: quantityValue,
-            servingUnit: servingUnit
+            vitaminK: nil
         )
+        item.quantityValue = quantityValue
+        item.servingUnit = servingUnit
+        return item
     }
 }
 

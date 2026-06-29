@@ -1,0 +1,41 @@
+included:
+  - CalorieBeta
+  - CalorieWidget
+  - LiveActivity
+  - MyFitPlateTests
+  - MyFitPlateUITests
+  - MyFitPlateWatch Watch App
+
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+  - type_body_length
+  - file_length
+  - function_body_length
+  - identifier_name
+  - multiple_closures_with_trailing_closure
+  - nesting
+  - cyclomatic_complexity
+  - function_parameter_count
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+
+large_tuple:
+  warning: 5
+  error: 6
+
+excluded:
+  - Pods
+  - fastlane
+  - build
+  - DerivedData
+  - .build
+  - .codex_xcode
+  - .codex_xcode_default
+  - .codex_xcode_default_device
+  - .codex_xcode_sim
+  - .swiftpm
+  - .swiftpm-cache
+  - SourcePackages

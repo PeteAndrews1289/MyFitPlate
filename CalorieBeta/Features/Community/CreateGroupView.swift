@@ -1,6 +1,4 @@
 import SwiftUI
-import FirebaseAuth
-
 struct CreateGroupView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var groupService: GroupService
@@ -30,7 +28,7 @@ struct CreateGroupView: View {
     }
 
     private func createGroup() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         groupService.createGroup(name: groupName, description: groupDescription, creatorID: userID) { result in
             switch result {
             case .success(let newGroup):

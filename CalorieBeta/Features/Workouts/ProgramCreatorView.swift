@@ -1,7 +1,6 @@
-import SwiftUI
-import FirebaseFirestore
-import FirebaseAuth
+import MyFitPlateCore
 
+import SwiftUI
 struct ProgramCreatorView: View {
     @ObservedObject var workoutService: WorkoutService
     var programToEdit: WorkoutProgram?
@@ -32,7 +31,7 @@ struct ProgramCreatorView: View {
                         self.routines.remove(atOffsets: offsets)
                     },
                     onAdd: {
-                        let newRoutine = WorkoutRoutine(userID: Auth.auth().currentUser?.uid ?? "", name: "New Routine", dateCreated: Date())
+                        let newRoutine = WorkoutRoutine(userID: DIContainer.shared.authService.currentUserID ?? "", name: "New Routine", dateCreated: Date())
                         self.routines.append(newRoutine)
                     }
                 )
@@ -92,7 +91,6 @@ struct ProgramCreatorView: View {
         }
     }
 }
-
 
 private struct RoutineSelectionList: View {
     @Binding var routines: [WorkoutRoutine]

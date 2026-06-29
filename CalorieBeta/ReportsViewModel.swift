@@ -1,121 +1,14 @@
+import MyFitPlateCore
+
 import SwiftUI
 import Charts
-import FirebaseAuth
 import HealthKit
-
-// Defines the structure for the daily meal score.
-struct MealScore {
-    let grade: String
-    let summary: String
-    let color: Color
-    let calorieScore: Int
-    let macroScore: Int
-    let qualityScore: Int
-    let overallScore: Int
-    let personalizedAISummary: String
-    let improvementTips: [ImprovementTip]
-    let actualCalories: Double
-    let goalCalories: Double
-    let actualProtein: Double
-    let goalProtein: Double
-    let actualCarbs: Double
-    let goalCarbs: Double
-    let actualFats: Double
-    let goalFats: Double
-    let actualFiber: Double
-    let goalFiber: Double
-    let actualSaturatedFat: Double
-    let goalSaturatedFat: Double
-    let actualSodium: Double
-    let goalSodium: Double
-    static let noScore = MealScore(grade: "N/A", summary: "Log a full day of meals to get your score.", color: .gray, calorieScore: 0, macroScore: 0, qualityScore: 0, overallScore: 0, personalizedAISummary: "No data available.", improvementTips: [], actualCalories: 0, goalCalories: 2000, actualProtein: 0, goalProtein: 150, actualCarbs: 0, goalCarbs: 250, actualFats: 0, goalFats: 70, actualFiber: 0, goalFiber: 25, actualSaturatedFat: 0, goalSaturatedFat: 20, actualSodium: 0, goalSodium: 2300)
-}
-
-// Defines the structure for improvement tips within the meal score.
-struct ImprovementTip: Identifiable {
-    let id = UUID()
-    let category: String
-    let advice: String
-    let icon: String
-    let color: Color
-}
-
-// Defines the structure for the overall report summary.
-struct ReportSummary: Identifiable {
-    let id = UUID()
-    let timeframe: String
-    let averageCalories: Double
-    let averageProtein: Double
-    let averageCarbs: Double
-    let averageFats: Double
-    let daysLogged: Int
-}
-
-// Represents a single data point for charts with a date.
-struct DateValuePoint: Identifiable, Equatable {
-    let id = UUID()
-    let date: Date
-    let value: Double
-}
-
-// Represents data for micronutrient averages compared to goals.
-struct MicroAverageDataPoint: Identifiable {
-    let id = UUID()
-    let name: String
-    let unit: String
-    let averageValue: Double
-    let goalValue: Double
-    var percentageMet: Double { guard goalValue > 0 else { return 0 }; return (averageValue / goalValue) * 100 }
-    var progressViewValue: Double { guard goalValue > 0 else { return 0.0 }; return max(0.0, min(1.0, averageValue / goalValue)) }
-}
-
-// Represents data for calorie distribution across meals.
-struct MealDistributionDataPoint: Identifiable {
-    let id = UUID()
-    let mealName: String
-    let totalCalories: Double
-}
-
-// Represents detailed sleep report data.
-struct EnhancedSleepReport: Identifiable {
-    let id = UUID()
-    let dateRange: String
-    let averageSleepScore: Int
-    let averageTimeInBed: TimeInterval
-    let averageTimeAsleep: TimeInterval
-    let averageTimeInCore: TimeInterval
-    let averageTimeInDeep: TimeInterval
-    let averageTimeInREM: TimeInterval
-    let averageTimeAwake: TimeInterval
-    let sleepConsistencyScore: Int
-    let sleepConsistencyMessage: String
-    let dailySleepData: [DailySleepStageData]
-
-    struct DailySleepStageData: Identifiable {
-        let id = UUID()
-        let date: Date
-        let timeInBed: TimeInterval
-        let timeAsleep: TimeInterval
-        let timeCore: TimeInterval
-        let timeDeep: TimeInterval
-        let timeREM: TimeInterval
-        let timeAwake: TimeInterval
-        var weekday: String {
-            let formatter = DateFormatter(); formatter.dateFormat = "EEE"
-            let calendar = Calendar.current
-            // Adjust date slightly to ensure correct weekday display across timezones/midnight boundaries
-            let displayDate = calendar.date(byAdding: .hour, value: 12, to: date) ?? date
-            return formatter.string(from: displayDate)
-        }
-    }
-}
-
 
 // Manages fetching and processing data for the reports view.
 @MainActor
 class ReportsViewModel: ObservableObject {
-    @Published var summary: ReportSummary? = nil
-    @Published var mealScore: MealScore? = nil
+    @Published var summary: ReportSummary?
+    @Published var mealScore: MealScore?
     @Published var mealScoreHistory: [DateValuePoint] = []
     @Published var calorieTrend: [DateValuePoint] = []
     @Published var proteinTrend: [DateValuePoint] = []
@@ -123,15 +16,15 @@ class ReportsViewModel: ObservableObject {
     @Published var fatTrend: [DateValuePoint] = []
     @Published var micronutrientAverages: [MicroAverageDataPoint] = []
     @Published var mealDistributionData: [MealDistributionDataPoint] = []
-    @Published var reportSpecificInsight: UserInsight? = nil
-    @Published var enhancedSleepReport: EnhancedSleepReport? = nil
-    @Published var weeklyWorkoutReport: WorkoutReport? = nil
+    @Published var reportSpecificInsight: UserInsight?
+    @Published var enhancedSleepReport: EnhancedSleepReport?
+    @Published var weeklyWorkoutReport: WorkoutReport?
     @Published var isLoading: Bool = false
-    @Published var errorMessage: String? = nil
-    @Published var wellnessScore: WellnessScore? = nil
-    @Published var lastNightSleepScore: Int? = nil
+    @Published var errorMessage: String?
+    @Published var wellnessScore: WellnessScore?
+    @Published var lastNightSleepScore: Int?
 
-    @Published var workoutAnalytics: WorkoutAnalytics? = nil
+    @Published var workoutAnalytics: WorkoutAnalytics?
 
     private let wellnessScoreService = WellnessScoreService()
     private let workoutAnalyticsService = WorkoutAnalyticsService()
@@ -143,8 +36,8 @@ class ReportsViewModel: ObservableObject {
     private weak var healthKitViewModel: HealthKitViewModel?
 
     private var currentGoals: GoalSettings?
-    private var currentUserID: String? { Auth.auth().currentUser?.uid }
-    private var yesterdaysLog: DailyLog? = nil
+    private var currentUserID: String? { DIContainer.shared.authService.currentUserID }
+    private var yesterdaysLog: DailyLog?
     private var didCalculateYesterdaysMealScore = false // Prevents duplicate score saving
 
     init(dailyLogService: DailyLogService) {
@@ -173,7 +66,7 @@ class ReportsViewModel: ObservableObject {
         var bedtimesByDay: [Date: Date] = [:]
 
         let sleepByNight = Dictionary(grouping: samples) { sleepNightKey(for: $0, calendar: calendar) }
-        var mostRecentSleepDay: Date? = nil
+        var mostRecentSleepDay: Date?
 
         for (day, samplesForDay) in sleepByNight {
             let relevantSamples = samplesForDay
@@ -198,8 +91,8 @@ class ReportsViewModel: ObservableObject {
             let timeAsleep = calculateTotalDuration(from: asleepSamples)
 
             if timeInBed == 0 && (timeAsleep > 0 || timeAwake > 0) {
-                 let firstStart = relevantSamples.map{$0.startDate}.min() ?? day
-                 let lastEnd = relevantSamples.map{$0.endDate}.max() ?? calendar.date(byAdding: .day, value: 1, to: day) ?? day
+                 let firstStart = relevantSamples.map {$0.startDate}.min() ?? day
+                 let lastEnd = relevantSamples.map {$0.endDate}.max() ?? calendar.date(byAdding: .day, value: 1, to: day) ?? day
                  timeInBed = lastEnd.timeIntervalSince(firstStart)
             }
 
@@ -237,9 +130,9 @@ class ReportsViewModel: ObservableObject {
         }
 
         let numDays = Double(validDays.count)
-        let avgInBed=validDays.reduce(0){$0 + $1.timeInBed}/numDays; let avgAsleep=validDays.reduce(0){$0 + $1.timeAsleep}/numDays
-        let avgCore=validDays.reduce(0){$0 + $1.timeCore}/numDays; let avgDeep=validDays.reduce(0){$0 + $1.timeDeep}/numDays
-        let avgREM=validDays.reduce(0){$0 + $1.timeREM}/numDays; let avgAwake=validDays.reduce(0){$0 + $1.timeAwake}/numDays
+        let avgInBed=validDays.reduce(0) {$0 + $1.timeInBed}/numDays; let avgAsleep=validDays.reduce(0) {$0 + $1.timeAsleep}/numDays
+        let avgCore=validDays.reduce(0) {$0 + $1.timeCore}/numDays; let avgDeep=validDays.reduce(0) {$0 + $1.timeDeep}/numDays
+        let avgREM=validDays.reduce(0) {$0 + $1.timeREM}/numDays; let avgAwake=validDays.reduce(0) {$0 + $1.timeAwake}/numDays
         let (consistencyScore, consistencyMessage) = calculateBedtimeConsistency(bedtimes: allBedtimes)
         let dailyScores = validDays.map { dayData in
             calculateSleepScore(
@@ -294,7 +187,6 @@ class ReportsViewModel: ObservableObject {
         return merged.reduce(0) { $0 + $1.duration }
     }
 
-
     // Calculates bedtime consistency score and provides a descriptive message.
     private func calculateBedtimeConsistency(bedtimes: [Date]) -> (score: Int, message: String) {
         guard bedtimes.count > 1 else { return (75, "Need 2+ nights for consistency analysis.") } // Need at least 2 points
@@ -302,11 +194,7 @@ class ReportsViewModel: ObservableObject {
         let stdDev = calculateStdDev(for: bedtimeMinuteValues) // Calculate standard deviation
         // Assign score and message based on standard deviation
         let score: Int; let message: String
-        if stdDev <= 15 { score = 100; message = "Excellent! Bedtime varies by only \(Int(round(stdDev))) mins." }
-        else if stdDev <= 30 { score = 88; message = "Good. Bedtime varies by ~\(Int(round(stdDev))) mins." }
-        else if stdDev <= 60 { score = 70; message = "Fair. Bedtime varies by ~\(Int(round(stdDev))) mins. Aim for more regularity." }
-        else if stdDev <= 90 { score = 55; message = "Bedtime was off by ~\(Int(round(stdDev))) mins. Keep nudging it earlier." }
-        else { score = 40; message = "Inconsistent. Bedtime varies by over an hour and a half (\(Int(round(stdDev))) mins)." }
+        if stdDev <= 15 { score = 100; message = "Excellent! Bedtime varies by only \(Int(round(stdDev))) mins." } else if stdDev <= 30 { score = 88; message = "Good. Bedtime varies by ~\(Int(round(stdDev))) mins." } else if stdDev <= 60 { score = 70; message = "Fair. Bedtime varies by ~\(Int(round(stdDev))) mins. Aim for more regularity." } else if stdDev <= 90 { score = 55; message = "Bedtime was off by ~\(Int(round(stdDev))) mins. Keep nudging it earlier." } else { score = 40; message = "Inconsistent. Bedtime varies by over an hour and a half (\(Int(round(stdDev))) mins)." }
         return (score, message)
     }
 
@@ -424,7 +312,7 @@ class ReportsViewModel: ObservableObject {
                  let sleepStartDate = Calendar.current.date(byAdding: .day, value: -1, to: reportStartDate) ?? reportStartDate // Fetch from day before start to catch overnight sleep
                  
                  // Use the shared HealthKitManager instance to perform the fetch
-                 healthKitManager.fetchSleepAnalysis(startDate: sleepStartDate, endDate: reportEndDate) { [weak self] samples, error in
+                 healthKitManager.fetchSleepAnalysis(startDate: sleepStartDate, endDate: reportEndDate) { [weak self] samples, _ in
                      // Process results on main thread
                      Task { @MainActor in
                          guard let self else { return }
@@ -461,8 +349,7 @@ class ReportsViewModel: ObservableObject {
             }
 
             // Store yesterday's log result if successful
-            if case .success(let yesterdayLogs) = await yesterdayLogResult { self.yesterdaysLog = yesterdayLogs.first; }
-            else { self.yesterdaysLog = nil; }
+            if case .success(let yesterdayLogs) = await yesterdayLogResult { self.yesterdaysLog = yesterdayLogs.first; } else { self.yesterdaysLog = nil; }
 
             // Final check to calculate wellness score if sleep wasn't authorized or calculation hasn't happened yet
              if !(healthKitViewModel?.isAuthorized ?? false) {
@@ -473,7 +360,6 @@ class ReportsViewModel: ObservableObject {
              }
         }
     }
-
 
     // Processes fetched logs to populate published report data properties.
     private func processLogs(logs: [DailyLog], timeframeName: String, totalDaysInPeriod: Int) {
@@ -498,10 +384,10 @@ class ReportsViewModel: ObservableObject {
         // Apple Health isn't counted twice in the workout count or calories burned.
         let allExercises = validLogs.flatMap { ($0.exercises ?? []).dedupedAgainstHealthKit() }
         if !allExercises.isEmpty {
-            let totalWorkouts = allExercises.count; let totalCaloriesBurned = allExercises.reduce(0){$0 + $1.caloriesBurned}
+            let totalWorkouts = allExercises.count; let totalCaloriesBurned = allExercises.reduce(0) {$0 + $1.caloriesBurned}
             // Find most frequent workout type
-            let frequency = Dictionary(grouping: allExercises, by: {$0.name}).mapValues{$0.count}
-            let mostFrequent = frequency.max{$0.value < $1.value}?.key ?? "N/A"
+            let frequency = Dictionary(grouping: allExercises, by: {$0.name}).mapValues {$0.count}
+            let mostFrequent = frequency.max {$0.value < $1.value}?.key ?? "N/A"
             // Create the workout report summary
             self.weeklyWorkoutReport = WorkoutReport(totalWorkouts: totalWorkouts, totalCaloriesBurned: totalCaloriesBurned, mostFrequentWorkout: mostFrequent)
         }
@@ -529,7 +415,7 @@ class ReportsViewModel: ObservableObject {
              // Create the overall summary report
              self.summary = ReportSummary(timeframe: timeframeName, averageCalories: avgCals, averageProtein: avgProt, averageCarbs: avgCarb, averageFats: avgFat, daysLogged: daysWithActualLogEntries)
              // Set the trend data, sorted by date
-             self.calorieTrend=tmpCalT.sorted{$0.date<$1.date}; self.proteinTrend=tmpProtT.sorted{$0.date<$1.date}; self.carbTrend=tmpCarbT.sorted{$0.date<$1.date}; self.fatTrend=tmpFatT.sorted{$0.date<$1.date}
+             self.calorieTrend=tmpCalT.sorted {$0.date<$1.date}; self.proteinTrend=tmpProtT.sorted {$0.date<$1.date}; self.carbTrend=tmpCarbT.sorted {$0.date<$1.date}; self.fatTrend=tmpFatT.sorted {$0.date<$1.date}
              // Create micronutrient average data points
              var tmpMicros: [MicroAverageDataPoint] = []
              tmpMicros.append(MicroAverageDataPoint(name: "Fiber", unit: "g", averageValue: totFib/divisor, goalValue: 25)) // Standard fiber goal
@@ -543,8 +429,7 @@ class ReportsViewModel: ObservableObject {
              // Filter out micros with no goal set (goalValue <= 0)
              self.micronutrientAverages = tmpMicros.filter { $0.goalValue > 0 }
              // Calculate meal distribution if total calories > 0
-             if totCals > 0 { var tmpMealDist: [MealDistributionDataPoint] = []; for (n, c) in mealCals { tmpMealDist.append(MealDistributionDataPoint(mealName: n, totalCalories: c / divisor)) }; self.mealDistributionData = tmpMealDist.sorted { $0.mealName < $1.mealName } }
-             else { self.mealDistributionData = [] } // Clear distribution if no calories logged
+             if totCals > 0 { var tmpMealDist: [MealDistributionDataPoint] = []; for (n, c) in mealCals { tmpMealDist.append(MealDistributionDataPoint(mealName: n, totalCalories: c / divisor)) }; self.mealDistributionData = tmpMealDist.sorted { $0.mealName < $1.mealName } } else { self.mealDistributionData = [] } // Clear distribution if no calories logged
              // Generate a simple insight based on the logs
              self.reportSpecificInsight = generateReportInsight(from: validLogs)
          } else {
@@ -554,7 +439,6 @@ class ReportsViewModel: ObservableObject {
          // If still no summary, no sleep, no workout, no analytics, and no error message, set the error message.
          if summary == nil && enhancedSleepReport == nil && weeklyWorkoutReport == nil && workoutAnalytics == nil && errorMessage == nil { self.errorMessage = "No data available for the selected timeframe." }
     }
-
 
     // Generates a simple insight based on the highest calorie day.
     private func generateReportInsight(from logs: [DailyLog]) -> UserInsight? {
@@ -595,10 +479,10 @@ class ReportsViewModel: ObservableObject {
             if !didCalculateYesterdaysMealScore { saveMealScore(for: userID, date: log.date, score: calculatedMealScore); didCalculateYesterdaysMealScore = true }
         } else if let result = yesterdayLogResult { // If not loaded, try using the passed-in fetch result
             if case .success(let logs) = result, let log = logs.first {
-                self.yesterdaysLog = log; // Store it for future use within this cycle
+                self.yesterdaysLog = log // Store it for future use within this cycle
                 calculatedMealScore = await calculateMealScore(for: log, goals: goals)
                  if !didCalculateYesterdaysMealScore { saveMealScore(for: userID, date: log.date, score: calculatedMealScore); didCalculateYesterdaysMealScore = true }
-                 logsAvailableForMealScore = true;
+                 logsAvailableForMealScore = true
             }
         } else {
              // If neither is available, attempt one final fetch for yesterday's log
@@ -607,7 +491,7 @@ class ReportsViewModel: ObservableObject {
              if case .success(let logs) = logResult, let log = logs.first {
                  self.yesterdaysLog = log; calculatedMealScore = await calculateMealScore(for: log, goals: goals)
                  if !didCalculateYesterdaysMealScore { saveMealScore(for: userID, date: yesterday, score: calculatedMealScore); didCalculateYesterdaysMealScore = true }
-                 logsAvailableForMealScore = true;
+                 logsAvailableForMealScore = true
              }
         }
 
@@ -632,7 +516,6 @@ class ReportsViewModel: ObservableObject {
             self.wellnessScore = finalWellnessScore
         }
     }
-
 
     // Async wrappers for HealthKit fetches using continuations.
     private func fetchLatestRHR() async -> HKQuantitySample? { await withCheckedContinuation { c in healthKitManager.fetchLatestRestingHeartRate { c.resume(returning: $0) } } }
@@ -681,17 +564,15 @@ class ReportsViewModel: ObservableObject {
         
         let grade: String; let color: Color
         switch finalScore {
-            case 90...: grade = "A+"; color = .accentPositive
-            case 80..<90: grade = "A-"; color = .accentPositive
-            case 70..<80: grade = "B"; color = .yellow
-            case 60..<70: grade = "C"; color = .orange
-            default: grade = "D"; color = .red
+        case 90...: grade = "A+"; color = .accentPositive
+        case 80..<90: grade = "A-"; color = .accentPositive
+        case 70..<80: grade = "B"; color = .yellow
+        case 60..<70: grade = "C"; color = .orange
+        default: grade = "D"; color = .red
         }
         
         let summary: String
-        if finalScore >= 80 { summary = "Excellent work!" }
-        else if finalScore >= 60 { summary = "Good effort!" }
-        else { summary = "Focus on consistency." }
+        if finalScore >= 80 { summary = "Excellent work!" } else if finalScore >= 60 { summary = "Good effort!" } else { summary = "Focus on consistency." }
         
         // This data is all needed for the MealScoreDetailView
         return MealScore(

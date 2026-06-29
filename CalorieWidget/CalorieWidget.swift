@@ -7,12 +7,12 @@ struct Provider: TimelineProvider {
         SimpleEntry(date: Date(), data: .previewData)
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
+    func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> Void) {
         let entry = SimpleEntry(date: Date(), data: .previewData)
         completion(entry)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
+    func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
         let data = SharedDataManager.shared.loadData()
         let entry = SimpleEntry(date: Date(), data: data)
 
@@ -27,7 +27,7 @@ struct SimpleEntry: TimelineEntry {
     let data: WidgetData?
 }
 
-struct CalorieWidgetEntryView : View {
+struct CalorieWidgetEntryView: View {
     var entry: Provider.Entry
     @Environment(\.widgetFamily) var family
 
@@ -77,7 +77,11 @@ struct CalorieWidget: Widget {
         }
         .configurationDisplayName("Daily Summary")
         .description("Track your daily calories and macros.")
-        .supportedFamilies([.systemLarge, .systemMedium, .systemSmall])
+#if os(watchOS)
+        .supportedFamilies([.accessoryRectangular, .accessoryCircular, .accessoryInline])
+#else
+        .supportedFamilies([.systemLarge, .systemMedium, .systemSmall, .accessoryRectangular, .accessoryCircular, .accessoryInline])
+#endif
     }
 }
 

@@ -4,7 +4,7 @@ import Charts
 struct WeightChartView: View {
     var weightHistory: [(id: String, date: Date, weight: Double)]
     var currentWeight: Double
-    var onEntrySelected: ((_ entryId: String) -> Void)? = nil
+    var onEntrySelected: ((_ entryId: String) -> Void)?
     
     @State private var selectedDate: Date?
 
@@ -76,7 +76,7 @@ struct WeightChartView: View {
             }
         }
         .chartOverlay { proxy in
-            GeometryReader { geometry in
+            GeometryReader { _ in
                 Rectangle().fill(.clear).contentShape(Rectangle())
                     .onTapGesture { location in
                         guard let date: Date = proxy.value(atX: location.x) else { return }

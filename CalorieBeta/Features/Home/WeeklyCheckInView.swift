@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct WeeklyCheckInView: View {
     @EnvironmentObject var goalSettings: GoalSettings
@@ -168,7 +167,7 @@ struct WeeklyCheckInView: View {
         goalSettings.calorieGoalMethod = .dynamicTDEE
         goalSettings.lastCheckInDate = Date()
         goalSettings.recalculateAllGoals()
-        if let userID = Auth.auth().currentUser?.uid {
+        if let userID = DIContainer.shared.authService.currentUserID {
             goalSettings.saveUserGoals(userID: userID)
         }
         dismiss()
@@ -177,7 +176,7 @@ struct WeeklyCheckInView: View {
     private func skipCheckIn() {
         HapticManager.instance.feedback(.light)
         goalSettings.lastCheckInDate = Date()
-        if let userID = Auth.auth().currentUser?.uid {
+        if let userID = DIContainer.shared.authService.currentUserID {
             goalSettings.saveUserGoals(userID: userID)
         }
         dismiss()
@@ -216,7 +215,6 @@ private struct WeeklyCheckInStatCard: View {
         .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
-import SwiftUI
 import Charts
 
 struct TrendDashboardView: View {

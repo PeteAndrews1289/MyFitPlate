@@ -45,4 +45,3 @@ struct ArcShape: Shape {
         return path
     }
 }
-

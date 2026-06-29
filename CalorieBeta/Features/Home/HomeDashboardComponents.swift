@@ -32,7 +32,6 @@ VStack(alignment: .leading, spacing: 0) {
             NutritionProgressView(dailyLog: dailyLog, goal: goalSettings, insight: weeklyInsight)
                 .padding(.top, 10)
 
-
         }
         .frame(maxWidth: 520)
         .asCard()
@@ -40,7 +39,6 @@ VStack(alignment: .leading, spacing: 0) {
 
 }
 }
-
 
 struct HomeDailyLogSummaryStrip: View {
     var log: DailyLog
@@ -59,7 +57,6 @@ let foodItems = log.meals.flatMap(\.foodItems)
 
 }
 }
-
 
 struct HomeActivityWidget: View {
     var exercises: [LoggedExercise]
@@ -262,6 +259,8 @@ struct DailySnapshotStrip: View {
         .frame(maxWidth: 520)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(isToday ? "Today" : dateTitle). \(calorieStatus). \(coach.title). \(Int(protein.rounded())) grams of protein, \(Int(waterIntake.rounded())) ounces of water. \(coach.message)")
     }
 
     private var calorieStatus: String {
@@ -302,5 +301,7 @@ struct DiaryMetricPill: View {
         }
         .padding(10)
         .background(Color.backgroundSecondary.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(value) \(subtitle)")
     }
 }

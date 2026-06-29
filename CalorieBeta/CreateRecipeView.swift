@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct CreateRecipeView: View {
     @Environment(\.dismiss) var dismiss
@@ -291,7 +290,8 @@ struct CreateRecipeView: View {
     }
 
     private func saveRecipe() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        HapticManager.instance.feedback(.medium)
         isLoading = true
 
         Task {

@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct ExerciseHistoryView: View {
@@ -51,7 +53,6 @@ private struct SessionRowView: View {
         }
     }
 }
-
 
 @MainActor
 class ExerciseHistoryViewModel: ObservableObject {

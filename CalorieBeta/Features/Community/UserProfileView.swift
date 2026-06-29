@@ -1,6 +1,4 @@
 import SwiftUI
-import FirebaseAuth
-
 struct UserProfileView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var goalSettings: GoalSettings
@@ -59,7 +57,7 @@ struct UserProfileView: View {
             }
         }
         .onAppear {
-             if let userID = Auth.auth().currentUser?.uid {
+             if let userID = DIContainer.shared.authService.currentUserID {
                   goalSettings.loadUserGoals(userID: userID)
                   achievementService.fetchUserStatuses(userID: userID)
                   achievementService.listenToUserProfile(userID: userID)
@@ -95,7 +93,7 @@ struct UserProfileView: View {
                       .appFont(size: 24, weight: .bold)
                       .foregroundColor(.textPrimary)
 
-                  Text(Auth.auth().currentUser?.email ?? "MyFitPlate User")
+                  Text("MyFitPlate User")
                       .foregroundColor(Color(UIColor.secondaryLabel))
                       .appFont(size: 13)
                       .lineLimit(1)
@@ -139,7 +137,7 @@ struct UserProfileView: View {
 
             ProgressView(value: progressToNextLevel, total: 1.0)
                 .progressViewStyle(LinearProgressViewStyle(tint: .brandPrimary))
-                .scaleEffect(x:1, y:1.5, anchor: .center)
+                .scaleEffect(x: 1, y: 1.5, anchor: .center)
 
             HStack {
                 Text("\(achievementService.userTotalAchievementPoints) pts")
@@ -149,7 +147,7 @@ struct UserProfileView: View {
                     Text("\(pointsToNextLevel) pts to next level")
                         .appFont(size: 12)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                } else if !achievementService.levelThresholds.isEmpty && achievementService.userAchievementLevel > achievementService.levelThresholds.count - 1  {
+                } else if !achievementService.levelThresholds.isEmpty && achievementService.userAchievementLevel > achievementService.levelThresholds.count - 1 {
                      Text("Max Level!")
                         .appFont(size: 12)
                         .foregroundColor(.accentPositive)
@@ -236,16 +234,14 @@ struct UserProfileView: View {
                 HStack { Spacer(); ProgressView().tint(.brandPrimary); Spacer() }
                     .padding(.vertical, 24)
                     .asCard()
-            }
-            else if definitions.isEmpty {
+            } else if definitions.isEmpty {
                 Text("No achievements defined yet.")
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .appFont(size: 15)
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            }
-            else {
+            } else {
                  let sortedDefinitions = definitions.sorted { d1, d2 in
                     let s1 = statuses[d1.id]
                     let s2 = statuses[d2.id]
@@ -312,7 +308,7 @@ struct AchievementCardView: View {
             Text(definition.description)
                 .appFont(size: 13)
                 .foregroundColor(Color(UIColor.secondaryLabel))
-                .frame(minHeight: 35 ,alignment: .top)
+                .frame(minHeight: 35, alignment: .top)
                 .fixedSize(horizontal: false, vertical: true)
 
             if !isUnlocked && definition.criteriaValue > 0 && definition.criteriaType != .featureUsed {
@@ -370,9 +366,9 @@ struct AchievementCardView: View {
         .overlay(
             Group {
                 if definition.secret && !isUnlocked {
-                    VStack{
+                    VStack {
                         Spacer()
-                        HStack{
+                        HStack {
                             Spacer()
                             Image(systemName: "questionmark.diamond.fill")
                                 .appFont(size: 50)

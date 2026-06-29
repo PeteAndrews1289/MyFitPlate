@@ -1,6 +1,5 @@
 import SwiftUI
 import Charts
-import FirebaseAuth
 
 struct MetabolismDashboardView: View {
     @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
@@ -28,7 +27,7 @@ struct MetabolismDashboardView: View {
         .navigationTitle("Adaptive Metabolism")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            guard let userID = Auth.auth().currentUser?.uid else {
+            guard let userID = DIContainer.shared.authService.currentUserID else {
                 isLoading = false
                 return
             }
@@ -252,4 +251,3 @@ struct MetabolismReportCard: View {
         .asCard()
     }
 }
-

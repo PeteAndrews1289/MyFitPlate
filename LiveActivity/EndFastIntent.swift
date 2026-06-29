@@ -1,3 +1,4 @@
+#if canImport(ActivityKit)
 import AppIntents
 import ActivityKit
 
@@ -15,3 +16,4 @@ public struct EndFastIntent: LiveActivityIntent {
         return .result()
     }
 }
+#endif

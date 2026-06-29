@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct MealPlanSurveyView: View {
     @EnvironmentObject var goalSettings: GoalSettings
@@ -83,7 +82,10 @@ struct MealPlanSurveyView: View {
 
                     HStack {
                         if currentStep > 0 {
-                            Button("Back") { withAnimation { currentStep -= 1 } }
+                            Button("Back") {
+                                HapticManager.instance.feedback(.light)
+                                withAnimation { currentStep -= 1 }
+                            }
                                 .buttonStyle(SecondaryButtonStyle())
                         }
 
@@ -94,7 +96,11 @@ struct MealPlanSurveyView: View {
                             .buttonStyle(PrimaryButtonStyle())
                             .disabled(isLoading)
                         } else {
-                            Button("Next") { withAnimation { currentStep += 1 } }
+                            Button("Next") {
+                                HapticManager.instance.feedback(.light)
+                                withAnimation { currentStep -= 1 }
+                                withAnimation { currentStep += 1 }
+                            }
                                 .buttonStyle(PrimaryButtonStyle())
                         }
                     }
@@ -144,6 +150,7 @@ struct MealPlanSurveyView: View {
     }
 
     private func generateAndSavePlan() {
+        HapticManager.instance.feedback(.medium)
         isLoading = true
         alertMessage = ""
 
@@ -158,7 +165,7 @@ struct MealPlanSurveyView: View {
         let snackList = Array(selectedSnacks) + (customSnack.isEmpty ? [] : [customSnack])
 
         Task {
-            guard let userID = Auth.auth().currentUser?.uid else {
+            guard let userID = DIContainer.shared.authService.currentUserID else {
                 handleError("You must be logged in.")
                 return
             }
@@ -212,6 +219,7 @@ private struct SurveySelectionView: View {
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(items, id: \.self) { item in
                     Button(action: {
+                        HapticManager.instance.feedback(.light)
                         if selectedItems.contains(item) {
                             selectedItems.remove(item)
                         } else {
@@ -259,6 +267,7 @@ private struct CuisineSelectionView: View {
             HStack(spacing: 15) {
                 ForEach(allCuisines, id: \.self) { cuisine in
                     Button(action: {
+                        HapticManager.instance.feedback(.light)
                         toggleCuisineSelection(cuisine)
                     }) {
                         VStack {
@@ -305,10 +314,10 @@ private struct CuisineSelectionView: View {
     }
 }
 
-fileprivate enum ProteinChoice: String, CaseIterable, Identifiable { case chicken = "Chicken", beef = "Beef", fish = "Fish", tofu = "Tofu", eggs = "Eggs", pork = "Pork"; var id: Self { self } }
-fileprivate enum CarbChoice: String, CaseIterable, Identifiable { case rice = "Rice", quinoa = "Quinoa", potatoes = "Potatoes", pasta = "Pasta", bread = "Bread", oats = "Oats"; var id: Self { self } }
-fileprivate enum VeggieChoice: String, CaseIterable, Identifiable { case broccoli = "Broccoli", spinach = "Spinach", bellPeppers = "Bell Peppers", onions = "Onions", carrots = "Carrots", zucchini = "Zucchini"; var id: Self { self } }
-fileprivate enum SnackChoice: String, CaseIterable, Identifiable { case yogurt = "Yogurt", nuts = "Nuts", fruit = "Fruit", proteinBar = "Protein Bar"; var id: Self { self } }
+private enum ProteinChoice: String, CaseIterable, Identifiable { case chicken = "Chicken", beef = "Beef", fish = "Fish", tofu = "Tofu", eggs = "Eggs", pork = "Pork"; var id: Self { self } }
+private enum CarbChoice: String, CaseIterable, Identifiable { case rice = "Rice", quinoa = "Quinoa", potatoes = "Potatoes", pasta = "Pasta", bread = "Bread", oats = "Oats"; var id: Self { self } }
+private enum VeggieChoice: String, CaseIterable, Identifiable { case broccoli = "Broccoli", spinach = "Spinach", bellPeppers = "Bell Peppers", onions = "Onions", carrots = "Carrots", zucchini = "Zucchini"; var id: Self { self } }
+private enum SnackChoice: String, CaseIterable, Identifiable { case yogurt = "Yogurt", nuts = "Nuts", fruit = "Fruit", proteinBar = "Protein Bar"; var id: Self { self } }
 
 private struct CookingStyleItem: Identifiable {
     let id: String
@@ -331,6 +340,7 @@ private struct CookingStyleSelectionView: View {
         VStack(spacing: 16) {
             ForEach(styles) { style in
                 Button(action: {
+                    HapticManager.instance.feedback(.light)
                     selectedStyle = style.id
                 }) {
                     StyleRow(style: style, isSelected: selectedStyle == style.id)
@@ -379,4 +389,3 @@ private struct CookingStyleSelectionView: View {
         }
     }
 }
-

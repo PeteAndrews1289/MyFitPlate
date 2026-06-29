@@ -1,5 +1,6 @@
+import MyFitPlateCore
+
 import SwiftUI
-import FirebaseAuth
 
 struct IdentifiableFoodItems: Identifiable {
     let id = UUID()
@@ -28,9 +29,9 @@ struct MainTabView: View {
     
     @State private var showingImagePicker = false
     @State private var isProcessingImage = false
-    @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems? = nil
+    @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems?
     
-    @State private var scannedFoodItem: FoodItem? = nil
+    @State private var scannedFoodItem: FoodItem?
     @State private var isSearchingAfterScan = false
     @State private var scanError: (Bool, String) = (false, "")
     
@@ -70,6 +71,7 @@ struct MainTabView: View {
                     selectedIndex: $appState.selectedTab,
                     showingAddOptions: $showingAddOptions,
                     centerButtonAction: {
+                        HapticsService.shared.playImpact(style: .light)
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                             showingAddOptions.toggle()
                         }
@@ -80,7 +82,8 @@ struct MainTabView: View {
                     Color.black.opacity(0.34)
                         .ignoresSafeArea()
                         .onTapGesture {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)){
+                            HapticsService.shared.playImpact(style: .medium)
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                                 showingAddOptions = false
                             }
                         }
@@ -204,7 +207,7 @@ struct MainTabView: View {
                 BarcodeScannerView { barcode in
                     self.showingBarcodeScanner = false
                     self.isSearchingAfterScan = true
-                    AnalyticsManager.log(.barcodeScanned)
+                    DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                     Task { @MainActor in
                         if let item = await withCheckedContinuation({ cont in
                             foodAPIService.fetchFoodByBarcode(barcode: barcode) { cont.resume(returning: try? $0.get()) }
@@ -235,7 +238,13 @@ struct MainTabView: View {
                 }
             }
             .sheet(isPresented: $showingAITextLog) { AITextLogView() }
-            .sheet(isPresented: $showingAddExerciseView) { AddExerciseView { newExercise in if let userID = Auth.auth().currentUser?.uid { dailyLogService.exerciseLogStore.addExerciseToLog(for: userID, exercise: newExercise) } } }
+            .sheet(isPresented: $showingAddExerciseView) {
+                AddExerciseView { newExercise in
+                    if let userID = DIContainer.shared.authService.currentUserID {
+                        dailyLogService.exerciseLogStore.addExerciseToLog(for: userID, exercise: newExercise)
+                    }
+                }
+            }
             .sheet(isPresented: $showingRecipeListView) {
                 RecipeListView().environmentObject(recipeService)
             }
@@ -282,6 +291,7 @@ struct MainTabView: View {
     
     private func actionButton(title: String, subtitle: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: {
+            HapticsService.shared.playImpact(style: .light)
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 action()
             }
@@ -325,6 +335,9 @@ struct MainTabView: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(subtitle)
+        .accessibilityAddTraits(.isButton)
         .accessibilityHint("Opens \(title)")
     }
 }

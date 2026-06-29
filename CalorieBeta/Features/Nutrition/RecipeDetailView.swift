@@ -1,7 +1,4 @@
 import SwiftUI
-import FirebaseAuth
-import FirebaseFirestore
-
 struct RecipeDetailView: View {
     let recipe: Recipe
     @EnvironmentObject var recipeService: RecipeService
@@ -35,7 +32,7 @@ struct RecipeDetailView: View {
         .navigationTitle("Recipe")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingAddToLogSheet) {
-            if let _ = recipe.detailedIngredients {
+            if recipe.detailedIngredients != nil {
                 RecipeLoggingView(
                     recipe: recipe,
                     dailyLog: $dailyLogService.currentDailyLog,
@@ -67,10 +64,23 @@ private struct RecipeHeroCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-                .appFont(size: 38)
-                .frame(width: 68, height: 68)
-                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            if let imageURLString = recipe.imageURL, let url = URL(string: imageURLString) {
+                CachedAsyncImage(url: url) { image in
+                    image.resizable()
+                         .aspectRatio(contentMode: .fill)
+                         .frame(width: 68, height: 68)
+                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                } placeholder: {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 68, height: 68)
+                }
+            } else {
+                Text(FoodEmojiMapper.getEmoji(for: recipe.name))
+                    .appFont(size: 38)
+                    .frame(width: 68, height: 68)
+                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(recipe.name)
@@ -439,13 +449,13 @@ private struct AddRecipeToPlanSheet: View {
     }
 
     private func loadExistingPlan() async {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         existingPlan = await mealPlannerService.fetchPlan(for: selectedDate, userID: userID)
     }
 
     private func saveToPlan() {
         guard !isSaving else { return }
-        guard let userID = Auth.auth().currentUser?.uid else {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
             alertMessage = "You need to be signed in to update a meal plan."
             return
         }
@@ -481,7 +491,7 @@ private struct AddRecipeToPlanSheet: View {
 
     private func emptyPlan(for date: Date) -> MealPlanDay {
         let startOfDay = Calendar.current.startOfDay(for: date)
-        return MealPlanDay(id: mealPlanID(for: startOfDay), date: Timestamp(date: startOfDay), meals: [])
+        return MealPlanDay(id: mealPlanID(for: startOfDay), date: startOfDay, meals: [])
     }
 
     private func sortMeals(_ first: PlannedMeal, _ second: PlannedMeal) -> Bool {

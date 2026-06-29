@@ -1,5 +1,6 @@
+import MyFitPlateCore
+
 import SwiftUI
-import FirebaseAuth
 
 struct MuscleRecovery: Identifiable {
     var id: String { group.rawValue }
@@ -162,7 +163,7 @@ struct MuscleRecoveryMapView: View {
     }
     
     private func calculateRecovery() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let now = Date()
         let lookbackDays = 14
         let startDate = Calendar.current.date(byAdding: .day, value: -lookbackDays, to: now)!

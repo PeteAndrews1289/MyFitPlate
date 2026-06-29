@@ -1,4 +1,3 @@
-
 import SwiftUI
 
 struct AudioVisualizerView: View {

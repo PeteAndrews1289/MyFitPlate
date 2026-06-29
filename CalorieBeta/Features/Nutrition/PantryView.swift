@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct PantryView: View {
     @EnvironmentObject var pantryService: PantryService
@@ -19,8 +18,8 @@ struct PantryView: View {
             }
             .navigationTitle("Smart Pantry")
             .onAppear {
-                if let user = Auth.auth().currentUser {
-                    pantryService.startListening(userID: user.uid)
+                if let userID = DIContainer.shared.authService.currentUserID {
+                    pantryService.startListening(userID: userID)
                 }
             }
             .sheet(isPresented: $showingRecipeGeneration) {
@@ -105,7 +104,7 @@ struct PantryView: View {
     }
 
     private func addItem() {
-        guard let user = Auth.auth().currentUser else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let trimmed = trimmedNewItemName
         guard !trimmed.isEmpty else { return }
 
@@ -115,13 +114,13 @@ struct PantryView: View {
             unit: "item",
             category: IngredientCategoryMapper.groceryCategory(for: trimmed)
         )
-        pantryService.addOrUpdateItem(item, userID: user.uid)
+        pantryService.addOrUpdateItem(item, userID: userID)
         newItemName = ""
     }
 
     private func delete(_ item: PantryItem) {
-        guard let user = Auth.auth().currentUser else { return }
-        pantryService.deleteItem(item, userID: user.uid)
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        pantryService.deleteItem(item, userID: userID)
     }
 }
 
@@ -258,7 +257,7 @@ struct PantryRecipeGenerationView: View {
     }
 
     private func generateRecipe() {
-        guard let user = Auth.auth().currentUser else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         isGenerating = true
         errorMessage = nil
 
@@ -267,7 +266,7 @@ struct PantryRecipeGenerationView: View {
             .joined(separator: ", ")
 
         Task {
-            let recipes = await recipeService.createRecipesFromPantry(itemsString: items, userID: user.uid)
+            let recipes = await recipeService.createRecipesFromPantry(itemsString: items, userID: userID)
             await MainActor.run {
                 isGenerating = false
                 if recipes.isEmpty {
@@ -281,12 +280,12 @@ struct PantryRecipeGenerationView: View {
 
     private func save(_ recipe: Recipe) {
         guard savingName == nil, !savedNames.contains(recipe.name) else { return }
-        guard let user = Auth.auth().currentUser else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         savingName = recipe.name
         errorMessage = nil
         Task {
             do {
-                _ = try await recipeService.saveRecipe(recipe, for: user.uid)
+                _ = try await recipeService.saveRecipe(recipe, for: userID)
                 await MainActor.run {
                     savedNames.insert(recipe.name)
                     savingName = nil
@@ -301,17 +300,16 @@ struct PantryRecipeGenerationView: View {
     }
 }
 
-
 struct ReceiptScannerView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var pantryService: PantryService
     
-    @State private var capturedImage: UIImage? = nil
+    @State private var capturedImage: UIImage?
     @State private var showingCamera = false
-    @State private var scanningImage: UIImage? = nil
+    @State private var scanningImage: UIImage?
     @State private var isProcessing = false
     @State private var parsedItems: [PantryItem] = []
-    @State private var errorMessage: String? = nil
+    @State private var errorMessage: String?
     
     private let aiModel = MLImageModel()
     
@@ -450,7 +448,7 @@ struct ReceiptScannerView: View {
     }
     
     private func saveToPantry() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         for item in parsedItems {
             pantryService.addOrUpdateItem(item, userID: userID)
         }

@@ -1,4 +1,3 @@
-
 import SwiftUI
 
 struct PlateCalculatorView: View {
@@ -12,12 +11,10 @@ struct PlateCalculatorView: View {
         var plateCounts: [(Double, Int)] = []
         let standardPlates = [45.0, 25.0, 10.0, 5.0, 2.5]
         
-        for plate in standardPlates {
-            if remainingWeight >= plate {
-                let count = Int(remainingWeight / plate)
-                plateCounts.append((plate, count))
-                remainingWeight -= Double(count) * plate
-            }
+        for plate in standardPlates where remainingWeight >= plate {
+            let count = Int(remainingWeight / plate)
+            plateCounts.append((plate, count))
+            remainingWeight -= Double(count) * plate
         }
         return plateCounts
     }

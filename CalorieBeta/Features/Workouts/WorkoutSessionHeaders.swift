@@ -1,6 +1,4 @@
 import SwiftUI
-import FirebaseAuth
-import FirebaseFirestore
 import ActivityKit
 
 struct WorkoutSessionControlBar: View {
@@ -18,43 +16,14 @@ struct WorkoutSessionControlBar: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
-                HStack(spacing: 8) {
-                    Image(systemName: "timer")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(isAutoRestEnabled ? .accentPositive : Color(UIColor.secondaryLabel))
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Auto Rest")
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                        Text(isAutoRestEnabled ? "On after each set" : "Manual timer")
-                            .appFont(size: 10, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-
-                    Toggle("", isOn: $isAutoRestEnabled)
-                        .labelsHidden()
-                        .tint(.accentPositive)
-                }
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                Button(action: onPlateCalculator) {
-                    VStack(spacing: 4) {
-                        Image(systemName: "square.stack.3d.up.fill")
-                            .appFont(size: 15, weight: .bold)
-                        Text("Plates")
-                            .appFont(size: 11, weight: .bold)
-                    }
-                    .foregroundColor(.brandPrimary)
-                    .frame(width: 72, height: 58)
-                    .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-                .buttonStyle(.plain)
+                autoRestToggleView
+                plateCalculatorButton
             }
 
-            Button(action: onFinish) {
+            Button(action: {
+                HapticManager.instance.notification(.success)
+                onFinish()
+            }) {
                 HStack {
                     Label("Finish Workout", systemImage: "checkmark.seal.fill")
                     Spacer()
@@ -78,6 +47,47 @@ struct WorkoutSessionControlBar: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(Color.brandPrimary.opacity(0.08), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private var autoRestToggleView: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "timer")
+                .appFont(size: 12, weight: .bold)
+                .foregroundColor(isAutoRestEnabled ? .accentPositive : Color(UIColor.secondaryLabel))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Auto Rest")
+                    .appFont(size: 12, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Text(isAutoRestEnabled ? "On after each set" : "Manual timer")
+                    .appFont(size: 10, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            }
+
+            Toggle("", isOn: $isAutoRestEnabled)
+                .labelsHidden()
+                .tint(.accentPositive)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var plateCalculatorButton: some View {
+        Button(action: onPlateCalculator) {
+            VStack(spacing: 4) {
+                Image(systemName: "square.stack.3d.up.fill")
+                    .appFont(size: 15, weight: .bold)
+                Text("Plates")
+                    .appFont(size: 11, weight: .bold)
+            }
+            .foregroundColor(.brandPrimary)
+            .frame(width: 72, height: 58)
+            .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -213,4 +223,3 @@ struct WorkoutHeaderMetric: View {
         .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
-

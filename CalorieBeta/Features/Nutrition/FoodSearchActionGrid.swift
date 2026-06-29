@@ -136,4 +136,3 @@ struct YesterdayLogActions: View {
         .disabled(!isEnabled)
     }
 }
-

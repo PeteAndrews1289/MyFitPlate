@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 import Combine
 
 struct CommunityHubView: View {
@@ -103,7 +102,7 @@ struct CommunityHubView: View {
     }
 
     private func checkGroupMembership(groupID: String) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         Task {
             do {
                 let isMember = try await DIContainer.shared.groupRepository.checkGroupMembership(userID: userID, groupID: groupID)
@@ -148,7 +147,7 @@ struct CommunityHubView: View {
     }
 
     private func joinGroup(groupID: String) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         groupService.joinGroup(userID: userID, groupID: groupID) { error in
             if error != nil {
             } else {

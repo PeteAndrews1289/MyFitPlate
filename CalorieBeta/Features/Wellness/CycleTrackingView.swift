@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct CycleTrackingView: View {
@@ -119,4 +121,3 @@ struct CyclePhaseRingView: View {
         }
     }
 }
-

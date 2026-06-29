@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct MealPlannerView: View {
     @EnvironmentObject var mealPlannerService: MealPlannerService
@@ -399,7 +398,7 @@ struct MealPlannerView: View {
     }
 
     private func fetchPlan() {
-        guard let userID = Auth.auth().currentUser?.uid else { isLoading = false; return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { isLoading = false; return }
         let requestedDate = selectedDate
 
         if let cachedPlan = mealPlannerService.cachedPlan(for: requestedDate, userID: userID) {
@@ -423,7 +422,7 @@ struct MealPlannerView: View {
     }
 
     private func prefetchVisibleWeekIfNeeded() {
-        guard !didPrefetchVisibleWeek, let userID = Auth.auth().currentUser?.uid else { return }
+        guard !didPrefetchVisibleWeek, let userID = DIContainer.shared.authService.currentUserID else { return }
         didPrefetchVisibleWeek = true
 
         Task {
@@ -432,7 +431,7 @@ struct MealPlannerView: View {
     }
 
     private func refreshWeekOverview() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let dates = visibleWeekDates
 
         Task {
@@ -476,7 +475,7 @@ struct MealPlannerView: View {
     }
 
     private func log(meal: PlannedMeal) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
 
         if var foodItem = meal.foodItem {
             foodItem.timestamp = Date()
@@ -521,7 +520,7 @@ struct MealPlannerView: View {
     }
 
     private func logDay(plan: MealPlanDay) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
 
         let mealGroups: [(mealName: String, foodItems: [FoodItem])] = plan.meals.compactMap { meal in
             guard var foodItem = meal.foodItem else { return nil }
@@ -541,7 +540,7 @@ struct MealPlannerView: View {
     }
 
     private func delete(meal: PlannedMeal) {
-        guard let userID = Auth.auth().currentUser?.uid, var updatedPlan = planForSelectedDate else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID, var updatedPlan = planForSelectedDate else { return }
         updatedPlan.meals.removeAll { $0.id == meal.id }
         planForSelectedDate = updatedPlan
         updateWeekCache(with: updatedPlan, for: selectedDate)
@@ -554,7 +553,7 @@ struct MealPlannerView: View {
     }
 
     private func regenerate(meal: PlannedMeal) {
-        guard let userID = Auth.auth().currentUser?.uid, let currentPlan = planForSelectedDate else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID, let currentPlan = planForSelectedDate else { return }
 
         regeneratingMealID = meal.id
 
@@ -784,7 +783,7 @@ struct VisionRecipeResultsView: View {
     }
     
     private func logCurrentRecipe() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let recipe = recipes[currentIndex]
         let foodItem = FoodItem(
             id: UUID().uuidString,
@@ -794,9 +793,7 @@ struct VisionRecipeResultsView: View {
             carbs: recipe.carbs,
             fats: recipe.fats,
             servingSize: "1 Meal",
-            servingWeight: 0,
-            quantityValue: 1.0,
-            servingUnit: "Meal"
+            servingWeight: 0
         )
         
         dailyLogService.addFoodToLog(for: userID, date: Date(), mealName: "Lunch", foodItem: foodItem, source: "pantry_vision")

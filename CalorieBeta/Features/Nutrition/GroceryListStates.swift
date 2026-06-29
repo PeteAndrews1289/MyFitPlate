@@ -93,4 +93,3 @@ struct GroceryListEmptyState: View {
         .glassCard()
     }
 }
-

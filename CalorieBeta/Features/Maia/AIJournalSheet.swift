@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct AIJournalSheet: View {
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -9,7 +8,7 @@ struct AIJournalSheet: View {
     @State private var showingAddJournalView = false
 
     private func deleteJournalEntry(at offsets: IndexSet) {
-        guard let userID = Auth.auth().currentUser?.uid,
+        guard let userID = DIContainer.shared.authService.currentUserID,
                 let allEntries = dailyLogService.currentDailyLog?.journalEntries else { return }
         
         let entriesToDelete = offsets.map { allEntries[$0] }
@@ -131,7 +130,7 @@ struct JournalView: View {
     }
     
     private func saveEntry() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let newEntry = JournalEntry(
             date: Date(),
             text: entryText,

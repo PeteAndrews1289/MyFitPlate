@@ -124,8 +124,8 @@ final class GroceryListBuilderTests: XCTestCase {
 
     private func makeDay(ingredients: [String]) -> MealPlanDay {
         MealPlanDay(
-            id: "test-day",
-            date: Timestamp(date: Date(timeIntervalSince1970: 0)),
+            id: "plan1",
+            date: Date(timeIntervalSince1970: 0),
             meals: [
                 PlannedMeal(
                     id: UUID().uuidString,

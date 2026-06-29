@@ -1,6 +1,4 @@
 import SwiftUI
-import FirebaseAuth
-import FirebaseFirestore
 import ActivityKit
 
 class TotalWorkoutTimer: ObservableObject {
@@ -117,4 +115,3 @@ class RestTimer: ObservableObject {
         return String(format: "%02i:%02i", minutes, seconds)
     }
 }
-

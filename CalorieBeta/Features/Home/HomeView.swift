@@ -1,5 +1,6 @@
+import MyFitPlateCore
+
 import SwiftUI
-import FirebaseAuth
 import Charts
 
 struct HomeView: View {
@@ -30,11 +31,11 @@ struct HomeView: View {
     @State private var showingDetailedInsights = false
     @State private var showingNutritionAudit = false
 
-    @State private var exerciseToEdit: LoggedExercise? = nil
+    @State private var exerciseToEdit: LoggedExercise?
     @State private var showingEditExerciseView = false
     @State private var weeklyInsight: UserInsight?
 
-    @State private var mealSuggestion: MealSuggestion? = nil
+    @State private var mealSuggestion: MealSuggestion?
     @State private var showingSuggestionDetail = false
     @State private var showingSuggestionPreferences = false
 
@@ -167,12 +168,12 @@ struct HomeView: View {
                     }
                     .scrollBounceBehavior(.basedOnSize, axes: .vertical)
                     .onAppear {
-                        if let userId = Auth.auth().currentUser?.uid {
+                        if let userId = DIContainer.shared.authService.currentUserID {
                             dailyLogService.loadSmartSuggestions(for: userId)
                         }
                     }
                     .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
-                        if isLoggedIn, let userId = Auth.auth().currentUser?.uid {
+                        if isLoggedIn, let userId = DIContainer.shared.authService.currentUserID {
                             dailyLogService.loadSmartSuggestions(for: userId)
                         } else {
                             dailyLogService.smartSuggestions = []
@@ -297,14 +298,14 @@ struct HomeView: View {
           }
           .sheet(isPresented: $showingAddExerciseView) {
               AddExerciseView { newExercise in
-                  if let userID = Auth.auth().currentUser?.uid {
+                  if let userID = DIContainer.shared.authService.currentUserID {
                       self.dailyLogService.exerciseLogStore.addExerciseToLog(for: userID, exercise: newExercise)
                   }
               }
           }
           .sheet(item: $exerciseToEdit) { exerciseToEdit in
               AddExerciseView(exerciseToEdit: exerciseToEdit) { updatedExercise in
-                  if let userID = Auth.auth().currentUser?.uid {
+                  if let userID = DIContainer.shared.authService.currentUserID {
                       self.dailyLogService.exerciseLogStore.deleteExerciseFromLog(for: userID, exerciseID: exerciseToEdit.id)
                       self.dailyLogService.exerciseLogStore.addExerciseToLog(for: userID, exercise: updatedExercise)
                   }
@@ -374,7 +375,7 @@ struct HomeView: View {
             // Adaptive TDEE loop: proactively recompute the metabolism estimate (throttled to once
             // per day) so the weekly check-in can fire on Home without requiring a Reports visit.
             if goalSettings.calorieGoalMethod == .dynamicTDEE,
-               let userID = Auth.auth().currentUser?.uid {
+               let userID = DIContainer.shared.authService.currentUserID {
                 Task {
                     await adaptiveGoalService.fetchAndCalculateIfNeeded(
                         userID: userID,
@@ -527,29 +528,13 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     private func logMealSuggestion(_ suggestion: MealSuggestion) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
 
         let foodItem = FoodItem(
             id: UUID().uuidString,
             name: suggestion.mealName,
-            calories: suggestion.calories,
+            calories: Double(suggestion.calories),
             protein: suggestion.protein,
             carbs: suggestion.carbs,
             fats: suggestion.fats,
@@ -566,7 +551,7 @@ struct HomeView: View {
     }
 
     private func fetchLogForSelectedDate(completion: @escaping () -> Void = {}) {
-            guard let userID = Auth.auth().currentUser?.uid else {
+            guard let userID = DIContainer.shared.authService.currentUserID else {
                 completion()
                 return
             }
@@ -587,12 +572,12 @@ struct HomeView: View {
     }
 
     private func deleteFood(byID foodItemID: String) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         dailyLogService.deleteFoodFromCurrentLog(for: userID, foodItemID: foodItemID)
     }
 
     private func repeatYesterdayMeals() {
-        guard let userID = Auth.auth().currentUser?.uid,
+        guard let userID = DIContainer.shared.authService.currentUserID,
               let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) else {
             return
         }
@@ -602,7 +587,7 @@ struct HomeView: View {
     }
 
     private func deleteExercise(byID exerciseID: String) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         dailyLogService.exerciseLogStore.deleteExerciseFromLog(for: userID, exerciseID: exerciseID)
     }
 

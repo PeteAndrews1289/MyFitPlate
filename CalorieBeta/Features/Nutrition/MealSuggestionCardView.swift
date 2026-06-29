@@ -1,19 +1,6 @@
 import SwiftUI
 
-struct MealSuggestion: Codable, Equatable, Identifiable {
-    var id = UUID()
-    let mealName: String
-    let calories: Double
-    let protein: Double
-    let carbs: Double
-    let fats: Double
-    let ingredients: [String]
-    let instructions: String
-    
-    enum CodingKeys: String, CodingKey {
-        case mealName, calories, protein, carbs, fats, ingredients, instructions
-    }
-}
+import MyFitPlateCore
 
 struct MealSuggestionCardView: View {
     let suggestion: MealSuggestion?

@@ -7,7 +7,7 @@ struct ManualGroceryItemSheet: View {
     @State private var unit = "item"
     @State private var category = "Misc"
 
-    var initialItem: GroceryListItem? = nil
+    var initialItem: GroceryListItem?
     let onAdd: (GroceryListItem) -> Void
 
     private let categories = ["Produce", "Protein", "Carbohydrates", "Dairy", "Pantry", "Misc"]
@@ -30,27 +30,7 @@ struct ManualGroceryItemSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "cart.badge.plus")
-                                .appFont(size: 18, weight: .bold)
-                                .foregroundColor(.brandPrimary)
-                                .frame(width: 42, height: 42)
-                                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(initialItem == nil ? "Add Grocery Item" : "Edit Grocery Item")
-                                    .appFont(size: 24, weight: .bold)
-                                    .foregroundColor(.textPrimary)
-
-                                Text(initialItem == nil ? "Add anything you need outside the generated meal plan." : "Update this item's details.")
-                                    .appFont(size: 13, weight: .medium)
-                                    .foregroundColor(Color(UIColor.secondaryLabel))
-                            }
-                        }
-                    }
-                    .padding(18)
-                    .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    headerCard
 
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Item")
@@ -91,21 +71,7 @@ struct ManualGroceryItemSheet: View {
 
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                             ForEach(categories, id: \.self) { option in
-                                Button {
-                                    category = option
-                                    HapticManager.instance.feedback(.light)
-                                } label: {
-                                    Text(option)
-                                        .appFont(size: 13, weight: .bold)
-                                        .foregroundColor(category == option ? .brandPrimary : Color(UIColor.secondaryLabel))
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 11)
-                                        .background(
-                                            category == option ? Color.brandPrimary.opacity(0.14) : Color.backgroundPrimary.opacity(0.58),
-                                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        )
-                                }
-                                .buttonStyle(.plain)
+                                categoryButton(for: option)
                             }
                         }
                     }
@@ -163,5 +129,51 @@ struct ManualGroceryItemSheet: View {
             }
         }
     }
-}
 
+    @ViewBuilder
+    private func categoryButton(for option: String) -> some View {
+        let isSelected = (category == option)
+        let fgColor: Color = isSelected ? Color.brandPrimary : Color(UIColor.secondaryLabel)
+        let bgSelection = Color.brandPrimary.opacity(0.14)
+        let bgDefault = Color.backgroundPrimary.opacity(0.58)
+        let bgColor: Color = isSelected ? bgSelection : bgDefault
+        
+        Button {
+            category = option
+            HapticManager.instance.feedback(.light)
+        } label: {
+            Text(option)
+                .appFont(size: 13, weight: .bold)
+                .foregroundColor(fgColor)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .background(bgColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var headerCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "cart.badge.plus")
+                    .appFont(size: 18, weight: .bold)
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(initialItem == nil ? "Add Grocery Item" : "Edit Grocery Item")
+                        .appFont(size: 24, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text(initialItem == nil ? "Add anything you need outside the generated meal plan." : "Update this item's details.")
+                        .appFont(size: 13, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+            }
+        }
+        .padding(18)
+        .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}

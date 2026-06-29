@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 // This view serves as the initial loading screen for the "CalorieBeta" app, displaying a logo
 // and progress indicator while data is loaded, with error handling for authentication issues.
@@ -52,7 +51,7 @@ struct LandingPageView: View {
 
     // Loads initial data, checking authentication status and triggering further loading if needed.
     private func loadData() {
-        guard Auth.auth().currentUser?.uid != nil else { // Checks if a user is authenticated.
+        guard DIContainer.shared.authService.currentUserID != nil else { // Checks if a user is authenticated.
             errorMessage = "User not authenticated. Please log in." // Sets error if no user.
             return
         }

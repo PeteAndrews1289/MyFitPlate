@@ -1,6 +1,6 @@
-import SwiftUI
-import FirebaseFirestore
+import MyFitPlateCore
 
+import SwiftUI
 // MARK: - Program slot math (shared by the slider and the program calendar)
 
 extension WorkoutProgram {

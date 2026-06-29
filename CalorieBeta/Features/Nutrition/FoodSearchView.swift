@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct FoodSearchView: View {
     @Binding var dailyLog: DailyLog?
@@ -19,14 +18,14 @@ struct FoodSearchView: View {
     @State private var showingMenuImagePicker = false
     @State private var showingAITextLog = false
 
-    @State private var selectedFoodItem: FoodItem? = nil
+    @State private var selectedFoodItem: FoodItem?
     @State private var selectedFoodSource: String = "search_result"
 
     @State private var isProcessingImage = false
     @State private var isSearchingAfterScan = false
-    @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems? = nil
-    @State private var estimatedMenuWrapper: IdentifiableFoodItems? = nil
-    @State private var scannedFoodItem: FoodItem? = nil
+    @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems?
+    @State private var estimatedMenuWrapper: IdentifiableFoodItems?
+    @State private var scannedFoodItem: FoodItem?
     @State private var scanError: (Bool, String) = (false, "")
 
     private let foodAPIService = FatSecretFoodAPIService()
@@ -57,7 +56,7 @@ struct FoodSearchView: View {
                     viewModel.fetchData()
                 }
                 .onChange(of: viewModel.selectedMeal) { _, _ in
-                    if let userID = Auth.auth().currentUser?.uid {
+                    if let userID = DIContainer.shared.authService.currentUserID {
                         viewModel.fetchRecommendedFoods(userID: userID)
                         viewModel.fetchYesterdayMeal(userID: userID)
                     }
@@ -85,7 +84,7 @@ struct FoodSearchView: View {
                     BarcodeScannerView { barcode in
                         self.showingBarcodeScanner = false
                         self.isSearchingAfterScan = true
-                        AnalyticsManager.log(.barcodeScanned)
+                        DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                         Task { @MainActor in
                             if let item = await withCheckedContinuation({ cont in
                                 foodAPIService.fetchFoodByBarcode(barcode: barcode) { cont.resume(returning: try? $0.get()) }
@@ -106,7 +105,7 @@ struct FoodSearchView: View {
                 }
                 .imageSourceDialog(isPresented: $showingImagePicker) { image in
                     self.isProcessingImage = true
-                    AnalyticsManager.aiFeatureUsed(.mealPhoto)
+                    DIContainer.shared.analyticsManager.aiFeatureUsed(.mealPhoto)
                     imageModel.estimateNutritionFromImage(image: image) { result in
                         self.isProcessingImage = false
                         switch result {
@@ -120,7 +119,7 @@ struct FoodSearchView: View {
                 .sheet(isPresented: $showingMenuImagePicker) {
                     ImagePicker(sourceType: .camera) { image in
                         self.isProcessingImage = true
-                        AnalyticsManager.aiFeatureUsed(.menuPhoto)
+                        DIContainer.shared.analyticsManager.aiFeatureUsed(.menuPhoto)
                         imageModel.estimateMenuFromImage(image: image) { result in
                             self.isProcessingImage = false
                             switch result {
@@ -357,4 +356,3 @@ struct FoodSearchView: View {
         viewModel.recentFoods.removeAll { $0.id == food.id }
     }
 }
-

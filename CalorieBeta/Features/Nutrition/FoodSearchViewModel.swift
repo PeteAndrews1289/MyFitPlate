@@ -1,6 +1,5 @@
 import SwiftUI
 import Combine
-import FirebaseAuth
 
 @MainActor
 class FoodSearchViewModel: ObservableObject {
@@ -9,7 +8,7 @@ class FoodSearchViewModel: ObservableObject {
     
     @Published var searchResults: [FoodItem] = []
     @Published var isLoading = false
-    @Published var searchErrorMessage: String? = nil
+    @Published var searchErrorMessage: String?
     @Published var activeSearchQuery = ""
     @Published var quickLoggedFoodIDs: Set<String> = []
     
@@ -18,7 +17,7 @@ class FoodSearchViewModel: ObservableObject {
     @Published var recommendedFoods: [FoodItem] = []
     
     @Published var yesterdaysMealItems: [FoodItem] = []
-    @Published var yesterdaysLog: DailyLog? = nil
+    @Published var yesterdaysLog: DailyLog?
     @Published var isFetchingYesterday = false
 
     var isSearching: Bool {
@@ -91,7 +90,7 @@ class FoodSearchViewModel: ObservableObject {
     }
 
     func fetchData() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         fetchSavedFoods(userID: userID)
         fetchRecents(userID: userID)
         fetchRecommendedFoods(userID: userID)
@@ -154,7 +153,7 @@ class FoodSearchViewModel: ObservableObject {
 
     func quickLog(food: FoodItem) {
         guard let service = dailyLogService else { return }
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let sourceFoodID = food.id
         var itemToLog = food
         itemToLog.id = UUID().uuidString
@@ -175,7 +174,7 @@ class FoodSearchViewModel: ObservableObject {
 
     func logYesterdayMeal() {
         guard let service = dailyLogService else { return }
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         guard !yesterdaysMealItems.isEmpty else { return }
 
         var itemsToLog = yesterdaysMealItems
@@ -196,7 +195,7 @@ class FoodSearchViewModel: ObservableObject {
 
     func logYesterdayDay() {
         guard let service = dailyLogService else { return }
-        guard let userID = Auth.auth().currentUser?.uid,
+        guard let userID = DIContainer.shared.authService.currentUserID,
               let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: service.activelyViewedDate),
               !yesterdaysDayItems.isEmpty else {
             return

@@ -1,6 +1,6 @@
+import MyFitPlateCore
 
 import SwiftUI
-import FirebaseAuth
 
 struct WorkoutRoutinesView: View {
     @StateObject private var workoutService = WorkoutService()
@@ -19,8 +19,6 @@ struct WorkoutRoutinesView: View {
         GridItem(.flexible(), spacing: 12),
         GridItem(.flexible(), spacing: 12)
     ]
-
-
 
     var body: some View {
         NavigationStack {
@@ -205,8 +203,6 @@ struct WorkoutRoutinesView: View {
             }
         }
     }
-
-
 
     @ViewBuilder
     private func routineRow(_ routine: WorkoutRoutine) -> some View {

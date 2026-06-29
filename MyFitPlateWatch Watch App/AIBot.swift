@@ -12,7 +12,7 @@ struct AIBot: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView{
+            ScrollView {
                 VStack(spacing: 12) {
                     Text("Recipe Bot")
                         .font(.title3)
@@ -50,13 +50,11 @@ struct AIBot: View {
                         }
                     }
                     
-                    
                     Spacer()
                 }
             }
         }
     }
-    
     
     func speak(_ text: String) {
         if synthesizer.isSpeaking {
@@ -68,15 +66,13 @@ struct AIBot: View {
         synthesizer.speak(utterance)
     }
     
-
-    func dictation(){
+    func dictation() {
         WKExtension.shared().visibleInterfaceController?.presentTextInputController(
             withSuggestions: nil,
             allowedInputMode: .plain
-        ) {
-            result in
+        ) { result in
             if let response = result as? [String], let first = response.first {
-                DispatchQueue.main.async{
+                DispatchQueue.main.async {
                     userInput = first
                     sendMessage()
                 }
@@ -87,7 +83,6 @@ struct AIBot: View {
     func sendMessage() {
         guard let apiKey = getAPIKey(),
               let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=\(apiKey)") else { return }
-
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -123,7 +118,6 @@ struct AIBot: View {
                          Carbs: W g
                          Replace X, Y, Z, and W with the numerical values (e.g., Calories: 350 kcal). Do not include any additional text or units after the numbers.
                          """],
-                         
                          
                         ["text": userInput]
                     ]
@@ -162,7 +156,6 @@ struct AIBot: View {
 
     }
 
-
     func getAPIKey() -> String? {
         if let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
            let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
@@ -185,7 +178,6 @@ struct GeminiResponse: Codable {
     }
     let candidates: [Candidate]
 }
-
 
 #Preview {
 AIBot()

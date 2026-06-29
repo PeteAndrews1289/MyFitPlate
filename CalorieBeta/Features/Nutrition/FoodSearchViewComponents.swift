@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAnalytics
 
 struct FoodSearchRow: View {
     let food: FoodItem

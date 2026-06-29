@@ -1,7 +1,4 @@
-
-
 import SwiftUI
-import FirebaseAuth
 
 struct AITextResultsView: View {
     @Environment(\.dismiss) var dismiss
@@ -89,7 +86,7 @@ struct AITextResultsView: View {
     }
     
     private func logAllItems() {
-        guard let userID = Auth.auth().currentUser?.uid, !foodItems.isEmpty else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID, !foodItems.isEmpty else { return }
         
         let mealName = "AI Quick Log"
         dailyLogService.addMealToCurrentLog(for: userID, mealName: mealName, foodItems: foodItems)

@@ -45,10 +45,3 @@ struct NotificationBanner: View {
         .animation(.easeInOut, value: banner)
     }
 }
-
-struct BannerData: Equatable {
-    var title: String
-    var message: String
-    var iconName: String = "checkmark.circle.fill"
-    var iconColor: Color = .green
-}

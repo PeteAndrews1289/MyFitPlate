@@ -45,7 +45,6 @@ VStack(alignment: .leading, spacing: 16) {
 }
 }
 
-
 struct HomeFoodDiarySection: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @Environment(\.colorScheme) var colorScheme
@@ -76,7 +75,6 @@ VStack(alignment: .leading, spacing: 14) {
                 }
 
                 Spacer()
-
 
             }
 

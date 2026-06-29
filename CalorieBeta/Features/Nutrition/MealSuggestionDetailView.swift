@@ -1,6 +1,4 @@
-
 import SwiftUI
-import FirebaseAuth
 
 struct MealSuggestionDetailView: View {
     @EnvironmentObject var dailyLogService: DailyLogService

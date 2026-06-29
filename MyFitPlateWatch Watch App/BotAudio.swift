@@ -5,9 +5,9 @@
 ////  Created by Omar Sabeha on 6/12/25.
 ////
 //
-//import SwiftUI
+// import SwiftUI
 //
-//struct BotAudio: View {
+// struct BotAudio: View {
 //    @State private var barHeights: [CGFloat] = [30, 50, 40, 60]
 //    @State private var isAnimating = false
 //    
@@ -37,11 +37,11 @@
 //            }
 //        }
 //    }
-//}
+// }
 //
-//#Preview {
+// #Preview {
 //    ZStack {
 //        Color.black.ignoresSafeArea()
 //        BotAudio()
 //    }
-//}
+// }

@@ -1,6 +1,7 @@
+import MyFitPlateCore
+
 import SwiftUI
 import Firebase
-import FirebaseAuth
 import FirebaseAppCheck
 import FirebaseCrashlytics
 import WatchConnectivity
@@ -47,7 +48,7 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         guard session.activationState == .activated else { return }
         guard session.isPaired && session.isWatchAppInstalled else { return }
         
-        let context: [String : Any] = [
+        let context: [String: Any] = [
             "goalCal": goalCal, "userCal": userCal,
             "userProt": userProt, "totalProt": totalProt,
             "userCarb": userCarb, "totalCarb": totalCarb,
@@ -96,12 +97,61 @@ struct CalorieBetaApp: App {
         // App Check factory must be set BEFORE configure().
         FirebaseApp.configure()
         
+        let isUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")
+        
+        if isUITesting {
+            let mockAuth = MockAuthService()
+            let mockDb = MockDatabaseService()
+            let mockCloud = MockCloudFunctionService()
+            DIContainer.shared.configure(
+                authService: mockAuth,
+                databaseService: mockDb,
+                nutritionRepository: MockNutritionRepository(),
+                workoutRepository: MockWorkoutRepository(),
+                groupRepository: MockGroupRepository(),
+                achievementRepository: MockAchievementRepository(),
+                settingsRepository: MockSettingsRepository(),
+                reportsRepository: MockReportsRepository(),
+                postRepository: MockPostRepository(),
+                cloudFunctionService: mockCloud,
+                accountDeletionService: MockAccountDeletionService(),
+                analyticsManager: MockAnalyticsManager(),
+                crashManager: MockCrashManager(),
+                featureFlagService: FeatureFlagService(),
+                aiService: MockAIService()
+            )
+        } else {
+            let auth = FirebaseAuthService()
+            let db = FirestoreDatabaseService()
+            let cloud = FirebaseCloudFunctionService()
+            DIContainer.shared.configure(
+                authService: auth,
+                databaseService: db,
+                nutritionRepository: FirestoreNutritionRepository(),
+                workoutRepository: FirestoreWorkoutRepository(),
+                groupRepository: FirestoreGroupRepository(),
+                achievementRepository: FirestoreAchievementRepository(),
+                settingsRepository: FirestoreSettingsRepository(),
+                reportsRepository: FirestoreReportsRepository(),
+                postRepository: FirestorePostRepository(),
+                cloudFunctionService: cloud,
+                accountDeletionService: AccountDeletionService(authService: auth, databaseService: db, cloudFunctionService: cloud),
+                analyticsManager: FirebaseAnalyticsManager(),
+                crashManager: FirebaseCrashManager(),
+                featureFlagService: FeatureFlagService(),
+                aiService: AIService.shared
+            )
+        }
+        
         // Reference Crashlytics so the linker keeps it (it's otherwise never imported) and crash
         // capture stays live from launch; the custom key tags every report with the build version.
         Crashlytics.crashlytics().setCustomValue(
             Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
             forKey: "app_version"
         )
+        Task { @MainActor in
+            await DIContainer.shared.featureFlagService.refresh()
+        }
 
         let bannerSvc = BannerService()
         let logService = DailyLogService()
@@ -161,6 +211,7 @@ struct CalorieBetaApp: App {
                 .environmentObject(cycleService)
                 .environmentObject(adaptiveGoalService)
                 .environmentObject(pantryService)
+                .environmentObject(AppCoordinator.shared)
                 .preferredColorScheme(appState.isDarkModeEnabled ? .dark : .light)
         }
     }
@@ -180,6 +231,10 @@ struct ContentView: View {
     @State private var isLoadingUserState = true
     @State private var shouldShowOnboardingSurvey = false
     @State private var shouldShowFeatureTour = false
+
+    private var currentUserID: String? {
+        DIContainer.shared.authService.currentUserID
+    }
 
     var body: some View {
         ZStack {
@@ -205,8 +260,12 @@ struct ContentView: View {
             
             NotificationBanner(banner: $bannerService.currentBanner)
         }
+        .withGlobalToast()
         .sheet(isPresented: $shouldShowFeatureTour) {
             FeatureTourView(isPresented: $shouldShowFeatureTour)
+        }
+        .onOpenURL { url in
+            AppCoordinator.shared.handle(url: url, appState: appState)
         }
     }
     private func scheduleBackgroundNudge() {
@@ -295,7 +354,7 @@ struct ContentView: View {
     /// Logs water queued by the home-screen widget's button while the app was backgrounded, then
     /// clears the pending value so it's applied exactly once.
     private func drainPendingWidgetWater() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = currentUserID else { return }
         let pending = SharedDataManager.shared.getAndClearPendingWater()
         guard pending > 0 else { return }
         dailyLogService.addWaterToCurrentLog(for: userID, amount: pending, goalOunces: goalSettings.waterGoal)
@@ -303,7 +362,7 @@ struct ContentView: View {
     }
     
     private func handleOnboardingComplete() {
-        if let userID = Auth.auth().currentUser?.uid {
+        if let userID = currentUserID {
             goalSettings.updateUserAsOnboarded(userID: userID)
         }
         self.shouldShowOnboardingSurvey = false
@@ -330,8 +389,8 @@ struct ContentView: View {
             }
             return
         }
-        if let currentUser = Auth.auth().currentUser {
-             checkFirstLogin(userID: currentUser.uid) { isFirstLogin in
+        if let userID = currentUserID {
+             checkFirstLogin(userID: userID) { isFirstLogin in
                  DispatchQueue.main.async {
                      self.shouldShowOnboardingSurvey = isFirstLogin
                      self.isLoadingUserState = false
@@ -360,7 +419,7 @@ struct ContentView: View {
     private func loadMainUserData() {
         guard appState.isUserLoggedIn, !shouldShowOnboardingSurvey, !isLoadingUserState else { return }
         
-        if let userID = Auth.auth().currentUser?.uid {
+        if let userID = currentUserID {
             pantryService.startListening(userID: userID)
             goalSettings.loadUserGoals(userID: userID) {
                 self.sendNutritionToWatchIfNeeded()

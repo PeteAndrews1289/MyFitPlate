@@ -1,7 +1,9 @@
+#if canImport(ActivityKit)
 import ActivityKit
 import WidgetKit
 import SwiftUI
 import AppIntents
+import MyFitPlateCore
 
 struct WorkoutActivityWidget: Widget {
     var body: some WidgetConfiguration {
@@ -142,3 +144,5 @@ struct WorkoutActivityWidget: Widget {
         }
     }
 }
+
+#endif

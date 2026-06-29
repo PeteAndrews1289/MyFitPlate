@@ -1,6 +1,6 @@
+import MyFitPlateCore
 
 import SwiftUI
-import FirebaseAuth
 
 struct WorkoutHistoryView: View {
     @StateObject var analyticsService = WorkoutAnalyticsService()
@@ -59,7 +59,7 @@ struct WorkoutHistoryView: View {
         .background(Color.backgroundPrimary)
         .onAppear {
             if logs.isEmpty {
-                guard let uid = Auth.auth().currentUser?.uid else { return }
+                guard let uid = DIContainer.shared.authService.currentUserID else { return }
                 Task {
                     self.logs = await analyticsService.fetchWorkoutHistory(userID: uid, limit: 50)
                     self.isLoading = false

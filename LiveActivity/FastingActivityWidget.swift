@@ -1,3 +1,4 @@
+#if canImport(ActivityKit)
 import ActivityKit
 import WidgetKit
 import SwiftUI
@@ -115,3 +116,5 @@ struct FastingActivityWidget: Widget {
         }
     }
 }
+
+#endif

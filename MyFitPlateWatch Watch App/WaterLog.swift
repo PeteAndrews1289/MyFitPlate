@@ -97,7 +97,7 @@ struct WaterBottleView: View {
             let bottleWidth = minSide * 0.5
             let bottleHeight = minSide * 1.0
             ScrollView {
-                VStack(spacing: 10){
+                VStack(spacing: 10) {
                     ZStack {
                         // Bottle Outline
                         WaterLog()
@@ -137,8 +137,7 @@ struct WaterBottleView: View {
                         isHapticFeedbackEnabled: true
                     )
                     
-                    
-                    ZStack{
+                    ZStack {
                         //                    Rectangle()
                         //                        .fill(Color.gray.opacity(0.6))
                         //                        .cornerRadius(20)
@@ -163,18 +162,17 @@ struct WaterBottleView: View {
             }
         }
         .sheet(isPresented: $showingSheet) {
-            editWaterGoal()
+            EditWaterGoal()
         }
-        
         
         .padding()
     }
 }
 
-struct editWaterGoal: View {
+struct EditWaterGoal: View {
     @EnvironmentObject var appDelegate: AppDelegate
     var body: some View {
-        VStack{
+        VStack {
             Text("\(appDelegate.goalWater) oz")
                 .digitalCrownRotation(
                             Binding(
@@ -195,7 +193,6 @@ struct editWaterGoal: View {
        
     }
 }
-
 
 #Preview {
     WaterBottleView()

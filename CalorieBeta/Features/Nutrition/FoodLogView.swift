@@ -1,6 +1,4 @@
 import SwiftUI
-import FirebaseFirestore
-
 // This view displays a log of meals and their associated food items, showing nutritional details.
 // It is designed to be reusable and is typically used to present a summary of consumed food.
 struct FoodLogView: View {

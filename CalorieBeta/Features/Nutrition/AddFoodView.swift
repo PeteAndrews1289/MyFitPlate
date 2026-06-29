@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct AddFoodView: View {
     // New arguments for Smart Serving logic
@@ -9,7 +8,7 @@ struct AddFoodView: View {
     var source: String = "manual"
     var targetMealName: String?
     var onLogUpdated: () -> Void
-    var onUpdate: ((FoodItem) -> Void)? = nil
+    var onUpdate: ((FoodItem) -> Void)?
 
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -26,10 +25,10 @@ struct AddFoodView: View {
     @State private var servingSizeText: String
     @State private var servingWeightText: String
     @State private var availableServings: [ServingSizeOption] = []
-    @State private var selectedServingID: UUID? = nil
+    @State private var selectedServingID: UUID?
     @State private var quantity: String = "1"
     @State private var isLoadingDetails: Bool = false
-    @State private var errorLoading: String? = nil
+    @State private var errorLoading: String?
 
     @State private var isLoggedItem: Bool
     @State private var baseLoggedItemNutrientsPerUnit: ServingSizeOption?
@@ -264,7 +263,7 @@ struct AddFoodView: View {
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(sourceType: .camera) { image in
                 isProcessingLabel = true
-                AnalyticsManager.aiFeatureUsed(.nutritionLabel)
+                DIContainer.shared.analyticsManager.log(.aiFeatureUsed, ["feature": AIFeature.nutritionLabel.rawValue])
                 imageModel.parseNutritionLabel(from: image) { result in
                     isProcessingLabel = false
                     switch result {
@@ -454,7 +453,7 @@ struct AddFoodView: View {
                     let parsed = self.parseQuantityFromServing(self.initialFoodItem.servingSize)
                     let targetDescription = self.initialFoodItem.servingUnit ?? parsed.baseDesc
 
-                    var matchedServing: ServingSizeOption? = nil
+                    var matchedServing: ServingSizeOption?
                     if !targetDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         matchedServing = self.availableServings.first { option in
                             option.description.localizedCaseInsensitiveCompare(targetDescription) == .orderedSame ||
@@ -487,7 +486,7 @@ struct AddFoodView: View {
     }
 
     private func logAdjustedFood() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let n = adjustedNutrients
 
         let rawItemToLog = FoodItem(
@@ -498,9 +497,7 @@ struct AddFoodView: View {
             calcium: n.calcium, iron: n.iron, potassium: n.potassium, sodium: n.sodium,
             vitaminA: n.vitaminA, vitaminC: n.vitaminC, vitaminD: n.vitaminD, vitaminB12: n.vitaminB12, folate: n.folate,
             magnesium: n.magnesium, phosphorus: n.phosphorus, zinc: n.zinc, copper: n.copper, manganese: n.manganese, selenium: n.selenium,
-            vitaminB1: n.vitaminB1, vitaminB2: n.vitaminB2, vitaminB3: n.vitaminB3, vitaminB5: n.vitaminB5, vitaminB6: n.vitaminB6, vitaminE: n.vitaminE, vitaminK: n.vitaminK,
-            quantityValue: n.quantityValue,
-            servingUnit: n.servingUnit
+            vitaminB1: n.vitaminB1, vitaminB2: n.vitaminB2, vitaminB3: n.vitaminB3, vitaminB5: n.vitaminB5, vitaminB6: n.vitaminB6, vitaminE: n.vitaminE, vitaminK: n.vitaminK
         )
         let itemToLog = rawItemToLog.normalizedForEstimatedSource(source)
 
@@ -519,6 +516,7 @@ struct AddFoodView: View {
         } else {
             dailyLogService.addFoodToCurrentLog(for: userID, foodItem: itemToLog, source: source)
         }
+        HapticManager.instance.feedback(.medium)
         onLogUpdated()
         dismiss()
     }
@@ -528,7 +526,7 @@ struct AddFoodView: View {
         if isSavedAsCustom { unsaveCustomFood() } else { saveAsCustomFood() }
     }
     private func saveAsCustomFood() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let n = adjustedNutrients
         let rawItemToSave = FoodItem(
             id: customFoodForAction?.id ?? UUID().uuidString,
@@ -565,9 +563,7 @@ struct AddFoodView: View {
             vitaminB5: n.vitaminB5,
             vitaminB6: n.vitaminB6,
             vitaminE: n.vitaminE,
-            vitaminK: n.vitaminK,
-            quantityValue: n.quantityValue,
-            servingUnit: n.servingUnit
+            vitaminK: n.vitaminK
         )
         let itemToSave = rawItemToSave.normalizedForEstimatedSource(source)
         dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
@@ -579,13 +575,13 @@ struct AddFoodView: View {
         }
     }
     private func unsaveCustomFood() {
-        guard let userID = Auth.auth().currentUser?.uid, let id = customFoodForAction?.id else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID, let id = customFoodForAction?.id else { return }
         dailyLogService.customFoodStore.deleteCustomFood(for: userID, foodItemID: id) { success in
             if success { isSavedAsCustom = false; bannerService.showBanner(title: "Removed", message: "Removed from My Foods") }
         }
     }
     private func checkIfSaved() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         dailyLogService.customFoodStore.fetchMyFoodItems(for: userID) { result in
             DispatchQueue.main.async {
                 if case .success(let items) = result, let match = items.first(where: { $0.name == foodName }) {
@@ -662,7 +658,7 @@ private struct ManualFoodTextInput: View {
     let keyboardType: UIKeyboardType
     let icon: String
     let color: Color
-    var unit: String? = nil
+    var unit: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

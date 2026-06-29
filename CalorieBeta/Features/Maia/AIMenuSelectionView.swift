@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct AIMenuSelectionView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -99,7 +98,7 @@ struct AIMenuSelectionView: View {
     }
     
     private func logSelectedItems() {
-        guard let userID = Auth.auth().currentUser?.uid, let items = estimatedItems else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID, let items = estimatedItems else { return }
         
         let selectedItems = items.filter { selectedItemIDs.contains($0.id) }
         guard !selectedItems.isEmpty else { return }

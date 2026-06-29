@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct AISummaryView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -82,7 +81,7 @@ struct AISummaryView: View {
     }
     
     private func logAllItems() {
-        guard let userID = Auth.auth().currentUser?.uid, let items = estimatedItems, !items.isEmpty else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID, let items = estimatedItems, !items.isEmpty else { return }
         
         let mealName = "AI Logged Meal"
         dailyLogService.addMealToCurrentLog(for: userID, mealName: mealName, foodItems: items)

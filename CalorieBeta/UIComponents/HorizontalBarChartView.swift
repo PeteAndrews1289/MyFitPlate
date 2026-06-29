@@ -1,6 +1,5 @@
 import SwiftUI
 
-
 struct MacroProgressRow: View {
     let label: String
     let value: Double
@@ -30,8 +29,6 @@ struct MacroProgressRow: View {
         }
     }
 }
-
-
 
 struct HorizontalBarChartView: View {
     var dailyLog: DailyLog

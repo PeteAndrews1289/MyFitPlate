@@ -1,5 +1,6 @@
+import MyFitPlateCore
+
 import SwiftUI
-import FirebaseAuth
 import Charts
 
 struct WorkoutCompleteAnalyticsView: View {
@@ -198,7 +199,7 @@ struct WorkoutCompleteAnalyticsView: View {
                 aiInsights: saved
             )
             Task {
-                let uid = Auth.auth().currentUser?.uid
+                let uid = DIContainer.shared.authService.currentUserID
                 if let uid {
                     self.comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: uid)
                     for exercise in log.completedExercises.prefix(3) {
@@ -215,7 +216,7 @@ struct WorkoutCompleteAnalyticsView: View {
         analytics = localAnalytics
 
         Task {
-            let uid = Auth.auth().currentUser?.uid
+            let uid = DIContainer.shared.authService.currentUserID
             let generated = await analyticsService.generateAnalytics(for: log, userID: uid)
             self.analytics = generated
 
@@ -489,12 +490,18 @@ struct InsightCard: View {
     let insight: WorkoutAnalysisInsight
     var categoryIcon: String {
         switch insight.category {
-        case "Performance": return "chart.bar.fill"; case "Recovery": return "bed.double.fill"; case "Nutrition": return "fork.knife"; default: return "lightbulb.fill"
+        case "Performance": return "chart.bar.fill"
+        case "Recovery": return "bed.double.fill"
+        case "Nutrition": return "fork.knife"
+        default: return "lightbulb.fill"
         }
     }
     var categoryColor: Color {
         switch insight.category {
-        case "Performance": return .blue; case "Recovery": return .indigo; case "Nutrition": return .green; default: return .orange
+        case "Performance": return .blue
+        case "Recovery": return .indigo
+        case "Nutrition": return .green
+        default: return .orange
         }
     }
     var body: some View {

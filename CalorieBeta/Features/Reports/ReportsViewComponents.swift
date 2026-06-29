@@ -1,6 +1,5 @@
 import SwiftUI
 import Charts
-import FirebaseAuth
 
 struct ReportsOverviewCard: View {
     let selectedTimeframe: ReportTimeframe
@@ -254,4 +253,3 @@ struct ReportSectionHeader: View {
         }
     }
 }
-

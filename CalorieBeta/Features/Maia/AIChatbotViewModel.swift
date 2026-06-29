@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 @MainActor
 class AIChatbotViewModel: ObservableObject {
@@ -21,7 +20,7 @@ class AIChatbotViewModel: ObservableObject {
     
     func setupView() {
         loadMessages()
-        if let userID = Auth.auth().currentUser?.uid {
+        if let userID = DIContainer.shared.authService.currentUserID {
             dailyLogService?.fetchLog(for: userID, date: dailyLogService?.activelyViewedDate ?? Date()) { _ in }
         }
         if chatMessages.isEmpty {
@@ -137,7 +136,7 @@ class AIChatbotViewModel: ObservableObject {
 
         let userMsg = ChatMessage(id: UUID(), text: trimmedMessage, isUser: true)
         chatMessages.append(userMsg)
-        AnalyticsManager.aiFeatureUsed(.maiaChat)
+        DIContainer.shared.analyticsManager.log(.aiFeatureUsed, ["feature": AIFeature.maiaChat.rawValue])
         HapticManager.instance.feedback(.light)
 
         let msgToSend = userMessage
@@ -242,10 +241,8 @@ class AIChatbotViewModel: ObservableObject {
         var messagesForAPI: [[String: Any]] = [["role": "system", "content": systemPrompt]]
 
         let history = chatMessages.dropLast().suffix(6)
-        for chatMessage in history {
-            if !chatMessage.text.isEmpty {
-                messagesForAPI.append(["role": chatMessage.isUser ? "user" : "assistant", "content": chatMessage.text])
-            }
+        for chatMessage in history where !chatMessage.text.isEmpty {
+            messagesForAPI.append(["role": chatMessage.isUser ? "user" : "assistant", "content": chatMessage.text])
         }
 
         messagesForAPI.append(["role": "user", "content": message])
@@ -271,7 +268,7 @@ class AIChatbotViewModel: ObservableObject {
     // MARK: - Action Handling
 
     func logRecipe(recipeText: String) {
-        guard let userID = Auth.auth().currentUser?.uid else { alertMessage = "Not logged in."; showAlert = true; return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { alertMessage = "Not logged in."; showAlert = true; return }
         let nutritionalBreakdown = parseNutritionalBreakdown(from: recipeText)
         guard let calories = nutritionalBreakdown["calories"], let protein = nutritionalBreakdown["protein"], let fats = nutritionalBreakdown["fats"], let carbs = nutritionalBreakdown["carbs"] else {
             alertMessage = "Missing macro info in AI response. Please try asking in a different way."; showAlert = true; return
@@ -289,7 +286,7 @@ class AIChatbotViewModel: ObservableObject {
     }
 
     func handleMaiaAction(_ action: MaiaAction) {
-        guard let userID = Auth.auth().currentUser?.uid else {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
             alertMessage = "Not logged in."
             showAlert = true
             return
@@ -421,11 +418,9 @@ class AIChatbotViewModel: ObservableObject {
             let lowerFirstLine = firstLine.lowercased()
             var potentialTitle = firstLine
             if commonGreetings.contains(where: { lowerFirstLine.starts(with: $0) }) {
-                for greeting in commonGreetings {
-                    if lowerFirstLine.starts(with: greeting) {
-                        potentialTitle = String(potentialTitle.dropFirst(greeting.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-                        break
-                    }
+                for greeting in commonGreetings where lowerFirstLine.starts(with: greeting) {
+                    potentialTitle = String(potentialTitle.dropFirst(greeting.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    break
                 }
             }
             if let colonIndex = potentialTitle.firstIndex(of: ":") { potentialTitle = String(potentialTitle[..<colonIndex]) }
@@ -453,7 +448,7 @@ class AIChatbotViewModel: ObservableObject {
     // MARK: - Persistence
     
     private func loadMessages() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let key = "chatHistory_\(userID)"
         if let data = UserDefaults.standard.data(forKey: key),
            let decodedMessages = try? JSONDecoder().decode([ChatMessage].self, from: data) {
@@ -462,7 +457,7 @@ class AIChatbotViewModel: ObservableObject {
     }
 
     func saveMessages() {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let key = "chatHistory_\(userID)"
         let max = 12
         let messagesToSave = Array(chatMessages.suffix(max))

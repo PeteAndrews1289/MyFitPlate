@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct SettingsView: View {
@@ -43,11 +45,12 @@ struct SettingsView: View {
     @State private var showingHealthDisclaimer = false
     @State private var showingReauthForDelete = false
     @State private var reauthPassword = ""
-    @State private var deleteErrorMessage: String? = nil
+    @State private var deleteErrorMessage: String?
     @State private var showingResetTourConfirmation = false
     @State private var isDeletingAccount = false
 
     var body: some View {
+        Group {
         ZStack {
             AnimatedBackgroundView()
             
@@ -97,42 +100,33 @@ struct SettingsView: View {
         .tint(.brandPrimary)
         // Sheets
         .sheet(isPresented: $showCaloricCalculator) { CaloricCalculatorView().environmentObject(goalSettings) }
-        .sheet(isPresented: $showHeightEditor) { SetHeightView(feetInput: $feetInput, inchesInput: $inchesInput, onSave: {
-             if let feet = Int(feetInput), let inches = Int(inchesInput) {
-                 goalSettings.setHeight(feet: feet, inches: inches)
-                 if let userID = DIContainer.shared.authService.currentUserID { goalSettings.saveUserGoals(userID: userID) }
-             }
-             showHeightEditor = false
-         }).environmentObject(goalSettings) }
-        .sheet(isPresented: $showingWaterGoalSheet) { SetWaterGoalView(waterGoalInput: $waterGoalInput, onSave: {
-            if let goalValue = Double(waterGoalInput), goalValue > 0 {
-                goalSettings.waterGoal = goalValue
-                if let userID = DIContainer.shared.authService.currentUserID { goalSettings.saveUserGoals(userID: userID) }
-                 if var currentLog = goalSettings.dailyLogService?.currentDailyLog {
-                    if var waterTracker = currentLog.waterTracker {
-                        waterTracker.goalOunces = goalValue
-                        currentLog.waterTracker = waterTracker
-                    } else {
-                        currentLog.waterTracker = WaterTracker(totalOunces: 0, goalOunces: goalValue, date: currentLog.date)
-                    }
-                    if let userID = DIContainer.shared.authService.currentUserID { dailyLogService.updateDailyLog(for: userID, updatedLog: currentLog) }
-                }
-            }
-            showingWaterGoalSheet = false
-        }).environmentObject(goalSettings) }
+        .sheet(isPresented: $showHeightEditor) { 
+            SetHeightView(feetInput: $feetInput, inchesInput: $inchesInput, onSave: updateHeight)
+                .environmentObject(goalSettings) 
+        }
+        .sheet(isPresented: $showingWaterGoalSheet) { 
+            SetWaterGoalView(waterGoalInput: $waterGoalInput, onSave: updateWaterGoal)
+                .environmentObject(goalSettings) 
+        }
         .sheet(isPresented: $showingHealthDisclaimer) {
             NavigationView {
                 HealthDisclaimerView()
             }
         }
+        }
         // Alerts
-        .alert("Sign Out", isPresented: $showingSignOutAlert, actions: { Button("Cancel", role: .cancel) {}; Button("Sign Out", role: .destructive) { appState.signOut() } }, message: { Text("Are you sure you want to sign out?") })
-        .alert("Delete Account", isPresented: $showingDeleteAccountAlert, actions: {
+        .alert("Sign Out", isPresented: $showingSignOutAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Sign Out", role: .destructive) { appState.signOut() }
+        } message: {
+            Text("Are you sure you want to sign out?")
+        }
+        .alert("Delete Account", isPresented: $showingDeleteAccountAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { DispatchQueue.main.async { showingReauthForDelete = true } }
-        }, message: {
+        } message: {
             Text("Are you sure you want to delete your account? This will permanently delete your profile, logs, recipes, workouts, and account data. This cannot be undone.")
-        })
+        }
         .modifier(DeleteAccountAlerts(
             showingReauthForDelete: $showingReauthForDelete,
             reauthPassword: $reauthPassword,
@@ -149,8 +143,33 @@ struct SettingsView: View {
         }
     }
     
+    private func updateHeight() {
+        if let feet = Int(feetInput), let inches = Int(inchesInput) {
+            goalSettings.setHeight(feet: feet, inches: inches)
+            if let userID = DIContainer.shared.authService.currentUserID { goalSettings.saveUserGoals(userID: userID) }
+        }
+        showHeightEditor = false
+    }
+
+    private func updateWaterGoal() {
+        if let goalValue = Double(waterGoalInput), goalValue > 0 {
+            goalSettings.waterGoal = goalValue
+            if let userID = DIContainer.shared.authService.currentUserID { goalSettings.saveUserGoals(userID: userID) }
+             if var currentLog = goalSettings.dailyLogService?.currentDailyLog {
+                if var waterTracker = currentLog.waterTracker {
+                    waterTracker.goalOunces = goalValue
+                    currentLog.waterTracker = waterTracker
+                } else {
+                    currentLog.waterTracker = WaterTracker(totalOunces: 0, goalOunces: goalValue, date: currentLog.date)
+                }
+                if let userID = DIContainer.shared.authService.currentUserID { dailyLogService.updateDailyLog(for: userID, updatedLog: currentLog) }
+            }
+        }
+        showingWaterGoalSheet = false
+    }
+
     private func reauthenticateAndDelete() {
-        let accountDeletionService = DIContainer.shared.accountDeletionService
+        guard let accountDeletionService = DIContainer.shared.accountDeletionService else { return }
         let password = reauthPassword
         reauthPassword = ""
 

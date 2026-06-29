@@ -10,8 +10,22 @@ struct PostRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(post.author) // Displays the username
-                .font(.headline)
+            HStack {
+                CachedAsyncImage(url: URL(string: "https://i.pravatar.cc/150?u=\(post.author)")) { image in
+                    image.resizable()
+                         .aspectRatio(contentMode: .fill)
+                         .frame(width: 40, height: 40)
+                         .clipShape(Circle())
+                } placeholder: {
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 40, height: 40)
+                        .overlay(Image(systemName: "person.fill").foregroundColor(.gray))
+                }
+
+                Text(post.author) // Displays the username
+                    .font(.headline)
+            }
             Text(post.content)
                 .font(.body)
 
@@ -38,6 +52,7 @@ struct PostRowView: View {
     }
 
     private func toggleLike() {
+        HapticsService.shared.playImpact(style: .medium)
         post.isLikedByCurrentUser.toggle()
         post.likes += post.isLikedByCurrentUser ? 1 : -1
         saveLikeStatusToFirebase()
