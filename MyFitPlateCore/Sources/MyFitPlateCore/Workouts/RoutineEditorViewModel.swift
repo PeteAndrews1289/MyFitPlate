@@ -112,7 +112,7 @@ public final class RoutineEditorViewModel: ObservableObject {
         return RoutineExercise(
             name: name,
             type: type,
-            sets: Array(repeating: ExerciseSet(target: setTarget), count: defaults.sets),
+            sets: (0..<defaults.sets).map { _ in ExerciseSet(target: setTarget) },
             restTimeInSeconds: defaults.rest,
             targetSets: defaults.sets,
             targetReps: defaults.target

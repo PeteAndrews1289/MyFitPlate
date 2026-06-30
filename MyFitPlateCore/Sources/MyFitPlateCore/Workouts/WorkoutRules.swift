@@ -99,7 +99,7 @@ public struct WorkoutRules {
             RoutineExercise(
                 name: name,
                 type: type,
-                sets: Array(repeating: ExerciseSet(target: target), count: sets),
+                sets: (0..<sets).map { _ in ExerciseSet(target: target) },
                 alternatives: alternatives,
                 targetSets: sets,
                 targetReps: target

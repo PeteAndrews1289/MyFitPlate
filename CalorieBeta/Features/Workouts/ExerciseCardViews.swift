@@ -194,7 +194,6 @@ struct ExerciseCardView: View {
                     }
                 }
                 Button("Swap Exercise", action: onSwap)
-                    .disabled(exercise.alternatives?.isEmpty ?? true)
                 Button("View Demo & History", action: onViewHistory)
                 Toggle("Auto-Rest Timer", isOn: $isAutoRestEnabled)
                 if onMoveUp != nil || onMoveDown != nil {
@@ -326,29 +325,40 @@ struct FlexibilityExerciseView: View {
 struct SwapExerciseView: View {
     @Binding var exercise: RoutineExercise
     @Environment(\.dismiss) var dismiss
+    @State private var searchText = ""
+
+    private var suggested: [String] {
+        (exercise.alternatives ?? []).filter { $0 != exercise.name }
+    }
+
+    private var filteredCategories: [(category: String, exercises: [String])] {
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        return ExerciseList.categorizedExercises
+            .map { (category: $0.key, exercises: $0.value) }
+            .map { pair -> (category: String, exercises: [String]) in
+                let matches = query.isEmpty ? pair.exercises : pair.exercises.filter { $0.lowercased().contains(query) }
+                return (pair.category, matches.filter { $0 != exercise.name })
+            }
+            .filter { !$0.exercises.isEmpty }
+            .sorted { $0.category < $1.category }
+    }
 
     var body: some View {
         NavigationView {
             List {
-                Section(header: Text("Swap '\(exercise.name)' with:")) {
-                    ForEach(exercise.alternatives ?? [], id: \.self) { alternativeName in
-                        Button(alternativeName) {
-                            let originalName = exercise.name
-                            let originalAlternatives = exercise.alternatives ?? []
-
-                            let newSets = exercise.sets.map { originalSet -> ExerciseSet in
-                                return ExerciseSet(target: originalSet.target)
-                            }
-
-                            exercise.name = alternativeName
-                            exercise.sets = newSets
-                            exercise.alternatives = [originalName] + originalAlternatives.filter { $0 != alternativeName }
-
-                            dismiss()
-                        }
+                if !suggested.isEmpty && searchText.isEmpty {
+                    Section(header: Text("Suggested")) {
+                        ForEach(suggested, id: \.self) { swapRow($0) }
+                    }
+                }
+                ForEach(filteredCategories, id: \.category) { group in
+                    Section(header: Text(group.category)) {
+                        ForEach(group.exercises, id: \.self) { swapRow($0) }
                     }
                 }
             }
+            .listStyle(.insetGrouped)
+            .searchable(text: $searchText, prompt: "Search any exercise")
             .navigationTitle("Swap Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -357,6 +367,33 @@ struct SwapExerciseView: View {
                 }
             }
         }
+    }
+
+    private func swapRow(_ name: String) -> some View {
+        Button {
+            performSwap(to: name)
+        } label: {
+            HStack {
+                Text(name).foregroundColor(.primary)
+                Spacer()
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private func performSwap(to newName: String) {
+        guard newName != exercise.name else { dismiss(); return }
+        let originalName = exercise.name
+        // Preserve set count + targets, but mint fresh ids so per-set editing stays correct.
+        exercise.sets = exercise.sets.map { ExerciseSet(target: $0.target) }
+        var alternatives = exercise.alternatives ?? []
+        alternatives.removeAll { $0 == newName }
+        if !alternatives.contains(originalName) { alternatives.insert(originalName, at: 0) }
+        exercise.name = newName
+        exercise.alternatives = alternatives
+        dismiss()
     }
 }
 

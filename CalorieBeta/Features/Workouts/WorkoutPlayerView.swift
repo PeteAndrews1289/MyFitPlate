@@ -318,7 +318,7 @@ struct WorkoutPlayerView: View {
         let newExercise = RoutineExercise(
             name: draft.name,
             type: draft.type,
-            sets: Array(repeating: ExerciseSet(target: target), count: defaultSets),
+            sets: (0..<defaultSets).map { _ in ExerciseSet(target: target) },
             restTimeInSeconds: 90,
             targetSets: defaultSets,
             targetReps: target
