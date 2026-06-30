@@ -12,10 +12,21 @@ set -euo pipefail
 PKG="MyFitPlateCore"
 FLOOR="${CORE_COVERAGE_MINIMUM:-70.0}"
 
-# Search the SPM build dir first (what CI's `swift test` writes), then the agents'
-# local Xcode derived-data path, so the gate works in CI *and* locally.
-PROF="$(find "$PKG/.build" ".codex_xcode" -name 'default.profdata' 2>/dev/null | head -1)"
-BIN="$(find "$PKG/.build" ".codex_xcode" -type f -name "${PKG}PackageTests" 2>/dev/null | head -1)"
+# Search the SPM build dir (what CI's `swift test` writes) and the agents' local
+# Xcode derived-data path — whichever exist. Pass only existing dirs and use
+# `-print -quit`: `find` over a missing dir, or `... | head -1` closing the pipe
+# early, exits non-zero, which under `set -euo pipefail` aborts the whole script.
+# (That is exactly what broke CI — `.codex_xcode` does not exist on the runner.)
+SEARCH_DIRS=()
+[[ -d "$PKG/.build" ]] && SEARCH_DIRS+=("$PKG/.build")
+[[ -d ".codex_xcode" ]] && SEARCH_DIRS+=(".codex_xcode")
+
+PROF=""
+BIN=""
+if (( ${#SEARCH_DIRS[@]} > 0 )); then
+  PROF="$(find "${SEARCH_DIRS[@]}" -name 'default.profdata' -print -quit 2>/dev/null || true)"
+  BIN="$(find "${SEARCH_DIRS[@]}" -type f -name "${PKG}PackageTests" -print -quit 2>/dev/null || true)"
+fi
 
 if [[ -z "$PROF" || -z "$BIN" ]]; then
   echo "::error::Coverage data missing. Run 'swift test --enable-code-coverage --package-path $PKG' first."
