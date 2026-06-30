@@ -1,12 +1,17 @@
 import SwiftUI
 struct RecipeDetailView: View {
-    let recipe: Recipe
+    @State private var recipe: Recipe
     @EnvironmentObject var recipeService: RecipeService
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var mealPlannerService: MealPlannerService
     @Environment(\.dismiss) var dismiss
     @State private var showingAddToLogSheet = false
     @State private var showingAddToPlanSheet = false
+    @State private var showingEditSheet = false
+
+    init(recipe: Recipe) {
+        _recipe = State(initialValue: recipe)
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -31,6 +36,16 @@ struct RecipeDetailView: View {
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("Recipe")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Edit") { showingEditSheet = true }
+            }
+        }
+        .sheet(isPresented: $showingEditSheet) {
+            CreateRecipeView(recipeToEdit: recipe) { updated in
+                recipe = updated
+            }
+        }
         .sheet(isPresented: $showingAddToLogSheet) {
             if recipe.detailedIngredients != nil {
                 RecipeLoggingView(

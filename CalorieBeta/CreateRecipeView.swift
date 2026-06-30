@@ -6,6 +6,20 @@ struct CreateRecipeView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var bannerService: BannerService
     
+    private let recipeToEdit: Recipe?
+    private let onSaved: ((Recipe) -> Void)?
+
+    init(recipeToEdit: Recipe? = nil, onSaved: ((Recipe) -> Void)? = nil) {
+        self.recipeToEdit = recipeToEdit
+        self.onSaved = onSaved
+        if let recipe = recipeToEdit {
+            _recipeName = State(initialValue: recipe.name)
+            _ingredients = State(initialValue: recipe.detailedIngredients ?? recipe.ingredients.map { FoodItem(name: $0) })
+            _instructions = State(initialValue: recipe.instructions.joined(separator: "\n"))
+            _creationMode = State(initialValue: .manual)
+        }
+    }
+
     @State private var recipeName = ""
     @State private var ingredients: [FoodItem] = []
     @State private var instructions = ""
@@ -53,7 +67,9 @@ struct CreateRecipeView: View {
                     ScrollView {
                         VStack(spacing: 16) {
                             CreateRecipeHeroCard(mode: creationMode)
-                            CreateRecipeModePicker(selection: $creationMode)
+                            if recipeToEdit == nil {
+                                CreateRecipeModePicker(selection: $creationMode)
+                            }
 
                             if creationMode == .ai {
                                 aiSection
@@ -72,13 +88,13 @@ struct CreateRecipeView: View {
                     .scrollDismissesKeyboard(.interactively)
 
                     CreateRecipeActionBar(
-                        title: creationMode == .ai ? "Generate Recipe" : (creationMode == .text ? "Import Recipe" : (creationMode == .url ? "Import Recipe" : "Save Recipe")),
+                        title: creationMode == .ai ? "Generate Recipe" : (creationMode == .text ? "Import Recipe" : (creationMode == .url ? "Import Recipe" : (recipeToEdit == nil ? "Save Recipe" : "Save Changes"))),
                         isEnabled: !isSaveDisabled,
                         action: saveRecipe
                     )
                 }
                 .background(Color.backgroundPrimary.ignoresSafeArea())
-                .navigationTitle("Create Recipe")
+                .navigationTitle(recipeToEdit == nil ? "Create Recipe" : "Edit Recipe")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -308,16 +324,23 @@ struct CreateRecipeView: View {
             } else {
                 let ingredientNames = ingredients.map { $0.name }
                 let instructionSteps = instructions.split(separator: "\n").map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                // When editing a recipe that had no per-ingredient detail, don't let a text-only
+                // edit zero out its AI-estimated totals.
+                let computed = totalNutrition
+                let nutrition = (recipeToEdit != nil && computed.calories == 0 && (recipeToEdit?.nutrition.calories ?? 0) > 0)
+                    ? recipeToEdit!.nutrition : computed
                 let recipe = Recipe(
+                    id: recipeToEdit?.id,
                     name: recipeName.trimmingCharacters(in: .whitespacesAndNewlines),
                     ingredients: ingredientNames,
                     detailedIngredients: ingredients,
                     instructions: instructionSteps,
-                    nutrition: totalNutrition,
-                    servings: 1.0
+                    nutrition: nutrition,
+                    servings: recipeToEdit?.servings ?? 1.0
                 )
                 do {
-                    _ = try await recipeService.saveRecipe(recipe, for: userID)
+                    let saved = try await recipeService.saveRecipe(recipe, for: userID)
+                    onSaved?(saved)
                     success = true
                 } catch {
                     success = false
@@ -326,7 +349,7 @@ struct CreateRecipeView: View {
             
             isLoading = false
             if success {
-                bannerService.showBanner(title: "Recipe Saved", message: "Your recipe is now in the library", iconName: "checkmark.circle.fill", iconColor: .accentPositive)
+                bannerService.showBanner(title: recipeToEdit == nil ? "Recipe Saved" : "Recipe Updated", message: recipeToEdit == nil ? "Your recipe is now in the library" : "Your changes have been saved", iconName: "checkmark.circle.fill", iconColor: .accentPositive)
                 dismiss()
             } else {
                 bannerService.showBanner(title: "Import Failed", message: "Could not parse or save the recipe. Please try again.", iconName: "exclamationmark.triangle.fill", iconColor: .orange)
