@@ -107,7 +107,7 @@ enum AITextLogParser {
                 vitaminD: item.vitaminD,
                 vitaminB12: item.vitaminB12,
                 folate: item.folate
-            )
+            ).withAIEstimateSource(.aiText, sourceName: "Maia Text")
         }
     }
 }

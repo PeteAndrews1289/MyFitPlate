@@ -494,12 +494,15 @@ struct AddFoodView: View {
             name: trimmedFoodName, calories: n.calories, protein: n.protein, carbs: n.carbs, fats: n.fats,
             saturatedFat: n.saturatedFat, polyunsaturatedFat: n.polyunsaturatedFat, monounsaturatedFat: n.monounsaturatedFat, fiber: n.fiber,
             servingSize: n.servingDescription, servingWeight: n.servingWeightGrams, timestamp: isLoggedItem ? initialFoodItem.timestamp : Date(),
+            sourceMetadata: initialFoodItem.sourceMetadata ?? .userEntered(),
             calcium: n.calcium, iron: n.iron, potassium: n.potassium, sodium: n.sodium,
             vitaminA: n.vitaminA, vitaminC: n.vitaminC, vitaminD: n.vitaminD, vitaminB12: n.vitaminB12, folate: n.folate,
             magnesium: n.magnesium, phosphorus: n.phosphorus, zinc: n.zinc, copper: n.copper, manganese: n.manganese, selenium: n.selenium,
             vitaminB1: n.vitaminB1, vitaminB2: n.vitaminB2, vitaminB3: n.vitaminB3, vitaminB5: n.vitaminB5, vitaminB6: n.vitaminB6, vitaminE: n.vitaminE, vitaminK: n.vitaminK
         )
-        let itemToLog = rawItemToLog.normalizedForEstimatedSource(source)
+        let itemToLog = rawItemToLog
+            .normalizedForEstimatedSource(source)
+            .markedUserConfirmed(sourceType: .manual)
 
         if let updateHandler = onUpdate {
             updateHandler(itemToLog)
@@ -542,6 +545,7 @@ struct AddFoodView: View {
             servingSize: n.servingDescription,
             servingWeight: n.servingWeightGrams,
             timestamp: nil,
+            sourceMetadata: .userEntered(sourceName: "My Foods"),
             calcium: n.calcium,
             iron: n.iron,
             potassium: n.potassium,

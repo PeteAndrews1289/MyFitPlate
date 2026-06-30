@@ -125,6 +125,10 @@ public enum USDAFoodParser {
             vitaminB6: o("415"),
             vitaminE: o("323"),
             vitaminK: o("430")
+        ).withDatabaseSource(
+            .usda,
+            sourceName: "USDA FoodData Central",
+            sourceID: "usda_\(food.fdcId)"
         )
     }
 }

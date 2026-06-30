@@ -149,6 +149,16 @@
     "%@ logged" : {
 
     },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
     "%@: %@" : {
       "localizations" : {
         "en" : {
@@ -165,6 +175,16 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@: %2$@ %3$@"
+          }
+        }
+      }
+    },
+    "%@. %@. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@. %2$@. %3$@"
           }
         }
       }
@@ -595,7 +615,7 @@
         }
       }
     },
-    "Accept New Targets" : {
+    "Accepting keeps the app in adaptive mode. Keeping current targets simply delays the change; your data will keep updating." : {
 
     },
     "Accurate height data helps Maia estimate your metabolic rate." : {
@@ -692,6 +712,9 @@
     "Add Item" : {
 
     },
+    "Add Manually" : {
+
+    },
     "Add Meal" : {
 
     },
@@ -743,13 +766,7 @@
     "Age" : {
 
     },
-    "AI Best Guess" : {
-
-    },
     "AI estimates — double-check before logging." : {
-
-    },
-    "AI Found These Items" : {
 
     },
     "AI Insights" : {
@@ -939,6 +956,9 @@
     "Calories (cal)" : {
 
     },
+    "Calories and macros need review" : {
+
+    },
     "Calories Burned" : {
 
     },
@@ -1105,6 +1125,9 @@
 
     },
     "Create an Account" : {
+
+    },
+    "Create Food" : {
 
     },
     "Create Group" : {
@@ -1274,6 +1297,9 @@
 
     },
     "Edit Program" : {
+
+    },
+    "Edit Recipe" : {
 
     },
     "Edit Routine" : {
@@ -1507,6 +1533,9 @@
     "Good details help" : {
 
     },
+    "Got it" : {
+
+    },
     "Grams (g)" : {
 
     },
@@ -1558,6 +1587,9 @@
 
     },
     "How are you feeling?" : {
+
+    },
+    "How to perform" : {
 
     },
     "https://..." : {
@@ -1651,7 +1683,7 @@
     "kcal" : {
 
     },
-    "Keep Current Targets" : {
+    "Keep Current Targets This Week" : {
 
     },
     "Keep logging and I'll build your strategy" : {
@@ -1961,6 +1993,9 @@
     "Needs More Data" : {
 
     },
+    "Needs Review" : {
+
+    },
     "New Entry" : {
 
     },
@@ -2001,6 +2036,9 @@
 
     },
     "No grocery list yet" : {
+
+    },
+    "No history yet. Once you log a workout with %@, your past sets and trends will show up here." : {
 
     },
     "No journal entries for today." : {
@@ -2271,6 +2309,9 @@
         }
       }
     },
+    "Progression" : {
+
+    },
     "Progressive Overload (%@)" : {
 
     },
@@ -2425,6 +2466,9 @@
     "Review Health Access & Sync" : {
 
     },
+    "Review Items" : {
+
+    },
     "Review nutrition audit" : {
 
     },
@@ -2525,6 +2569,9 @@
 
     },
     "score" : {
+
+    },
+    "Search any exercise" : {
 
     },
     "Search exercises" : {
@@ -2751,10 +2798,10 @@
     "Success" : {
 
     },
-    "Suggestion Preferences" : {
+    "Suggested" : {
 
     },
-    "Swap '%@' with:" : {
+    "Suggestion Preferences" : {
 
     },
     "Swap Exercise" : {
@@ -2779,6 +2826,12 @@
 
     },
     "Tap a scheduled day to start that workout." : {
+
+    },
+    "Tap an item to edit it, or swipe to remove anything Maia inferred incorrectly." : {
+
+    },
+    "Tap any item to edit it, or swipe to remove anything Maia guessed incorrectly." : {
 
     },
     "Tap for weekly average score & details." : {
@@ -2946,16 +2999,19 @@
     "Use a label photo to fill the numbers faster." : {
 
     },
+    "Use Adaptive Targets" : {
+
+    },
     "Use Adaptive TDEE for Goals" : {
+
+    },
+    "Use Camera" : {
 
     },
     "Use the center + button to search, scan, take a photo, or describe a meal." : {
 
     },
     "Username" : {
-
-    },
-    "Verify items before logging. AI estimates cannot guarantee 100% accuracy without exact ingredients." : {
 
     },
     "View Custom Report" : {
@@ -3055,6 +3111,9 @@
     "Why is this better?" : {
 
     },
+    "Why this target" : {
+
+    },
     "Workout Analysis" : {
 
     },
@@ -3103,9 +3162,6 @@
 
     },
     "You" : {
-
-    },
-    "You can tap an item to edit it, or swipe to delete it before logging." : {
 
     },
     "You finished this block. Keep it for history or build the next phase from what worked." : {

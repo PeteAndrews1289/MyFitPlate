@@ -99,7 +99,8 @@ struct QuickAddMacrosView: View {
             fats: f,
             servingSize: "1 Custom Entry",
             servingWeight: 1,
-            timestamp: Date()
+            timestamp: Date(),
+            sourceMetadata: .userEntered(sourceName: "Quick Add")
         )
 
         isSaving = true

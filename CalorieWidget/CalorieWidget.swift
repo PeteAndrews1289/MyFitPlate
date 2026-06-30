@@ -27,6 +27,19 @@ struct SimpleEntry: TimelineEntry {
     let data: WidgetData?
 }
 
+private enum WidgetPalette {
+    static let brandPrimary = Color(red: 0.263, green: 0.678, blue: 0.435)
+    static let accentProtein = Color(red: 0.204, green: 0.596, blue: 0.859)
+    static let accentCarbs = Color(red: 0.945, green: 0.769, blue: 0.059)
+    static let accentFats = Color(red: 0.608, green: 0.349, blue: 0.714)
+
+#if os(iOS)
+    static let backgroundPrimary = Color(uiColor: .systemBackground)
+#else
+    static let backgroundPrimary = Color.black
+#endif
+}
+
 struct CalorieWidgetEntryView: View {
     var entry: Provider.Entry
     @Environment(\.widgetFamily) var family
@@ -62,7 +75,7 @@ struct CalorieWidgetEntryView: View {
         .containerBackground(for: .widget) {
             ZStack {
                 Rectangle().fill(.thickMaterial)
-                Color.backgroundPrimary.opacity(0.2)
+                WidgetPalette.backgroundPrimary.opacity(0.2)
             }
         }
     }
@@ -106,7 +119,7 @@ struct MediumWidgetView: View {
                 Text(String(format: "%.0f", max(0, data.calorieGoal - data.calories)))
                     .font(.title2)
                     .fontWeight(.bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(WidgetPalette.brandPrimary)
                 Text("kcal")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -114,9 +127,9 @@ struct MediumWidgetView: View {
             .padding(.leading, 5)
 
             VStack(alignment: .leading, spacing: 8) {
-                MacroBar(label: "Protein", value: data.protein, goal: data.proteinGoal, color: .accentProtein)
-                MacroBar(label: "Carbs", value: data.carbs, goal: data.carbsGoal, color: .accentCarbs)
-                MacroBar(label: "Fats", value: data.fats, goal: data.fatGoal, color: .accentFats)
+                MacroBar(label: "Protein", value: data.protein, goal: data.proteinGoal, color: WidgetPalette.accentProtein)
+                MacroBar(label: "Carbs", value: data.carbs, goal: data.carbsGoal, color: WidgetPalette.accentCarbs)
+                MacroBar(label: "Fats", value: data.fats, goal: data.fatGoal, color: WidgetPalette.accentFats)
 
                 HStack {
                     if hasMacroWarning {
@@ -158,17 +171,17 @@ struct SmallWidgetView: View {
                 MiniProgressBubble(
                     value: data.protein, goal: data.proteinGoal,
                     percentage: data.proteinGoal > 0 ? (data.protein / data.proteinGoal) : 0,
-                    label: "Protein", color: .accentProtein
+                    label: "Protein", color: WidgetPalette.accentProtein
                 )
                 MiniProgressBubble(
                     value: data.fats, goal: data.fatGoal,
                     percentage: data.fatGoal > 0 ? (data.fats / data.fatGoal) : 0,
-                    label: "Fats", color: .accentFats
+                    label: "Fats", color: WidgetPalette.accentFats
                 )
                 MiniProgressBubble(
                     value: data.carbs, goal: data.carbsGoal,
                     percentage: data.carbsGoal > 0 ? (data.carbs / data.carbsGoal) : 0,
-                    label: "Carbs", color: .accentCarbs
+                    label: "Carbs", color: WidgetPalette.accentCarbs
                 )
             }
         }
@@ -191,17 +204,17 @@ struct LargeWidgetView: View {
                 ProgressBubble(
                     value: data.protein, goal: data.proteinGoal,
                     percentage: data.proteinGoal > 0 ? (data.protein / data.proteinGoal) : 0,
-                    label: "Protein", unit: "g", color: .accentProtein
+                    label: "Protein", unit: "g", color: WidgetPalette.accentProtein
                 )
                 ProgressBubble(
                     value: data.fats, goal: data.fatGoal,
                     percentage: data.fatGoal > 0 ? (data.fats / data.fatGoal) : 0,
-                    label: "Fats", unit: "g", color: .accentFats
+                    label: "Fats", unit: "g", color: WidgetPalette.accentFats
                 )
                 ProgressBubble(
                     value: data.carbs, goal: data.carbsGoal,
                     percentage: data.carbsGoal > 0 ? (data.carbs / data.carbsGoal) : 0,
-                    label: "Carbs", unit: "g", color: .accentCarbs
+                    label: "Carbs", unit: "g", color: WidgetPalette.accentCarbs
                 )
             }
 

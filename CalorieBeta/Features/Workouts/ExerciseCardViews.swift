@@ -239,7 +239,11 @@ struct StrengthExerciseView: View {
     var onSetComplete: (Int) -> Void
 
     var body: some View {
-        VStack {
+        VStack(spacing: 10) {
+            if let previousPerformance {
+                StrengthProgressionCoachCard(previousPerformance: previousPerformance)
+            }
+
             HStack {
                 Text("SET").frame(minWidth: 25, alignment: .leading)
                 Text("TARGET / LAST").frame(maxWidth: .infinity, alignment: .leading)
@@ -266,6 +270,58 @@ struct StrengthExerciseView: View {
 
     private func deleteStrengthSet(at offsets: IndexSet) {
         exercise.sets.remove(atOffsets: offsets)
+    }
+}
+
+private struct StrengthProgressionCoachCard: View {
+    let previousPerformance: CompletedExercise
+
+    private var bestSet: CompletedSet? {
+        previousPerformance.sets
+            .filter { $0.weight > 0 || $0.reps > 0 }
+            .max { lhs, rhs in
+                (lhs.weight * Double(max(lhs.reps, 1))) < (rhs.weight * Double(max(rhs.reps, 1)))
+            }
+    }
+
+    private var guidanceText: String {
+        guard let bestSet else {
+            return "No prior working set found. Build the first set conservatively and let form guide the jump."
+        }
+
+        if bestSet.weight > 0 && bestSet.reps > 0 {
+            return "Last best: \(String(format: "%g", bestSet.weight)) lb x \(bestSet.reps). Repeat clean reps first, then add a rep or a small weight jump if it moves well."
+        }
+
+        if bestSet.reps > 0 {
+            return "Last best: \(bestSet.reps) reps. Match that first, then add one rep if form stays clean."
+        }
+
+        return "Use the prior session as a guide and keep the first working set smooth."
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .appFont(size: 13, weight: .bold)
+                .foregroundColor(.brandPrimary)
+                .frame(width: 28, height: 28)
+                .background(Color.brandPrimary.opacity(0.10), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Progression")
+                    .appFont(size: 12, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Text(guidanceText)
+                    .appFont(size: 12, weight: .medium)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(Color.brandPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -453,14 +509,14 @@ struct StrengthSetRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(targetText)
-                    .appFont(size: 11, weight: .bold)
+                    .appFont(size: 12, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .lineLimit(1)
 
                 Button(action: fillFromPrevious) {
                     Text(previousSet.map { "\(String(format: "%g", $0.weight)) lb x \($0.reps)" } ?? "No prior")
                         .foregroundColor(previousSet == nil ? .secondary : .brandPrimary)
-                        .appFont(size: 13, weight: .semibold)
+                        .appFont(size: 14, weight: .semibold)
                         .lineLimit(1)
                         .minimumScaleFactor(0.76)
                 }

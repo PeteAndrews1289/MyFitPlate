@@ -226,6 +226,10 @@ public class FatSecretFoodAPIService {
                     vitaminB6: baseServing.parsedNutrient(.vitamin_b6) > 0 ? baseServing.parsedNutrient(.vitamin_b6) : nil,
                     vitaminE: baseServing.parsedNutrient(.vitamin_e) > 0 ? baseServing.parsedNutrient(.vitamin_e) : nil,
                     vitaminK: baseServing.parsedNutrient(.vitamin_k) > 0 ? baseServing.parsedNutrient(.vitamin_k) : nil
+                ).withDatabaseSource(
+                    .fatSecret,
+                    sourceName: "FatSecret",
+                    sourceID: food.foodID
                 )
                 
                 completion(.success((foodInfo: baseFoodItem, availableServings: availableServings)))
@@ -268,6 +272,10 @@ public class FatSecretFoodAPIService {
             calcium: nil, iron: nil, potassium: nil, sodium: nil,
             vitaminA: nil, vitaminC: nil, vitaminD: nil,
             vitaminB12: nil, folate: nil
+        ).withDatabaseSource(
+            .fatSecret,
+            sourceName: "FatSecret",
+            sourceID: fatSecretFoodItem.foodID
         )
     }
 

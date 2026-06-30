@@ -118,7 +118,14 @@ struct RecipeLoggingView: View {
             fats: totalNutrition.fats,
             servingSize: "1 recipe",
             servingWeight: 0,
-            timestamp: Date()
+            timestamp: Date(),
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .recipe,
+                confidence: .userVerified,
+                reviewStatus: .notRequired,
+                sourceName: "Recipe",
+                sourceID: recipe.id
+            )
         )
 
         dailyLogService.addFoodToLog(for: userID, date: self.date, mealName: selectedMeal, foodItem: loggedItem, source: "recipe")

@@ -153,10 +153,11 @@ struct WorkoutRoutinesView: View {
             }
             .fullScreenCover(item: $routineToPlay) { routine in
                 WorkoutPlayerView(routine: routine, onWorkoutComplete: {
-                    if let program = workoutService.activeProgram, var currentIndex = program.currentProgressIndex {
-                        currentIndex += 1
-                        var mutableProgram = program
-                        mutableProgram.currentProgressIndex = currentIndex
+                    if let program = workoutService.activeProgram {
+                        let mutableProgram = WorkoutRules.advanceAfterCompletion(
+                            in: program,
+                            completedRoutineID: routine.id
+                        )
                         let expectedLogCount = viewModel.sessionLogs.count + 1
 
                         Task {

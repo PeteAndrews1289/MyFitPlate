@@ -280,7 +280,7 @@ public struct MealPlanAIGenerator {
     }
 
     private func localMeal(type: String, name: String, calories: Double, protein: Double, carbs: Double, fats: Double, ingredients: [String], instructions: String) -> PlannedMeal {
-        let foodItem = FoodItem(id: UUID().uuidString, name: name, calories: calories, protein: protein, carbs: carbs, fats: fats, servingSize: "1 serving", servingWeight: 0)
+        let foodItem = FoodItem(id: UUID().uuidString, name: name, calories: calories, protein: protein, carbs: carbs, fats: fats, servingSize: "1 serving", servingWeight: 0, sourceMetadata: FoodSourceMetadata(sourceType: .mealPlan, confidence: .userVerified, reviewStatus: .notRequired, sourceName: "Meal Plan"))
         return PlannedMeal(id: UUID().uuidString, mealType: type, foodItem: foodItem, ingredients: ingredients, instructions: instructions)
     }
 
@@ -332,6 +332,7 @@ public struct MealPlanAIGenerator {
 
     private func mapAIMealToPlannedMeal(_ aiMeal: AIMeal) -> PlannedMeal {
         let foodItem = FoodItem(id: UUID().uuidString, name: aiMeal.mealName, calories: aiMeal.calories, protein: aiMeal.protein, carbs: aiMeal.carbs, fats: aiMeal.fats, servingSize: "1 serving", servingWeight: 0)
+            .withAIEstimateSource(.aiMenu, sourceName: "AI Meal Plan")
         return PlannedMeal(id: UUID().uuidString, mealType: aiMeal.mealType, foodItem: foodItem, ingredients: aiMeal.ingredients, instructions: aiMeal.instructions.joined(separator: "\n"))
     }
 

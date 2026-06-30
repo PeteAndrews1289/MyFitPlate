@@ -32,14 +32,14 @@ struct MainTabView: View {
     @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems?
     
     @State private var scannedFoodItem: FoodItem?
+    @State private var scannedFoodSource: String = "barcode_result"
     @State private var isSearchingAfterScan = false
     @State private var scanError: (Bool, String) = (false, "")
     
     @State private var showingSpotlightTour = false
 
     private let imageModel = MLImageModel()
-    private let foodAPIService = FatSecretFoodAPIService()
-    private let usdaService = USDAFoodAPIService()
+    private let barcodeLookupService = BarcodeFoodLookupService()
     
     private var containerBackground: Color {
         Color.backgroundSecondary
@@ -209,20 +209,14 @@ struct MainTabView: View {
                     self.isSearchingAfterScan = true
                     DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                     Task { @MainActor in
-                        if let item = await withCheckedContinuation({ cont in
-                            foodAPIService.fetchFoodByBarcode(barcode: barcode) { cont.resume(returning: try? $0.get()) }
-                        }) {
+                        if let result = await barcodeLookupService.lookup(barcode) {
                             self.isSearchingAfterScan = false
-                            self.scannedFoodItem = item
-                            return
-                        }
-                        if let item = await usdaService.lookupBarcode(barcode) {
-                            self.isSearchingAfterScan = false
-                            self.scannedFoodItem = item
+                            self.scannedFoodSource = result.source
+                            self.scannedFoodItem = result.item
                             return
                         }
                         self.isSearchingAfterScan = false
-                        self.scanError = (true, "No food found for this barcode.")
+                        self.scanError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Create it manually, use camera capture, or search by name.")
                     }
                 }
             }
@@ -232,7 +226,7 @@ struct MainTabView: View {
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLogService.currentDailyLog,
                         date: dailyLogService.activelyViewedDate,
-                        source: foodItem.id.hasPrefix("usda_") ? "usda_barcode" : "barcode_result",
+                        source: scannedFoodSource,
                         onLogUpdated: { self.scannedFoodItem = nil }
                     )
                 }
@@ -248,7 +242,13 @@ struct MainTabView: View {
             .sheet(isPresented: $showingRecipeListView) {
                 RecipeListView().environmentObject(recipeService)
             }
-            .alert("Scan Error", isPresented: $scanError.0) { Button("OK") { } } message: { Text(scanError.1) }
+            .alert("Scan Error", isPresented: $scanError.0) {
+                Button("Create Food") { showingAddFoodManually = true }
+                Button("Use Camera") { showingImagePicker = true }
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(scanError.1)
+            }
             .onChange(of: showingAddOptions) { _, newValue in
                 if newValue && !spotlightManager.isShown(id: "action-menu") {
                     withAnimation {

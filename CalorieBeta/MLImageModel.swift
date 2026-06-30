@@ -172,7 +172,13 @@ class MLImageModel {
             ]
         ]
 
-        performImageAnalysis(messages: messages, retryCount: retryCount, completion: completion)
+        performImageAnalysis(
+            messages: messages,
+            retryCount: retryCount,
+            sourceType: .aiImage,
+            sourceName: "Maia Vision",
+            completion: completion
+        )
     }
 
     // MARK: - Menu Estimation
@@ -204,7 +210,13 @@ class MLImageModel {
             ]
         ]
 
-        performImageAnalysis(messages: messages, retryCount: 1, completion: completion)
+        performImageAnalysis(
+            messages: messages,
+            retryCount: 1,
+            sourceType: .aiMenu,
+            sourceName: "Maia Menu",
+            completion: completion
+        )
     }
 
     // MARK: - Menu Matchmaker
@@ -246,7 +258,13 @@ class MLImageModel {
             ]
         ]
 
-        performImageAnalysis(messages: messages, retryCount: 1, completion: completion)
+        performImageAnalysis(
+            messages: messages,
+            retryCount: 1,
+            sourceType: .aiMenu,
+            sourceName: "Maia Menu",
+            completion: completion
+        )
     }
 
     // MARK: - Grocery Receipt Parsing
@@ -315,7 +333,13 @@ class MLImageModel {
         }
     }
 
-    private func performImageAnalysis(messages: [[String: Any]], retryCount: Int, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
+    private func performImageAnalysis(
+        messages: [[String: Any]],
+        retryCount: Int,
+        sourceType: FoodSourceType,
+        sourceName: String,
+        completion: @escaping (Result<[FoodItem], Error>) -> Void
+    ) {
 
         Task {
             // Note: We handle the recursion manually here if parsing fails,
@@ -334,7 +358,13 @@ class MLImageModel {
                 
                 guard let contentData = cleanedContent.data(using: .utf8) else {
                     if retryCount > 0 {
-                        performImageAnalysis(messages: messages, retryCount: retryCount - 1, completion: completion)
+                        performImageAnalysis(
+                            messages: messages,
+                            retryCount: retryCount - 1,
+                            sourceType: sourceType,
+                            sourceName: sourceName,
+                            completion: completion
+                        )
                     } else {
                         completion(.failure(ImageRecognitionError.invalidOutputFormat))
                     }
@@ -353,13 +383,19 @@ class MLImageModel {
                             fats: item.fats,
                             servingSize: item.servingSize,
                             servingWeight: 0
-                        )
+                        ).withAIEstimateSource(sourceType, sourceName: sourceName)
                     }
                     DispatchQueue.main.async { completion(.success(foodItems)) }
                 } catch {
                     if retryCount > 0 {
                         AppLog.ai.warning("AI vision response decoding failed. Retrying: \(error.localizedDescription, privacy: .public)")
-                        performImageAnalysis(messages: messages, retryCount: retryCount - 1, completion: completion)
+                        performImageAnalysis(
+                            messages: messages,
+                            retryCount: retryCount - 1,
+                            sourceType: sourceType,
+                            sourceName: sourceName,
+                            completion: completion
+                        )
                     } else {
                         completion(.failure(ImageRecognitionError.decodingError(error)))
                     }

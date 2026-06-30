@@ -16,8 +16,7 @@ struct GroceryListView: View {
     
     @AppStorage("groceryUnitSystem") private var unitSystem: GroceryUnitSystem = Locale.current.measurementSystem == .us ? .imperial : .metric
     
-    private let foodAPIService = FatSecretFoodAPIService()
-    private let usdaService = USDAFoodAPIService()
+    private let barcodeLookupService = BarcodeFoodLookupService()
 
     private var displayedList: [GroceryListItem] {
         hideCompletedItems ? groceryList.filter { !$0.isCompleted } : groceryList
@@ -106,27 +105,20 @@ struct GroceryListView: View {
                     isFetchingItemName = true
                     DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                     Task { @MainActor in
-                        if let item = await withCheckedContinuation({ cont in
-                            foodAPIService.fetchFoodByBarcode(barcode: barcode) { cont.resume(returning: try? $0.get()) }
-                        }) {
+                        if let result = await barcodeLookupService.lookup(barcode) {
                             isFetchingItemName = false
-                            addBarcodeItem(item)
-                            saveList()
-                            return
-                        }
-                        if let item = await usdaService.lookupBarcode(barcode) {
-                            isFetchingItemName = false
-                            addBarcodeItem(item)
+                            addBarcodeItem(result.item)
                             saveList()
                             return
                         }
                         isFetchingItemName = false
-                        fetchError = (true, "No food found for that barcode.")
+                        fetchError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Add it manually and MyFitPlate will remember it next time.")
                     }
                 }
             }
             .alert("Barcode Error", isPresented: $fetchError.isShowing) {
-                Button("OK") {}
+                Button("Add Manually") { showingManualItemSheet = true }
+                Button("OK", role: .cancel) {}
             } message: {
                 Text(fetchError.message)
             }

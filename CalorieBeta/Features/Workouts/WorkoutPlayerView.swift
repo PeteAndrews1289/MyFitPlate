@@ -41,6 +41,7 @@ struct WorkoutPlayerView: View {
     @State private var completedSessionLog: WorkoutSessionLog?
     @State private var showingFinishConfirmation = false
     @State private var showingDiscardConfirmation = false
+    @State private var hasNotifiedWorkoutComplete = false
     @State private var isKeyboardVisible = false
     @State private var showingAddExercise = false
 
@@ -274,7 +275,6 @@ struct WorkoutPlayerView: View {
             Text("Your progress from this session won't be saved.")
         }
         .sheet(isPresented: $showingAnalyticsSheet, onDismiss: {
-            onWorkoutComplete()
             dismiss()
         }) {
             if let log = completedSessionLog {
@@ -363,7 +363,14 @@ struct WorkoutPlayerView: View {
         LiveActivityManager.shared.endActivity()
         DIContainer.shared.analyticsManager.log(.workoutCompleted, ["completed_sets": completedSetCount])
         self.completedSessionLog = sessionLog
+        notifyWorkoutCompleteIfNeeded()
         self.showingAnalyticsSheet = true
+    }
+
+    private func notifyWorkoutCompleteIfNeeded() {
+        guard !hasNotifiedWorkoutComplete else { return }
+        hasNotifiedWorkoutComplete = true
+        onWorkoutComplete()
     }
 
     private func logAllCompletedExercises() -> WorkoutSessionLog? {

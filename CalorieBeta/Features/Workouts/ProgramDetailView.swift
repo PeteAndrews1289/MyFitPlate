@@ -232,18 +232,7 @@ struct ProgramDetailView: View {
         }
         .fullScreenCover(item: $nextRoutineToPlay) { routine in
             WorkoutPlayerView(routine: routine) {
-                if let currentIndex = program.currentProgressIndex {
-                    var programToSave = program
-                    programToSave.currentProgressIndex = currentIndex + 1
-                    program = programToSave
-                    let expectedLogCount = sessionLogs.count + 1
-
-                    Task {
-                        let savedProgram = await workoutService.saveProgram(programToSave) ?? programToSave
-                        program = savedProgram
-                        await refreshSessionLogs(for: savedProgram, expectingAtLeast: expectedLogCount)
-                    }
-                }
+                advanceProgramAfterCompletion(completedRoutineID: routine.id)
             }
             .environmentObject(goalSettings)
             .environmentObject(dailyLogService)
@@ -252,11 +241,7 @@ struct ProgramDetailView: View {
         }
         .fullScreenCover(item: $calendarRoutineToPlay) { routine in
             WorkoutPlayerView(routine: routine) {
-                let programForRefresh = program
-                let expectedLogCount = sessionLogs.count + 1
-                Task {
-                    await refreshSessionLogs(for: programForRefresh, expectingAtLeast: expectedLogCount)
-                }
+                advanceProgramAfterCompletion(completedRoutineID: routine.id)
             }
                 .environmentObject(goalSettings)
                 .environmentObject(dailyLogService)
@@ -281,6 +266,24 @@ struct ProgramDetailView: View {
         }
     }
 
+    private func advanceProgramAfterCompletion(completedRoutineID: String) {
+        let programToSave = WorkoutRules.advanceAfterCompletion(
+            in: program,
+            completedRoutineID: completedRoutineID
+        )
+        program = programToSave
+        let expectedLogCount = sessionLogs.count + 1
+
+        Task {
+            let savedProgram = await workoutService.saveProgram(programToSave) ?? programToSave
+            program = savedProgram
+            if savedProgram.id == workoutService.activeProgram?.id {
+                workoutService.activeProgram = savedProgram
+            }
+            await refreshSessionLogs(for: savedProgram, expectingAtLeast: expectedLogCount)
+        }
+    }
+
     private func refreshSessionLogs(for program: WorkoutProgram, expectingAtLeast expectedCount: Int? = nil) async {
         var logs = await workoutService.fetchSessionLogs(for: program)
         if let expectedCount, logs.count < expectedCount {
@@ -292,6 +295,15 @@ struct ProgramDetailView: View {
         }
 
         self.sessionLogs = logs
+        let reconciledProgram = WorkoutRules.reconcileProgressFromSessionLogs(in: program, sessionLogs: logs)
+        if reconciledProgram.currentProgressIndex != program.currentProgressIndex {
+            let savedProgram = await workoutService.saveProgram(reconciledProgram) ?? reconciledProgram
+            self.program = savedProgram
+            if savedProgram.id == workoutService.activeProgram?.id {
+                workoutService.activeProgram = savedProgram
+            }
+        }
+
         var completedMap: [Date: WorkoutSessionLog] = [:]
         let calendar = Calendar.current
         for log in logs {

@@ -82,6 +82,14 @@ struct FoodDetailView: View {
         !isLoggedItem || source == "recent_tap" || source == "image_result_edit" || (availableServings.count > 1 && source != "log_swipe_direct_edit_no_picker")
     }
 
+    private var sourceDescriptor: FoodSourceDescriptor {
+        FoodSourceClassifier.descriptor(
+            for: source,
+            foodID: initialFoodItem.id,
+            metadata: initialFoodItem.sourceMetadata
+        )
+    }
+
     // MARK: - Adjusted Nutrients Calculation
     private var adjustedNutrients: AdjustedServingNutrition {
         let baseNutrients = selectedServingOption ?? ServingNutritionCalculator.baseServing(from: initialFoodItem)
@@ -111,6 +119,8 @@ struct FoodDetailView: View {
                             servingDescription: adjustedNutrients.servingDescription
                         )
 
+                        FoodSourceConfidenceCard(descriptor: sourceDescriptor)
+
                         if isShowingDetailsLoading {
                             FoodDetailLoadingCard()
                         } else {
@@ -136,8 +146,9 @@ struct FoodDetailView: View {
                             servingControlsCard
                             nutritionDetailsCard
                             FoodDetailLabelScanCard { showingImagePicker = true }
-                        }
-                    }
+    }
+}
+
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
                     .padding(.bottom, 12)
@@ -413,6 +424,7 @@ struct FoodDetailView: View {
             fiber: finalNutrients.fiber,
             servingSize: finalNutrients.servingDescription, servingWeight: finalNutrients.servingWeightGrams,
             timestamp: initialFoodItem.timestamp ?? Date(),
+            sourceMetadata: initialFoodItem.sourceMetadata,
             calcium: finalNutrients.calcium, iron: finalNutrients.iron,
             potassium: finalNutrients.potassium, sodium: finalNutrients.sodium,
             vitaminA: finalNutrients.vitaminA, vitaminC: finalNutrients.vitaminC,
@@ -423,7 +435,12 @@ struct FoodDetailView: View {
             vitaminB1: finalNutrients.vitaminB1, vitaminB2: finalNutrients.vitaminB2, vitaminB3: finalNutrients.vitaminB3,
             vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK
         )
-        let updatedFoodItem = rawUpdatedFoodItem.normalizedForEstimatedSource(source)
+        let updatedFoodItem = rawUpdatedFoodItem
+            .normalizedForEstimatedSource(source)
+            .markedUserEdited(
+                sourceType: inferredSourceType(for: source),
+                originalItem: initialFoodItem
+            )
         onUpdate(updatedFoodItem)
         dismiss()
     }
@@ -460,7 +477,9 @@ struct FoodDetailView: View {
             vitaminB1: finalNutrients.vitaminB1, vitaminB2: finalNutrients.vitaminB2, vitaminB3: finalNutrients.vitaminB3,
             vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK
         )
-        let itemToSave = rawItemToSave.normalizedForEstimatedSource(source)
+        let itemToSave = rawItemToSave
+            .normalizedForEstimatedSource(source)
+            .withSourceMetadata(.userEntered(sourceName: "My Foods"))
 
         dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
             Task { @MainActor in
@@ -607,6 +626,7 @@ struct FoodDetailView: View {
             fiber: finalNutrients.fiber,
             servingSize: finalNutrients.servingDescription, servingWeight: finalNutrients.servingWeightGrams,
             timestamp: isLoggedItem ? initialFoodItem.timestamp : Date(),
+            sourceMetadata: initialFoodItem.sourceMetadata,
             calcium: finalNutrients.calcium, iron: finalNutrients.iron,
             potassium: finalNutrients.potassium, sodium: finalNutrients.sodium,
             vitaminA: finalNutrients.vitaminA, vitaminC: finalNutrients.vitaminC,
@@ -617,7 +637,9 @@ struct FoodDetailView: View {
             vitaminB1: finalNutrients.vitaminB1, vitaminB2: finalNutrients.vitaminB2, vitaminB3: finalNutrients.vitaminB3,
             vitaminB5: finalNutrients.vitaminB5, vitaminB6: finalNutrients.vitaminB6, vitaminE: finalNutrients.vitaminE, vitaminK: finalNutrients.vitaminK
         )
-        let loggedFoodItem = rawLoggedFoodItem.normalizedForEstimatedSource(itemSourceToLog)
+        let loggedFoodItem = rawLoggedFoodItem
+            .normalizedForEstimatedSource(itemSourceToLog)
+            .markedUserConfirmed(sourceType: inferredSourceType(for: itemSourceToLog))
 
         if isLoggedItem {
             dailyLogService.updateFoodInCurrentLog(for: userID, updatedFoodItem: loggedFoodItem)
@@ -648,4 +670,72 @@ struct FoodDetailView: View {
         HStack { Text(label).appFont(size: 15); Spacer(); Text(value).appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel)) }
     }
     private func hideKeyboard() { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+
+    private func inferredSourceType(for source: String) -> FoodSourceType? {
+        let normalizedSource = source.lowercased()
+        if normalizedSource.contains("usda") { return .usda }
+        if normalizedSource.contains("open_food_facts") { return .openFoodFacts }
+        if normalizedSource.contains("barcode") || normalizedSource.contains("fatsecret") { return .fatSecret }
+        if normalizedSource.contains("menu") { return .aiMenu }
+        if normalizedSource.contains("text") { return .aiText }
+        if normalizedSource.contains("ai") || normalizedSource.contains("image") { return .aiImage }
+        if normalizedSource.contains("recipe") { return .recipe }
+        if normalizedSource.contains("meal_plan") { return .mealPlan }
+        if normalizedSource.contains("manual") || normalizedSource.contains("custom") { return .manual }
+        if normalizedSource.contains("recent") { return .recent }
+        return nil
+    }
+}
+
+private struct FoodSourceConfidenceCard: View {
+    let descriptor: FoodSourceDescriptor
+
+    private var tint: Color {
+        switch descriptor.sourceKey {
+        case "usda", "fatsecret", "manual", "planned":
+            return .accentPositive
+        case "open_food_facts", "recent":
+            return .blue
+        case "ai_estimate":
+            return .orange
+        default:
+            return .brandPrimary
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: descriptor.systemImage)
+                .appFont(size: 17, weight: .bold)
+                .foregroundColor(tint)
+                .frame(width: 38, height: 38)
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(descriptor.title)
+                        .appFont(size: 15, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text(descriptor.confidence)
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundColor(tint)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(tint.opacity(0.10), in: Capsule())
+                }
+
+                Text(descriptor.detail)
+                    .appFont(size: 12)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(descriptor.title). \(descriptor.confidence). \(descriptor.detail)")
+    }
 }

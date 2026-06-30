@@ -266,7 +266,7 @@ public class RecipeService: ObservableObject {
 
     public func recipeToFoodItem(recipe: Recipe) -> FoodItem {
         let nutrition = recipe.nutrition
-        var food = FoodItem(id: recipe.id ?? UUID().uuidString, name: recipe.name, calories: nutrition.calories, protein: nutrition.protein, carbs: nutrition.carbs, fats: nutrition.fats, saturatedFat: nutrition.saturatedFat, polyunsaturatedFat: nutrition.polyunsaturatedFat, monounsaturatedFat: nutrition.monounsaturatedFat, fiber: nutrition.fiber, servingSize: "1 serving", servingWeight: 0, timestamp: nil, calcium: nutrition.calcium, iron: nutrition.iron, potassium: nutrition.potassium, sodium: nutrition.sodium, vitaminA: nutrition.vitaminA, vitaminC: nutrition.vitaminC, vitaminD: nutrition.vitaminD, vitaminB12: nutrition.vitaminB12, folate: nutrition.folate)
+        var food = FoodItem(id: recipe.id ?? UUID().uuidString, name: recipe.name, calories: nutrition.calories, protein: nutrition.protein, carbs: nutrition.carbs, fats: nutrition.fats, saturatedFat: nutrition.saturatedFat, polyunsaturatedFat: nutrition.polyunsaturatedFat, monounsaturatedFat: nutrition.monounsaturatedFat, fiber: nutrition.fiber, servingSize: "1 serving", servingWeight: 0, timestamp: nil, sourceMetadata: FoodSourceMetadata(sourceType: .recipe, confidence: .userVerified, reviewStatus: .notRequired, sourceName: "Recipe", sourceID: recipe.id), calcium: nutrition.calcium, iron: nutrition.iron, potassium: nutrition.potassium, sodium: nutrition.sodium, vitaminA: nutrition.vitaminA, vitaminC: nutrition.vitaminC, vitaminD: nutrition.vitaminD, vitaminB12: nutrition.vitaminB12, folate: nutrition.folate)
         food.quantityValue = 1.0
         food.servingUnit = "serving"
         return food

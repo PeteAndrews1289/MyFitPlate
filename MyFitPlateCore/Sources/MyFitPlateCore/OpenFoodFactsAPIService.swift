@@ -4,6 +4,8 @@ public class OpenFoodFactsAPIService {
 
     private let baseURL = "https://world.openfoodfacts.org/api/v0/product/"
 
+    public init() {}
+
     public func fetchFoodItem(barcode: String, completion: @escaping (Result<FoodItem, APIError>) -> Void) {
 
         let urlString = "\(baseURL)\(barcode).json"
@@ -50,7 +52,7 @@ public enum OpenFoodFactsParser {
 
         let n = product.nutriments
         return FoodItem(
-            id: product.id,
+            id: "off_\(product.id)",
             name: product.productName ?? "Unknown Product",
             calories: n.energyKcal100g ?? 0,
             protein: n.proteins100g ?? 0,
@@ -71,6 +73,11 @@ public enum OpenFoodFactsParser {
             vitaminA: n.vitaminA100g,
             vitaminC: n.vitaminC100g.map { $0 * 1000 },
             vitaminD: n.vitaminD100g
+        ).withDatabaseSource(
+            .openFoodFacts,
+            sourceName: "Open Food Facts",
+            sourceID: "off_\(product.id)",
+            barcode: product.id
         )
     }
 }

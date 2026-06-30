@@ -10,23 +10,10 @@ struct AIMenuSelectionView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Banner
-                VStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
-                        .font(.title2)
-                    Text("AI Best Guess")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Text("Verify items before logging. AI estimates cannot guarantee 100% accuracy without exact ingredients.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .padding()
-                .background(Color.orange.opacity(0.1))
-                .cornerRadius(12)
+                AIEstimateReviewBanner(
+                    title: "Menu Estimate",
+                    message: "Pick only what you ate. Restaurant portions vary, so use this as a smart estimate rather than a verified menu label."
+                )
                 .padding()
 
                 List {
@@ -85,14 +72,19 @@ struct AIMenuSelectionView: View {
     @ViewBuilder
     private func itemRow(for item: FoodItem) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(item.name)
-                .appFont(size: 17, weight: .semibold)
+            HStack(spacing: 8) {
+                Text(item.name)
+                    .appFont(size: 17, weight: .semibold)
+                    .lineLimit(2)
+                AIReviewStatusPill(item: item)
+            }
             Text("Serving: \(item.servingSize)")
                 .appFont(size: 14)
                 .foregroundColor(Color(UIColor.secondaryLabel))
             Text("Est: \(Int(item.calories)) cal, P:\(Int(item.protein))g, C:\(Int(item.carbs))g, F:\(Int(item.fats))g")
                 .appFont(size: 12)
                 .foregroundColor(Color(UIColor.tertiaryLabel))
+            AIItemTrustNotes(item: item)
         }
         .padding(.vertical, 4)
     }
@@ -100,11 +92,21 @@ struct AIMenuSelectionView: View {
     private func logSelectedItems() {
         guard let userID = DIContainer.shared.authService.currentUserID, let items = estimatedItems else { return }
         
-        let selectedItems = items.filter { selectedItemIDs.contains($0.id) }
+        let selectedItems = items
+            .filter { selectedItemIDs.contains($0.id) }
+            .map { item in
+                item.markedUserConfirmed(sourceType: item.sourceMetadata?.sourceType ?? .aiMenu)
+            }
         guard !selectedItems.isEmpty else { return }
         
         let mealName = "AI Menu Log"
-        dailyLogService.addMealToCurrentLog(for: userID, mealName: mealName, foodItems: selectedItems)
+        dailyLogService.addMealToLog(
+            for: userID,
+            date: dailyLogService.activelyViewedDate,
+            mealName: mealName,
+            foodItems: selectedItems,
+            source: "ai_menu"
+        )
         
         estimatedItems = nil
         dismiss()

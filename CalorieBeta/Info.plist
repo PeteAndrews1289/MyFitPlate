@@ -14,5 +14,16 @@
 	<string>MyFitPlate saves nutrition and body measurement entries to Apple Health so your health data stays synchronized.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>MyFitPlate.CalorieBeta</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>myfitplate</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

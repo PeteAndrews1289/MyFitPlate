@@ -43,6 +43,67 @@ final class WorkoutRulesTests: XCTestCase {
         XCTAssertEqual(updated2.skippedIndices, [0, 1])
     }
 
+    func testAdvanceAfterCompletionUsesCurrentRoutine() {
+        let upper = WorkoutRoutine(id: "upper", userID: "user1", name: "Upper", dateCreated: Date())
+        let lower = WorkoutRoutine(id: "lower", userID: "user1", name: "Lower", dateCreated: Date())
+        var program = WorkoutProgram(
+            id: "prog1",
+            userID: "user1",
+            name: "My Program",
+            routines: [upper, lower],
+            daysOfWeek: [2, 3]
+        )
+        program.currentProgressIndex = 4
+
+        let updated = WorkoutRules.advanceAfterCompletion(in: program, completedRoutineID: upper.id)
+
+        XCTAssertEqual(updated.currentProgressIndex, 5)
+    }
+
+    func testAdvanceAfterCompletionRepairsStalePointerForNextMatchingRoutine() {
+        let upper = WorkoutRoutine(id: "upper", userID: "user1", name: "Upper", dateCreated: Date())
+        let lower = WorkoutRoutine(id: "lower", userID: "user1", name: "Lower", dateCreated: Date())
+        var program = WorkoutProgram(
+            id: "prog1",
+            userID: "user1",
+            name: "My Program",
+            routines: [upper, lower],
+            daysOfWeek: [2, 3]
+        )
+        program.currentProgressIndex = 4
+
+        let updated = WorkoutRules.advanceAfterCompletion(in: program, completedRoutineID: lower.id)
+
+        XCTAssertEqual(updated.currentProgressIndex, 6)
+        XCTAssertNil(updated.skippedIndices)
+    }
+
+    func testReconcileProgressFromSessionLogsAdvancesStaleProgram() {
+        let upper = WorkoutRoutine(id: "upper", userID: "user1", name: "Upper", dateCreated: Date())
+        let lower = WorkoutRoutine(id: "lower", userID: "user1", name: "Lower", dateCreated: Date())
+        var program = WorkoutProgram(
+            id: "prog1",
+            userID: "user1",
+            name: "My Program",
+            routines: [upper, lower],
+            daysOfWeek: [2, 3]
+        )
+        program.currentProgressIndex = 4
+
+        let logs = [
+            WorkoutSessionLog(date: Date(), routineID: upper.id, completedExercises: []),
+            WorkoutSessionLog(date: Date(), routineID: lower.id, completedExercises: []),
+            WorkoutSessionLog(date: Date(), routineID: upper.id, completedExercises: []),
+            WorkoutSessionLog(date: Date(), routineID: lower.id, completedExercises: []),
+            WorkoutSessionLog(date: Date(), routineID: upper.id, completedExercises: []),
+            WorkoutSessionLog(date: Date(), routineID: lower.id, completedExercises: [])
+        ]
+
+        let updated = WorkoutRules.reconcileProgressFromSessionLogs(in: program, sessionLogs: logs)
+
+        XCTAssertEqual(updated.currentProgressIndex, 6)
+    }
+
     func testMapResponseToProgram() {
         let aiSet = AISet(target: "10-12 reps")
         let aiExercise = AIExercise(

@@ -279,6 +279,7 @@ class AIChatbotViewModel: ObservableObject {
         let vitaminD = nutritionalBreakdown["vitaminD"]
         let foodName = extractFoodName(from: recipeText)
         let loggedFoodItem = FoodItem(id: UUID().uuidString, name: foodName, calories: calories, protein: protein, carbs: carbs, fats: fats, servingSize: "1 serving (AI Est.)", servingWeight: 0, timestamp: Date(), calcium: calcium, iron: iron, potassium: potassium, sodium: sodium, vitaminA: vitaminA, vitaminC: vitaminC, vitaminD: vitaminD)
+            .withAIEstimateSource(.aiChat, sourceName: "Maia Chat")
         let mealType = determineMealType()
         dailyLogService?.addMealToLog(for: userID, date: dailyLogService?.activelyViewedDate ?? Date(), mealName: mealType, foodItems: [loggedFoodItem], source: "ai_chat")
         let haptic = UINotificationFeedbackGenerator(); haptic.notificationOccurred(.success); alertMessage = "\(foodName) logged!"; showAlert = true

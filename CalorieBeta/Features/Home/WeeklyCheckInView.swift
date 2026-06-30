@@ -5,6 +5,41 @@ struct WeeklyCheckInView: View {
     @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
     @Environment(\.dismiss) var dismiss
 
+    private var targetDeltaText: String {
+        guard let current = goalSettings.calories,
+              let calculated = adaptiveGoalService.calculatedTDEE else {
+            return "MyFitPlate will switch your targets to the latest adaptive estimate."
+        }
+
+        let delta = Int((calculated - current).rounded())
+        if abs(delta) < 50 {
+            return "Your current target is already close to the latest estimate."
+        }
+
+        return delta > 0
+            ? "The adaptive estimate is \(delta) calories higher than your current target."
+            : "The adaptive estimate is \(abs(delta)) calories lower than your current target."
+    }
+
+    private var coachingReasonText: String {
+        guard let rate = adaptiveGoalService.weightChangeRatePerDay,
+              let average = adaptiveGoalService.last21DaysCalorieAverage else {
+            return "This recommendation uses your recent weigh-ins and logged intake once enough data is available."
+        }
+
+        let weeklyRate = rate * 7
+        let trend: String
+        if weeklyRate > 0.15 {
+            trend = "weight has been trending up"
+        } else if weeklyRate < -0.15 {
+            trend = "weight has been trending down"
+        } else {
+            trend = "weight has been mostly stable"
+        }
+
+        return "Over the last 21 days, your average logged intake was \(Int(average.rounded())) calories and your \(trend)."
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -14,6 +49,7 @@ struct WeeklyCheckInView: View {
                     if adaptiveGoalService.dataConfidence == .high || adaptiveGoalService.dataConfidence == .medium {
                         statsSection
                         TrendDashboardView(weightHistory: goalSettings.weightHistory)
+                        recommendationSection
                         actionSection
                     } else {
                         needsDataSection
@@ -111,7 +147,7 @@ struct WeeklyCheckInView: View {
     private var actionSection: some View {
         VStack(spacing: 12) {
             Button(action: acceptTargets) {
-                Text("Accept New Targets")
+                Text("Use Adaptive Targets")
                     .appFont(size: 17, weight: .bold)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -121,7 +157,7 @@ struct WeeklyCheckInView: View {
             .buttonStyle(.plain)
             
             Button(action: skipCheckIn) {
-                Text("Keep Current Targets")
+                Text("Keep Current Targets This Week")
                     .appFont(size: 15, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(maxWidth: .infinity)
@@ -130,6 +166,44 @@ struct WeeklyCheckInView: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    private var recommendationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "target")
+                    .appFont(size: 18, weight: .bold)
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Why this target")
+                        .appFont(size: 18, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text(coachingReasonText)
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Text(targetDeltaText)
+                .appFont(size: 13, weight: .semibold)
+                .foregroundColor(.brandPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.brandPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            Text("Accepting keeps the app in adaptive mode. Keeping current targets simply delays the change; your data will keep updating.")
+                .appFont(size: 12)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .asCard()
     }
     
     private var needsDataSection: some View {

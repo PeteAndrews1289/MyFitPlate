@@ -25,6 +25,67 @@ public struct WorkoutRules {
         return skip(to: (program.currentProgressIndex ?? 0) + 1, in: program)
     }
 
+    /// Advances the program after a completed routine. If the saved progress pointer is stale,
+    /// this searches forward for the completed routine and advances past that slot.
+    public static func advanceAfterCompletion(
+        in program: WorkoutProgram,
+        completedRoutineID: String
+    ) -> WorkoutProgram {
+        let total = totalSlots(in: program)
+        guard total > 0 else { return program }
+
+        let current = min(max(program.currentProgressIndex ?? 0, 0), total)
+        let matchedSlot = (current..<total).first { slot in
+            program.routines.indices.contains(slot % program.routines.count) &&
+                program.routines[slot % program.routines.count].id == completedRoutineID
+        }
+
+        let completedSlot = matchedSlot ?? current
+        let nextIndex = min(completedSlot + 1, total)
+        guard nextIndex > current else { return program }
+
+        var updated = program
+        updated.currentProgressIndex = nextIndex
+        return updated
+    }
+
+    /// Repairs a stale program pointer from persisted session logs. This is intentionally count
+    /// based because old app versions could save the session log but miss the program advancement.
+    public static func reconcileProgressFromSessionLogs(
+        in program: WorkoutProgram,
+        sessionLogs: [WorkoutSessionLog]
+    ) -> WorkoutProgram {
+        let total = totalSlots(in: program)
+        guard total > 0 else { return program }
+
+        let routineIDs = Set(program.routines.map(\.id))
+        let completedLogCount = sessionLogs.filter { routineIDs.contains($0.routineID) }.count
+        guard completedLogCount > 0 else { return program }
+
+        let current = min(max(program.currentProgressIndex ?? 0, 0), total)
+        let skipped = Set(program.skippedIndices ?? [])
+        var reconciledIndex = current
+
+        while reconciledIndex < total &&
+            completedSlotCount(upTo: reconciledIndex, skipped: skipped) < completedLogCount {
+            reconciledIndex += 1
+        }
+
+        guard reconciledIndex > current else { return program }
+        var updated = program
+        updated.currentProgressIndex = reconciledIndex
+        return updated
+    }
+
+    private static func completedSlotCount(upTo index: Int, skipped: Set<Int>) -> Int {
+        guard index > 0 else { return 0 }
+        return (0..<index).filter { !skipped.contains($0) }.count
+    }
+
+    private static func totalSlots(in program: WorkoutProgram) -> Int {
+        max((program.daysOfWeek?.count ?? 0) * 12, program.routines.count)
+    }
+
     /// Prepares a fresh copy of a pre-built program for a user by resetting IDs and clearing completion states.
     public static func preparePreBuiltProgramForUser(_ program: WorkoutProgram, userID: String) -> WorkoutProgram {
         var userProgramCopy = program

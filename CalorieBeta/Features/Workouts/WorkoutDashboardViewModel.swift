@@ -139,5 +139,13 @@ class WorkoutDashboardViewModel: ObservableObject {
             }
         }
         sessionLogs = logs
+
+        let reconciledProgram = WorkoutRules.reconcileProgressFromSessionLogs(in: program, sessionLogs: logs)
+        if reconciledProgram.currentProgressIndex != program.currentProgressIndex {
+            let savedProgram = await workoutService.saveProgram(reconciledProgram) ?? reconciledProgram
+            if savedProgram.id == workoutService.activeProgram?.id {
+                workoutService.activeProgram = savedProgram
+            }
+        }
     }
 }

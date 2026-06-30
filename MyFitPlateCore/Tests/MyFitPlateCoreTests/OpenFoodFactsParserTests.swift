@@ -30,7 +30,7 @@ final class OpenFoodFactsParserTests: XCTestCase {
         """
         let item = try XCTUnwrap(OpenFoodFactsParser.foodItem(from: data(json)))
 
-        XCTAssertEqual(item.id, "12345")
+        XCTAssertEqual(item.id, "off_12345")
         XCTAssertEqual(item.name, "Test Bar")
         XCTAssertEqual(item.calories, 400, accuracy: 0.001)
         XCTAssertEqual(item.protein, 20, accuracy: 0.001)

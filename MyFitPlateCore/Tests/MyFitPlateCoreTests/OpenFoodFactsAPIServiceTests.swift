@@ -31,7 +31,7 @@ final class OpenFoodFactsAPIServiceTests: XCTestCase {
         XCTAssertNotNil(food)
         
         let item = food!
-        XCTAssertEqual(item.id, "1234567890")
+        XCTAssertEqual(item.id, "off_1234567890")
         XCTAssertEqual(item.name, "Test Food")
         XCTAssertEqual(item.servingSize, "50g")
         XCTAssertEqual(item.servingWeight, 100.0)

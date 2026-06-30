@@ -26,10 +26,11 @@ struct FoodSearchView: View {
     @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems?
     @State private var estimatedMenuWrapper: IdentifiableFoodItems?
     @State private var scannedFoodItem: FoodItem?
+    @State private var scannedFoodSource: String = "barcode_result"
     @State private var scanError: (Bool, String) = (false, "")
 
     private let foodAPIService = FatSecretFoodAPIService()
-    private let usdaService = USDAFoodAPIService()
+    private let barcodeLookupService = BarcodeFoodLookupService()
     private let imageModel = MLImageModel()
 
     var body: some View {
@@ -86,20 +87,14 @@ struct FoodSearchView: View {
                         self.isSearchingAfterScan = true
                         DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                         Task { @MainActor in
-                            if let item = await withCheckedContinuation({ cont in
-                                foodAPIService.fetchFoodByBarcode(barcode: barcode) { cont.resume(returning: try? $0.get()) }
-                            }) {
+                            if let result = await barcodeLookupService.lookup(barcode) {
                                 self.isSearchingAfterScan = false
-                                self.scannedFoodItem = item
-                                return
-                            }
-                            if let item = await usdaService.lookupBarcode(barcode) {
-                                self.isSearchingAfterScan = false
-                                self.scannedFoodItem = item
+                                self.scannedFoodSource = result.source
+                                self.scannedFoodItem = result.item
                                 return
                             }
                             self.isSearchingAfterScan = false
-                            self.scanError = (true, "No food found for this barcode.")
+                            self.scanError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Create it from the label, use camera capture, or search by name.")
                         }
                     }
                 }
@@ -150,7 +145,7 @@ struct FoodSearchView: View {
                         initialFoodItem: foodItem,
                         dailyLog: $dailyLog,
                         date: dailyLogService.activelyViewedDate,
-                        source: foodItem.id.hasPrefix("usda_") ? "usda_barcode" : "barcode_result",
+                        source: scannedFoodSource,
                         targetMealName: viewModel.selectedMeal,
                         onLogUpdated: {
                             self.scannedFoodItem = nil
@@ -164,7 +159,13 @@ struct FoodSearchView: View {
                 .sheet(item: $estimatedMenuWrapper) { wrapper in
                      AIMenuSelectionView(estimatedItems: .constant(wrapper.items))
                 }
-                .alert("Scan Error", isPresented: $scanError.0) { Button("OK") { } } message: { Text(scanError.1) }
+                .alert("Scan Error", isPresented: $scanError.0) {
+                    Button("Create Food") { showingAddFoodManually = true }
+                    Button("Use Camera") { showingImagePicker = true }
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(scanError.1)
+                }
 
                 if isProcessingImage || isSearchingAfterScan {
                     Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)

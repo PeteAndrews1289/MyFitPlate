@@ -11,9 +11,15 @@ struct AITextResultsView: View {
 
     var body: some View {
         NavigationView {
-            VStack {
+            VStack(spacing: 0) {
+                AIEstimateReviewBanner(
+                    title: "Text Estimate",
+                    message: "Maia parsed this from your description. Review portions before logging, especially sauces, oils, and shared plates."
+                )
+                .padding([.horizontal, .top])
+
                 List {
-                    Section(header: Text("AI Found These Items")) {
+                    Section(header: Text("Review Items")) {
                         ForEach($foodItems) { $item in
                             Button(action: {
                                 self.itemToEdit = item
@@ -25,7 +31,7 @@ struct AITextResultsView: View {
                     }
                 }
                 
-                Text("You can tap an item to edit it, or swipe to delete it before logging.")
+                Text("Tap an item to edit it, or swipe to remove anything Maia inferred incorrectly.")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -52,7 +58,7 @@ struct AITextResultsView: View {
                     initialFoodItem: item,
                     dailyLog: .constant(nil),
                     date: dailyLogService.activelyViewedDate,
-                    source: "image_result_edit", // This source tells FoodDetailView how to behave
+                    source: "ai_text_edit",
                     onLogUpdated: {},
                     onUpdate: { updatedItem in
                         // When the user saves in FoodDetailView, this updates our local list
@@ -68,15 +74,20 @@ struct AITextResultsView: View {
     @ViewBuilder
     private func itemRow(for item: FoodItem) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(item.name)
-                .appFont(size: 17, weight: .semibold)
-                .foregroundColor(.primary)
+            HStack(spacing: 8) {
+                Text(item.name)
+                    .appFont(size: 17, weight: .semibold)
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+                AIReviewStatusPill(item: item)
+            }
             Text("Serving: \(item.servingSize)")
                 .appFont(size: 14)
                 .foregroundColor(Color(UIColor.secondaryLabel))
             Text("Est: \(Int(item.calories)) cal, P:\(Int(item.protein))g, C:\(Int(item.carbs))g, F:\(Int(item.fats))g")
                 .appFont(size: 12)
                 .foregroundColor(Color(UIColor.tertiaryLabel))
+            AIItemTrustNotes(item: item)
         }
         .padding(.vertical, 4)
     }
@@ -89,7 +100,16 @@ struct AITextResultsView: View {
         guard let userID = DIContainer.shared.authService.currentUserID, !foodItems.isEmpty else { return }
         
         let mealName = "AI Quick Log"
-        dailyLogService.addMealToCurrentLog(for: userID, mealName: mealName, foodItems: foodItems)
+        let reviewedItems = foodItems.map { item in
+            item.markedUserConfirmed(sourceType: item.sourceMetadata?.sourceType ?? .aiText)
+        }
+        dailyLogService.addMealToLog(
+            for: userID,
+            date: dailyLogService.activelyViewedDate,
+            mealName: mealName,
+            foodItems: reviewedItems,
+            source: "ai_text"
+        )
         
         onLogComplete()
         dismiss()

@@ -72,6 +72,13 @@ struct FoodPickerRow: View {
         food.servingSize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Serving details" : food.servingSize
     }
 
+    private var sourceDescriptor: FoodSourceDescriptor? {
+        if let metadata = food.sourceMetadata {
+            return FoodSourceClassifier.descriptor(for: metadata)
+        }
+        return FoodSourceClassifier.descriptor(forFoodID: food.id)
+    }
+
     var body: some View {
         ZStack(alignment: offset > 0 ? .leading : .trailing) {
             if isSwipedRight && onQuickLog != nil {
@@ -140,10 +147,16 @@ struct FoodPickerRow: View {
                                 .foregroundColor(.textPrimary)
                                 .lineLimit(2)
 
-                            Text(servingText)
-                                .appFont(size: 12, weight: .medium)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .lineLimit(1)
+                            HStack(spacing: 6) {
+                                Text(servingText)
+                                    .appFont(size: 12, weight: .medium)
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                                    .lineLimit(1)
+
+                                if let sourceDescriptor {
+                                    FoodSourceMiniBadge(descriptor: sourceDescriptor)
+                                }
+                            }
 
                             Text(detailText)
                                 .appFont(size: 11, weight: .semibold)
@@ -228,5 +241,34 @@ struct FoodPickerRow: View {
                     }
             )
         }
+    }
+}
+
+private struct FoodSourceMiniBadge: View {
+    let descriptor: FoodSourceDescriptor
+
+    private var tint: Color {
+        switch descriptor.sourceKey {
+        case "usda", "fatsecret", "manual", "planned":
+            return .accentPositive
+        case "open_food_facts", "recent":
+            return .blue
+        case "ai_estimate":
+            return .orange
+        default:
+            return .brandPrimary
+        }
+    }
+
+    var body: some View {
+        Label(descriptor.title, systemImage: descriptor.systemImage)
+            .labelStyle(.titleAndIcon)
+            .appFont(size: 10, weight: .bold)
+            .foregroundColor(tint)
+            .lineLimit(1)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(tint.opacity(0.10), in: Capsule())
+            .accessibilityLabel("\(descriptor.title), \(descriptor.confidence)")
     }
 }
