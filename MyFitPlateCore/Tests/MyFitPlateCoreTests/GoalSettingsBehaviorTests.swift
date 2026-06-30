@@ -424,3 +424,65 @@ private final class MockCoreHealthKitManager: HealthKitManaging {
         savedWeightSamples.append((weightLbs, date))
     }
 }
+
+final class GoalSettingsAdditionalTests: XCTestCase {
+    var settings: GoalSettings!
+    var mockRepo: MockSettingsRepository!
+    
+    @MainActor
+    override func setUp() {
+        super.setUp()
+        settings = GoalSettings(healthKitManager: MockCoreHealthKitManager())
+        mockRepo = MockSettingsRepository()
+        DIContainer.shared.settingsRepository = mockRepo
+        let mockAuth = MockAuthService()
+        mockAuth.currentUserID = "user_123"
+        DIContainer.shared.authService = mockAuth
+    }
+    
+    @MainActor
+    func testApplyWeeklyCheckIn() {
+        settings.gender = "Male"
+        settings.weight = 100
+        settings.height = 150.0
+        settings.age = 30
+        settings.activityLevel = 1.2
+        
+        let exp = expectation(description: "Wait for async")
+        mockRepo.onSave = {
+            exp.fulfill()
+        }
+        
+        settings.applyWeeklyCheckIn(userID: "user_123", newCalories: 1000)
+        
+        wait(for: [exp], timeout: 1.0)
+        
+        XCTAssertEqual(settings.calories ?? 0, 1500) // Minimum for male
+        XCTAssertNotNil(settings.lastCheckInDate)
+    }
+    
+    @MainActor
+    func testUpdateUserWeight() {
+        settings.weightHistory = []
+        settings.updateUserWeight(185.0)
+        
+        let dispatchExp = expectation(description: "dispatch")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            dispatchExp.fulfill()
+        }
+        wait(for: [dispatchExp], timeout: 1.0)
+        
+        XCTAssertEqual(settings.weight, 185.0)
+    }
+    
+    @MainActor
+    func testDeleteWeightEntry() {
+        let exp = expectation(description: "Completion called")
+        settings.deleteWeightEntry(entryID: "entry1") { error in
+            XCTAssertNil(error)
+            exp.fulfill()
+        }
+        
+        wait(for: [exp], timeout: 1.0)
+    }
+}

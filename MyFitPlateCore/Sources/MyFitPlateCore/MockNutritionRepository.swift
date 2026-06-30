@@ -2,10 +2,14 @@ import Foundation
 import Combine
 
 public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchecked Sendable {
+    private let lock = NSLock()
     public init() {}
     
     // Properties for testing
     public var lastUpdatedLog: DailyLog?
+    public var savedDailyLogs: [DailyLog] = []
+    public var savedDailyLogUserIDs: [String] = []
+    public var saveDailyLogError: Error?
     public var updateLogSuccess: Bool = true
     public var mockFetchLogResult: Result<DailyLog, Error>?
     public var mockFetchDailyHistoryResult: Result<[DailyLog], Error>?
@@ -16,7 +20,10 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
         completion(updateLogSuccess)
     }
     public func saveDailyLog(userID: String, log: DailyLog) async throws {
+        if let saveDailyLogError { throw saveDailyLogError }
         lastUpdatedLog = log
+        savedDailyLogs.append(log)
+        savedDailyLogUserIDs.append(userID)
     }
     public func fetchLogInternal(userID: String, date: Date, completion: @escaping (Result<DailyLog, Error>) -> Void) {
         if let result = mockFetchLogResult {
@@ -66,10 +73,42 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
     public func saveGroceryList(userID: String, items: [GroceryListItem]) async throws {
         savedGroceryLists = items
     }
-    public func addPantrySnapshotListener(userID: String, onChange: @escaping (Result<[PantryItem], Error>) -> Void) -> Any { return UUID() }
-    public func removePantrySnapshotListener(_ handle: Any) {}
-    public func savePantryItem(userID: String, item: PantryItem) async throws {}
-    public func deletePantryItem(userID: String, itemID: String) async throws {}
+    public var mockPantrySnapshotResult: Result<[PantryItem], Error>?
+    public var pantryListenerUserIDs: [String] = []
+    public var removedPantryListenerHandles: [Any] = []
+    public var savedPantryItems: [PantryItem] = []
+    public var savedPantryUserIDs: [String] = []
+    public var deletedPantryItemIDs: [String] = []
+    public var deletedPantryUserIDs: [String] = []
+    public var pantryItemError: Error?
+
+    public func addPantrySnapshotListener(userID: String, onChange: @escaping (Result<[PantryItem], Error>) -> Void) -> Any {
+        pantryListenerUserIDs.append(userID)
+        if let mockPantrySnapshotResult {
+            onChange(mockPantrySnapshotResult)
+        } else {
+            onChange(.success([]))
+        }
+        return UUID()
+    }
+
+    public func removePantrySnapshotListener(_ handle: Any) {
+        removedPantryListenerHandles.append(handle)
+    }
+
+    public func savePantryItem(userID: String, item: PantryItem) async throws {
+        if let pantryItemError { throw pantryItemError }
+        savedPantryUserIDs.append(userID)
+        savedPantryItems.append(item)
+    }
+
+    public func deletePantryItem(userID: String, itemID: String) async throws {
+        if let pantryItemError { throw pantryItemError }
+        lock.lock()
+        deletedPantryUserIDs.append(userID)
+        deletedPantryItemIDs.append(itemID)
+        lock.unlock()
+    }
     public var mockRecipes: [Recipe] = []
     public var savedRecipes: [Recipe] = []
     public var deletedRecipeIDs: [String] = []
@@ -98,6 +137,19 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
         if let customFoodError { throw customFoodError }
         return customFoodsToReturn
     }
-    public func saveRecentFood(userID: String, foodItem: FoodItem, source: String, stableID: String) async throws {}
-    public func fetchRecentFoods(userID: String, limit: Int) async throws -> [FoodItem] { return [] }
+    public var savedRecentFoods: [(userID: String, foodItem: FoodItem, source: String, stableID: String)] = []
+    public var recentFoodsToReturn: [FoodItem] = []
+    public var recentFoodError: Error?
+    public var fetchRecentFoodLimits: [Int] = []
+
+    public func saveRecentFood(userID: String, foodItem: FoodItem, source: String, stableID: String) async throws {
+        if let recentFoodError { throw recentFoodError }
+        savedRecentFoods.append((userID, foodItem, source, stableID))
+    }
+
+    public func fetchRecentFoods(userID: String, limit: Int) async throws -> [FoodItem] {
+        if let recentFoodError { throw recentFoodError }
+        fetchRecentFoodLimits.append(limit)
+        return Array(recentFoodsToReturn.prefix(limit))
+    }
 }

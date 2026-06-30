@@ -222,4 +222,82 @@ final class FatSecretFoodAPIServiceTests: XCTestCase {
         
         wait(for: [expectation], timeout: 1.0)
     }
+    
+    @MainActor
+    func testFetchFoodByBarcodeSuccess() {
+        let mockCloud = MockCloudFunctionService()
+        DIContainer.shared.cloudFunctionService = mockCloud
+        
+        let jsonDict: [String: Any] = [
+            "food_id": ["value": "456"]
+        ]
+        
+        let detailsJsonDict: [String: Any] = [
+            "food": [
+                "food_id": "456",
+                "food_name": "Banana",
+                "brand_name": "Chiquita",
+                "servings": [
+                    "serving": [
+                        [
+                            "calories": "89",
+                            "metric_serving_amount": "118",
+                            "metric_serving_unit": "g"
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        
+        // Return barcode first, then details
+        var callCount = 0
+        mockCloud.mockCallFunctionResult = .success([:]) // Dummy
+        mockCloud.onCall = { params in
+            callCount += 1
+            if callCount == 1 {
+                return .success(jsonDict)
+            } else {
+                return .success(detailsJsonDict)
+            }
+        }
+        
+        let service = FatSecretFoodAPIService()
+        let expectation = XCTestExpectation(description: "Fetch food by barcode")
+        
+        service.fetchFoodByBarcode(barcode: "123456789") { result in
+            switch result {
+            case .success(let item):
+                XCTAssertEqual(item.id, "456")
+                XCTAssertEqual(item.name, "Chiquita Banana")
+                XCTAssertEqual(item.calories, 89.0)
+            case .failure(let error):
+                XCTFail("Expected success, got error \(error)")
+            }
+            expectation.fulfill()
+        }
+        
+        wait(for: [expectation], timeout: 1.0)
+    }
+    
+    func testParsedServingWeightGramsVariousUnits() throws {
+        let json = """
+        {
+            "serving": [
+                { "metric_serving_amount": "100", "metric_serving_unit": "g" },
+                { "metric_serving_amount": "100", "metric_serving_unit": "ml" },
+                { "metric_serving_amount": "10", "metric_serving_unit": "oz" },
+                { "metric_serving_amount": "10", "metric_serving_unit": "fl oz" },
+                { "metric_serving_amount": "100", "metric_serving_unit": "unknown" }
+            ]
+        }
+        """.data(using: .utf8)!
+        
+        let servings = try JSONDecoder().decode(FatSecretServings.self, from: json)
+        let s = servings.serving
+        XCTAssertEqual(s[0].parsedServingWeightGrams, 100.0)
+        XCTAssertEqual(s[1].parsedServingWeightGrams, 100.0)
+        XCTAssertEqual(s[2].parsedServingWeightGrams, 283.495)
+        XCTAssertEqual(s[3].parsedServingWeightGrams, 295.735)
+        XCTAssertNil(s[4].parsedServingWeightGrams)
+    }
 }

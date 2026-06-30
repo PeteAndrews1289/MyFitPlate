@@ -51,7 +51,7 @@ jobs:
 
       - name: Check Core coverage floor
         env:
-          CORE_COVERAGE_MINIMUM: "50.0"
+          CORE_COVERAGE_MINIMUM: "70.0"
         run: ./scripts/check_core_coverage.sh
 
       - name: Run unit tests

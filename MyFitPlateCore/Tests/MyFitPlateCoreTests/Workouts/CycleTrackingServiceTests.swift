@@ -79,6 +79,77 @@ final class CycleTrackingServiceTests: XCTestCase {
         XCTAssertEqual(decoded.typicalPeriodLength, 6)
     }
 
+    func testFetchAIInsightBuildsPromptFromRecentLogsAndStoresDecodedInsight() async {
+        let mockRepo = MockNutritionRepository()
+        mockRepo.mockFetchDailyHistoryResult = .success([
+            DailyLog(
+                id: "log-1",
+                date: Date(timeIntervalSince1970: 1_725_235_200),
+                meals: [
+                    Meal(name: "Breakfast", foodItems: [
+                        FoodItem(id: "food-1", name: "Oats", calories: 300, protein: 20, carbs: 45, fats: 6)
+                    ])
+                ]
+            )
+        ])
+        DIContainer.shared.nutritionRepository = mockRepo
+        DIContainer.shared.authService = MockAuthService()
+        let aiService = MockAIService()
+        aiService.mockResult = .success("""
+        {
+          "phaseTitle": "Power Phase",
+          "phaseDescription": "Energy is trending up.",
+          "trainingFocus": {
+            "title": "Strength",
+            "description": "Lean into progressive overload."
+          },
+          "hormonalState": "Rising estrogen",
+          "energyLevel": "High",
+          "nutritionTip": "Keep protein steady.",
+          "symptomTip": "Hydrate well."
+        }
+        """)
+        DIContainer.shared.aiService = aiService
+        let service = serviceWithLastPeriodStart(daysAgo: 13)
+        let goals = GoalSettings()
+        goals.goal = "Lose"
+        service.setupDependencies(goalSettings: goals, dailyLogService: DailyLogService())
+
+        service.fetchAIInsight()
+        try? await Task.sleep(nanoseconds: 150_000_000)
+
+        XCTAssertFalse(service.isLoadingInsight)
+        XCTAssertEqual(service.aiInsight?.phaseTitle, "Power Phase")
+        XCTAssertEqual(service.aiInsight?.trainingFocus.title, "Strength")
+        XCTAssertEqual(mockRepo.fetchRecentFoodLimits, [])
+    }
+
+    func testFetchAIInsightClearsLoadingWhenAIRequestFails() async {
+        DIContainer.shared.nutritionRepository = MockNutritionRepository()
+        DIContainer.shared.authService = MockAuthService()
+        let aiService = MockAIService()
+        aiService.mockResult = .failure(.networkError(URLError(.timedOut)))
+        DIContainer.shared.aiService = aiService
+        let service = serviceWithLastPeriodStart(daysAgo: 13)
+        service.setupDependencies(goalSettings: GoalSettings(), dailyLogService: DailyLogService())
+
+        service.fetchAIInsight()
+        try? await Task.sleep(nanoseconds: 150_000_000)
+
+        XCTAssertFalse(service.isLoadingInsight)
+        XCTAssertNil(service.aiInsight)
+    }
+
+    func testFetchAIInsightReturnsEarlyWithoutCycleDayOrGoals() async {
+        let service = CycleTrackingService()
+
+        service.fetchAIInsight()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertFalse(service.isLoadingInsight)
+        XCTAssertNil(service.aiInsight)
+    }
+
     private func serviceWithLastPeriodStart(daysAgo: Int) -> CycleTrackingService {
         let startDate = Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date())!
         UserDefaults.standard.set(Calendar.current.startOfDay(for: startDate), forKey: "lastPeriodStartDate")

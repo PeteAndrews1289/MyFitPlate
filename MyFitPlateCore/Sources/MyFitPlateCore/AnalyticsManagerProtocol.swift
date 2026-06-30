@@ -3,7 +3,7 @@ import Foundation
 public protocol AnalyticsManagerProtocol {
     func logEvent(_ name: String, parameters: [String: Any]?)
     func setUserProperty(_ value: String, forName name: String)
-    func setUserID(_ id: String)
+    func setUserID(_ id: String?)
     func log(_ event: AppEvent, _ parameters: [String: Any])
 }
 

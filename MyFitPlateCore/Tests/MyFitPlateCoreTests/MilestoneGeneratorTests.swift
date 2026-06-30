@@ -56,4 +56,16 @@ final class MilestoneGeneratorTests: XCTestCase {
 
         XCTAssertEqual(milestones.first?.displayLabel, "-5.0 kg")
     }
+
+    @MainActor
+    func testMilestoneViewBody() {
+        let view = MilestoneView(initialWeight: 200, currentWeight: 190, targetWeight: 150)
+        let body = view.body
+        XCTAssertNotNil(body)
+        
+        // Empty milestones view
+        let viewEmpty = MilestoneView(initialWeight: 200, currentWeight: 200, targetWeight: 200)
+        let bodyEmpty = viewEmpty.body
+        XCTAssertNotNil(bodyEmpty)
+    }
 }

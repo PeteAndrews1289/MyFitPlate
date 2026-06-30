@@ -26,10 +26,12 @@ public class AppState: ObservableObject {
                 guard let self = self else { return }
                 if let userID = userID {
                     self.isUserLoggedIn = true
+                    self.identifyReleaseHealthUser(userID)
                     self.loadDarkModePreference(userID: userID)
                     self.recordLastLogin(userID: userID)
                 } else {
                     self.isUserLoggedIn = false
+                    self.identifyReleaseHealthUser(nil)
                 }
             }
         }
@@ -50,6 +52,7 @@ public class AppState: ObservableObject {
                 }
             } catch {
                 AppLog.app.error("Failed to load dark mode preference: \(error.localizedDescription, privacy: .public)")
+                self.recordNonFatal(error, area: .database, operation: "load_dark_mode_preference")
                 await MainActor.run {
                     if self.isDarkModeEnabled != false {
                          self.isDarkModeEnabled = false
@@ -67,6 +70,7 @@ public class AppState: ObservableObject {
                 try await DIContainer.shared.databaseService.saveDarkModePreference(userID: userID, isEnabled: isEnabled)
             } catch {
                 AppLog.app.error("Failed to save dark mode preference: \(error.localizedDescription, privacy: .public)")
+                self.recordNonFatal(error, area: .database, operation: "save_dark_mode_preference")
             }
         }
     }
@@ -78,6 +82,7 @@ public class AppState: ObservableObject {
                 try await DIContainer.shared.databaseService.recordLastLogin(userID: userID)
             } catch {
                 AppLog.app.error("Failed to record last login: \(error.localizedDescription, privacy: .public)")
+                self.recordNonFatal(error, area: .database, operation: "record_last_login")
             }
         }
     }
@@ -85,9 +90,32 @@ public class AppState: ObservableObject {
     public func signOut() {
         do {
             try DIContainer.shared.authService.signOut()
+            identifyReleaseHealthUser(nil)
         } catch {
             AppLog.app.error("Failed to sign out: \(error.localizedDescription, privacy: .public)")
+            recordNonFatal(error, area: .authentication, operation: "sign_out")
         }
+    }
+
+    private func identifyReleaseHealthUser(_ userID: String?) {
+        guard let crashManager = DIContainer.shared.crashManager,
+              let analyticsManager = DIContainer.shared.analyticsManager else { return }
+        ReleaseHealth.identifyUser(
+            userID: userID,
+            crashManager: crashManager,
+            analyticsManager: analyticsManager
+        )
+    }
+
+    private func recordNonFatal(_ error: Error, area: ReleaseHealthArea, operation: String) {
+        guard let crashManager = DIContainer.shared.crashManager else { return }
+        ReleaseHealth.recordNonFatal(
+            error,
+            area: area,
+            operation: operation,
+            crashManager: crashManager,
+            analyticsManager: DIContainer.shared.analyticsManager
+        )
     }
 }
 

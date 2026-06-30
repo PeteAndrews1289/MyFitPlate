@@ -1,19 +1,56 @@
 import Foundation
 import Combine
 
-public final class MockDatabaseService: DatabaseServiceProtocol {
+public final class MockDatabaseService: DatabaseServiceProtocol, @unchecked Sendable {
     public init() {}
-    public func loadDarkModePreference(userID: String) async throws -> Bool { return false }
-    public func saveDarkModePreference(userID: String, isEnabled: Bool) async throws {}
-    public func recordLastLogin(userID: String) async throws {}
-    public func deleteUserAllData(userID: String) async throws {}
+    public var darkModePreference = false
+    public var loadDarkModePreferenceError: Error?
+    public var saveDarkModePreferenceError: Error?
+    public var recordLastLoginError: Error?
+    public var deleteUserDataError: Error?
+    public var loadedDarkModeUserIDs: [String] = []
+    public var savedDarkModePreferences: [(userID: String, isEnabled: Bool)] = []
+    public var recordedLastLoginUserIDs: [String] = []
+    public var deletedUserDataIDs: [String] = []
+
+    public func loadDarkModePreference(userID: String) async throws -> Bool {
+        if let loadDarkModePreferenceError { throw loadDarkModePreferenceError }
+        loadedDarkModeUserIDs.append(userID)
+        return darkModePreference
+    }
+
+    public func saveDarkModePreference(userID: String, isEnabled: Bool) async throws {
+        if let saveDarkModePreferenceError { throw saveDarkModePreferenceError }
+        savedDarkModePreferences.append((userID, isEnabled))
+    }
+
+    public func recordLastLogin(userID: String) async throws {
+        if let recordLastLoginError { throw recordLastLoginError }
+        recordedLastLoginUserIDs.append(userID)
+    }
+
+    public func deleteUserAllData(userID: String) async throws {
+        if let deleteUserDataError { throw deleteUserDataError }
+        deletedUserDataIDs.append(userID)
+    }
 }
 
 public final class MockCloudFunctionService: CloudFunctionServiceProtocol, @unchecked Sendable {
     public init() {}
     public var mockCallFunctionResult: Result<Any?, Error>?
-    public func deleteUserData() async throws {}
+    public var onCall: (([String: Any]) throws -> Result<Any?, Error>)?
+    public var deleteUserDataCalled = false
+    public var deleteUserDataError: Error?
+
+    public func deleteUserData() async throws {
+        if let deleteUserDataError { throw deleteUserDataError }
+        deleteUserDataCalled = true
+    }
+
     public func callFunction(_ name: String, with data: [String: Any]) async throws -> Any? { 
+        if let onCall {
+            return try onCall(data).get()
+        }
         if let result = mockCallFunctionResult {
             return try result.get()
         }
@@ -21,13 +58,41 @@ public final class MockCloudFunctionService: CloudFunctionServiceProtocol, @unch
     }
 }
 
-public final class MockGroupRepository: GroupRepositoryProtocol {
+public final class MockGroupRepository: GroupRepositoryProtocol, @unchecked Sendable {
     public init() {}
-    public func createGroup(group: CommunityGroup) async throws {}
-    public func fetchGroups() async throws -> [CommunityGroup] { return [] }
-    public func joinGroup(userID: String, groupID: String) async throws {}
-    public func leaveGroup(userID: String, groupID: String) async throws {}
-    public func checkGroupMembership(userID: String, groupID: String) async throws -> Bool { return false }
+    public var createdGroups: [CommunityGroup] = []
+    public var groupsToFetch: [CommunityGroup] = []
+    public var joinedGroups: [(userID: String, groupID: String)] = []
+    public var leftGroups: [(userID: String, groupID: String)] = []
+    public var membershipChecks: [(userID: String, groupID: String)] = []
+    public var isMember = false
+    public var error: Error?
+
+    public func createGroup(group: CommunityGroup) async throws {
+        if let error { throw error }
+        createdGroups.append(group)
+    }
+
+    public func fetchGroups() async throws -> [CommunityGroup] {
+        if let error { throw error }
+        return groupsToFetch
+    }
+
+    public func joinGroup(userID: String, groupID: String) async throws {
+        if let error { throw error }
+        joinedGroups.append((userID, groupID))
+    }
+
+    public func leaveGroup(userID: String, groupID: String) async throws {
+        if let error { throw error }
+        leftGroups.append((userID, groupID))
+    }
+
+    public func checkGroupMembership(userID: String, groupID: String) async throws -> Bool {
+        if let error { throw error }
+        membershipChecks.append((userID, groupID))
+        return isMember
+    }
 }
 
 public final class MockAchievementRepository: AchievementRepositoryProtocol {
@@ -55,7 +120,7 @@ public final class MockAchievementRepository: AchievementRepositoryProtocol {
         lock.lock(); defer { lock.unlock() }; return _savedStatuses
     }
     public func saveUserStatus(userID: String, status: UserAchievementStatus) async throws {
-        lock.lock(); _savedStatuses.append(status); lock.unlock()
+        appendSavedStatus(status)
     }
     
     public var mockAwardPointsResult = (newPoints: 0, newLevel: 1)
@@ -64,7 +129,7 @@ public final class MockAchievementRepository: AchievementRepositoryProtocol {
         lock.lock(); defer { lock.unlock() }; return _awardPointsCalledCount
     }
     public func awardPointsAndCheckLevel(userID: String, points: Int, levelThresholds: [Int]) async throws -> (newPoints: Int, newLevel: Int) { 
-        lock.lock(); _awardPointsCalledCount += 1; lock.unlock()
+        incrementAwardPointsCalledCount()
         return mockAwardPointsResult 
     }
     
@@ -79,7 +144,7 @@ public final class MockAchievementRepository: AchievementRepositoryProtocol {
         lock.lock(); defer { lock.unlock() }; return _generatedChallenges
     }
     public func generateWeeklyChallenges(userID: String, challengesToSet: [Challenge]) async throws {
-        lock.lock(); _generatedChallenges = challengesToSet; lock.unlock()
+        setGeneratedChallenges(challengesToSet)
     }
     
     public var mockActiveChallenges: [Challenge] = []
@@ -90,6 +155,22 @@ public final class MockAchievementRepository: AchievementRepositoryProtocol {
         lock.lock(); defer { lock.unlock() }; return _updatedChallenges
     }
     public func updateChallenge(userID: String, challenge: Challenge) async throws {
+        appendUpdatedChallenge(challenge)
+    }
+
+    private func appendSavedStatus(_ status: UserAchievementStatus) {
+        lock.lock(); _savedStatuses.append(status); lock.unlock()
+    }
+
+    private func incrementAwardPointsCalledCount() {
+        lock.lock(); _awardPointsCalledCount += 1; lock.unlock()
+    }
+
+    private func setGeneratedChallenges(_ challenges: [Challenge]) {
+        lock.lock(); _generatedChallenges = challenges; lock.unlock()
+    }
+
+    private func appendUpdatedChallenge(_ challenge: Challenge) {
         lock.lock(); _updatedChallenges.append(challenge); lock.unlock()
     }
 }

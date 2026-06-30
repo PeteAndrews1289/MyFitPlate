@@ -3,6 +3,25 @@ import XCTest
 
 final class NutritionLogModelsTests: XCTestCase {
 
+    func testDedupedAgainstHealthKit() {
+        let baseDate = Date()
+        let ex1 = LoggedExercise(id: "1", name: "Run", durationMinutes: 30, caloriesBurned: 300, date: baseDate.addingTimeInterval(1800), source: "manual")
+        let ex2 = LoggedExercise(id: "2", name: "Run", durationMinutes: 30, caloriesBurned: 250, date: baseDate, source: "HealthKit")
+        let ex3 = LoggedExercise(id: "3", name: "Walk", durationMinutes: 10, caloriesBurned: 50, date: baseDate.addingTimeInterval(3600), source: "manual")
+        
+        let arr = [ex1, ex2, ex3]
+        let deduped = arr.dedupedAgainstHealthKit(bufferMinutes: 30)
+        
+        // ex1 and ex2 overlap, ex2 is HealthKit.
+        // The algorithm drops the HealthKit entry and merges its calories into the manual entry.
+        XCTAssertEqual(deduped.count, 2)
+        XCTAssertTrue(deduped.contains(where: { $0.id == "1" }))
+        XCTAssertTrue(deduped.contains(where: { $0.id == "3" }))
+        
+        let mergedEx1 = deduped.first(where: { $0.id == "1" })
+        XCTAssertEqual(mergedEx1?.caloriesBurned, 250) // Inherits calories from HealthKit
+    }
+
     // MARK: - DailyLog Tests
 
     func testDailyLogTotalMicronutrients() {
@@ -140,6 +159,8 @@ final class NutritionLogModelsTests: XCTestCase {
         XCTAssertEqual(status.delta, 40)
         XCTAssertEqual(status.relativeDelta, 0.16)
         XCTAssertTrue(status.hasMeaningfulMismatch)
+        XCTAssertEqual(status.directionText, "higher")
+        XCTAssertEqual(status.mismatchAmount, 40)
     }
 
     func testNormalizedCaloriesForEstimatedSourceValid() {
@@ -148,6 +169,10 @@ final class NutritionLogModelsTests: XCTestCase {
         
         // Mismatch is meaningful, delta > 0, so should return macro derived
         XCTAssertEqual(cal, 250)
+        
+        let item = FoodItem(name: "Test", calories: 150, protein: 20, carbs: 20, fats: 10)
+        let normalized = item.normalizedForEstimatedSource("ai_chat")
+        XCTAssertEqual(normalized.calories, 250)
     }
     
     func testNormalizedCaloriesForEstimatedSourceMissingCalories() {
@@ -164,5 +189,21 @@ final class NutritionLogModelsTests: XCTestCase {
         
         // Database sources are not normalized
         XCTAssertEqual(cal, 150)
+    }
+    
+    func testDailyLogCalorieConsistencyMethods() {
+        let goodItem = FoodItem(name: "Good", calories: 250, protein: 20, carbs: 20, fats: 10) // 250 vs 250
+        let badItem = FoodItem(name: "Bad", calories: 150, protein: 20, carbs: 20, fats: 10) // 150 vs 250
+        
+        let log = DailyLog(date: Date(), meals: [Meal(name: "A", foodItems: [goodItem, badItem])])
+        
+        let status = log.calorieConsistencyStatus()
+        XCTAssertEqual(status.loggedCalories, 400)
+        XCTAssertEqual(status.macroDerivedCalories, 500)
+        
+        let badFoods = log.foodsWithMeaningfulCalorieMacroMismatch()
+        XCTAssertEqual(badFoods.count, 1)
+        XCTAssertEqual(badFoods.first?.name, "Bad")
+        XCTAssertEqual(log.macroDerivedCalories(), 500)
     }
 }

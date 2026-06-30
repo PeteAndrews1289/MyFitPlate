@@ -130,7 +130,7 @@ final class AchievementServiceTests: XCTestCase {
     }
     
     func testUpdateChallengeProgressCompletesChallenge() async {
-        var challenge = Challenge(
+        let challenge = Challenge(
             id: "c1",
             title: "Test Challenge",
             description: "Desc",
@@ -162,5 +162,43 @@ final class AchievementServiceTests: XCTestCase {
         let saved = mockRepo.savedStatuses.first { $0.achievementID == "goal_setter" }
         XCTAssertNotNil(saved)
         XCTAssertTrue(saved!.isUnlocked)
+    }
+    
+    func testCheckAchievementsOnLogUpdate() async {
+        service.setupDependencies(dailyLogService: dailyLogService, goalSettings: goalSettings, bannerService: bannerService)
+        mockRepo.mockStatusesPublisher.send([])
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        
+        let log = DailyLog(id: "1", date: Date(), meals: [])
+        let mockNutRepo = DIContainer.shared.nutritionRepository as? MockNutritionRepository ?? MockNutritionRepository()
+        mockNutRepo.mockFetchLogResult = .success(log)
+        DIContainer.shared.nutritionRepository = mockNutRepo
+        
+        goalSettings.calories = 2000
+        goalSettings.protein = 150
+        
+        service.checkAchievementsOnLogUpdate(userID: "user_123", logDate: Date())
+        
+        let exp = XCTestExpectation(description: "Wait")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            exp.fulfill()
+        }
+        await fulfillment(of: [exp], timeout: 1.0)
+        
+        // At least first log should be unlocked
+        let firstLogUnlocked = mockRepo.savedStatuses.contains { $0.achievementID == "first_log" && $0.isUnlocked }
+        XCTAssertTrue(firstLogUnlocked)
+    }
+    
+    func testCheckAchievementsOnWeightUpdate() async {
+        service.setupDependencies(dailyLogService: dailyLogService, goalSettings: goalSettings, bannerService: bannerService)
+        mockRepo.mockStatusesPublisher.send([])
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        
+        service.checkAchievementsOnWeightUpdate(userID: "user_123")
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        
+        let firstWeigh = mockRepo.savedStatuses.contains { $0.achievementID == "on_the_weigh" && $0.isUnlocked }
+        XCTAssertTrue(firstWeigh)
     }
 }

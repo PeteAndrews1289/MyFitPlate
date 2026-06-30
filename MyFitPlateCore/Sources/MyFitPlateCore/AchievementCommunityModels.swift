@@ -75,8 +75,8 @@ public struct CommunityPost: Identifiable, Codable {
         } 
     } 
 }
-public struct CommunityGroup: Identifiable, Codable { public var id: String?; public var name: String; public var description: String; public var creatorID: String; public var isPreset: Bool = false; public init(id: String? = nil, name: String, description: String, creatorID: String, isPreset: Bool = false) { self.id = id; self.name = name; self.description = description; self.creatorID = creatorID; self.isPreset = isPreset } }
-public struct GroupMembership: Codable { public var groupID: String; public var userID: String; public var joinedAt: Date = Date() }
+public struct CommunityGroup: Identifiable, Codable, Sendable { public var id: String?; public var name: String; public var description: String; public var creatorID: String; public var isPreset: Bool = false; public init(id: String? = nil, name: String, description: String, creatorID: String, isPreset: Bool = false) { self.id = id; self.name = name; self.description = description; self.creatorID = creatorID; self.isPreset = isPreset } }
+public struct GroupMembership: Codable, Sendable { public var groupID: String; public var userID: String; public var joinedAt: Date = Date() }
 
 public enum AchievementCriteriaType: String, Codable {
     case loggingStreak, goalHitCount, calorieGoalHitCount, macroGoalHitCount, waterGoalHitCount, weightChange, targetWeightReached, featureUsed, barcodeScanUsed, imageScanUsed, aiRecipeLogged, workoutsLogged, recipesCreated

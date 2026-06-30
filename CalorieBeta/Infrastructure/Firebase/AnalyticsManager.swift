@@ -39,7 +39,7 @@ public final class FirebaseAnalyticsManager: AnalyticsManagerProtocol {
         Analytics.setUserProperty(value, forName: name)
     }
 
-    public func setUserID(_ id: String) {
+    public func setUserID(_ id: String?) {
         Analytics.setUserID(id)
     }
 }

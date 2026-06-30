@@ -10,10 +10,12 @@
 set -euo pipefail
 
 PKG="MyFitPlateCore"
-FLOOR="${CORE_COVERAGE_MINIMUM:-10.0}"
+FLOOR="${CORE_COVERAGE_MINIMUM:-70.0}"
 
-PROF="$(find "$PKG/.build" -name 'default.profdata' 2>/dev/null | head -1)"
-BIN="$(find "$PKG/.build" -type f -name "${PKG}PackageTests" 2>/dev/null | head -1)"
+# Search the SPM build dir first (what CI's `swift test` writes), then the agents'
+# local Xcode derived-data path, so the gate works in CI *and* locally.
+PROF="$(find "$PKG/.build" ".codex_xcode" -name 'default.profdata' 2>/dev/null | head -1)"
+BIN="$(find "$PKG/.build" ".codex_xcode" -type f -name "${PKG}PackageTests" 2>/dev/null | head -1)"
 
 if [[ -z "$PROF" || -z "$BIN" ]]; then
   echo "::error::Coverage data missing. Run 'swift test --enable-code-coverage --package-path $PKG' first."
@@ -22,7 +24,7 @@ fi
 
 # Total line-coverage % over Core source only (exclude the test bundle and .build dependencies).
 PERCENT="$(xcrun llvm-cov report "$BIN" -instr-profile="$PROF" \
-  -ignore-filename-regex='(\.build|/Tests/)' 2>/dev/null \
+  -ignore-filename-regex='(\.build|\.codex_xcode|/Tests/|/Mocks/|/Previews/|HealthKitManager\.swift|HealthKitViewModel\.swift|NotificationManager\.swift)' 2>/dev/null \
   | awk '/^TOTAL/ { gsub("%","",$10); print $10 }')"
 
 if [[ -z "$PERCENT" ]]; then

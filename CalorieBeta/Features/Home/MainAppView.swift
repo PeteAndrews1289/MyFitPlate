@@ -3,7 +3,6 @@ import MyFitPlateCore
 import SwiftUI
 import Firebase
 import FirebaseAppCheck
-import FirebaseCrashlytics
 import WatchConnectivity
 import HealthKit
 
@@ -84,6 +83,8 @@ struct CalorieBetaApp: App {
     @StateObject var connectivityManager = WatchConnectivityManager()
 
     init() {
+        let launchStartedAt = Date()
+
         #if ENABLE_APP_CHECK
         #if DEBUG
         FirebaseConfiguration.shared.setLoggerLevel(.warning)
@@ -104,6 +105,11 @@ struct CalorieBetaApp: App {
         FirebaseApp.configure()
         
         let isUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")
+        #if DEBUG
+        let isDebugBuild = true
+        #else
+        let isDebugBuild = false
+        #endif
         
         if isUITesting {
             let mockAuth = MockAuthService()
@@ -148,12 +154,11 @@ struct CalorieBetaApp: App {
                 aiService: AIService.shared
             )
         }
-        
-        // Reference Crashlytics so the linker keeps it (it's otherwise never imported) and crash
-        // capture stays live from launch; the custom key tags every report with the build version.
-        Crashlytics.crashlytics().setCustomValue(
-            Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-            forKey: "app_version"
+
+        ReleaseHealth.configure(
+            crashManager: DIContainer.shared.crashManager,
+            analyticsManager: DIContainer.shared.analyticsManager,
+            context: .current(isDebugBuild: isDebugBuild, isUITesting: isUITesting)
         )
         Task { @MainActor in
             await DIContainer.shared.featureFlagService.refresh()
@@ -197,6 +202,11 @@ struct CalorieBetaApp: App {
         cycleSvc.setupDependencies(goalSettings: goalsSvc, dailyLogService: logService)
         
         NotificationManager.shared.clearNotificationBadge()
+        ReleaseHealth.recordStartupCompleted(
+            duration: Date().timeIntervalSince(launchStartedAt),
+            crashManager: DIContainer.shared.crashManager,
+            analyticsManager: DIContainer.shared.analyticsManager
+        )
     }
 
     var body: some Scene {

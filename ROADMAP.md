@@ -18,7 +18,8 @@ Watch:
 ---
 
 ## Now — during / just after review
-- [ ] Stand up monitoring: Crashlytics (first real crashes), Analytics dashboards, App Store reviews
+- [x] Wire release-health instrumentation and document Crashlytics / Analytics dashboards for 2.1
+- [ ] Create Firebase Console dashboards/alerts from `docs/release-health-2.1.md`
 - [ ] Write integration / UI tests (the CI scaffold is ready to host them)
 - [ ] Plan App Check enforcement — flip only once 2.0 is the dominant installed version
 
@@ -47,6 +48,7 @@ Logging speed is the #1 retention driver for nutrition apps.
 
 ## Always-on — technical / ops
 - [ ] Cost monitoring vs. the at-scale estimate
+- [ ] Apply GitHub branch protection from `docs/release-health-2.1.md`
 - [ ] Expand CI to integration tests
 - [ ] App Check enforcement once 2.0 is dominant
 - [ ] Crashlytics triage
