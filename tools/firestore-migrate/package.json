@@ -1,0 +1,15 @@
+{
+  "name": "firestore-migrate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Versioned, idempotent Firestore migration runner for MyFitPlate.",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "migrate:dry": "node migrate.js --dry-run",
+    "migrate:emulator": "node migrate.js",
+    "migrate:prod": "node migrate.js --prod --yes-i-took-a-backup"
+  },
+  "optionalDependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}

@@ -37,6 +37,9 @@
           },
           {
             "context": "Firebase rules"
+          },
+          {
+            "context": "Data migrations"
           }
         ]
       }

@@ -114,3 +114,20 @@ jobs:
             --project myfitplate-test-project \
             --only firestore \
             "npm test --prefix tests/firebase-rules"
+
+  data-migrations:
+    name: Data migrations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run migration-runner tests
+        working-directory: tools/firestore-migrate
+        run: node --test test/*.test.js
