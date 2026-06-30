@@ -69,6 +69,7 @@
 		4BA2DB3C2D42A38B00B6BDED /* MLImageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA2DB3B2D42A37B00B6BDED /* MLImageModel.swift */; };
 		4BC927C32FF199C400C46AA9 /* MyFitPlateCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC927C22FF199C400C46AA9 /* MyFitPlateCore */; };
 		4BCCF5062DFC830E00ACC8F4 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4BCCF5052DFC830E00ACC8F4 /* GoogleService-Info.plist */; };
+		32F4481586324A63832286B3 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1DCD4E7EBE884ABDBD31E5C2 /* PrivacyInfo.xcprivacy */; };
 		4BE15BE22ED0C85A00342C86 /* (null) in Sources */ = {isa = PBXBuildFile; };
 		4BF46DE02DF76A6F0018668F /* AddMealToPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF46DDF2DF76A6F0018668F /* AddMealToPlanView.swift */; };
 		4C2A98108DDE0AEBEFB507BC /* FoodSearchMealPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4177E56C22C6CD73CA5CEF83 /* FoodSearchMealPicker.swift */; };
@@ -330,6 +331,7 @@
 		4B71DBA02E0C4B36003A0078 /* secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = secrets.xcconfig; sourceTree = "<group>"; };
 		4BA2DB3B2D42A37B00B6BDED /* MLImageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLImageModel.swift; sourceTree = "<group>"; };
 		4BCCF5052DFC830E00ACC8F4 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		1DCD4E7EBE884ABDBD31E5C2 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		4BCF27142FE6FFE20054378E /* MyFitPlate.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = MyFitPlate.xctestplan; sourceTree = "<group>"; };
 		4BD5F38F2E1EC85E00DF283D /* SimpleWatchConnectivity Watch App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SimpleWatchConnectivity Watch App.entitlements"; sourceTree = "<group>"; };
 		4BF46DDF2DF76A6F0018668F /* AddMealToPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMealToPlanView.swift; sourceTree = "<group>"; };
@@ -642,6 +644,7 @@
 				3EB2977F2CAEEDCA0093E1B9 /* CalorieBeta.entitlements */,
 				4B4694192DCD1186006F1F86 /* CreateRecipeView.swift */,
 				4BCCF5052DFC830E00ACC8F4 /* GoogleService-Info.plist */,
+				1DCD4E7EBE884ABDBD31E5C2 /* PrivacyInfo.xcprivacy */,
 				3EB297982CAEF8D40093E1B9 /* Info.plist */,
 				4BA2DB3B2D42A37B00B6BDED /* MLImageModel.swift */,
 				3EB297802CAEEDCA0093E1B9 /* Preview Content */,
@@ -1167,6 +1170,7 @@
 				3EB297822CAEEDCA0093E1B9 /* Preview Assets.xcassets in Resources */,
 				3EB2977E2CAEEDCA0093E1B9 /* Assets.xcassets in Resources */,
 				4BCCF5062DFC830E00ACC8F4 /* GoogleService-Info.plist in Resources */,
+				32F4481586324A63832286B3 /* PrivacyInfo.xcprivacy in Resources */,
 				BA72D2F1F142AE54DA0ADE38 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
