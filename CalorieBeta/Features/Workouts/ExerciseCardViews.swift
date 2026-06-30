@@ -326,6 +326,9 @@ struct SwapExerciseView: View {
     @Binding var exercise: RoutineExercise
     @Environment(\.dismiss) var dismiss
     @State private var searchText = ""
+    @State private var infoTitle = ""
+    @State private var infoText = ""
+    @State private var showingInfo = false
 
     private var suggested: [String] {
         (exercise.alternatives ?? []).filter { $0 != exercise.name }
@@ -366,19 +369,38 @@ struct SwapExerciseView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .alert(infoTitle, isPresented: $showingInfo) {
+                Button("Got it", role: .cancel) {}
+            } message: {
+                Text(infoText)
+            }
         }
     }
 
     private func swapRow(_ name: String) -> some View {
-        Button {
-            performSwap(to: name)
-        } label: {
-            HStack {
-                Text(name).foregroundColor(.primary)
-                Spacer()
-                Image(systemName: "arrow.left.arrow.right")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
+        HStack {
+            Button {
+                performSwap(to: name)
+            } label: {
+                HStack {
+                    Text(name).foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: "arrow.left.arrow.right")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if let how = ExerciseList.instructions(for: name) {
+                Button {
+                    infoTitle = name
+                    infoText = how
+                    showingInfo = true
+                } label: {
+                    Image(systemName: "info.circle").foregroundColor(.accentColor)
+                }
+                .buttonStyle(.plain)
             }
         }
     }

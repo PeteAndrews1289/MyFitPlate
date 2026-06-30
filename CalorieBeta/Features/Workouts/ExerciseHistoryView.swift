@@ -23,15 +23,26 @@ struct ExerciseHistoryView: View {
     private var content: some View {
         if viewModel.isLoading {
             ProgressView("Loading History...")
-        } else if viewModel.history.isEmpty {
-            GuidanceEmptyState(
-                icon: "clock.arrow.circlepath",
-                title: "No history yet",
-                message: "Once you log a workout with \(exerciseName), your past sets and trends will show up here."
-            )
         } else {
-            List(viewModel.history) { session in
-                SessionRowView(session: session)
+            List {
+                if let howTo = ExerciseList.instructions(for: exerciseName) {
+                    Section("How to perform") {
+                        Text(howTo)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                if viewModel.history.isEmpty {
+                    Section {
+                        Text("No history yet. Once you log a workout with \(exerciseName), your past sets and trends will show up here.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    ForEach(viewModel.history) { session in
+                        SessionRowView(session: session)
+                    }
+                }
             }
         }
     }
