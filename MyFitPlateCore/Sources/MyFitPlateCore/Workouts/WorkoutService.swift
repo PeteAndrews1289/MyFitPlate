@@ -58,13 +58,26 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
     
     public func fetchSessionLogs(for program: WorkoutProgram) async -> [WorkoutSessionLog] {
         guard let userID = DIContainer.shared.authService.currentUserID else { return [] }
-        let routineIDs = program.routines.map { $0.id }
+        // Fetch by date across the program's lifetime rather than by routine ID. A log's routineID
+        // can drift out of sync with the program (IDs regenerate when a pre-built program is
+        // re-adopted), which would hide completed workouts from progression entirely. We then keep
+        // only the logs that belong to this program (routine-ID match or exercise-name signature).
+        let windowDays = Self.sessionLogWindowDays(for: program)
         do {
-            return try await DIContainer.shared.workoutRepository.fetchSessionLogs(userID: userID, routineIDs: routineIDs)
+            let recent = try await DIContainer.shared.workoutRepository.fetchRecentSessionLogs(userID: userID, sinceDays: windowDays)
+            return recent.filter { WorkoutRules.logBelongsToProgram($0, program: program) }
         } catch {
             AppLog.workouts.error("Failed to fetch session logs: \(error.localizedDescription, privacy: .public)")
             return []
         }
+    }
+
+    /// How far back to pull history when reconciling a program's progress: its full lifetime plus a
+    /// buffer, with a sane floor for brand-new programs.
+    static func sessionLogWindowDays(for program: WorkoutProgram) -> Int {
+        guard let start = program.startDate else { return 400 }
+        let elapsed = Calendar.current.dateComponents([.day], from: start, to: Date()).day ?? 0
+        return max(elapsed + 14, 120)
     }
 
     /// Fetches completed session logs from the last `days` days (used by the muscle recovery map,

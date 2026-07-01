@@ -58,8 +58,11 @@ public struct WorkoutRules {
         let total = totalSlots(in: program)
         guard total > 0 else { return program }
 
-        let routineIDs = Set(program.routines.map(\.id))
-        let completedLogCount = sessionLogs.filter { routineIDs.contains($0.routineID) }.count
+        // Count the logs that belong to this program. We match on routine ID first, then fall back
+        // to an exercise-name signature so a completion still counts even when the program's routine
+        // IDs changed after the log was written — otherwise ID drift silently orphans the log and
+        // progress can never advance past the point where the drift happened.
+        let completedLogCount = sessionLogs.filter { logBelongsToProgram($0, program: program) }.count
         guard completedLogCount > 0 else { return program }
 
         let current = min(max(program.currentProgressIndex ?? 0, 0), total)
@@ -75,6 +78,34 @@ public struct WorkoutRules {
         var updated = program
         updated.currentProgressIndex = reconciledIndex
         return updated
+    }
+
+    /// Whether a session log represents a completed workout for `program`. Prefers a direct routine
+    /// ID match; falls back to comparing the logged exercise names against each routine so a log
+    /// still counts after routine IDs are regenerated (e.g. re-adopting a pre-built program, which
+    /// mints fresh IDs while keeping the same routine and exercise names).
+    public static func logBelongsToProgram(_ log: WorkoutSessionLog, program: WorkoutProgram) -> Bool {
+        if program.routines.contains(where: { $0.id == log.routineID }) { return true }
+
+        let loggedNames = Set(log.completedExercises
+            .map { normalizedExerciseName($0.exerciseName) }
+            .filter { !$0.isEmpty })
+        guard !loggedNames.isEmpty else { return false }
+
+        return program.routines.contains { routine in
+            let routineNames = Set(routine.exercises
+                .map { normalizedExerciseName($0.name) }
+                .filter { !$0.isEmpty })
+            guard !routineNames.isEmpty else { return false }
+            let overlap = loggedNames.intersection(routineNames).count
+            // Half of the logged movements landing in one routine is a confident match, tolerant of
+            // a swapped exercise or two mid-session.
+            return Double(overlap) >= Double(loggedNames.count) * 0.5
+        }
+    }
+
+    private static func normalizedExerciseName(_ name: String) -> String {
+        name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func completedSlotCount(upTo index: Int, skipped: Set<Int>) -> Int {

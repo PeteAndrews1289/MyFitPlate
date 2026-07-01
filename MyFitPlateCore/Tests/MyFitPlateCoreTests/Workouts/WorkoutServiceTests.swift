@@ -56,11 +56,32 @@ final class WorkoutServiceTests: XCTestCase {
         let expectedLogs = [
             WorkoutSessionLog(id: "log1", date: Date(), routineID: "r1", completedExercises: [])
         ]
-        mockRepo.mockFetchSessionLogsResult = expectedLogs
+        // fetchSessionLogs(for:) now pulls by date and keeps logs that belong to the program
+        // (here via routine-ID match), so drifted routine IDs can't hide completed workouts.
+        mockRepo.mockFetchRecentSessionLogsResult = expectedLogs
 
         let logs = await service.fetchSessionLogs(for: program)
         XCTAssertEqual(logs.count, 1)
         XCTAssertEqual(logs.first?.id, "log1")
+    }
+
+    func testFetchSessionLogsForProgramDropsLogsThatDoNotBelong() async {
+        let routine1 = WorkoutRoutine(id: "r1", userID: "user_123", name: "Upper", dateCreated: Date(),
+                                      exercises: [RoutineExercise(name: "Bench Press", type: .strength, sets: [])])
+        let program = WorkoutProgram(id: "p1", userID: "user_123", name: "Program 1", dateCreated: Date(), routines: [routine1])
+
+        // One belongs (matching routine ID); one is an unrelated workout with a different ID and
+        // no overlapping exercises — it must be filtered out.
+        mockRepo.mockFetchRecentSessionLogsResult = [
+            WorkoutSessionLog(id: "mine", date: Date(), routineID: "r1", completedExercises: []),
+            WorkoutSessionLog(id: "other", date: Date(), routineID: "zzz", completedExercises: [
+                CompletedExercise(exerciseName: "Treadmill Run",
+                                  exercise: RoutineExercise(name: "Treadmill Run", type: .cardio, sets: []), sets: [])
+            ])
+        ]
+
+        let logs = await service.fetchSessionLogs(for: program)
+        XCTAssertEqual(logs.map(\.id), ["mine"])
     }
 
     func testFetchRecentSessionLogs() async {

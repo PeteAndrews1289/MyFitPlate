@@ -104,6 +104,67 @@ final class WorkoutRulesTests: XCTestCase {
         XCTAssertEqual(updated.currentProgressIndex, 6)
     }
 
+    // MARK: - Routine-ID drift (logs whose routineID no longer matches the program)
+
+    func testReconcileAdvancesWhenRoutineIDsDriftedButExercisesMatch() {
+        let upper = driftRoutine(id: "upper_v2", name: "Upper Power",
+                                 exercises: ["Pendlay Row", "Pull-Up", "Flat Dumbbell Press"])
+        let lower = driftRoutine(id: "lower_v2", name: "Lower Power",
+                                 exercises: ["Barbell Back Squat", "Hack Squat", "Leg Extension"])
+        var program = WorkoutProgram(id: "prog1", userID: "user1", name: "PHAT",
+                                     routines: [upper, lower], daysOfWeek: [2, 3])
+        program.currentProgressIndex = 4
+
+        // The six completions were written against the PREVIOUS routine IDs (v1). The IDs no longer
+        // match the program, but the exercise names still do — progress must still reconcile. This
+        // reproduces the real "stuck on Week 2 Day 1 even though I did the workouts" report.
+        let logs = [
+            driftLog(routineID: "upper_v1", exercises: ["Pendlay Row", "Pull-Up", "Flat Dumbbell Press"]),
+            driftLog(routineID: "lower_v1", exercises: ["Barbell Back Squat", "Hack Squat", "Leg Extension"]),
+            driftLog(routineID: "upper_v1", exercises: ["Pendlay Row", "Pull-Up", "Flat Dumbbell Press"]),
+            driftLog(routineID: "lower_v1", exercises: ["Barbell Back Squat", "Hack Squat", "Leg Extension"]),
+            driftLog(routineID: "upper_v1", exercises: ["Pendlay Row", "Pull-Up", "Flat Dumbbell Press"]),
+            driftLog(routineID: "lower_v1", exercises: ["Barbell Back Squat", "Hack Squat", "Leg Extension"])
+        ]
+
+        let updated = WorkoutRules.reconcileProgressFromSessionLogs(in: program, sessionLogs: logs)
+
+        XCTAssertEqual(updated.currentProgressIndex, 6,
+                       "Logs with drifted routine IDs should still advance progress via exercise signature")
+    }
+
+    func testLogBelongsToProgramMatchesByExerciseSignatureDespiteIDDrift() {
+        let upper = driftRoutine(id: "upper_v2", name: "Upper Power",
+                                 exercises: ["Pendlay Row", "Pull-Up", "Flat Dumbbell Press"])
+        let program = WorkoutProgram(id: "prog1", userID: "user1", name: "PHAT",
+                                     routines: [upper], daysOfWeek: [2])
+        // Different routine ID, and one movement swapped mid-session — still a confident match.
+        let drifted = driftLog(routineID: "totally-different", exercises: ["Pendlay Row", "Pull-Up", "Lat Pulldown"])
+
+        XCTAssertTrue(WorkoutRules.logBelongsToProgram(drifted, program: program))
+    }
+
+    func testLogBelongsToProgramRejectsUnrelatedWorkout() {
+        let upper = driftRoutine(id: "upper_v2", name: "Upper Power",
+                                 exercises: ["Pendlay Row", "Pull-Up", "Flat Dumbbell Press"])
+        let program = WorkoutProgram(id: "prog1", userID: "user1", name: "PHAT",
+                                     routines: [upper], daysOfWeek: [2])
+        let unrelated = driftLog(routineID: "x", exercises: ["Treadmill Run", "Stationary Bike", "Rowing Machine"])
+
+        XCTAssertFalse(WorkoutRules.logBelongsToProgram(unrelated, program: program))
+    }
+
+    private func driftRoutine(id: String, name: String, exercises: [String]) -> WorkoutRoutine {
+        WorkoutRoutine(id: id, userID: "user1", name: name, dateCreated: Date(),
+                       exercises: exercises.map { RoutineExercise(name: $0, type: .strength, sets: []) })
+    }
+
+    private func driftLog(routineID: String, exercises: [String]) -> WorkoutSessionLog {
+        WorkoutSessionLog(date: Date(), routineID: routineID, completedExercises: exercises.map {
+            CompletedExercise(exerciseName: $0, exercise: RoutineExercise(name: $0, type: .strength, sets: []), sets: [])
+        })
+    }
+
     func testMapResponseToProgram() {
         let aiSet = AISet(target: "10-12 reps")
         let aiExercise = AIExercise(
