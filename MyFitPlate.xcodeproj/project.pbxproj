@@ -198,7 +198,6 @@
 		F5E24B7E66864062BD069D00 /* ReportsViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A547C2EFB15F007A0AE43DC3 /* ReportsViewComponents.swift */; };
 		F7A965BF99A611A750911F55 /* AISummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F63BD33A24942200DB828B77 /* AISummaryView.swift */; };
 		FB417DFD625FD8CABD0D0586 /* MuscleRecoveryMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39AF289495C94FBEAFC0B83 /* MuscleRecoveryMapView.swift */; };
-		FD29A7126F044D20BBF4F57B /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = D065CE7CD6AB4842A1282E91 /* FirebaseAppCheck */; };
 		FDAF9399513A546D1C1583FA /* AIChatbotViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87986B23D4D38936461F52E9 /* AIChatbotViewModel.swift */; };
 		FE4D3085FC1848B947823410 /* FirebaseRemoteConfigFeatureFlagProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE8684C134F7F5891E3F61CC /* FirebaseRemoteConfigFeatureFlagProvider.swift */; };
 /* End PBXBuildFile section */
@@ -511,7 +510,6 @@
 				4BC927C32FF199C400C46AA9 /* MyFitPlateCore in Frameworks */,
 				3EC693D82CB83700002222C6 /* FirebaseFirestore in Frameworks */,
 				174F2A738E797D2B9BE621AD /* FirebaseFunctions in Frameworks */,
-				FD29A7126F044D20BBF4F57B /* FirebaseAppCheck in Frameworks */,
 				5DB7BE161EF64ED7FD208198 /* FirebaseRemoteConfig in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -981,7 +979,6 @@
 				3EB09F482CCBFA6D0088C849 /* DGCharts */,
 				4B6046A82DEE1F0E000B4A46 /* FirebaseCrashlytics */,
 				3214A6CEC049E175330F27DC /* FirebaseFunctions */,
-				D065CE7CD6AB4842A1282E91 /* FirebaseAppCheck */,
 				9688BC4017F8B2E029447BD9 /* FirebaseRemoteConfig */,
 				4BC927C22FF199C400C46AA9 /* MyFitPlateCore */,
 			);
@@ -1633,7 +1630,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = CalorieBeta/CalorieBeta.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"CalorieBeta/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
@@ -1684,7 +1681,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = CalorieBeta/CalorieBeta.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"CalorieBeta/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
@@ -1734,7 +1731,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = CalorieWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieWidget/Info.plist;
@@ -1764,7 +1761,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = CalorieWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CalorieWidget;
@@ -1793,7 +1790,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_ASSET_PATHS = "\"MyFitPlateWatch Watch App/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
@@ -1823,7 +1820,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "\"MyFitPlateWatch Watch App/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1982,7 +1979,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LiveActivity/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = LiveActivity;
@@ -2150,11 +2147,6 @@
 		9688BC4017F8B2E029447BD9 /* FirebaseRemoteConfig */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = FirebaseRemoteConfig;
-		};
-		D065CE7CD6AB4842A1282E91 /* FirebaseAppCheck */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAppCheck;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

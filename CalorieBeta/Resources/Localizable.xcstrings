@@ -1031,6 +1031,9 @@
     "Clear Completed" : {
 
     },
+    "Clear Filters" : {
+
+    },
     "Clear grocery list?" : {
 
     },
@@ -1047,6 +1050,9 @@
 
     },
     "Clear search" : {
+
+    },
+    "Clear workout history search" : {
 
     },
     "Close" : {
@@ -1154,6 +1160,9 @@
     "Creating post in group" : {
 
     },
+    "Current Program" : {
+
+    },
     "Current Weight" : {
 
     },
@@ -1222,6 +1231,12 @@
 
     },
     "Delete Account" : {
+
+    },
+    "Delete Current Program?" : {
+
+    },
+    "Delete Program" : {
 
     },
     "Delete Weight Entry?" : {
@@ -1894,6 +1909,9 @@
     "Make This Your Plan" : {
 
     },
+    "Manage" : {
+
+    },
     "Manual" : {
 
     },
@@ -2047,10 +2065,16 @@
     "No manual routines yet" : {
 
     },
+    "No Matches" : {
+
+    },
     "No matching programs" : {
 
     },
     "No matching recipes" : {
+
+    },
+    "No matching workouts" : {
 
     },
     "No meals logged" : {
@@ -2069,9 +2093,6 @@
 
     },
     "No prior" : {
-
-    },
-    "No recent workouts" : {
 
     },
     "No saved plans yet" : {
@@ -2251,6 +2272,9 @@
     "Post" : {
 
     },
+    "PR" : {
+
+    },
     "Pre-built Programs" : {
 
     },
@@ -2398,6 +2422,9 @@
 
     },
     "Recipe name" : {
+
+    },
+    "Refresh workout history" : {
 
     },
     "Refresh workouts, sleep, and recovery permissions." : {
@@ -2574,6 +2601,9 @@
     "Search any exercise" : {
 
     },
+    "Search exercise or date" : {
+
+    },
     "Search exercises" : {
 
     },
@@ -2695,6 +2725,9 @@
 
     },
     "Show source data" : {
+
+    },
+    "shown" : {
 
     },
     "Sign Out" : {
@@ -2889,6 +2922,9 @@
 
     },
     "This removes every item currently on your grocery list." : {
+
+    },
+    "This removes the active plan from your saved programs. Workout history stays saved." : {
 
     },
     "This removes the saved conversation history on this device." : {

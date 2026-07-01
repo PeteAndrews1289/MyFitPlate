@@ -64,7 +64,10 @@ struct ProgramListView: View {
                 showingProgramCreator = true
             },
             onDelete: {
-                workoutService.deleteProgram(program)
+                Task {
+                    let result = await workoutService.deleteProgram(program)
+                    ToastManager.shared.showToast(message: result.userMessage)
+                }
             }
         ) {
             ProgramDetailView(program: program)

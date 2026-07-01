@@ -8,6 +8,8 @@ final class WorkoutServiceTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        UserDefaults.standard.removeObject(forKey: "activeWorkoutProgramID")
+        UserDefaults.standard.removeObject(forKey: "activeWorkoutProgramCleared")
         mockRepo = MockWorkoutRepository()
         DIContainer.shared.workoutRepository = mockRepo
         let mockAuth = MockAuthService()
@@ -20,6 +22,8 @@ final class WorkoutServiceTests: XCTestCase {
     override func tearDown() {
         service = nil
         mockRepo = nil
+        UserDefaults.standard.removeObject(forKey: "activeWorkoutProgramID")
+        UserDefaults.standard.removeObject(forKey: "activeWorkoutProgramCleared")
         super.tearDown()
     }
 
@@ -123,10 +127,26 @@ final class WorkoutServiceTests: XCTestCase {
     }
 
     func testClearActiveProgram() {
-        service.activeProgram = nil
-        UserDefaults.standard.removeObject(forKey: "activeWorkoutProgramID")
+        let program = WorkoutProgram(id: "p1", userID: "user_123", name: "Program 1", dateCreated: Date(), routines: [])
+        service.setActiveProgram(program)
+        service.clearActiveProgram()
+
         XCTAssertNil(service.activeProgram)
         XCTAssertNil(UserDefaults.standard.string(forKey: "activeWorkoutProgramID"))
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: "activeWorkoutProgramCleared"))
+    }
+
+    func testClearedActiveProgramDoesNotAutoRestoreFirstSavedProgram() {
+        let program = WorkoutProgram(id: "p1", userID: "user_123", name: "Program 1", dateCreated: Date(), routines: [])
+        service.clearActiveProgram()
+        mockRepo.onProgramsSnapshotListenerAdded = { _, onUpdate in
+            onUpdate(.success([program]))
+        }
+
+        service.fetchRoutinesAndPrograms()
+
+        XCTAssertEqual(service.userPrograms.map(\.id), ["p1"])
+        XCTAssertNil(service.activeProgram)
     }
 
     func testSkipCurrentWorkout() async {
@@ -141,14 +161,58 @@ final class WorkoutServiceTests: XCTestCase {
 
     func testDeleteProgram() async {
         let program = WorkoutProgram(id: "p1", userID: "user_123", name: "Program 1", dateCreated: Date(), routines: [])
+        let otherProgram = WorkoutProgram(id: "p2", userID: "user_123", name: "Program 2", dateCreated: Date(), routines: [])
+        service.userPrograms = [program, otherProgram]
         service.setActiveProgram(program)
-        service.deleteProgram(program)
+        let result = await service.deleteProgram(program)
         
-        // Let it run the async task
-        try? await Task.sleep(nanoseconds: 10_000_000)
-        
+        XCTAssertEqual(result, .deleted)
         XCTAssertNil(service.activeProgram)
+        XCTAssertEqual(service.userPrograms.map(\.id), ["p2"])
         XCTAssertTrue(mockRepo.deletedProgramIDs.contains("p1"))
+    }
+
+    func testDeleteProgramResolvesStaleActiveProgramByName() async {
+        let savedProgram = WorkoutProgram(id: "saved_id", userID: "user_123", name: "PHAT", dateCreated: Date(), routines: [])
+        let staleProgram = WorkoutProgram(id: nil, userID: "user_123", name: "PHAT", dateCreated: savedProgram.dateCreated, routines: [])
+        service.userPrograms = [savedProgram]
+        service.activeProgram = staleProgram
+
+        let result = await service.deleteProgram(staleProgram)
+
+        XCTAssertEqual(result, .deleted)
+        XCTAssertEqual(mockRepo.deletedProgramIDs, ["saved_id"])
+        XCTAssertNil(service.activeProgram)
+        XCTAssertTrue(service.userPrograms.isEmpty)
+    }
+
+    func testDeleteProgramWithoutSavedRecordClearsStaleActiveProgramLocally() async {
+        let staleProgram = WorkoutProgram(id: nil, userID: "user_123", name: "PHAT", dateCreated: Date(), routines: [])
+        service.activeProgram = staleProgram
+        service.userPrograms = []
+
+        let result = await service.deleteProgram(staleProgram)
+
+        XCTAssertEqual(result, .clearedLocalOnly)
+        XCTAssertTrue(mockRepo.deletedProgramIDs.isEmpty)
+        XCTAssertNil(service.activeProgram)
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: "activeWorkoutProgramCleared"))
+    }
+
+    func testDeleteProgramReportsRepositoryFailureAndKeepsLocalState() async {
+        struct DeleteFailure: LocalizedError {
+            var errorDescription: String? { "permission denied" }
+        }
+        let program = WorkoutProgram(id: "p1", userID: "user_123", name: "Program 1", dateCreated: Date(), routines: [])
+        service.userPrograms = [program]
+        service.setActiveProgram(program)
+        mockRepo.deleteProgramError = DeleteFailure()
+
+        let result = await service.deleteProgram(program)
+
+        XCTAssertEqual(result, .failed("permission denied"))
+        XCTAssertEqual(service.activeProgram?.id, "p1")
+        XCTAssertEqual(service.userPrograms.map(\.id), ["p1"])
     }
 
     func testSaveRoutine() async throws {

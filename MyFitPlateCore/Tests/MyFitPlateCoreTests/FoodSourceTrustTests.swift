@@ -102,4 +102,106 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(decoded.sourceMetadata?.barcode, "000123")
         XCTAssertEqual(decoded.sourceMetadata?.reviewStatus, .notRequired)
     }
+
+    func testSavedCustomFoodPreservesBarcodeAndCorrectionSnapshot() {
+        let original = FoodItem(
+            id: "fatsecret-1",
+            name: "Protein Bar",
+            calories: 220,
+            protein: 18,
+            carbs: 22,
+            fats: 8,
+            servingSize: "1 bar",
+            servingWeight: 60
+        ).withDatabaseSource(
+            .fatSecret,
+            sourceName: "FatSecret",
+            sourceID: "fatsecret-1",
+            barcode: " 0 12345 "
+        )
+
+        let corrected = FoodItem(
+            id: "custom-1",
+            name: "Protein Bar",
+            calories: 250,
+            protein: 20,
+            carbs: 24,
+            fats: 9,
+            servingSize: "1 package",
+            servingWeight: 65,
+            sourceMetadata: original.sourceMetadata
+        ).savedAsCustomFood(originalItem: original)
+
+        XCTAssertEqual(corrected.sourceMetadata?.sourceType, .custom)
+        XCTAssertEqual(corrected.sourceMetadata?.confidence, .userVerified)
+        XCTAssertEqual(corrected.sourceMetadata?.reviewStatus, .userEdited)
+        XCTAssertEqual(corrected.sourceMetadata?.barcode, "012345")
+        XCTAssertEqual(corrected.sourceMetadata?.originalEstimate?.calories, 220)
+        XCTAssertEqual(corrected.sourceMetadata?.userCorrection?.calories, 250)
+    }
+
+    func testBarcodeCorrectionRulesPreferUserEditedSavedFoods() {
+        let barcode = "000777"
+        let confirmed = FoodItem(
+            id: "confirmed",
+            name: "Confirmed Bar",
+            calories: 210,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                sourceName: "My Foods",
+                barcode: barcode
+            )
+        )
+        let edited = FoodItem(
+            id: "edited",
+            name: "Edited Bar",
+            calories: 240,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                confidence: .userVerified,
+                reviewStatus: .userEdited,
+                sourceName: "My Foods",
+                barcode: " 000 777 "
+            )
+        )
+
+        let match = BarcodeCorrectionRules.bestCorrectedFood(in: [confirmed, edited], barcode: barcode)
+
+        XCTAssertEqual(match?.id, "edited")
+        XCTAssertEqual(match?.sourceMetadata?.sourceType, .custom)
+        XCTAssertEqual(match?.sourceMetadata?.barcode, barcode)
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: match!.sourceMetadata!).title, "My Foods Match")
+    }
+
+    func testBarcodeLookupReturnsSavedCorrectionBeforeExternalSources() async {
+        let correctedFood = FoodItem(
+            id: "corrected",
+            name: "Saved Cereal",
+            calories: 180,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                sourceName: "My Foods",
+                barcode: "123456"
+            )
+        )
+        let service = BarcodeFoodLookupService(correctionStore: StaticBarcodeCorrectionStore(food: correctedFood))
+
+        let result = await service.lookup("123456")
+
+        XCTAssertEqual(result?.source, "custom_barcode")
+        XCTAssertEqual(result?.item.id, "corrected")
+        XCTAssertEqual(result?.item.sourceMetadata?.sourceType, .custom)
+    }
+}
+
+private struct StaticBarcodeCorrectionStore: BarcodeCorrectionStoreProtocol {
+    let food: FoodItem?
+
+    func correctedFood(for barcode: String) async -> FoodItem? {
+        food
+    }
 }

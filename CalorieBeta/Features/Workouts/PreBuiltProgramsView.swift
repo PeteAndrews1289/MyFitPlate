@@ -197,10 +197,15 @@ struct PreBuiltProgramsView: View {
         let name = program.name.lowercased()
         let exercises = program.routines.flatMap(\.exercises)
         let exerciseNames = exercises.map { $0.name.lowercased() }.joined(separator: " ")
-        let usesBodyweight = name.contains("bodyweight") || exerciseNames.contains("push-up") || exerciseNames.contains("burpees")
+        let usesBodyweight = name.contains("bodyweight") || exerciseNames.contains("push-up") || exerciseNames.contains("burpee")
         let usesBarbell = exerciseNames.contains("barbell") || exerciseNames.contains("deadlift") || exerciseNames.contains("bench press")
-        let usesDumbbell = name.contains("dumbbell") || exerciseNames.contains("dumbbell")
+        let usesMachine = name.contains("machine") || exerciseNames.contains("machine") || exerciseNames.contains("leg press")
+        let isDumbbellFocused = name.contains("dumbbell")
+        let isHypertrophyFocused = name.contains("hypertrophy") || name.contains("growth") || name.contains("volume") || name.contains("phul") || name.contains("phat")
+        let isConditioningFocused = name.contains("conditioning") || name.contains("fat loss") || name.contains("zone 2") || name.contains("kettlebell")
+        let isBeginnerStrength = name.contains("beginner") || name.contains("stronglifts") || name.contains("gzclp") || name.contains("5/3/1")
         let mobilityExerciseCount = exercises.filter { $0.type == .flexibility }.count
+        let cardioExerciseCount = exercises.filter { $0.type == .cardio }.count
         let isRecoveryFocused = name.contains("mobility") || name.contains("reset") || mobilityExerciseCount >= max(1, exercises.count / 2)
         let setCount = exercises.reduce(0) { $0 + max($1.sets.count, $1.targetSets) }
 
@@ -217,20 +222,59 @@ struct PreBuiltProgramsView: View {
             )
         }
 
-        if usesDumbbell {
+        if isConditioningFocused || cardioExerciseCount >= max(2, exercises.count / 4) {
             return ProgramCatalogProfile(
-                goal: "Muscle Growth",
-                level: "Intermediate",
-                equipment: "Dumbbells",
-                summary: "An upper/lower hypertrophy block for building muscle with clear volume, repeatable sessions, and flexible equipment.",
-                icon: "dumbbell.fill",
-                color: .orange,
-                tags: ["Hypertrophy", "Dumbbell", "Upper/Lower", "4 Days"],
+                goal: "Conditioning",
+                level: "All Levels",
+                equipment: name.contains("kettlebell") ? "Kettlebell + Bodyweight" : "Flexible",
+                summary: "A higher-movement plan for strength maintenance, conditioning, energy expenditure, and work capacity.",
+                icon: "flame.fill",
+                color: .red,
+                tags: ["Conditioning", "Cardio", "Work Capacity", "Flexible"],
                 setCount: setCount
             )
         }
 
-        if usesBodyweight {
+        if usesMachine && name.contains("machine") {
+            return ProgramCatalogProfile(
+                goal: "Gym Access",
+                level: name.contains("beginner") ? "Beginner" : "All Levels",
+                equipment: "Machines",
+                summary: "A straightforward gym-machine path for users who want low-friction setup, stable movements, and easy progression.",
+                icon: "rectangle.grid.2x2.fill",
+                color: .blue,
+                tags: ["Machines", "Gym", "Low Setup", "Repeatable"],
+                setCount: setCount
+            )
+        }
+
+        if isHypertrophyFocused {
+            return ProgramCatalogProfile(
+                goal: "Muscle Growth",
+                level: name.contains("beginner") ? "Beginner" : "Intermediate",
+                equipment: usesBarbell ? "Barbell + Accessories" : "Flexible",
+                summary: "A muscle-building split with enough weekly volume to train hard while keeping the structure easy to follow.",
+                icon: "dumbbell.fill",
+                color: .orange,
+                tags: ["Hypertrophy", "Muscle Growth", "Volume", "\(program.daysOfWeek?.count ?? 0) Days"],
+                setCount: setCount
+            )
+        }
+
+        if isDumbbellFocused {
+            return ProgramCatalogProfile(
+                goal: "Muscle Growth",
+                level: name.contains("beginner") ? "Beginner" : "Intermediate",
+                equipment: "Dumbbells",
+                summary: "A focused dumbbell plan for users training at home, in a small gym, or without consistent barbell access.",
+                icon: "dumbbell.fill",
+                color: .orange,
+                tags: ["Dumbbell", "Home Friendly", "Flexible", "\(program.daysOfWeek?.count ?? 0) Days"],
+                setCount: setCount
+            )
+        }
+
+        if usesBodyweight && !usesBarbell {
             return ProgramCatalogProfile(
                 goal: "General Fitness",
                 level: "Beginner",
@@ -243,15 +287,15 @@ struct PreBuiltProgramsView: View {
             )
         }
 
-        if usesBarbell {
+        if usesBarbell || isBeginnerStrength {
             return ProgramCatalogProfile(
                 goal: "Strength",
-                level: "Beginner",
+                level: isBeginnerStrength ? "Beginner" : "Intermediate",
                 equipment: "Barbell",
-                summary: "A simple progressive strength block built around heavy compound lifts and repeatable practice.",
+                summary: "A progressive strength block built around compound lifts, repeatable practice, and measurable performance.",
                 icon: "scalemass.fill",
                 color: .brandPrimary,
-                tags: ["Strength", "Barbell", "Progressive", "Compound Lifts"],
+                tags: ["Strength", "Barbell", "Progressive", "\(program.daysOfWeek?.count ?? 0) Days"],
                 setCount: setCount
             )
         }
@@ -283,7 +327,10 @@ private struct ProgramCatalogProfile {
 private enum ProgramCatalogFilter: String, CaseIterable, Identifiable {
     case all = "All"
     case strength = "Strength"
+    case hypertrophy = "Muscle"
     case dumbbell = "Dumbbell"
+    case machine = "Machines"
+    case conditioning = "Conditioning"
     case bodyweight = "Bodyweight"
     case recovery = "Recovery"
     case minimal = "Minimal Gear"
@@ -295,7 +342,10 @@ private enum ProgramCatalogFilter: String, CaseIterable, Identifiable {
         switch self {
         case .all: return "square.grid.2x2.fill"
         case .strength: return "bolt.fill"
+        case .hypertrophy: return "figure.strengthtraining.traditional"
         case .dumbbell: return "dumbbell.fill"
+        case .machine: return "rectangle.grid.2x2.fill"
+        case .conditioning: return "flame.fill"
         case .bodyweight: return "figure.run"
         case .recovery: return "heart.fill"
         case .minimal: return "house.fill"
@@ -309,8 +359,14 @@ private enum ProgramCatalogFilter: String, CaseIterable, Identifiable {
             return true
         case .strength:
             return profile.goal.localizedCaseInsensitiveContains("Strength") || profile.tags.contains("Strength")
+        case .hypertrophy:
+            return profile.goal.localizedCaseInsensitiveContains("Muscle") || profile.tags.contains("Hypertrophy")
         case .dumbbell:
             return profile.equipment.localizedCaseInsensitiveContains("Dumbbell") || profile.tags.contains("Dumbbell")
+        case .machine:
+            return profile.equipment.localizedCaseInsensitiveContains("Machine") || profile.tags.contains("Machines")
+        case .conditioning:
+            return profile.goal.localizedCaseInsensitiveContains("Conditioning") || profile.tags.contains("Conditioning")
         case .bodyweight:
             return profile.tags.contains("Full Body") || profile.equipment.localizedCaseInsensitiveContains("Minimal")
         case .recovery:

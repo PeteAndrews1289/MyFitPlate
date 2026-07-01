@@ -32,6 +32,14 @@ class FoodSearchViewModel: ObservableObject {
         !yesterdaysMealItems.isEmpty || !yesterdaysDayItems.isEmpty
     }
 
+    var trustedSearchResults: [FoodItem] {
+        FoodSearchRanking.trustedLocalMatches(
+            query: searchText,
+            savedFoods: savedFoods,
+            recentFoods: recentFoods
+        )
+    }
+
     private let foodAPIService = FatSecretFoodAPIService()
     private var cancellables = Set<AnyCancellable>()
     private var dailyLogService: DailyLogService?
@@ -170,6 +178,13 @@ class FoodSearchViewModel: ObservableObject {
             self.quickLoggedFoodIDs.remove(sourceFoodID)
         }
         HapticManager.instance.feedback(.medium)
+    }
+
+    func sourceForTrustedSearchResult(_ food: FoodItem) -> String {
+        if savedFoods.contains(where: { $0.id == food.id }) {
+            return "custom_food"
+        }
+        return "recent_tap"
     }
 
     func logYesterdayMeal() {

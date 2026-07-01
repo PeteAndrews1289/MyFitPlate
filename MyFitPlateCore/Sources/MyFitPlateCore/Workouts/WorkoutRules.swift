@@ -198,13 +198,30 @@ public struct WorkoutRules {
             )
         }
 
+        func routine(_ id: String, _ name: String, _ exercises: [RoutineExercise]) -> WorkoutRoutine {
+            WorkoutRoutine(id: id, userID: systemUserID, name: name, dateCreated: now, exercises: exercises)
+        }
+
+        func addProgram(_ id: String, _ name: String, routines: [WorkoutRoutine], days: [Int]) {
+            programs.append(
+                WorkoutProgram(
+                    id: id,
+                    userID: systemUserID,
+                    name: name,
+                    dateCreated: now,
+                    routines: routines,
+                    daysOfWeek: days
+                )
+            )
+        }
+
         let sl5x5_A = WorkoutRoutine(id: "prebuilt_stronglifts_a", userID: systemUserID, name: "Workout A", dateCreated: now, exercises: [
-            exercise("Barbell Back Squat", target: "5 reps", sets: 5, alternatives: ["Leg Press", "Goblet Squat"]),
+            exercise("Barbell Back Squat", target: "5 reps", sets: 5, alternatives: ["Leg Press", "Goblet Squat (Dumbbell/Kettlebell)"]),
             exercise("Barbell Bench Press", target: "5 reps", sets: 5, alternatives: ["Dumbbell Bench Press", "Push-up"]),
             exercise("Barbell Bent-over Row", target: "5 reps", sets: 5, alternatives: ["Dumbbell Row", "Seated Cable Row"])
         ])
         let sl5x5_B = WorkoutRoutine(id: "prebuilt_stronglifts_b", userID: systemUserID, name: "Workout B", dateCreated: now, exercises: [
-            exercise("Barbell Back Squat", target: "5 reps", sets: 5, alternatives: ["Leg Press", "Goblet Squat"]),
+            exercise("Barbell Back Squat", target: "5 reps", sets: 5, alternatives: ["Leg Press", "Goblet Squat (Dumbbell/Kettlebell)"]),
             exercise("Barbell Overhead Press (Military Press)", target: "5 reps", sets: 5, alternatives: ["Dumbbell Shoulder Press", "Arnold Press"]),
             exercise("Deadlift (Conventional)", target: "5 reps", sets: 1, alternatives: ["Sumo Deadlift", "Romanian Deadlift (RDL)"])
         ])
@@ -212,46 +229,46 @@ public struct WorkoutRules {
 
         let bw_A = WorkoutRoutine(id: "prebuilt_bodyweight_a", userID: systemUserID, name: "Full Body Bodyweight A", dateCreated: now, exercises: [
             exercise("Push-up", target: "AMRAP", sets: 3, alternatives: ["Incline Barbell Bench Press"]),
-            exercise("Barbell Back Squat", target: "15-20 reps", sets: 3, alternatives: ["Goblet Squat"]),
+            exercise("Bodyweight Squat", target: "15-20 reps", sets: 3, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
             exercise("Plank", target: "60 sec hold", sets: 3, type: .flexibility, alternatives: ["Crunch"]),
-            exercise("Lunge (Barbell/Dumbbell)", target: "10-12 reps / side", sets: 3, alternatives: ["Bulgarian Split Squat"]),
+            exercise("Walking Lunge", target: "10-12 reps / side", sets: 3, alternatives: ["Bulgarian Split Squat"]),
             exercise("Back Extension (Hyperextension)", target: "15-20 reps", sets: 3, alternatives: ["Good Mornings"])
         ])
         let bw_B = WorkoutRoutine(id: "prebuilt_bodyweight_b", userID: systemUserID, name: "Full Body Bodyweight B", dateCreated: now, exercises: [
-            exercise("Burpees", target: "AMRAP in 60s", sets: 3, type: .cardio, alternatives: ["Jump Rope"]),
-            exercise("Hip Thrust", target: "15-20 reps", sets: 3, alternatives: ["Good Mornings"]),
+            exercise("Burpee", target: "AMRAP in 60s", sets: 3, type: .cardio, alternatives: ["Jump Rope"]),
+            exercise("Glute Bridge", target: "15-20 reps", sets: 3, alternatives: ["Barbell Hip Thrust"]),
             exercise("Leg Raise", target: "15-20 reps", sets: 3, type: .flexibility, alternatives: ["Hanging Leg Raise"]),
             exercise("Push-up", target: "AMRAP", sets: 3, alternatives: ["Dumbbell Bench Press"]),
-            exercise("Sit-up", target: "15-20 reps", sets: 3, type: .flexibility, alternatives: ["Crunch"])
+            exercise("Crunch", target: "15-20 reps", sets: 3, type: .flexibility, alternatives: ["Bicycle Crunch"])
         ])
         programs.append(WorkoutProgram(id: "prebuilt_beginner_bodyweight", userID: systemUserID, name: "Beginner Bodyweight", dateCreated: now, routines: [bw_A, bw_B], daysOfWeek: [2, 4, 6]))
 
         let dumbbellUpperA = WorkoutRoutine(id: "prebuilt_dumbbell_upper_a", userID: systemUserID, name: "Upper A - Press & Row", dateCreated: now, exercises: [
             exercise("Dumbbell Bench Press", target: "8-12 reps", sets: 4, alternatives: ["Push-up", "Machine Chest Press"]),
-            exercise("One-Arm Dumbbell Row", target: "10-12 reps / side", sets: 4, alternatives: ["Seated Cable Row"]),
-            exercise("Seated Dumbbell Shoulder Press", target: "8-10 reps", sets: 3, alternatives: ["Arnold Press"]),
+            exercise("Dumbbell Row", target: "10-12 reps / side", sets: 4, alternatives: ["Seated Cable Row"]),
+            exercise("Dumbbell Shoulder Press", target: "8-10 reps", sets: 3, alternatives: ["Arnold Press"]),
             exercise("Dumbbell Lateral Raise", target: "12-15 reps", sets: 3, alternatives: ["Cable Lateral Raise"]),
             exercise("Dumbbell Curl", target: "10-15 reps", sets: 3, alternatives: ["Hammer Curl"])
         ])
         let dumbbellLowerA = WorkoutRoutine(id: "prebuilt_dumbbell_lower_a", userID: systemUserID, name: "Lower A - Squat Focus", dateCreated: now, exercises: [
-            exercise("Goblet Squat", target: "10-12 reps", sets: 4, alternatives: ["Leg Press"]),
-            exercise("Dumbbell Romanian Deadlift", target: "8-12 reps", sets: 4, alternatives: ["Barbell Romanian Deadlift"]),
-            exercise("Dumbbell Reverse Lunge", target: "10 reps / side", sets: 3, alternatives: ["Walking Lunge"]),
+            exercise("Goblet Squat (Dumbbell/Kettlebell)", target: "10-12 reps", sets: 4, alternatives: ["Leg Press"]),
+            exercise("Romanian Deadlift", target: "8-12 reps", sets: 4, alternatives: ["Good Mornings"]),
+            exercise("Reverse Lunge", target: "10 reps / side", sets: 3, alternatives: ["Walking Lunge"]),
             exercise("Standing Calf Raise", target: "12-20 reps", sets: 3, alternatives: ["Seated Calf Raise"]),
             exercise("Plank", target: "45-60 sec", sets: 3, type: .flexibility, alternatives: ["Dead Bug"])
         ])
         let dumbbellUpperB = WorkoutRoutine(id: "prebuilt_dumbbell_upper_b", userID: systemUserID, name: "Upper B - Incline & Arms", dateCreated: now, exercises: [
             exercise("Incline Dumbbell Bench Press", target: "8-12 reps", sets: 4, alternatives: ["Incline Barbell Bench Press"]),
-            exercise("Chest-Supported Dumbbell Row", target: "10-12 reps", sets: 4, alternatives: ["Machine Row"]),
+            exercise("Dumbbell Row", target: "10-12 reps", sets: 4, alternatives: ["Seated Cable Row"]),
             exercise("Dumbbell Pullover", target: "10-15 reps", sets: 3, alternatives: ["Lat Pulldown"]),
             exercise("Hammer Curl", target: "10-15 reps", sets: 3, alternatives: ["Cable Curl"]),
-            exercise("Dumbbell Overhead Triceps Extension", target: "10-15 reps", sets: 3, alternatives: ["Cable Triceps Extension"])
+            exercise("Overhead Triceps Extension (Dumbbell/Cable)", target: "10-15 reps", sets: 3, alternatives: ["Triceps Pushdown (Cable)"])
         ])
         let dumbbellLowerB = WorkoutRoutine(id: "prebuilt_dumbbell_lower_b", userID: systemUserID, name: "Lower B - Hinge & Carry", dateCreated: now, exercises: [
-            exercise("Dumbbell Front Squat", target: "8-10 reps", sets: 4, alternatives: ["Goblet Squat"]),
-            exercise("Dumbbell Hip Thrust", target: "10-15 reps", sets: 4, alternatives: ["Barbell Hip Thrust"]),
+            exercise("Goblet Squat (Dumbbell/Kettlebell)", target: "8-10 reps", sets: 4, alternatives: ["Barbell Front Squat"]),
+            exercise("Glute Bridge", target: "10-15 reps", sets: 4, alternatives: ["Barbell Hip Thrust"]),
             exercise("Bulgarian Split Squat", target: "8-12 reps / side", sets: 3, alternatives: ["Step-up"]),
-            exercise("Farmer Carry", target: "30-45 sec", sets: 3, type: .strength, alternatives: ["Suitcase Carry"]),
+            exercise("Farmer's Carry", target: "30-45 sec", sets: 3, type: .strength, alternatives: ["Plate Pinch"]),
             exercise("Dead Bug", target: "8-12 reps / side", sets: 3, type: .flexibility, alternatives: ["Bird Dog"])
         ])
         programs.append(WorkoutProgram(id: "prebuilt_dumbbell_hypertrophy_4_day", userID: systemUserID, name: "Dumbbell Hypertrophy 4-Day", dateCreated: now, routines: [dumbbellUpperA, dumbbellLowerA, dumbbellUpperB, dumbbellLowerB], daysOfWeek: [2, 3, 5, 6]))
@@ -282,49 +299,710 @@ public struct WorkoutRules {
         // Layne Norton's PHAT
         let phatUpperPower = WorkoutRoutine(id: "prebuilt_phat_upper_power", userID: systemUserID, name: "Upper Power", dateCreated: now, exercises: [
             exercise("Pendlay Row", target: "3-5 reps", sets: 3, alternatives: ["Barbell Bent-over Row"]),
-            exercise("Pull-Up", target: "6-10 reps", sets: 2, alternatives: ["Lat Pulldown"]),
-            exercise("Flat Dumbbell Press", target: "3-5 reps", sets: 3, alternatives: ["Barbell Bench Press"]),
-            exercise("Incline Dumbbell Press", target: "6-10 reps", sets: 2, alternatives: ["Incline Barbell Bench Press"]),
-            exercise("Seated Dumbbell Shoulder Press", target: "6-10 reps", sets: 3, alternatives: ["Barbell Overhead Press"]),
+            exercise("Pull-up", target: "6-10 reps", sets: 2, alternatives: ["Lat Pulldown"]),
+            exercise("Dumbbell Bench Press", target: "3-5 reps", sets: 3, alternatives: ["Barbell Bench Press"]),
+            exercise("Incline Dumbbell Bench Press", target: "6-10 reps", sets: 2, alternatives: ["Incline Barbell Bench Press"]),
+            exercise("Dumbbell Shoulder Press", target: "6-10 reps", sets: 3, alternatives: ["Barbell Overhead Press (Military Press)"]),
             exercise("Barbell Curl", target: "6-10 reps", sets: 3, alternatives: ["Dumbbell Curl"]),
-            exercise("Lying Triceps Extension", target: "6-10 reps", sets: 3, alternatives: ["Dumbbell Overhead Triceps Extension"])
+            exercise("Skull Crusher (Lying Triceps Extension)", target: "6-10 reps", sets: 3, alternatives: ["Overhead Triceps Extension (Dumbbell/Cable)"])
         ])
         let phatLowerPower = WorkoutRoutine(id: "prebuilt_phat_lower_power", userID: systemUserID, name: "Lower Power", dateCreated: now, exercises: [
             exercise("Barbell Back Squat", target: "3-5 reps", sets: 3, alternatives: ["Leg Press"]),
-            exercise("Hack Squat", target: "6-10 reps", sets: 2, alternatives: ["Goblet Squat"]),
+            exercise("Hack Squat", target: "6-10 reps", sets: 2, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
             exercise("Leg Extension", target: "6-10 reps", sets: 2, alternatives: ["Bulgarian Split Squat"]),
-            exercise("Stiff Legged Deadlift", target: "5-8 reps", sets: 3, alternatives: ["Romanian Deadlift (RDL)"]),
+            exercise("Romanian Deadlift", target: "5-8 reps", sets: 3, alternatives: ["Good Mornings"]),
             exercise("Lying Leg Curl", target: "6-10 reps", sets: 2, alternatives: ["Seated Leg Curl"]),
             exercise("Standing Calf Raise", target: "6-10 reps", sets: 3, alternatives: ["Seated Calf Raise"]),
-            exercise("Seated Calf Raise", target: "6-10 reps", sets: 2, alternatives: ["Calf Press on Leg Press"])
+            exercise("Seated Calf Raise", target: "6-10 reps", sets: 2, alternatives: ["Leg Press Calf Raise"])
         ])
         let phatBackShouldersHypertrophy = WorkoutRoutine(id: "prebuilt_phat_back_shoulders", userID: systemUserID, name: "Back/Shoulders Hypertrophy", dateCreated: now, exercises: [
-            exercise("Bent-over Row", target: "10-12 reps", sets: 3, alternatives: ["Pendlay Row"]),
-            exercise("Pull-Up", target: "10-12 reps", sets: 3, alternatives: ["Lat Pulldown"]),
+            exercise("Barbell Bent-over Row", target: "10-12 reps", sets: 3, alternatives: ["Pendlay Row"]),
+            exercise("Pull-up", target: "10-12 reps", sets: 3, alternatives: ["Lat Pulldown"]),
             exercise("Seated Cable Row", target: "12-15 reps", sets: 2, alternatives: ["T-Bar Row"]),
-            exercise("Dumbbell Pullover", target: "15-20 reps", sets: 2, alternatives: ["Cable Pullover"]),
-            exercise("Seated Dumbbell Press", target: "10-12 reps", sets: 3, alternatives: ["Barbell Overhead Press"]),
+            exercise("Dumbbell Pullover", target: "15-20 reps", sets: 2, alternatives: ["Lat Pulldown"]),
+            exercise("Dumbbell Shoulder Press", target: "10-12 reps", sets: 3, alternatives: ["Barbell Overhead Press (Military Press)"]),
             exercise("Upright Row", target: "12-15 reps", sets: 2, alternatives: ["Cable Upright Row"]),
             exercise("Dumbbell Lateral Raise", target: "15-20 reps", sets: 3, alternatives: ["Cable Lateral Raise"])
         ])
         let phatLowerHypertrophy = WorkoutRoutine(id: "prebuilt_phat_lower_hypertrophy", userID: systemUserID, name: "Lower Hypertrophy", dateCreated: now, exercises: [
             exercise("Barbell Back Squat", target: "10-12 reps", sets: 3, alternatives: ["Leg Press"]),
-            exercise("Hack Squat", target: "12-15 reps", sets: 3, alternatives: ["Goblet Squat"]),
+            exercise("Hack Squat", target: "12-15 reps", sets: 3, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
             exercise("Leg Extension", target: "15-20 reps", sets: 3, alternatives: ["Bulgarian Split Squat"]),
-            exercise("Romanian Deadlift", target: "10-12 reps", sets: 3, alternatives: ["Stiff Legged Deadlift"]),
+            exercise("Romanian Deadlift", target: "10-12 reps", sets: 3, alternatives: ["Good Mornings"]),
             exercise("Lying Leg Curl", target: "15-20 reps", sets: 2, alternatives: ["Seated Leg Curl"]),
             exercise("Standing Calf Raise", target: "15-20 reps", sets: 4, alternatives: ["Seated Calf Raise"])
         ])
         let phatChestArmsHypertrophy = WorkoutRoutine(id: "prebuilt_phat_chest_arms", userID: systemUserID, name: "Chest/Arms Hypertrophy", dateCreated: now, exercises: [
-            exercise("Flat Dumbbell Press", target: "10-12 reps", sets: 3, alternatives: ["Barbell Bench Press"]),
-            exercise("Incline Dumbbell Press", target: "12-15 reps", sets: 3, alternatives: ["Incline Barbell Bench Press"]),
-            exercise("Cable Crossover", target: "15-20 reps", sets: 2, alternatives: ["Dumbbell Flye"]),
+            exercise("Dumbbell Bench Press", target: "10-12 reps", sets: 3, alternatives: ["Barbell Bench Press"]),
+            exercise("Incline Dumbbell Bench Press", target: "12-15 reps", sets: 3, alternatives: ["Incline Barbell Bench Press"]),
+            exercise("Cable Crossover", target: "15-20 reps", sets: 2, alternatives: ["Dumbbell Fly"]),
             exercise("Barbell Curl", target: "10-12 reps", sets: 3, alternatives: ["Dumbbell Curl"]),
-            exercise("Dumbbell Concentration Curl", target: "12-15 reps", sets: 2, alternatives: ["Preacher Curl"]),
-            exercise("Lying Triceps Extension", target: "10-12 reps", sets: 3, alternatives: ["Dumbbell Overhead Triceps Extension"]),
-            exercise("Cable Triceps Pushdown", target: "12-15 reps", sets: 2, alternatives: ["Rope Triceps Pushdown"])
+            exercise("Concentration Curl", target: "12-15 reps", sets: 2, alternatives: ["Preacher Curl"]),
+            exercise("Skull Crusher (Lying Triceps Extension)", target: "10-12 reps", sets: 3, alternatives: ["Overhead Triceps Extension (Dumbbell/Cable)"]),
+            exercise("Triceps Pushdown (Cable)", target: "12-15 reps", sets: 2, alternatives: ["Triceps Dip"])
         ])
         programs.append(WorkoutProgram(id: "prebuilt_phat", userID: systemUserID, name: "PHAT (Power Hypertrophy Adaptive Training)", dateCreated: now, routines: [phatUpperPower, phatLowerPower, phatBackShouldersHypertrophy, phatLowerHypertrophy, phatChestArmsHypertrophy], daysOfWeek: [2, 3, 5, 6, 7]))
+
+        let basicBeginnerA = routine("prebuilt_basic_beginner_a", "Workout A", [
+            exercise("Barbell Bent-over Row", target: "5+ reps", sets: 3, alternatives: ["Dumbbell Row", "Seated Cable Row"]),
+            exercise("Barbell Bench Press", target: "5+ reps", sets: 3, alternatives: ["Dumbbell Bench Press", "Machine Chest Press"]),
+            exercise("Barbell Back Squat", target: "5+ reps", sets: 3, alternatives: ["Leg Press", "Goblet Squat (Dumbbell/Kettlebell)"])
+        ])
+        let basicBeginnerB = routine("prebuilt_basic_beginner_b", "Workout B", [
+            exercise("Chin-up", target: "5+ reps", sets: 3, alternatives: ["Assisted Pull-up", "Lat Pulldown"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "5+ reps", sets: 3, alternatives: ["Dumbbell Shoulder Press", "Machine Shoulder Press"]),
+            exercise("Deadlift (Conventional)", target: "5+ reps", sets: 3, alternatives: ["Romanian Deadlift", "Sumo Deadlift"])
+        ])
+        addProgram(
+            "prebuilt_basic_beginner_strength",
+            "Basic Beginner Strength",
+            routines: [basicBeginnerA, basicBeginnerB],
+            days: [2, 4, 6]
+        )
+
+        let gzclpDay1 = routine("prebuilt_gzclp_day_1", "Day 1 - Squat Lead", [
+            exercise("Barbell Back Squat", target: "3+ reps", sets: 5, alternatives: ["Leg Press"]),
+            exercise("Barbell Bench Press", target: "10 reps", sets: 3, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Lat Pulldown", target: "15+ reps", sets: 3, alternatives: ["Assisted Pull-up"])
+        ])
+        let gzclpDay2 = routine("prebuilt_gzclp_day_2", "Day 2 - Press Lead", [
+            exercise("Barbell Overhead Press (Military Press)", target: "3+ reps", sets: 5, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Deadlift (Conventional)", target: "10 reps", sets: 3, alternatives: ["Romanian Deadlift"]),
+            exercise("Dumbbell Row", target: "15+ reps / side", sets: 3, alternatives: ["Seated Cable Row"])
+        ])
+        let gzclpDay3 = routine("prebuilt_gzclp_day_3", "Day 3 - Bench Lead", [
+            exercise("Barbell Bench Press", target: "3+ reps", sets: 5, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Barbell Back Squat", target: "10 reps", sets: 3, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
+            exercise("Lat Pulldown", target: "15+ reps", sets: 3, alternatives: ["Pull-up"])
+        ])
+        let gzclpDay4 = routine("prebuilt_gzclp_day_4", "Day 4 - Deadlift Lead", [
+            exercise("Deadlift (Conventional)", target: "3+ reps", sets: 5, alternatives: ["Sumo Deadlift"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "10 reps", sets: 3, alternatives: ["Machine Shoulder Press"]),
+            exercise("Dumbbell Row", target: "15+ reps / side", sets: 3, alternatives: ["T-Bar Row"])
+        ])
+        addProgram(
+            "prebuilt_gzclp",
+            "GZCLP 3-Day Rotation",
+            routines: [gzclpDay1, gzclpDay2, gzclpDay3, gzclpDay4],
+            days: [2, 4, 6]
+        )
+
+        let fiveThreeOneBeginnerA = routine("prebuilt_531_beginner_a", "Day 1 - Squat & Bench", [
+            exercise("Barbell Back Squat", target: "5/3/1 reps", sets: 3, alternatives: ["Leg Press"]),
+            exercise("Barbell Bench Press", target: "5/3/1 reps", sets: 3, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Dumbbell Row", target: "50 total reps", sets: 5, alternatives: ["Seated Cable Row"]),
+            exercise("Push-up", target: "50 total reps", sets: 5, alternatives: ["Machine Chest Press"]),
+            exercise("Hanging Knee Raise", target: "50 total reps", sets: 5, type: .flexibility, alternatives: ["Dead Bug"])
+        ])
+        let fiveThreeOneBeginnerB = routine("prebuilt_531_beginner_b", "Day 2 - Deadlift & Press", [
+            exercise("Deadlift (Conventional)", target: "5/3/1 reps", sets: 3, alternatives: ["Romanian Deadlift"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "5/3/1 reps", sets: 3, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Lat Pulldown", target: "50 total reps", sets: 5, alternatives: ["Assisted Pull-up"]),
+            exercise("Triceps Pushdown (Cable)", target: "50 total reps", sets: 5, alternatives: ["Bench Dip"]),
+            exercise("Bulgarian Split Squat", target: "25 reps / side", sets: 5, alternatives: ["Step-up"])
+        ])
+        let fiveThreeOneBeginnerC = routine("prebuilt_531_beginner_c", "Day 3 - Bench & Squat", [
+            exercise("Barbell Bench Press", target: "5/3/1 reps", sets: 3, alternatives: ["Incline Barbell Bench Press"]),
+            exercise("Barbell Back Squat", target: "5/3/1 reps", sets: 3, alternatives: ["Barbell Front Squat"]),
+            exercise("Face Pull", target: "50 total reps", sets: 5, alternatives: ["Dumbbell Rear Delt Fly"]),
+            exercise("Dumbbell Curl", target: "50 total reps", sets: 5, alternatives: ["Cable Curl"]),
+            exercise("Plank", target: "45-60 sec", sets: 5, type: .flexibility, alternatives: ["Side Plank"])
+        ])
+        addProgram(
+            "prebuilt_531_for_beginners",
+            "5/3/1 for Beginners",
+            routines: [fiveThreeOneBeginnerA, fiveThreeOneBeginnerB, fiveThreeOneBeginnerC],
+            days: [2, 4, 6]
+        )
+
+        let boringButBigPress = routine("prebuilt_531_bbb_press", "Press + Back Volume", [
+            exercise("Barbell Overhead Press (Military Press)", target: "5/3/1 reps", sets: 3, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "10 reps @ light", sets: 5, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Lat Pulldown", target: "10 reps", sets: 5, alternatives: ["Pull-up"]),
+            exercise("Face Pull", target: "15-20 reps", sets: 3, alternatives: ["Dumbbell Rear Delt Fly"])
+        ])
+        let boringButBigDeadlift = routine("prebuilt_531_bbb_deadlift", "Deadlift + Core Volume", [
+            exercise("Deadlift (Conventional)", target: "5/3/1 reps", sets: 3, alternatives: ["Sumo Deadlift"]),
+            exercise("Romanian Deadlift", target: "10 reps @ light", sets: 5, alternatives: ["Good Mornings"]),
+            exercise("Hanging Knee Raise", target: "10-15 reps", sets: 5, type: .flexibility, alternatives: ["Leg Raise"]),
+            exercise("Farmer's Carry", target: "30-45 sec", sets: 3, alternatives: ["Plate Pinch"])
+        ])
+        let boringButBigBench = routine("prebuilt_531_bbb_bench", "Bench + Back Volume", [
+            exercise("Barbell Bench Press", target: "5/3/1 reps", sets: 3, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Barbell Bench Press", target: "10 reps @ light", sets: 5, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Dumbbell Row", target: "10 reps / side", sets: 5, alternatives: ["Seated Cable Row"]),
+            exercise("Triceps Pushdown (Cable)", target: "12-15 reps", sets: 3, alternatives: ["Bench Dip"])
+        ])
+        let boringButBigSquat = routine("prebuilt_531_bbb_squat", "Squat + Core Volume", [
+            exercise("Barbell Back Squat", target: "5/3/1 reps", sets: 3, alternatives: ["Barbell Front Squat"]),
+            exercise("Barbell Back Squat", target: "10 reps @ light", sets: 5, alternatives: ["Leg Press"]),
+            exercise("Cable Crunch", target: "10-15 reps", sets: 5, type: .flexibility, alternatives: ["Crunch"]),
+            exercise("Standing Calf Raise", target: "12-20 reps", sets: 3, alternatives: ["Seated Calf Raise"])
+        ])
+        addProgram(
+            "prebuilt_531_boring_but_big",
+            "5/3/1 Boring But Big",
+            routines: [boringButBigPress, boringButBigDeadlift, boringButBigBench, boringButBigSquat],
+            days: [2, 3, 5, 6]
+        )
+
+        let phulUpperPower = routine("prebuilt_phul_upper_power", "Upper Power", [
+            exercise("Barbell Bench Press", target: "3-5 reps", sets: 4, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Incline Dumbbell Bench Press", target: "6-10 reps", sets: 4, alternatives: ["Incline Barbell Bench Press"]),
+            exercise("Barbell Bent-over Row", target: "3-5 reps", sets: 4, alternatives: ["Pendlay Row"]),
+            exercise("Lat Pulldown", target: "6-10 reps", sets: 4, alternatives: ["Pull-up"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "5-8 reps", sets: 3, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Barbell Curl", target: "6-10 reps", sets: 3, alternatives: ["Dumbbell Curl"]),
+            exercise("Skull Crusher (Lying Triceps Extension)", target: "6-10 reps", sets: 3, alternatives: ["Triceps Pushdown (Cable)"])
+        ])
+        let phulLowerPower = routine("prebuilt_phul_lower_power", "Lower Power", [
+            exercise("Barbell Back Squat", target: "3-5 reps", sets: 4, alternatives: ["Leg Press"]),
+            exercise("Deadlift (Conventional)", target: "3-5 reps", sets: 4, alternatives: ["Romanian Deadlift"]),
+            exercise("Leg Press", target: "10-15 reps", sets: 4, alternatives: ["Hack Squat"]),
+            exercise("Lying Leg Curl", target: "6-10 reps", sets: 4, alternatives: ["Seated Leg Curl"]),
+            exercise("Standing Calf Raise", target: "6-10 reps", sets: 4, alternatives: ["Leg Press Calf Raise"])
+        ])
+        let phulUpperHypertrophy = routine("prebuilt_phul_upper_hypertrophy", "Upper Hypertrophy", [
+            exercise("Incline Barbell Bench Press", target: "8-12 reps", sets: 4, alternatives: ["Incline Dumbbell Bench Press"]),
+            exercise("Dumbbell Fly", target: "8-12 reps", sets: 4, alternatives: ["Machine Fly (Pec Deck)"]),
+            exercise("Seated Cable Row", target: "8-12 reps", sets: 4, alternatives: ["Dumbbell Row"]),
+            exercise("Dumbbell Row", target: "8-12 reps / side", sets: 4, alternatives: ["T-Bar Row"]),
+            exercise("Dumbbell Lateral Raise", target: "8-12 reps", sets: 4, alternatives: ["Cable Lateral Raise"]),
+            exercise("Incline Dumbbell Curl", target: "8-12 reps", sets: 4, alternatives: ["Preacher Curl"]),
+            exercise("Triceps Pushdown (Cable)", target: "8-12 reps", sets: 4, alternatives: ["Overhead Triceps Extension (Dumbbell/Cable)"])
+        ])
+        let phulLowerHypertrophy = routine("prebuilt_phul_lower_hypertrophy", "Lower Hypertrophy", [
+            exercise("Barbell Front Squat", target: "8-12 reps", sets: 4, alternatives: ["Hack Squat"]),
+            exercise("Walking Lunge", target: "8-12 reps / side", sets: 4, alternatives: ["Bulgarian Split Squat"]),
+            exercise("Leg Extension", target: "10-15 reps", sets: 4, alternatives: ["Leg Press"]),
+            exercise("Seated Leg Curl", target: "10-15 reps", sets: 4, alternatives: ["Lying Leg Curl"]),
+            exercise("Seated Calf Raise", target: "12-20 reps", sets: 4, alternatives: ["Standing Calf Raise"])
+        ])
+        addProgram(
+            "prebuilt_phul",
+            "PHUL Power Hypertrophy Upper Lower",
+            routines: [phulUpperPower, phulLowerPower, phulUpperHypertrophy, phulLowerHypertrophy],
+            days: [2, 3, 5, 6]
+        )
+
+        let pplPushA = routine("prebuilt_beginner_ppl_push_a", "Push A", [
+            exercise("Barbell Bench Press", target: "5 reps", sets: 3, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "8 reps", sets: 3, alternatives: ["Machine Shoulder Press"]),
+            exercise("Incline Dumbbell Bench Press", target: "10 reps", sets: 3, alternatives: ["Machine Chest Press"]),
+            exercise("Dumbbell Lateral Raise", target: "12-15 reps", sets: 3, alternatives: ["Cable Lateral Raise"]),
+            exercise("Triceps Pushdown (Cable)", target: "10-15 reps", sets: 3, alternatives: ["Bench Dip"])
+        ])
+        let pplPullA = routine("prebuilt_beginner_ppl_pull_a", "Pull A", [
+            exercise("Deadlift (Conventional)", target: "5 reps", sets: 3, alternatives: ["Romanian Deadlift"]),
+            exercise("Lat Pulldown", target: "8-12 reps", sets: 3, alternatives: ["Assisted Pull-up"]),
+            exercise("Seated Cable Row", target: "10-12 reps", sets: 3, alternatives: ["Dumbbell Row"]),
+            exercise("Face Pull", target: "12-15 reps", sets: 3, alternatives: ["Dumbbell Rear Delt Fly"]),
+            exercise("Dumbbell Curl", target: "10-15 reps", sets: 3, alternatives: ["Cable Curl"])
+        ])
+        let pplLegsA = routine("prebuilt_beginner_ppl_legs_a", "Legs A", [
+            exercise("Barbell Back Squat", target: "5 reps", sets: 3, alternatives: ["Leg Press"]),
+            exercise("Romanian Deadlift", target: "8-10 reps", sets: 3, alternatives: ["Good Mornings"]),
+            exercise("Leg Press", target: "10-12 reps", sets: 3, alternatives: ["Hack Squat"]),
+            exercise("Lying Leg Curl", target: "10-15 reps", sets: 3, alternatives: ["Seated Leg Curl"]),
+            exercise("Standing Calf Raise", target: "12-20 reps", sets: 4, alternatives: ["Seated Calf Raise"])
+        ])
+        let pplPushB = routine("prebuilt_beginner_ppl_push_b", "Push B", [
+            exercise("Incline Barbell Bench Press", target: "6-8 reps", sets: 3, alternatives: ["Incline Dumbbell Bench Press"]),
+            exercise("Dumbbell Shoulder Press", target: "8-10 reps", sets: 3, alternatives: ["Machine Shoulder Press"]),
+            exercise("Machine Fly (Pec Deck)", target: "12-15 reps", sets: 3, alternatives: ["Dumbbell Fly"]),
+            exercise("Cable Lateral Raise", target: "12-15 reps", sets: 3, alternatives: ["Dumbbell Lateral Raise"]),
+            exercise("Overhead Triceps Extension (Dumbbell/Cable)", target: "10-15 reps", sets: 3, alternatives: ["Triceps Pushdown (Cable)"])
+        ])
+        let pplPullB = routine("prebuilt_beginner_ppl_pull_b", "Pull B", [
+            exercise("Barbell Bent-over Row", target: "6-8 reps", sets: 3, alternatives: ["T-Bar Row"]),
+            exercise("Pull-up", target: "AMRAP", sets: 3, alternatives: ["Assisted Pull-up", "Lat Pulldown"]),
+            exercise("Dumbbell Row", target: "10-12 reps / side", sets: 3, alternatives: ["Seated Cable Row"]),
+            exercise("Dumbbell Rear Delt Fly", target: "12-15 reps", sets: 3, alternatives: ["Face Pull"]),
+            exercise("Hammer Curl", target: "10-15 reps", sets: 3, alternatives: ["Cable Curl"])
+        ])
+        let pplLegsB = routine("prebuilt_beginner_ppl_legs_b", "Legs B", [
+            exercise("Barbell Front Squat", target: "6-8 reps", sets: 3, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
+            exercise("Bulgarian Split Squat", target: "8-12 reps / side", sets: 3, alternatives: ["Step-up"]),
+            exercise("Leg Extension", target: "12-15 reps", sets: 3, alternatives: ["Leg Press"]),
+            exercise("Seated Leg Curl", target: "12-15 reps", sets: 3, alternatives: ["Lying Leg Curl"]),
+            exercise("Leg Press Calf Raise", target: "12-20 reps", sets: 4, alternatives: ["Standing Calf Raise"])
+        ])
+        addProgram(
+            "prebuilt_beginner_ppl",
+            "Beginner Push Pull Legs",
+            routines: [pplPushA, pplPullA, pplLegsA, pplPushB, pplPullB, pplLegsB],
+            days: [2, 3, 4, 5, 6, 7]
+        )
+
+        let bodyweightFoundationA = routine("prebuilt_bodyweight_foundation_a", "Foundation A", [
+            exercise("Push-up", target: "8-15 reps", sets: 3, alternatives: ["Machine Chest Press"]),
+            exercise("Inverted Row", target: "8-12 reps", sets: 3, alternatives: ["Assisted Pull-up"]),
+            exercise("Bodyweight Squat", target: "12-20 reps", sets: 3, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
+            exercise("Glute Bridge", target: "12-20 reps", sets: 3, alternatives: ["Barbell Hip Thrust"]),
+            exercise("Plank", target: "30-60 sec", sets: 3, type: .flexibility, alternatives: ["Dead Bug"])
+        ])
+        let bodyweightFoundationB = routine("prebuilt_bodyweight_foundation_b", "Foundation B", [
+            exercise("Assisted Pull-up", target: "5-10 reps", sets: 3, alternatives: ["Lat Pulldown"]),
+            exercise("Chest Dip", target: "6-12 reps", sets: 3, alternatives: ["Bench Dip", "Push-up"]),
+            exercise("Bulgarian Split Squat", target: "8-12 reps / side", sets: 3, alternatives: ["Reverse Lunge"]),
+            exercise("Back Extension (Hyperextension)", target: "12-15 reps", sets: 3, alternatives: ["Good Mornings"]),
+            exercise("Side Plank", target: "30-45 sec / side", sets: 3, type: .flexibility, alternatives: ["Bird Dog"])
+        ])
+        let bodyweightFoundationC = routine("prebuilt_bodyweight_foundation_c", "Foundation C", [
+            exercise("Burpee", target: "8-12 reps", sets: 3, type: .cardio, alternatives: ["Mountain Climber"]),
+            exercise("Walking Lunge", target: "10-15 reps / side", sets: 3, alternatives: ["Step-up"]),
+            exercise("Inverted Row", target: "AMRAP", sets: 3, alternatives: ["Dumbbell Row"]),
+            exercise("Push-up", target: "AMRAP", sets: 3, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Hanging Knee Raise", target: "8-15 reps", sets: 3, type: .flexibility, alternatives: ["Leg Raise"])
+        ])
+        addProgram(
+            "prebuilt_bodyweight_foundation",
+            "Bodyweight Foundation",
+            routines: [bodyweightFoundationA, bodyweightFoundationB, bodyweightFoundationC],
+            days: [2, 4, 6]
+        )
+
+        let machineFullBodyA = routine("prebuilt_machine_full_body_a", "Machine Full Body A", [
+            exercise("Machine Chest Press", target: "8-12 reps", sets: 3, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Lat Pulldown", target: "8-12 reps", sets: 3, alternatives: ["Assisted Pull-up"]),
+            exercise("Leg Press", target: "10-15 reps", sets: 3, alternatives: ["Hack Squat"]),
+            exercise("Seated Leg Curl", target: "10-15 reps", sets: 3, alternatives: ["Lying Leg Curl"]),
+            exercise("Cable Crunch", target: "10-15 reps", sets: 3, type: .flexibility, alternatives: ["Crunch"])
+        ])
+        let machineFullBodyB = routine("prebuilt_machine_full_body_b", "Machine Full Body B", [
+            exercise("Machine Shoulder Press", target: "8-12 reps", sets: 3, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Seated Cable Row", target: "8-12 reps", sets: 3, alternatives: ["Dumbbell Row"]),
+            exercise("Leg Extension", target: "10-15 reps", sets: 3, alternatives: ["Leg Press"]),
+            exercise("Hip Abduction (Machine)", target: "12-20 reps", sets: 3, alternatives: ["Cable Kickback"]),
+            exercise("Treadmill Walk", target: "10-15 min", sets: 1, type: .cardio, alternatives: ["Elliptical"])
+        ])
+        let machineFullBodyC = routine("prebuilt_machine_full_body_c", "Machine Full Body C", [
+            exercise("Machine Fly (Pec Deck)", target: "10-15 reps", sets: 3, alternatives: ["Cable Crossover"]),
+            exercise("T-Bar Row", target: "8-12 reps", sets: 3, alternatives: ["Seated Cable Row"]),
+            exercise("Hack Squat", target: "8-12 reps", sets: 3, alternatives: ["Leg Press"]),
+            exercise("Standing Calf Raise", target: "12-20 reps", sets: 3, alternatives: ["Leg Press Calf Raise"]),
+            exercise("Face Pull", target: "12-15 reps", sets: 3, alternatives: ["Dumbbell Rear Delt Fly"])
+        ])
+        addProgram(
+            "prebuilt_machine_gym_full_body",
+            "Machine Gym Full Body",
+            routines: [machineFullBodyA, machineFullBodyB, machineFullBodyC],
+            days: [2, 4, 6]
+        )
+
+        let machinePush = routine("prebuilt_machine_ppl_push", "Machine Push", [
+            exercise("Machine Chest Press", target: "8-12 reps", sets: 4, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Machine Shoulder Press", target: "8-12 reps", sets: 4, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Machine Fly (Pec Deck)", target: "10-15 reps", sets: 3, alternatives: ["Cable Crossover"]),
+            exercise("Cable Lateral Raise", target: "12-20 reps", sets: 3, alternatives: ["Dumbbell Lateral Raise"]),
+            exercise("Triceps Pushdown (Cable)", target: "10-15 reps", sets: 3, alternatives: ["Bench Dip"])
+        ])
+        let machinePull = routine("prebuilt_machine_ppl_pull", "Machine Pull", [
+            exercise("Lat Pulldown", target: "8-12 reps", sets: 4, alternatives: ["Assisted Pull-up"]),
+            exercise("Seated Cable Row", target: "8-12 reps", sets: 4, alternatives: ["Dumbbell Row"]),
+            exercise("Face Pull", target: "12-15 reps", sets: 3, alternatives: ["Dumbbell Rear Delt Fly"]),
+            exercise("Cable Curl", target: "10-15 reps", sets: 3, alternatives: ["Dumbbell Curl"]),
+            exercise("Back Extension (Hyperextension)", target: "12-15 reps", sets: 3, alternatives: ["Good Mornings"])
+        ])
+        let machineLegs = routine("prebuilt_machine_ppl_legs", "Machine Legs", [
+            exercise("Leg Press", target: "8-12 reps", sets: 4, alternatives: ["Hack Squat"]),
+            exercise("Leg Extension", target: "10-15 reps", sets: 4, alternatives: ["Bulgarian Split Squat"]),
+            exercise("Seated Leg Curl", target: "10-15 reps", sets: 4, alternatives: ["Lying Leg Curl"]),
+            exercise("Hip Abduction (Machine)", target: "12-20 reps", sets: 3, alternatives: ["Cable Kickback"]),
+            exercise("Leg Press Calf Raise", target: "12-20 reps", sets: 4, alternatives: ["Standing Calf Raise"])
+        ])
+        addProgram(
+            "prebuilt_machine_gym_ppl",
+            "Machine Gym Push Pull Legs",
+            routines: [machinePush, machinePull, machineLegs],
+            days: [2, 3, 4, 5, 6, 7]
+        )
+
+        let athleticUpperMax = routine("prebuilt_athletic_upper_max", "Upper Strength", [
+            exercise("Barbell Bench Press", target: "3-5 reps", sets: 4, alternatives: ["Close-Grip Bench Press"]),
+            exercise("Dumbbell Row", target: "8-12 reps / side", sets: 4, alternatives: ["T-Bar Row"]),
+            exercise("Dumbbell Shoulder Press", target: "8-10 reps", sets: 3, alternatives: ["Barbell Overhead Press (Military Press)"]),
+            exercise("Face Pull", target: "12-15 reps", sets: 3, alternatives: ["Dumbbell Rear Delt Fly"]),
+            exercise("Farmer's Carry", target: "30-45 sec", sets: 3, alternatives: ["Plate Pinch"])
+        ])
+        let athleticLowerDynamic = routine("prebuilt_athletic_lower_dynamic", "Lower Power", [
+            exercise("Power Clean", target: "3 reps", sets: 5, alternatives: ["Hang Clean"]),
+            exercise("Barbell Back Squat", target: "5 reps", sets: 4, alternatives: ["Barbell Front Squat"]),
+            exercise("Romanian Deadlift", target: "6-8 reps", sets: 3, alternatives: ["Good Mornings"]),
+            exercise("Walking Lunge", target: "8-10 reps / side", sets: 3, alternatives: ["Step-up"]),
+            exercise("Plank", target: "45-60 sec", sets: 3, type: .flexibility, alternatives: ["Side Plank"])
+        ])
+        let athleticUpperRepetition = routine("prebuilt_athletic_upper_repetition", "Upper Volume", [
+            exercise("Incline Dumbbell Bench Press", target: "10-15 reps", sets: 4, alternatives: ["Push-up"]),
+            exercise("Pull-up", target: "AMRAP", sets: 4, alternatives: ["Assisted Pull-up"]),
+            exercise("Dumbbell Lateral Raise", target: "12-20 reps", sets: 3, alternatives: ["Cable Lateral Raise"]),
+            exercise("Barbell Curl", target: "10-15 reps", sets: 3, alternatives: ["Dumbbell Curl"]),
+            exercise("Triceps Dip", target: "8-12 reps", sets: 3, alternatives: ["Bench Dip"])
+        ])
+        let athleticLowerConditioning = routine("prebuilt_athletic_lower_conditioning", "Lower Conditioning", [
+            exercise("Kettlebell Swing", target: "15 reps", sets: 5, alternatives: ["Romanian Deadlift"]),
+            exercise("Goblet Squat (Dumbbell/Kettlebell)", target: "10-12 reps", sets: 4, alternatives: ["Leg Press"]),
+            exercise("Step-up", target: "10 reps / side", sets: 3, alternatives: ["Reverse Lunge"]),
+            exercise("Rowing Machine", target: "500 m", sets: 4, type: .cardio, alternatives: ["Stationary Bike"]),
+            exercise("Dead Bug", target: "8-12 reps / side", sets: 3, type: .flexibility, alternatives: ["Bird Dog"])
+        ])
+        addProgram(
+            "prebuilt_athletic_strength_builder",
+            "Athletic Strength Builder",
+            routines: [athleticUpperMax, athleticLowerDynamic, athleticUpperRepetition, athleticLowerConditioning],
+            days: [2, 3, 5, 6]
+        )
+
+        let gvtChestBack = routine("prebuilt_gvt_chest_back", "Chest & Back 10x10", [
+            exercise("Barbell Bench Press", target: "10 reps", sets: 10, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Barbell Bent-over Row", target: "10 reps", sets: 10, alternatives: ["Seated Cable Row"]),
+            exercise("Incline Dumbbell Fly", target: "10-12 reps", sets: 3, alternatives: ["Machine Fly (Pec Deck)"]),
+            exercise("Lat Pulldown", target: "10-12 reps", sets: 3, alternatives: ["Pull-up"])
+        ])
+        let gvtLegsCore = routine("prebuilt_gvt_legs_core", "Legs & Core 10x10", [
+            exercise("Barbell Back Squat", target: "10 reps", sets: 10, alternatives: ["Leg Press"]),
+            exercise("Lying Leg Curl", target: "10 reps", sets: 10, alternatives: ["Seated Leg Curl"]),
+            exercise("Standing Calf Raise", target: "12-20 reps", sets: 4, alternatives: ["Seated Calf Raise"]),
+            exercise("Cable Crunch", target: "10-15 reps", sets: 4, type: .flexibility, alternatives: ["Crunch"])
+        ])
+        let gvtShouldersArms = routine("prebuilt_gvt_shoulders_arms", "Shoulders & Arms 10x10", [
+            exercise("Dumbbell Shoulder Press", target: "10 reps", sets: 10, alternatives: ["Machine Shoulder Press"]),
+            exercise("Barbell Curl", target: "10 reps", sets: 10, alternatives: ["Dumbbell Curl"]),
+            exercise("Skull Crusher (Lying Triceps Extension)", target: "10 reps", sets: 10, alternatives: ["Triceps Pushdown (Cable)"]),
+            exercise("Dumbbell Lateral Raise", target: "12-20 reps", sets: 3, alternatives: ["Cable Lateral Raise"])
+        ])
+        addProgram(
+            "prebuilt_german_volume_training",
+            "German Volume Training",
+            routines: [gvtChestBack, gvtLegsCore, gvtShouldersArms],
+            days: [2, 4, 6]
+        )
+
+        let monolithA = routine("prebuilt_monolith_a", "Monolith A", [
+            exercise("Barbell Back Squat", target: "5/3/1 reps", sets: 5, alternatives: ["Leg Press"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "5 reps", sets: 5, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Pull-up", target: "50 total reps", sets: 5, alternatives: ["Assisted Pull-up"]),
+            exercise("Barbell Curl", target: "10 reps", sets: 5, alternatives: ["Dumbbell Curl"]),
+            exercise("Face Pull", target: "15-20 reps", sets: 5, alternatives: ["Dumbbell Rear Delt Fly"])
+        ])
+        let monolithB = routine("prebuilt_monolith_b", "Monolith B", [
+            exercise("Deadlift (Conventional)", target: "5/3/1 reps", sets: 5, alternatives: ["Romanian Deadlift"]),
+            exercise("Barbell Bench Press", target: "5 reps", sets: 5, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Dumbbell Row", target: "10 reps / side", sets: 5, alternatives: ["Seated Cable Row"]),
+            exercise("Triceps Pushdown (Cable)", target: "10-15 reps", sets: 5, alternatives: ["Bench Dip"]),
+            exercise("Hanging Leg Raise", target: "10-15 reps", sets: 5, type: .flexibility, alternatives: ["Leg Raise"])
+        ])
+        let monolithC = routine("prebuilt_monolith_c", "Monolith C", [
+            exercise("Barbell Back Squat", target: "5 reps", sets: 5, alternatives: ["Barbell Front Squat"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "5/3/1 reps", sets: 5, alternatives: ["Machine Shoulder Press"]),
+            exercise("Chin-up", target: "50 total reps", sets: 5, alternatives: ["Lat Pulldown"]),
+            exercise("Farmer's Carry", target: "30-45 sec", sets: 5, alternatives: ["Plate Pinch"]),
+            exercise("Brisk Walk", target: "20-30 min", sets: 1, type: .cardio, alternatives: ["Stationary Bike"])
+        ])
+        addProgram(
+            "prebuilt_monolith_strength_size",
+            "Monolith Strength & Size",
+            routines: [monolithA, monolithB, monolithC],
+            days: [2, 4, 6]
+        )
+
+        let gluteStrength = routine("prebuilt_glute_growth_strength", "Glute Strength", [
+            exercise("Barbell Hip Thrust", target: "6-8 reps", sets: 4, alternatives: ["Glute Bridge"]),
+            exercise("Barbell Back Squat", target: "6-8 reps", sets: 4, alternatives: ["Leg Press"]),
+            exercise("Romanian Deadlift", target: "8-10 reps", sets: 3, alternatives: ["Good Mornings"]),
+            exercise("Hip Abduction (Machine)", target: "12-20 reps", sets: 3, alternatives: ["Cable Kickback"]),
+            exercise("Standing Calf Raise", target: "12-20 reps", sets: 3, alternatives: ["Seated Calf Raise"])
+        ])
+        let gluteUpperSupport = routine("prebuilt_glute_growth_upper", "Upper Support", [
+            exercise("Dumbbell Bench Press", target: "8-12 reps", sets: 3, alternatives: ["Machine Chest Press"]),
+            exercise("Lat Pulldown", target: "8-12 reps", sets: 3, alternatives: ["Assisted Pull-up"]),
+            exercise("Dumbbell Shoulder Press", target: "8-12 reps", sets: 3, alternatives: ["Machine Shoulder Press"]),
+            exercise("Seated Cable Row", target: "10-12 reps", sets: 3, alternatives: ["Dumbbell Row"]),
+            exercise("Face Pull", target: "12-15 reps", sets: 3, alternatives: ["Dumbbell Rear Delt Fly"])
+        ])
+        let gluteHypertrophy = routine("prebuilt_glute_growth_hypertrophy", "Glute Hypertrophy", [
+            exercise("Leg Press", target: "10-15 reps", sets: 4, alternatives: ["Hack Squat"]),
+            exercise("Bulgarian Split Squat", target: "8-12 reps / side", sets: 3, alternatives: ["Step-up"]),
+            exercise("Cable Pull-through", target: "12-15 reps", sets: 3, alternatives: ["Glute Bridge"]),
+            exercise("Cable Kickback", target: "12-20 reps / side", sets: 3, alternatives: ["Hip Abduction (Machine)"]),
+            exercise("Frog Pump", target: "20-30 reps", sets: 3, alternatives: ["Glute Bridge"])
+        ])
+        let gluteLowerPump = routine("prebuilt_glute_growth_pump", "Lower Pump", [
+            exercise("Goblet Squat (Dumbbell/Kettlebell)", target: "12-15 reps", sets: 4, alternatives: ["Sumo Squat"]),
+            exercise("Reverse Lunge", target: "10-12 reps / side", sets: 3, alternatives: ["Walking Lunge"]),
+            exercise("Seated Leg Curl", target: "12-15 reps", sets: 3, alternatives: ["Lying Leg Curl"]),
+            exercise("Hip Abduction (Machine)", target: "15-25 reps", sets: 4, alternatives: ["Cable Kickback"]),
+            exercise("Side Plank", target: "30-45 sec / side", sets: 3, type: .flexibility, alternatives: ["Dead Bug"])
+        ])
+        addProgram(
+            "prebuilt_glute_lower_growth",
+            "Glute & Lower Body Growth",
+            routines: [gluteStrength, gluteUpperSupport, gluteHypertrophy, gluteLowerPump],
+            days: [2, 3, 5, 6]
+        )
+
+        let busyStrengthA = routine("prebuilt_busy_strength_a", "Full Body A", [
+            exercise("Barbell Back Squat", target: "5 reps", sets: 3, alternatives: ["Leg Press"]),
+            exercise("Barbell Bench Press", target: "5 reps", sets: 3, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Dumbbell Row", target: "8-12 reps / side", sets: 3, alternatives: ["Seated Cable Row"]),
+            exercise("Plank", target: "45-60 sec", sets: 3, type: .flexibility, alternatives: ["Dead Bug"])
+        ])
+        let busyStrengthB = routine("prebuilt_busy_strength_b", "Full Body B", [
+            exercise("Deadlift (Conventional)", target: "5 reps", sets: 3, alternatives: ["Romanian Deadlift"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "5 reps", sets: 3, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Lat Pulldown", target: "8-12 reps", sets: 3, alternatives: ["Pull-up"]),
+            exercise("Farmer's Carry", target: "30-45 sec", sets: 3, alternatives: ["Plate Pinch"])
+        ])
+        let busyStrengthC = routine("prebuilt_busy_strength_c", "Full Body C", [
+            exercise("Barbell Front Squat", target: "5 reps", sets: 3, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
+            exercise("Incline Dumbbell Bench Press", target: "8-10 reps", sets: 3, alternatives: ["Incline Barbell Bench Press"]),
+            exercise("Seated Cable Row", target: "8-12 reps", sets: 3, alternatives: ["Barbell Bent-over Row"]),
+            exercise("Hanging Knee Raise", target: "8-15 reps", sets: 3, type: .flexibility, alternatives: ["Leg Raise"])
+        ])
+        addProgram(
+            "prebuilt_busy_professional_strength",
+            "Busy Professional 3-Day Strength",
+            routines: [busyStrengthA, busyStrengthB, busyStrengthC],
+            days: [2, 4, 6]
+        )
+
+        let upperLowerUpperA = routine("prebuilt_rotating_upper_lower_upper_a", "Upper A", [
+            exercise("Barbell Bench Press", target: "5-8 reps", sets: 4, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Barbell Bent-over Row", target: "5-8 reps", sets: 4, alternatives: ["Dumbbell Row"]),
+            exercise("Dumbbell Shoulder Press", target: "8-10 reps", sets: 3, alternatives: ["Machine Shoulder Press"]),
+            exercise("Lat Pulldown", target: "8-12 reps", sets: 3, alternatives: ["Pull-up"]),
+            exercise("Triceps Pushdown (Cable)", target: "10-15 reps", sets: 3, alternatives: ["Bench Dip"])
+        ])
+        let upperLowerLower = routine("prebuilt_rotating_upper_lower_lower", "Lower", [
+            exercise("Barbell Back Squat", target: "5-8 reps", sets: 4, alternatives: ["Leg Press"]),
+            exercise("Romanian Deadlift", target: "8-10 reps", sets: 4, alternatives: ["Good Mornings"]),
+            exercise("Walking Lunge", target: "10 reps / side", sets: 3, alternatives: ["Step-up"]),
+            exercise("Standing Calf Raise", target: "12-20 reps", sets: 3, alternatives: ["Seated Calf Raise"]),
+            exercise("Cable Crunch", target: "10-15 reps", sets: 3, type: .flexibility, alternatives: ["Crunch"])
+        ])
+        let upperLowerUpperB = routine("prebuilt_rotating_upper_lower_upper_b", "Upper B", [
+            exercise("Barbell Overhead Press (Military Press)", target: "5-8 reps", sets: 4, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Pull-up", target: "AMRAP", sets: 4, alternatives: ["Assisted Pull-up"]),
+            exercise("Incline Dumbbell Bench Press", target: "8-12 reps", sets: 3, alternatives: ["Machine Chest Press"]),
+            exercise("Seated Cable Row", target: "8-12 reps", sets: 3, alternatives: ["Dumbbell Row"]),
+            exercise("Dumbbell Curl", target: "10-15 reps", sets: 3, alternatives: ["Cable Curl"])
+        ])
+        let upperLowerLowerB = routine("prebuilt_rotating_upper_lower_lower_b", "Lower B", [
+            exercise("Deadlift (Conventional)", target: "3-5 reps", sets: 3, alternatives: ["Romanian Deadlift"]),
+            exercise("Barbell Front Squat", target: "6-8 reps", sets: 4, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
+            exercise("Bulgarian Split Squat", target: "8-12 reps / side", sets: 3, alternatives: ["Reverse Lunge"]),
+            exercise("Seated Leg Curl", target: "10-15 reps", sets: 3, alternatives: ["Lying Leg Curl"]),
+            exercise("Hanging Knee Raise", target: "8-15 reps", sets: 3, type: .flexibility, alternatives: ["Leg Raise"])
+        ])
+        addProgram(
+            "prebuilt_rotating_upper_lower_3_day",
+            "Upper/Lower 3-Day Rotation",
+            routines: [upperLowerUpperA, upperLowerLower, upperLowerUpperB, upperLowerLowerB],
+            days: [2, 4, 6]
+        )
+
+        let fatLossStrengthA = routine("prebuilt_fat_loss_strength_a", "Strength Circuit A", [
+            exercise("Goblet Squat (Dumbbell/Kettlebell)", target: "10-12 reps", sets: 4, alternatives: ["Leg Press"]),
+            exercise("Dumbbell Bench Press", target: "8-12 reps", sets: 4, alternatives: ["Push-up"]),
+            exercise("Dumbbell Row", target: "10-12 reps / side", sets: 4, alternatives: ["Seated Cable Row"]),
+            exercise("Kettlebell Swing", target: "15 reps", sets: 4, alternatives: ["Romanian Deadlift"]),
+            exercise("Mountain Climber", target: "30-45 sec", sets: 4, type: .cardio, alternatives: ["High Knees"])
+        ])
+        let fatLossConditioningA = routine("prebuilt_fat_loss_conditioning_a", "Intervals", [
+            exercise("Rowing Machine", target: "250 m hard", sets: 6, type: .cardio, alternatives: ["Stationary Bike"]),
+            exercise("Burpee", target: "8-10 reps", sets: 5, type: .cardio, alternatives: ["High Knees"]),
+            exercise("Jump Rope", target: "45 sec", sets: 5, type: .cardio, alternatives: ["Treadmill Run"]),
+            exercise("Plank", target: "45 sec", sets: 4, type: .flexibility, alternatives: ["Dead Bug"])
+        ])
+        let fatLossStrengthB = routine("prebuilt_fat_loss_strength_b", "Strength Circuit B", [
+            exercise("Romanian Deadlift", target: "8-10 reps", sets: 4, alternatives: ["Good Mornings"]),
+            exercise("Dumbbell Shoulder Press", target: "8-12 reps", sets: 4, alternatives: ["Machine Shoulder Press"]),
+            exercise("Lat Pulldown", target: "8-12 reps", sets: 4, alternatives: ["Assisted Pull-up"]),
+            exercise("Reverse Lunge", target: "10 reps / side", sets: 4, alternatives: ["Walking Lunge"]),
+            exercise("Farmer's Carry", target: "30-45 sec", sets: 4, alternatives: ["Plate Pinch"])
+        ])
+        let fatLossZone2 = routine("prebuilt_fat_loss_zone_2", "Zone 2 Base", [
+            exercise("Treadmill Walk", target: "25-35 min", sets: 1, type: .cardio, alternatives: ["Elliptical"]),
+            exercise("Stationary Bike", target: "15-25 min", sets: 1, type: .cardio, alternatives: ["Rowing Machine"]),
+            exercise("World's Greatest Stretch", target: "5 reps / side", sets: 2, type: .flexibility),
+            exercise("Hip Flexor Stretch", target: "45 sec / side", sets: 2, type: .flexibility)
+        ])
+        addProgram(
+            "prebuilt_fat_loss_strength_conditioning",
+            "Fat Loss Strength + Conditioning",
+            routines: [fatLossStrengthA, fatLossConditioningA, fatLossStrengthB, fatLossZone2],
+            days: [2, 3, 5, 6]
+        )
+
+        let dumbbellBeginnerA = routine("prebuilt_dumbbell_beginner_a", "Dumbbell A", [
+            exercise("Goblet Squat (Dumbbell/Kettlebell)", target: "10-12 reps", sets: 3, alternatives: ["Bodyweight Squat"]),
+            exercise("Dumbbell Bench Press", target: "8-12 reps", sets: 3, alternatives: ["Push-up"]),
+            exercise("Dumbbell Row", target: "10-12 reps / side", sets: 3, alternatives: ["Inverted Row"]),
+            exercise("Dumbbell Shoulder Press", target: "8-12 reps", sets: 3, alternatives: ["Arnold Press"]),
+            exercise("Dead Bug", target: "8-12 reps / side", sets: 3, type: .flexibility, alternatives: ["Plank"])
+        ])
+        let dumbbellBeginnerB = routine("prebuilt_dumbbell_beginner_b", "Dumbbell B", [
+            exercise("Romanian Deadlift", target: "8-12 reps", sets: 3, alternatives: ["Glute Bridge"]),
+            exercise("Incline Dumbbell Bench Press", target: "8-12 reps", sets: 3, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Reverse Lunge", target: "8-12 reps / side", sets: 3, alternatives: ["Step-up"]),
+            exercise("Dumbbell Lateral Raise", target: "12-15 reps", sets: 3, alternatives: ["Dumbbell Front Raise"]),
+            exercise("Farmer's Carry", target: "30-45 sec", sets: 3, alternatives: ["Plate Pinch"])
+        ])
+        let dumbbellBeginnerC = routine("prebuilt_dumbbell_beginner_c", "Dumbbell C", [
+            exercise("Bulgarian Split Squat", target: "8-10 reps / side", sets: 3, alternatives: ["Walking Lunge"]),
+            exercise("Dumbbell Pullover", target: "10-15 reps", sets: 3, alternatives: ["Lat Pulldown"]),
+            exercise("Push-up", target: "AMRAP", sets: 3, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Hammer Curl", target: "10-15 reps", sets: 3, alternatives: ["Dumbbell Curl"]),
+            exercise("Overhead Triceps Extension (Dumbbell/Cable)", target: "10-15 reps", sets: 3, alternatives: ["Bench Dip"])
+        ])
+        addProgram(
+            "prebuilt_beginner_dumbbell_only",
+            "Beginner Dumbbell Only 3-Day",
+            routines: [dumbbellBeginnerA, dumbbellBeginnerB, dumbbellBeginnerC],
+            days: [2, 4, 6]
+        )
+
+        let kettlebellBodyweightA = routine("prebuilt_kb_bodyweight_a", "Swing & Push", [
+            exercise("Kettlebell Swing", target: "15 reps", sets: 5, alternatives: ["Romanian Deadlift"]),
+            exercise("Push-up", target: "8-15 reps", sets: 4, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Goblet Squat (Dumbbell/Kettlebell)", target: "10-12 reps", sets: 4, alternatives: ["Bodyweight Squat"]),
+            exercise("Dumbbell Row", target: "10 reps / side", sets: 4, alternatives: ["Inverted Row"]),
+            exercise("Mountain Climber", target: "30 sec", sets: 4, type: .cardio, alternatives: ["High Knees"])
+        ])
+        let kettlebellBodyweightB = routine("prebuilt_kb_bodyweight_b", "Clean & Lunge", [
+            exercise("Clean and Press", target: "5 reps / side", sets: 5, alternatives: ["Dumbbell Snatch"]),
+            exercise("Reverse Lunge", target: "8-10 reps / side", sets: 4, alternatives: ["Walking Lunge"]),
+            exercise("Pull-up", target: "AMRAP", sets: 4, alternatives: ["Assisted Pull-up"]),
+            exercise("Glute Bridge", target: "15-20 reps", sets: 4, alternatives: ["Barbell Hip Thrust"]),
+            exercise("Side Plank", target: "30-45 sec / side", sets: 3, type: .flexibility, alternatives: ["Bird Dog"])
+        ])
+        let kettlebellBodyweightC = routine("prebuilt_kb_bodyweight_c", "Engine Day", [
+            exercise("Dumbbell Snatch", target: "6 reps / side", sets: 5, alternatives: ["Kettlebell Swing"]),
+            exercise("Burpee", target: "8-10 reps", sets: 5, type: .cardio, alternatives: ["High Knees"]),
+            exercise("Step-up", target: "10 reps / side", sets: 4, alternatives: ["Walking Lunge"]),
+            exercise("Rowing Machine", target: "500 m", sets: 3, type: .cardio, alternatives: ["Stationary Bike"]),
+            exercise("Dead Bug", target: "10 reps / side", sets: 3, type: .flexibility, alternatives: ["Plank"])
+        ])
+        addProgram(
+            "prebuilt_kettlebell_bodyweight_conditioning",
+            "Kettlebell + Bodyweight Conditioning",
+            routines: [kettlebellBodyweightA, kettlebellBodyweightB, kettlebellBodyweightC],
+            days: [2, 4, 6]
+        )
+
+        let zone2MobilityA = routine("prebuilt_zone2_mobility_a", "Zone 2 + Hips", [
+            exercise("Brisk Walk", target: "30-40 min", sets: 1, type: .cardio, alternatives: ["Treadmill Walk"]),
+            exercise("World's Greatest Stretch", target: "5 reps / side", sets: 2, type: .flexibility),
+            exercise("Hip Flexor Stretch", target: "45 sec / side", sets: 2, type: .flexibility),
+            exercise("Dead Bug", target: "8-12 reps / side", sets: 3, type: .flexibility)
+        ])
+        let zone2MobilityB = routine("prebuilt_zone2_mobility_b", "Bike + Shoulders", [
+            exercise("Stationary Bike", target: "30-40 min", sets: 1, type: .cardio, alternatives: ["Elliptical"]),
+            exercise("Wall Slide", target: "10-12 reps", sets: 2, type: .flexibility),
+            exercise("Scapular Push-up", target: "10-12 reps", sets: 2, type: .strength),
+            exercise("Thoracic Rotation", target: "8 reps / side", sets: 2, type: .flexibility)
+        ])
+        let zone2MobilityC = routine("prebuilt_zone2_mobility_c", "Row + Core", [
+            exercise("Rowing Machine", target: "20-30 min easy", sets: 1, type: .cardio, alternatives: ["Treadmill Walk"]),
+            exercise("Couch Stretch", target: "45 sec / side", sets: 2, type: .flexibility),
+            exercise("Bird Dog", target: "8-12 reps / side", sets: 3, type: .flexibility),
+            exercise("Child's Pose Breathing", target: "2 min", sets: 1, type: .flexibility)
+        ])
+        addProgram(
+            "prebuilt_mobility_zone2_base",
+            "Mobility + Zone 2 Base Builder",
+            routines: [zone2MobilityA, zone2MobilityB, zone2MobilityC],
+            days: [2, 4, 6]
+        )
+
+        let returnRampA = routine("prebuilt_return_ramp_a", "Ramp A", [
+            exercise("Bodyweight Squat", target: "8-12 reps", sets: 2, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
+            exercise("Push-up", target: "6-12 reps", sets: 2, alternatives: ["Machine Chest Press"]),
+            exercise("Seated Cable Row", target: "8-12 reps", sets: 2, alternatives: ["Dumbbell Row"]),
+            exercise("Glute Bridge", target: "10-15 reps", sets: 2, alternatives: ["Barbell Hip Thrust"]),
+            exercise("Brisk Walk", target: "10-15 min", sets: 1, type: .cardio, alternatives: ["Stationary Bike"])
+        ])
+        let returnRampB = routine("prebuilt_return_ramp_b", "Ramp B", [
+            exercise("Goblet Squat (Dumbbell/Kettlebell)", target: "8-10 reps", sets: 2, alternatives: ["Leg Press"]),
+            exercise("Dumbbell Shoulder Press", target: "8-10 reps", sets: 2, alternatives: ["Machine Shoulder Press"]),
+            exercise("Lat Pulldown", target: "8-12 reps", sets: 2, alternatives: ["Assisted Pull-up"]),
+            exercise("Romanian Deadlift", target: "8-10 reps", sets: 2, alternatives: ["Good Mornings"]),
+            exercise("Dead Bug", target: "8 reps / side", sets: 2, type: .flexibility, alternatives: ["Bird Dog"])
+        ])
+        let returnRampC = routine("prebuilt_return_ramp_c", "Ramp C", [
+            exercise("Leg Press", target: "10-12 reps", sets: 2, alternatives: ["Bodyweight Squat"]),
+            exercise("Dumbbell Bench Press", target: "8-10 reps", sets: 2, alternatives: ["Push-up"]),
+            exercise("Dumbbell Row", target: "8-10 reps / side", sets: 2, alternatives: ["Seated Cable Row"]),
+            exercise("Step-up", target: "8 reps / side", sets: 2, alternatives: ["Reverse Lunge"]),
+            exercise("World's Greatest Stretch", target: "5 reps / side", sets: 2, type: .flexibility)
+        ])
+        addProgram(
+            "prebuilt_return_to_training_ramp",
+            "Return to Training Ramp",
+            routines: [returnRampA, returnRampB, returnRampC],
+            days: [2, 4, 6]
+        )
+
+        let powerbuildingUpperStrength = routine("prebuilt_powerbuilding_upper_strength", "Upper Strength", [
+            exercise("Barbell Bench Press", target: "3-5 reps", sets: 4, alternatives: ["Close-Grip Bench Press"]),
+            exercise("Barbell Bent-over Row", target: "5-8 reps", sets: 4, alternatives: ["Pendlay Row"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "5-8 reps", sets: 3, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Pull-up", target: "AMRAP", sets: 3, alternatives: ["Lat Pulldown"]),
+            exercise("Triceps Pushdown (Cable)", target: "10-15 reps", sets: 3, alternatives: ["Skull Crusher (Lying Triceps Extension)"])
+        ])
+        let powerbuildingLowerStrength = routine("prebuilt_powerbuilding_lower_strength", "Lower Strength", [
+            exercise("Barbell Back Squat", target: "3-5 reps", sets: 4, alternatives: ["Barbell Front Squat"]),
+            exercise("Deadlift (Conventional)", target: "3-5 reps", sets: 3, alternatives: ["Sumo Deadlift"]),
+            exercise("Leg Press", target: "8-12 reps", sets: 3, alternatives: ["Hack Squat"]),
+            exercise("Lying Leg Curl", target: "10-12 reps", sets: 3, alternatives: ["Seated Leg Curl"]),
+            exercise("Standing Calf Raise", target: "12-20 reps", sets: 4, alternatives: ["Seated Calf Raise"])
+        ])
+        let powerbuildingUpperVolume = routine("prebuilt_powerbuilding_upper_volume", "Upper Volume", [
+            exercise("Incline Dumbbell Bench Press", target: "8-12 reps", sets: 4, alternatives: ["Incline Barbell Bench Press"]),
+            exercise("Seated Cable Row", target: "8-12 reps", sets: 4, alternatives: ["Dumbbell Row"]),
+            exercise("Dumbbell Fly", target: "12-15 reps", sets: 3, alternatives: ["Machine Fly (Pec Deck)"]),
+            exercise("Dumbbell Lateral Raise", target: "12-20 reps", sets: 4, alternatives: ["Cable Lateral Raise"]),
+            exercise("Dumbbell Curl", target: "10-15 reps", sets: 3, alternatives: ["Hammer Curl"])
+        ])
+        let powerbuildingLowerVolume = routine("prebuilt_powerbuilding_lower_volume", "Lower Volume", [
+            exercise("Barbell Front Squat", target: "8-12 reps", sets: 4, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
+            exercise("Romanian Deadlift", target: "8-12 reps", sets: 4, alternatives: ["Good Mornings"]),
+            exercise("Bulgarian Split Squat", target: "10 reps / side", sets: 3, alternatives: ["Walking Lunge"]),
+            exercise("Leg Extension", target: "12-15 reps", sets: 3, alternatives: ["Leg Press"]),
+            exercise("Cable Crunch", target: "10-15 reps", sets: 3, type: .flexibility, alternatives: ["Crunch"])
+        ])
+        addProgram(
+            "prebuilt_powerbuilding_4_day",
+            "Powerbuilding 4-Day",
+            routines: [powerbuildingUpperStrength, powerbuildingLowerStrength, powerbuildingUpperVolume, powerbuildingLowerVolume],
+            days: [2, 3, 5, 6]
+        )
+
+        let garageGymA = routine("prebuilt_garage_gym_a", "Garage A", [
+            exercise("Barbell Back Squat", target: "5 reps", sets: 5, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
+            exercise("Barbell Bench Press", target: "5 reps", sets: 5, alternatives: ["Push-up"]),
+            exercise("Dumbbell Row", target: "10 reps / side", sets: 4, alternatives: ["Inverted Row"]),
+            exercise("Plank", target: "45-60 sec", sets: 3, type: .flexibility, alternatives: ["Dead Bug"])
+        ])
+        let garageGymB = routine("prebuilt_garage_gym_b", "Garage B", [
+            exercise("Deadlift (Conventional)", target: "3-5 reps", sets: 5, alternatives: ["Romanian Deadlift"]),
+            exercise("Barbell Overhead Press (Military Press)", target: "5 reps", sets: 5, alternatives: ["Dumbbell Shoulder Press"]),
+            exercise("Pull-up", target: "AMRAP", sets: 4, alternatives: ["Inverted Row"]),
+            exercise("Farmer's Carry", target: "30-45 sec", sets: 4, alternatives: ["Plate Pinch"])
+        ])
+        let garageGymC = routine("prebuilt_garage_gym_c", "Garage C", [
+            exercise("Barbell Front Squat", target: "5 reps", sets: 5, alternatives: ["Goblet Squat (Dumbbell/Kettlebell)"]),
+            exercise("Incline Dumbbell Bench Press", target: "8-10 reps", sets: 4, alternatives: ["Dumbbell Bench Press"]),
+            exercise("Romanian Deadlift", target: "8-10 reps", sets: 4, alternatives: ["Good Mornings"]),
+            exercise("Dumbbell Curl", target: "10-15 reps", sets: 3, alternatives: ["Hammer Curl"]),
+            exercise("Skull Crusher (Lying Triceps Extension)", target: "10-15 reps", sets: 3, alternatives: ["Bench Dip"])
+        ])
+        addProgram(
+            "prebuilt_minimalist_garage_gym",
+            "Minimalist Garage Gym 3-Day",
+            routines: [garageGymA, garageGymB, garageGymC],
+            days: [2, 4, 6]
+        )
 
         return programs
     }

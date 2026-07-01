@@ -42,7 +42,11 @@ public final class MockWorkoutRepository: WorkoutRepositoryProtocol, @unchecked 
     public func saveProgram(userID: String, program: WorkoutProgram) async throws -> WorkoutProgram { return mockSaveProgramResult ?? program }
     
     public var deletedProgramIDs: [String] = []
+    public var deleteProgramError: Error?
     public func deleteProgram(userID: String, programID: String) async throws {
+        if let deleteProgramError {
+            throw deleteProgramError
+        }
         deletedProgramIDs.append(programID)
     }
     

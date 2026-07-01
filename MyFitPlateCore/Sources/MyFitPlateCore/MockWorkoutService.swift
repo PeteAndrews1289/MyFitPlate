@@ -26,6 +26,10 @@ public class MockWorkoutService: WorkoutServicing {
     public func setActiveProgram(_ program: WorkoutProgram) {
         self.activeProgram = program
     }
+
+    public func clearActiveProgram() {
+        self.activeProgram = nil
+    }
     
     @discardableResult
     public func saveProgram(_ program: WorkoutProgram) async -> WorkoutProgram? {
@@ -42,8 +46,11 @@ public class MockWorkoutService: WorkoutServicing {
         return program
     }
     
-    public func deleteProgram(_ program: WorkoutProgram) {
-        // Mock implementation
+    @discardableResult
+    public func deleteProgram(_ program: WorkoutProgram) async -> ProgramDeletionResult {
+        activeProgram = nil
+        userPrograms.removeAll { $0.id == program.id }
+        return .deleted
     }
     
     public func saveRoutine(_ routine: WorkoutRoutine) async throws {

@@ -27,6 +27,7 @@ struct FoodSearchView: View {
     @State private var estimatedMenuWrapper: IdentifiableFoodItems?
     @State private var scannedFoodItem: FoodItem?
     @State private var scannedFoodSource: String = "barcode_result"
+    @State private var pendingManualBarcode: String?
     @State private var scanError: (Bool, String) = (false, "")
 
     private let foodAPIService = FatSecretFoodAPIService()
@@ -64,13 +65,14 @@ struct FoodSearchView: View {
                 }
                 .sheet(isPresented: $showingAddFoodManually) {
                     AddFoodView(
-                        initialFoodItem: FoodItem(id: UUID().uuidString, name: "", calories: 0, protein: 0, carbs: 0, fats: 0, servingSize: "", servingWeight: 0),
+                        initialFoodItem: manualFoodSeed(),
                         dailyLog: $dailyLogService.currentDailyLog,
                         date: dailyLogService.activelyViewedDate,
-                        source: "manual_add",
+                        source: pendingManualBarcode == nil ? "manual_add" : "manual_barcode_create",
                         targetMealName: viewModel.selectedMeal,
                         onLogUpdated: {
                             showingAddFoodManually = false
+                            pendingManualBarcode = nil
                             onFoodItemLogged?()
                         }
                     )
@@ -83,12 +85,15 @@ struct FoodSearchView: View {
                 }
                 .sheet(isPresented: $showingBarcodeScanner) {
                     BarcodeScannerView { barcode in
+                        let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode)
                         self.showingBarcodeScanner = false
                         self.isSearchingAfterScan = true
+                        self.pendingManualBarcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
                         DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                         Task { @MainActor in
                             if let result = await barcodeLookupService.lookup(barcode) {
                                 self.isSearchingAfterScan = false
+                                self.pendingManualBarcode = nil
                                 self.scannedFoodSource = result.source
                                 self.scannedFoodItem = result.item
                                 return
@@ -196,6 +201,34 @@ struct FoodSearchView: View {
         }
     }
 
+    private func manualFoodSeed() -> FoodItem {
+        let metadata: FoodSourceMetadata?
+        if let pendingManualBarcode, !pendingManualBarcode.isEmpty {
+            metadata = FoodSourceMetadata(
+                sourceType: .manual,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                sourceName: "Manual Barcode Entry",
+                barcode: pendingManualBarcode,
+                notes: "Created after a barcode lookup miss."
+            )
+        } else {
+            metadata = nil
+        }
+
+        return FoodItem(
+            id: UUID().uuidString,
+            name: "",
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fats: 0,
+            servingSize: "",
+            servingWeight: 0,
+            sourceMetadata: metadata
+        )
+    }
+
     @ViewBuilder
     private var searchHeaderContent: some View {
         FoodSearchHeader(
@@ -257,21 +290,42 @@ struct FoodSearchView: View {
 
     @ViewBuilder
     private var searchingStateContent: some View {
+        let trustedResults = viewModel.trustedSearchResults
+
+        if !trustedResults.isEmpty {
+            FoodPickerSection(
+                title: "Best Matches",
+                subtitle: "Saved and recent foods from your history.",
+                foods: trustedResults,
+                quickLoggedFoodIDs: viewModel.quickLoggedFoodIDs,
+                emptyTitle: "",
+                emptyMessage: "",
+                onSelect: {
+                    handleSelection(
+                        food: $0,
+                        source: viewModel.sourceForTrustedSearchResult($0)
+                    )
+                },
+                onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil,
+                onDelete: nil
+            )
+        }
+
         if viewModel.isLoading {
             FoodSearchLoadingState(query: viewModel.searchText)
-        } else if let searchErrorMessage = viewModel.searchErrorMessage {
+        } else if let searchErrorMessage = viewModel.searchErrorMessage, viewModel.searchResults.isEmpty {
             FoodSearchEmptyState(
                 icon: "wifi.exclamationmark",
                 title: "Search could not load",
                 message: searchErrorMessage
             )
-        } else if viewModel.searchResults.isEmpty {
+        } else if viewModel.searchResults.isEmpty && trustedResults.isEmpty {
             FoodSearchEmptyState(
                 icon: "magnifyingglass",
                 title: "No foods found",
                 message: "Try a simpler search like \"chicken breast\", or add it manually."
             )
-        } else {
+        } else if !viewModel.searchResults.isEmpty {
             FoodPickerSection(
                 title: "Search Results",
                 subtitle: "Tap a food to review servings before logging to \(viewModel.selectedMeal).",

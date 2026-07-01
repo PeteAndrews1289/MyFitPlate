@@ -394,6 +394,75 @@ struct ProgramCompleteCard: View {
     }
 }
 
+struct ActiveProgramManagementCard<Destination: View>: View {
+    let program: WorkoutProgram
+    let onDelete: () -> Void
+    let destination: () -> Destination
+
+    private var progressText: String {
+        guard let currentIndex = program.currentProgressIndex else { return "Open" }
+        let daysPerWeek = max(program.daysOfWeek?.count ?? 0, 1)
+        let totalWorkouts = max(daysPerWeek * 12, program.routines.count)
+        return "\(min(currentIndex, totalWorkouts))/\(totalWorkouts)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "slider.horizontal.3")
+                    .appFont(size: 17, weight: .bold)
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Current Program")
+                        .appFont(size: 18, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text(program.name)
+                        .appFont(size: 13, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                }
+
+                Spacer()
+
+                Text(progressText)
+                    .appFont(size: 12, weight: .bold)
+                    .foregroundColor(.brandPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+            }
+
+            HStack(spacing: 10) {
+                NavigationLink(destination: destination()) {
+                    Label("Manage", systemImage: "folder.fill")
+                        .appFont(size: 14, weight: .bold)
+                        .foregroundColor(.brandPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete", systemImage: "trash.fill")
+                        .appFont(size: 14, weight: .bold)
+                        .foregroundColor(.red)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .asCard()
+    }
+}
+
 struct TrainingSectionHeader: View {
     let title: String
     let subtitle: String

@@ -12,6 +12,7 @@ struct WorkoutRoutinesView: View {
     @State private var showingAIGenerator = false
     @State private var routineToEdit: WorkoutRoutine?
     @State private var reviewLog: WorkoutSessionLog?
+    @State private var showingDeleteCurrentProgramAlert = false
 
     @StateObject private var viewModel = WorkoutDashboardViewModel()
 
@@ -66,6 +67,20 @@ struct WorkoutRoutinesView: View {
                             },
                             onReview: { log in self.reviewLog = log }
                         )
+                    }
+
+                    if let program = workoutService.activeProgram {
+                        ActiveProgramManagementCard(
+                            program: program,
+                            onDelete: {
+                                showingDeleteCurrentProgramAlert = true
+                            }
+                        ) {
+                            ProgramListView(workoutService: workoutService)
+                                .environmentObject(goalSettings)
+                                .environmentObject(dailyLogService)
+                                .environmentObject(achievementService)
+                        }
                     }
 
                     if workoutService.activeProgram == nil {
@@ -144,6 +159,22 @@ struct WorkoutRoutinesView: View {
                             .foregroundColor(.brandPrimary)
                     }
                 }
+            }
+            .alert("Delete Current Program?", isPresented: $showingDeleteCurrentProgramAlert) {
+                Button("Delete Program", role: .destructive) {
+                    if let program = workoutService.activeProgram {
+                        Task {
+                            let result = await workoutService.deleteProgram(program)
+                            if result.didDelete {
+                                viewModel.sessionLogs = []
+                            }
+                            ToastManager.shared.showToast(message: result.userMessage)
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This removes the active plan from your saved programs. Workout history stays saved.")
             }
             .onAppear {
                 workoutService.fetchRoutinesAndPrograms()

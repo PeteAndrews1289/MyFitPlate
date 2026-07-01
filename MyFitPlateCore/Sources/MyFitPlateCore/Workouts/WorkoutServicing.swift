@@ -13,6 +13,7 @@ public protocol WorkoutServicing: AnyObject {
     
     func fetchRoutinesAndPrograms()
     func setActiveProgram(_ program: WorkoutProgram)
+    func clearActiveProgram()
     
     @discardableResult
     func saveProgram(_ program: WorkoutProgram) async -> WorkoutProgram?
@@ -23,7 +24,8 @@ public protocol WorkoutServicing: AnyObject {
     @discardableResult
     func skipCurrentWorkout(in program: WorkoutProgram) async -> WorkoutProgram?
     
-    func deleteProgram(_ program: WorkoutProgram)
+    @discardableResult
+    func deleteProgram(_ program: WorkoutProgram) async -> ProgramDeletionResult
     
     func saveRoutine(_ routine: WorkoutRoutine) async throws
     func deleteRoutine(_ routine: WorkoutRoutine)

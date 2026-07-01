@@ -519,9 +519,23 @@ struct AddFoodView: View {
         } else {
             dailyLogService.addFoodToCurrentLog(for: userID, foodItem: itemToLog, source: source)
         }
+        rememberManualBarcodeCorrectionIfNeeded(itemToLog, userID: userID)
         HapticManager.instance.feedback(.medium)
         onLogUpdated()
         dismiss()
+    }
+
+    private func rememberManualBarcodeCorrectionIfNeeded(_ foodItem: FoodItem, userID: String) {
+        guard source == "manual_barcode_create",
+              foodItem.sourceMetadata?.barcode?.isEmpty == false else {
+            return
+        }
+
+        let correction = foodItem.savedAsCustomFood(
+            barcode: foodItem.sourceMetadata?.barcode,
+            originalItem: initialFoodItem
+        )
+        dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: correction) { _ in }
     }
 
     // Save/Unsave Custom Food Logic
@@ -545,7 +559,7 @@ struct AddFoodView: View {
             servingSize: n.servingDescription,
             servingWeight: n.servingWeightGrams,
             timestamp: nil,
-            sourceMetadata: .userEntered(sourceName: "My Foods"),
+            sourceMetadata: initialFoodItem.sourceMetadata,
             calcium: n.calcium,
             iron: n.iron,
             potassium: n.potassium,
@@ -569,7 +583,12 @@ struct AddFoodView: View {
             vitaminE: n.vitaminE,
             vitaminK: n.vitaminK
         )
-        let itemToSave = rawItemToSave.normalizedForEstimatedSource(source)
+        let itemToSave = rawItemToSave
+            .normalizedForEstimatedSource(source)
+            .savedAsCustomFood(
+                barcode: initialFoodItem.sourceMetadata?.barcode,
+                originalItem: initialFoodItem
+            )
         dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
             if success {
                 isSavedAsCustom = true

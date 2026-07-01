@@ -196,12 +196,85 @@ final class WorkoutRulesTests: XCTestCase {
 
     func testGeneratePreBuiltPrograms() {
         let programs = WorkoutRules.generatePreBuiltPrograms()
-        XCTAssertGreaterThan(programs.count, 0)
+        XCTAssertGreaterThanOrEqual(programs.count, 25)
         
         let phat = programs.first(where: { $0.id == "prebuilt_phat" })
         XCTAssertNotNil(phat)
         XCTAssertEqual(phat?.userID, "system_prebuilt")
         XCTAssertEqual(phat?.routines.count, 5)
+
+        let expectedNames = [
+            "StrongLifts 5x5",
+            "Basic Beginner Strength",
+            "GZCLP 3-Day Rotation",
+            "5/3/1 for Beginners",
+            "5/3/1 Boring But Big",
+            "PHUL Power Hypertrophy Upper Lower",
+            "Beginner Push Pull Legs",
+            "Bodyweight Foundation",
+            "Machine Gym Full Body",
+            "Machine Gym Push Pull Legs",
+            "Athletic Strength Builder",
+            "German Volume Training",
+            "Monolith Strength & Size",
+            "Glute & Lower Body Growth",
+            "Busy Professional 3-Day Strength",
+            "Upper/Lower 3-Day Rotation",
+            "Fat Loss Strength + Conditioning",
+            "Beginner Dumbbell Only 3-Day",
+            "Kettlebell + Bodyweight Conditioning",
+            "Mobility + Zone 2 Base Builder",
+            "Return to Training Ramp",
+            "Powerbuilding 4-Day",
+            "Minimalist Garage Gym 3-Day"
+        ]
+
+        for expectedName in expectedNames {
+            XCTAssertTrue(programs.contains { $0.name == expectedName }, "Missing \(expectedName)")
+        }
+    }
+
+    func testPreBuiltProgramCatalogHasStableUniqueIDsAndValidContent() {
+        let programs = WorkoutRules.generatePreBuiltPrograms()
+        let programIDs = programs.compactMap(\.id)
+        XCTAssertEqual(programIDs.count, programs.count)
+        XCTAssertEqual(Set(programIDs).count, programIDs.count)
+
+        let allRoutines = programs.flatMap(\.routines)
+        let routineIDs = allRoutines.map(\.id)
+        XCTAssertEqual(Set(routineIDs).count, routineIDs.count)
+
+        for program in programs {
+            XCTAssertEqual(program.userID, "system_prebuilt")
+            XCTAssertFalse(program.routines.isEmpty, "\(program.name) should include routines")
+            XCTAssertFalse(program.daysOfWeek?.isEmpty ?? true, "\(program.name) should include training days")
+
+            for routine in program.routines {
+                XCTAssertFalse(routine.exercises.isEmpty, "\(program.name) / \(routine.name) should include exercises")
+
+                for exercise in routine.exercises {
+                    XCTAssertFalse(exercise.sets.isEmpty, "\(program.name) / \(routine.name) / \(exercise.name) needs sets")
+                    XCTAssertGreaterThan(exercise.targetSets, 0)
+                    XCTAssertFalse(exercise.targetReps.isEmpty)
+                }
+            }
+        }
+    }
+
+    func testPreBuiltProgramExercisesExistInMasterExerciseList() {
+        let knownExercises = Set(ExerciseList.allExercises)
+        let programs = WorkoutRules.generatePreBuiltPrograms()
+
+        for program in programs {
+            for routine in program.routines {
+                for exercise in routine.exercises {
+                    XCTAssertTrue(
+                        knownExercises.contains(exercise.name),
+                        "\(program.name) / \(routine.name) uses unknown exercise: \(exercise.name)"
+                    )
+                }
+            }
+        }
     }
 
     func testPreparePreBuiltProgramForUser() {

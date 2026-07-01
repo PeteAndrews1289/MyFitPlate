@@ -26,9 +26,11 @@ struct FoodDetailView: View {
     @State private var baseLoggedItemNutrientsPerUnit: ServingSizeOption?
     
     @State private var isSavedAsCustom: Bool = false
+    @State private var hasSavedBarcodeCorrection: Bool = false
     @State private var customFoodForAction: FoodItem?
 
     @State private var showingImagePicker = false
+    @State private var showingCorrectionEditor = false
     @State private var isProcessingLabel = false
     @State private var scanError: (Bool, String) = (false, "")
 
@@ -90,6 +92,21 @@ struct FoodDetailView: View {
         )
     }
 
+    private var barcodeForCorrection: String? {
+        let barcode = BarcodeCorrectionRules.normalizedBarcode(initialFoodItem.sourceMetadata?.barcode ?? "")
+        return barcode.isEmpty ? nil : barcode
+    }
+
+    private var shouldShowBarcodeCorrectionCard: Bool {
+        barcodeForCorrection != nil &&
+            !hasSavedBarcodeCorrection &&
+            sourceDescriptor.sourceKey != "custom_barcode"
+    }
+
+    private var correctionBaseServing: ServingSizeOption {
+        selectedServingOption ?? ServingNutritionCalculator.baseServing(from: initialFoodItem)
+    }
+
     // MARK: - Adjusted Nutrients Calculation
     private var adjustedNutrients: AdjustedServingNutrition {
         let baseNutrients = selectedServingOption ?? ServingNutritionCalculator.baseServing(from: initialFoodItem)
@@ -120,6 +137,13 @@ struct FoodDetailView: View {
                         )
 
                         FoodSourceConfidenceCard(descriptor: sourceDescriptor)
+
+                        if shouldShowBarcodeCorrectionCard {
+                            FoodDetailBarcodeCorrectionCard(
+                                fixAction: { showingCorrectionEditor = true },
+                                rememberAction: saveAsCustomFood
+                            )
+                        }
 
                         if isShowingDetailsLoading {
                             FoodDetailLoadingCard()
@@ -195,6 +219,19 @@ struct FoodDetailView: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showingCorrectionEditor) {
+            FoodDetailCorrectionSheet(
+                foodName: foodName,
+                serving: correctionBaseServing,
+                barcode: barcodeForCorrection
+            ) { correctedName, correctedServing in
+                applyFoodCorrectionAndRemember(
+                    foodName: correctedName,
+                    serving: correctedServing
+                )
+            }
+            .presentationDetents([.large])
         }
         .alert("Scan Error", isPresented: $scanError.0) {
             Button("OK") { }
@@ -459,8 +496,17 @@ struct FoodDetailView: View {
     }
 
     private func saveAsCustomFood() {
+        let serving = selectedServingOption ?? ServingNutritionCalculator.baseServing(from: initialFoodItem)
+        let quantityValue = Double(quantity) ?? 1
+        saveCustomFood(foodName: foodName, serving: serving, quantityValue: quantityValue)
+    }
+
+    private func saveCustomFood(foodName: String, serving: ServingSizeOption, quantityValue: Double) {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
-        let finalNutrients = adjustedNutrients
+        let finalNutrients = ServingNutritionCalculator.adjustedNutrition(
+            base: serving,
+            quantityValue: quantityValue
+        )
         
         let rawItemToSave = FoodItem(
             id: UUID().uuidString,
@@ -468,7 +514,9 @@ struct FoodDetailView: View {
             calories: finalNutrients.calories, protein: finalNutrients.protein, carbs: finalNutrients.carbs, fats: finalNutrients.fats,
             saturatedFat: finalNutrients.saturatedFat, polyunsaturatedFat: finalNutrients.polyunsaturatedFat, monounsaturatedFat: finalNutrients.monounsaturatedFat,
             fiber: finalNutrients.fiber, servingSize: finalNutrients.servingDescription, servingWeight: finalNutrients.servingWeightGrams,
-            timestamp: nil, calcium: finalNutrients.calcium, iron: finalNutrients.iron,
+            timestamp: nil,
+            sourceMetadata: initialFoodItem.sourceMetadata,
+            calcium: finalNutrients.calcium, iron: finalNutrients.iron,
             potassium: finalNutrients.potassium, sodium: finalNutrients.sodium, vitaminA: finalNutrients.vitaminA,
             vitaminC: finalNutrients.vitaminC, vitaminD: finalNutrients.vitaminD,
             vitaminB12: finalNutrients.vitaminB12, folate: finalNutrients.folate,
@@ -479,19 +527,34 @@ struct FoodDetailView: View {
         )
         let itemToSave = rawItemToSave
             .normalizedForEstimatedSource(source)
-            .withSourceMetadata(.userEntered(sourceName: "My Foods"))
+            .savedAsCustomFood(
+                barcode: initialFoodItem.sourceMetadata?.barcode,
+                originalItem: initialFoodItem
+            )
 
         dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
             Task { @MainActor in
                 if success {
                     self.isSavedAsCustom = true
+                    self.hasSavedBarcodeCorrection = itemToSave.sourceMetadata?.barcode?.isEmpty == false
                     self.customFoodForAction = itemToSave
-                    bannerService.showBanner(title: "Saved", message: "\(foodName) added to My Foods.")
+                    let message = self.hasSavedBarcodeCorrection
+                        ? "\(foodName) will be used for future scans of this barcode."
+                        : "\(foodName) added to My Foods."
+                    bannerService.showBanner(title: "Saved", message: message)
                 } else {
                     bannerService.showBanner(title: "Error", message: "Could not save custom food.", iconName: "xmark.circle.fill", iconColor: .red)
                 }
             }
         }
+    }
+
+    private func applyFoodCorrectionAndRemember(foodName correctedName: String, serving correctedServing: ServingSizeOption) {
+        foodName = correctedName
+        availableServings.insert(correctedServing, at: 0)
+        selectedServingID = correctedServing.id
+        quantity = "1"
+        saveCustomFood(foodName: correctedName, serving: correctedServing, quantityValue: 1)
     }
     
     private func unsaveCustomFood() {
@@ -500,6 +563,11 @@ struct FoodDetailView: View {
             Task { @MainActor in
                 if success {
                     self.isSavedAsCustom = false
+                    if let barcode = self.barcodeForCorrection,
+                       let customFoodForAction = self.customFoodForAction,
+                       BarcodeCorrectionRules.matches(customFoodForAction, barcode: barcode) {
+                        self.hasSavedBarcodeCorrection = false
+                    }
                     self.customFoodForAction = nil
                     bannerService.showBanner(title: "Removed", message: "\(foodName) removed from My Foods.", iconName: "star.slash.fill")
                 } else {
@@ -513,9 +581,16 @@ struct FoodDetailView: View {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
         dailyLogService.customFoodStore.fetchMyFoodItems(for: userID) { result in
             DispatchQueue.main.async {
-                if case .success(let items) = result,
-                   let savedItem = items.first(where: { $0.name == self.foodName }) {
+                guard case .success(let items) = result else { return }
+
+                if let barcode = self.barcodeForCorrection,
+                   let savedBarcodeItem = items.first(where: { BarcodeCorrectionRules.matches($0, barcode: barcode) }) {
                     self.isSavedAsCustom = true
+                    self.hasSavedBarcodeCorrection = true
+                    self.customFoodForAction = savedBarcodeItem
+                } else if let savedItem = items.first(where: { $0.name == self.foodName }) {
+                    self.isSavedAsCustom = true
+                    self.hasSavedBarcodeCorrection = false
                     self.customFoodForAction = savedItem
                 }
             }
@@ -692,7 +767,7 @@ private struct FoodSourceConfidenceCard: View {
 
     private var tint: Color {
         switch descriptor.sourceKey {
-        case "usda", "fatsecret", "manual", "planned":
+        case "usda", "fatsecret", "manual", "planned", "custom_barcode":
             return .accentPositive
         case "open_food_facts", "recent":
             return .blue

@@ -303,6 +303,19 @@ public enum FoodSourceClassifier {
             return aiDescriptor(for: metadata)
 
         case .manual, .custom:
+            if metadata.barcode?.isEmpty == false {
+                return FoodSourceDescriptor(
+                    sourceKey: "custom_barcode",
+                    title: "My Foods Match",
+                    detail: reviewAwareDetail(
+                        metadata,
+                        defaultDetail: "Matched from a food you saved for this barcode."
+                    ),
+                    confidence: confidenceText(for: metadata),
+                    systemImage: "barcode.viewfinder"
+                )
+            }
+
             return FoodSourceDescriptor(
                 sourceKey: "manual",
                 title: "Custom Entry",
@@ -443,6 +456,32 @@ public extension FoodItem {
         return item
     }
 
+    func savedAsCustomFood(
+        sourceName: String = "My Foods",
+        barcode: String? = nil,
+        originalItem: FoodItem? = nil
+    ) -> FoodItem {
+        var metadata = sourceMetadata ?? .userEntered(sourceName: sourceName)
+        let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode ?? metadata.barcode ?? "")
+        let originalSnapshot = originalItem?.nutritionSnapshot ?? metadata.originalEstimate
+
+        metadata.sourceType = .custom
+        metadata.confidence = .userVerified
+        metadata.reviewStatus = originalSnapshot == nil || originalSnapshot == nutritionSnapshot ? .userConfirmed : .userEdited
+        metadata.sourceName = sourceName
+        metadata.sourceID = id
+        metadata.matchedFoodID = metadata.matchedFoodID ?? originalItem?.id ?? id
+        metadata.barcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
+
+        if metadata.reviewStatus == .userEdited {
+            metadata.originalEstimate = metadata.originalEstimate ?? originalSnapshot
+            metadata.userCorrection = nutritionSnapshot
+            metadata.notes = metadata.notes ?? "User edited nutrition before saving to My Foods."
+        }
+
+        return withSourceMetadata(metadata)
+    }
+
     func withDatabaseSource(
         _ sourceType: FoodSourceType,
         sourceName: String,
@@ -535,24 +574,105 @@ public struct BarcodeFoodLookupResult: Sendable {
     }
 }
 
+public enum BarcodeCorrectionRules {
+    public static func normalizedBarcode(_ barcode: String) -> String {
+        let trimmed = barcode.trimmingCharacters(in: .whitespacesAndNewlines)
+        let digits = trimmed.filter(\.isNumber)
+        return digits.isEmpty ? trimmed : String(digits)
+    }
+
+    public static func bestCorrectedFood(in foods: [FoodItem], barcode: String) -> FoodItem? {
+        let normalized = normalizedBarcode(barcode)
+        guard !normalized.isEmpty else { return nil }
+
+        return foods
+            .filter { matches($0, barcode: normalized) }
+            .sorted { correctionScore(for: $0) > correctionScore(for: $1) }
+            .first
+            .map { correctedFood(from: $0, barcode: normalized) }
+    }
+
+    public static func matches(_ food: FoodItem, barcode: String) -> Bool {
+        guard let foodBarcode = food.sourceMetadata?.barcode else { return false }
+        return normalizedBarcode(foodBarcode) == normalizedBarcode(barcode)
+    }
+
+    public static func correctedFood(from food: FoodItem, barcode: String) -> FoodItem {
+        food.savedAsCustomFood(barcode: barcode, originalItem: nil)
+    }
+
+    private static func correctionScore(for food: FoodItem) -> Int {
+        switch food.sourceMetadata?.reviewStatus {
+        case .userEdited:
+            return 4
+        case .userConfirmed:
+            return 3
+        case .notRequired:
+            return 2
+        case .unreviewed:
+            return 1
+        case nil:
+            return 0
+        }
+    }
+}
+
+public protocol BarcodeCorrectionStoreProtocol: Sendable {
+    func correctedFood(for barcode: String) async -> FoodItem?
+}
+
+public struct CustomFoodBarcodeCorrectionStore: BarcodeCorrectionStoreProtocol {
+    public init() {}
+
+    public func correctedFood(for barcode: String) async -> FoodItem? {
+        let dependencies = await MainActor.run { () -> (userID: String?, repository: NutritionRepositoryProtocol?) in
+            let authService: AuthServiceProtocol? = DIContainer.shared.authService
+            let nutritionRepository: NutritionRepositoryProtocol? = DIContainer.shared.nutritionRepository
+            return (authService?.currentUserID, nutritionRepository)
+        }
+
+        guard let userID = dependencies.userID, !userID.isEmpty, let repository = dependencies.repository else {
+            return nil
+        }
+
+        do {
+            let customFoods = try await repository.fetchCustomFoods(userID: userID)
+            return BarcodeCorrectionRules.bestCorrectedFood(in: customFoods, barcode: barcode)
+        } catch {
+            AppLog.data.error("Failed to fetch barcode corrections: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+}
+
 public final class BarcodeFoodLookupService {
     private let fatSecretService: FatSecretFoodAPIService
     private let usdaService: USDAFoodAPIService
     private let openFoodFactsService: OpenFoodFactsAPIService
+    private let correctionStore: BarcodeCorrectionStoreProtocol?
 
     public init(
         fatSecretService: FatSecretFoodAPIService = FatSecretFoodAPIService(),
         usdaService: USDAFoodAPIService = USDAFoodAPIService(),
-        openFoodFactsService: OpenFoodFactsAPIService = OpenFoodFactsAPIService()
+        openFoodFactsService: OpenFoodFactsAPIService = OpenFoodFactsAPIService(),
+        correctionStore: BarcodeCorrectionStoreProtocol? = CustomFoodBarcodeCorrectionStore()
     ) {
         self.fatSecretService = fatSecretService
         self.usdaService = usdaService
         self.openFoodFactsService = openFoodFactsService
+        self.correctionStore = correctionStore
     }
 
     public func lookup(_ barcode: String) async -> BarcodeFoodLookupResult? {
-        let trimmedBarcode = barcode.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode)
         guard !trimmedBarcode.isEmpty else { return nil }
+
+        if let item = await correctionStore?.correctedFood(for: trimmedBarcode) {
+            return BarcodeFoodLookupResult(
+                item: item,
+                source: "custom_barcode"
+            )
+        }
 
         if let item = await lookupFatSecret(trimmedBarcode) {
             return BarcodeFoodLookupResult(

@@ -22,6 +22,33 @@ public enum WorkoutServiceError: Error, LocalizedError {
     }
 }
 
+public enum ProgramDeletionResult: Equatable {
+    case deleted
+    case clearedLocalOnly
+    case userNotLoggedIn
+    case missingProgramID
+    case failed(String)
+
+    public var didDelete: Bool {
+        self == .deleted || self == .clearedLocalOnly
+    }
+
+    public var userMessage: String {
+        switch self {
+        case .deleted:
+            return "Program deleted. Workout history was kept."
+        case .clearedLocalOnly:
+            return "Cleared the stuck active program. No saved cloud program was found to delete."
+        case .userNotLoggedIn:
+            return "Could not delete the program because you are not signed in."
+        case .missingProgramID:
+            return "Could not find the saved program record to delete."
+        case .failed(let message):
+            return "Could not delete the program: \(message)"
+        }
+    }
+}
+
 @MainActor
 public class WorkoutService: ObservableObject, WorkoutServicing {
     @Published public var userRoutines: [WorkoutRoutine] = []
@@ -37,6 +64,7 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
     private var programListener: Any?
     private var listenerUserID: String?
     private let activeProgramIDKey = "activeWorkoutProgramID"
+    private let activeProgramClearedKey = "activeWorkoutProgramCleared"
 
     public init() {
         loadPreBuiltPrograms()
@@ -134,9 +162,16 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
 
     public func setActiveProgram(_ program: WorkoutProgram) {
         activeProgram = program
+        UserDefaults.standard.set(false, forKey: activeProgramClearedKey)
         if let programID = program.id {
             UserDefaults.standard.set(programID, forKey: activeProgramIDKey)
         }
+    }
+
+    public func clearActiveProgram() {
+        activeProgram = nil
+        UserDefaults.standard.removeObject(forKey: activeProgramIDKey)
+        UserDefaults.standard.set(true, forKey: activeProgramClearedKey)
     }
 
     @discardableResult
@@ -182,19 +217,23 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
         return saved
     }
 
-    public func deleteProgram(_ program: WorkoutProgram) {
-        guard let userID = DIContainer.shared.authService.currentUserID, let programID = program.id else { return }
-        if activeProgram?.id == programID {
-            activeProgram = nil
-            UserDefaults.standard.removeObject(forKey: activeProgramIDKey)
+    @discardableResult
+    public func deleteProgram(_ program: WorkoutProgram) async -> ProgramDeletionResult {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            return .userNotLoggedIn
         }
-        
-        Task {
-            do {
-                try await DIContainer.shared.workoutRepository.deleteProgram(userID: userID, programID: programID)
-            } catch {
-                AppLog.workouts.error("Failed to delete workout program: \(error.localizedDescription, privacy: .public)")
-            }
+        guard let programID = resolvedProgramID(for: program) else {
+            clearActiveProgram()
+            return .clearedLocalOnly
+        }
+
+        do {
+            try await DIContainer.shared.workoutRepository.deleteProgram(userID: userID, programID: programID)
+            removeDeletedProgramFromLocalState(programID: programID, fallbackName: program.name)
+            return .deleted
+        } catch {
+            AppLog.workouts.error("Failed to delete workout program: \(error.localizedDescription, privacy: .public)")
+            return .failed(error.localizedDescription)
         }
     }
 
@@ -347,6 +386,11 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
             return
         }
 
+        if UserDefaults.standard.bool(forKey: activeProgramClearedKey) {
+            activeProgram = nil
+            return
+        }
+
         if let savedActiveProgramID = UserDefaults.standard.string(forKey: activeProgramIDKey),
            let savedActiveProgram = userPrograms.first(where: { $0.id == savedActiveProgramID }) {
             activeProgram = savedActiveProgram
@@ -362,6 +406,40 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
         activeProgram = userPrograms.first
         if let firstProgramID = activeProgram?.id {
             UserDefaults.standard.set(firstProgramID, forKey: activeProgramIDKey)
+        }
+    }
+
+    private func resolvedProgramID(for program: WorkoutProgram) -> String? {
+        if let programID = program.id,
+           userPrograms.contains(where: { $0.id == programID }) {
+            return programID
+        }
+
+        if let activeProgramID = activeProgram?.id,
+           activeProgram?.name == program.name,
+           userPrograms.contains(where: { $0.id == activeProgramID }) {
+            return activeProgramID
+        }
+
+        if let matchingProgram = userPrograms.first(where: { savedProgram in
+            savedProgram.name == program.name && Calendar.current.isDate(savedProgram.dateCreated, equalTo: program.dateCreated, toGranularity: .second)
+        }) {
+            return matchingProgram.id
+        }
+
+        return userPrograms.first(where: { $0.name == program.name })?.id ?? program.id
+    }
+
+    private func removeDeletedProgramFromLocalState(programID: String, fallbackName: String) {
+        userPrograms.removeAll { savedProgram in
+            if let savedProgramID = savedProgram.id {
+                return savedProgramID == programID
+            }
+            return savedProgram.name == fallbackName
+        }
+
+        if activeProgram?.id == programID || activeProgram?.name == fallbackName {
+            clearActiveProgram()
         }
     }
 }

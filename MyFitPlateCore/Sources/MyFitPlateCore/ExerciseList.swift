@@ -40,11 +40,13 @@ public struct ExerciseList {
         Entry(name: "Sumo Deadlift", category: "Back", howTo: "Take a wide stance with hands inside the knees; push the knees out and stand the bar up keeping it close."),
         Entry(name: "Romanian Deadlift", category: "Back", howTo: "With soft knees, hinge at the hips and slide the bar down the thighs until you feel a hamstring stretch, then stand tall."),
         Entry(name: "Pull-up", category: "Back", howTo: "Hang with an overhand grip; pull your chest toward the bar by driving elbows down, then lower fully."),
+        Entry(name: "Assisted Pull-up", category: "Back", howTo: "Use a band or assisted machine to unload the pull-up; pull the chest toward the bar and lower under control."),
         Entry(name: "Chin-up", category: "Back", howTo: "With an underhand shoulder-width grip, pull until your chin clears the bar, then lower under control."),
         Entry(name: "Lat Pulldown", category: "Back", howTo: "Pull the bar to your upper chest by driving the elbows down and back; control the bar back up."),
         Entry(name: "Barbell Bent-over Row", category: "Back", howTo: "Hinge to ~45°, row the bar to your lower ribs/belly, squeeze the shoulder blades, then lower."),
         Entry(name: "Pendlay Row", category: "Back", howTo: "From a flat back, row the bar explosively from the floor to your lower chest, then reset it on the floor each rep."),
         Entry(name: "Dumbbell Row", category: "Back", howTo: "Brace a hand and knee on a bench; row the dumbbell to your hip, keeping the torso still."),
+        Entry(name: "Dumbbell Pullover", category: "Back", howTo: "Lie across a bench, lower the dumbbell behind your head with soft elbows, then pull it back over the chest."),
         Entry(name: "T-Bar Row", category: "Back", howTo: "Hinge over the bar and row the handles to your chest, driving the elbows back; lower under control."),
         Entry(name: "Seated Cable Row", category: "Back", howTo: "With a tall chest, pull the handle to your belly, squeezing the shoulder blades; extend the arms slowly."),
         Entry(name: "Face Pull", category: "Back", howTo: "From a high pulley with a rope, pull toward your face with elbows high, rotating hands back; squeeze rear delts."),
@@ -55,6 +57,7 @@ public struct ExerciseList {
         // MARK: Shoulders
         Entry(name: "Barbell Overhead Press (Military Press)", category: "Shoulders", howTo: "From the front rack, brace and press the bar overhead to lockout, moving your head 'through' at the top."),
         Entry(name: "Dumbbell Shoulder Press", category: "Shoulders", howTo: "Press dumbbells from shoulder height to lockout overhead; lower under control to ear level."),
+        Entry(name: "Machine Shoulder Press", category: "Shoulders", howTo: "Set the seat so handles start near shoulder height; press overhead and lower smoothly without bouncing."),
         Entry(name: "Arnold Press", category: "Shoulders", howTo: "Start palms facing you at chin height; rotate the palms forward as you press overhead, then reverse on the way down."),
         Entry(name: "Dumbbell Lateral Raise", category: "Shoulders", howTo: "With a slight elbow bend, raise the dumbbells out to shoulder height leading with the elbows; lower slowly."),
         Entry(name: "Cable Lateral Raise", category: "Shoulders", howTo: "From a low pulley, raise the handle out to the side to shoulder height; control the return for constant tension."),
@@ -92,6 +95,7 @@ public struct ExerciseList {
         // MARK: Legs (Quads / general)
         Entry(name: "Barbell Back Squat", category: "Legs", howTo: "Bar on the upper back, brace and sit down between your hips to at least parallel, then drive up through mid-foot."),
         Entry(name: "Barbell Front Squat", category: "Legs", howTo: "Bar in the front rack with high elbows; squat down keeping the torso upright, then stand tall."),
+        Entry(name: "Bodyweight Squat", category: "Legs", howTo: "Sit the hips down and back with arms forward for balance, then stand tall through the whole foot."),
         Entry(name: "Goblet Squat (Dumbbell/Kettlebell)", category: "Legs", howTo: "Hold a weight at your chest; squat down between the knees keeping the chest up, then stand."),
         Entry(name: "Leg Press", category: "Legs", howTo: "Press the platform away to near lockout (don't lock hard), then lower until knees reach ~90°."),
         Entry(name: "Hack Squat", category: "Legs", howTo: "Shoulders under the pads, lower into a deep squat along the machine's track, then press back up."),
@@ -129,12 +133,14 @@ public struct ExerciseList {
         Entry(name: "Bicycle Crunch", category: "Core", howTo: "Alternate bringing each elbow toward the opposite knee while extending the other leg; move with control."),
         Entry(name: "Russian Twist", category: "Core", howTo: "Sit leaning back with feet up; rotate the torso side to side, tapping the weight beside each hip."),
         Entry(name: "Dead Bug", category: "Core", howTo: "On your back with arms and knees up, lower the opposite arm and leg while keeping the lower back flat, then switch."),
+        Entry(name: "Bird Dog", category: "Core", howTo: "From hands and knees, reach opposite arm and leg long while keeping hips level; pause, then switch sides."),
         Entry(name: "Ab Wheel Rollout", category: "Core", howTo: "From the knees, roll the wheel forward keeping the abs braced and back flat, then pull back to the start."),
         Entry(name: "Mountain Climber", category: "Core", howTo: "In a plank, drive the knees toward the chest alternately at a quick pace while keeping the hips level."),
         Entry(name: "Leg Raise", category: "Core", howTo: "Lying down, raise straight legs to vertical, then lower slowly without letting the lower back arch."),
 
         // MARK: Cardio
         Entry(name: "Treadmill Run", category: "Cardio", howTo: "Run at a steady or interval pace with an upright posture and relaxed arms; set incline as desired."),
+        Entry(name: "Brisk Walk", category: "Cardio", howTo: "Walk quickly enough to breathe harder while still being able to speak in short sentences."),
         Entry(name: "Treadmill Walk", category: "Cardio", howTo: "Walk at a brisk pace, optionally on an incline, keeping a tall posture and a natural arm swing."),
         Entry(name: "Stationary Bike", category: "Cardio", howTo: "Pedal at a steady cadence with resistance set so effort is challenging but sustainable; keep the core engaged."),
         Entry(name: "Rowing Machine", category: "Cardio", howTo: "Drive with the legs, then lean back and pull the handle to the lower ribs; reverse the order to return."),
@@ -154,6 +160,16 @@ public struct ExerciseList {
         Entry(name: "Clean and Press", category: "Full Body", howTo: "Clean the weight to the shoulders, then press it overhead to lockout; lower and repeat."),
         Entry(name: "Dumbbell Snatch", category: "Full Body", howTo: "Explosively pull one dumbbell from between the feet to overhead in a single motion; lower and switch sides."),
         Entry(name: "Wall Ball", category: "Full Body", howTo: "Squat with the ball at your chest, then stand and throw it to a target overhead; catch and repeat."),
+
+        // MARK: Mobility / Recovery
+        Entry(name: "World's Greatest Stretch", category: "Mobility", howTo: "Step into a long lunge, place one hand down, rotate the chest open, then switch sides with control."),
+        Entry(name: "Hip Flexor Stretch", category: "Mobility", howTo: "Half-kneel, tuck the pelvis slightly, and shift forward until you feel the front of the hip open."),
+        Entry(name: "Thoracic Rotation", category: "Mobility", howTo: "From hands and knees or side-lying, rotate the upper back open while keeping the hips steady."),
+        Entry(name: "Wall Slide", category: "Mobility", howTo: "Stand against a wall and slide the arms overhead while keeping ribs down and shoulder blades moving smoothly."),
+        Entry(name: "Scapular Push-up", category: "Mobility", howTo: "In a plank, keep elbows straight and move only the shoulder blades: spread them, then squeeze them together."),
+        Entry(name: "Couch Stretch", category: "Mobility", howTo: "Place the back foot on a bench or wall, squeeze the glute, and hold a tall half-kneeling position."),
+        Entry(name: "Child's Pose Breathing", category: "Mobility", howTo: "Sit hips toward heels, reach forward, and breathe slowly into the ribs and back."),
+        Entry(name: "Box Breathing", category: "Mobility", howTo: "Inhale, hold, exhale, and hold again for equal counts while keeping the shoulders relaxed."),
     ]
 
     /// Category → ordered exercise names. Derived from `entries`; preserves backward compatibility.

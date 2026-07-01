@@ -33,6 +33,7 @@ struct MainTabView: View {
     
     @State private var scannedFoodItem: FoodItem?
     @State private var scannedFoodSource: String = "barcode_result"
+    @State private var pendingManualBarcode: String?
     @State private var isSearchingAfterScan = false
     @State private var scanError: (Bool, String) = (false, "")
     
@@ -183,9 +184,13 @@ struct MainTabView: View {
             }
             .sheet(isPresented: $showingAddFoodManually) {
                 AddFoodView(
-                    initialFoodItem: FoodItem(id: UUID().uuidString, name: "", calories: 0, protein: 0, carbs: 0, fats: 0, servingSize: "", servingWeight: 0),
+                    initialFoodItem: manualFoodSeed(),
                     dailyLog: $dailyLogService.currentDailyLog,
-                    onLogUpdated: { showingAddFoodManually = false }
+                    source: pendingManualBarcode == nil ? "manual_add" : "manual_barcode_create",
+                    onLogUpdated: {
+                        showingAddFoodManually = false
+                        pendingManualBarcode = nil
+                    }
                 )
             }
             .imageSourceDialog(isPresented: $showingImagePicker) { image in
@@ -205,12 +210,15 @@ struct MainTabView: View {
             }
             .sheet(isPresented: $showingBarcodeScanner) {
                 BarcodeScannerView { barcode in
+                    let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode)
                     self.showingBarcodeScanner = false
                     self.isSearchingAfterScan = true
+                    self.pendingManualBarcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
                     DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                     Task { @MainActor in
                         if let result = await barcodeLookupService.lookup(barcode) {
                             self.isSearchingAfterScan = false
+                            self.pendingManualBarcode = nil
                             self.scannedFoodSource = result.source
                             self.scannedFoodItem = result.item
                             return
@@ -287,6 +295,34 @@ struct MainTabView: View {
             showingSpotlightTour = false
         }
         spotlightManager.markAsShown(id: "action-menu")
+    }
+
+    private func manualFoodSeed() -> FoodItem {
+        let metadata: FoodSourceMetadata?
+        if let pendingManualBarcode, !pendingManualBarcode.isEmpty {
+            metadata = FoodSourceMetadata(
+                sourceType: .manual,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                sourceName: "Manual Barcode Entry",
+                barcode: pendingManualBarcode,
+                notes: "Created after a barcode lookup miss."
+            )
+        } else {
+            metadata = nil
+        }
+
+        return FoodItem(
+            id: UUID().uuidString,
+            name: "",
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fats: 0,
+            servingSize: "",
+            servingWeight: 0,
+            sourceMetadata: metadata
+        )
     }
     
     private func actionButton(title: String, subtitle: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {

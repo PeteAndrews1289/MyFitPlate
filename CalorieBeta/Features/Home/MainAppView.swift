@@ -2,10 +2,13 @@ import MyFitPlateCore
 
 import SwiftUI
 import Firebase
+#if ENABLE_APP_CHECK
 import FirebaseAppCheck
+#endif
 import WatchConnectivity
 import HealthKit
 
+#if ENABLE_APP_CHECK
 /// Supplies App Attest tokens so Firebase backends (Functions, Firestore) can verify that calls
 /// come from a genuine build of this app, not a script replaying an auth token.
 final class MyFitPlateAppCheckProviderFactory: NSObject, AppCheckProviderFactory {
@@ -13,6 +16,7 @@ final class MyFitPlateAppCheckProviderFactory: NSObject, AppCheckProviderFactory
         AppAttestProvider(app: app)
     }
 }
+#endif
 
 class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var isReachable: Bool = false
