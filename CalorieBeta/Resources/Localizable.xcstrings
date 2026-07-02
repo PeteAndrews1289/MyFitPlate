@@ -90,6 +90,16 @@
         }
       }
     },
+    "%@ %@ · 7 days" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@ · 7 days"
+          }
+        }
+      }
+    },
     "%@ %@ · 7d" : {
       "localizations" : {
         "en" : {
@@ -116,6 +126,16 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ %2$@ g"
+          }
+        }
+      }
+    },
+    "%@ %@ since your last entry" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@ since your last entry"
           }
         }
       }
@@ -228,6 +248,9 @@
 
     },
     "%@ oz left to hit your goal." : {
+
+    },
+    "%@ will be removed from your history." : {
 
     },
     "%@, %@" : {
@@ -393,9 +416,6 @@
     "%lld lbs" : {
 
     },
-    "%lld left" : {
-
-    },
     "%lld minutes" : {
 
     },
@@ -409,12 +429,22 @@
         }
       }
     },
-    "%lld of %lld sets" : {
+    "%lld of %lld sets · Now: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$lld of %2$lld sets"
+            "value" : "%1$lld of %2$lld sets · Now: %3$@"
+          }
+        }
+      }
+    },
+    "%lld of %lld sets complete" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld sets complete"
           }
         }
       }
@@ -582,6 +612,9 @@
 
     },
     "0" : {
+
+    },
+    "0.0" : {
 
     },
     "5 picks · %@ fit your remaining %@ cal" : {
@@ -818,9 +851,6 @@
     "Apply All" : {
 
     },
-    "Are you sure you want to delete the entry: %@?" : {
-
-    },
     "Are you sure you want to delete your account? This will permanently delete your profile, logs, recipes, workouts, and account data. This cannot be undone." : {
 
     },
@@ -836,7 +866,10 @@
     "Audit" : {
 
     },
-    "Auto Rest" : {
+    "Auto rest" : {
+
+    },
+    "Auto rest timer" : {
 
     },
     "Auto-Rest Timer" : {
@@ -1022,9 +1055,6 @@
 
     },
     "Choose Start Date" : {
-
-    },
-    "Choose the fastest way to capture food, workouts, or notes." : {
 
     },
     "Choose training days to unlock scheduling." : {
@@ -1278,7 +1308,7 @@
     "Delete Program" : {
 
     },
-    "Delete Weight Entry?" : {
+    "Delete this entry?" : {
 
     },
     "Deleting account" : {
@@ -1392,9 +1422,6 @@
     "Enter a weight greater than 45 lb." : {
 
     },
-    "Enter your weight (%@)" : {
-
-    },
     "Error" : {
 
     },
@@ -1481,7 +1508,7 @@
     "Finish with %lld sets left?" : {
 
     },
-    "Finish Workout" : {
+    "Finish workout" : {
 
     },
     "Fitness Analytics" : {
@@ -1580,6 +1607,16 @@
     "Goal" : {
 
     },
+    "Goal %@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Goal %1$@ %2$@"
+          }
+        }
+      }
+    },
     "Goal progress" : {
 
     },
@@ -1588,16 +1625,6 @@
     },
     "Goal: %@" : {
 
-    },
-    "Goal: %@ %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Goal: %1$@ %2$@"
-          }
-        }
-      }
     },
     "Goals saved" : {
 
@@ -1700,16 +1727,6 @@
     "Initial: %@" : {
 
     },
-    "Initial: %@ %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Initial: %1$@ %2$@"
-          }
-        }
-      }
-    },
     "Input Error" : {
 
     },
@@ -1779,6 +1796,16 @@
     "Last 7 days" : {
 
     },
+    "Last entry %@ %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Last entry %1$@ %2$@ · %3$@"
+          }
+        }
+      }
+    },
     "Last workout: %@" : {
 
     },
@@ -1786,9 +1813,6 @@
 
     },
     "Level Progress" : {
-
-    },
-    "Live Workout" : {
 
     },
     "Load this on **EACH SIDE**" : {
@@ -1839,9 +1863,6 @@
     "Log All Items" : {
 
     },
-    "Log Current Weight" : {
-
-    },
     "Log day" : {
 
     },
@@ -1890,6 +1911,9 @@
     "Log Water" : {
 
     },
+    "Log weight" : {
+
+    },
     "Log Weight" : {
 
     },
@@ -1897,6 +1921,9 @@
 
     },
     "Log your period to get started" : {
+
+    },
+    "Log your weight and the trend appears here." : {
 
     },
     "Logged" : {
@@ -1981,9 +2008,6 @@
     "Manual item" : {
 
     },
-    "Manual timer" : {
-
-    },
     "Mark %@ complete" : {
 
     },
@@ -2036,9 +2060,6 @@
 
     },
     "min" : {
-
-    },
-    "More ways to log" : {
 
     },
     "Most frequent" : {
@@ -2119,6 +2140,9 @@
     "No data available for last night." : {
 
     },
+    "No entries in this period yet" : {
+
+    },
     "No foods logged yet" : {
 
     },
@@ -2173,9 +2197,6 @@
     "No single food stands out" : {
 
     },
-    "No weight data for this period." : {
-
-    },
     "No Workout History" : {
 
     },
@@ -2198,9 +2219,6 @@
 
     },
     "Notification" : {
-
-    },
-    "Now: %@" : {
 
     },
     "Number of servings" : {
@@ -2236,10 +2254,13 @@
     "of %lld" : {
 
     },
+    "Off" : {
+
+    },
     "OK" : {
 
     },
-    "On after each set" : {
+    "On" : {
 
     },
     "Only your pantry ingredients are included in the prompt." : {
@@ -2308,7 +2329,7 @@
     "Paste your recipe text here..." : {
 
     },
-    "Period Stats" : {
+    "Period stats" : {
 
     },
     "Personal best" : {
@@ -2465,9 +2486,6 @@
     "Quick log" : {
 
     },
-    "Quick Log" : {
-
-    },
     "Quick log %@" : {
 
     },
@@ -2481,9 +2499,6 @@
 
     },
     "ready" : {
-
-    },
-    "Ready" : {
 
     },
     "Ready for your first log" : {
@@ -2583,6 +2598,12 @@
     "Rest" : {
 
     },
+    "Rest %@" : {
+
+    },
+    "Rest timer %@. Double tap to stop." : {
+
+    },
     "Retrieving full workout details..." : {
 
     },
@@ -2643,10 +2664,10 @@
     "Save Schedule" : {
 
     },
-    "Save Target" : {
+    "Save target" : {
 
     },
-    "Save Weight" : {
+    "Save weight" : {
 
     },
     "Saved" : {
@@ -2784,16 +2805,13 @@
     "Set a schedule in program details." : {
 
     },
+    "Set a target weight" : {
+
+    },
     "Set Active" : {
 
     },
-    "Set Target" : {
-
-    },
-    "Set Target Weight" : {
-
-    },
-    "Set Target Weight & Goals" : {
+    "Set target" : {
 
     },
     "Set timer" : {
@@ -2929,6 +2947,16 @@
     "Start timer" : {
 
     },
+    "Started at %@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Started at %1$@ %2$@"
+          }
+        }
+      }
+    },
     "Step %lld of %lld" : {
       "localizations" : {
         "en" : {
@@ -2940,9 +2968,6 @@
       }
     },
     "Steps" : {
-
-    },
-    "Stop rest timer" : {
 
     },
     "Suggested" : {
@@ -2970,6 +2995,9 @@
 
     },
     "Take Photo" : {
+
+    },
+    "Tap a point to remove a mistaken entry." : {
 
     },
     "Tap a scheduled day to start that workout." : {
@@ -3009,6 +3037,9 @@
 
     },
     "The daily gap is likely coming from smaller rounding differences across multiple foods." : {
+
+    },
+    "The fastest ways to capture food and activity." : {
 
     },
     "The weekly rhythm is preserved, and the first workout is aligned to your chosen start date." : {
@@ -3066,6 +3097,9 @@
 
     },
     "Today's Best Next Step" : {
+
+    },
+    "Today's weight" : {
 
     },
     "Top picks from this menu" : {
@@ -3231,19 +3265,16 @@
     "Weight" : {
 
     },
-    "Weight Goal" : {
+    "Weight goal" : {
 
     },
     "Weight goals" : {
 
     },
-    "Weight History (%@)" : {
+    "Weight in %@" : {
 
     },
     "Weight must be at least %lld lbs (the bar)." : {
-
-    },
-    "Weight Tracking" : {
 
     },
     "Weight trend" : {
@@ -3280,6 +3311,9 @@
 
     },
     "Workout History" : {
+
+    },
+    "Workout progress" : {
 
     },
     "Workout summary" : {
