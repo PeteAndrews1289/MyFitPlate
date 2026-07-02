@@ -127,17 +127,17 @@ struct TodaysNextStepSlider: View {
             Spacer()
 
             HStack(spacing: 8) {
-                chevron(systemName: "chevron.left", enabled: viewedIndex > 0) {
+                chevron(systemName: "chevron.left", label: "Previous session", enabled: viewedIndex > 0) {
                     withAnimation { viewedIndex = max(viewedIndex - 1, 0) }
                 }
-                chevron(systemName: "chevron.right", enabled: viewedIndex < totalSlots - 1) {
+                chevron(systemName: "chevron.right", label: "Next session", enabled: viewedIndex < totalSlots - 1) {
                     withAnimation { viewedIndex = min(viewedIndex + 1, totalSlots - 1) }
                 }
             }
         }
     }
 
-    private func chevron(systemName: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+    private func chevron(systemName: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .appFont(size: 13, weight: .bold)
@@ -147,6 +147,7 @@ struct TodaysNextStepSlider: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
+        .accessibilityLabel(label)
     }
 
     // MARK: Slot card
@@ -306,6 +307,7 @@ struct TodaysNextStepSlider: View {
 
     private var positionBar: some View {
         VStack(spacing: 6) {
+            // Decorative: the "Slot X of Y" text below carries the same info for VoiceOver.
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.brandPrimary.opacity(0.12))

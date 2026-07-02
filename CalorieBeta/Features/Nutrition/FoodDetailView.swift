@@ -323,6 +323,7 @@ struct FoodDetailView: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
 
                     TextField("Quantity", text: $quantity)
+                        .accessibilityLabel("Quantity")
                         .keyboardType(.decimalPad)
                         .appFont(size: 28, weight: .bold)
                         .foregroundColor(.textPrimary)

@@ -457,6 +457,7 @@ struct SwapExerciseView: View {
                     Image(systemName: "info.circle").foregroundColor(.accentColor)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("How to perform \(name)")
             }
         }
     }
@@ -529,8 +530,10 @@ struct StrengthSetRow: View {
                 Button(action: { adjustWeight(by: -weightIncrement) }) {
                     Image(systemName: "minus.circle")
                 }.buttonStyle(.plain)
+                    .accessibilityLabel("Decrease weight")
 
                 TextField("0", text: $weightInput)
+                    .accessibilityLabel("Weight")
                     .keyboardType(.decimalPad)
                     .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.center)
@@ -544,12 +547,15 @@ struct StrengthSetRow: View {
                 Button(action: { adjustWeight(by: weightIncrement) }) {
                     Image(systemName: "plus.circle")
                 }.buttonStyle(.plain)
+                    .accessibilityLabel("Increase weight")
 
                 Button(action: { showingPlateMath = true }) {
                     Image(systemName: "circle.grid.cross")
                         .foregroundColor(.brandPrimary)
                         .appFont(size: 14, weight: .bold)
                 }.buttonStyle(.plain).padding(.leading, 4)
+                    .accessibilityLabel("Plate math")
+                    .accessibilityHint("Shows which plates to load for this weight.")
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .sheet(isPresented: $showingPlateMath) {
@@ -561,8 +567,10 @@ struct StrengthSetRow: View {
                 Button(action: { adjustReps(by: -1) }) {
                     Image(systemName: "minus.circle")
                 }.buttonStyle(.plain)
+                    .accessibilityLabel("Decrease reps")
 
                 TextField("0", text: $repsInput)
+                    .accessibilityLabel("Reps")
                     .keyboardType(.numberPad)
                     .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.center)
@@ -576,6 +584,7 @@ struct StrengthSetRow: View {
                 Button(action: { adjustReps(by: 1) }) {
                     Image(systemName: "plus.circle")
                 }.buttonStyle(.plain)
+                    .accessibilityLabel("Increase reps")
             }
             .frame(maxWidth: .infinity, alignment: .center)
 
@@ -584,6 +593,7 @@ struct StrengthSetRow: View {
                     Image(systemName: "star.fill")
                         .foregroundColor(.yellow)
                         .font(.caption)
+                        .accessibilityLabel("Personal best")
                 }
 
                 Button(action: toggleCompletion) {
@@ -591,6 +601,8 @@ struct StrengthSetRow: View {
                         .foregroundColor(set.isCompleted ? .accentPositive : .secondary)
                         .font(.title2)
                 }
+                .accessibilityLabel("Complete set")
+                .accessibilityValue(set.isCompleted ? "Completed" : "Not completed")
             }
             .frame(width: 30)
         }
@@ -711,6 +723,7 @@ struct CardioSetRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             TextField("miles", text: $distanceInput)
+                .accessibilityLabel("Distance in miles, set \(setIndex)")
                 .keyboardType(.decimalPad)
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -719,6 +732,7 @@ struct CardioSetRow: View {
                 }
 
             TextField("min", text: $timeInput)
+                .accessibilityLabel("Duration in minutes, set \(setIndex)")
                 .keyboardType(.numberPad)
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -732,6 +746,8 @@ struct CardioSetRow: View {
                     .font(.title2)
             }
             .frame(width: 30)
+            .accessibilityLabel("Complete set \(setIndex)")
+            .accessibilityValue(set.isCompleted ? "Completed" : "Not completed")
         }
         .appFont(size: 14)
     }
@@ -780,6 +796,7 @@ struct FlexibilitySetRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             TextField("seconds", text: $timeInput)
+                .accessibilityLabel("Duration in seconds, set \(setIndex)")
                 .keyboardType(.numberPad)
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -793,6 +810,8 @@ struct FlexibilitySetRow: View {
                     .font(.title2)
             }
             .frame(width: 30)
+            .accessibilityLabel("Complete set \(setIndex)")
+            .accessibilityValue(set.isCompleted ? "Completed" : "Not completed")
         }
         .appFont(size: 14)
     }
