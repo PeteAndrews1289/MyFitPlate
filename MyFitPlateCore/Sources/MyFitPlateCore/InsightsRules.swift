@@ -237,8 +237,18 @@ public enum InsightsRules {
         proteinPrefs: String,
         carbPrefs: String,
         veggiePrefs: String,
-        cuisinePrefs: String
+        cuisinePrefs: String,
+        pantryItems: [String] = []
     ) -> String {
+        // "Fill my macros": when the user's pantry is known, the suggestion should be
+        // cookable tonight from what's on hand, not a shopping list.
+        let pantrySection = pantryItems.isEmpty ? "" : """
+
+
+        Ingredients the user has on hand — build the meal primarily from these, and mark anything not on this list as optional:
+        \(pantryItems.prefix(25).joined(separator: ", "))
+        """
+
         return """
         You are Maia, a helpful nutrition coach. The user needs a suggestion for their next meal, which is likely \(mealType).
 
@@ -252,7 +262,7 @@ public enum InsightsRules {
         - Proteins: \(proteinPrefs)
         - Carbs: \(carbPrefs)
         - Veggies: \(veggiePrefs)
-        - Cuisines: \(cuisinePrefs)
+        - Cuisines: \(cuisinePrefs)\(pantrySection)
 
         RULES:
         1. Generate a single, simple, healthy meal idea that fits the user's remaining nutritional targets AND their preferences.

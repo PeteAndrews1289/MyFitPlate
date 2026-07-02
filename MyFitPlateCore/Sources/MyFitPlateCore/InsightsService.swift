@@ -58,7 +58,7 @@ public class InsightsService: ObservableObject {
 
     // ... [generateSingleMealSuggestion, createMealSuggestionPrompt, generateDailySmartInsight remain unchanged] ...
     // (Keep existing implementations)
-    public func generateSingleMealSuggestion() async -> MealSuggestion? {
+    public func generateSingleMealSuggestion(pantryItems: [String] = []) async -> MealSuggestion? {
         self.isGeneratingSuggestion = true
         
         let remainingCalories = max(0, (goalSettings.calories ?? 2000) - (dailyLogService.currentDailyLog?.totalCalories() ?? 0))
@@ -81,7 +81,8 @@ public class InsightsService: ObservableObject {
             proteinPrefs: proteinPrefs,
             carbPrefs: carbPrefs,
             veggiePrefs: veggiePrefs,
-            cuisinePrefs: cuisinePrefs
+            cuisinePrefs: cuisinePrefs,
+            pantryItems: pantryItems
         )
         guard let responseString = await fetchAIResponse(prompt: prompt) else {
             self.isGeneratingSuggestion = false

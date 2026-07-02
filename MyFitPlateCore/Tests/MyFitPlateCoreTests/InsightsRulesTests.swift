@@ -237,6 +237,19 @@ final class InsightsRulesTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Fats: 15g"))
         XCTAssertTrue(prompt.contains("Chicken, Beef"))
         XCTAssertTrue(prompt.contains("Mexican"))
+        XCTAssertFalse(prompt.contains("on hand"), "No pantry section when no items are passed")
+    }
+
+    func testCreateMealSuggestionPromptIncludesPantry() {
+        let prompt = InsightsRules.createMealSuggestionPrompt(
+            remainingCalories: 650, remainingProtein: 40, remainingCarbs: 50, remainingFats: 20,
+            mealType: "Dinner", proteinPrefs: "any", carbPrefs: "any", veggiePrefs: "any", cuisinePrefs: "any",
+            pantryItems: ["Ground turkey", "Bell peppers", "Brown rice"]
+        )
+
+        XCTAssertTrue(prompt.contains("on hand"))
+        XCTAssertTrue(prompt.contains("Ground turkey, Bell peppers, Brown rice"))
+        XCTAssertTrue(prompt.contains("build the meal primarily from these"))
     }
 
     func testCreateOperatorPrompt() {

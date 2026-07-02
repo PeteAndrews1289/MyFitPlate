@@ -13,6 +13,7 @@ struct HomeView: View {
     @EnvironmentObject var insightsService: InsightsService
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var cycleService: CycleTrackingService
+    @EnvironmentObject var pantryService: PantryService
     @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
     @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) var colorScheme
@@ -170,6 +171,11 @@ struct HomeView: View {
                             )
                                 .padding(.horizontal)
                                 .id("dailyLog")
+
+                            if shouldOfferFillMyMacros {
+                                fillMyMacrosCard
+                                    .padding(.horizontal)
+                            }
 
                             weeklyRecapBanner
                                 .padding(.horizontal)
@@ -525,6 +531,71 @@ struct HomeView: View {
             Capsule()
                 .stroke(Color.white.opacity(0.16), lineWidth: 1)
         )
+    }
+
+    private var remainingCaloriesToday: Double {
+        max(0, (goalSettings.calories ?? 0) - (currentLogForSelectedDate?.totalCalories() ?? 0))
+    }
+
+    /// "Fill my macros" appears when it can actually help: viewing today, from mid-afternoon
+    /// on, with a sane meal's worth of calories left — not at 7am, not after the day's done.
+    private var shouldOfferFillMyMacros: Bool {
+        guard isToday, goalSettings.calories != nil else { return false }
+        let hour = Calendar.current.component(.hour, from: Date())
+        return hour >= 15 && remainingCaloriesToday >= 150 && remainingCaloriesToday <= 1500
+    }
+
+    private var fillMyMacrosCard: some View {
+        Button(action: {
+            HapticManager.instance.feedback(.light)
+            Task {
+                let pantryNames = pantryService.pantryItems.map(\.name)
+                DIContainer.shared.analyticsManager?.logEvent("fill_my_macros_tapped", parameters: [
+                    "remaining_calories": Int(remainingCaloriesToday),
+                    "pantry_count": pantryNames.count
+                ])
+                if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
+                    self.mealSuggestion = suggestion
+                    self.showingSuggestionDetail = true
+                }
+            }
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: "fork.knife.circle")
+                    .appFont(size: 19, weight: .bold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .frame(width: 38, height: 38)
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Fill my macros")
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    Text(pantryService.pantryItems.isEmpty
+                         ? "Maia plans a meal for your remaining \(Int(remainingCaloriesToday).formatted()) cal"
+                         : "Maia builds a meal from your pantry for the remaining \(Int(remainingCaloriesToday).formatted()) cal")
+                        .appFont(size: 12, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+
+                Spacer()
+
+                if insightsService.isGeneratingSuggestion {
+                    ProgressView()
+                } else {
+                    Image(systemName: "chevron.right")
+                        .appFont(size: 14, weight: .bold)
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                }
+            }
+            .padding(16)
+            .background(Color.backgroundSecondary.opacity(0.70), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(insightsService.isGeneratingSuggestion)
+        .accessibilityHint("Maia suggests a meal that fits your remaining calories and macros.")
     }
 
     private var weeklyRecapBanner: some View {
