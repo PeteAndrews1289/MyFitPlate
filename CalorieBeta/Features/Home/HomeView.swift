@@ -50,6 +50,7 @@ struct HomeView: View {
     @State private var showingWorkoutDetail = false
     @State private var showingWeeklyCheckIn = false
     @State private var showingMenuScanner = false
+    @State private var showingWeeklyRecap = false
 
     private var isMenuScannerEnabled: Bool {
         DIContainer.shared.featureFlagService?.isFeatureEnabled(.menuScanner) ?? FeatureFlag.menuScanner.defaultValue
@@ -169,6 +170,9 @@ struct HomeView: View {
                             )
                                 .padding(.horizontal)
                                 .id("dailyLog")
+
+                            weeklyRecapBanner
+                                .padding(.horizontal)
 
                             if currentLogForSelectedDate != nil {
                                 HealthActivityCard()
@@ -303,6 +307,9 @@ struct HomeView: View {
           }
           .sheet(isPresented: $showingCoachingDashboard) {
               CoachingDashboardView()
+          }
+          .sheet(isPresented: $showingWeeklyRecap) {
+              WeeklyRecapView()
           }
           .sheet(isPresented: $showingSuggestionPreferences) {
               SuggestionPreferencesView(goalSettings: goalSettings)
@@ -518,6 +525,41 @@ struct HomeView: View {
             Capsule()
                 .stroke(Color.white.opacity(0.16), lineWidth: 1)
         )
+    }
+
+    private var weeklyRecapBanner: some View {
+        Button(action: {
+            HapticManager.instance.feedback(.light)
+            showingWeeklyRecap = true
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: "calendar.badge.checkmark")
+                    .appFont(size: 18, weight: .bold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .frame(width: 38, height: 38)
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your week")
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    Text("Calories, workouts, and records from the last 7 days")
+                        .appFont(size: 12, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+            .padding(16)
+            .background(Color.backgroundSecondary.opacity(0.70), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private var weeklyCheckInBanner: some View {

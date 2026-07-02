@@ -144,6 +144,7 @@
 		AFA341A4CED099669904ADBA /* WellnessScoreDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BCBCE38CABDFEBB2CA35817 /* WellnessScoreDetailView.swift */; };
 		B10000000000000000000001 /* HomeQuickActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000001 /* HomeQuickActionsView.swift */; };
 		B10000000000000000000002 /* HomeWeightTrackingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* HomeWeightTrackingCard.swift */; };
+		9A744407266AED50FC9CFE18 /* WeeklyRecapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD3DB29E78F7C168EF51C1B /* WeeklyRecapView.swift */; };
 		B10000000000000000000003 /* HomeSmartSuggestionsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* HomeSmartSuggestionsSection.swift */; };
 		B10000000000000000000004 /* HomeDashboardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* HomeDashboardComponents.swift */; };
 		B10000000000000000000005 /* HomeFoodDiarySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000005 /* HomeFoodDiarySection.swift */; };
@@ -450,6 +451,7 @@
 		EE8F70EFA7CD53F3CA61B33C /* WorkoutSessionHeaders.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutSessionHeaders.swift; sourceTree = "<group>"; };
 		F10000000000000000000001 /* HomeQuickActionsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeQuickActionsView.swift; sourceTree = "<group>"; };
 		F10000000000000000000002 /* HomeWeightTrackingCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeWeightTrackingCard.swift; sourceTree = "<group>"; };
+		4BD3DB29E78F7C168EF51C1B /* WeeklyRecapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyRecapView.swift; sourceTree = "<group>"; };
 		F10000000000000000000003 /* HomeSmartSuggestionsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeSmartSuggestionsSection.swift; sourceTree = "<group>"; };
 		F10000000000000000000004 /* HomeDashboardComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeDashboardComponents.swift; sourceTree = "<group>"; };
 		F10000000000000000000005 /* HomeFoodDiarySection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeFoodDiarySection.swift; sourceTree = "<group>"; };
@@ -735,6 +737,7 @@
 				F95DB8CA120BD855D269D6AE /* HomeView.swift */,
 				F10000000000000000000001 /* HomeQuickActionsView.swift */,
 				F10000000000000000000002 /* HomeWeightTrackingCard.swift */,
+				4BD3DB29E78F7C168EF51C1B /* WeeklyRecapView.swift */,
 				F10000000000000000000003 /* HomeSmartSuggestionsSection.swift */,
 				F10000000000000000000004 /* HomeDashboardComponents.swift */,
 				F10000000000000000000005 /* HomeFoodDiarySection.swift */,
@@ -1361,6 +1364,7 @@
 				84940528533254B02ECEFE50 /* HomeView.swift in Sources */,
 				B10000000000000000000001 /* HomeQuickActionsView.swift in Sources */,
 				B10000000000000000000002 /* HomeWeightTrackingCard.swift in Sources */,
+				9A744407266AED50FC9CFE18 /* WeeklyRecapView.swift in Sources */,
 				B10000000000000000000003 /* HomeSmartSuggestionsSection.swift in Sources */,
 				B10000000000000000000004 /* HomeDashboardComponents.swift in Sources */,
 				B10000000000000000000005 /* HomeFoodDiarySection.swift in Sources */,
