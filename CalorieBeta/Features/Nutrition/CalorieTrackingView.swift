@@ -16,7 +16,7 @@ struct CalorieTrackingView: View {
     private var numberFormatter: NumberFormatter {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = false
+        formatter.usesGroupingSeparator = true
         formatter.maximumFractionDigits = 0
         return formatter
     }
@@ -33,11 +33,11 @@ struct CalorieTrackingView: View {
     
     @ViewBuilder private var calorieChartCard: some View {
         VStack(alignment: .leading) {
-            Text("Daily Calorie Trend").appFont(size: 17, weight: .semibold).padding(.bottom, 5)
+            Text("Daily calorie trend").appFont(size: 17, weight: .semibold).padding(.bottom, 5)
             if !viewModel.calorieTrend.isEmpty {
                 Chart(viewModel.calorieTrend) { dp in
                     LineMark(x: .value("Date", dp.date, unit: .day), y: .value("Calories", dp.value))
-                        .foregroundStyle(Color.brandPrimary)
+                        .foregroundStyle(Color.orange)
                         .interpolationMethod(.catmullRom)
                     if let goal = goalSettings.calories {
                         let formattedGoal = numberFormatter.string(from: NSNumber(value: goal)) ?? ""
@@ -45,7 +45,7 @@ struct CalorieTrackingView: View {
                             .foregroundStyle(Color(UIColor.secondaryLabel))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [3]))
                             .annotation(position: .top, alignment: .leading) {
-                                Text("Goal: \(formattedGoal)")
+                                Text("\(formattedGoal) cal goal")
                                     .appFont(size: 10).foregroundColor(Color(UIColor.secondaryLabel))
                             }
                     }
@@ -57,10 +57,10 @@ struct CalorieTrackingView: View {
                     }
                 }
                 .chartYAxis { AxisMarks(preset: .aligned, position: .leading) }
-                .chartYAxisLabel("Calories (cal)", position: .leading, alignment: .center, spacing: 10)
+                .chartYAxisLabel("Calories", position: .leading, alignment: .center, spacing: 10)
                 .frame(height: 200)
             } else if !viewModel.isLoading {
-                Text("Not enough data for trend.")
+                Text("Not enough data for trend")
                     .foregroundColor(Color(UIColor.secondaryLabel)).padding().frame(height: 200).frame(maxWidth: .infinity)
             }
         }
@@ -69,12 +69,12 @@ struct CalorieTrackingView: View {
     
     @ViewBuilder private var macroChartCard: some View {
         VStack(alignment: .leading) {
-            Text("Daily Macro Trend (g)").appFont(size: 17, weight: .semibold).padding(.bottom, 5)
+            Text("Daily macro trend").appFont(size: 17, weight: .semibold).padding(.bottom, 5)
             if !viewModel.proteinTrend.isEmpty || !viewModel.carbTrend.isEmpty || !viewModel.fatTrend.isEmpty {
                 Chart {
-                    RuleMark(y: .value("P Goal", goalSettings.protein)).foregroundStyle(Color.accentProtein.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3])).annotation(position: .top, alignment: .trailing) { Text("P Goal").appFont(size: 10).foregroundColor(Color.accentProtein.opacity(0.7)) }
-                    RuleMark(y: .value("C Goal", goalSettings.carbs)).foregroundStyle(Color.accentCarbs.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3])).annotation(position: .top, alignment: .trailing) { Text("C Goal").appFont(size: 10).foregroundColor(Color.accentCarbs.opacity(0.7)) }
-                    RuleMark(y: .value("F Goal", goalSettings.fats)).foregroundStyle(Color.accentFats.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3])).annotation(position: .top, alignment: .trailing) { Text("F Goal").appFont(size: 10).foregroundColor(Color.accentFats.opacity(0.7)) }
+                    RuleMark(y: .value("Protein goal", goalSettings.protein)).foregroundStyle(Color.accentProtein.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3])).annotation(position: .top, alignment: .trailing) { Text("Protein goal").appFont(size: 10).foregroundColor(Color.accentProtein.opacity(0.7)) }
+                    RuleMark(y: .value("Carb goal", goalSettings.carbs)).foregroundStyle(Color.accentCarbs.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3])).annotation(position: .top, alignment: .trailing) { Text("Carb goal").appFont(size: 10).foregroundColor(Color.accentCarbs.opacity(0.7)) }
+                    RuleMark(y: .value("Fat goal", goalSettings.fats)).foregroundStyle(Color.accentFats.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3])).annotation(position: .top, alignment: .trailing) { Text("Fat goal").appFont(size: 10).foregroundColor(Color.accentFats.opacity(0.7)) }
                     ForEach(viewModel.proteinTrend) {
                         LineMark(x: .value("Date", $0.date, unit: .day), y: .value("Protein", $0.value)).foregroundStyle(by: .value("Macro", "Protein"))
                         PointMark(x: .value("Date", $0.date, unit: .day), y: .value("Protein", $0.value)).foregroundStyle(by: .value("Macro", "Protein")).symbolSize(10)
@@ -95,12 +95,12 @@ struct CalorieTrackingView: View {
                     }
                 }
                 .chartYAxis { AxisMarks(preset: .aligned, position: .leading) }
-                .chartYAxisLabel("Grams (g)", position: .leading, alignment: .center, spacing: 10)
+                .chartYAxisLabel("Grams", position: .leading, alignment: .center, spacing: 10)
                 .chartForegroundStyleScale([ "Protein": Color.accentProtein, "Carbs": Color.accentCarbs, "Fats": Color.accentFats ])
                 .chartLegend(position: .top, alignment: .center)
                 .frame(height: 200)
             } else if !viewModel.isLoading {
-                Text("Not enough data for trend.")
+                Text("Not enough data for trend")
                     .foregroundColor(Color(UIColor.secondaryLabel)).padding().frame(height: 200).frame(maxWidth: .infinity)
             }
         }
@@ -113,7 +113,7 @@ struct CalorieTrackingView: View {
     
     @ViewBuilder private var micronutrientReportCard: some View {
         VStack(alignment: .leading) {
-            Text("Avg. Micronutrient Intake (% Goal)").appFont(size: 17, weight: .semibold).padding(.bottom, 5)
+            Text("Average micronutrient intake").appFont(size: 17, weight: .semibold).padding(.bottom, 5)
             if !viewModel.micronutrientAverages.isEmpty {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
                     ForEach(viewModel.micronutrientAverages) { micro in
@@ -123,13 +123,13 @@ struct CalorieTrackingView: View {
                                 Spacer()
                                 Text("\(micro.percentageMet, specifier: "%.0f")%").appFont(size: 12, weight: .bold)
                             }
-                            ProgressView(value: micro.progressViewValue).tint(micro.name == "Sodium" ? (micro.percentageMet >= 100 ? .red : .orange) : (micro.percentageMet >= 100 ? .accentPositive : .brandPrimary)).scaleEffect(x: 1, y: 1.5, anchor: .center)
+                            ProgressView(value: micro.progressViewValue).tint(micro.name == "Sodium" ? (micro.percentageMet >= 100 ? .red : .orange) : (micro.percentageMet >= 100 ? .accentPositive : .blue)).scaleEffect(x: 1, y: 1.5, anchor: .center)
                             Text("\(micro.averageValue, specifier: micro.unit == "mcg" ? "%.0f" : "%.1f") / \(micro.goalValue, specifier: "%.0f") \(micro.unit)").appFont(size: 10).foregroundColor(Color(UIColor.secondaryLabel)).frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                 }
             } else if !viewModel.isLoading {
-                Text("No micronutrient data available for this period.").foregroundColor(Color(UIColor.secondaryLabel)).padding()
+                Text("No micronutrient data available for this period").foregroundColor(Color(UIColor.secondaryLabel)).padding()
             }
         }
         .asCard()
@@ -137,7 +137,7 @@ struct CalorieTrackingView: View {
     
     private var citationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Source Information")
+            Text("Source information")
                 .appFont(size: 17, weight: .semibold)
             Text("Calorie and micronutrient goals are based on established dietary guidelines, including the Mifflin-St Jeor equation and Dietary Reference Intakes (DRIs).")
                 .appFont(size: 12)

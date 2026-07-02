@@ -21,12 +21,12 @@ struct CycleTrackingCard: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Cycle Tracking")
+                    Text("Cycle tracking")
                         .appFont(size: 16, weight: .semibold)
                         .foregroundColor(.textPrimary)
                     
                     if let cycleDay = cycleService.cycleDay {
-                        Text("Day \(cycleDay.cycleDayNumber) • \(cycleDay.phase.rawValue.capitalized)")
+                        Text("Day \(cycleDay.cycleDayNumber) - \(cycleDay.phase.rawValue.capitalized)")
                             .appFont(size: 14)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     } else {
@@ -59,11 +59,11 @@ struct ComprehensiveHealthCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Health Trends")
+                Text("Health trends")
                     .appFont(size: 18, weight: .bold)
                     .foregroundColor(.textPrimary)
                 Spacer()
-                Text("Last 7 Days")
+                Text("Last 7 days")
                     .appFont(size: 12, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
@@ -71,9 +71,9 @@ struct ComprehensiveHealthCard: View {
             VStack(spacing: 12) {
                 healthRow(
                     icon: "shoeprints.fill",
-                    color: .brandPrimary,
+                    color: .blue,
                     title: "Steps",
-                    value: String(format: "%.0f", weeklySteps.last ?? 0),
+                    value: formattedWholeNumber(weeklySteps.last ?? 0),
                     unit: "steps",
                     trend: calculateTrend(weeklySteps)
                 )
@@ -83,9 +83,9 @@ struct ComprehensiveHealthCard: View {
                 healthRow(
                     icon: "flame.fill",
                     color: .orange,
-                    title: "Active Energy",
-                    value: String(format: "%.0f", weeklyActiveEnergy.last ?? 0),
-                    unit: "kcal",
+                    title: "Active energy",
+                    value: formattedWholeNumber(weeklyActiveEnergy.last ?? 0),
+                    unit: "cal",
                     trend: calculateTrend(weeklyActiveEnergy)
                 )
                 
@@ -94,8 +94,8 @@ struct ComprehensiveHealthCard: View {
                 healthRow(
                     icon: "heart.fill",
                     color: .red,
-                    title: "Resting Heart Rate",
-                    value: String(format: "%.0f", weeklyRestingHeartRate.last ?? 0),
+                    title: "Resting heart rate",
+                    value: formattedWholeNumber(weeklyRestingHeartRate.last ?? 0),
                     unit: "bpm",
                     trend: calculateTrend(weeklyRestingHeartRate, lowerIsBetter: true)
                 )
@@ -105,8 +105,8 @@ struct ComprehensiveHealthCard: View {
                 healthRow(
                     icon: "waveform.path.ecg",
                     color: .purple,
-                    title: "Heart Rate Variability",
-                    value: String(format: "%.0f", weeklyHRV.last ?? 0),
+                    title: "Heart rate variability",
+                    value: formattedWholeNumber(weeklyHRV.last ?? 0),
                     unit: "ms",
                     trend: calculateTrend(weeklyHRV)
                 )
@@ -153,7 +153,7 @@ struct ComprehensiveHealthCard: View {
         
         var color: Color {
             switch self {
-            case .up: return .green
+            case .up: return .accentPositive
             case .down: return .red
             case .neutral: return .secondary
             }
@@ -173,5 +173,9 @@ struct ComprehensiveHealthCard: View {
         } else {
             return .neutral
         }
+    }
+
+    private func formattedWholeNumber(_ value: Double) -> String {
+        Int(value.rounded()).formatted()
     }
 }

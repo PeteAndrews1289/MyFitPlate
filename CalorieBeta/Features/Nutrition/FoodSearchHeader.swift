@@ -10,7 +10,7 @@ struct FoodSearchHeader: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .appFont(size: 17, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(Color(UIColor.secondaryLabel))
 
             TextField(placeholder, text: $searchText)
                 .textInputAutocapitalization(.words)
@@ -28,7 +28,8 @@ struct FoodSearchHeader: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 13)
+        .padding(.vertical, 14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)

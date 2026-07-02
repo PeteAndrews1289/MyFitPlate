@@ -99,6 +99,11 @@ struct ReportsView: View {
         .onChange(of: healthKitViewModel.sleepSamples) { _, newSamples in
             viewModel.processAndScoreSleepData(samples: newSamples)
         }
+        #if !TARGET_IS_WIDGET_EXTENSION
+        .navigationDestination(isPresented: $showingDetailedInsights) {
+            DetailedInsightsView(insightsService: insightsService)
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -119,32 +124,16 @@ struct ReportsView: View {
                 icon: "chart.line.uptrend.xyaxis",
                 title: "No report data yet",
                 message: "Log meals, workouts, weight, or sleep for this timeframe and this tab will turn it into trends.",
-                color: .brandPrimary
+                color: Color(UIColor.secondaryLabel)
             )
         }
-    }
-
-    @ViewBuilder
-    private var insightsActionSection: some View {
-        Button {
-            insightsService.generateAndFetchInsights(forLastDays: 7)
-            showingDetailedInsights = true
-        } label: {
-            Label("Generate Weekly Insights", systemImage: "wand.and.stars")
-        }
-        .buttonStyle(PrimaryButtonStyle())
-        #if !TARGET_IS_WIDGET_EXTENSION
-        .navigationDestination(isPresented: $showingDetailedInsights) {
-            DetailedInsightsView(insightsService: insightsService)
-        }
-        #endif
     }
 
     @ViewBuilder
     private var reportsContentSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             ReportSectionHeader(
-                title: "Report Cards",
+                title: "Report cards",
                 subtitle: "Tap a card to inspect the underlying trends."
             )
 
@@ -208,10 +197,6 @@ struct ReportsView: View {
                 #endif
             }
 
-            #if !TARGET_IS_WIDGET_EXTENSION
-            insightsActionSection
-                .padding(.top, 8)
-            #endif
         }
     }
 
@@ -249,7 +234,7 @@ struct ReportsView: View {
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                         }
                     }
-                    Button("View Custom Report") { fetchDataForCurrentSelection() }
+                    Button("View custom report") { fetchDataForCurrentSelection() }
                         .buttonStyle(PrimaryButtonStyle())
                 }
                 .padding(.top, 10)
@@ -261,7 +246,10 @@ struct ReportsView: View {
     }
 
     private var WeightCardReport: some View {
-        VStack(alignment: .center, spacing: 12) {
+        let progress = goalSettings.calculateWeightProgress().map { min(max($0, 0), 100) } ?? 0
+        let progressFraction = (progress / 100.0) * (5.0 / 6.0)
+
+        return VStack(alignment: .center, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Weight")
@@ -283,13 +271,13 @@ struct ReportsView: View {
                     .rotationEffect(.degrees(120))
                     .frame(width: 105, height: 105)
                 Circle()
-                    .trim(from: 0, to: (goalSettings.calculateWeightProgress().map { $0 / 100.0 } ?? 0.0) * 5/6)
-                    .stroke(Color.green, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                    .trim(from: 0, to: progressFraction)
+                    .stroke(progress >= 100 ? Color.accentPositive : Color.blue, style: StrokeStyle(lineWidth: 14, lineCap: .round))
                     .rotationEffect(.degrees(120))
                     .frame(width: 105, height: 105)
                     .animation(.easeInOut, value: goalSettings.weight)
                 VStack {
-                    Text("\(Int(goalSettings.calculateWeightProgress() ?? 0))%")
+                    Text("\(Int(progress.rounded()).formatted())%")
                         .appFont(size: 24, weight: .bold)
                     Text("Progress")
                         .appFont(size: 11, weight: .medium)
@@ -349,10 +337,10 @@ struct ReportsView: View {
                     .animation(.spring(response: 0.4, dampingFraction: 0.7), value: processedData.map { $0.totalCalories })
 
                     VStack(spacing: 0) {
-                        Text("\(Int(totalCalories))")
+                        Text(Int(totalCalories.rounded()).formatted())
                             .appFont(size: 22, weight: .bold)
                             .foregroundColor(.textPrimary)
-                        Text("kcal")
+                        Text("cal")
                             .appFont(size: 10, weight: .medium)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     }

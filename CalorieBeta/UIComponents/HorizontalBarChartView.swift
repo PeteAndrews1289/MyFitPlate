@@ -8,8 +8,16 @@ struct MacroProgressRow: View {
     let color: Color
 
     private var progress: Double {
-    
-        return goal > 0 ? (value / goal) : 0
+        guard goal > 0 else { return 0 }
+        return min(max(value / goal, 0), 1)
+    }
+
+    private var valueText: String {
+        Int(value.rounded()).formatted()
+    }
+
+    private var goalText: String {
+        Int(goal.rounded()).formatted()
     }
 
     var body: some View {
@@ -18,7 +26,7 @@ struct MacroProgressRow: View {
                 Text(label)
                     .appFont(size: 14, weight: .medium)
                 Spacer()
-                Text("\(String(format: "%.0f", value)) / \(String(format: "%.0f", goal)) \(unit)")
+                Text("\(valueText) / \(goalText) \(unit)")
                     .appFont(size: 12, weight: .regular)
                     .foregroundColor(.secondary)
             }

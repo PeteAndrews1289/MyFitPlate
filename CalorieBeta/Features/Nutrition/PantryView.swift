@@ -20,7 +20,7 @@ struct PantryView: View {
                 pantryList
                 addItemBar
             }
-            .navigationTitle("Smart Pantry")
+            .navigationTitle("Smart pantry")
             .onAppear {
                 if let userID = DIContainer.shared.authService.currentUserID {
                     pantryService.startListening(userID: userID)
@@ -76,8 +76,9 @@ struct PantryView: View {
                     Button(action: { showingReceiptScanner = true }) {
                         Image(systemName: "camera.viewfinder")
                             .font(.title2)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.blue)
                     }
+                    .accessibilityLabel("Scan receipt")
                 }
                 
                 TextField("Add ingredient", text: $newItemName)
@@ -93,7 +94,7 @@ struct PantryView: View {
 
             if !pantryService.pantryItems.isEmpty {
                 Button(action: { showingRecipeGeneration = true }) {
-                    Label("Generate Pantry Recipe", systemImage: "sparkles")
+                    Label("Generate pantry recipe", systemImage: "sparkles")
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -178,7 +179,8 @@ struct PantryRecipeGenerationView: View {
             Group {
                 if isGenerating {
                     VStack {
-                        ProgressView("Generating recipes...")
+                        ProgressView("Generating recipes")
+                            .tint(.blue)
                             .padding()
                         Text("Only your pantry ingredients are included in the prompt.")
                             .font(.caption)
@@ -191,7 +193,9 @@ struct PantryRecipeGenerationView: View {
                         Text(errorMessage)
                             .foregroundColor(.red)
                             .padding()
-                        Button("Try Again", action: generateRecipe)
+                        Button("Try again", action: generateRecipe)
+                            .buttonStyle(.bordered)
+                            .tint(.blue)
                     }
                 } else {
                     ScrollView {
@@ -204,7 +208,7 @@ struct PantryRecipeGenerationView: View {
                     }
                 }
             }
-            .navigationTitle("Pantry Recipes")
+            .navigationTitle("Pantry recipes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -221,19 +225,17 @@ struct PantryRecipeGenerationView: View {
                 .font(.title3)
                 .bold()
 
-            HStack(spacing: 12) {
-                Text("\(Int(recipe.nutrition.calories)) kcal")
-                Text("\(Int(recipe.nutrition.protein))g P")
-                Text("\(Int(recipe.nutrition.carbs))g C")
-                Text("\(Int(recipe.nutrition.fats))g F")
+            LazyVGrid(columns: nutritionColumns, spacing: 8) {
+                nutritionBadge(label: "Calories", value: "\(formatted(recipe.nutrition.calories)) cal")
+                nutritionBadge(label: "Protein", value: "\(formatted(recipe.nutrition.protein)) g")
+                nutritionBadge(label: "Carbs", value: "\(formatted(recipe.nutrition.carbs)) g")
+                nutritionBadge(label: "Fat", value: "\(formatted(recipe.nutrition.fats)) g")
             }
-            .font(.subheadline)
-            .foregroundColor(.secondary)
 
             Text("Ingredients")
                 .font(.headline)
             ForEach(recipe.ingredients, id: \.self) { ingredient in
-                Text("• \(ingredient)")
+                Text("- \(ingredient)")
                     .font(.subheadline)
             }
 
@@ -250,9 +252,9 @@ struct PantryRecipeGenerationView: View {
                 if savedNames.contains(recipe.name) {
                     Label("Saved", systemImage: "checkmark.circle.fill")
                 } else if savingName == recipe.name {
-                    Text("Saving…")
+                    Text("Saving")
                 } else {
-                    Label("Save Recipe", systemImage: "bookmark")
+                    Label("Save recipe", systemImage: "bookmark")
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -262,6 +264,32 @@ struct PantryRecipeGenerationView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var nutritionColumns: [GridItem] {
+        [GridItem(.flexible()), GridItem(.flexible())]
+    }
+
+    private func nutritionBadge(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.primary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .background(
+            Color(.secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+    }
+
+    private func formatted(_ value: Double) -> String {
+        Int(value.rounded()).formatted()
     }
 
     private func generateRecipe() {
@@ -328,26 +356,27 @@ struct ReceiptScannerView: View {
                     VStack(spacing: 16) {
                         ProgressView()
                             .scaleEffect(1.5)
-                        Text("Parsing receipt... this may take a few seconds.")
+                            .tint(.blue)
+                        Text("Parsing receipt. This may take a few seconds.")
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if !parsedItems.isEmpty {
                     List {
-                        Section(header: Text("Items Found (\(parsedItems.count))")) {
+                        Section(header: Text("Items found (\(parsedItems.count.formatted()))")) {
                             ForEach($parsedItems) { $item in
                                 HStack {
                                     VStack(alignment: .leading) {
                                         TextField("Name", text: $item.name)
                                             .font(.headline)
                                         HStack {
-                                            TextField("Qty", value: $item.quantity, format: .number)
+                                            TextField("Amount", value: $item.quantity, format: .number)
                                                 .keyboardType(.decimalPad)
                                                 .frame(width: 50)
                                             TextField("Unit", text: $item.unit)
                                                 .frame(width: 60)
-                                            Text("•")
-                                                .foregroundColor(.secondary)
+                                            Divider()
+                                                .frame(height: 16)
                                             TextField("Category", text: $item.category)
                                                 .foregroundColor(.secondary)
                                         }
@@ -365,7 +394,7 @@ struct ReceiptScannerView: View {
                     Button {
                         saveToPantry()
                     } label: {
-                        Text("Add to Pantry")
+                        Text("Add to pantry")
                             .font(.headline)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
@@ -378,9 +407,9 @@ struct ReceiptScannerView: View {
                     VStack(spacing: 24) {
                         Image(systemName: "doc.text.viewfinder")
                             .appFont(size: 60)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.blue)
                         
-                        Text("Scan a Grocery Receipt")
+                        Text("Scan a grocery receipt")
                             .font(.title2)
                             .fontWeight(.bold)
                         
@@ -402,7 +431,7 @@ struct ReceiptScannerView: View {
                         Button(action: {
                             showingCamera = true
                         }) {
-                            Label("Take Photo", systemImage: "camera")
+                            Label("Take photo", systemImage: "camera")
                                 .font(.headline)
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
@@ -426,7 +455,7 @@ struct ReceiptScannerView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .navigationTitle("Receipt Scanner")
+            .navigationTitle("Receipt scanner")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -450,7 +479,7 @@ struct ReceiptScannerView: View {
                     parsedItems = items
                 }
             case .failure(let error):
-                errorMessage = "Failed to parse receipt: \(error.localizedDescription)"
+                errorMessage = "Couldn't read receipt: \(error.localizedDescription)"
             }
         }
     }

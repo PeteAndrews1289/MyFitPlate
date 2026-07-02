@@ -13,7 +13,7 @@ struct SettingsAccountSection: View {
     var body: some View {
         SettingsSectionCard(title: "Account") {
             Button { showCaloricCalculator = true } label: {
-                SettingsLabel(icon: "target", title: "Calorie and Macro Goals", subtitle: "Adjust targets and goal method.", color: .brandPrimary)
+                SettingsLabel(icon: "target", title: "Calorie and macro goals", subtitle: "Adjust targets and goal method.", color: .orange)
             }
             .padding(16)
             
@@ -32,21 +32,21 @@ struct SettingsAccountSection: View {
             Divider().padding(.leading, 50)
             
             Button {
-                waterGoalInput = String(format: "%.0f", goalSettings.waterGoal)
+                waterGoalInput = "\(Int(goalSettings.waterGoal.rounded()))"
                 showingWaterGoalSheet = true
             } label: {
-                SettingsLabel(icon: "drop.fill", title: "Daily Water Goal", subtitle: "\(Int(goalSettings.waterGoal.rounded())) oz per day.", color: .cyan)
+                SettingsLabel(icon: "drop.fill", title: "Daily water goal", subtitle: "\(Int(goalSettings.waterGoal.rounded()).formatted()) oz per day.", color: .cyan)
             }
             .padding(16)
             
             Divider().padding(.leading, 50)
             
             VStack(alignment: .leading, spacing: 12) {
-                Text("Calorie Goal Method")
+                Text("Calorie goal method")
                     .appFont(size: 15, weight: .semibold)
                     .foregroundColor(.textPrimary)
                 
-                Picker("Calorie Goal Method", selection: $goalSettings.calorieGoalMethod) {
+                Picker("Calorie goal method", selection: $goalSettings.calorieGoalMethod) {
                     ForEach(CalorieGoalMethod.allCases) { method in Text(method.rawValue).tag(method) }
                 }
                 .pickerStyle(.segmented)

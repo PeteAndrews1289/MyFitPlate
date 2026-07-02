@@ -12,7 +12,7 @@ struct MealPlannerView: View {
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var planForSelectedDate: MealPlanDay?
     @State private var isLoading = false
-    @State private var loadingMessage = "Checking saved plan..."
+    @State private var loadingMessage = "Checking saved plan"
     @State private var showingGroceryList = false
     @State private var showingMealPlanSurvey = false
     @State private var showingAddMealToPlan = false
@@ -39,9 +39,9 @@ struct MealPlannerView: View {
 
     private let spotlightOrder = ["weekView", "planContent", "toolbarActions"]
     private let spotlightContent: [String: (title: String, text: String)] = [
-        "weekView": ("Select a Day", "Tap any day of the week to view or manage your meal plan for that specific date."),
-        "planContent": ("Your Daily Plan", "Once a meal plan is generated, your meals for the selected day will appear here."),
-        "toolbarActions": ("Meal Plan Tools", "Use the toolbar buttons to manage your plan, add saved recipes, generate a new week, or open your grocery list.")
+        "weekView": ("Select a day", "Tap any day of the week to view or manage your meal plan for that specific date."),
+        "planContent": ("Your daily plan", "Once a meal plan is generated, your meals for the selected day will appear here."),
+        "toolbarActions": ("Meal plan tools", "Use the toolbar buttons to manage your plan, add saved recipes, generate a new week, or open your grocery list.")
     ]
 
     private var visibleWeekDates: [Date] {
@@ -61,19 +61,19 @@ struct MealPlannerView: View {
 
     private var selectedPlanTitle: String {
         if Calendar.current.isDateInToday(selectedDate) {
-            return "Today's Plan"
+            return "Today's plan"
         }
 
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE"
-        return "\(formatter.string(from: selectedDate))'s Plan"
+        return "\(formatter.string(from: selectedDate))'s plan"
     }
 
     var body: some View {
         ZStack {
             mainScrollView
                 .background(Color.backgroundPrimary)
-                .navigationTitle("Meal Plan")
+                .navigationTitle("Meal plan")
                 .navigationBarTitleDisplayMode(.inline)
                 .sheet(isPresented: $showingGroceryList) {
                     NavigationStack {
@@ -115,7 +115,7 @@ struct MealPlannerView: View {
             VisionRecipeResultsView(recipes: visionRecipes)
                 .environmentObject(dailyLogService)
         }
-        .alert("Analysis Error", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+        .alert("Analysis error", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK", role: .cancel) { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
@@ -128,7 +128,7 @@ struct MealPlannerView: View {
             ),
             titleVisibility: .visible
         ) {
-            Button("Remove Meal", role: .destructive) {
+            Button("Remove meal", role: .destructive) {
                 if let meal = mealPendingDelete {
                     delete(meal: meal)
                 }
@@ -146,7 +146,7 @@ struct MealPlannerView: View {
             isPresented: $showingLogDayConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Log Planned Meals") {
+            Button("Log planned meals") {
                 if let plan = planForSelectedDate {
                     logDay(plan: plan)
                 }
@@ -177,7 +177,6 @@ struct MealPlannerView: View {
                 WeeklyPlanOverviewCard(
                     plans: visibleWeekPlans,
                     onOpenGrocery: { showingGroceryList = true },
-                    onGenerate: { showingMealPlanSurvey = true },
                     onStartMealPrep: { showingMealPrepMode = true }
                 )
                 
@@ -221,14 +220,14 @@ struct MealPlannerView: View {
 
                 if plan.meals.contains(where: { $0.foodItem != nil }) {
                     Button(action: { showingLogDayConfirmation = true }) {
-                        Label("Log Day", systemImage: "checkmark.circle.fill")
+                        Label("Log day", systemImage: "checkmark.circle.fill")
                             .appFont(size: 13, weight: .bold)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(Color.accentPositive.opacity(0.12), in: Capsule())
+                            .background(Color.brandPrimary.opacity(0.12), in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .foregroundColor(.accentPositive)
+                    .foregroundColor(.brandPrimary)
                 }
 
                 Button(action: { showingAddMealToPlan = true }) {
@@ -236,10 +235,10 @@ struct MealPlannerView: View {
                         .appFont(size: 13, weight: .bold)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(Color.brandPrimary.opacity(0.12), in: Capsule())
+                        .background(Color(UIColor.secondarySystemFill), in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(Color(UIColor.secondaryLabel))
             }
 
             ForEach(plan.meals) { meal in
@@ -283,32 +282,34 @@ struct MealPlannerView: View {
             HStack(spacing: 12) {
                 if isAnalyzingImage {
                     ProgressView()
-                        .tint(.white)
-                    Text("Chef Maia is analyzing...")
+                        .tint(.orange)
+                    Text("Chef Maia is analyzing")
                 } else {
                     Image(systemName: "camera.macro")
                         .appFont(size: 20, weight: .bold)
+                        .foregroundColor(.orange)
+                        .frame(width: 42, height: 42)
+                        .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     VStack(alignment: .leading) {
-                        Text("Scan Pantry")
+                        Text("Scan pantry")
                             .appFont(size: 16, weight: .bold)
-                        Text("AI Recipe Generator")
+                            .foregroundColor(.textPrimary)
+                        Text("AI recipe generator")
                             .appFont(size: 12)
-                            .foregroundColor(.white.opacity(0.8))
+                            .foregroundColor(Color(UIColor.secondaryLabel))
                     }
                 }
                 Spacer()
                 if !isAnalyzingImage {
                     Image(systemName: "chevron.right")
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
             }
-            .foregroundColor(.white)
+            .foregroundColor(.textPrimary)
             .padding(18)
-            .background(
-                LinearGradient(colors: [.brandPrimary, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)
-            )
-            .cornerRadius(20)
-            .shadow(color: .brandPrimary.opacity(0.4), radius: 8, x: 0, y: 4)
+            .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
+        .buttonStyle(.plain)
         .disabled(isAnalyzingImage)
     }
 
@@ -319,7 +320,7 @@ struct MealPlannerView: View {
                 Button(action: { showingGroceryList = true }) {
                     Image(systemName: "list.bullet.clipboard")
                 }
-                .accessibilityLabel("Grocery List")
+                .accessibilityLabel("Grocery list")
 
                 Button(action: { showingPantrySheet = true }) {
                     Image(systemName: "refrigerator.fill")
@@ -406,7 +407,7 @@ struct MealPlannerView: View {
             isLoading = false
         } else {
             planForSelectedDate = nil
-            loadingMessage = "Checking saved plan..."
+            loadingMessage = "Checking saved plan"
             isLoading = true
         }
 
@@ -686,12 +687,12 @@ struct VisionRecipeResultsView: View {
             AnimatedBackgroundView()
             
             VStack(spacing: 20) {
-                Text("Chef Maia's Ideas")
+                Text("Chef Maia's ideas")
                     .appFont(size: 28, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .padding(.top, 30)
                 
-                Text("Based on what I saw, here's what you can make!")
+                Text("Based on what I saw, here's what you can make.")
                     .appFont(size: 15)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .multilineTextAlignment(.center)
@@ -711,7 +712,7 @@ struct VisionRecipeResultsView: View {
                 }) {
                     HStack {
                         Image(systemName: "plus.circle.fill")
-                        Text("Log Meal")
+                        Text("Log meal")
                     }
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -722,7 +723,7 @@ struct VisionRecipeResultsView: View {
             if showSuccessMessage {
                 VStack {
                     Spacer()
-                    Text("Meal Logged!")
+                    Text("Meal logged")
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.white)
                         .padding()

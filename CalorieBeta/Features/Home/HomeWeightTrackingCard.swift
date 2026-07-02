@@ -7,8 +7,10 @@ struct HomeWeightTrackingCard: View {
     @Binding var showingWeightEntrySheet: Bool
 
     var body: some View {
-let history = goalSettings.weightHistory.sorted { $0.date < $1.date }
+        let history = goalSettings.weightHistory.sorted { $0.date < $1.date }
         let current = history.last?.weight ?? goalSettings.weight
+        let displayWeight = BodyUnits.weightDisplayValue(lbs: current, metric: useMetric)
+        let displayUnit = BodyUnits.weightUnit(metric: useMetric)
         let recent = Array(history.suffix(30))
         let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
         let prior = history.last(where: { $0.date <= weekAgo })?.weight ?? history.first?.weight
@@ -26,10 +28,10 @@ let history = goalSettings.weightHistory.sorted { $0.date < $1.date }
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     }
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(current > 0 ? String(format: "%.1f", current) : "--")
+                        Text(current > 0 ? String(format: "%.1f", displayWeight) : "--")
                             .appFont(size: 26, weight: .bold)
                             .foregroundColor(.textPrimary)
-                        Text("lb")
+                        Text(displayUnit)
                             .appFont(size: 13, weight: .semibold)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     }
@@ -68,10 +70,10 @@ let history = goalSettings.weightHistory.sorted { $0.date < $1.date }
 
                 Text("Log")
                     .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundColor(.teal)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 9)
-                    .background(Color.teal, in: Capsule())
+                    .background(Color(UIColor.secondarySystemFill), in: Capsule())
             }
         }
         .buttonStyle(AnimatedCardButtonStyle())

@@ -33,22 +33,80 @@ struct ReportsOverviewCard: View {
         return "Start logging to build a useful report."
     }
 
+    private var headline: (value: String, label: String, color: Color) {
+        if let wellnessScore {
+            return ("\(wellnessScore.overallScore)", "wellness score", wellnessScore.color)
+        }
+
+        if let summary, summary.daysLogged > 0 {
+            return (Int(summary.averageCalories.rounded()).formatted(), "cal/day", .orange)
+        }
+
+        if let workoutReport {
+            return (workoutReport.totalWorkouts.formatted(), "workouts", .blue)
+        }
+
+        if let sleepReport {
+            return (sleepReport.averageSleepScore.formatted(), "sleep score", .purple)
+        }
+
+        return ("--", "trend pending", Color(UIColor.secondaryLabel))
+    }
+
+    private var supportingLine: String {
+        var parts: [String] = []
+
+        if let summary, summary.daysLogged > 0 {
+            parts.append("\(summary.daysLogged.formatted()) \(summary.daysLogged == 1 ? "day" : "days") logged")
+        }
+
+        if let workoutReport {
+            parts.append("\(workoutReport.totalWorkouts.formatted()) \(workoutReport.totalWorkouts == 1 ? "workout" : "workouts")")
+        }
+
+        if let sleepReport {
+            parts.append("\(sleepReport.averageSleepScore.formatted()) sleep score")
+        }
+
+        return parts.isEmpty ? "Log consistently to reveal your trend." : parts.joined(separator: " | ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Performance Report")
-                        .appFont(size: 25, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                    Text("Headline trend")
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .textCase(.uppercase)
 
                     Text(periodTitle)
                         .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(headline.value)
+                            .appFont(size: 34, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+
+                        Text(headline.label)
+                            .appFont(size: 13, weight: .bold)
+                            .foregroundColor(headline.color)
+                            .lineLimit(1)
+                    }
+
+                    Text(supportingLine)
+                        .appFont(size: 13, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(2)
 
                     Text(overviewMessage)
-                        .appFont(size: 14)
+                        .appFont(size: 13)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 2)
                 }
 
                 Spacer()
@@ -56,9 +114,9 @@ struct ReportsOverviewCard: View {
                 Button(action: onOpenInsights) {
                     Image(systemName: "wand.and.stars")
                         .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                         .frame(width: 40, height: 40)
-                        .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                        .background(Color.backgroundSecondary.opacity(0.78), in: Circle())
                 }
                 .buttonStyle(AnimatedCardButtonStyle())
                 .accessibilityLabel("Generate detailed insights")
@@ -70,12 +128,12 @@ struct ReportsOverviewCard: View {
                     value: wellnessScore.map { "\($0.overallScore)" } ?? "--",
                     subtitle: "overall score",
                     icon: "heart.fill",
-                    color: wellnessScore?.color ?? .brandPrimary
+                    color: wellnessScore?.color ?? Color(UIColor.secondaryLabel)
                 )
 
                 ReportMetricTile(
-                    title: "Avg Calories",
-                    value: summary.map { "\(Int($0.averageCalories.rounded()))" } ?? "--",
+                    title: "Avg calories",
+                    value: summary.map { Int($0.averageCalories.rounded()).formatted() } ?? "--",
                     subtitle: "per logged day",
                     icon: "flame.fill",
                     color: .orange
@@ -83,7 +141,7 @@ struct ReportsOverviewCard: View {
 
                 ReportMetricTile(
                     title: "Workouts",
-                    value: workoutReport.map { "\($0.totalWorkouts)" } ?? "--",
+                    value: workoutReport.map { $0.totalWorkouts.formatted() } ?? "--",
                     subtitle: "sessions",
                     icon: "figure.run",
                     color: .blue
@@ -91,7 +149,7 @@ struct ReportsOverviewCard: View {
 
                 ReportMetricTile(
                     title: "Sleep",
-                    value: sleepReport.map { "\($0.averageSleepScore)" } ?? "--",
+                    value: sleepReport.map { $0.averageSleepScore.formatted() } ?? "--",
                     subtitle: "avg score",
                     icon: "bed.double.fill",
                     color: .purple
@@ -116,7 +174,7 @@ struct ReportMetricTile: View {
                     .appFont(size: 13, weight: .bold)
                     .foregroundColor(color)
                     .frame(width: 30, height: 30)
-                    .background(color.opacity(0.12), in: Circle())
+                    .background(Color(UIColor.secondarySystemFill), in: Circle())
                 Spacer()
             }
 
@@ -137,7 +195,7 @@ struct ReportMetricTile: View {
             }
         }
         .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
         .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
@@ -146,16 +204,16 @@ struct SmartReportInsightCard: View {
     let insight: UserInsight
 
     private var title: String {
-        insight.title.lowercased() == "have a great day!" ? "Have a Great Day!" : insight.title
+        insight.title.lowercased() == "have a great day!" ? "Have a great day" : insight.title
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "sparkles")
                 .appFont(size: 16, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(Color(UIColor.secondaryLabel))
                 .frame(width: 38, height: 38)
-                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -218,7 +276,7 @@ struct ReportsMessageState: View {
                 .appFont(size: 28, weight: .semibold)
                 .foregroundColor(color)
                 .frame(width: 62, height: 62)
-                .background(color.opacity(0.12), in: Circle())
+                .background(Color(UIColor.secondarySystemFill), in: Circle())
 
             Text(title)
                 .appFont(size: 20, weight: .bold)
@@ -244,7 +302,7 @@ struct ReportSectionHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
-                .appFont(size: 20, weight: .bold)
+                .appFont(size: 19, weight: .bold)
                 .foregroundColor(.textPrimary)
             Text(subtitle)
                 .appFont(size: 13)

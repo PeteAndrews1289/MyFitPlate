@@ -22,27 +22,27 @@ struct PlateCalculatorView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Total Weight on Barbell")) {
-                    TextField("e.g., 225 lbs", text: $targetWeight)
+                Section(header: Text("Total weight on barbell")) {
+                    TextField("e.g., 225 lb", text: $targetWeight)
                         .keyboardType(.decimalPad)
                 }
                 
-                Section(header: Text("Plates Per Side (45lb Barbell)")) {
+                Section(header: Text("Plates per side (45 lb barbell)")) {
                     if plates.isEmpty {
-                        Text("Enter a weight greater than 45 lbs.")
+                        Text("Enter a weight greater than 45 lb.")
                             .foregroundColor(.secondary)
                     } else {
                         ForEach(plates, id: \.weight) { plate in
                             HStack {
                                 Text("\(String(format: "%g", plate.weight)) lb")
                                 Spacer()
-                                Text("\(plate.count)")
+                                Text(plate.count.formatted())
                             }
                         }
                     }
                 }
             }
-            .navigationTitle("Plate Calculator")
+            .navigationTitle("Plate calculator")
         }
     }
 }

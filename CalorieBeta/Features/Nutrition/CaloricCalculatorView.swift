@@ -2,7 +2,7 @@ import SwiftUI
 struct GenderButtonPicker: View {
     @Binding var selectedGender: String
     let genders = ["🙋‍♂️ Male", "🙋‍♀️ Female"]
-    let accentColor = Color.brandPrimary
+    let accentColor = Color.blue
 
     var body: some View {
         HStack {
@@ -42,7 +42,7 @@ struct CaloricCalculatorView: View {
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
 
      private let activityLevelStrings = [
-         "Sedentary", "Lightly Active", "Moderately Active", "Very Active", "Extremely Active"
+         "Sedentary", "Lightly active", "Moderately active", "Very active", "Extremely active"
      ]
      private let activityLevelValues = [1.2, 1.375, 1.55, 1.725, 1.9]
 
@@ -63,15 +63,15 @@ struct CaloricCalculatorView: View {
      }
 
     private let goals = ["Lose", "Maintain", "Gain"]
-    private let accentColor = Color.brandPrimary
+    private let accentColor = Color.blue
 
     var body: some View {
         Form {
             personalInfoSection
             
-            Section(header: Text("Weight Goals")) {
+            Section(header: Text("Weight goals")) {
                 HStack {
-                    Text("Current Weight")
+                    Text("Current weight")
                     Spacer()
                     TextField(BodyUnits.weightUnit(metric: useMetric), value: Binding(
                         get: { BodyUnits.weightDisplayValue(lbs: goalSettings.weight, metric: useMetric) },
@@ -82,7 +82,7 @@ struct CaloricCalculatorView: View {
                         .frame(width: 80)
                 }
                 HStack {
-                    Text("Target Weight")
+                    Text("Target weight")
                     Spacer()
                     TextField(BodyUnits.weightUnit(metric: useMetric), text: $targetWeightInput)
                         .keyboardType(.decimalPad)
@@ -91,14 +91,14 @@ struct CaloricCalculatorView: View {
                 }
             }
             
-            Section(header: Text("Daily Calorie Goal")) {
+            Section(header: Text("Daily calorie goal")) {
                 HStack {
                     TextField("Calories", text: $calorieInput)
                         .keyboardType(.numberPad)
                         .appFont(size: 28, weight: .bold)
-                        .foregroundColor(accentColor)
+                        .foregroundColor(.orange)
                     
-                    Text("kcal")
+                    Text("cal")
                         .appFont(size: 17)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
@@ -108,7 +108,7 @@ struct CaloricCalculatorView: View {
 
             citationSection
 
-            Button("Save Goals") {
+            Button("Save goals") {
                 saveCaloricGoal()
             }
             .buttonStyle(PrimaryButtonStyle())
@@ -116,11 +116,11 @@ struct CaloricCalculatorView: View {
             .padding(.vertical)
 
         }
-        .navigationTitle("Calorie Calculator")
+        .navigationTitle("Calorie calculator")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: fetchAndSetGoals)
         .alert(isPresented: $showSaveConfirmation) {
-            Alert(title: Text("Success"), message: Text("Your goals have been saved!"), dismissButton: .default(Text("OK")))
+            Alert(title: Text("Goals saved"), message: Text("Your nutrition goals are updated."), dismissButton: .default(Text("OK")))
         }
         .onChange(of: goalSettings.activityLevel) { goalSettings.recalculateAllGoals() }
         .onChange(of: goalSettings.goal) { goalSettings.recalculateAllGoals() }
@@ -137,7 +137,7 @@ struct CaloricCalculatorView: View {
     }
 
     private var personalInfoSection: some View {
-        Section(header: Text("Your Information")) {
+        Section(header: Text("Your information")) {
             HStack {
                 Text("Age")
                 Spacer()
@@ -150,7 +150,7 @@ struct CaloricCalculatorView: View {
             GenderButtonPicker(selectedGender: $goalSettings.gender)
                 .padding(.vertical, 5)
 
-             Picker("Activity Level", selection: activityLevelSelection) {
+             Picker("Activity level", selection: activityLevelSelection) {
                  ForEach(activityLevelStrings, id: \.self) { levelString in
                      Text(levelString).tag(levelString)
                  }
@@ -167,18 +167,18 @@ struct CaloricCalculatorView: View {
     }
 
     private var macronutrientSection: some View {
-        Section(header: Text("Macronutrient Distribution (%)")) {
+        Section(header: Text("Macronutrient distribution")) {
             VStack(spacing: 15) {
                 macroSlider(title: "Protein", value: $goalSettings.proteinPercentage, color: .accentProtein)
                 macroSlider(title: "Carbs", value: $goalSettings.carbsPercentage, color: .accentCarbs)
-                macroSlider(title: "Fats", value: $goalSettings.fatsPercentage, color: .accentFats)
+                macroSlider(title: "Fat", value: $goalSettings.fatsPercentage, color: .accentFats)
             }
              .padding(.vertical, 5)
         }
     }
     
     private var citationSection: some View {
-        Section(header: Text("Source Information"), footer: Text("Calorie and macronutrient recommendations are estimates intended for informational purposes. Your actual nutritional needs may vary. Consult with a healthcare professional before making significant changes to your diet or exercise routine.")) {
+        Section(header: Text("Source information"), footer: Text("Calorie and macronutrient recommendations are estimates for informational purposes. Your actual nutritional needs may vary. Consult with a healthcare professional before making significant changes to your diet or exercise routine.")) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Calorie goals are estimated using the Mifflin-St Jeor equation combined with standard activity level multipliers.")
                     .appFont(size: 12)

@@ -20,7 +20,7 @@ struct SettingsPreferencesSection: View {
                             .frame(width: 20, height: 20)
                         
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(healthKitViewModel.isAuthorized ? "Review Health Access & Sync" : "Connect to Apple Health")
+                            Text(healthKitViewModel.isAuthorized ? "Review Health access" : "Connect Apple Health")
                                 .appFont(size: 15, weight: .semibold)
                             Text(healthKitViewModel.isAuthorized ? "Refresh workouts, sleep, and recovery permissions." : "Import workouts and sleep where available.")
                                 .appFont(size: 12)
@@ -48,12 +48,12 @@ struct SettingsPreferencesSection: View {
                     Toggle(isOn: $includeActiveCaloriesInGoal) {
                         SettingsLabel(
                             icon: "flame.fill",
-                            title: "Include Active Calories",
+                            title: "Include active calories",
                             subtitle: "Add exercise calories burned to your daily food allowance.",
                             color: .orange
                         )
                     }
-                    .tint(.brandPrimary)
+                    .tint(.blue)
                     .padding(16)
                 }
             }
@@ -62,7 +62,7 @@ struct SettingsPreferencesSection: View {
                 VStack(alignment: .leading, spacing: 10) {
                     SettingsLabel(
                         icon: "bell.fill",
-                        title: "Daily Log Reminder",
+                        title: "Daily log reminder",
                         subtitle: "Nightly check-in to log your meals.",
                         color: .orange
                     )
@@ -77,7 +77,7 @@ struct SettingsPreferencesSection: View {
                     Toggle(isOn: $hydrationRemindersEnabled) {
                         SettingsLabel(
                             icon: "drop.fill",
-                            title: "Hydration Reminders",
+                            title: "Hydration reminders",
                             subtitle: "Gentle nudges to drink water through the day.",
                             color: .blue
                         )
@@ -91,9 +91,9 @@ struct SettingsPreferencesSection: View {
                     Toggle(isOn: $weighInReminderEnabled) {
                         SettingsLabel(
                             icon: "scalemass.fill",
-                            title: "Weigh-In Reminder",
+                            title: "Weigh-in reminder",
                             subtitle: "A morning nudge to log your weight.",
-                            color: .accentPositive
+                            color: .blue
                         )
                     }
                     .onChange(of: weighInReminderEnabled) { _, enabled in

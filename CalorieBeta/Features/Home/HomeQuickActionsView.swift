@@ -15,14 +15,14 @@ struct HomeQuickActionsView: View {
     var onRepeatYesterdayMeals: () -> Void
 
     var body: some View {
-VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Command Center")
-                        .appFont(size: 20, weight: .bold)
+                    Text("Quick actions")
+                        .appFont(size: 17, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("Jump into the tools you use most.")
+                    Text("Shortcuts for the rest of today.")
                         .appFont(size: 13)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
@@ -52,8 +52,8 @@ VStack(alignment: .leading, spacing: 10) {
                         QuickActionButton(
                             icon: "brain.head.profile",
                             label: "Coaching",
-                            subtitle: "Maia's Strategy",
-                            color: .brandPrimary
+                            subtitle: "Maia's strategy",
+                            color: .indigo
                         )
                     }
                     .buttonStyle(.plain)
@@ -66,7 +66,7 @@ VStack(alignment: .leading, spacing: 10) {
                             icon: "clock.arrow.circlepath",
                             label: "Yesterday",
                             subtitle: "Repeat meals",
-                            color: .accentPositive
+                            color: Color(UIColor.secondaryLabel)
                         )
                     }
                     .buttonStyle(.plain)
@@ -93,7 +93,7 @@ VStack(alignment: .leading, spacing: 10) {
                     }) {
                         QuickActionButton(
                             icon: "scalemass.fill",
-                            label: "Log Weight",
+                            label: "Log weight",
                             subtitle: "Track body metrics",
                             color: .teal
                         )
@@ -127,8 +127,7 @@ VStack(alignment: .leading, spacing: 10) {
             }
         }
         .frame(maxWidth: 520)
-
-}
+    }
 }
 
 struct QuickActionButton: View {
@@ -145,7 +144,7 @@ struct QuickActionButton: View {
                     .appFont(size: 17, weight: .semibold)
                     .foregroundColor(color)
                     .frame(width: 38, height: 38)
-                    .background(color.opacity(0.13), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
 
                 Spacer()
 
@@ -169,7 +168,7 @@ struct QuickActionButton: View {
         .frame(width: 136, height: 136, alignment: .topLeading)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .background(
-            colorScheme == .dark ? Color.backgroundPrimary.opacity(0.76) : color.opacity(0.035),
+            colorScheme == .dark ? Color.backgroundPrimary.opacity(0.76) : Color.backgroundSecondary.opacity(0.62),
             in: RoundedRectangle(cornerRadius: 18, style: .continuous)
         )
         .overlay(

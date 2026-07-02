@@ -27,7 +27,7 @@ struct NutritionProgressView: View {
         let proteinGoal = max(goal.protein, 1)
         let fatsGoal = max(goal.fats, 1)
         let carbsGoal = max(goal.carbs, 1)
-        let caloriesPercentage = min(totalCalories / caloriesGoal, 1.0)
+        let caloriesPercentage = min(max(totalCalories / caloriesGoal, 0), 1.0)
         let consistencyStatus = dailyLog.calorieConsistencyStatus()
 
         VStack(spacing: 16) {
@@ -183,14 +183,14 @@ struct ProgressBubble: View {
 
                 VStack {
                     if isSmall {
-                        Text("\(String(format: "%.0f", value))")
+                        Text(formattedValue)
                             .appFont(size: isSmall ? 15 : 24, weight: isSmall ? .medium : .bold)
                             .foregroundColor(.textPrimary)
-                        Text("/ \(String(format: "%.0f", goal)) \(unit)")
+                        Text("/ \(formattedGoal) \(unit)")
                              .appFont(size: isSmall ? 10 : 12)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     } else {
-                        Text("\(String(format: "%.0f", remainingMagnitude))")
+                        Text(formattedRemaining)
                             .appFont(size: 28, weight: .bold)
                             .foregroundColor(.textPrimary)
                         Text(remainingLabel)
@@ -202,7 +202,7 @@ struct ProgressBubble: View {
             .frame(width: isSmall ? 70 : 100, height: isSmall ? 70 : 100)
 
             if !isSmall {
-                Text("\(String(format: "%.0f", value)) / \(String(format: "%.0f", goal)) \(unit)")
+                Text("\(formattedValue) / \(formattedGoal) \(unit)")
                      .appFont(size: 12)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             } else if !label.isEmpty {
@@ -212,6 +212,18 @@ struct ProgressBubble: View {
                     .lineLimit(1)
             }
         }
+    }
+
+    private var formattedValue: String {
+        Int(value.rounded()).formatted()
+    }
+
+    private var formattedGoal: String {
+        Int(goal.rounded()).formatted()
+    }
+
+    private var formattedRemaining: String {
+        Int(remainingMagnitude.rounded()).formatted()
     }
 }
 

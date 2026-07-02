@@ -97,7 +97,7 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Done") { showSettings = false } } }
-        .tint(.brandPrimary)
+        .tint(.blue)
         // Sheets
         .sheet(isPresented: $showCaloricCalculator) { CaloricCalculatorView().environmentObject(goalSettings) }
         .sheet(isPresented: $showHeightEditor) { 
@@ -115,13 +115,13 @@ struct SettingsView: View {
         }
         }
         // Alerts
-        .alert("Sign Out", isPresented: $showingSignOutAlert) {
+        .alert("Sign out", isPresented: $showingSignOutAlert) {
             Button("Cancel", role: .cancel) {}
-            Button("Sign Out", role: .destructive) { appState.signOut() }
+            Button("Sign out", role: .destructive) { appState.signOut() }
         } message: {
             Text("Are you sure you want to sign out?")
         }
-        .alert("Delete Account", isPresented: $showingDeleteAccountAlert) {
+        .alert("Delete account", isPresented: $showingDeleteAccountAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { DispatchQueue.main.async { showingReauthForDelete = true } }
         } message: {
@@ -133,13 +133,13 @@ struct SettingsView: View {
             deleteErrorMessage: $deleteErrorMessage,
             onConfirm: reauthenticateAndDelete
         ))
-        .alert("Reset Tooltips?", isPresented: $showingResetTourConfirmation) {
+        .alert("Reset tooltips?", isPresented: $showingResetTourConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Reset", role: .destructive) {
                 spotlightManager.resetSpotlights()
             }
         } message: {
-            Text("This will reset all the \"Quick Tip\" bubbles throughout the app so you can see them again.")
+            Text("This will reset all the \"Quick tip\" bubbles throughout the app so you can see them again.")
         }
     }
     

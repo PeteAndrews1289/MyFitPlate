@@ -19,7 +19,7 @@ struct WorkoutReportCard: View {
                     .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Workout Summary")
+                    Text("Workout summary")
                         .appFont(size: 20, weight: .bold)
                         .foregroundColor(.textPrimary)
 
@@ -37,13 +37,13 @@ struct WorkoutReportCard: View {
             
             HStack(spacing: 10) {
                 workoutStatBox(
-                    value: "\(report.totalWorkouts)",
+                    value: report.totalWorkouts.formatted(),
                     label: "Workouts",
                     icon: "calendar.badge.checkmark",
                     color: .blue
                 )
                 workoutStatBox(
-                    value: String(format: "%.0f", report.totalCaloriesBurned),
+                    value: Int(report.totalCaloriesBurned.rounded()).formatted(),
                     label: "Calories",
                     icon: "flame.fill",
                     color: .orange
@@ -53,9 +53,9 @@ struct WorkoutReportCard: View {
             HStack(spacing: 10) {
                 Image(systemName: "star.fill")
                     .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(width: 30, height: 30)
-                    .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                    .background(Color(UIColor.secondarySystemFill), in: Circle())
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Most frequent")

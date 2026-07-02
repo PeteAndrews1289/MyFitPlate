@@ -27,7 +27,7 @@ struct SignUpView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         AuthHeaderCard(
                             icon: "sparkles",
-                            title: "Create Your Account",
+                            title: "Create account",
                             subtitle: "Set up your personal nutrition and training workspace."
                         )
                         .padding(.top, 18)
@@ -46,7 +46,7 @@ struct SignUpView: View {
                             SecureField("Password", text: $password)
                                 .textFieldStyle(AppTextFieldStyle(iconName: "lock.fill"))
 
-                            SecureField("Confirm Password", text: $confirmPassword)
+                            SecureField("Confirm password", text: $confirmPassword)
                                 .textFieldStyle(AppTextFieldStyle(iconName: "lock.fill"))
                         }
                         .asCard()
@@ -68,13 +68,13 @@ struct SignUpView: View {
                                 ProgressView()
                                     .tint(.white)
                             } else {
-                                Text("Join Now")
+                                Text("Join now")
                             }
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .disabled(!canSubmit)
 
-                        Text("By joining, you agree to our [Terms of Service](https://PeteAndrews1289.github.io/MyFitPlate/terms_of_service.html) and [Privacy Policy](https://PeteAndrews1289.github.io/MyFitPlate/privacy_policy.html).")
+                        Text("By joining, you agree to our [Terms of service](https://PeteAndrews1289.github.io/MyFitPlate/terms_of_service.html) and [Privacy policy](https://PeteAndrews1289.github.io/MyFitPlate/privacy_policy.html).")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -83,7 +83,7 @@ struct SignUpView: View {
                     .padding(24)
                 }
             }
-            .navigationTitle("Sign Up")
+            .navigationTitle("Sign up")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

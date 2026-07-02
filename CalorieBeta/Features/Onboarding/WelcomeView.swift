@@ -34,18 +34,18 @@ struct WelcomeView: View {
                     .padding(.top, 44)
 
                     VStack(spacing: 12) {
-                        WelcomeFeatureRow(icon: "fork.knife", title: "Log meals faster", subtitle: "Search, scan, describe, or use your camera.", color: .brandPrimary)
+                        WelcomeFeatureRow(icon: "fork.knife", title: "Log meals faster", subtitle: "Search, scan, describe, or use your camera.", color: .orange)
                         WelcomeFeatureRow(icon: "chart.line.uptrend.xyaxis", title: "Understand your trends", subtitle: "Reports turn daily logs into useful guidance.", color: .orange)
                         WelcomeFeatureRow(icon: "sparkles", title: "Coach with Maia", subtitle: "Ask for meal ideas, macro help, and nutrition estimates.", color: .purple)
                     }
 
                     VStack(spacing: 16) {
-                        Button("Create an Account") {
+                        Button("Create account") {
                             showSignUpView = true
                         }
                         .buttonStyle(PrimaryButtonStyle())
 
-                        Button("I Already Have an Account") {
+                        Button("Sign in") {
                             showLoginView = true
                         }
                         .buttonStyle(SecondaryButtonStyle())
@@ -71,37 +71,8 @@ struct WelcomeView: View {
 }
 
 struct AnimatedBackgroundView: View {
-    @State private var animate = false
-    
     var body: some View {
-        ZStack {
-            Color.backgroundPrimary.ignoresSafeArea()
-            
-            // Glowing orbs for a dynamic mesh-like feel
-            Circle()
-                .fill(Color.brandPrimary.opacity(0.5))
-                .frame(width: 300, height: 300)
-                .blur(radius: 80)
-                .offset(x: animate ? 120 : -100, y: animate ? -200 : 150)
-            
-            Circle()
-                .fill(Color.purple.opacity(0.5))
-                .frame(width: 350, height: 350)
-                .blur(radius: 90)
-                .offset(x: animate ? -120 : 150, y: animate ? 250 : -100)
-            
-            Circle()
-                .fill(Color.blue.opacity(0.4))
-                .frame(width: 250, height: 250)
-                .blur(radius: 70)
-                .offset(x: animate ? 50 : -150, y: animate ? -100 : 100)
-        }
-        .ignoresSafeArea()
-        .onAppear {
-            withAnimation(.easeInOut(duration: 8).repeatForever(autoreverses: true)) {
-                animate.toggle()
-            }
-        }
+        Color.backgroundPrimary.ignoresSafeArea()
     }
 }
 
@@ -117,7 +88,7 @@ private struct WelcomeFeatureRow: View {
                 .appFont(size: 18, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 42, height: 42)
-                .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)

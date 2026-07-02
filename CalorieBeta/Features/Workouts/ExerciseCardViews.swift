@@ -35,11 +35,11 @@ struct ExerciseCardView: View {
     private var typeChip: (title: String, icon: String, color: Color) {
         switch exercise.type {
         case .strength:
-            return ("Strength", "dumbbell.fill", .brandPrimary)
+            return ("Strength", "dumbbell.fill", .blue)
         case .cardio:
             return ("Cardio", "heart.fill", .red)
         case .flexibility:
-            return ("Mobility", "figure.cooldown", .blue)
+            return ("Mobility", "figure.cooldown", .cyan)
         }
     }
 
@@ -244,16 +244,6 @@ struct StrengthExerciseView: View {
                 StrengthProgressionCoachCard(previousPerformance: previousPerformance)
             }
 
-            HStack {
-                Text("SET").frame(minWidth: 25, alignment: .leading)
-                Text("TARGET / LAST").frame(maxWidth: .infinity, alignment: .leading)
-                Text("LBS").frame(maxWidth: .infinity, alignment: .center)
-                Text("REPS").frame(maxWidth: .infinity, alignment: .center)
-                Image(systemName: "checkmark").frame(width: 30)
-            }
-            .appFont(size: 12, weight: .semibold)
-            .foregroundColor(.secondary)
-
             ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, _ in
                 StrengthSetRow(
                     set: $exercise.sets[index],
@@ -304,9 +294,9 @@ private struct StrengthProgressionCoachCard: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "chart.line.uptrend.xyaxis")
                 .appFont(size: 13, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
                 .frame(width: 28, height: 28)
-                .background(Color.brandPrimary.opacity(0.10), in: Circle())
+                .background(Color.blue.opacity(0.10), in: Circle())
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Progression")
@@ -321,7 +311,7 @@ private struct StrengthProgressionCoachCard: View {
             Spacer(minLength: 0)
         }
         .padding(10)
-        .background(Color.brandPrimary.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color.backgroundPrimary.opacity(0.68), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -493,6 +483,35 @@ struct StrengthSetRow: View {
         self.set.target ?? "Work set"
     }
 
+    private var setLabel: String {
+        return set.isWarmup ? "Warmup" : "Set \(setIndex)"
+    }
+
+    private var targetSummary: String {
+        let summary = targetTextBeforeProgression()
+        return summary.isEmpty ? "Work set" : summary
+    }
+
+    private var targetGuidance: String? {
+        let normalized = normalizedTargetText()
+        guard let range = normalized.range(of: "Progression:", options: .caseInsensitive) else {
+            return nil
+        }
+
+        let guidance = normalized[range.lowerBound...]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return guidance.isEmpty ? nil : guidance
+    }
+
+    private var previousText: String {
+        guard let previousSet else { return "No prior set" }
+        return "Last \(formatWeight(previousSet.weight)) lb x \(previousSet.reps)"
+    }
+
+    private var completionIcon: String {
+        return set.isCompleted ? "checkmark.circle.fill" : "circle"
+    }
+
     init(set: Binding<ExerciseSet>, setIndex: Int, previousSet: CompletedSet?, onComplete: @escaping () -> Void) {
         self._set = set
         self.setIndex = setIndex
@@ -504,110 +523,55 @@ struct StrengthSetRow: View {
     }
 
     var body: some View {
-        HStack {
-            Text(set.isWarmup ? "W" : "\(setIndex)")
-                .frame(minWidth: 25, alignment: .leading)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(setLabel)
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.textPrimary)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(targetText)
-                    .appFont(size: 12, weight: .bold)
+                Text(targetSummary)
+                    .appFont(size: 13, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Spacer(minLength: 4)
 
                 Button(action: fillFromPrevious) {
-                    Text(previousSet.map { "\(String(format: "%g", $0.weight)) lb x \($0.reps)" } ?? "No prior")
-                        .foregroundColor(previousSet == nil ? .secondary : .brandPrimary)
-                        .appFont(size: 14, weight: .semibold)
+                    Text(previousText)
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(previousSet == nil ? Color(UIColor.tertiaryLabel) : .textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.76)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Color.backgroundSecondary.opacity(0.78), in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .disabled(previousSet == nil)
+                .accessibilityLabel(previousSet == nil ? "No prior set" : "Fill from \(previousText)")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 2) {
-                Button(action: { adjustWeight(by: -weightIncrement) }) {
-                    Image(systemName: "minus.circle")
-                }.buttonStyle(.plain)
-                    .accessibilityLabel("Decrease weight")
-
-                TextField("0", text: $weightInput)
-                    .accessibilityLabel("Weight")
-                    .keyboardType(.decimalPad)
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.center)
-                    .frame(minWidth: 45)
-                    .onChange(of: weightInput) {
-                        let newWeight = Double(weightInput) ?? 0
-                        set.weight = newWeight
-                        checkIfPersonalBest(newWeight: newWeight, newRps: set.reps)
-                    }
-
-                Button(action: { adjustWeight(by: weightIncrement) }) {
-                    Image(systemName: "plus.circle")
-                }.buttonStyle(.plain)
-                    .accessibilityLabel("Increase weight")
-
-                Button(action: { showingPlateMath = true }) {
-                    Image(systemName: "circle.grid.cross")
-                        .foregroundColor(.brandPrimary)
-                        .appFont(size: 14, weight: .bold)
-                }.buttonStyle(.plain).padding(.leading, 4)
-                    .accessibilityLabel("Plate math")
-                    .accessibilityHint("Shows which plates to load for this weight.")
+            if let targetGuidance {
+                Text(targetGuidance)
+                    .appFont(size: 12, weight: .medium)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, alignment: .center)
-            .sheet(isPresented: $showingPlateMath) {
-                PlateMathVisualizer(totalWeight: set.weight)
+
+            HStack(alignment: .bottom, spacing: 10) {
+                weightInputGroup
+                repsInputGroup
+                completeButton
             }
-            .frame(maxWidth: .infinity, alignment: .center)
-
-            HStack(spacing: 2) {
-                Button(action: { adjustReps(by: -1) }) {
-                    Image(systemName: "minus.circle")
-                }.buttonStyle(.plain)
-                    .accessibilityLabel("Decrease reps")
-
-                TextField("0", text: $repsInput)
-                    .accessibilityLabel("Reps")
-                    .keyboardType(.numberPad)
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.center)
-                    .frame(minWidth: 35)
-                    .onChange(of: repsInput) {
-                        let newReps = Int(repsInput) ?? 0
-                        set.reps = newReps
-                        checkIfPersonalBest(newWeight: set.weight, newRps: newReps)
-                    }
-
-                Button(action: { adjustReps(by: 1) }) {
-                    Image(systemName: "plus.circle")
-                }.buttonStyle(.plain)
-                    .accessibilityLabel("Increase reps")
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
-
-            HStack(spacing: 2) {
-                if isPersonalBest {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.yellow)
-                        .font(.caption)
-                        .accessibilityLabel("Personal best")
-                }
-
-                Button(action: toggleCompletion) {
-                    Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .foregroundColor(set.isCompleted ? .accentPositive : .secondary)
-                        .font(.title2)
-                }
-                .accessibilityLabel("Complete set")
-                .accessibilityValue(set.isCompleted ? "Completed" : "Not completed")
-            }
-            .frame(width: 30)
         }
-        .appFont(size: 14)
-        .foregroundColor(.brandPrimary)
+        .padding(12)
+        .background(Color.backgroundPrimary.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(set.isCompleted ? Color.accentPositive.opacity(0.35) : Color.primary.opacity(0.05), lineWidth: 1)
+        )
         .onChange(of: set.weight) { _, newWeight in
             let currentInputWeight = Double(weightInput) ?? 0
             if newWeight != currentInputWeight {
@@ -635,11 +599,154 @@ struct StrengthSetRow: View {
         }
     }
 
+    private var weightInputGroup: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("Lbs")
+                    .appFont(size: 11, weight: .bold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+
+                Spacer(minLength: 0)
+
+                Button(action: { showingPlateMath = true }) {
+                    Label("Plates", systemImage: "circle.grid.cross")
+                        .labelStyle(.iconOnly)
+                        .appFont(size: 13, weight: .bold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Plate math")
+                .accessibilityHint("Shows which plates to load for this weight.")
+            }
+
+            HStack(spacing: 6) {
+                setAdjustButton(systemName: "minus", label: "Decrease weight") {
+                    adjustWeight(by: -weightIncrement)
+                }
+
+                TextField("0", text: $weightInput)
+                    .accessibilityLabel("Weight")
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.center)
+                    .appFont(size: 18, weight: .bold)
+                    .frame(height: 44)
+                    .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .onChange(of: weightInput) {
+                        let newWeight = Double(weightInput) ?? 0
+                        set.weight = newWeight
+                        checkIfPersonalBest(newWeight: newWeight, newRps: set.reps)
+                    }
+
+                setAdjustButton(systemName: "plus", label: "Increase weight") {
+                    adjustWeight(by: weightIncrement)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .sheet(isPresented: $showingPlateMath) {
+            PlateMathVisualizer(totalWeight: set.weight)
+        }
+    }
+
+    private var repsInputGroup: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Reps")
+                .appFont(size: 11, weight: .bold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+
+            HStack(spacing: 6) {
+                setAdjustButton(systemName: "minus", label: "Decrease reps") {
+                    adjustReps(by: -1)
+                }
+
+                TextField("0", text: $repsInput)
+                    .accessibilityLabel("Reps")
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.center)
+                    .appFont(size: 18, weight: .bold)
+                    .frame(height: 44)
+                    .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .onChange(of: repsInput) {
+                        let newReps = Int(repsInput) ?? 0
+                        set.reps = newReps
+                        checkIfPersonalBest(newWeight: set.weight, newRps: newReps)
+                    }
+
+                setAdjustButton(systemName: "plus", label: "Increase reps") {
+                    adjustReps(by: 1)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var completeButton: some View {
+        VStack(spacing: 6) {
+            Text("Done")
+                .appFont(size: 11, weight: .bold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+
+            Button(action: toggleCompletion) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: completionIcon)
+                        .foregroundColor(set.isCompleted ? .accentPositive : Color(UIColor.secondaryLabel))
+                        .font(.system(size: 34, weight: .semibold))
+
+                    if isPersonalBest {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.yellow)
+                            .font(.caption2)
+                            .offset(x: 3, y: -4)
+                            .accessibilityLabel("Personal best")
+                    }
+                }
+                .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Complete \(setLabel)")
+            .accessibilityValue(set.isCompleted ? "Completed" : "Not completed")
+        }
+        .frame(width: 48)
+    }
+
+    private func setAdjustButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .appFont(size: 13, weight: .bold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .frame(width: 32, height: 44)
+                .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
     private func fillFromPrevious() {
         guard let prev = previousSet else { return }
         self.weightInput = String(format: "%g", prev.weight)
         self.repsInput = "\(prev.reps)"
         HapticManager.instance.feedback(.light)
+    }
+
+    private func normalizedTargetText() -> String {
+        targetText
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func targetTextBeforeProgression() -> String {
+        let normalized = normalizedTargetText()
+        guard let range = normalized.range(of: "Progression:", options: .caseInsensitive) else {
+            return normalized
+        }
+
+        return normalized[..<range.lowerBound]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func formatWeight(_ weight: Double) -> String {
+        weight.formatted(.number.precision(.fractionLength(0...1)))
     }
 
     private func adjustWeight(by amount: Double) {

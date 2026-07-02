@@ -5,9 +5,8 @@ struct MealPrepCookingView: View {
     let days: [MealPlanDay]
     
     @State private var keepScreenOn: Bool = true
-    @State private var selectedTab: Int = 0 // 0 for Ingredients, 1 for Steps
-    
-    // Timer state
+    @State private var selectedTab: Int = 0
+
     @State private var timerDuration: TimeInterval = 0
     @State private var timerRemaining: TimeInterval = 0
     @State private var isTimerRunning = false
@@ -19,9 +18,9 @@ struct MealPrepCookingView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                Picker("Prep Mode", selection: $selectedTab) {
-                    Text("Bulk Ingredients").tag(0)
-                    Text("Prep Steps").tag(1)
+                Picker("Prep mode", selection: $selectedTab) {
+                    Text("Bulk ingredients").tag(0)
+                    Text("Prep steps").tag(1)
                 }
                 .pickerStyle(.segmented)
                 .padding()
@@ -32,7 +31,7 @@ struct MealPrepCookingView: View {
                     stepsView
                 }
             }
-            .navigationTitle("Meal Prep Mode")
+            .navigationTitle("Meal prep mode")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -48,6 +47,7 @@ struct MealPrepCookingView: View {
                         Image(systemName: keepScreenOn ? "lightbulb.fill" : "lightbulb.slash")
                             .foregroundColor(keepScreenOn ? .yellow : .gray)
                     }
+                    .accessibilityLabel(keepScreenOn ? "Allow screen to sleep" : "Keep screen awake")
                 }
             }
             .onAppear {
@@ -67,10 +67,11 @@ struct MealPrepCookingView: View {
                             .font(.title2)
                             .foregroundColor(.white)
                             .padding()
-                            .background(Color.brandPrimary)
+                            .background(Color.blue)
                             .clipShape(Circle())
                             .shadow(radius: 4)
                     }
+                    .accessibilityLabel("Start cooking timer")
                     .padding()
                 }
             }
@@ -124,7 +125,7 @@ struct MealPrepCookingView: View {
                     Text(stepInfo.recipeName)
                         .font(.caption)
                         .fontWeight(.bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.blue)
                     
                     Text(stepInfo.step)
                         .font(.body)
@@ -157,6 +158,7 @@ struct MealPrepCookingView: View {
                 Image(systemName: isTimerRunning ? "pause.fill" : (timerRemaining > 0 ? "play.fill" : "xmark"))
                     .foregroundColor(.white)
             }
+            .accessibilityLabel(timerControlLabel)
             if !isTimerRunning && timerRemaining > 0 {
                 Button(action: {
                     timerRemaining = 0
@@ -164,6 +166,7 @@ struct MealPrepCookingView: View {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.white)
                 }
+                .accessibilityLabel("Clear timer")
             }
         }
         .padding()
@@ -183,6 +186,13 @@ struct MealPrepCookingView: View {
         let seconds = Int(interval) % 60
         return String(format: "%02d:%02d", minutes, seconds)
     }
+
+    private var timerControlLabel: String {
+        if isTimerRunning {
+            return "Pause timer"
+        }
+        return timerRemaining > 0 ? "Resume timer" : "Close timer"
+    }
 }
 
 struct TimerSetupView: View {
@@ -195,7 +205,7 @@ struct TimerSetupView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Set Timer")) {
+                Section(header: Text("Set timer")) {
                     Stepper("\(minutes) minutes", value: $minutes, in: 1...120)
                 }
                 
@@ -203,17 +213,17 @@ struct TimerSetupView: View {
                     duration = TimeInterval(minutes * 60)
                     onStart()
                 }) {
-                    Text("Start Timer")
+                    Text("Start timer")
                         .frame(maxWidth: .infinity, alignment: .center)
                         .foregroundColor(.white)
                         .padding()
-                        .background(Color.brandPrimary)
+                        .background(Color.blue)
                         .cornerRadius(8)
                 }
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
             }
-            .navigationTitle("Cooking Timer")
+            .navigationTitle("Cooking timer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {

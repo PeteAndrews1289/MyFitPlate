@@ -8,14 +8,14 @@ struct SettingsAppearanceSection: View {
         VStack(spacing: 24) {
             SettingsSectionCard(title: "Appearance") {
                 Toggle(isOn: $appState.isDarkModeEnabled.animation()) {
-                    SettingsLabel(icon: "moon.fill", title: "Dark Mode", subtitle: "Use the darker app appearance.", color: .purple)
+                    SettingsLabel(icon: "moon.fill", title: "Dark mode", subtitle: "Use the darker app appearance.", color: .purple)
                 }
                 .padding(16)
             }
 
             SettingsSectionCard(title: "Units") {
                 Toggle(isOn: $useMetricBodyUnits) {
-                    SettingsLabel(icon: "ruler.fill", title: "Metric Units", subtitle: "Show weight in kg and height in cm.", color: .teal)
+                    SettingsLabel(icon: "ruler.fill", title: "Metric units", subtitle: "Show weight in kg and height in cm.", color: .teal)
                 }
                 .padding(16)
             }

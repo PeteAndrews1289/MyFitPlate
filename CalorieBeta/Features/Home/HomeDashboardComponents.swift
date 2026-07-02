@@ -12,7 +12,12 @@ struct HomeDashboardHeader: View {
     @Binding var showingDetailedInsights: Bool
 
     var body: some View {
-VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 12) {
+            // DESIGN.md: Home's hero is the calorie/macro ring. Coaching stays useful,
+            // but reads as a quieter support row below the nutrition state.
+            NutritionProgressView(dailyLog: dailyLog, goal: goalSettings, insight: weeklyInsight)
+                .padding(.top, 4)
+
             DailySnapshotStrip(
                 dailyLog: dailyLog,
                 goalSettings: goalSettings,
@@ -23,39 +28,52 @@ VStack(alignment: .leading, spacing: 0) {
                     showingDetailedInsights = true
                 }
             )
-            .padding(.top, 4)
-            .padding(.bottom, 6)
-
-            Divider()
-                .padding(.horizontal, 14)
-
-            NutritionProgressView(dailyLog: dailyLog, goal: goalSettings, insight: weeklyInsight)
-                .padding(.top, 10)
-
         }
         .frame(maxWidth: 520)
         .asCard()
         .featureSpotlight(isActive: isHeaderSpotlightActive)
-
-}
+    }
 }
 
 struct HomeDailyLogSummaryStrip: View {
     var log: DailyLog
     var body: some View {
-let foodItems = log.meals.flatMap(\.foodItems)
+        let foodItems = log.meals.flatMap(\.foodItems)
         let exercises = (log.exercises ?? []).dedupedAgainstHealthKit()
         let calories = log.totalCalories()
         let exerciseCalories = exercises.reduce(0) { $0 + $1.caloriesBurned }
 
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            DiaryMetricPill(title: "Food", value: "\(foodItems.count)", subtitle: "items", icon: "fork.knife", color: .brandPrimary)
-            DiaryMetricPill(title: "Calories", value: "\(Int(calories.rounded()))", subtitle: "logged", icon: "flame.fill", color: .orange)
-            DiaryMetricPill(title: "Activity", value: "\(exercises.count)", subtitle: "sessions", icon: "figure.run", color: .blue)
-            DiaryMetricPill(title: "Burned", value: "\(Int(exerciseCalories.rounded()))", subtitle: "cal", icon: "bolt.fill", color: .accentPositive)
+            DiaryMetricPill(
+                title: "Food",
+                value: foodItems.count.formatted(),
+                subtitle: foodItems.count == 1 ? "item" : "items",
+                icon: "fork.knife",
+                color: Color(UIColor.secondaryLabel)
+            )
+            DiaryMetricPill(
+                title: "Calories",
+                value: Int(calories.rounded()).formatted(),
+                subtitle: "cal logged",
+                icon: "flame.fill",
+                color: .orange
+            )
+            DiaryMetricPill(
+                title: "Activity",
+                value: exercises.count.formatted(),
+                subtitle: exercises.count == 1 ? "session" : "sessions",
+                icon: "figure.run",
+                color: .blue
+            )
+            DiaryMetricPill(
+                title: "Burned",
+                value: Int(exerciseCalories.rounded()).formatted(),
+                subtitle: "cal",
+                icon: "bolt.fill",
+                color: .accentPositive
+            )
         }
-
-}
+    }
 }
 
 struct HomeActivityWidget: View {
@@ -66,7 +84,7 @@ struct HomeActivityWidget: View {
     var onDeleteExercise: (String) -> Void
 
     var body: some View {
-VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Activity")
@@ -82,7 +100,7 @@ VStack(alignment: .leading, spacing: 10) {
 
                 Button("Add") { showingAddExerciseView = true }
                     .appFont(size: 15, weight: .semibold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.textPrimary)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -98,8 +116,7 @@ VStack(alignment: .leading, spacing: 10) {
                 }
             }
         }
-
-}
+    }
 }
 
 struct DailySnapshotStrip: View {
@@ -162,14 +179,14 @@ struct DailySnapshotStrip: View {
                 "Start the day clean",
                 isToday ? "Log your first meal so the rest of today has a real baseline." : "No food was logged for this day.",
                 "fork.knife",
-                .brandPrimary
+                .blue
             )
         }
 
         if caloriesRemaining < -150 {
             return (
                 "Protect the rest of the day",
-                "You are \(Int(abs(caloriesRemaining).rounded())) calories over. Keep the next choice simple and protein-forward.",
+                "You are \(Int(abs(caloriesRemaining).rounded()).formatted()) calories over. Keep the next choice simple and protein-forward.",
                 "exclamationmark.circle.fill",
                 .orange
             )
@@ -178,7 +195,7 @@ struct DailySnapshotStrip: View {
         if waterProgress < 0.35 && isToday {
             return (
                 "Hydration is the easy win",
-                "You are at \(Int(waterIntake.rounded())) oz. One quick water log gets the day moving.",
+                "You are at \(Int(waterIntake.rounded()).formatted()) oz. One quick water log gets the day moving.",
                 "drop.fill",
                 .cyan
             )
@@ -187,7 +204,7 @@ struct DailySnapshotStrip: View {
         if proteinProgress < 0.5 && calorieProgress > 0.25 {
             return (
                 "Protein needs attention",
-                "You have logged \(Int(protein.rounded()))g of \(Int(proteinGoal.rounded()))g. Build the next meal around protein.",
+                "You have logged \(Int(protein.rounded()).formatted())g of \(Int(proteinGoal.rounded()).formatted())g. Build the next meal around protein.",
                 "bolt.heart.fill",
                 .accentProtein
             )
@@ -217,7 +234,7 @@ struct DailySnapshotStrip: View {
                     .appFont(size: 16, weight: .bold)
                     .foregroundColor(coach.color)
                     .frame(width: 36, height: 36)
-                    .background(coach.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -243,13 +260,13 @@ struct DailySnapshotStrip: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
 
-                    Text("\(Int(protein.rounded()))g protein • \(Int(waterIntake.rounded())) oz water")
+                    Text("\(Int(protein.rounded()).formatted())g protein • \(Int(waterIntake.rounded()).formatted()) oz water")
                         .appFont(size: 13, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
                 }
-                }
+            }
             Text(coach.message)
                 .appFont(size: 12)
                 .foregroundColor(Color(UIColor.secondaryLabel))
@@ -260,14 +277,15 @@ struct DailySnapshotStrip: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(isToday ? "Today" : dateTitle). \(calorieStatus). \(coach.title). \(Int(protein.rounded())) grams of protein, \(Int(waterIntake.rounded())) ounces of water. \(coach.message)")
+        .background(Color.backgroundSecondary.opacity(0.62), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityLabel("\(isToday ? "Today" : dateTitle). \(calorieStatus). \(coach.title). \(Int(protein.rounded()).formatted()) grams of protein, \(Int(waterIntake.rounded()).formatted()) ounces of water. \(coach.message)")
     }
 
     private var calorieStatus: String {
         if caloriesRemaining >= 0 {
-            return "\(Int(caloriesRemaining.rounded())) cal left"
+            return "\(Int(caloriesRemaining.rounded()).formatted()) cal left"
         }
-        return "\(Int(abs(caloriesRemaining).rounded())) cal over"
+        return "\(Int(abs(caloriesRemaining).rounded()).formatted()) cal over"
     }
 }
 

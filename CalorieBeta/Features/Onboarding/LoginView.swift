@@ -24,7 +24,7 @@ struct LoginView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         AuthHeaderCard(
                             icon: "person.crop.circle.fill.badge.checkmark",
-                            title: "Welcome Back",
+                            title: "Welcome back",
                             subtitle: "Pick up your dashboard, goals, and Maia history."
                         )
                         .padding(.top, 18)
@@ -52,7 +52,7 @@ struct LoginView: View {
                                 ProgressView()
                                     .tint(.white)
                             } else {
-                                Text("Log In")
+                                Text("Log in")
                             }
                         }
                         .buttonStyle(PrimaryButtonStyle())
@@ -61,9 +61,9 @@ struct LoginView: View {
                         Button {
                             sendPasswordReset()
                         } label: {
-                            Text("Forgot Password?")
+                            Text("Forgot password")
                                 .appFont(size: 14, weight: .semibold)
-                                .foregroundColor(.brandPrimary)
+                                .foregroundColor(.blue)
                                 .frame(maxWidth: .infinity, alignment: .center)
                         }
                         .disabled(isLoading)
@@ -71,14 +71,14 @@ struct LoginView: View {
                     .padding(24)
                 }
             }
-            .navigationTitle("Log In")
+            .navigationTitle("Log in")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
             }
-            .alert("Reset Link Sent", isPresented: $showingResetAlert) {
+            .alert("Reset link sent", isPresented: $showingResetAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(resetAlertMessage)
@@ -108,7 +108,7 @@ struct LoginView: View {
     private func sendPasswordReset() {
         let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            loginError = "Enter your email above, then tap Forgot Password."
+            loginError = "Enter your email above, then tap Forgot password."
             return
         }
         loginError = ""
@@ -148,13 +148,13 @@ struct AuthHeaderCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Image(systemName: icon)
                 .appFont(size: 22, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
                 .frame(width: 50, height: 50)
-                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(title)
-                    .appFont(size: 30, weight: .bold)
+                    .appFont(size: 21, weight: .bold)
                     .foregroundColor(.textPrimary)
                 Text(subtitle)
                     .appFont(size: 14)

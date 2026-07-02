@@ -12,22 +12,20 @@ struct SetWaterGoalView: View {
             AnimatedBackgroundView()
             
             VStack(spacing: 24) {
-                // Header Graphic
                 ZStack {
                     Circle()
-                        .fill(Color.cyan.opacity(0.15))
+                        .fill(Color(UIColor.secondarySystemFill))
                         .frame(width: 100, height: 100)
                     
                     Image(systemName: "drop.fill")
                         .appFont(size: 44, weight: .bold)
                         .foregroundColor(.cyan)
-                        .shadow(color: .cyan.opacity(0.4), radius: 10, x: 0, y: 5)
                 }
                 .padding(.top, 24)
 
                 VStack(spacing: 8) {
-                    Text("Daily Water Goal")
-                        .appFont(size: 28, weight: .bold)
+                    Text("Daily water goal")
+                        .appFont(size: 21, weight: .bold)
                         .foregroundColor(.textPrimary)
                     
                     Text("Set your daily hydration target to feel your best.")
@@ -37,7 +35,6 @@ struct SetWaterGoalView: View {
                         .padding(.horizontal, 24)
                 }
 
-                // Input Field
                 HStack(alignment: .bottom, spacing: 8) {
                     TextField("0", text: $waterGoalInput)
                         .keyboardType(.numberPad)
@@ -58,9 +55,8 @@ struct SetWaterGoalView: View {
                 .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white.opacity(0.15), lineWidth: 1))
                 .padding(.horizontal, 40)
 
-                // Quick Presets
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Quick Select")
+                    Text("Quick select")
                         .appFont(size: 14, weight: .semibold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .padding(.horizontal, 32)
@@ -73,7 +69,7 @@ struct SetWaterGoalView: View {
                                         waterGoalInput = "\(preset)"
                                     }
                                 }) {
-                                    Text("\(preset) oz")
+                                    Text("\(preset.formatted()) oz")
                                         .appFont(size: 15, weight: .semibold)
                                         .foregroundColor(waterGoalInput == "\(preset)" ? .white : .cyan)
                                         .padding(.vertical, 10)
@@ -95,7 +91,7 @@ struct SetWaterGoalView: View {
                 Button(action: {
                     self.onSave()
                 }) {
-                    Text("Save Goal")
+                    Text("Save goal")
                         .appFont(size: 17, weight: .bold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)

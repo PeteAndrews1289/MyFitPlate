@@ -3,41 +3,38 @@ import HealthKit
 
 struct HealthActivityCard: View {
     @EnvironmentObject var healthViewModel: HealthKitViewModel
-    
+
     // Default goal, could be customizable later
     private let stepGoal: Double = 10000
-    
+
     var body: some View {
         HStack(spacing: 16) {
-            // Steps Section
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "figure.walk")
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.blue)
                     Text("Steps")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .appFont(size: 13, weight: .semibold)
                         .foregroundColor(.secondary)
                 }
-                
+
                 HStack(alignment: .lastTextBaseline, spacing: 4) {
-                    Text("\(Int(healthViewModel.todaySteps))")
+                    Text(Int(healthViewModel.todaySteps.rounded()).formatted())
                         .appFont(size: 24, weight: .bold)
                         .foregroundColor(.primary)
-                    Text("/ \(Int(stepGoal))")
-                        .font(.caption)
+                    Text("/ \(Int(stepGoal).formatted()) steps")
+                        .appFont(size: 12)
                         .foregroundColor(.secondary)
                 }
-                
-                // Progress Bar
+
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         Capsule()
-                            .fill(Color.brandPrimary.opacity(0.15))
+                            .fill(Color.blue.opacity(0.12))
                             .frame(height: 6)
-                        
+
                         Capsule()
-                            .fill(Color.brandPrimary)
+                            .fill(Color.blue)
                             .frame(width: max(0, min(geometry.size.width * CGFloat(healthViewModel.todaySteps / stepGoal), geometry.size.width)), height: 6)
                     }
                 }
@@ -47,39 +44,33 @@ struct HealthActivityCard: View {
             
             Divider()
                 .frame(height: 50)
-            
-            // Active Energy Section
+
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "flame.fill")
                         .foregroundColor(.orange)
                     Text("Active")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .appFont(size: 13, weight: .semibold)
                         .foregroundColor(.secondary)
                 }
-                
+
                 HStack(alignment: .lastTextBaseline, spacing: 4) {
-                    Text("\(Int(healthViewModel.todayActiveEnergy))")
+                    Text(Int(healthViewModel.todayActiveEnergy.rounded()).formatted())
                         .appFont(size: 24, weight: .bold)
                         .foregroundColor(.primary)
-                    Text("kcal")
-                        .font(.caption)
+                    Text("cal")
+                        .appFont(size: 12)
                         .foregroundColor(.secondary)
                 }
-                
-                // Small placeholder or label since there's no fixed goal for active energy
-                Text("Burned Today")
-                    .font(.caption2)
+
+                Text("Burned today")
+                    .appFont(size: 11, weight: .medium)
                     .foregroundColor(.secondary)
                     .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding()
-        .background(Color.backgroundPrimary)
-        .cornerRadius(20)
-        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+        .asCard()
         .onAppear {
             if !healthViewModel.isAuthorized {
                 healthViewModel.requestAuthorization()

@@ -7,7 +7,7 @@ struct HomeFoodDiaryGroupedContent: View {
     var onDeleteFood: (String) -> Void
 
     var body: some View {
-VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
             ForEach(meals) { meal in
                 if !meal.foodItems.isEmpty {
                     let mealCalories = meal.foodItems.reduce(0) { $0 + $1.calories }
@@ -16,12 +16,12 @@ VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(alignment: .firstTextBaseline) {
                             Text(meal.name)
-                                .appFont(size: 20, weight: .semibold)
+                                .appFont(size: 17, weight: .bold)
                                 .foregroundColor(.textPrimary)
 
                             Spacer()
 
-                            Text("\(itemCount) \(itemCount == 1 ? "item" : "items") • \(Int(mealCalories.rounded())) cal")
+                            Text("\(itemCount.formatted()) \(itemCount == 1 ? "item" : "items") • \(Int(mealCalories.rounded()).formatted()) cal")
                                 .appFont(size: 12, weight: .medium)
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                         }
@@ -41,8 +41,7 @@ VStack(alignment: .leading, spacing: 16) {
                 }
             }
         }
-
-}
+    }
 }
 
 struct HomeFoodDiarySection: View {
@@ -62,11 +61,11 @@ struct HomeFoodDiarySection: View {
     var onDeleteExercise: (String) -> Void
 
     var body: some View {
-VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Daily Log")
-                        .appFont(size: 22, weight: .bold)
+                    Text("Daily log")
+                        .appFont(size: 19, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text("Food, activity, and edits for this day.")
@@ -75,7 +74,6 @@ VStack(alignment: .leading, spacing: 14) {
                 }
 
                 Spacer()
-
             }
 
             if let currentLogForDisplay,
@@ -97,11 +95,8 @@ VStack(alignment: .leading, spacing: 14) {
         }
         .frame(maxWidth: 520)
         .asCard()
-        .background(colorScheme == .dark ? Color.backgroundPrimary : Color.brandPrimary.opacity(0.03))
-        .cornerRadius(20)
         .featureSpotlight(isActive: isDailyLogSpotlightActive)
-
-}
+    }
 }
 
 struct EmptyDailyLogView: View {
@@ -111,9 +106,9 @@ struct EmptyDailyLogView: View {
         VStack(spacing: 12) {
             Image(systemName: "plus.viewfinder")
                 .appFont(size: 28, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
                 .frame(width: 56, height: 56)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(Color(UIColor.secondarySystemFill), in: Circle())
 
             Text(isToday ? "Ready for your first log" : "Nothing logged on this day")
                 .appFont(size: 17, weight: .semibold)

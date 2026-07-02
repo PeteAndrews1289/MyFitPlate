@@ -22,10 +22,10 @@ struct FoodSearchMealPicker: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
                             .background(
-                                selectedMeal == meal ? Color.brandPrimary.opacity(0.14) : Color.clear,
+                                selectedMeal == meal ? Color.backgroundPrimary.opacity(0.84) : Color.clear,
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                             )
-                            .foregroundColor(selectedMeal == meal ? .brandPrimary : Color(UIColor.secondaryLabel))
+                            .foregroundColor(selectedMeal == meal ? .textPrimary : Color(UIColor.secondaryLabel))
                     }
                     .buttonStyle(.plain)
                 }
@@ -59,10 +59,10 @@ struct FoodSearchCompactMealPicker: View {
                     Image(systemName: "chevron.up.chevron.down")
                         .appFont(size: 10, weight: .bold)
                 }
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.textPrimary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color.brandPrimary.opacity(0.12), in: Capsule())
+                .background(Color.backgroundPrimary.opacity(0.84), in: Capsule())
             }
 
             Spacer(minLength: 0)

@@ -322,11 +322,12 @@ final class WorkoutServiceTests: XCTestCase {
 
     func testSelectPreBuiltProgram() async {
         let p1 = WorkoutProgram(id: "p1", userID: "prebuilt", name: "P1", dateCreated: Date(), routines: [])
-        mockRepo.mockSaveProgramResult = p1
+        let startDate = Calendar.current.startOfDay(for: Date(timeIntervalSince1970: 1_799_712_000))
         
-        let selected = await service.selectPreBuiltProgram(p1)
+        let selected = await service.selectPreBuiltProgram(p1, startDate: startDate)
         XCTAssertNotNil(selected)
         XCTAssertEqual(service.activeProgram?.id, selected?.id)
+        XCTAssertEqual(selected?.startDate, startDate)
     }
 
     func testGenerateAIWorkoutPlanSuccess() async {

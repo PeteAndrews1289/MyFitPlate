@@ -13,8 +13,8 @@ struct CoachingDashboardView: View {
                         HStack {
                             Image(systemName: "brain.head.profile")
                                 .appFont(size: 24, weight: .bold)
-                                .foregroundColor(.brandPrimary)
-                            Text("Maia's Strategy")
+                                .foregroundColor(.purple)
+                            Text("Maia's strategy")
                                 .appFont(size: 22, weight: .bold)
                         }
 
@@ -29,7 +29,7 @@ struct CoachingDashboardView: View {
                     .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.brandPrimary.opacity(0.3), lineWidth: 1)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
                     )
                     .padding(.horizontal)
 
@@ -38,7 +38,7 @@ struct CoachingDashboardView: View {
                 .padding(.vertical, 20)
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Coaching Dashboard")
+            .navigationTitle("Coaching dashboard")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -66,8 +66,8 @@ struct CoachingDashboardView: View {
     private var content: some View {
         if insightsService.isLoadingInsights && insightsService.currentInsights.isEmpty {
             HStack(spacing: 12) {
-                ProgressView().tint(.brandPrimary)
-                Text("Reviewing your recent data…")
+                ProgressView().tint(.blue)
+                Text("Reviewing your recent data")
                     .appFont(size: 14)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
@@ -77,7 +77,7 @@ struct CoachingDashboardView: View {
             VStack(spacing: 10) {
                 Image(systemName: "sparkles")
                     .appFont(size: 28)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.purple)
                 Text("Keep logging and I'll build your strategy")
                     .appFont(size: 15, weight: .semibold)
                     .foregroundColor(.textPrimary)
@@ -108,7 +108,7 @@ struct CoachingDashboardView: View {
         switch category {
         case .hydration: return ("drop.fill", .blue)
         case .macroBalance: return ("chart.pie.fill", .purple)
-        case .microNutrient, .fiberIntake: return ("leaf.fill", .green)
+        case .microNutrient, .fiberIntake: return ("leaf.fill", .accentPositive)
         case .mealTiming: return ("clock.fill", .orange)
         case .consistency: return ("flame.fill", .red)
         case .postWorkout, .exerciseSynergy: return ("figure.strengthtraining.traditional", .accentPositive)
@@ -120,7 +120,7 @@ struct CoachingDashboardView: View {
         case .sleep: return ("moon.zzz.fill", .indigo)
         case .calorieFluctuation: return ("waveform.path.ecg", .orange)
         case .weekendTrends: return ("calendar", .blue)
-        default: return ("fork.knife", .brandPrimary)
+        default: return ("fork.knife", .blue)
         }
     }
 }
@@ -137,7 +137,7 @@ private struct CoachingInsightRow: View {
                 .appFont(size: 20, weight: .bold)
                 .foregroundColor(color)
                 .frame(width: 44, height: 44)
-                .background(color.opacity(0.12), in: Circle())
+                .background(Color(UIColor.secondarySystemFill), in: Circle())
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)

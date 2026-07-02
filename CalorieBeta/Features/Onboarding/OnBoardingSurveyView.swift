@@ -74,12 +74,12 @@ struct OnboardingSurveyView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Personal Setup")
+                            Text("Personal setup")
                                 .appFont(size: 22, weight: .bold)
                                 .foregroundColor(.textPrimary)
                             Text("Step \(currentStep + 1) of \(totalSteps)")
                                 .appFont(size: 13, weight: .semibold)
-                                .foregroundColor(.brandPrimary)
+                                .foregroundColor(.blue)
                         }
 
                         Spacer()
@@ -87,7 +87,7 @@ struct OnboardingSurveyView: View {
                     }
 
                     ProgressView(value: Double(currentStep + 1), total: Double(totalSteps))
-                        .tint(Color.brandPrimary)
+                        .tint(Color.blue)
                 }
                 .padding(18)
                 .background(.ultraThinMaterial)
@@ -112,7 +112,7 @@ struct OnboardingSurveyView: View {
                         .buttonStyle(SecondaryButtonStyle())
                     }
 
-                    Button(currentStep == totalSteps - 1 ? "Finish Setup" : "Next") {
+                    Button(currentStep == totalSteps - 1 ? "Finish setup" : "Next") {
                         hideKeyboard()
                         saveGoalsAndProceed()
                     }
@@ -137,7 +137,7 @@ struct OnboardingSurveyView: View {
                   let targetWeightValue = Double(targetWeightInput), targetWeightValue > 0 else {
                 // A required step was skipped (the paged TabView lets users swipe past the
                 // disabled Next button). Jump back to the first incomplete step instead of
-                // silently doing nothing, which made "Finish Setup" look broken.
+                // silently doing nothing, which made "Finish setup" look broken.
                 withAnimation { currentStep = firstIncompleteStep() }
                 return
             }
@@ -197,9 +197,9 @@ struct OnboardingSurveyView: View {
                     VStack(spacing: 20) {
                 Image(systemName: iconName)
                     .appFont(size: 34, weight: .semibold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
                     .frame(width: 72, height: 72)
-                    .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                    .background(Color(UIColor.secondarySystemFill), in: Circle())
                     .padding(.top, 18)
 
                 Text(title)
@@ -247,12 +247,12 @@ struct OnboardingSurveyView: View {
 
     @ViewBuilder
     private func currentWeightStepView() -> some View {
-        onboardingInputField(title: "Current Weight", text: $currentWeightInput, unit: BodyUnits.weightUnit(metric: useMetric), keyboard: .decimalPad)
+        onboardingInputField(title: "Current weight", text: $currentWeightInput, unit: BodyUnits.weightUnit(metric: useMetric), keyboard: .decimalPad)
     }
 
     @ViewBuilder
     private func targetWeightStepView() -> some View {
-        onboardingInputField(title: "Target Weight", text: $targetWeightInput, unit: BodyUnits.weightUnit(metric: useMetric), keyboard: .decimalPad)
+        onboardingInputField(title: "Target weight", text: $targetWeightInput, unit: BodyUnits.weightUnit(metric: useMetric), keyboard: .decimalPad)
     }
 
     private func onboardingInputField(title: String, text: Binding<String>, unit: String, keyboard: UIKeyboardType) -> some View {
@@ -270,10 +270,10 @@ struct OnboardingSurveyView: View {
 
                 Text(unit)
                     .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 6)
-                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                    .background(Color(UIColor.secondarySystemFill), in: Capsule())
             }
             .padding(14)
             .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -284,13 +284,13 @@ struct OnboardingSurveyView: View {
     @ViewBuilder
     private func activityAndGoalStepView() -> some View {
         VStack(spacing: 20) {
-            Text("Biological Sex")
+            Text("Biological sex")
                 .appFont(size: 17, weight: .bold)
                 .foregroundColor(.textPrimary)
             
             GenderButtonPicker(selectedGender: $selectedGender)
 
-            Text("Activity Level")
+            Text("Activity level")
                 .appFont(size: 17, weight: .bold)
                 .foregroundColor(.textPrimary)
             
@@ -313,24 +313,24 @@ struct OnboardingSurveyView: View {
                             Spacer(minLength: 8)
                             Image(systemName: selectedActivityLevelKey == key ? "checkmark.circle.fill" : "circle")
                                 .appFont(size: 20)
-                                .foregroundColor(selectedActivityLevelKey == key ? .brandPrimary : Color(UIColor.tertiaryLabel))
+                                .foregroundColor(selectedActivityLevelKey == key ? .blue : Color(UIColor.tertiaryLabel))
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity)
                         .background(
-                            (selectedActivityLevelKey == key ? Color.brandPrimary.opacity(0.12) : Color.backgroundSecondary.opacity(0.6)),
+                            (selectedActivityLevelKey == key ? Color.blue.opacity(0.12) : Color.backgroundSecondary.opacity(0.6)),
                             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(selectedActivityLevelKey == key ? Color.brandPrimary.opacity(0.55) : Color.clear, lineWidth: 1.5)
+                                .stroke(selectedActivityLevelKey == key ? Color.blue.opacity(0.55) : Color.clear, lineWidth: 1.5)
                         )
                     }
                     .buttonStyle(.plain)
                 }
             }
 
-            Text("Primary Goal")
+            Text("Primary goal")
                 .appFont(size: 17, weight: .bold)
                 .foregroundColor(.textPrimary)
             
@@ -344,9 +344,9 @@ struct OnboardingSurveyView: View {
     @ViewBuilder
     private func coachingPreferencesStepView() -> some View {
         VStack(spacing: 18) {
-            onboardingChoiceSection(title: "Training Intent", selection: $selectedTrainingIntent, options: trainingIntents, shortLabels: ["General Fitness": "Fitness", "Muscle Gain": "Muscle"])
-            onboardingChoiceSection(title: "Reminder Style", selection: $selectedReminderStyle, options: reminderStyles)
-            onboardingChoiceSection(title: "Maia Style", selection: $selectedMaiaTone, options: maiaTones)
+            onboardingChoiceSection(title: "Training intent", selection: $selectedTrainingIntent, options: trainingIntents, shortLabels: ["General Fitness": "Fitness", "Muscle Gain": "Muscle"])
+            onboardingChoiceSection(title: "Reminder style", selection: $selectedReminderStyle, options: reminderStyles)
+            onboardingChoiceSection(title: "Maia style", selection: $selectedMaiaTone, options: maiaTones)
         }
         .padding(.top, 4)
     }

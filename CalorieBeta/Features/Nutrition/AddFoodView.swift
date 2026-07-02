@@ -177,7 +177,7 @@ struct AddFoodView: View {
 
         let loggedCalories = Int(status.loggedCalories.rounded())
         let macroCalories = Int(status.macroDerivedCalories.rounded())
-        return "Macros imply \(macroCalories) cal, so this estimate will log as \(macroCalories) cal instead of \(loggedCalories)."
+        return "Macros imply \(macroCalories.formatted()) cal, so this estimate will log as \(macroCalories.formatted()) cal instead of \(loggedCalories.formatted())."
     }
 
     var body: some View {
@@ -248,7 +248,7 @@ struct AddFoodView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: toggleSavedState) {
                     Image(systemName: isSavedAsCustom ? "star.fill" : "star")
-                        .foregroundColor(isSavedAsCustom ? .yellow : .brandPrimary)
+                        .foregroundColor(isSavedAsCustom ? .yellow : .blue)
                 }
             }
         }
@@ -271,7 +271,12 @@ struct AddFoodView: View {
                         handleScannedNutrition(nutrition)
                         bannerService.showBanner(title: "Success", message: "Nutrition label scanned successfully", iconName: "checkmark.circle.fill", iconColor: .accentPositive)
                     case .failure(let error):
-                        bannerService.showBanner(title: "Scan Error", message: "Couldn't read label: \(error.localizedDescription)", iconName: "exclamationmark.triangle.fill", iconColor: .red)
+                        bannerService.showBanner(
+                            title: "Scan error",
+                            message: "Couldn't read label: \(error.localizedDescription)",
+                            iconName: "exclamationmark.triangle.fill",
+                            iconColor: .red
+                        )
                     }
                 }
             }
@@ -291,7 +296,7 @@ struct AddFoodView: View {
                     text: $quantity,
                     keyboardType: .decimalPad,
                     icon: "number",
-                    color: .brandPrimary
+                    color: .blue
                 )
 
                 ManualFoodTextInput(
@@ -306,11 +311,11 @@ struct AddFoodView: View {
 
             ManualFoodTextInput(
                 title: "Serving description",
-                placeholder: "1 cup, 1 bar, 100 g...",
+                placeholder: "1 cup, 1 bar, 100 g",
                 text: $servingSizeText,
                 keyboardType: .default,
                 icon: "fork.knife",
-                color: .brandPrimary
+                color: .blue
             )
 
             if availableServings.count > 1 {
@@ -324,7 +329,7 @@ struct AddFoodView: View {
                     HStack(spacing: 10) {
                         Image(systemName: "list.bullet.rectangle")
                             .appFont(size: 14, weight: .bold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.blue)
 
                         VStack(alignment: .leading, spacing: 3) {
                             Text("Detected serving options")
@@ -374,9 +379,9 @@ struct AddFoodView: View {
                 HStack(spacing: 12) {
                     Image(systemName: "camera.viewfinder")
                         .appFont(size: 17, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.blue)
                         .frame(width: 42, height: 42)
-                        .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Scan nutrition label")
@@ -405,9 +410,9 @@ struct AddFoodView: View {
 
     private var labelScannerButton: some View {
         Button { showingImagePicker = true } label: {
-            Label("Scan Nutrition Label", systemImage: "camera.fill")
+            Label("Scan nutrition label", systemImage: "camera.fill")
         }
-        .tint(.brandPrimary)
+        .tint(.blue)
         .padding(.top, 5)
     }
 
@@ -479,7 +484,7 @@ struct AddFoodView: View {
 
     private func handleScannedNutrition(_ data: NutritionLabelData) {
         self.foodName = data.foodName
-        let scanned = ServingSizeOption(description: "Scanned Label", servingWeightGrams: nil, calories: data.calories, protein: data.protein, carbs: data.carbs, fats: data.fats, saturatedFat: data.saturatedFat, polyunsaturatedFat: data.polyunsaturatedFat, monounsaturatedFat: data.monounsaturatedFat, fiber: data.fiber, calcium: data.calcium, iron: data.iron, potassium: data.potassium, sodium: data.sodium, vitaminA: data.vitaminA, vitaminC: data.vitaminC, vitaminD: data.vitaminD, vitaminB12: data.vitaminB12, folate: data.folate, magnesium: data.magnesium, phosphorus: data.phosphorus, zinc: data.zinc, copper: data.copper, manganese: data.manganese, selenium: data.selenium, vitaminB1: data.vitaminB1, vitaminB2: data.vitaminB2, vitaminB3: data.vitaminB3, vitaminB5: data.vitaminB5, vitaminB6: data.vitaminB6, vitaminE: data.vitaminE, vitaminK: data.vitaminK)
+        let scanned = ServingSizeOption(description: "Scanned label", servingWeightGrams: nil, calories: data.calories, protein: data.protein, carbs: data.carbs, fats: data.fats, saturatedFat: data.saturatedFat, polyunsaturatedFat: data.polyunsaturatedFat, monounsaturatedFat: data.monounsaturatedFat, fiber: data.fiber, calcium: data.calcium, iron: data.iron, potassium: data.potassium, sodium: data.sodium, vitaminA: data.vitaminA, vitaminC: data.vitaminC, vitaminD: data.vitaminD, vitaminB12: data.vitaminB12, folate: data.folate, magnesium: data.magnesium, phosphorus: data.phosphorus, zinc: data.zinc, copper: data.copper, manganese: data.manganese, selenium: data.selenium, vitaminB1: data.vitaminB1, vitaminB2: data.vitaminB2, vitaminB3: data.vitaminB3, vitaminB5: data.vitaminB5, vitaminB6: data.vitaminB6, vitaminE: data.vitaminE, vitaminK: data.vitaminK)
         self.availableServings.insert(scanned, at: 0)
         self.selectedServingID = scanned.id
         syncEditableFieldsFromSelectedServing()
@@ -614,8 +619,8 @@ struct AddFoodView: View {
         }
     }
 
-    private func buttonText() -> String { onUpdate != nil ? "Update Item" : (isLoggedItem ? "Update Logged Item" : "Add to Log") }
-    private func navigationTitleText() -> String { onUpdate != nil ? "Edit Item" : (isLoggedItem ? "Edit Logged Item" : "Log Food") }
+    private func buttonText() -> String { onUpdate != nil ? "Update item" : (isLoggedItem ? "Update logged item" : "Add to log") }
+    private func navigationTitleText() -> String { onUpdate != nil ? "Edit item" : (isLoggedItem ? "Edit logged item" : "Log food") }
     private func hideKeyboard() { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
 
     @ViewBuilder private func nutrientRow(label: String, value: Double?, unit: String, specifier: String = "%.1f") -> some View {
@@ -639,14 +644,17 @@ private struct ManualFoodIdentityCard: View {
             Text(displayEmoji)
                 .appFont(size: 34)
                 .frame(width: 62, height: 62)
-                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .background(
+                    Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                )
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Food name")
                     .appFont(size: 13, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
 
-                TextField("Chicken bowl, protein bar, oatmeal...", text: $foodName)
+                TextField("Chicken bowl, protein bar, oatmeal", text: $foodName)
                     .appFont(size: 22, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .textInputAutocapitalization(.words)
@@ -742,7 +750,7 @@ private struct ManualFoodPreviewCard: View {
 
                 Spacer()
 
-                Text("\(Int(calories.rounded()))")
+                Text(Int(calories.rounded()).formatted())
                     .appFont(size: 30, weight: .bold)
                     .foregroundColor(.orange)
                 Text("cal")
@@ -770,7 +778,7 @@ private struct ManualFoodMacroPill: View {
         HStack(spacing: 4) {
             Text(label)
                 .appFont(size: 12, weight: .bold)
-            Text("\(Int(value.rounded()))g")
+            Text("\(Int(value.rounded()).formatted()) g")
                 .appFont(size: 12, weight: .semibold)
         }
         .foregroundColor(color)
@@ -784,7 +792,7 @@ private struct ManualFoodLoadingCard: View {
     var body: some View {
         VStack(spacing: 12) {
             ProgressView()
-                .tint(.brandPrimary)
+                .tint(.blue)
 
             Text("Loading serving details")
                 .appFont(size: 16, weight: .bold)

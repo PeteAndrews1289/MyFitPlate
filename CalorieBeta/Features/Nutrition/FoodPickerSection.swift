@@ -57,10 +57,10 @@ struct FoodPickerRow: View {
         }
 
         var parts: [String] = []
-        if food.calories > 0 { parts.append("\(Int(food.calories.rounded())) cal") }
-        if food.protein > 0 { parts.append("P \(Int(food.protein.rounded()))g") }
-        if food.carbs > 0 { parts.append("C \(Int(food.carbs.rounded()))g") }
-        if food.fats > 0 { parts.append("F \(Int(food.fats.rounded()))g") }
+        if food.calories > 0 { parts.append("\(Int(food.calories.rounded()).formatted()) cal") }
+        if food.protein > 0 { parts.append("P \(Int(food.protein.rounded()).formatted())g") }
+        if food.carbs > 0 { parts.append("C \(Int(food.carbs.rounded()).formatted())g") }
+        if food.fats > 0 { parts.append("F \(Int(food.fats.rounded()).formatted())g") }
         return parts.joined(separator: "  ")
     }
 
@@ -87,7 +87,7 @@ struct FoodPickerRow: View {
                         Text(FoodEmojiMapper.getEmoji(for: food.name))
                             .appFont(size: 23)
                             .frame(width: 42, height: 42)
-                            .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text(food.name)
@@ -115,7 +115,7 @@ struct FoodPickerRow: View {
 
                             Text(detailText)
                                 .appFont(size: 11, weight: .semibold)
-                                .foregroundColor(.brandPrimary)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
                                 .lineLimit(1)
                         }
 
@@ -133,9 +133,13 @@ struct FoodPickerRow: View {
                     Button(action: { onQuickLog(food) }) {
                         Image(systemName: isQuickLogged ? "checkmark" : "plus")
                             .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.white)
+                            .foregroundColor(isQuickLogged ? .white : .brandPrimary)
                             .frame(width: 36, height: 36)
-                            .background(isQuickLogged ? Color.accentPositive : Color.brandPrimary, in: Circle())
+                            .background(isQuickLogged ? Color.accentPositive : Color.clear, in: Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(isQuickLogged ? Color.clear : Color.brandPrimary.opacity(0.55), lineWidth: 1.4)
+                            )
                     }
                     .buttonStyle(.plain)
                     .disabled(isQuickLogged)
@@ -174,7 +178,7 @@ private struct FoodSourceMiniBadge: View {
         case "ai_estimate":
             return .orange
         default:
-            return .brandPrimary
+            return Color(UIColor.secondaryLabel)
         }
     }
 

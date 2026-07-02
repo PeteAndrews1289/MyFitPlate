@@ -21,7 +21,7 @@ struct GroceryCategorySection: View {
 
                 Spacer()
 
-                Text("\(remainingCount) left")
+                Text("\(remainingCount.formatted()) left")
                     .appFont(size: 12, weight: .bold)
                     .foregroundColor(remainingCount == 0 ? .accentPositive : Color(UIColor.secondaryLabel))
             }
@@ -115,7 +115,7 @@ struct GroceryItemRow: View {
                     Text(FoodEmojiMapper.getEmoji(for: item.name))
                         .appFont(size: 24)
                         .frame(width: 44, height: 44)
-                        .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .opacity(item.isCompleted ? 0.6 : 1.0)
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -129,10 +129,10 @@ struct GroceryItemRow: View {
                             if let quantityText {
                                 Text(quantityText)
                                     .appFont(size: 12, weight: .bold)
-                                    .foregroundColor(.brandPrimary)
+                                    .foregroundColor(.blue)
                                     .padding(.horizontal, 9)
                                     .padding(.vertical, 4)
-                                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                                    .background(Color(UIColor.secondarySystemFill), in: Capsule())
                             }
 
                             if let sourceText {

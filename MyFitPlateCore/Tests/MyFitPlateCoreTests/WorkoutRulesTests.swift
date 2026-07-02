@@ -305,6 +305,34 @@ final class WorkoutRulesTests: XCTestCase {
         }
     }
 
+    func testPreparePreBuiltProgramUsesChosenStartDateAndAlignsFirstTrainingDay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let thursday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 2)))
+        let mondayWednesdayFriday = WorkoutProgram(
+            id: "template",
+            userID: "system_prebuilt",
+            name: "Three Day Plan",
+            routines: [
+                WorkoutRoutine(id: "a", userID: "system_prebuilt", name: "A", dateCreated: Date()),
+                WorkoutRoutine(id: "b", userID: "system_prebuilt", name: "B", dateCreated: Date()),
+                WorkoutRoutine(id: "c", userID: "system_prebuilt", name: "C", dateCreated: Date())
+            ],
+            daysOfWeek: [2, 4, 6]
+        )
+
+        let userProgram = WorkoutRules.preparePreBuiltProgramForUser(
+            mondayWednesdayFriday,
+            userID: "realUser",
+            startDate: thursday,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(userProgram.startDate, calendar.startOfDay(for: thursday))
+        XCTAssertEqual(userProgram.daysOfWeek, [2, 5, 7])
+        XCTAssertTrue(userProgram.daysOfWeek?.contains(5) == true, "The first scheduled day should match the chosen Thursday start date.")
+    }
+
     func testCreateAIWorkoutPromptGeneratesExpectedString() {
         let prompt = WorkoutRules.createAIWorkoutPrompt(
             goal: "Build Muscle",

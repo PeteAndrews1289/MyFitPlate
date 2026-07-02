@@ -4,6 +4,27 @@ struct WeeklyCheckInView: View {
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
     @Environment(\.dismiss) var dismiss
+    @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits: Bool = Locale.current.measurementSystem != .us
+
+    private var averageIntakeText: String {
+        guard let average = adaptiveGoalService.last21DaysCalorieAverage else { return "--" }
+        return "\(Int(average.rounded()).formatted()) cal/day"
+    }
+
+    private var weightTrendValueText: String {
+        guard let rate = adaptiveGoalService.weightChangeRatePerDay else { return "--" }
+        let weeklyRate = BodyUnits.weightDisplayValue(lbs: rate * 7, metric: useMetricBodyUnits)
+        return weeklyRate.formatted(.number.precision(.fractionLength(2)))
+    }
+
+    private var weightTrendUnitText: String {
+        "\(BodyUnits.weightUnit(metric: useMetricBodyUnits)) / week"
+    }
+
+    private var calculatedTDEEText: String {
+        guard let tdee = adaptiveGoalService.calculatedTDEE else { return "--" }
+        return Int(tdee.rounded()).formatted()
+    }
 
     private var targetDeltaText: String {
         guard let current = goalSettings.calories,
@@ -37,7 +58,7 @@ struct WeeklyCheckInView: View {
             trend = "weight has been mostly stable"
         }
 
-        return "Over the last 21 days, your average logged intake was \(Int(average.rounded())) calories and your \(trend)."
+        return "Over the last 21 days, your average logged intake was \(Int(average.rounded()).formatted()) calories and your \(trend)."
     }
 
     var body: some View {
@@ -58,7 +79,7 @@ struct WeeklyCheckInView: View {
                 .padding()
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Weekly Check-In")
+            .navigationTitle("Weekly check-in")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // Toolbar empty to enforce rigid check-in
@@ -70,12 +91,12 @@ struct WeeklyCheckInView: View {
         VStack(spacing: 12) {
             Image(systemName: "sparkles")
                 .appFont(size: 32, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.orange)
                 .padding()
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(Color(UIColor.secondarySystemFill), in: Circle())
             
-            Text("Time for your check-in!")
-                .appFont(size: 24, weight: .bold)
+            Text("Time for your check-in")
+                .appFont(size: 21, weight: .bold)
                 .foregroundColor(.textPrimary)
             
             Text("We've analyzed your weight and nutrition data from the past 3 weeks to adjust your metabolism estimate.")
@@ -90,7 +111,7 @@ struct WeeklyCheckInView: View {
     private var statsSection: some View {
         VStack(spacing: 16) {
             HStack {
-                Text("Your Data")
+                Text("Your data")
                     .appFont(size: 18, weight: .bold)
                     .foregroundColor(.textPrimary)
                 Spacer()
@@ -104,17 +125,17 @@ struct WeeklyCheckInView: View {
             
             HStack(spacing: 16) {
                 WeeklyCheckInStatCard(
-                    title: "Avg Intake",
-                    value: adaptiveGoalService.last21DaysCalorieAverage != nil ? "\(Int(adaptiveGoalService.last21DaysCalorieAverage!))" : "--",
-                    subtitle: "kcal / day",
+                    title: "Avg intake",
+                    value: averageIntakeText,
+                    subtitle: "last 21 days",
                     icon: "fork.knife",
                     color: .orange
                 )
                 
                 WeeklyCheckInStatCard(
-                    title: "Weight Trend",
-                    value: adaptiveGoalService.weightChangeRatePerDay != nil ? "\(String(format: "%.2f", adaptiveGoalService.weightChangeRatePerDay! * 7))" : "--",
-                    subtitle: "lbs / week",
+                    title: "Weight trend",
+                    value: weightTrendValueText,
+                    subtitle: weightTrendUnitText,
                     icon: "scalemass.fill",
                     color: .teal
                 )
@@ -128,10 +149,10 @@ struct WeeklyCheckInView: View {
                     .foregroundColor(Color(UIColor.secondaryLabel))
                 
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(adaptiveGoalService.calculatedTDEE != nil ? "\(Int(adaptiveGoalService.calculatedTDEE!))" : "--")
+                    Text(calculatedTDEEText)
                         .appFont(size: 48, weight: .heavy)
                         .foregroundColor(.textPrimary)
-                    Text(" kcal")
+                    Text(" cal/day")
                         .appFont(size: 20, weight: .bold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
@@ -147,7 +168,7 @@ struct WeeklyCheckInView: View {
     private var actionSection: some View {
         VStack(spacing: 12) {
             Button(action: acceptTargets) {
-                Text("Use Adaptive Targets")
+                Text("Use adaptive targets")
                     .appFont(size: 17, weight: .bold)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -157,7 +178,7 @@ struct WeeklyCheckInView: View {
             .buttonStyle(.plain)
             
             Button(action: skipCheckIn) {
-                Text("Keep Current Targets This Week")
+                Text("Keep current targets")
                     .appFont(size: 15, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(maxWidth: .infinity)
@@ -173,9 +194,9 @@ struct WeeklyCheckInView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "target")
                     .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.orange)
                     .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Why this target")
@@ -191,11 +212,11 @@ struct WeeklyCheckInView: View {
 
             Text(targetDeltaText)
                 .appFont(size: 13, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.orange)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.brandPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             Text("Accepting keeps the app in adaptive mode. Keeping current targets simply delays the change; your data will keep updating.")
                 .appFont(size: 12)
@@ -212,7 +233,7 @@ struct WeeklyCheckInView: View {
                 .appFont(size: 40)
                 .foregroundColor(.gray)
             
-            Text("Needs More Data")
+            Text("Needs more data")
                 .appFont(size: 20, weight: .bold)
                 .foregroundColor(.textPrimary)
             
@@ -224,10 +245,10 @@ struct WeeklyCheckInView: View {
             Button(action: skipCheckIn) {
                 Text("Check back later")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundColor(.textPrimary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.plain)
             .padding(.top, 8)
@@ -328,7 +349,7 @@ struct TrendDashboardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Weight Trend (21 Days)")
+            Text("Weight trend (21 days)")
                 .appFont(size: 18, weight: .bold)
                 .foregroundColor(.textPrimary)
             
@@ -371,7 +392,7 @@ struct TrendDashboardView: View {
                         )
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [Color.brandPrimary.opacity(0.22), Color.brandPrimary.opacity(0.02)],
+                                colors: [Color.blue.opacity(0.22), Color.blue.opacity(0.02)],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
@@ -382,7 +403,7 @@ struct TrendDashboardView: View {
                             x: .value("Date", item.date),
                             y: .value("Weight", item.weight)
                         )
-                        .foregroundStyle(Color.brandPrimary)
+                        .foregroundStyle(Color.blue)
                         .interpolationMethod(.monotone)
                         .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
                     }

@@ -28,9 +28,9 @@ struct GroceryListView: View {
     
     private var shareText: String {
         let items = groceryList.filter { !$0.isCompleted }
-        guard !items.isEmpty else { return "My Grocery List is empty!" }
+        guard !items.isEmpty else { return "My grocery list is empty." }
         let grouped = Dictionary(grouping: items, by: { $0.category })
-        var text = "🛒 Grocery List\n"
+        var text = "Grocery list\n"
         for category in grouped.keys.sorted() {
             text += "\n\(category):\n"
             if let groupItems = grouped[category] {
@@ -39,7 +39,7 @@ struct GroceryListView: View {
                     formatter.maximumFractionDigits = 2
                     let q = formatter.string(from: NSNumber(value: item.quantity)) ?? "\(item.quantity)"
                     let unit = item.unit == "item" ? "" : item.unit
-                    text += "• \(item.name.capitalized) \(q) \(unit)\n"
+                    text += "- \(item.name.capitalized) \(q) \(unit)\n"
                 }
             }
         }
@@ -79,7 +79,7 @@ struct GroceryListView: View {
                 .frame(maxWidth: .infinity)
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Grocery List")
+            .navigationTitle("Grocery list")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -116,8 +116,8 @@ struct GroceryListView: View {
                     }
                 }
             }
-            .alert("Barcode Error", isPresented: $fetchError.isShowing) {
-                Button("Add Manually") { showingManualItemSheet = true }
+            .alert("Barcode error", isPresented: $fetchError.isShowing) {
+                Button("Add manually") { showingManualItemSheet = true }
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(fetchError.message)
@@ -127,7 +127,7 @@ struct GroceryListView: View {
                 isPresented: $showingClearConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Clear List", role: .destructive, action: clearList)
+                Button("Clear list", role: .destructive, action: clearList)
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This removes every item currently on your grocery list.")
@@ -144,14 +144,14 @@ struct GroceryListView: View {
 
                 VStack(spacing: 12) {
                     ProgressView()
-                        .tint(.brandPrimary)
+                        .tint(.blue)
 
                     VStack(spacing: 3) {
                         Text("Finding item")
                             .appFont(size: 17, weight: .bold)
                             .foregroundColor(.textPrimary)
 
-                        Text("Looking up that barcode...")
+                        Text("Looking up that barcode")
                             .appFont(size: 13, weight: .medium)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     }
@@ -255,7 +255,7 @@ struct GroceryListView: View {
             if !groceryList.isEmpty {
                 Menu {
                     ShareLink(item: shareText) {
-                        Label("Share List", systemImage: "square.and.arrow.up")
+                        Label("Share list", systemImage: "square.and.arrow.up")
                     }
                     
                     Picker(selection: $unitSystem, label: Text("Units")) {
@@ -265,12 +265,12 @@ struct GroceryListView: View {
                     
                     if groceryList.contains(where: \.isCompleted) {
                         Button(role: .destructive, action: clearCompleted) {
-                            Label("Clear Completed", systemImage: "checkmark.circle.badge.xmark")
+                            Label("Clear completed", systemImage: "checkmark.circle.badge.xmark")
                         }
                     }
                     
                     Button(role: .destructive, action: { showingClearConfirmation = true }) {
-                        Label("Clear All", systemImage: "trash")
+                        Label("Clear all", systemImage: "trash")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")

@@ -185,14 +185,43 @@ struct TrainingWeekPreviewCard: View {
         .asCard()
     }
 
-    private func routine(for weekday: Int) -> WorkoutRoutine? {
-        guard let scheduledDays = program.daysOfWeek?.sorted(),
-              let dayIndex = scheduledDays.firstIndex(of: weekday),
+    private var routineByWeekday: [Int: WorkoutRoutine] {
+        guard let scheduledDays = program.daysOfWeek,
+              !scheduledDays.isEmpty,
               !program.routines.isEmpty else {
-            return nil
+            return [:]
         }
 
-        return program.routines[dayIndex % program.routines.count]
+        let normalizedDays = Set(scheduledDays)
+        let calendar = Calendar.current
+
+        if let startDate = program.startDate {
+            var routineMap: [Int: WorkoutRoutine] = [:]
+            var routineIndex = 0
+
+            for offset in 0..<7 {
+                guard let date = calendar.date(byAdding: .day, value: offset, to: startDate) else { continue }
+                let weekday = calendar.component(.weekday, from: date)
+                guard normalizedDays.contains(weekday), routineMap[weekday] == nil else { continue }
+
+                routineMap[weekday] = program.routines[routineIndex % program.routines.count]
+                routineIndex += 1
+
+                if routineMap.count == normalizedDays.count { break }
+            }
+
+            return routineMap
+        }
+
+        let sortedDays = normalizedDays.sorted()
+        return Dictionary(uniqueKeysWithValues: sortedDays.compactMap { weekday in
+            guard let dayIndex = sortedDays.firstIndex(of: weekday) else { return nil }
+            return (weekday, program.routines[dayIndex % program.routines.count])
+        })
+    }
+
+    private func routine(for weekday: Int) -> WorkoutRoutine? {
+        routineByWeekday[weekday]
     }
 
     private func initials(for routineName: String) -> String {

@@ -34,11 +34,11 @@ struct GrocerySummaryCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Shopping Run")
-                        .appFont(size: 24, weight: .bold)
+                    Text("Shopping run")
+                        .appFont(size: 21, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("\(remainingCount) left across \(categoryCount) \(categoryLabel).")
+                    Text("\(remainingCount.formatted()) left across \(categoryCount.formatted()) \(categoryLabel).")
                         .appFont(size: 13, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
@@ -59,9 +59,9 @@ struct GrocerySummaryCard: View {
                     Button(action: onScan) {
                         Image(systemName: "barcode.viewfinder")
                             .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
                             .frame(width: 42, height: 42)
-                            .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                            .background(Color(UIColor.secondarySystemFill), in: Circle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Scan barcode")
@@ -69,9 +69,9 @@ struct GrocerySummaryCard: View {
             }
 
             HStack(spacing: 10) {
-                GroceryMetricTile(title: "Items", value: "\(totalCount)", color: .brandPrimary)
-                GroceryMetricTile(title: "Done", value: "\(completedCount)", color: .accentPositive)
-                GroceryMetricTile(title: "Left", value: "\(remainingCount)", color: .orange)
+                GroceryMetricTile(title: "Items", value: totalCount.formatted(), color: .blue)
+                GroceryMetricTile(title: "Done", value: completedCount.formatted(), color: .accentPositive)
+                GroceryMetricTile(title: "Left", value: remainingCount.formatted(), color: .orange)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -87,7 +87,7 @@ struct GrocerySummaryCard: View {
                 }
                 .frame(height: 8)
 
-                Text(completedCount == totalCount ? "All set for this list." : "\(Int((progress * 100).rounded()))% checked off")
+                Text(completedCount == totalCount ? "All set for this list." : "\(Int((progress * 100).rounded()).formatted())% checked off")
                     .appFont(size: 12, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
@@ -106,15 +106,21 @@ struct GroceryMetricTile: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
                 .appFont(size: 21, weight: .bold)
-                .foregroundColor(color)
+                .foregroundColor(.textPrimary)
                 .lineLimit(1)
 
-            Text(title)
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 6, height: 6)
+
+                Text(title)
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 }

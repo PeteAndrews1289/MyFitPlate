@@ -6,7 +6,7 @@ struct MealScoreCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Yesterday's Report Card")
+                Text("Yesterday's report card")
                     .appFont(size: 17, weight: .semibold)
                 Spacer()
                 Text(score.grade)
@@ -21,9 +21,9 @@ struct MealScoreCard: View {
             Divider()
             
             VStack(spacing: 8) {
-                ScoreRow(title: "Calorie Control", score: score.calorieScore)
-                ScoreRow(title: "Macro Balance", score: score.macroScore)
-                ScoreRow(title: "Food Quality", score: score.qualityScore)
+                ScoreRow(title: "Calorie control", score: score.calorieScore)
+                ScoreRow(title: "Macro balance", score: score.macroScore)
+                ScoreRow(title: "Food quality", score: score.qualityScore)
             }
         }
         .asCard()
@@ -48,7 +48,7 @@ private struct ScoreRow: View {
             Text(title)
                 .appFont(size: 14)
             Spacer()
-            Text("\(score)%")
+            Text("\(score.formatted())%")
                 .appFont(size: 14, weight: .bold)
                 .foregroundColor(scoreColor)
         }

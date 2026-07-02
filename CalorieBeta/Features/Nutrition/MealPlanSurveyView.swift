@@ -7,7 +7,7 @@ struct MealPlanSurveyView: View {
 
     @State private var selectedProteins: Set<String> = ["Chicken"]
     @State private var selectedCarbs: Set<String> = ["Rice"]
-    @State private var selectedVeggies: Set<String> = ["Broccoli", "Bell Peppers", "Onions"]
+    @State private var selectedVeggies: Set<String> = ["Broccoli", "Bell peppers", "Onions"]
     @State private var selectedSnacks: Set<String> = ["Yogurt", "Fruit"]
     @State private var selectedCuisines: Set<String> = ["Any"]
 
@@ -30,10 +30,10 @@ struct MealPlanSurveyView: View {
                     ProgressView(value: Double(currentStep + 1), total: Double(totalSteps))
                         .padding(.horizontal)
                         .padding(.top)
-                        .tint(Color.brandPrimary)
+                        .tint(.blue)
 
                     TabView(selection: $currentStep) {
-                        stepView(title: "Choose Your Proteins", iconName: "fish.fill") {
+                        stepView(title: "Choose proteins", iconName: "fish.fill") {
                             SurveySelectionView(
                                 title: "Proteins",
                                 items: ProteinChoice.allCases.map { $0.rawValue },
@@ -42,7 +42,7 @@ struct MealPlanSurveyView: View {
                             )
                         }.tag(0)
 
-                        stepView(title: "Select Your Carbs", iconName: "bag.fill") {
+                        stepView(title: "Choose carbs", iconName: "bag.fill") {
                             SurveySelectionView(
                                 title: "Carbohydrates",
                                 items: CarbChoice.allCases.map { $0.rawValue },
@@ -51,7 +51,7 @@ struct MealPlanSurveyView: View {
                             )
                         }.tag(1)
 
-                        stepView(title: "Pick Your Vegetables", iconName: "carrot.fill") {
+                        stepView(title: "Choose vegetables", iconName: "carrot.fill") {
                             SurveySelectionView(
                                 title: "Vegetables",
                                 items: VeggieChoice.allCases.map { $0.rawValue },
@@ -60,7 +60,7 @@ struct MealPlanSurveyView: View {
                             )
                         }.tag(2)
 
-                        stepView(title: "Choose Your Snacks", iconName: "fork.knife") {
+                        stepView(title: "Choose snacks", iconName: "fork.knife") {
                             SurveySelectionView(
                                 title: "Snacks",
                                 items: SnackChoice.allCases.map { $0.rawValue },
@@ -69,11 +69,11 @@ struct MealPlanSurveyView: View {
                             )
                         }.tag(3)
 
-                        stepView(title: "Cuisine Influence", iconName: "globe.americas.fill") {
+                        stepView(title: "Cuisine style", iconName: "globe.americas.fill") {
                             CuisineSelectionView(selectedCuisines: $selectedCuisines)
                         }.tag(4)
 
-                        stepView(title: "Cooking Style", iconName: "stove.fill") {
+                        stepView(title: "Cooking style", iconName: "stove.fill") {
                             CookingStyleSelectionView(selectedStyle: $goalSettings.cookingStyle)
                         }.tag(5)
                     }
@@ -91,15 +91,14 @@ struct MealPlanSurveyView: View {
 
                         if currentStep == totalSteps - 1 {
                             Button(action: generateAndSavePlan) {
-                                Label("Generate 7-Day Meal Plan", systemImage: "wand.and.stars")
+                                Label("Generate 7-day meal plan", systemImage: "wand.and.stars")
                             }
                             .buttonStyle(PrimaryButtonStyle())
                             .disabled(isLoading)
                         } else {
                             Button("Next") {
                                 HapticManager.instance.feedback(.light)
-                                withAnimation { currentStep -= 1 }
-                                withAnimation { currentStep += 1 }
+                                withAnimation { currentStep = min(currentStep + 1, totalSteps - 1) }
                             }
                                 .buttonStyle(PrimaryButtonStyle())
                         }
@@ -107,18 +106,23 @@ struct MealPlanSurveyView: View {
                     .padding()
                 }
                 .background(Color.backgroundPrimary.ignoresSafeArea())
-                .navigationTitle("Meal Plan Generator")
+                .navigationTitle("Meal plan generator")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-                .alert("Status", isPresented: $showAlert) {
-                    Button("OK") { if !alertMessage.contains("Error") { dismiss() } }
+                .alert("Meal plan", isPresented: $showAlert) {
+                    Button("OK") {
+                        if alertMessage == "Your 7-day meal plan is ready." {
+                            dismiss()
+                        }
+                    }
                 } message: { Text(alertMessage) }
 
                 if isLoading {
                     Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
                     VStack(spacing: 16) {
                         ProgressView().scaleEffect(1.5)
-                        Text("Generating Your 7-Day Plan...\nThis may take a moment.").multilineTextAlignment(.center)
+                        Text("Generating your 7-day plan\nThis may take a moment.")
+                            .multilineTextAlignment(.center)
                     }
                     .padding(30)
                     .background(Color.black.opacity(0.8))
@@ -135,7 +139,7 @@ struct MealPlanSurveyView: View {
             VStack(spacing: 20) {
                 Image(systemName: iconName)
                     .appFont(size: 40)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
                     .padding(.bottom, 5)
                 Text(title)
                     .font(.title2.bold())
@@ -166,7 +170,7 @@ struct MealPlanSurveyView: View {
 
         Task {
             guard let userID = DIContainer.shared.authService.currentUserID else {
-                handleError("You must be logged in.")
+                handleError("You need to be signed in.")
                 return
             }
 
@@ -181,9 +185,9 @@ struct MealPlanSurveyView: View {
             isLoading = false
 
             if success {
-                alertMessage = "Your 7-day meal plan has been generated!"
+                alertMessage = "Your 7-day meal plan is ready."
             } else {
-                alertMessage = "There was an error generating the plan. The AI may have returned an invalid response. Please try again."
+                alertMessage = "The generated plan could not be saved. Please try again."
             }
             showAlert = true
         }
@@ -230,11 +234,11 @@ private struct SurveySelectionView: View {
                             .appFont(size: 16, weight: .medium)
                             .padding()
                             .frame(maxWidth: .infinity)
-                            .background(selectedItems.contains(item) ? Color.brandPrimary.opacity(0.2) : Color.backgroundSecondary)
+                            .background(selectedItems.contains(item) ? Color.blue.opacity(0.14) : Color.backgroundSecondary)
                             .cornerRadius(12)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(selectedItems.contains(item) ? Color.brandPrimary : Color.clear, lineWidth: 2)
+                                    .stroke(selectedItems.contains(item) ? Color.blue : Color.clear, lineWidth: 2)
                             )
                             .foregroundColor(.textPrimary)
                     }
@@ -316,8 +320,8 @@ private struct CuisineSelectionView: View {
 
 private enum ProteinChoice: String, CaseIterable, Identifiable { case chicken = "Chicken", beef = "Beef", fish = "Fish", tofu = "Tofu", eggs = "Eggs", pork = "Pork"; var id: Self { self } }
 private enum CarbChoice: String, CaseIterable, Identifiable { case rice = "Rice", quinoa = "Quinoa", potatoes = "Potatoes", pasta = "Pasta", bread = "Bread", oats = "Oats"; var id: Self { self } }
-private enum VeggieChoice: String, CaseIterable, Identifiable { case broccoli = "Broccoli", spinach = "Spinach", bellPeppers = "Bell Peppers", onions = "Onions", carrots = "Carrots", zucchini = "Zucchini"; var id: Self { self } }
-private enum SnackChoice: String, CaseIterable, Identifiable { case yogurt = "Yogurt", nuts = "Nuts", fruit = "Fruit", proteinBar = "Protein Bar"; var id: Self { self } }
+private enum VeggieChoice: String, CaseIterable, Identifiable { case broccoli = "Broccoli", spinach = "Spinach", bellPeppers = "Bell peppers", onions = "Onions", carrots = "Carrots", zucchini = "Zucchini"; var id: Self { self } }
+private enum SnackChoice: String, CaseIterable, Identifiable { case yogurt = "Yogurt", nuts = "Nuts", fruit = "Fruit", proteinBar = "Protein bar"; var id: Self { self } }
 
 private struct CookingStyleItem: Identifiable {
     let id: String
@@ -330,9 +334,9 @@ private struct CookingStyleSelectionView: View {
     @Binding var selectedStyle: String
     
     private let styles: [CookingStyleItem] = [
-        CookingStyleItem(id: "Macro-Focused Prep", title: "Macro-Focused Prep", description: "Bulk batch-cooking using heavy proteins and frozen vegetables for maximum convenience.", iconName: "box.truck.fill"),
-        CookingStyleItem(id: "Aesthetic Prep", title: "Aesthetic Prep", description: "Traditional portioned meal-prep containers with structured, discrete meals.", iconName: "takeoutbag.and.cup.and.straw.fill"),
-        CookingStyleItem(id: "Daily Fresh", title: "Daily Fresh", description: "Cooking discrete, varied fresh meals each day.", iconName: "frying.pan.fill"),
+        CookingStyleItem(id: "Macro-Focused Prep", title: "Macro-focused prep", description: "Bulk batch-cooking using heavy proteins and frozen vegetables for maximum convenience.", iconName: "box.truck.fill"),
+        CookingStyleItem(id: "Aesthetic Prep", title: "Aesthetic prep", description: "Traditional portioned meal-prep containers with structured, discrete meals.", iconName: "takeoutbag.and.cup.and.straw.fill"),
+        CookingStyleItem(id: "Daily Fresh", title: "Daily fresh", description: "Cooking discrete, varied fresh meals each day.", iconName: "frying.pan.fill"),
         CookingStyleItem(id: "Flexible", title: "Flexible", description: "A mix of meal-prep and fresh cooking based on the day.", iconName: "shuffle")
     ]
     
@@ -357,9 +361,9 @@ private struct CookingStyleSelectionView: View {
             HStack(spacing: 16) {
                 Image(systemName: style.iconName)
                     .appFont(size: 24)
-                    .foregroundColor(isSelected ? .white : .brandPrimary)
+                    .foregroundColor(isSelected ? .white : .blue)
                     .frame(width: 44, height: 44)
-                    .background(isSelected ? Color.brandPrimary.opacity(0.8) : Color.brandPrimary.opacity(0.1))
+                    .background(isSelected ? Color.blue : Color.blue.opacity(0.1))
                     .clipShape(Circle())
                 
                 VStack(alignment: .leading, spacing: 4) {
@@ -380,11 +384,11 @@ private struct CookingStyleSelectionView: View {
                 }
             }
             .padding()
-            .background(isSelected ? Color.brandPrimary : Color.backgroundSecondary)
+            .background(isSelected ? Color.blue : Color.backgroundSecondary)
             .cornerRadius(16)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(isSelected ? Color.brandPrimary : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
             )
         }
     }

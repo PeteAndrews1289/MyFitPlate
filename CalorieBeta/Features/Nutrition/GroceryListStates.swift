@@ -22,7 +22,7 @@ struct GroceryAllCompleteState: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button("Show Checked Items", action: onShowCompleted)
+            Button("Show checked items", action: onShowCompleted)
                 .buttonStyle(SecondaryButtonStyle())
         }
         .frame(maxWidth: .infinity)
@@ -35,7 +35,7 @@ struct GroceryListLoadingState: View {
     var body: some View {
         VStack(spacing: 13) {
             ProgressView()
-                .tint(.brandPrimary)
+                .tint(.blue)
 
             Text("Loading grocery list")
                 .appFont(size: 17, weight: .bold)
@@ -59,9 +59,9 @@ struct GroceryListEmptyState: View {
         VStack(spacing: 16) {
             Image(systemName: "cart.fill")
                 .appFont(size: 39, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
                 .frame(width: 76, height: 76)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(Color(UIColor.secondarySystemFill), in: Circle())
 
             VStack(spacing: 5) {
                 Text("No grocery list yet")
@@ -77,12 +77,12 @@ struct GroceryListEmptyState: View {
 
             VStack(spacing: 10) {
                 Button(action: onAddManual) {
-                    Label("Add Item", systemImage: "plus")
+                    Label("Add item", systemImage: "plus")
                 }
                 .buttonStyle(PrimaryButtonStyle())
 
                 Button(action: onScan) {
-                    Label("Scan Barcode", systemImage: "barcode.viewfinder")
+                    Label("Scan barcode", systemImage: "barcode.viewfinder")
                 }
                 .buttonStyle(SecondaryButtonStyle())
             }

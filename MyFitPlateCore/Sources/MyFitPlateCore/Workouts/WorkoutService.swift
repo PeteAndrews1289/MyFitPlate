@@ -392,12 +392,16 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
 
     /// Copies a pre-built program and saves it as a user program
     @discardableResult
-    public func selectPreBuiltProgram(_ program: WorkoutProgram) async -> WorkoutProgram? {
+    public func selectPreBuiltProgram(_ program: WorkoutProgram, startDate: Date = Date()) async -> WorkoutProgram? {
         guard let userID = DIContainer.shared.authService.currentUserID else { return nil }
         
         DIContainer.shared.analyticsManager?.logEvent("prebuilt_program_selected", parameters: ["program_name": program.name])
 
-        let userProgramCopy = WorkoutRules.preparePreBuiltProgramForUser(program, userID: userID)
+        let userProgramCopy = WorkoutRules.preparePreBuiltProgramForUser(
+            program,
+            userID: userID,
+            startDate: startDate
+        )
 
         let savedProgram = await saveProgram(userProgramCopy)
         if let savedProgram {

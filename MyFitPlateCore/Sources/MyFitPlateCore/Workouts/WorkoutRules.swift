@@ -118,12 +118,19 @@ public struct WorkoutRules {
     }
 
     /// Prepares a fresh copy of a pre-built program for a user by resetting IDs and clearing completion states.
-    public static func preparePreBuiltProgramForUser(_ program: WorkoutProgram, userID: String) -> WorkoutProgram {
+    public static func preparePreBuiltProgramForUser(
+        _ program: WorkoutProgram,
+        userID: String,
+        startDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> WorkoutProgram {
         var userProgramCopy = program
         userProgramCopy.id = nil
         userProgramCopy.userID = userID
-        userProgramCopy.startDate = Date()
-        userProgramCopy.daysOfWeek = program.daysOfWeek?.isEmpty == false ? program.daysOfWeek : [2, 4, 6]
+        let normalizedStartDate = calendar.startOfDay(for: startDate)
+        let trainingDays = program.daysOfWeek?.isEmpty == false ? program.daysOfWeek ?? [] : [2, 4, 6]
+        userProgramCopy.startDate = normalizedStartDate
+        userProgramCopy.daysOfWeek = alignTrainingDays(trainingDays, toStartDate: normalizedStartDate, calendar: calendar)
         userProgramCopy.currentProgressIndex = 0
         userProgramCopy.dateCreated = Date()
 
@@ -157,6 +164,19 @@ public struct WorkoutRules {
         }
 
         return userProgramCopy
+    }
+
+    static func alignTrainingDays(_ days: [Int], toStartDate startDate: Date, calendar: Calendar = .current) -> [Int] {
+        let sortedDays = Array(Set(days.filter { (1...7).contains($0) })).sorted()
+        guard let firstDay = sortedDays.first else { return [] }
+
+        let startWeekday = calendar.component(.weekday, from: startDate)
+        return sortedDays
+            .map { day in
+                let offsetFromOriginalStart = (day - firstDay + 7) % 7
+                return ((startWeekday + offsetFromOriginalStart - 1) % 7) + 1
+            }
+            .sorted()
     }
 
     /// Maps an AI response model to the domain WorkoutProgram model.

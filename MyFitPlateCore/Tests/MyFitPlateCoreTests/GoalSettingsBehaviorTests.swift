@@ -284,6 +284,53 @@ final class GoalSettingsBehaviorTests: XCTestCase {
     }
 
     @MainActor
+    func testLegacySavedCaloriesWithoutMethodArePreservedAsCustomGoal() async {
+        let settings = makeSettings()
+        let mockRepo = MockSettingsRepository()
+        DIContainer.shared.settingsRepository = mockRepo
+
+        mockRepo.mockFetchUserGoalsResult = [
+            "weight": 180.0,
+            "height": 180.0,
+            "age": 35,
+            "gender": "Male",
+            "goals": [
+                "calories": 2_375.0,
+                "protein": 178.0,
+                "carbs": 297.0,
+                "fats": 53.0,
+                "proteinPercentage": 30.0,
+                "carbsPercentage": 50.0,
+                "fatsPercentage": 20.0,
+                "activityLevel": 1.2,
+                "goal": "Maintain"
+            ]
+        ]
+
+        let loadExpectation = XCTestExpectation(description: "load legacy goals")
+        let saveExpectation = XCTestExpectation(description: "save migrated goal method")
+        mockRepo.onSave = {
+            saveExpectation.fulfill()
+        }
+
+        settings.loadUserGoals(userID: "user_legacy") {
+            loadExpectation.fulfill()
+        }
+
+        await fulfillment(of: [loadExpectation, saveExpectation], timeout: 1.0)
+        await drainMainQueue()
+        await drainMainQueue()
+
+        XCTAssertEqual(settings.calorieGoalMethod, .custom)
+        XCTAssertEqual(settings.calories ?? 0, 2_375, accuracy: 0.001)
+
+        let savedData = mockRepo.savedUserGoals
+        XCTAssertEqual(savedData?["calorieGoalMethod"] as? String, CalorieGoalMethod.custom.rawValue)
+        let goalsMap = savedData?["goals"] as? [String: Any]
+        XCTAssertEqual(goalsMap?["calories"] as? Double ?? 0, 2_375, accuracy: 0.001)
+    }
+
+    @MainActor
     func testLoadUserGoalsBackwardCompatibility() async {
         let settings = makeSettings()
         let mockRepo = MockSettingsRepository()

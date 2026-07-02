@@ -11,11 +11,11 @@ struct GroceryListDisplayControls: View {
                 HapticManager.instance.feedback(.light)
             } label: {
                 Label(
-                    hideCompletedItems ? "Show Done" : "Hide Done",
+                    hideCompletedItems ? "Show done" : "Hide done",
                     systemImage: hideCompletedItems ? "eye.fill" : "eye.slash.fill"
                 )
                 .appFont(size: 13, weight: .bold)
-                .foregroundColor(completedCount == 0 ? Color(UIColor.tertiaryLabel) : .brandPrimary)
+                .foregroundColor(completedCount == 0 ? Color(UIColor.tertiaryLabel) : .blue)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 11)
                 .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
@@ -23,7 +23,7 @@ struct GroceryListDisplayControls: View {
             .buttonStyle(.plain)
             .disabled(completedCount == 0)
 
-            Text("\(completedCount) checked")
+            Text("\(completedCount.formatted()) checked")
                 .appFont(size: 13, weight: .bold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .frame(maxWidth: .infinity)

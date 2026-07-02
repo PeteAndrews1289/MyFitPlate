@@ -9,13 +9,19 @@ struct FoodSearchActionGrid: View {
     let textAction: () -> Void
 
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
-            FoodSearchActionTile(title: "Quick Macros", subtitle: "Instant numbers", icon: "bolt.fill", action: quickAddAction)
-            FoodSearchActionTile(title: "Manual Food", subtitle: "Custom entries", icon: "square.and.pencil", action: manualAction)
-            FoodSearchActionTile(title: "Barcode", subtitle: "Scan package", icon: "barcode.viewfinder", action: barcodeAction)
-            FoodSearchActionTile(title: "Camera", subtitle: "Snap meal", icon: "camera.fill", action: cameraAction)
-            FoodSearchActionTile(title: "Menu", subtitle: "Scan menu", icon: "list.bullet.rectangle.portrait.fill", action: menuAction)
-            FoodSearchActionTile(title: "Describe", subtitle: "Use text", icon: "text.bubble.fill", action: textAction)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("More ways to log")
+                .appFont(size: 13, weight: .bold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
+                FoodSearchActionTile(title: "Quick macros", subtitle: "Instant numbers", icon: "bolt.fill", action: quickAddAction)
+                FoodSearchActionTile(title: "Manual food", subtitle: "Custom entries", icon: "square.and.pencil", action: manualAction)
+                FoodSearchActionTile(title: "Barcode", subtitle: "Scan package", icon: "barcode.viewfinder", action: barcodeAction)
+                FoodSearchActionTile(title: "Camera", subtitle: "Snap meal", icon: "camera.fill", action: cameraAction)
+                FoodSearchActionTile(title: "Menu", subtitle: "Scan menu", icon: "list.bullet.rectangle.portrait.fill", action: menuAction)
+                FoodSearchActionTile(title: "Describe", subtitle: "Use text", icon: "text.bubble.fill", action: textAction)
+            }
         }
     }
 }
@@ -31,9 +37,9 @@ struct FoodSearchActionTile: View {
             VStack(alignment: .leading, spacing: 9) {
                 Image(systemName: icon)
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(width: 34, height: 34)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
@@ -48,7 +54,7 @@ struct FoodSearchActionTile: View {
                         .minimumScaleFactor(0.8)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
             .padding(12)
             .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
@@ -71,7 +77,7 @@ struct YesterdayLogActions: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Copy Yesterday")
+            Text("Copy yesterday")
                 .appFont(size: 13, weight: .bold)
                 .foregroundColor(Color(UIColor.secondaryLabel))
 
@@ -85,7 +91,7 @@ struct YesterdayLogActions: View {
                 )
 
                 yesterdayButton(
-                    title: "Full Day",
+                    title: "Full day",
                     detail: detailText(count: dayItemCount, calories: dayCalories),
                     icon: "calendar.badge.plus",
                     isEnabled: dayItemCount > 0,
@@ -99,7 +105,7 @@ struct YesterdayLogActions: View {
 
     private func detailText(count: Int, calories: Double) -> String {
         guard count > 0 else { return "No items" }
-        return "\(count) items • \(Int(calories.rounded())) cal"
+        return "\(count.formatted()) \(count == 1 ? "item" : "items") • \(Int(calories.rounded()).formatted()) cal"
     }
 
     private func yesterdayButton(title: String, detail: String, icon: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
@@ -107,9 +113,9 @@ struct YesterdayLogActions: View {
             VStack(alignment: .leading, spacing: 8) {
                 Image(systemName: icon)
                     .appFont(size: 15, weight: .bold)
-                    .foregroundColor(isEnabled ? .brandPrimary : Color(UIColor.tertiaryLabel))
+                    .foregroundColor(isEnabled ? Color(UIColor.secondaryLabel) : Color(UIColor.tertiaryLabel))
                     .frame(width: 30, height: 30)
-                    .background((isEnabled ? Color.brandPrimary : Color(UIColor.tertiaryLabel)).opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)

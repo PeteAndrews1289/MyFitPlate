@@ -12,7 +12,7 @@ struct SettingsSectionCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let title = title {
-                Text(title.uppercased())
+                Text(title)
                     .appFont(size: 13, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .padding(.horizontal, 8)
@@ -63,16 +63,23 @@ struct SettingsMetric: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
                 .appFont(size: 15, weight: .bold)
-                .foregroundColor(color)
+                .foregroundColor(.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-            Text(title)
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 6, height: 6)
+
+                Text(title)
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .lineLimit(1)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color.backgroundPrimary.opacity(0.58), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -86,13 +93,13 @@ struct SettingsHeaderCard: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "slider.horizontal.3")
                     .appFont(size: 20, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
                     .frame(width: 46, height: 46)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Personal Settings")
-                        .appFont(size: 24, weight: .bold)
+                    Text("Personal settings")
+                        .appFont(size: 21, weight: .bold)
                         .foregroundColor(.textPrimary)
                     Text("Tune the goals and integrations that power the rest of MyFitPlate.")
                         .appFont(size: 13)
@@ -102,8 +109,8 @@ struct SettingsHeaderCard: View {
             }
 
             HStack(spacing: 10) {
-                SettingsMetric(title: "Calories", value: calorieGoal.map { "\(Int($0.rounded()))" } ?? "--", color: .orange)
-                SettingsMetric(title: "Water", value: "\(Int(waterGoal.rounded())) oz", color: .cyan)
+                SettingsMetric(title: "Calories", value: calorieGoal.map { "\(Int($0.rounded()).formatted()) cal" } ?? "--", color: .orange)
+                SettingsMetric(title: "Water", value: "\(Int(waterGoal.rounded()).formatted()) oz", color: .cyan)
                 SettingsMetric(title: "Height", value: heightText, color: .blue)
             }
         }
@@ -126,14 +133,14 @@ struct DeleteAccountAlerts: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .alert("Confirm Your Password", isPresented: $showingReauthForDelete) {
+            .alert("Confirm your password", isPresented: $showingReauthForDelete) {
                 SecureField("Password", text: $reauthPassword)
                 Button("Cancel", role: .cancel) { reauthPassword = "" }
-                Button("Delete Account", role: .destructive) { onConfirm() }
+                Button("Delete account", role: .destructive) { onConfirm() }
             } message: {
                 Text("For your security, re-enter your password to permanently delete your account.")
             }
-            .alert("Couldn't Delete Account", isPresented: errorBinding) {
+            .alert("Couldn't delete account", isPresented: errorBinding) {
                 Button("OK", role: .cancel) { deleteErrorMessage = nil }
             } message: {
                 Text(deleteErrorMessage ?? "")
@@ -157,8 +164,8 @@ enum SettingsLegalInfoKind {
 
     var title: String {
         switch self {
-        case .privacy: return "Privacy & Data"
-        case .terms: return "Terms & Safety"
+        case .privacy: return "Privacy & data"
+        case .terms: return "Terms & safety"
         }
     }
 
@@ -189,18 +196,18 @@ enum SettingsLegalInfoKind {
         switch self {
         case .privacy:
             return [
-                SettingsLegalSection(title: "Personal Data", body: "MyFitPlate stores account, goal, nutrition, weight, workout, recipe, meal plan, pantry, and progress data so the app can personalize your experience."),
+                SettingsLegalSection(title: "Personal data", body: "MyFitPlate stores account, goal, nutrition, weight, workout, recipe, meal plan, pantry, and progress data so the app can personalize your experience."),
                 SettingsLegalSection(title: "Apple Health", body: "Health data is requested only when you connect Apple Health. You can manage or revoke those permissions in the Health app or iOS Settings."),
-                SettingsLegalSection(title: "AI Features", body: "Maia, food photo analysis, recipe generation, meal planning, and insights may send your prompts and relevant nutrition context to the configured AI service to generate a response."),
+                SettingsLegalSection(title: "AI features", body: "Maia, food photo analysis, recipe generation, meal planning, and insights may send your prompts and relevant nutrition context to the configured AI service to generate a response."),
                 SettingsLegalSection(title: "Analytics", body: "Analytics should be used only to understand app stability and feature health. Keep your App Store privacy labels aligned with the analytics and SDKs actually enabled in the release build."),
-                SettingsLegalSection(title: "Deleting Your Account", body: "The Delete Account action removes the app's stored user data and then attempts to delete the Firebase Authentication account.")
+                SettingsLegalSection(title: "Deleting your account", body: "The Delete account action removes the app's stored user data and then attempts to delete the Firebase Authentication account.")
             ]
         case .terms:
             return [
-                SettingsLegalSection(title: "Not Medical Advice", body: "Nutrition targets, calorie estimates, fasting suggestions, cycle insights, workouts, and AI responses are informational and may not fit every health situation."),
-                SettingsLegalSection(title: "Estimate Accuracy", body: "Food databases, barcode matches, manual entries, and AI-generated estimates can be incomplete or wrong. Review entries before relying on them."),
-                SettingsLegalSection(title: "User Responsibility", body: "Use your judgment and consult a qualified professional before making major diet, exercise, medication, fasting, or weight-change decisions."),
-                SettingsLegalSection(title: "Emergency Care", body: "Do not use MyFitPlate for urgent medical concerns. Contact emergency services or a licensed clinician when immediate care is needed.")
+                SettingsLegalSection(title: "Not medical advice", body: "Nutrition targets, calorie estimates, fasting suggestions, cycle insights, workouts, and AI responses are informational and may not fit every health situation."),
+                SettingsLegalSection(title: "Estimate accuracy", body: "Food databases, barcode matches, manual entries, and AI-generated estimates can be incomplete or wrong. Review entries before relying on them."),
+                SettingsLegalSection(title: "User responsibility", body: "Use your judgment and consult a qualified professional before making major diet, exercise, medication, fasting, or weight-change decisions."),
+                SettingsLegalSection(title: "Emergency care", body: "Do not use MyFitPlate for urgent medical concerns. Contact emergency services or a licensed clinician when immediate care is needed.")
             ]
         }
     }

@@ -67,7 +67,7 @@ struct MealPlanSummaryCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(dateTitle)'s Meal Plan")
+                    Text("\(dateTitle)'s meal plan")
                         .appFont(size: 24, weight: .bold)
                         .foregroundColor(.textPrimary)
 
@@ -80,20 +80,20 @@ struct MealPlanSummaryCard: View {
 
                 Image(systemName: "calendar.badge.clock")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
                     .frame(width: 38, height: 38)
-                    .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                    .background(Color(UIColor.secondarySystemFill), in: Circle())
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                MealPlanMetric(title: "Meals", value: "\(meals.count)", color: .brandPrimary)
-                MealPlanMetric(title: "Calories", value: "\(Int(totalCalories.rounded()))", color: .orange)
-                MealPlanMetric(title: "Protein", value: "\(Int(totalProtein.rounded()))g", color: .accentProtein)
+                MealPlanMetric(title: "Meals", value: meals.count.formatted(), color: .blue)
+                MealPlanMetric(title: "Calories", value: "\(Int(totalCalories.rounded()).formatted()) cal", color: .orange)
+                MealPlanMetric(title: "Protein", value: "\(Int(totalProtein.rounded()).formatted()) g", color: .accentProtein)
             }
 
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("Daily Fit")
+                    Text("Daily fit")
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
 
@@ -163,7 +163,7 @@ struct MealPlanProgressRow: View {
 
                 Spacer()
 
-                Text("\(Int(value.rounded())) / \(Int(goal.rounded())) \(unit)")
+                Text("\(Int(value.rounded()).formatted()) / \(Int(goal.rounded()).formatted()) \(unit)")
                     .appFont(size: 12, weight: .bold)
                     .foregroundColor(.textPrimary)
             }
@@ -192,24 +192,30 @@ struct MealPlanMetric: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(value)
                 .appFont(size: 19, weight: .bold)
-                .foregroundColor(color)
+                .foregroundColor(.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
-            Text(title)
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 6, height: 6)
+
+                Text(title)
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .lineLimit(1)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color.backgroundPrimary.opacity(0.58), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
 struct WeeklyPlanOverviewCard: View {
     let plans: [MealPlanDay]
     let onOpenGrocery: () -> Void
-    let onGenerate: () -> Void
     let onStartMealPrep: () -> Void
 
     private var plannedDays: Int {
@@ -237,11 +243,11 @@ struct WeeklyPlanOverviewCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Week at a Glance")
+                    Text("Week at a glance")
                         .appFont(size: 20, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text(plannedDays == 0 ? "No meals planned yet." : "\(plannedDays) of 7 days planned.")
+                    Text(plannedDays == 0 ? "No meals planned yet." : "\(plannedDays) planned \(plannedDays == 1 ? "day" : "days").")
                         .appFont(size: 13, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
@@ -251,9 +257,9 @@ struct WeeklyPlanOverviewCard: View {
                 Button(action: onOpenGrocery) {
                     Image(systemName: "list.bullet.clipboard")
                         .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                         .frame(width: 38, height: 38)
-                        .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                        .background(Color(UIColor.secondarySystemFill), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Open grocery list")
@@ -265,24 +271,25 @@ struct WeeklyPlanOverviewCard: View {
                         .fill(Color.primary.opacity(0.08))
 
                     Capsule()
-                        .fill(Color.brandPrimary)
+                        .fill(plannedDays >= 7 ? Color.accentPositive : Color.blue)
                         .frame(width: geometry.size.width * progress)
                 }
             }
             .frame(height: 8)
 
             HStack(spacing: 10) {
-                MealPlanMetric(title: "Days", value: "\(plannedDays)/7", color: .brandPrimary)
-                MealPlanMetric(title: "Meals", value: "\(mealCount)", color: .accentPositive)
-                MealPlanMetric(title: "Avg Cal", value: averageCalories > 0 ? "\(Int(averageCalories.rounded()))" : "--", color: .orange)
+                MealPlanMetric(title: "Days", value: plannedDays == 1 ? "1 day" : "\(plannedDays) days", color: .blue)
+                MealPlanMetric(title: "Meals", value: mealCount.formatted(), color: .purple)
+                MealPlanMetric(
+                    title: "Avg calories",
+                    value: averageCalories > 0 ? "\(Int(averageCalories.rounded()).formatted()) cal/day" : "--",
+                    color: .orange
+                )
             }
 
-            if plannedDays == 0 {
-                Button("Generate This Week", action: onGenerate)
-                    .buttonStyle(SecondaryButtonStyle())
-            } else {
+            if plannedDays > 0 {
                 Button(action: onStartMealPrep) {
-                    Label("Start Meal Prep Mode", systemImage: "flame.fill")
+                    Label("Start meal prep", systemImage: "flame.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(SecondaryButtonStyle())
@@ -295,7 +302,7 @@ struct WeeklyPlanOverviewCard: View {
 }
 
 struct MealPlanLoadingState: View {
-    var message: String = "Loading meal plan..."
+    var message: String = "Loading meal plan"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -328,7 +335,6 @@ struct MealPlanLoadingState: View {
             }
         }
         .asCard()
-        // Removed shimmering
     }
 }
 
@@ -340,9 +346,9 @@ struct MealPlannerEmptyState: View {
         VStack(spacing: 16) {
             Image(systemName: "wand.and.stars")
                 .appFont(size: 32, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.orange)
                 .frame(width: 68, height: 68)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(Color(UIColor.secondarySystemFill), in: Circle())
 
             VStack(spacing: 5) {
                 Text("No plan for this day yet")
@@ -357,10 +363,10 @@ struct MealPlannerEmptyState: View {
             }
 
             VStack(spacing: 10) {
-                Button("Generate Meal Plan", action: onGenerate)
+                Button("Generate meal plan", action: onGenerate)
                     .buttonStyle(PrimaryButtonStyle())
 
-                Button("Add Saved Recipe", action: onAddRecipe)
+                Button("Add saved recipe", action: onAddRecipe)
                     .buttonStyle(SecondaryButtonStyle())
             }
         }
@@ -379,15 +385,15 @@ struct MealCardView: View {
     var onDelete: () -> Void
 
     private var displayName: String {
-        meal.foodItem?.name ?? "Unnamed Meal"
+        meal.foodItem?.name ?? "Unnamed meal"
     }
 
     private var sourceLabel: String {
-        meal.recipeID == nil ? "AI Plan" : "Recipe"
+        meal.recipeID == nil ? "AI plan" : "Recipe"
     }
 
     private var sourceColor: Color {
-        meal.recipeID == nil ? .brandPrimary : .accentPositive
+        meal.recipeID == nil ? .orange : .blue
     }
 
     private var mealIcon: String {
@@ -410,9 +416,9 @@ struct MealCardView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: mealIcon)
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.orange)
                     .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
@@ -449,20 +455,20 @@ struct MealCardView: View {
 
             if let foodItem = meal.foodItem {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    nutrientPill(label: "Cal", value: foodItem.calories, color: .red)
-                    nutrientPill(label: "P", value: foodItem.protein, color: .accentProtein)
-                    nutrientPill(label: "C", value: foodItem.carbs, color: .accentCarbs)
-                    nutrientPill(label: "F", value: foodItem.fats, color: .accentFats)
+                    nutrientPill(label: "Cal", valueText: "\(Int(foodItem.calories.rounded()).formatted()) cal", color: .orange)
+                    nutrientPill(label: "Protein", valueText: "\(Int(foodItem.protein.rounded()).formatted()) g", color: .accentProtein)
+                    nutrientPill(label: "Carbs", valueText: "\(Int(foodItem.carbs.rounded()).formatted()) g", color: .accentCarbs)
+                    nutrientPill(label: "Fats", valueText: "\(Int(foodItem.fats.rounded()).formatted()) g", color: .accentFats)
                 }
             }
 
             if let ingredients = meal.ingredients, let instructions = meal.instructions, !ingredients.isEmpty, !instructions.isEmpty {
-                DisclosureGroup("View Recipe") {
+                DisclosureGroup("View recipe") {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Ingredients")
                             .appFont(size: 15, weight: .semibold)
                         ForEach(ingredients, id: \.self) { ingredient in
-                            Text("• \(ingredient)").appFont(size: 14)
+                            Text("- \(ingredient)").appFont(size: 14)
                         }
 
                         Text("Instructions")
@@ -472,27 +478,27 @@ struct MealCardView: View {
                     }
                     .padding(.top, 8)
                 }
-                .tint(.brandPrimary)
+                .tint(.blue)
             }
 
             HStack(spacing: 10) {
                 Button(action: { onLog(meal) }) {
-                    Label(isLogged ? "Logged" : "Log Meal", systemImage: isLogged ? "checkmark.circle.fill" : "plus.circle.fill")
+                    Label(isLogged ? "Logged" : "Log meal", systemImage: isLogged ? "checkmark.circle.fill" : "plus.circle.fill")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
                 .tint(isLogged ? .accentPositive : .brandPrimary)
                 .disabled(isLogged)
 
                 Button(action: onRegenerate) {
                     if isRegenerating {
                         ProgressView()
-                            .tint(.brandPrimary)
+                            .tint(Color(UIColor.secondaryLabel))
                     } else {
                         Label("Regenerate", systemImage: "arrow.triangle.2.circlepath")
                     }
                 }
                 .buttonStyle(.bordered)
-                .tint(.brandPrimary)
+                .tint(Color(UIColor.secondaryLabel))
                 .disabled(isRegenerating)
             }
             .padding(.top, 5)
@@ -502,14 +508,16 @@ struct MealCardView: View {
     }
 
     @ViewBuilder
-    private func nutrientPill(label: String, value: Double, color: Color) -> some View {
+    private func nutrientPill(label: String, valueText: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .appFont(size: 10, weight: .bold)
                 .foregroundColor(color)
-            Text(String(format: "%.0f", value))
+            Text(valueText)
                 .appFont(size: 13, weight: .bold)
                 .foregroundColor(.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
@@ -537,7 +545,7 @@ struct WeekView: View {
                 VStack(spacing: 7) {
                     Text(dayOfWeek(for: date))
                         .appFont(size: 11, weight: .semibold)
-                        .foregroundColor(isSelected ? .brandPrimary : Color(UIColor.secondaryLabel))
+                        .foregroundColor(isSelected ? .blue : Color(UIColor.secondaryLabel))
 
                     Text(dayOfMonth(for: date))
                         .appFont(size: 17, weight: .bold)
@@ -546,7 +554,7 @@ struct WeekView: View {
                             Group {
                                 if isSelected {
                                     Circle()
-                                        .fill(Color.brandPrimary)
+                                        .fill(Color.blue)
                                         .matchedGeometryEffect(id: "selectedDay", in: animationNamespace)
                                 } else {
                                     Circle().fill(Color.clear)
@@ -558,15 +566,15 @@ struct WeekView: View {
                     if mealCount > 0 {
                         Text("\(mealCount)")
                             .appFont(size: 10, weight: .bold)
-                            .foregroundColor(isSelected ? .brandPrimary : .accentPositive)
+                            .foregroundColor(isSelected ? .blue : Color(UIColor.secondaryLabel))
                             .frame(width: 26, height: 16)
                             .background(
-                                (isSelected ? Color.brandPrimary.opacity(0.14) : Color.accentPositive.opacity(0.16)),
+                                (isSelected ? Color.blue.opacity(0.14) : Color(UIColor.secondarySystemFill)),
                                 in: Capsule()
                             )
                     } else if isToday {
                         Capsule()
-                            .fill(isSelected ? Color.brandPrimary.opacity(0.2) : Color.accentPositive.opacity(0.18))
+                            .fill(isSelected ? Color.blue.opacity(0.2) : Color.brandPrimary.opacity(0.18))
                             .frame(width: 26, height: 4)
                     } else {
                         Capsule()
@@ -575,7 +583,7 @@ struct WeekView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, minHeight: 82)
-                .background(isSelected ? Color.brandPrimary.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(isSelected ? Color.blue.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .onTapGesture {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedDate = date }

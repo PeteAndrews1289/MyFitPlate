@@ -150,12 +150,12 @@ struct WorkoutPlayerView: View {
                         } label: {
                             Label("Add Exercise", systemImage: "plus.circle.fill")
                                 .appFont(size: 15, weight: .semibold)
-                                .foregroundColor(.brandPrimary)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
                                 .background(
                                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .strokeBorder(Color.brandPrimary.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                                        .strokeBorder(Color.primary.opacity(0.16), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
                                 )
                         }
                         .buttonStyle(.plain)

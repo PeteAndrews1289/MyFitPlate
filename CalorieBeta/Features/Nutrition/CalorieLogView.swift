@@ -35,7 +35,7 @@ struct CalorieLogView: View {
             .padding(.bottom, 28)
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Calorie Log")
+        .navigationTitle("Calorie log")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: { showingAddFoodView = true }) {
@@ -43,7 +43,6 @@ struct CalorieLogView: View {
                 }
             }
         }
-        // FIXED: Updated to use the new AddFoodView initializer
         .sheet(isPresented: $showingAddFoodView) {
             AddFoodView(
                 initialFoodItem: FoodItem(
@@ -64,7 +63,6 @@ struct CalorieLogView: View {
                 }
             )
         }
-        // FIXED: Added sheet for editing existing items
         .sheet(item: $foodToEdit) { item in
             AddFoodView(
                 initialFoodItem: item,
@@ -96,11 +94,11 @@ private struct CalorieLogSummaryCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Today Logged")
+                    Text("Today logged")
                         .appFont(size: 23, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("\(log.meals.flatMap(\.foodItems).count) foods across \(log.meals.filter { !$0.foodItems.isEmpty }.count) meals")
+                    Text("\(log.meals.flatMap(\.foodItems).count.formatted()) foods across \(log.meals.filter { !$0.foodItems.isEmpty }.count.formatted()) meals")
                         .appFont(size: 13, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
@@ -109,14 +107,34 @@ private struct CalorieLogSummaryCard: View {
 
                 Image(systemName: "fork.knife.circle.fill")
                     .appFont(size: 28, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                CalorieLogMetric(title: "Calories", value: "\(Int(log.totalCalories().rounded()))", unit: "cal", color: .orange)
-                CalorieLogMetric(title: "Protein", value: "\(Int(macros.protein.rounded()))", unit: "g", color: .accentProtein)
-                CalorieLogMetric(title: "Carbs", value: "\(Int(macros.carbs.rounded()))", unit: "g", color: .accentCarbs)
-                CalorieLogMetric(title: "Fat", value: "\(Int(macros.fats.rounded()))", unit: "g", color: .accentFats)
+                CalorieLogMetric(
+                    title: "Calories",
+                    value: Int(log.totalCalories().rounded()).formatted(),
+                    unit: "cal",
+                    color: .orange
+                )
+                CalorieLogMetric(
+                    title: "Protein",
+                    value: Int(macros.protein.rounded()).formatted(),
+                    unit: "g",
+                    color: .accentProtein
+                )
+                CalorieLogMetric(
+                    title: "Carbs",
+                    value: Int(macros.carbs.rounded()).formatted(),
+                    unit: "g",
+                    color: .accentCarbs
+                )
+                CalorieLogMetric(
+                    title: "Fat",
+                    value: Int(macros.fats.rounded()).formatted(),
+                    unit: "g",
+                    color: .accentFats
+                )
             }
         }
         .padding(18)
@@ -171,7 +189,7 @@ private struct CalorieLogMealSection: View {
                         .appFont(size: 19, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("\(meal.foodItems.count) items - \(Int(calories.rounded())) cal")
+                    Text("\(meal.foodItems.count.formatted()) items - \(Int(calories.rounded()).formatted()) cal")
                         .appFont(size: 12, weight: .semibold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
@@ -204,7 +222,10 @@ private struct CalorieLogFoodRow: View {
                     Text(FoodEmojiMapper.getEmoji(for: foodItem.name))
                         .appFont(size: 23)
                         .frame(width: 42, height: 42)
-                        .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(
+                            Color(.secondarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        )
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(foodItem.name)
@@ -226,7 +247,7 @@ private struct CalorieLogFoodRow: View {
 
                     Spacer(minLength: 4)
 
-                    Text("\(Int(foodItem.calories.rounded()))")
+                    Text(Int(foodItem.calories.rounded()).formatted())
                         .appFont(size: 17, weight: .bold)
                         .foregroundColor(.orange)
                 }
@@ -254,7 +275,7 @@ private struct CalorieLogMacroText: View {
     let color: Color
 
     var body: some View {
-        Text("\(label) \(Int(value.rounded()))g")
+        Text("\(label) \(Int(value.rounded()).formatted()) g")
             .appFont(size: 11, weight: .bold)
             .foregroundColor(color)
     }
@@ -267,7 +288,7 @@ private struct CalorieLogEmptyState: View {
         VStack(spacing: 16) {
             Image(systemName: "fork.knife.circle.fill")
                 .appFont(size: 42, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
 
             VStack(spacing: 5) {
                 Text("No foods logged yet")
@@ -281,7 +302,7 @@ private struct CalorieLogEmptyState: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button("Add Food", action: onAdd)
+            Button("Add food", action: onAdd)
                 .buttonStyle(PrimaryButtonStyle())
         }
         .frame(maxWidth: .infinity)

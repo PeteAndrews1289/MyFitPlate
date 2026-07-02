@@ -48,7 +48,7 @@ struct FoodSearchView: View {
                 }
                 .background(Color.backgroundPrimary.ignoresSafeArea())
                 .scrollDismissesKeyboard(.interactively)
-                .navigationTitle(onFoodItemSelected == nil ? "Log Food" : "Select Ingredient")
+                .navigationTitle(onFoodItemSelected == nil ? "Log food" : "Select ingredient")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -164,9 +164,9 @@ struct FoodSearchView: View {
                 .sheet(item: $estimatedMenuWrapper) { wrapper in
                      AIMenuSelectionView(estimatedItems: .constant(wrapper.items))
                 }
-                .alert("Scan Error", isPresented: $scanError.0) {
-                    Button("Create Food") { showingAddFoodManually = true }
-                    Button("Use Camera") { showingImagePicker = true }
+                .alert("Scan error", isPresented: $scanError.0) {
+                    Button("Create food") { showingAddFoodManually = true }
+                    Button("Use camera") { showingImagePicker = true }
                     Button("OK", role: .cancel) {}
                 } message: {
                     Text(scanError.1)
@@ -174,7 +174,7 @@ struct FoodSearchView: View {
 
                 if isProcessingImage || isSearchingAfterScan {
                     Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
-                    ProgressView(isProcessingImage ? "Analyzing Image..." : "Searching Barcode...")
+                    ProgressView(isProcessingImage ? "Analyzing image" : "Searching barcode")
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .foregroundColor(.white)
                         .padding(20)
@@ -189,7 +189,7 @@ struct FoodSearchView: View {
     private var smartHistoryContent: some View {
         if onFoodItemSelected == nil && !viewModel.isSearching && !viewModel.recommendedFoods.isEmpty {
             FoodHorizontalScroller(
-                title: "Smart History",
+                title: "Smart history",
                 subtitle: "Based on \(viewModel.selectedMeal) and past logging.",
                 foods: viewModel.recommendedFoods,
                 quickLoggedFoodIDs: viewModel.quickLoggedFoodIDs,
@@ -233,7 +233,7 @@ struct FoodSearchView: View {
     private var searchHeaderContent: some View {
         FoodSearchHeader(
             searchText: $viewModel.searchText,
-            placeholder: onFoodItemSelected == nil ? "Search foods, meals, brands..." : "Search ingredients...",
+            placeholder: onFoodItemSelected == nil ? "Search foods, meals, brands" : "Search ingredients",
             onClear: {
                 viewModel.searchText = ""
                 viewModel.handleSearchQueryChange("")
@@ -246,9 +246,13 @@ struct FoodSearchView: View {
     }
 
     @ViewBuilder
-    private var compactMealPickerContent: some View {
-        if onFoodItemSelected == nil && viewModel.isSearching {
-            FoodSearchCompactMealPicker(selectedMeal: $viewModel.selectedMeal, foodTypes: ["Breakfast", "Lunch", "Dinner", "Snacks"])
+    private var mealTargetContent: some View {
+        if onFoodItemSelected == nil {
+            if viewModel.isSearching {
+                FoodSearchCompactMealPicker(selectedMeal: $viewModel.selectedMeal, foodTypes: ["Breakfast", "Lunch", "Dinner", "Snacks"])
+            } else {
+                FoodSearchMealPicker(selectedMeal: $viewModel.selectedMeal, foodTypes: ["Breakfast", "Lunch", "Dinner", "Snacks"])
+            }
         }
     }
 
@@ -263,8 +267,6 @@ struct FoodSearchView: View {
                 barcodeAction: { showingBarcodeScanner = true },
                 textAction: { showingAITextLog = true }
             )
-
-            FoodSearchMealPicker(selectedMeal: $viewModel.selectedMeal, foodTypes: ["Breakfast", "Lunch", "Dinner", "Snacks"])
 
             if viewModel.hasYesterdayFoods {
                 YesterdayLogActions(
@@ -282,10 +284,10 @@ struct FoodSearchView: View {
 
     @ViewBuilder
     private var mainActionContent: some View {
-        smartHistoryContent
         searchHeaderContent
-        compactMealPickerContent
+        mealTargetContent
         actionGridContent
+        smartHistoryContent
     }
 
     @ViewBuilder
@@ -294,7 +296,7 @@ struct FoodSearchView: View {
 
         if !trustedResults.isEmpty {
             FoodPickerSection(
-                title: "Best Matches",
+                title: "Best matches",
                 subtitle: "Saved and recent foods from your history.",
                 foods: trustedResults,
                 quickLoggedFoodIDs: viewModel.quickLoggedFoodIDs,
@@ -327,7 +329,7 @@ struct FoodSearchView: View {
             )
         } else if !viewModel.searchResults.isEmpty {
             FoodPickerSection(
-                title: "Search Results",
+                title: "Search results",
                 subtitle: "Tap a food to review servings before logging to \(viewModel.selectedMeal).",
                 foods: viewModel.searchResults,
                 quickLoggedFoodIDs: viewModel.quickLoggedFoodIDs,
@@ -343,7 +345,7 @@ struct FoodSearchView: View {
     @ViewBuilder
     private var savedAndRecentFoodsContent: some View {
         FoodHorizontalScroller(
-            title: "My Foods",
+            title: "My foods",
             subtitle: "Saved foods with your usual serving.",
             foods: viewModel.savedFoods,
             quickLoggedFoodIDs: viewModel.quickLoggedFoodIDs,
@@ -354,7 +356,7 @@ struct FoodSearchView: View {
         )
 
         FoodHorizontalScroller(
-            title: "Recent Foods",
+            title: "Recent foods",
             subtitle: "Your fastest path for repeat meals.",
             foods: viewModel.recentFoods,
             quickLoggedFoodIDs: viewModel.quickLoggedFoodIDs,

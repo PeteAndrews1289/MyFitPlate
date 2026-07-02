@@ -86,7 +86,12 @@ public class GoalSettings: ObservableObject {
     @Published public var waterGoal: Double = 64.0
     
     // Calculation Method
-    @Published public var calorieGoalMethod: CalorieGoalMethod = .mifflinWithActivity { didSet { recalculateAllGoals() } }
+    @Published public var calorieGoalMethod: CalorieGoalMethod = .mifflinWithActivity {
+        didSet {
+            guard !isHydratingPersistedGoals else { return }
+            recalculateAllGoals()
+        }
+    }
     @Published public var suggestionProteins: [String] = ["Chicken", "Beef", "Fish"]
     @Published public var suggestionCuisines: [String] = ["Any"]
     @Published public var suggestionCarbs: [String] = ["Rice", "Potatoes", "Pasta"]
@@ -98,6 +103,7 @@ public class GoalSettings: ObservableObject {
 
     private var weightHistoryCancellable: AnyCancellable?
     private var cancellables = Set<AnyCancellable>()
+    private var isHydratingPersistedGoals = false
     public weak var dailyLogService: DailyLogService?
     public weak var adaptiveGoalService: AdaptiveGoalService?
 
@@ -227,12 +233,21 @@ public class GoalSettings: ObservableObject {
             var shouldUpdateFirestore = false
             
             if var data = data {
+                self.isHydratingPersistedGoals = true
+                defer { self.isHydratingPersistedGoals = false }
+
                 // Load core stats
                 if data["weight"] == nil { data["weight"] = self.weight; shouldUpdateFirestore = true }
                 if data["height"] == nil { data["height"] = self.height; shouldUpdateFirestore = true }
                 if data["age"] == nil { data["age"] = self.age; shouldUpdateFirestore = true }
                 if data["gender"] == nil { data["gender"] = self.gender; shouldUpdateFirestore = true }
-                if data["calorieGoalMethod"] == nil { data["calorieGoalMethod"] = self.calorieGoalMethod.rawValue; shouldUpdateFirestore = true }
+                var goalsMap = data["goals"] as? [String: Any] ?? [:]
+                let savedCalories = goalsMap["calories"] as? Double
+                if data["calorieGoalMethod"] == nil {
+                    let inferredMethod: CalorieGoalMethod = (savedCalories ?? 0) > 0 ? .custom : self.calorieGoalMethod
+                    data["calorieGoalMethod"] = inferredMethod.rawValue
+                    shouldUpdateFirestore = true
+                }
 
                 self.weight = data["weight"] as? Double ?? self.weight
                 self.height = data["height"] as? Double ?? self.height
@@ -241,9 +256,7 @@ public class GoalSettings: ObservableObject {
                 if let methodStr = data["calorieGoalMethod"] as? String {
                     self.calorieGoalMethod = CalorieGoalMethod(rawValue: methodStr) ?? self.calorieGoalMethod
                 }
-                
-                var goalsMap = data["goals"] as? [String: Any] ?? [:]
-                
+
                 // Load or default new fields
                 if goalsMap["proteinPercentage"] == nil { goalsMap["proteinPercentage"] = self.proteinPercentage; shouldUpdateFirestore = true }
                 if goalsMap["carbsPercentage"] == nil { goalsMap["carbsPercentage"] = self.carbsPercentage; shouldUpdateFirestore = true }
@@ -299,7 +312,7 @@ public class GoalSettings: ObservableObject {
                 // Restore saved calorie/macro targets so CUSTOM goals survive launch — the .custom
                 // method preserves self.calories instead of recomputing, so without this a custom
                 // user gets reset to the 2000 default every cold start.
-                if let savedCalories = goalsMap["calories"] as? Double, savedCalories > 0 {
+                if let savedCalories, savedCalories > 0 {
                     self.calories = savedCalories
                 }
                 self.protein = goalsMap["protein"] as? Double ?? self.protein

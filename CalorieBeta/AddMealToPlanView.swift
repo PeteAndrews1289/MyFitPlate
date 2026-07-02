@@ -83,7 +83,7 @@ struct AddMealToPlanView: View {
                 }
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Add Meal")
+            .navigationTitle("Add meal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -225,12 +225,12 @@ private struct AddMealToPlanHero: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "calendar.badge.plus")
                     .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
                     .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Add a Saved Recipe")
+                    Text("Add a saved recipe")
                         .appFont(size: 24, weight: .bold)
                         .foregroundColor(.textPrimary)
 
@@ -277,9 +277,9 @@ private struct AddMealTypePicker: View {
                         .appFont(size: 13, weight: .bold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
-                        .foregroundColor(selectedMealType == mealType ? .brandPrimary : Color(UIColor.secondaryLabel))
+                        .foregroundColor(selectedMealType == mealType ? .blue : Color(UIColor.secondaryLabel))
                         .background(
-                            selectedMealType == mealType ? Color.brandPrimary.opacity(0.14) : Color.clear,
+                            selectedMealType == mealType ? Color.blue.opacity(0.14) : Color.clear,
                             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
                         )
                 }
@@ -322,8 +322,8 @@ private struct AddMealSlotModeCard: View {
             }
 
             Picker("Add mode", selection: $replaceExistingMealType) {
-                Text("Add Alongside").tag(false)
-                Text("Replace Slot").tag(true)
+                Text("Add alongside").tag(false)
+                Text("Replace slot").tag(true)
             }
             .pickerStyle(.segmented)
         }
@@ -339,9 +339,9 @@ private struct AddMealRecipeSearchField: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .appFont(size: 17, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(Color(UIColor.secondaryLabel))
 
-            TextField("Search recipes or ingredients...", text: $searchText)
+            TextField("Search recipes or ingredients", text: $searchText)
                 .textInputAutocapitalization(.words)
 
             if !searchText.isEmpty {
@@ -377,7 +377,7 @@ private struct AddMealRecipeCard: View {
             Text(FoodEmojiMapper.getEmoji(for: recipe.name))
                 .appFont(size: 27)
                 .frame(width: 50, height: 50)
-                .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(recipe.name)
@@ -389,9 +389,9 @@ private struct AddMealRecipeCard: View {
                     .appFont(size: 12, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
 
-                Text("Cal \(Int(recipe.nutrition.calories.rounded()))  P \(Int(recipe.nutrition.protein.rounded()))g  C \(Int(recipe.nutrition.carbs.rounded()))g  F \(Int(recipe.nutrition.fats.rounded()))g")
+                Text("Cal \(Int(recipe.nutrition.calories.rounded()).formatted())  P \(Int(recipe.nutrition.protein.rounded()).formatted())g  C \(Int(recipe.nutrition.carbs.rounded()).formatted())g  F \(Int(recipe.nutrition.fats.rounded()).formatted())g")
                     .appFont(size: 11, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
@@ -401,16 +401,16 @@ private struct AddMealRecipeCard: View {
             Button(action: onAdd) {
                 if isSaving {
                     ProgressView()
-                        .tint(.white)
+                        .tint(.brandPrimary)
                         .frame(width: 42, height: 42)
                 } else {
                     Image(systemName: "plus")
                         .appFont(size: 18, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(.brandPrimary)
                         .frame(width: 42, height: 42)
                 }
             }
-            .background(Color.brandPrimary, in: Circle())
+            .background(Color(UIColor.secondarySystemFill), in: Circle())
             .buttonStyle(.plain)
             .disabled(isSaving)
             .accessibilityLabel("Add \(recipe.name) to \(mealType)")
@@ -446,9 +446,9 @@ private struct AddMealToPlanEmptyState: View {
         VStack(spacing: 16) {
             Image(systemName: "book.closed.fill")
                 .appFont(size: 40, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
                 .frame(width: 76, height: 76)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(Color(UIColor.secondarySystemFill), in: Circle())
 
             VStack(spacing: 5) {
                 Text("No saved recipes yet")
@@ -462,7 +462,7 @@ private struct AddMealToPlanEmptyState: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button("Create Recipe", action: onCreate)
+            Button("Create recipe", action: onCreate)
                 .buttonStyle(PrimaryButtonStyle())
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -477,9 +477,9 @@ private struct AddMealNoMatchesState: View {
         VStack(spacing: 11) {
             Image(systemName: "magnifyingglass")
                 .appFont(size: 22, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(Color(UIColor.secondaryLabel))
                 .frame(width: 48, height: 48)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(Color(UIColor.secondarySystemFill), in: Circle())
 
             Text("No matching recipes")
                 .appFont(size: 16, weight: .bold)

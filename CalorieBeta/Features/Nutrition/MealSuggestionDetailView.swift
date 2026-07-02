@@ -14,7 +14,7 @@ struct MealSuggestionDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(suggestion.mealName)
                             .appFont(size: 28, weight: .bold)
-                        Text("Est: \(String(format: "%.0f", suggestion.calories)) cal, P:\(String(format: "%.0f", suggestion.protein))g, C:\(String(format: "%.0f", suggestion.carbs))g, F:\(String(format: "%.0f", suggestion.fats))g")
+                        Text("Estimate: \(formatted(suggestion.calories)) cal, P \(formatted(suggestion.protein)) g, C \(formatted(suggestion.carbs)) g, F \(formatted(suggestion.fats)) g")
                             .appFont(size: 15)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     }
@@ -23,7 +23,7 @@ struct MealSuggestionDetailView: View {
                         Text("Ingredients")
                             .appFont(size: 20, weight: .semibold)
                         ForEach(suggestion.ingredients, id: \.self) { ingredient in
-                            Text("• \(ingredient)")
+                            Text("- \(ingredient)")
                                 .appFont(size: 16)
                         }
                     }
@@ -41,7 +41,7 @@ struct MealSuggestionDetailView: View {
                         onLog(suggestion)
                         dismiss()
                     } label: {
-                        Label("Log This Meal", systemImage: "plus.circle.fill")
+                        Label("Log this meal", systemImage: "plus.circle.fill")
                     }
                     .buttonStyle(PrimaryButtonStyle())
                     .padding(.top)
@@ -49,7 +49,7 @@ struct MealSuggestionDetailView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Meal Suggestion")
+            .navigationTitle("Meal suggestion")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -57,5 +57,9 @@ struct MealSuggestionDetailView: View {
                 }
             }
         }
+    }
+
+    private func formatted(_ value: Double) -> String {
+        Int(value.rounded()).formatted()
     }
 }

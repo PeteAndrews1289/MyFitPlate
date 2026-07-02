@@ -73,7 +73,9 @@ public class MockWorkoutService: WorkoutServicing {
         return nil
     }
     
-    public func selectPreBuiltProgram(_ program: WorkoutProgram) async -> WorkoutProgram? {
-        return program
+    public func selectPreBuiltProgram(_ program: WorkoutProgram, startDate: Date) async -> WorkoutProgram? {
+        var selectedProgram = program
+        selectedProgram.startDate = startDate
+        return selectedProgram
     }
 }

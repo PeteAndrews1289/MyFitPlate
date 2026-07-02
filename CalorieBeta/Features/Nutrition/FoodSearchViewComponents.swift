@@ -13,8 +13,8 @@ struct FoodSearchRow: View {
     }
 
     private var detailText: String {
-        let cal = Int(food.calories.rounded())
-        let pro = Int(food.protein.rounded())
+        let cal = Int(food.calories.rounded()).formatted()
+        let pro = Int(food.protein.rounded()).formatted()
         return "\(cal) cal • \(pro)g P"
     }
 
@@ -24,7 +24,7 @@ struct FoodSearchRow: View {
                     Text(FoodEmojiMapper.getEmoji(for: food.name))
                         .appFont(size: 23)
                         .frame(width: 42, height: 42)
-                        .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(food.name)
@@ -39,7 +39,7 @@ struct FoodSearchRow: View {
 
                         Text(detailText)
                             .appFont(size: 11, weight: .semibold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
                             .lineLimit(1)
                     }
 
@@ -60,9 +60,13 @@ struct FoodSearchRow: View {
                     Button(action: { onQuickLog(food) }) {
                         Image(systemName: isQuickLogged ? "checkmark" : "plus")
                             .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.white)
+                            .foregroundColor(isQuickLogged ? .white : .brandPrimary)
                             .frame(width: 36, height: 36)
-                            .background(isQuickLogged ? Color.accentPositive : Color.brandPrimary, in: Circle())
+                            .background(isQuickLogged ? Color.accentPositive : Color.clear, in: Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(isQuickLogged ? Color.clear : Color.brandPrimary.opacity(0.55), lineWidth: 1.4)
+                            )
                     }
                     .buttonStyle(.plain)
                     .disabled(isQuickLogged)
@@ -162,9 +166,9 @@ struct FoodCard: View {
                             generator.impactOccurred()
                             onQuickLog(food)
                         }) {
-                            Image(systemName: isQuickLogged ? "checkmark.circle.fill" : "plus.circle.fill")
+                            Image(systemName: isQuickLogged ? "checkmark.circle.fill" : "plus.circle")
                                 .appFont(size: 24)
-                                .foregroundColor(isQuickLogged ? .accentPositive : .brandPrimary)
+                                .foregroundColor(isQuickLogged ? .accentPositive : Color(UIColor.secondaryLabel))
                         }
                         .disabled(isQuickLogged)
                         .accessibilityLabel(isQuickLogged ? "\(food.name) logged" : "Quick log \(food.name)")
@@ -185,9 +189,9 @@ struct FoodCard: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .lineLimit(1)
 
-                    Text("\(Int(food.calories.rounded())) cal")
+                    Text("\(Int(food.calories.rounded()).formatted()) cal")
                         .appFont(size: 13, weight: .medium)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.orange)
                 }
             }
             .padding(14)
@@ -204,7 +208,7 @@ struct FoodSearchLoadingState: View {
     var body: some View {
         VStack(spacing: 13) {
             ProgressView()
-                .tint(.brandPrimary)
+                .tint(Color(UIColor.secondaryLabel))
 
             Text("Searching foods")
                 .appFont(size: 17, weight: .bold)
@@ -230,9 +234,9 @@ struct FoodSearchEmptyState: View {
         VStack(spacing: 11) {
             Image(systemName: icon)
                 .appFont(size: 22, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(Color(UIColor.secondaryLabel))
                 .frame(width: 48, height: 48)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(Color(UIColor.secondarySystemFill), in: Circle())
 
             VStack(spacing: 4) {
                 Text(title)

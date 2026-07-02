@@ -7,7 +7,10 @@
     " %@" : {
 
     },
-    " kcal" : {
+    " cal/day" : {
+
+    },
+    "- %@" : {
 
     },
     "- %@ (%lld sets)" : {
@@ -39,7 +42,7 @@
         }
       }
     },
-    "/ %lld" : {
+    "/ %@ steps" : {
 
     },
     "/ 100" : {
@@ -57,18 +60,22 @@
     "%.1f" : {
 
     },
-    "%.1f kcal" : {
-
-    },
-    "%@" : {
-
-    },
     "%@ / %@ %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ / %2$@ %3$@"
+          }
+        }
+      }
+    },
+    "%@ / %@ oz" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ / %2$@ oz"
           }
         }
       }
@@ -93,12 +100,22 @@
         }
       }
     },
-    "%@ %lldg" : {
+    "%@ %@ • %@ cal" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$@ %2$lldg"
+            "value" : "%1$@ %2$@ • %3$@ cal"
+          }
+        }
+      }
+    },
+    "%@ %@ g" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@ g"
           }
         }
       }
@@ -113,6 +130,16 @@
         }
       }
     },
+    "%@ already has %@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ already has %2$@ %3$@"
+          }
+        }
+      }
+    },
     "%@ already has %lld %@" : {
       "localizations" : {
         "en" : {
@@ -123,18 +150,53 @@
         }
       }
     },
-    "%@ lb" : {
+    "%@ cal" : {
 
     },
-    "%@ lb x %lld" : {
+    "%@ cal | P %@ g  C %@ g  F %@ g" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$@ lb x %2$lld"
+            "value" : "%1$@ cal | P %2$@ g  C %3$@ g  F %4$@ g"
           }
         }
       }
+    },
+    "%@ cal goal" : {
+
+    },
+    "%@ checked" : {
+
+    },
+    "%@ foods across %@ meals" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ foods across %2$@ meals"
+          }
+        }
+      }
+    },
+    "%@ g" : {
+
+    },
+    "%@ ingredients" : {
+
+    },
+    "%@ items - %@ cal" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ items - %2$@ cal"
+          }
+        }
+      }
+    },
+    "%@ lb" : {
+
     },
     "%@ lbs x %lld reps" : {
       "localizations" : {
@@ -146,7 +208,26 @@
         }
       }
     },
+    "%@ left" : {
+
+    },
+    "%@ left across %@ %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ left across %2$@ %3$@."
+          }
+        }
+      }
+    },
     "%@ logged" : {
+
+    },
+    "%@ oz" : {
+
+    },
+    "%@ oz left to hit your goal." : {
 
     },
     "%@, %@" : {
@@ -189,12 +270,12 @@
         }
       }
     },
-    "%@. %@. %@. %lld grams of protein, %lld ounces of water. %@" : {
+    "%@. %@. %@. %@ grams of protein, %@ ounces of water. %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$@. %2$@. %3$@. %4$lld grams of protein, %5$lld ounces of water. %6$@"
+            "value" : "%1$@. %2$@. %3$@. %4$@ grams of protein, %5$@ ounces of water. %6$@"
           }
         }
       }
@@ -209,7 +290,7 @@
         }
       }
     },
-    "%@'s Meal Plan" : {
+    "%@'s meal plan" : {
 
     },
     "%@%@ %@/wk" : {
@@ -222,12 +303,28 @@
         }
       }
     },
+    "%@%%" : {
+
+    },
+    "%@%% checked off" : {
+
+    },
     "%@%lld" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@%2$lld"
+          }
+        }
+      }
+    },
+    "%@g protein • %@ oz water" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@g protein • %2$@ oz water"
           }
         }
       }
@@ -255,26 +352,6 @@
         }
       }
     },
-    "%lld / %lld oz" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld / %2$lld oz"
-          }
-        }
-      }
-    },
-    "%lld %@ • %lld cal" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld %2$@ • %3$lld cal"
-          }
-        }
-      }
-    },
     "%lld %@ logged" : {
       "localizations" : {
         "en" : {
@@ -286,19 +363,6 @@
       }
     },
     "%lld cal" : {
-
-    },
-    "%lld cal | P:%lld C:%lld F:%lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld cal | P:%2$lld C:%3$lld F:%4$lld"
-          }
-        }
-      }
-    },
-    "%lld checked" : {
 
     },
     "%lld Comments" : {
@@ -323,30 +387,7 @@
     "%lld exercises completed" : {
 
     },
-    "%lld foods across %lld meals" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld foods across %2$lld meals"
-          }
-        }
-      }
-    },
     "%lld ingredients" : {
-
-    },
-    "%lld items - %lld cal" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld items - %2$lld cal"
-          }
-        }
-      }
-    },
-    "%lld kcal" : {
 
     },
     "%lld lbs" : {
@@ -354,16 +395,6 @@
     },
     "%lld left" : {
 
-    },
-    "%lld left across %lld %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld left across %2$lld %3$@."
-          }
-        }
-      }
     },
     "%lld minutes" : {
 
@@ -408,14 +439,15 @@
         }
       }
     },
-    "%lld of 7 days planned." : {
-
-    },
-    "%lld oz" : {
-
-    },
-    "%lld oz left to hit your goal." : {
-
+    "%lld planned %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld planned %2$@."
+          }
+        }
+      }
     },
     "%lld pts" : {
 
@@ -457,6 +489,9 @@
       }
     },
     "%lld total achievement points" : {
+
+    },
+    "%lld training days" : {
 
     },
     "%lld:%lld" : {
@@ -509,13 +544,7 @@
         }
       }
     },
-    "%lld/7" : {
-
-    },
     "%lld%%" : {
-
-    },
-    "%lld%% checked off" : {
 
     },
     "%lld%% complete" : {
@@ -531,38 +560,10 @@
         }
       }
     },
-    "%lldg" : {
-
-    },
-    "%lldg C" : {
-
-    },
-    "%lldg F" : {
-
-    },
-    "%lldg P" : {
-
-    },
-    "%lldg protein • %lld oz water" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lldg protein • %2$lld oz water"
-          }
-        }
-      }
-    },
     "%lldh" : {
 
     },
     "%lldx" : {
-
-    },
-    "•" : {
-
-    },
-    "• %@" : {
 
     },
     "+ %lld more" : {
@@ -583,12 +584,12 @@
     "0" : {
 
     },
-    "5 picks · %lld fit your remaining %lld cal" : {
+    "5 picks · %@ fit your remaining %@ cal" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "5 picks · %1$lld fit your remaining %2$lld cal"
+            "value" : "5 picks · %1$@ fit your remaining %2$@ cal"
           }
         }
       }
@@ -642,10 +643,10 @@
     "Activity" : {
 
     },
-    "Activity Level" : {
+    "Activity level" : {
 
     },
-    "Adaptive Metabolism" : {
+    "Adaptive metabolism" : {
 
     },
     "Add" : {
@@ -670,10 +671,10 @@
     "Add a Photo" : {
 
     },
-    "Add a Saved Recipe" : {
+    "Add a saved recipe" : {
 
     },
-    "Add Alongside" : {
+    "Add alongside" : {
 
     },
     "Add alternatives separated by commas. These appear in the workout player when you need a substitute." : {
@@ -694,13 +695,10 @@
     "Add Exercise" : {
 
     },
-    "Add Food" : {
+    "Add food" : {
 
     },
     "Add grocery item" : {
-
-    },
-    "Add Grocery Item" : {
 
     },
     "Add ingredient" : {
@@ -709,13 +707,13 @@
     "Add ingredients from food search and write your own steps." : {
 
     },
-    "Add Item" : {
+    "Add item" : {
 
     },
-    "Add Manually" : {
+    "Add manually" : {
 
     },
-    "Add Meal" : {
+    "Add meal" : {
 
     },
     "Add meal to plan" : {
@@ -727,22 +725,22 @@
     "Add movements manually or tap a fast-start template above." : {
 
     },
-    "Add Saved Recipe" : {
+    "Add saved recipe" : {
 
     },
     "Add Set" : {
 
     },
-    "Add to Log" : {
+    "Add to log" : {
 
     },
-    "Add to Meal Plan" : {
+    "Add to meal plan" : {
 
     },
-    "Add to Pantry" : {
+    "Add to pantry" : {
 
     },
-    "Add to Plan" : {
+    "Add to plan" : {
 
     },
     "Add Warmup Sets" : {
@@ -766,7 +764,7 @@
     "Age" : {
 
     },
-    "AI estimates — double-check before logging." : {
+    "AI estimates. Double-check before logging." : {
 
     },
     "AI Insights" : {
@@ -778,31 +776,34 @@
     "AI Program Generator" : {
 
     },
-    "AI Recipe Generator" : {
+    "AI recipe generator" : {
 
     },
-    "All picks exceed your remaining %lld cal" : {
+    "All picks exceed your remaining %@ cal" : {
 
     },
     "All set for this list." : {
 
     },
-    "Almost there — keep logging to unlock your estimate." : {
+    "Allow screen to sleep" : {
 
     },
-    "Analysis Error" : {
+    "Almost there, keep logging to unlock your estimate." : {
+
+    },
+    "Amount" : {
+
+    },
+    "Analysis error" : {
 
     },
     "Analyze with Maia" : {
 
     },
-    "Analyze your true TDEE and metabolism trend." : {
+    "Analyzing 21-day metabolism trends..." : {
 
     },
-    "Analyzing 21-Day Metabolism Trends..." : {
-
-    },
-    "Analyzing Image..." : {
+    "Analyzing image" : {
 
     },
     "Analyzing your meal..." : {
@@ -844,6 +845,9 @@
     "Available Equipment" : {
 
     },
+    "Average micronutrient intake" : {
+
+    },
     "Average Stages" : {
 
     },
@@ -853,10 +857,7 @@
     "Averages (%@)" : {
 
     },
-    "Avg Intake (21d)" : {
-
-    },
-    "Avg. Micronutrient Intake (% Goal)" : {
+    "Avg intake (21d)" : {
 
     },
     "Back" : {
@@ -865,7 +866,7 @@
     "Barcode %@" : {
 
     },
-    "Barcode Error" : {
+    "Barcode error" : {
 
     },
     "Barcode match" : {
@@ -877,7 +878,7 @@
     "Base serving: %@" : {
 
     },
-    "Based on what I saw, here's what you can make!" : {
+    "Based on what I saw, here's what you can make." : {
 
     },
     "Bedtime Consistency" : {
@@ -886,7 +887,7 @@
     "Beta Feature: Results may not be 100% accurate." : {
 
     },
-    "Biological Sex" : {
+    "Biological sex" : {
 
     },
     "Build a Plan" : {
@@ -904,26 +905,33 @@
     "Building your estimate" : {
 
     },
-    "Bulk Ingredients" : {
+    "Bulk ingredients" : {
 
     },
-    "Burned Today" : {
+    "Burned today" : {
 
     },
-    "By joining, you agree to our [Terms of Service](https://PeteAndrews1289.github.io/MyFitPlate/terms_of_service.html) and [Privacy Policy](https://PeteAndrews1289.github.io/MyFitPlate/privacy_policy.html)." : {
+    "By joining, you agree to our [Terms of service](https://PeteAndrews1289.github.io/MyFitPlate/terms_of_service.html) and [Privacy policy](https://PeteAndrews1289.github.io/MyFitPlate/privacy_policy.html)." : {
 
     },
     "By meal" : {
 
     },
-    "C %lldg" : {
-
-    },
-    "C Goal" : {
+    "C %@ g" : {
 
     },
     "cal" : {
 
+    },
+    "Cal %@  P %@g  C %@g  F %@g" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cal %1$@  P %2$@g  C %3$@g  F %4$@g"
+          }
+        }
+      }
     },
     "Cal %lld  P %lldg  C %lldg  F %lldg" : {
       "localizations" : {
@@ -938,28 +946,25 @@
     "Calculated TDEE" : {
 
     },
-    "Calorie and macronutrient recommendations are estimates intended for informational purposes. Your actual nutritional needs may vary. Consult with a healthcare professional before making significant changes to your diet or exercise routine." : {
+    "Calorie and macronutrient recommendations are estimates for informational purposes. Your actual nutritional needs may vary. Consult with a healthcare professional before making significant changes to your diet or exercise routine." : {
 
     },
     "Calorie and micronutrient goals are based on established dietary guidelines, including the Mifflin-St Jeor equation and Dietary Reference Intakes (DRIs)." : {
 
     },
-    "Calorie Calculator" : {
+    "Calorie calculator" : {
 
     },
-    "Calorie Goal Method" : {
+    "Calorie goal method" : {
 
     },
     "Calorie goals are estimated using the Mifflin-St Jeor equation combined with standard activity level multipliers." : {
 
     },
-    "Calorie Log" : {
+    "Calorie log" : {
 
     },
     "Calories" : {
-
-    },
-    "Calories (cal)" : {
 
     },
     "Calories and macros need review" : {
@@ -971,13 +976,13 @@
     "Cancel" : {
 
     },
+    "Carb goal" : {
+
+    },
     "Carbs" : {
 
     },
     "Carbs (g)" : {
-
-    },
-    "Carbs: %@g" : {
 
     },
     "Category" : {
@@ -992,16 +997,16 @@
     "Check back later" : {
 
     },
-    "Chef Maia is analyzing..." : {
+    "Chef Maia is analyzing" : {
 
     },
-    "Chef Maia's Ideas" : {
+    "Chef Maia's ideas" : {
 
     },
-    "Chicken bowl, protein bar, oatmeal..." : {
+    "Chicken bowl, protein bar, oatmeal" : {
 
     },
-    "Chicken breast, blueberries, paper towels..." : {
+    "Chicken breast, blueberries, paper towels" : {
 
     },
     "Choose a complete plan, inspect the routine structure, then make it your active program." : {
@@ -1016,6 +1021,9 @@
     "Choose from Library" : {
 
     },
+    "Choose Start Date" : {
+
+    },
     "Choose the fastest way to capture food, workouts, or notes." : {
 
     },
@@ -1028,13 +1036,13 @@
     "Choose Your Training Path" : {
 
     },
-    "Clear All" : {
+    "Clear all" : {
 
     },
     "Clear Chat" : {
 
     },
-    "Clear Completed" : {
+    "Clear completed" : {
 
     },
     "Clear Filters" : {
@@ -1046,7 +1054,7 @@
     "Clear Last Period Start" : {
 
     },
-    "Clear List" : {
+    "Clear list" : {
 
     },
     "Clear Maia chat?" : {
@@ -1056,6 +1064,9 @@
 
     },
     "Clear search" : {
+
+    },
+    "Clear timer" : {
 
     },
     "Clear workout history search" : {
@@ -1079,16 +1090,22 @@
     "Coach Notes" : {
 
     },
-    "Coaching Dashboard" : {
-
-    },
-    "Command Center" : {
+    "Coaching dashboard" : {
 
     },
     "Comments" : {
 
     },
     "COMPLETE" : {
+
+    },
+    "Complete %@" : {
+
+    },
+    "Complete set %lld" : {
+
+    },
+    "Completed" : {
 
     },
     "Completed items are hidden for a cleaner shopping run." : {
@@ -1103,25 +1120,25 @@
     "Confirm Meal" : {
 
     },
-    "Confirm Password" : {
+    "Confirm password" : {
 
     },
-    "Confirm Your Password" : {
+    "Confirm your password" : {
 
     },
     "Confirmed" : {
 
     },
-    "Connect to Apple Health" : {
+    "Connect Apple Health" : {
 
     },
     "Continue Program" : {
 
     },
-    "Cooking Timer" : {
+    "Cooking timer" : {
 
     },
-    "Copy Yesterday" : {
+    "Copy yesterday" : {
 
     },
     "Core" : {
@@ -1136,10 +1153,13 @@
     "Could not add recipe" : {
 
     },
-    "Couldn't Delete Account" : {
+    "Couldn't delete account" : {
 
     },
-    "Create an Account" : {
+    "Create account" : {
+
+    },
+    "Create food" : {
 
     },
     "Create Food" : {
@@ -1172,7 +1192,7 @@
     "Current Program" : {
 
     },
-    "Current Weight" : {
+    "Current weight" : {
 
     },
     "Cycle Options" : {
@@ -1190,25 +1210,25 @@
     "Cycle Settings" : {
 
     },
-    "Cycle Tracking" : {
+    "Cycle tracking" : {
 
     },
-    "Daily Calorie Goal" : {
+    "Daily calorie goal" : {
 
     },
-    "Daily Calorie Trend" : {
+    "Daily calorie trend" : {
 
     },
-    "Daily Fit" : {
+    "Daily fit" : {
 
     },
-    "Daily Log" : {
+    "Daily log" : {
 
     },
-    "Daily Macro Trend (g)" : {
+    "Daily macro trend" : {
 
     },
-    "Daily Water Goal" : {
+    "Daily water goal" : {
 
     },
     "Date" : {
@@ -1220,12 +1240,22 @@
     "Day %lld" : {
 
     },
-    "Day %lld • %@" : {
+    "Day %lld - %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Day %1$lld • %2$@"
+            "value" : "Day %1$lld - %2$@"
+          }
+        }
+      }
+    },
+    "Day %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Day %1$lld of %2$lld"
           }
         }
       }
@@ -1239,7 +1269,7 @@
     "Delete %@" : {
 
     },
-    "Delete Account" : {
+    "Delete account" : {
 
     },
     "Delete Current Program?" : {
@@ -1251,7 +1281,7 @@
     "Delete Weight Entry?" : {
 
     },
-    "Deleting Account..." : {
+    "Deleting account" : {
 
     },
     "Describe Meal" : {
@@ -1281,6 +1311,9 @@
     "DISTANCE" : {
 
     },
+    "Distance in miles, set %lld" : {
+
+    },
     "Do It Now" : {
 
     },
@@ -1296,13 +1329,19 @@
     "Duration" : {
 
     },
+    "Duration in minutes, set %lld" : {
+
+    },
+    "Duration in seconds, set %lld" : {
+
+    },
     "e.g. 8-12" : {
 
     },
     "e.g., 25" : {
 
     },
-    "e.g., 225 lbs" : {
+    "e.g., 225 lb" : {
 
     },
     "e.g., Build muscle, lose fat..." : {
@@ -1317,7 +1356,7 @@
     "Edit Exercise" : {
 
     },
-    "Edit Grocery Item" : {
+    "Edit grocery item" : {
 
     },
     "Edit Program" : {
@@ -1350,7 +1389,7 @@
     "Energy Level" : {
 
     },
-    "Enter a weight greater than 45 lbs." : {
+    "Enter a weight greater than 45 lb." : {
 
     },
     "Enter your weight (%@)" : {
@@ -1362,22 +1401,22 @@
     "Error loading analytics" : {
 
     },
-    "Est: %@ cal, P:%@g, C:%@g, F:%@g" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Est: %1$@ cal, P:%2$@g, C:%3$@g, F:%4$@g"
-          }
-        }
-      }
-    },
     "Est: %lld cal, P:%lldg, C:%lldg, F:%lldg" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "Est: %1$lld cal, P:%2$lldg, C:%3$lldg, F:%4$lldg"
+          }
+        }
+      }
+    },
+    "Estimate: %@ cal, P %@ g, C %@ g, F %@ g" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Estimate: %1$@ cal, P %2$@ g, C %3$@ g, F %4$@ g"
           }
         }
       }
@@ -1403,16 +1442,16 @@
     "Exercise Note" : {
 
     },
-    "F %lldg" : {
-
-    },
-    "F Goal" : {
+    "F %@ g" : {
 
     },
     "Fasting" : {
 
     },
-    "Fat & Fiber" : {
+    "Fat and fiber" : {
+
+    },
+    "Fat goal" : {
 
     },
     "Fats" : {
@@ -1421,7 +1460,7 @@
     "Fats (g)" : {
 
     },
-    "Fats: %@g" : {
+    "Fill from %@" : {
 
     },
     "Find foods where macros and calories disagree." : {
@@ -1436,7 +1475,7 @@
     "Finish Anyway" : {
 
     },
-    "Finish Setup" : {
+    "Finish setup" : {
 
     },
     "Finish with %lld sets left?" : {
@@ -1460,10 +1499,13 @@
     "Fix" : {
 
     },
-    "Fix Food" : {
+    "Fix food" : {
 
     },
     "Fix the match or save this version for future scans." : {
+
+    },
+    "Fix this data" : {
 
     },
     "Food name" : {
@@ -1475,13 +1517,13 @@
     "For your security, re-enter your password to permanently delete your account." : {
 
     },
-    "Forgot Password?" : {
+    "Forgot password" : {
 
     },
     "Generate" : {
 
     },
-    "Generate 7-Day Meal Plan" : {
+    "Generate 7-day meal plan" : {
 
     },
     "Generate a meal plan to build one automatically, add an item, or scan as you shop." : {
@@ -1499,19 +1541,13 @@
     "Generate meal plan" : {
 
     },
-    "Generate Meal Plan" : {
+    "Generate meal suggestion" : {
 
     },
-    "Generate Pantry Recipe" : {
+    "Generate pantry recipe" : {
 
     },
     "Generate Program with AI" : {
-
-    },
-    "Generate This Week" : {
-
-    },
-    "Generate Weekly Insights" : {
 
     },
     "Generate with Maia" : {
@@ -1523,16 +1559,16 @@
     "Generating Recipe..." : {
 
     },
-    "Generating recipes..." : {
+    "Generating recipes" : {
 
     },
-    "Generating Your 7-Day Plan...\nThis may take a moment." : {
+    "Generating your 7-day plan\nThis may take a moment." : {
 
     },
     "Generating your program..." : {
 
     },
-    "Get Started" : {
+    "Get started" : {
 
     },
     "Getting the ready-made plans together." : {
@@ -1563,19 +1599,22 @@
         }
       }
     },
+    "Goals saved" : {
+
+    },
     "Good details help" : {
 
     },
     "Got it" : {
 
     },
-    "Grams (g)" : {
+    "Grams" : {
 
     },
     "Great job. Choose a new program or build your next phase when you are ready." : {
 
     },
-    "Grocery List" : {
+    "Grocery list" : {
 
     },
     "Group Description" : {
@@ -1587,10 +1626,13 @@
     "Groups" : {
 
     },
-    "Health Trends" : {
+    "Headline trend" : {
 
     },
-    "Hide Done" : {
+    "Health trends" : {
+
+    },
+    "Hide done" : {
 
     },
     "Hide source data" : {
@@ -1625,13 +1667,13 @@
     "How to perform" : {
 
     },
+    "How to perform %@" : {
+
+    },
     "https://..." : {
 
     },
     "Hydration" : {
-
-    },
-    "I Already Have an Account" : {
 
     },
     "I just unlocked the '%@' achievement on MyFitPlate! 🏆" : {
@@ -1686,7 +1728,7 @@
     "Item" : {
 
     },
-    "Items Found (%lld)" : {
+    "Items found (%@)" : {
 
     },
     "Items to review" : {
@@ -1704,10 +1746,7 @@
     "Join Group" : {
 
     },
-    "Join Now" : {
-
-    },
-    "Jump into the tools you use most." : {
+    "Join now" : {
 
     },
     "Just the bar!" : {
@@ -1716,7 +1755,7 @@
     "kcal" : {
 
     },
-    "Keep Current Targets This Week" : {
+    "Keep current targets" : {
 
     },
     "Keep logging and I'll build your strategy" : {
@@ -1728,22 +1767,22 @@
     "Keep momentum with focused goals." : {
 
     },
+    "Keep screen awake" : {
+
+    },
     "Keep Training" : {
 
     },
     "Key Gains" : {
 
     },
-    "Last 7 Days" : {
+    "Last 7 days" : {
 
     },
     "Last workout: %@" : {
 
     },
-    "lb" : {
-
-    },
-    "LBS" : {
+    "Lbs" : {
 
     },
     "Level Progress" : {
@@ -1756,6 +1795,9 @@
 
     },
     "Loading AI Insights..." : {
+
+    },
+    "Loading goals" : {
 
     },
     "Loading Goals..." : {
@@ -1800,19 +1842,22 @@
     "Log Current Weight" : {
 
     },
-    "Log Day" : {
+    "Log day" : {
 
     },
     "Log Exercise" : {
 
     },
+    "Log food" : {
+
+    },
     "Log Food" : {
 
     },
-    "Log In" : {
+    "Log in" : {
 
     },
-    "Log Meal" : {
+    "Log meal" : {
 
     },
     "Log more to see progress!" : {
@@ -1821,19 +1866,19 @@
     "Log Period Start" : {
 
     },
-    "Log Planned Meals" : {
+    "Log planned meals" : {
 
     },
     "Log recent meals with 1 tap." : {
 
     },
-    "Log Recipe" : {
+    "Log recipe" : {
 
     },
     "Log Selected Items" : {
 
     },
-    "Log This Meal" : {
+    "Log this meal" : {
 
     },
     "Log this planned day?" : {
@@ -1876,13 +1921,13 @@
     "Logged servings" : {
 
     },
-    "Looking up that barcode..." : {
+    "Looking up that barcode" : {
 
     },
     "Macro" : {
 
     },
-    "Macronutrient Distribution (%)" : {
+    "Macronutrient distribution" : {
 
     },
     "Macros" : {
@@ -1891,7 +1936,7 @@
     "Maia" : {
 
     },
-    "Maia Insights" : {
+    "Maia insights" : {
 
     },
     "Maia is analyzing your HealthKit data" : {
@@ -1903,6 +1948,9 @@
     "Maia is ready" : {
 
     },
+    "Maia suggestions" : {
+
+    },
     "Maia will estimate nutrition from plain language." : {
 
     },
@@ -1912,13 +1960,10 @@
     "Maia's Phase Guide" : {
 
     },
-    "Maia's Read" : {
+    "Maia's read" : {
 
     },
-    "Maia's Strategy" : {
-
-    },
-    "Maia's Suggestions" : {
+    "Maia's strategy" : {
 
     },
     "Maia's Workout Insights" : {
@@ -1933,7 +1978,7 @@
     "Manual" : {
 
     },
-    "Manual Item" : {
+    "Manual item" : {
 
     },
     "Manual timer" : {
@@ -1954,28 +1999,31 @@
     "Meal Description" : {
 
     },
-    "Meal Logged!" : {
+    "Meal logged" : {
 
     },
-    "Meal Plan" : {
+    "Meal plan" : {
 
     },
-    "Meal Plan Generator" : {
+    "Meal plan generator" : {
 
     },
-    "Meal Prep Mode" : {
+    "Meal prep mode" : {
 
     },
-    "Meal Suggestion" : {
+    "Meal suggestion" : {
 
     },
-    "Menu Matchmaker" : {
+    "Meal suggestion preferences" : {
+
+    },
+    "Menu matchmaker" : {
 
     },
     "Menu Results" : {
 
     },
-    "Menu Scanner" : {
+    "Menu scanner" : {
 
     },
     "Metric (kg, g)" : {
@@ -1988,6 +2036,9 @@
 
     },
     "min" : {
+
+    },
+    "More ways to log" : {
 
     },
     "Most frequent" : {
@@ -2008,25 +2059,28 @@
     "Muscle Recovery Map" : {
 
     },
-    "My Recipes" : {
+    "My recipes" : {
 
     },
     "MyFitPlate" : {
 
     },
+    "MyFitPlate checks every food against nutrition math." : {
+
+    },
     "MyFitPlate User" : {
 
     },
-    "MyFitPlate: Weekly Insights" : {
+    "MyFitPlate: Weekly insights" : {
 
     },
     "Name" : {
 
     },
-    "Needs Data" : {
+    "Needs data" : {
 
     },
-    "Needs More Data" : {
+    "Needs more data" : {
 
     },
     "Needs Review" : {
@@ -2054,9 +2108,6 @@
 
     },
     "Next Session" : {
-
-    },
-    "Next: %@" : {
 
     },
     "No achievements defined yet." : {
@@ -2101,7 +2152,7 @@
     "No meals planned yet." : {
 
     },
-    "No micronutrient data available for this period." : {
+    "No micronutrient data available for this period" : {
 
     },
     "No other serving sizes available." : {
@@ -2110,7 +2161,7 @@
     "No plan for this day yet" : {
 
     },
-    "No prior" : {
+    "No prior set" : {
 
     },
     "No saved plans yet" : {
@@ -2128,10 +2179,13 @@
     "No Workout History" : {
 
     },
+    "Not completed" : {
+
+    },
     "Not correct? Take a photo of the nutrition label." : {
 
     },
-    "Not enough data for trend." : {
+    "Not enough data for trend" : {
 
     },
     "Not enough signal yet" : {
@@ -2158,7 +2212,10 @@
     "Nutrition Audit" : {
 
     },
-    "Nutrition Details" : {
+    "Nutrition data looks off" : {
+
+    },
+    "Nutrition details" : {
 
     },
     "Nutrition label looks different?" : {
@@ -2200,6 +2257,12 @@
     "Opens %@" : {
 
     },
+    "Opens an editor to adjust this estimate's name, serving, and macros." : {
+
+    },
+    "Opens an editor to correct this food's nutrition data." : {
+
+    },
     "Opens logging options" : {
 
     },
@@ -2209,19 +2272,16 @@
     "oz" : {
 
     },
-    "P %lldg" : {
-
-    },
-    "P Goal" : {
+    "P %@ g" : {
 
     },
     "Pantry" : {
 
     },
-    "Pantry Recipes" : {
+    "Pantry recipes" : {
 
     },
-    "Parsing receipt... this may take a few seconds." : {
+    "Parsing receipt. This may take a few seconds." : {
 
     },
     "Password" : {
@@ -2248,16 +2308,16 @@
     "Paste your recipe text here..." : {
 
     },
-    "Performance Report" : {
-
-    },
     "Period Stats" : {
 
     },
-    "Personal Settings" : {
+    "Personal best" : {
 
     },
-    "Personal Setup" : {
+    "Personal settings" : {
+
+    },
+    "Personal setup" : {
 
     },
     "Pick a plan, build a routine, or start a one-off session." : {
@@ -2275,7 +2335,10 @@
     "plans" : {
 
     },
-    "Plate Calculator" : {
+    "Plate calculator" : {
+
+    },
+    "Plate math" : {
 
     },
     "Plate Math" : {
@@ -2284,7 +2347,10 @@
     "Plates" : {
 
     },
-    "Plates Per Side (45lb Barbell)" : {
+    "Plates per side (45 lb barbell)" : {
+
+    },
+    "Portions and hidden ingredients vary. A 30-second refine makes it yours." : {
 
     },
     "Position barcode within the frame" : {
@@ -2311,16 +2377,19 @@
     "Preferred Veggies" : {
 
     },
-    "Prep Mode" : {
+    "Prep mode" : {
 
     },
-    "Prep Steps" : {
+    "Prep steps" : {
 
     },
     "Preview" : {
 
     },
     "Preview Plan" : {
+
+    },
+    "Primary goal" : {
 
     },
     "Primary Goal" : {
@@ -2366,7 +2435,7 @@
     "Protein (g)" : {
 
     },
-    "Protein: %@g" : {
+    "Protein goal" : {
 
     },
     "Pulling the most accurate nutrition details for this food." : {
@@ -2387,7 +2456,10 @@
     "Quantity" : {
 
     },
-    "Quick Add Macros" : {
+    "Quick actions" : {
+
+    },
+    "Quick add macros" : {
 
     },
     "Quick log" : {
@@ -2399,13 +2471,13 @@
     "Quick log %@" : {
 
     },
-    "Quick Select" : {
+    "Quick select" : {
 
     },
     "Range" : {
 
     },
-    "Reading the menu and matching your macros…" : {
+    "Reading the menu and matching your macros" : {
 
     },
     "ready" : {
@@ -2433,16 +2505,19 @@
     "Ready-Made Training" : {
 
     },
-    "Receipt Scanner" : {
+    "Receipt scanner" : {
 
     },
     "Recipe" : {
 
     },
-    "Recipe Library" : {
+    "Recipe library" : {
 
     },
     "Recipe name" : {
+
+    },
+    "Refine estimate" : {
 
     },
     "Refresh workout history" : {
@@ -2478,13 +2553,13 @@
     "Remove Exercise" : {
 
     },
-    "Remove Meal" : {
+    "Remove meal" : {
 
     },
     "Remove this meal?" : {
 
     },
-    "Replace Slot" : {
+    "Replace slot" : {
 
     },
     "Report generated on: %@" : {
@@ -2493,16 +2568,16 @@
     "Reports" : {
 
     },
-    "REPS" : {
+    "Reps" : {
 
     },
     "Reset" : {
 
     },
-    "Reset Link Sent" : {
+    "Reset link sent" : {
 
     },
-    "Reset Tooltips?" : {
+    "Reset tooltips?" : {
 
     },
     "Rest" : {
@@ -2514,7 +2589,7 @@
     "Retry" : {
 
     },
-    "Review Health Access & Sync" : {
+    "Review Health access" : {
 
     },
     "Review Items" : {
@@ -2526,7 +2601,10 @@
     "Review Session" : {
 
     },
-    "Reviewing your recent data…" : {
+    "Review your true TDEE and metabolism trend." : {
+
+    },
+    "Reviewing your recent data" : {
 
     },
     "Routine Builder" : {
@@ -2541,13 +2619,13 @@
     "Save" : {
 
     },
-    "Save Changes" : {
+    "Save changes" : {
 
     },
-    "Save Goal" : {
+    "Save goal" : {
 
     },
-    "Save Goals" : {
+    "Save goals" : {
 
     },
     "Save Height" : {
@@ -2556,7 +2634,7 @@
     "Save Program" : {
 
     },
-    "Save Recipe" : {
+    "Save recipe" : {
 
     },
     "Save Routine" : {
@@ -2586,37 +2664,40 @@
     "Saves this food as the match for this barcode." : {
 
     },
+    "Saving" : {
+
+    },
     "Saving Recipe..." : {
 
     },
-    "Saving…" : {
-
-    },
-    "Scan a Grocery Receipt" : {
+    "Scan a grocery receipt" : {
 
     },
     "Scan barcode" : {
 
     },
-    "Scan Barcode" : {
+    "Scan error" : {
 
     },
     "Scan Error" : {
 
     },
-    "Scan Menu" : {
+    "Scan menu" : {
 
     },
     "Scan nutrition label" : {
 
     },
-    "Scan Nutrition Label" : {
+    "Scan pantry" : {
 
     },
-    "Scan Pantry" : {
+    "Scan receipt" : {
 
     },
     "Schedule" : {
+
+    },
+    "Schedule Program" : {
 
     },
     "Schedule Your Program" : {
@@ -2637,10 +2718,10 @@
     "Search goal, equipment, or exercise" : {
 
     },
-    "Search recipes or ingredients..." : {
+    "Search recipes or ingredients" : {
 
     },
-    "Searching Barcode..." : {
+    "Searching barcode" : {
 
     },
     "Searching foods" : {
@@ -2664,7 +2745,7 @@
     "Select fast length" : {
 
     },
-    "Select Ingredient" : {
+    "Select ingredient" : {
 
     },
     "Select Plan" : {
@@ -2715,7 +2796,7 @@
     "Set Target Weight & Goals" : {
 
     },
-    "Set Timer" : {
+    "Set timer" : {
 
     },
     "Set your daily hydration target to feel your best." : {
@@ -2730,22 +2811,25 @@
     "Settings" : {
 
     },
-    "Share List" : {
+    "Share list" : {
 
     },
     "Share Summary" : {
 
     },
-    "Shopping Run" : {
+    "Shopping run" : {
+
+    },
+    "Shortcuts for the rest of today." : {
 
     },
     "Show All Exercises" : {
 
     },
-    "Show Checked Items" : {
+    "Show checked items" : {
 
     },
-    "Show Done" : {
+    "Show done" : {
 
     },
     "Show Less" : {
@@ -2757,10 +2841,16 @@
     "shown" : {
 
     },
-    "Sign Out" : {
+    "Shows which plates to load for this weight." : {
 
     },
-    "Sign Up" : {
+    "Sign in" : {
+
+    },
+    "Sign out" : {
+
+    },
+    "Sign up" : {
 
     },
     "Simple Log Entry" : {
@@ -2791,7 +2881,7 @@
         }
       }
     },
-    "Smart Pantry" : {
+    "Smart pantry" : {
 
     },
     "Smart Suggestions" : {
@@ -2800,7 +2890,7 @@
     "Snap a photo of any restaurant menu. We'll find the best options that fit your remaining macros." : {
 
     },
-    "Source Information" : {
+    "Source information" : {
 
     },
     "Source: A new predictive equation for resting energy expenditure in healthy individuals. Am J Clin Nutr. 1990." : {
@@ -2821,6 +2911,9 @@
     "Start" : {
 
     },
+    "Start cooking timer" : {
+
+    },
     "Start Date" : {
 
     },
@@ -2830,13 +2923,10 @@
     "Start Fast" : {
 
     },
-    "Start Meal Prep Mode" : {
+    "Start meal prep" : {
 
     },
-    "Start Timer" : {
-
-    },
-    "Status" : {
+    "Start timer" : {
 
     },
     "Step %lld of %lld" : {
@@ -2855,9 +2945,6 @@
     "Stop rest timer" : {
 
     },
-    "Success" : {
-
-    },
     "Suggested" : {
 
     },
@@ -2865,9 +2952,6 @@
 
     },
     "Swap Exercise" : {
-
-    },
-    "Swipe to delete" : {
 
     },
     "Switch dates or use this as a clean slate for planning." : {
@@ -2880,6 +2964,9 @@
 
     },
     "Take a photo of your receipt and the AI will automatically identify the food items and stock your smart pantry." : {
+
+    },
+    "Take photo" : {
 
     },
     "Take Photo" : {
@@ -2897,16 +2984,13 @@
     "Tap for weekly average score & details." : {
 
     },
-    "Tap the sparkles ✨ to get a meal idea that fits your remaining goals for today." : {
-
-    },
     "Tap to log today's weight" : {
 
     },
     "Tap to review your new targets" : {
 
     },
-    "Tap to see recipe..." : {
+    "Tap to see recipe" : {
 
     },
     "Target" : {
@@ -2915,10 +2999,7 @@
     "TARGET" : {
 
     },
-    "TARGET / LAST" : {
-
-    },
-    "Target Weight" : {
+    "Target weight" : {
 
     },
     "Target weight (%@)" : {
@@ -2930,7 +3011,10 @@
     "The daily gap is likely coming from smaller rounding differences across multiple foods." : {
 
     },
-    "These are the closest options on the menu — log mindfully or save room elsewhere." : {
+    "The weekly rhythm is preserved, and the first workout is aligned to your chosen start date." : {
+
+    },
+    "These are the closest options on the menu. Log mindfully or save room elsewhere." : {
 
     },
     "This adds the planned meals to the food log for %@." : {
@@ -2939,7 +3023,13 @@
     "This copies the program into your account, starts it today, and keeps the suggested training days. You can adjust the schedule later." : {
 
     },
+    "This data looks off" : {
+
+    },
     "This exercise was logged manually, so detailed set analytics and trends aren't available." : {
+
+    },
+    "This is an AI estimate" : {
 
     },
     "This is your main objective. Be specific!" : {
@@ -2957,13 +3047,13 @@
     "This removes the saved conversation history on this device." : {
 
     },
-    "This will reset all the \"Quick Tip\" bubbles throughout the app so you can see them again." : {
+    "This will reset all the \"Quick tip\" bubbles throughout the app so you can see them again." : {
 
     },
     "TIME" : {
 
     },
-    "Time for your check-in!" : {
+    "Time for your check-in" : {
 
     },
     "Timeframe" : {
@@ -2972,7 +3062,7 @@
     "Timer" : {
 
     },
-    "Today Logged" : {
+    "Today logged" : {
 
     },
     "Today's Best Next Step" : {
@@ -2990,7 +3080,7 @@
     "Total Volume" : {
 
     },
-    "Total Weight on Barbell" : {
+    "Total weight on barbell" : {
 
     },
     "Train" : {
@@ -3020,7 +3110,7 @@
     "Try a different search or filter. The catalog is built to grow as more training paths are added." : {
 
     },
-    "Try Again" : {
+    "Try again" : {
 
     },
     "Try asking..." : {
@@ -3062,13 +3152,19 @@
     "Use a label photo to fill the numbers faster." : {
 
     },
-    "Use Adaptive Targets" : {
+    "Use adaptive targets" : {
 
     },
-    "Use Adaptive TDEE for Goals" : {
+    "Use adaptive TDEE" : {
+
+    },
+    "Use camera" : {
 
     },
     "Use Camera" : {
+
+    },
+    "Use sparkles to get a meal idea that fits your remaining goals for today." : {
 
     },
     "Use the center + button to search, scan, take a photo, or describe a meal." : {
@@ -3077,7 +3173,7 @@
     "Username" : {
 
     },
-    "View Custom Report" : {
+    "View custom report" : {
 
     },
     "View Demo & History" : {
@@ -3086,16 +3182,13 @@
     "View Program Details" : {
 
     },
-    "View Recipe" : {
+    "View recipe" : {
 
     },
     "Viewing posts in %@" : {
 
     },
-    "Vitamins & Minerals" : {
-
-    },
-    "W" : {
+    "Vitamins and minerals" : {
 
     },
     "We need at least 7 days of weight data and 10 days of food logs to confidently adjust your TDEE." : {
@@ -3114,7 +3207,7 @@
         }
       }
     },
-    "Week at a Glance" : {
+    "Week at a glance" : {
 
     },
     "Weekly Average Score (%@)" : {
@@ -3123,16 +3216,16 @@
     "Weekly Challenges" : {
 
     },
-    "Weekly Check-In" : {
+    "Weekly check-in" : {
 
     },
-    "Weekly Check-In Ready" : {
+    "Weekly check-in ready" : {
 
     },
     "Weekly Sleep Details" : {
 
     },
-    "Weigh in regularly (ideally daily, around the same time) and log your food honestly — your estimate is only as accurate as the data you give it." : {
+    "Weigh in regularly (ideally daily, around the same time) and log your food honestly. Your estimate is only as accurate as the data you give it." : {
 
     },
     "Weight" : {
@@ -3141,7 +3234,7 @@
     "Weight Goal" : {
 
     },
-    "Weight Goals" : {
+    "Weight goals" : {
 
     },
     "Weight History (%@)" : {
@@ -3153,10 +3246,10 @@
     "Weight Tracking" : {
 
     },
-    "Weight Trend" : {
+    "Weight trend" : {
 
     },
-    "Weight Trend (21 Days)" : {
+    "Weight trend (21 days)" : {
 
     },
     "Wellness Debrief" : {
@@ -3189,6 +3282,9 @@
     "Workout History" : {
 
     },
+    "Workout summary" : {
+
+    },
     "Workout Summary" : {
 
     },
@@ -3212,6 +3308,9 @@
     "Workouts Per Week: %lld days" : {
 
     },
+    "Worth a quick look" : {
+
+    },
     "Would you like to join %@?" : {
 
     },
@@ -3221,7 +3320,7 @@
     "Yesterday's Report" : {
 
     },
-    "Yesterday's Report Card" : {
+    "Yesterday's report card" : {
 
     },
     "You" : {
@@ -3233,7 +3332,10 @@
     "You'll move through these stages:" : {
 
     },
-    "Your Data" : {
+    "Your copied program will begin on %@." : {
+
+    },
+    "Your data" : {
 
     },
     "Your data stays tied to your account so your plan follows you." : {
@@ -3242,16 +3344,16 @@
     "Your fitness deep-dive. See how your workouts, nutrition, and recovery all work together." : {
 
     },
-    "Your goals have been saved!" : {
-
-    },
     "Your Height" : {
 
     },
-    "Your Information" : {
+    "Your information" : {
 
     },
     "Your New Program: %@" : {
+
+    },
+    "Your nutrition goals are updated." : {
 
     },
     "Your pantry is empty. Add ingredients below." : {
@@ -3272,7 +3374,7 @@
     "Your trend line appears once you have at least two recent entries." : {
 
     },
-    "Your True TDEE" : {
+    "Your true TDEE" : {
 
     },
     "Your workout is already saved. Trends and coaching notes will appear when ready." : {

@@ -14,7 +14,7 @@ struct MetabolismDashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if isLoading {
-                    ProgressView("Analyzing 21-Day Metabolism Trends...")
+                    ProgressView("Analyzing 21-day metabolism trends...")
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 40)
                 } else {
@@ -24,7 +24,7 @@ struct MetabolismDashboardView: View {
             .padding()
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Adaptive Metabolism")
+        .navigationTitle("Adaptive metabolism")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             guard let userID = DIContainer.shared.authService.currentUserID else {
@@ -41,7 +41,7 @@ struct MetabolismDashboardView: View {
         VStack(alignment: .leading, spacing: 24) {
             // Header
             VStack(alignment: .leading, spacing: 8) {
-                Text("Your True TDEE")
+                Text("Your true TDEE")
                     .appFont(size: 20, weight: .semibold)
                     .foregroundColor(.textPrimary)
                 
@@ -59,7 +59,7 @@ struct MetabolismDashboardView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 8) {
                         Image(systemName: "hourglass")
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.blue)
                         Text("Building your estimate")
                             .appFont(size: 16, weight: .bold)
                             .foregroundColor(.textPrimary)
@@ -67,7 +67,7 @@ struct MetabolismDashboardView: View {
 
                     Text(daysToGo > 0
                          ? "About \(daysToGo) more day\(daysToGo == 1 ? "" : "s") of logging until your first estimate appears."
-                         : "Almost there — keep logging to unlock your estimate.")
+                         : "Almost there, keep logging to unlock your estimate.")
                         .appFont(size: 14)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
@@ -79,7 +79,7 @@ struct MetabolismDashboardView: View {
                         Image(systemName: "lightbulb.fill")
                             .appFont(size: 12)
                             .foregroundColor(.orange)
-                        Text("Weigh in regularly (ideally daily, around the same time) and log your food honestly — your estimate is only as accurate as the data you give it.")
+                        Text("Weigh in regularly (ideally daily, around the same time) and log your food honestly. Your estimate is only as accurate as the data you give it.")
                             .appFont(size: 13)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                             .fixedSize(horizontal: false, vertical: true)
@@ -87,7 +87,7 @@ struct MetabolismDashboardView: View {
                     .padding(.top, 2)
                 }
                 .padding(20)
-                .background(Color.brandPrimary.opacity(0.06), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             }
 
             // Calculation Card
@@ -103,15 +103,15 @@ struct MetabolismDashboardView: View {
                         
                         if let tdee = adaptiveGoalService.calculatedTDEE {
                             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                Text("\(Int(tdee))")
+                                Text(Int(tdee.rounded()).formatted())
                                     .appFont(size: 48, weight: .heavy)
                                     .foregroundColor(.textPrimary)
-                                Text(" kcal")
+                                Text(" cal/day")
                                     .appFont(size: 20, weight: .bold)
                                     .foregroundColor(Color(UIColor.secondaryLabel))
                             }
                         } else {
-                            Text("Needs Data")
+                            Text("Needs data")
                                 .appFont(size: 32, weight: .heavy)
                                 .foregroundColor(.textPrimary)
                         }
@@ -124,23 +124,23 @@ struct MetabolismDashboardView: View {
 
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Avg Intake (21d)")
+                        Text("Avg intake (21d)")
                             .appFont(size: 12, weight: .medium)
                             .foregroundColor(Color(UIColor.secondaryLabel))
-                        Text(adaptiveGoalService.last21DaysCalorieAverage != nil ? "\(Int(adaptiveGoalService.last21DaysCalorieAverage!)) kcal" : "--")
+                        Text(adaptiveGoalService.last21DaysCalorieAverage != nil ? "\(Int(adaptiveGoalService.last21DaysCalorieAverage!.rounded()).formatted()) cal" : "--")
                             .appFont(size: 16, weight: .bold)
                             .foregroundColor(.textPrimary)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 4) {
-                        Text("Weight Trend")
+                        Text("Weight trend")
                             .appFont(size: 12, weight: .medium)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                         if let rate = adaptiveGoalService.weightChangeRatePerDay {
                             let isLosing = rate < 0
                             Text("\(isLosing ? "" : "+")\(String(format: "%.2f", BodyUnits.weightDisplayValue(lbs: rate * 7, metric: useMetric))) \(BodyUnits.weightUnit(metric: useMetric))/wk")
                                 .appFont(size: 16, weight: .bold)
-                                .foregroundColor(isLosing ? .brandPrimary : .orange)
+                                .foregroundColor(isLosing ? .blue : .orange)
                         } else {
                             Text("--")
                                 .appFont(size: 16, weight: .bold)
@@ -160,7 +160,7 @@ struct MetabolismDashboardView: View {
                 goalSettings.recalculateAllGoals()
                 dismiss()
             }) {
-                Text("Use Adaptive TDEE for Goals")
+                Text("Use adaptive TDEE")
                     .appFont(size: 16, weight: .bold)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -186,7 +186,7 @@ struct MetabolismDashboardView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding()
-            .background(Color.accentPositive.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
 }
@@ -202,7 +202,7 @@ struct AdaptiveProgressRow: View {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
                 Text(label)
                     .appFont(size: 13, weight: .semibold)
                     .foregroundColor(.textPrimary)
@@ -213,8 +213,8 @@ struct AdaptiveProgressRow: View {
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.brandPrimary.opacity(0.12))
-                    Capsule().fill(current >= goal ? Color.accentPositive : Color.brandPrimary)
+                    Capsule().fill(Color(UIColor.secondarySystemFill))
+                    Capsule().fill(current >= goal ? Color.accentPositive : Color.blue)
                         .frame(width: geo.size.width * CGFloat(min(Double(current) / Double(max(goal, 1)), 1.0)))
                 }
             }
@@ -229,13 +229,13 @@ struct MetabolismReportCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Image(systemName: "flame.fill")
-                        .foregroundColor(.brandPrimary)
-                    Text("Adaptive Metabolism")
+                        .foregroundColor(.orange)
+                    Text("Adaptive metabolism")
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
                 }
                 
-                Text("Analyze your true TDEE and metabolism trend.")
+                Text("Review your true TDEE and metabolism trend.")
                     .appFont(size: 13)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .fixedSize(horizontal: false, vertical: true)

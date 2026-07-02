@@ -94,7 +94,10 @@ private struct RecipeHeroCard: View {
                 Text(FoodEmojiMapper.getEmoji(for: recipe.name))
                     .appFont(size: 38)
                     .frame(width: 68, height: 68)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .background(
+                        Color(.secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    )
             }
 
             VStack(alignment: .leading, spacing: 7) {
@@ -104,8 +107,8 @@ private struct RecipeHeroCard: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 8) {
-                    RecipeHeroChip(icon: "list.bullet", text: "\(recipe.ingredients.count) ingredients")
-                    RecipeHeroChip(icon: "text.badge.checkmark", text: "\(recipe.instructions.count) steps")
+                    RecipeHeroChip(icon: "list.bullet", text: "\(recipe.ingredients.count.formatted()) ingredients")
+                    RecipeHeroChip(icon: "text.badge.checkmark", text: "\(recipe.instructions.count.formatted()) steps")
                 }
             }
 
@@ -123,10 +126,10 @@ private struct RecipeHeroChip: View {
     var body: some View {
         Label(text, systemImage: icon)
             .appFont(size: 11, weight: .bold)
-            .foregroundColor(.brandPrimary)
+            .foregroundColor(.blue)
             .padding(.horizontal, 9)
             .padding(.vertical, 6)
-            .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+            .background(Color.blue.opacity(0.10), in: Capsule())
     }
 }
 
@@ -135,10 +138,34 @@ private struct RecipeMacroGrid: View {
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            RecipeMacroTile(title: "Calories", value: "\(Int(nutrition.calories.rounded()))", unit: "cal", icon: "flame.fill", color: .orange)
-            RecipeMacroTile(title: "Protein", value: "\(Int(nutrition.protein.rounded()))", unit: "g", icon: "bolt.fill", color: .accentProtein)
-            RecipeMacroTile(title: "Carbs", value: "\(Int(nutrition.carbs.rounded()))", unit: "g", icon: "leaf.fill", color: .accentCarbs)
-            RecipeMacroTile(title: "Fat", value: "\(Int(nutrition.fats.rounded()))", unit: "g", icon: "drop.fill", color: .accentFats)
+            RecipeMacroTile(
+                title: "Calories",
+                value: Int(nutrition.calories.rounded()).formatted(),
+                unit: "cal",
+                icon: "flame.fill",
+                color: .orange
+            )
+            RecipeMacroTile(
+                title: "Protein",
+                value: Int(nutrition.protein.rounded()).formatted(),
+                unit: "g",
+                icon: "bolt.fill",
+                color: .accentProtein
+            )
+            RecipeMacroTile(
+                title: "Carbs",
+                value: Int(nutrition.carbs.rounded()).formatted(),
+                unit: "g",
+                icon: "leaf.fill",
+                color: .accentCarbs
+            )
+            RecipeMacroTile(
+                title: "Fat",
+                value: Int(nutrition.fats.rounded()).formatted(),
+                unit: "g",
+                icon: "drop.fill",
+                color: .accentFats
+            )
         }
     }
 }
@@ -192,10 +219,10 @@ private struct RecipeIngredientsCard: View {
             VStack(spacing: 8) {
                 ForEach(ingredients, id: \.self) { ingredient in
                     HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .appFont(size: 15, weight: .bold)
-                            .foregroundColor(.brandPrimary)
-                            .padding(.top, 1)
+                        Image(systemName: "circle.fill")
+                            .appFont(size: 6, weight: .bold)
+                            .foregroundColor(.blue)
+                            .padding(.top, 7)
 
                         Text(ingredient)
                             .appFont(size: 14, weight: .medium)
@@ -228,7 +255,7 @@ private struct RecipeInstructionsCard: View {
                             .appFont(size: 13, weight: .bold)
                             .foregroundColor(.white)
                             .frame(width: 28, height: 28)
-                            .background(Color.brandPrimary, in: Circle())
+                            .background(Color.blue, in: Circle())
 
                         Text(instruction)
                             .appFont(size: 14, weight: .medium)
@@ -254,9 +281,9 @@ private struct RecipeNutrientDetailsCard: View {
         VStack(alignment: .leading, spacing: 12) {
             DisclosureGroup {
                 VStack(spacing: 8) {
-                    nutrientRow(label: "Saturated Fat", value: nutrition.saturatedFat)
-                    nutrientRow(label: "Polyunsaturated Fat", value: nutrition.polyunsaturatedFat)
-                    nutrientRow(label: "Monounsaturated Fat", value: nutrition.monounsaturatedFat)
+                    nutrientRow(label: "Saturated fat", value: nutrition.saturatedFat)
+                    nutrientRow(label: "Polyunsaturated fat", value: nutrition.polyunsaturatedFat)
+                    nutrientRow(label: "Monounsaturated fat", value: nutrition.monounsaturatedFat)
                     nutrientRow(label: "Fiber", value: nutrition.fiber)
                     nutrientRow(label: "Calcium", value: nutrition.calcium, unit: "mg")
                     nutrientRow(label: "Iron", value: nutrition.iron, unit: "mg")
@@ -270,10 +297,10 @@ private struct RecipeNutrientDetailsCard: View {
                 }
                 .padding(.top, 8)
             } label: {
-                RecipeSectionHeader(title: "More Nutrition", icon: "chart.bar.doc.horizontal.fill")
+                RecipeSectionHeader(title: "More nutrition", icon: "chart.bar.doc.horizontal.fill")
             }
         }
-        .tint(.brandPrimary)
+        .tint(.blue)
         .padding(16)
         .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
@@ -287,11 +314,16 @@ private struct RecipeNutrientDetailsCard: View {
 
                 Spacer()
 
-                Text("\(String(format: "%.1f", value)) \(unit)")
+                Text("\(formatted(value)) \(unit)")
                     .appFont(size: 14, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
+    }
+
+    private func formatted(_ value: Double) -> String {
+        let fractionLength = value < 10 ? 1 : 0
+        return value.formatted(.number.precision(.fractionLength(fractionLength)))
     }
 }
 
@@ -303,9 +335,9 @@ private struct RecipeSectionHeader: View {
         HStack(spacing: 9) {
             Image(systemName: icon)
                 .appFont(size: 14, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
                 .frame(width: 30, height: 30)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(Color.blue.opacity(0.12), in: Circle())
 
             Text(title)
                 .appFont(size: 18, weight: .bold)
@@ -328,18 +360,18 @@ private struct RecipeDetailActionBar: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
             }
-            .foregroundColor(.brandPrimary)
+            .foregroundColor(.blue)
             .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.brandPrimary.opacity(0.22), lineWidth: 1)
+                    .stroke(Color.blue.opacity(0.22), lineWidth: 1)
             )
             .buttonStyle(.plain)
 
             Button {
                 onLog()
             } label: {
-                Label("Add to Log", systemImage: "plus.circle.fill")
+                Label("Add to log", systemImage: "plus.circle.fill")
                     .appFont(size: 16, weight: .bold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
@@ -391,7 +423,7 @@ private struct AddRecipeToPlanSheet: View {
 
                         DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
                             .datePickerStyle(.compact)
-                            .tint(.brandPrimary)
+                            .tint(.blue)
 
                         AddRecipeMealTypePicker(
                             mealTypes: mealTypes,
@@ -415,7 +447,7 @@ private struct AddRecipeToPlanSheet: View {
                 .padding(.bottom, 86)
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Add to Plan")
+            .navigationTitle("Add to plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -431,7 +463,7 @@ private struct AddRecipeToPlanSheet: View {
                             .tint(.white)
                             .frame(maxWidth: .infinity)
                     } else {
-                        Label("Add to Meal Plan", systemImage: "calendar.badge.plus")
+                        Label("Add to meal plan", systemImage: "calendar.badge.plus")
                     }
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -541,7 +573,10 @@ private struct AddRecipeToPlanHero: View {
             Text(FoodEmojiMapper.getEmoji(for: recipe.name))
                 .appFont(size: 34)
                 .frame(width: 62, height: 62)
-                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .background(
+                    Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                )
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(recipe.name)
@@ -577,9 +612,9 @@ private struct AddRecipeMealTypePicker: View {
                         .appFont(size: 13, weight: .bold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
-                        .foregroundColor(selectedMealType == mealType ? .brandPrimary : Color(UIColor.secondaryLabel))
+                        .foregroundColor(selectedMealType == mealType ? .blue : Color(UIColor.secondaryLabel))
                         .background(
-                            selectedMealType == mealType ? Color.brandPrimary.opacity(0.14) : Color.clear,
+                            selectedMealType == mealType ? Color.blue.opacity(0.14) : Color.clear,
                             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
                         )
                 }
@@ -602,13 +637,13 @@ private struct AddRecipePlanModeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("\(mealType) already has \(mealCount) \(mealLabel)")
+            Text("\(mealType) already has \(mealCount.formatted()) \(mealLabel)")
                 .appFont(size: 15, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             Picker("Add mode", selection: $replaceExistingMealType) {
-                Text("Add Alongside").tag(false)
-                Text("Replace Slot").tag(true)
+                Text("Add alongside").tag(false)
+                Text("Replace slot").tag(true)
             }
             .pickerStyle(.segmented)
         }

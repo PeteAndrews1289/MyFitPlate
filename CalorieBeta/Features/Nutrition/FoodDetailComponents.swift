@@ -9,7 +9,10 @@ struct FoodDetailHeroCard: View {
             Text(FoodEmojiMapper.getEmoji(for: foodName))
                 .appFont(size: 34)
                 .frame(width: 62, height: 62)
-                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .background(
+                    Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                )
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(foodName)
@@ -38,11 +41,43 @@ struct FoodDetailMacroGrid: View {
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            FoodDetailMacroTile(title: "Calories", value: "\(Int(calories.rounded()))", unit: "cal", icon: "flame.fill", color: .orange)
-            FoodDetailMacroTile(title: "Protein", value: String(format: "%.1f", protein), unit: "g", icon: "bolt.fill", color: .accentProtein)
-            FoodDetailMacroTile(title: "Carbs", value: String(format: "%.1f", carbs), unit: "g", icon: "leaf.fill", color: .accentCarbs)
-            FoodDetailMacroTile(title: "Fat", value: String(format: "%.1f", fats), unit: "g", icon: "drop.fill", color: .accentFats)
+            FoodDetailMacroTile(
+                title: "Calories",
+                value: Int(calories.rounded()).formatted(),
+                unit: "cal",
+                icon: "flame.fill",
+                color: .orange
+            )
+            FoodDetailMacroTile(
+                title: "Protein",
+                value: macroValue(protein),
+                unit: "g",
+                icon: "bolt.fill",
+                color: .accentProtein
+            )
+            FoodDetailMacroTile(
+                title: "Carbs",
+                value: macroValue(carbs),
+                unit: "g",
+                icon: "leaf.fill",
+                color: .accentCarbs
+            )
+            FoodDetailMacroTile(
+                title: "Fat",
+                value: macroValue(fats),
+                unit: "g",
+                icon: "drop.fill",
+                color: .accentFats
+            )
         }
+    }
+
+    private func macroValue(_ value: Double) -> String {
+        let rounded = (value * 10).rounded() / 10
+        if rounded.truncatingRemainder(dividingBy: 1) == 0 {
+            return Int(rounded).formatted()
+        }
+        return rounded.formatted(.number.precision(.fractionLength(1)))
     }
 }
 
@@ -93,7 +128,7 @@ struct FoodDetailLoadingCard: View {
     var body: some View {
         VStack(spacing: 13) {
             ProgressView()
-                .tint(.brandPrimary)
+                .tint(.blue)
 
             Text("Loading serving options")
                 .appFont(size: 17, weight: .bold)
@@ -147,9 +182,9 @@ struct FoodDetailLabelScanCard: View {
             HStack(spacing: 12) {
                 Image(systemName: "camera.viewfinder")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
                     .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Nutrition label looks different?")
@@ -183,9 +218,9 @@ struct FoodDetailBarcodeCorrectionCard: View {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "barcode.viewfinder")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
                     .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Barcode match")
@@ -206,13 +241,13 @@ struct FoodDetailBarcodeCorrectionCard: View {
                     Label("Fix", systemImage: "pencil")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .brandPrimary, isFilled: true))
+                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
 
                 Button(action: rememberAction) {
                     Label("Remember", systemImage: "bookmark.fill")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .brandPrimary, isFilled: false))
+                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .blue, isFilled: false))
                 .accessibilityHint("Saves this food as the match for this barcode.")
             }
         }
@@ -265,10 +300,10 @@ struct FoodDetailAIRefineCard: View {
             }
 
             Button(action: refineAction) {
-                Label("Refine Estimate", systemImage: "slider.horizontal.3")
+                Label("Refine estimate", systemImage: "slider.horizontal.3")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .brandPrimary, isFilled: true))
+            .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
             .accessibilityHint("Opens an editor to adjust this estimate's name, serving, and macros.")
         }
         .padding(14)
@@ -325,7 +360,7 @@ struct FoodDataSanityCard: View {
 
             if hasWarning {
                 Button(action: fixAction) {
-                    Label("Fix This Data", systemImage: "pencil")
+                    Label("Fix this data", systemImage: "pencil")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
@@ -401,7 +436,7 @@ struct FoodDetailCorrectionSheet: View {
                 .padding(.bottom, 24)
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Fix Food")
+            .navigationTitle("Fix food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -424,9 +459,9 @@ struct FoodDetailCorrectionSheet: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "pencil.and.scribble")
                 .appFont(size: 18, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.orange)
                 .frame(width: 42, height: 42)
-                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Correct barcode match")

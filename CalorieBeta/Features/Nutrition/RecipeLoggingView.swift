@@ -56,18 +56,23 @@ struct RecipeLoggingView: View {
                                     .appFont(size: 18, weight: .bold)
                                     .foregroundColor(.textPrimary)
                                 Spacer()
-                                Text("Swipe to delete")
+                                Text("\(ingredients.count.formatted()) ingredients")
                                     .appFont(size: 12)
                                     .foregroundColor(.secondary)
                             }
                             
                             ForEach(ingredients) { item in
-                                RecipeLoggingIngredientRow(ingredient: item) { newQuantity in
-                                    updateQuantity(for: item, newQuantity: newQuantity)
-                                }
+                                RecipeLoggingIngredientRow(
+                                    ingredient: item,
+                                    onQuantityChange: { newQuantity in
+                                        updateQuantity(for: item, newQuantity: newQuantity)
+                                    },
+                                    onDelete: {
+                                        deleteIngredient(item)
+                                    }
+                                )
                                 .padding(.vertical, 8)
                                 .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 12))
-                                // Custom swipe to delete could be added here, or we use a simple X button inside the row
                             }
                         }
                         .padding(.horizontal, 16)
@@ -75,14 +80,14 @@ struct RecipeLoggingView: View {
                     .padding(.vertical, 16)
                 }
 
-                Button("Log Recipe") {
+                Button("Log recipe") {
                     logRecipe()
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .padding()
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Log Recipe")
+            .navigationTitle("Log recipe")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -103,6 +108,11 @@ struct RecipeLoggingView: View {
         ingredients[index].protein *= ratio
         ingredients[index].carbs *= ratio
         ingredients[index].fats *= ratio
+    }
+
+    private func deleteIngredient(_ item: FoodItem) {
+        ingredients.removeAll { $0.id == item.id }
+        HapticManager.instance.feedback(.light)
     }
 
     private func logRecipe() {
@@ -144,17 +154,17 @@ private struct RecipeLoggingHero: View {
             Text(FoodEmojiMapper.getEmoji(for: recipe.name))
                 .appFont(size: 48)
                 .padding(16)
-                .background(Color.brandPrimary.opacity(0.1), in: Circle())
+                .background(Color(.secondarySystemGroupedBackground), in: Circle())
 
             Text(recipe.name)
                 .appFont(size: 24, weight: .bold)
                 .foregroundColor(.textPrimary)
 
             HStack(spacing: 16) {
-                MacroPill(title: "Cal", value: Int(nutrition.calories), color: .orange)
-                MacroPill(title: "Pro", value: Int(nutrition.protein), color: .accentProtein)
-                MacroPill(title: "Carb", value: Int(nutrition.carbs), color: .accentCarbs)
-                MacroPill(title: "Fat", value: Int(nutrition.fats), color: .accentFats)
+                MacroPill(title: "Calories", value: Int(nutrition.calories.rounded()), color: .orange)
+                MacroPill(title: "Protein", value: Int(nutrition.protein.rounded()), color: .accentProtein)
+                MacroPill(title: "Carbs", value: Int(nutrition.carbs.rounded()), color: .accentCarbs)
+                MacroPill(title: "Fat", value: Int(nutrition.fats.rounded()), color: .accentFats)
             }
         }
     }
@@ -167,7 +177,7 @@ private struct MacroPill: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            Text("\(value)")
+            Text(value.formatted())
                 .appFont(size: 16, weight: .bold)
                 .foregroundColor(color)
             Text(title)
@@ -183,12 +193,18 @@ private struct MacroPill: View {
 private struct RecipeLoggingIngredientRow: View {
     let ingredient: FoodItem
     let onQuantityChange: (Double) -> Void
+    let onDelete: () -> Void
     
     @State private var quantityString: String
 
-    init(ingredient: FoodItem, onQuantityChange: @escaping (Double) -> Void) {
+    init(
+        ingredient: FoodItem,
+        onQuantityChange: @escaping (Double) -> Void,
+        onDelete: @escaping () -> Void
+    ) {
         self.ingredient = ingredient
         self.onQuantityChange = onQuantityChange
+        self.onDelete = onDelete
         let initialQuantity = ingredient.quantityValue ?? ingredient.servingWeight
         _quantityString = State(initialValue: initialQuantity > 0 ? String(format: "%.1f", initialQuantity) : "1")
     }
@@ -200,7 +216,7 @@ private struct RecipeLoggingIngredientRow: View {
                     .appFont(size: 16, weight: .semibold)
                     .foregroundColor(.textPrimary)
                 
-                Text("\(Int(ingredient.calories)) cal | P:\(Int(ingredient.protein)) C:\(Int(ingredient.carbs)) F:\(Int(ingredient.fats))")
+                Text("\(Int(ingredient.calories.rounded()).formatted()) cal | P \(Int(ingredient.protein.rounded()).formatted()) g  C \(Int(ingredient.carbs.rounded()).formatted()) g  F \(Int(ingredient.fats.rounded()).formatted()) g")
                     .appFont(size: 12)
                     .foregroundColor(.secondary)
             }
@@ -224,6 +240,15 @@ private struct RecipeLoggingIngredientRow: View {
                 .appFont(size: 14, weight: .medium)
                 .foregroundColor(.secondary)
                 .frame(width: 30, alignment: .leading)
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+                    .appFont(size: 14, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .frame(width: 34, height: 34)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Delete \(ingredient.name)")
         }
         .padding(12)
     }

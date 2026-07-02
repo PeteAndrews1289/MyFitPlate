@@ -83,9 +83,9 @@ struct WorkoutSessionControlBar: View {
                 Text("Plates")
                     .appFont(size: 11, weight: .bold)
             }
-            .foregroundColor(.brandPrimary)
+            .foregroundColor(Color(UIColor.secondaryLabel))
             .frame(width: 72, height: 58)
-            .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
     }

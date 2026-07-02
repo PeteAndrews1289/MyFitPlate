@@ -267,7 +267,7 @@ struct FoodDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: toggleSavedState) {
                     Image(systemName: isSavedAsCustom ? "star.fill" : "star")
-                        .foregroundColor(isSavedAsCustom ? .yellow : .brandPrimary)
+                        .foregroundColor(isSavedAsCustom ? .yellow : .blue)
                 }
             }
         }
@@ -303,7 +303,7 @@ struct FoodDetailView: View {
             }
             .presentationDetents([.large])
         }
-        .alert("Scan Error", isPresented: $scanError.0) {
+        .alert("Scan error", isPresented: $scanError.0) {
             Button("OK") { }
         } message: {
             Text(scanError.1)
@@ -334,9 +334,9 @@ struct FoodDetailView: View {
 
                 Image(systemName: "number")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
                     .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                    .background(Color.blue.opacity(0.12), in: Circle())
             }
             .padding(14)
             .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -353,14 +353,14 @@ struct FoodDetailView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "fork.knife")
                                 .appFont(size: 14, weight: .bold)
-                                .foregroundColor(.brandPrimary)
+                                .foregroundColor(.blue)
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Serving size")
                                     .appFont(size: 13, weight: .semibold)
                                     .foregroundColor(Color(UIColor.secondaryLabel))
 
-                                Text(selectedServingOption?.description ?? "Select...")
+                                Text(selectedServingOption?.description ?? "Select")
                                     .appFont(size: 15, weight: .bold)
                                     .foregroundColor(.textPrimary)
                                     .lineLimit(2)
@@ -396,24 +396,24 @@ struct FoodDetailView: View {
         let totalUnsaturatedFat = nutrients.fats - (nutrients.saturatedFat ?? 0)
 
         VStack(alignment: .leading, spacing: 13) {
-            Text("Nutrition Details")
+            Text("Nutrition details")
                 .appFont(size: 18, weight: .bold)
                 .foregroundColor(.textPrimary)
 
-            DisclosureGroup("Fat & Fiber") {
+            DisclosureGroup("Fat and fiber") {
                 VStack(spacing: 8) {
-                    nutrientRow(label: "Saturated Fat", value: nutrients.saturatedFat, unit: "g")
-                    nutrientRow(label: "Polyunsaturated Fat", value: nutrients.polyunsaturatedFat, unit: "g")
-                    nutrientRow(label: "Monounsaturated Fat", value: nutrients.monounsaturatedFat, unit: "g")
-                    nutrientRow(label: "Unsaturated Fat", value: totalUnsaturatedFat > 0 ? totalUnsaturatedFat : nil, unit: "g")
-                    nutrientRow(label: "Dietary Fiber", value: nutrients.fiber, unit: "g")
+                    nutrientRow(label: "Saturated fat", value: nutrients.saturatedFat, unit: "g")
+                    nutrientRow(label: "Polyunsaturated fat", value: nutrients.polyunsaturatedFat, unit: "g")
+                    nutrientRow(label: "Monounsaturated fat", value: nutrients.monounsaturatedFat, unit: "g")
+                    nutrientRow(label: "Unsaturated fat", value: totalUnsaturatedFat > 0 ? totalUnsaturatedFat : nil, unit: "g")
+                    nutrientRow(label: "Dietary fiber", value: nutrients.fiber, unit: "g")
                 }
                 .padding(.top, 8)
             }
 
             Divider().opacity(0.5)
 
-            DisclosureGroup("Vitamins & Minerals") {
+            DisclosureGroup("Vitamins and minerals") {
                 VStack(spacing: 8) {
                     nutrientRow(label: "Calcium", value: nutrients.calcium, unit: "mg", specifier: "%.0f")
                     nutrientRow(label: "Iron", value: nutrients.iron, unit: "mg", specifier: "%.1f")
@@ -441,7 +441,7 @@ struct FoodDetailView: View {
                 .padding(.top, 8)
             }
         }
-        .tint(.brandPrimary)
+        .tint(.blue)
         .padding(16)
         .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
@@ -452,14 +452,14 @@ struct FoodDetailView: View {
         } label: {
             Label("Not correct? Take a photo of the nutrition label.", systemImage: "camera.fill")
         }
-        .tint(.green)
+        .tint(.blue)
         .padding(.top, 5)
     }
 
     private func handleScannedNutrition(_ data: NutritionLabelData) {
         self.foodName = data.foodName
         let scannedServing = ServingSizeOption(
-            description: "Scanned from Label",
+            description: "Scanned from label",
             servingWeightGrams: nil,
             calories: data.calories,
             protein: data.protein,
@@ -499,16 +499,16 @@ struct FoodDetailView: View {
 
     private func buttonText() -> String {
         if onUpdate != nil {
-            return "Update Item"
+            return "Update item"
         }
-        return isLoggedItem ? "Update Logged Item" : "Add to Log"
+        return isLoggedItem ? "Update logged item" : "Add to log"
     }
 
     private func navigationTitleText() -> String {
         if onUpdate != nil {
-            return "Edit Item"
+            return "Edit item"
         }
-        return isLoggedItem ? "Edit Logged Item" : "Log Food"
+        return isLoggedItem ? "Edit logged item" : "Log food"
     }
 
     private func handleButtonAction() {
@@ -859,7 +859,7 @@ private struct FoodSourceConfidenceCard: View {
         case "ai_estimate":
             return .orange
         default:
-            return .brandPrimary
+            return .blue
         }
     }
 

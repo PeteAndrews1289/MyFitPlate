@@ -35,7 +35,7 @@ struct DetailedInsightsView: View {
             .padding()
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Maia Insights")
+        .navigationTitle("Maia insights")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -45,7 +45,7 @@ struct DetailedInsightsView: View {
                 .disabled(insightsService.currentInsights.isEmpty || insightsService.isLoadingInsights)
             }
         }
-        .tint(.brandPrimary)
+        .tint(.blue)
         .sheet(isPresented: $showShareSheet) {
             if let pdfURL = pdfURL {
                 PDFShareView(activityItems: [pdfURL])
@@ -102,8 +102,8 @@ private struct InsightsHeroCard: View {
                     .background(Color.backgroundSecondary, in: Circle())
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Maia's Read")
-                        .appFont(size: 26, weight: .bold)
+                    Text("Maia's read")
+                        .appFont(size: 21, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text("A weekly pattern check across nutrition, training, hydration, and recovery.")
@@ -120,7 +120,6 @@ private struct InsightsHeroCard: View {
                     Text("Highest priority")
                         .appFont(size: 11, weight: .bold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .textCase(.uppercase)
 
                     Text(topInsight.title)
                         .appFont(size: 18, weight: .bold)
@@ -133,12 +132,12 @@ private struct InsightsHeroCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(12)
-                .background(Color.brandPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
 
             HStack(spacing: 10) {
-                InsightHeroMetric(title: "Insights", value: "\(insights.count)", color: .brandPrimary)
-                InsightHeroMetric(title: "Categories", value: "\(categoryCount)", color: .blue)
+                InsightHeroMetric(title: "Insights", value: insights.count.formatted(), color: .blue)
+                InsightHeroMetric(title: "Categories", value: categoryCount.formatted(), color: .purple)
                 InsightHeroMetric(title: "Focus", value: topInsight?.category.displayName ?? "Ready", color: .accentPositive)
             }
         }
@@ -155,18 +154,24 @@ private struct InsightHeroMetric: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
                 .appFont(size: 16, weight: .bold)
-                .foregroundColor(color)
+                .foregroundColor(.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
 
-            Text(title)
-                .appFont(size: 10, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .lineLimit(1)
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 6, height: 6)
+
+                Text(title)
+                    .appFont(size: 10, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .lineLimit(1)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -208,16 +213,16 @@ private struct InsightCategoryPill: View {
             Text(category.displayName)
                 .appFont(size: 12, weight: .bold)
 
-            Text("\(count)")
+            Text(count.formatted())
                 .appFont(size: 10, weight: .bold)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(Color.white.opacity(0.22), in: Capsule())
+                .background(Color(UIColor.secondarySystemFill), in: Capsule())
         }
-        .foregroundColor(.white)
+        .foregroundColor(category.tintColor)
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(category.tintColor, in: Capsule())
+        .background(Color.backgroundSecondary.opacity(0.78), in: Capsule())
     }
 }
 
@@ -225,7 +230,7 @@ private struct InsightsLoadingState: View {
     var body: some View {
         VStack(spacing: 14) {
             ProgressView()
-                .tint(.brandPrimary)
+                .tint(.blue)
 
             Text("Maia is reading the week")
                 .appFont(size: 19, weight: .bold)
@@ -249,9 +254,9 @@ private struct InsightsEmptyState: View {
         VStack(spacing: 14) {
             Image(systemName: "chart.line.text.clipboard")
                 .appFont(size: 30, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
                 .frame(width: 62, height: 62)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(Color(UIColor.secondarySystemFill), in: Circle())
 
             Text("Not enough signal yet")
                 .appFont(size: 20, weight: .bold)
@@ -293,7 +298,7 @@ struct InsightsPDFLayout: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("MyFitPlate: Weekly Insights")
+            Text("MyFitPlate: Weekly insights")
                 .font(.largeTitle.bold())
             Text("Report generated on: \(Date().formatted(date: .long, time: .shortened))")
                 .font(.subheadline)
@@ -333,7 +338,6 @@ struct InsightDetailCard: View {
                     Text(insight.category.displayName)
                         .appFont(size: 10, weight: .bold)
                         .foregroundColor(insight.category.tintColor)
-                        .textCase(.uppercase)
 
                     Text(insight.title)
                         .appFont(size: 18, weight: .bold)
@@ -346,10 +350,10 @@ struct InsightDetailCard: View {
                 if insight.priority > 0 {
                     Text("\(insight.priority)")
                         .appFont(size: 11, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.orange)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
-                        .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                        .background(Color.orange.opacity(0.10), in: Capsule())
                 }
             }
             
@@ -367,7 +371,7 @@ struct InsightDetailCard: View {
                 }) {
                     Label(showSourceData ? "Hide source data" : "Show source data", systemImage: showSourceData ? "chevron.up" : "chevron.down")
                         .appFont(size: 12, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
 
@@ -393,9 +397,9 @@ private extension UserInsight.InsightCategory {
         case .hydration: return "Hydration"
         case .macroBalance: return "Macros"
         case .microNutrient: return "Micros"
-        case .mealTiming: return "Meal Timing"
+        case .mealTiming: return "Meal timing"
         case .consistency: return "Consistency"
-        case .postWorkout: return "Post Workout"
+        case .postWorkout: return "Post workout"
         case .foodVariety: return "Variety"
         case .positiveReinforcement: return "Win"
         case .sugarAwareness: return "Sugar"

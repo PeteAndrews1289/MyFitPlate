@@ -57,7 +57,7 @@ struct QuickAddMacrosView: View {
                     }
                 }
             }
-            .navigationTitle("Quick Add Macros")
+            .navigationTitle("Quick add macros")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -78,7 +78,7 @@ struct QuickAddMacrosView: View {
 
     private func saveMacros() {
         guard let userID = DIContainer.shared.authService.currentUserID else {
-            errorMessage = "Not logged in."
+            errorMessage = "You need to be signed in."
             return
         }
 
@@ -87,20 +87,20 @@ struct QuickAddMacrosView: View {
         let c = Double(carbs) ?? 0
         let f = Double(fats) ?? 0
 
-        // If calories is 0 but macros exist, calculate them
+        // If calories is 0 but macros exist, calculate them.
         let finalCalories = cal > 0 ? cal : (p * 4 + c * 4 + f * 9)
 
         let newFood = FoodItem(
             id: UUID().uuidString,
-            name: "Quick Add Macros",
+            name: "Quick add macros",
             calories: finalCalories,
             protein: p,
             carbs: c,
             fats: f,
-            servingSize: "1 Custom Entry",
+            servingSize: "1 custom entry",
             servingWeight: 1,
             timestamp: Date(),
-            sourceMetadata: .userEntered(sourceName: "Quick Add")
+            sourceMetadata: .userEntered(sourceName: "Quick add")
         )
 
         isSaving = true
@@ -157,9 +157,9 @@ struct MenuScannerView: View {
                     VStack(spacing: 24) {
                         Image(systemName: "menucard")
                             .appFont(size: 60)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.blue)
                         
-                        Text("Menu Matchmaker")
+                        Text("Menu matchmaker")
                             .font(.title2)
                             .fontWeight(.bold)
                         
@@ -181,7 +181,7 @@ struct MenuScannerView: View {
                         Button(action: {
                             showingCamera = true
                         }) {
-                            Label("Scan Menu", systemImage: "camera")
+                            Label("Scan menu", systemImage: "camera")
                                 .font(.headline)
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
@@ -205,7 +205,7 @@ struct MenuScannerView: View {
                 }
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Menu Scanner")
+            .navigationTitle("Menu scanner")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -219,8 +219,8 @@ struct MenuScannerView: View {
         VStack(spacing: 18) {
             ProgressView()
                 .controlSize(.large)
-                .tint(.brandPrimary)
-            Text("Reading the menu and matching your macros…")
+                .tint(.blue)
+            Text("Reading the menu and matching your macros")
                 .appFont(size: 15, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
@@ -240,7 +240,7 @@ struct MenuScannerView: View {
 
                 HStack {
                     Text(remaining > 0
-                         ? "5 picks · \(fittingCount) fit your remaining \(Int(remaining)) cal"
+                         ? "5 picks · \(fittingCount.formatted()) fit your remaining \(Int(remaining).formatted()) cal"
                          : "Top picks from this menu")
                         .appFont(size: 13, weight: .semibold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
@@ -255,7 +255,7 @@ struct MenuScannerView: View {
                     .buttonStyle(.plain)
                 }
 
-                Text("AI estimates — double-check before logging.")
+                Text("AI estimates. Double-check before logging.")
                     .appFont(size: 11)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
                     .frame(maxWidth: .infinity)
@@ -273,10 +273,10 @@ struct MenuScannerView: View {
                 .frame(width: 30, height: 30)
                 .background(Color.orange.opacity(0.14), in: Circle())
             VStack(alignment: .leading, spacing: 2) {
-                Text("All picks exceed your remaining \(Int(remaining)) cal")
+                Text("All picks exceed your remaining \(Int(remaining).formatted()) cal")
                     .appFont(size: 13, weight: .bold)
                     .foregroundColor(.textPrimary)
-                Text("These are the closest options on the menu — log mindfully or save room elsewhere.")
+                Text("These are the closest options on the menu. Log mindfully or save room elsewhere.")
                     .appFont(size: 12)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .fixedSize(horizontal: false, vertical: true)
@@ -292,9 +292,9 @@ struct MenuScannerView: View {
         HStack(spacing: 14) {
             Image(systemName: "fork.knife")
                 .appFont(size: 16, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
                 .frame(width: 44, height: 44)
-                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(meal.name)
@@ -304,10 +304,10 @@ struct MenuScannerView: View {
                     .lineLimit(2)
 
                 HStack(spacing: 9) {
-                    Text("\(Int(meal.calories)) cal").foregroundColor(.brandPrimary)
-                    Text("P \(Int(meal.protein))g").foregroundColor(.accentProtein)
-                    Text("C \(Int(meal.carbs))g").foregroundColor(.accentCarbs)
-                    Text("F \(Int(meal.fats))g").foregroundColor(.accentFats)
+                    Text("\(Int(meal.calories).formatted()) cal").foregroundColor(.orange)
+                    Text("P \(Int(meal.protein).formatted()) g").foregroundColor(.accentProtein)
+                    Text("C \(Int(meal.carbs).formatted()) g").foregroundColor(.accentCarbs)
+                    Text("F \(Int(meal.fats).formatted()) g").foregroundColor(.accentFats)
                 }
                 .appFont(size: 12, weight: .semibold)
 
@@ -325,7 +325,7 @@ struct MenuScannerView: View {
 
             Image(systemName: "plus.circle.fill")
                 .appFont(size: 26)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
         }
         .padding(14)
         .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -353,7 +353,7 @@ struct MenuScannerView: View {
                     recommendedMeals = Array(meals.prefix(5))
                 }
             case .failure(let error):
-                errorMessage = "Failed to analyze menu: \(error.localizedDescription)"
+                errorMessage = "Couldn't analyze menu: \(error.localizedDescription)"
             }
         }
     }

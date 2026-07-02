@@ -13,6 +13,8 @@ struct PreBuiltProgramsView: View {
     @State private var selectedFilter: ProgramCatalogFilter = .all
     @State private var selectingProgramID: String?
     @State private var selectionError: String?
+    @State private var programPendingSchedule: WorkoutProgram?
+    @State private var selectedStartDate = Date()
 
     private var filteredPrograms: [WorkoutProgram] {
         workoutService.preBuiltPrograms.filter { program in
@@ -71,7 +73,8 @@ struct PreBuiltProgramsView: View {
                     isPreview: true,
                     isSelectingProgram: selectingProgramID == program.catalogID,
                     onSelectProgram: {
-                        selectPreBuiltProgram(program)
+                        selectedStartDate = Calendar.current.startOfDay(for: Date())
+                        programPendingSchedule = program
                     }
                 )
                 .environmentObject(workoutService)
@@ -85,6 +88,23 @@ struct PreBuiltProgramsView: View {
                 }
                 .navigationBarTitleDisplayMode(.inline)
                 .navigationTitle("Program Details")
+                .sheet(item: $programPendingSchedule) { scheduledProgram in
+                    PreBuiltProgramStartDateSheet(
+                        program: scheduledProgram,
+                        startDate: $selectedStartDate,
+                        isSelecting: selectingProgramID == scheduledProgram.catalogID,
+                        onCancel: {
+                            programPendingSchedule = nil
+                        },
+                        onConfirm: {
+                            selectPreBuiltProgram(
+                                scheduledProgram,
+                                startDate: selectedStartDate
+                            )
+                        }
+                    )
+                    .presentationDetents([.medium, .large])
+                }
             }
         }
     }
@@ -158,15 +178,16 @@ struct PreBuiltProgramsView: View {
         .asCard()
     }
 
-    private func selectPreBuiltProgram(_ program: WorkoutProgram) {
+    private func selectPreBuiltProgram(_ program: WorkoutProgram, startDate: Date) {
         guard selectingProgramID == nil else { return }
         selectingProgramID = program.catalogID
         selectionError = nil
 
         Task {
-            let savedProgram = await workoutService.selectPreBuiltProgram(program)
+            let savedProgram = await workoutService.selectPreBuiltProgram(program, startDate: startDate)
             await MainActor.run {
                 selectingProgramID = nil
+                programPendingSchedule = nil
                 if savedProgram != nil {
                     showingPreBuiltDetail = nil
                 } else {
@@ -486,6 +507,101 @@ private struct ProgramSelectionErrorCard: View {
         }
         .padding(14)
         .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct PreBuiltProgramStartDateSheet: View {
+    let program: WorkoutProgram
+    @Binding var startDate: Date
+    let isSelecting: Bool
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+
+    private var trainingDayCount: Int {
+        program.daysOfWeek?.count ?? 0
+    }
+
+    private var startDateText: String {
+        startDate.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "calendar.badge.clock")
+                            .appFont(size: 18, weight: .bold)
+                            .foregroundColor(.brandPrimary)
+                            .frame(width: 44, height: 44)
+                            .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Choose Start Date")
+                                .appFont(size: 22, weight: .bold)
+                                .foregroundColor(.textPrimary)
+
+                            Text("Your copied program will begin on \(startDateText).")
+                                .appFont(size: 13)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+
+                    DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
+                        .appFont(size: 15, weight: .semibold)
+                        .tint(.brandPrimary)
+                        .padding(14)
+                        .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .asCard()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(program.name)
+                        .appFont(size: 18, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: 10) {
+                        PreBuiltMetric(title: "Routines", value: "\(program.routines.count)", color: .brandPrimary)
+                        PreBuiltMetric(title: "Days/wk", value: "\(trainingDayCount)", color: .blue)
+                    }
+
+                    Text("The weekly rhythm is preserved, and the first workout is aligned to your chosen start date.")
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .asCard()
+
+                Spacer(minLength: 0)
+            }
+            .padding()
+            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .navigationTitle("Schedule Program")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                        .disabled(isSelecting)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        onConfirm()
+                    } label: {
+                        if isSelecting {
+                            ProgressView()
+                        } else {
+                            Text("Start")
+                        }
+                    }
+                    .disabled(isSelecting)
+                }
+            }
+        }
     }
 }
 

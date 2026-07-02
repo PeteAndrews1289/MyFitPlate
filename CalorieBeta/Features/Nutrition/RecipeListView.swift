@@ -56,7 +56,7 @@ struct RecipeListView: View {
                 }
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("My Recipes")
+            .navigationTitle("My recipes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -104,7 +104,7 @@ private struct RecipeLibrarySummaryCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Recipe Library")
+                    Text("Recipe library")
                         .appFont(size: 24, weight: .bold)
                         .foregroundColor(.textPrimary)
 
@@ -127,8 +127,12 @@ private struct RecipeLibrarySummaryCard: View {
             }
 
             HStack(spacing: 10) {
-                RecipeLibraryMetric(title: "Recipes", value: "\(recipes.count)", color: .brandPrimary)
-                RecipeLibraryMetric(title: "Avg Calories", value: "\(Int(averageCalories.rounded()))", color: .orange)
+                RecipeLibraryMetric(title: "Recipes", value: recipes.count.formatted(), color: .blue)
+                RecipeLibraryMetric(
+                    title: "Avg calories",
+                    value: "\(Int(averageCalories.rounded()).formatted()) cal",
+                    color: .orange
+                )
             }
         }
         .padding(18)
@@ -165,9 +169,9 @@ private struct RecipeSearchField: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .appFont(size: 17, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
 
-            TextField("Search recipes or ingredients...", text: $searchText)
+            TextField("Search recipes or ingredients", text: $searchText)
                 .textInputAutocapitalization(.words)
 
             if !searchText.isEmpty {
@@ -203,7 +207,10 @@ private struct RecipeCardRow: View {
                     Text(FoodEmojiMapper.getEmoji(for: recipe.name))
                         .appFont(size: 28)
                         .frame(width: 50, height: 50)
-                        .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(
+                            Color(.secondarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        )
 
                     VStack(alignment: .leading, spacing: 5) {
                         Text(recipe.name)
@@ -211,13 +218,13 @@ private struct RecipeCardRow: View {
                             .foregroundColor(.textPrimary)
                             .lineLimit(2)
 
-                        Text("\(recipe.ingredients.count) ingredients")
+                        Text("\(recipe.ingredients.count.formatted()) ingredients")
                             .appFont(size: 12, weight: .medium)
                             .foregroundColor(Color(UIColor.secondaryLabel))
 
-                        Text("Cal \(Int(recipe.nutrition.calories.rounded()))  P \(Int(recipe.nutrition.protein.rounded()))g  C \(Int(recipe.nutrition.carbs.rounded()))g  F \(Int(recipe.nutrition.fats.rounded()))g")
+                        Text(macroSummary)
                             .appFont(size: 11, weight: .bold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
@@ -244,13 +251,21 @@ private struct RecipeCardRow: View {
         .padding(12)
         .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
+
+    private var macroSummary: String {
+        let calories = Int(recipe.nutrition.calories.rounded()).formatted()
+        let protein = Int(recipe.nutrition.protein.rounded()).formatted()
+        let carbs = Int(recipe.nutrition.carbs.rounded()).formatted()
+        let fat = Int(recipe.nutrition.fats.rounded()).formatted()
+        return "\(calories) cal  P \(protein) g  C \(carbs) g  F \(fat) g"
+    }
 }
 
 private struct RecipeListLoadingState: View {
     var body: some View {
         VStack(spacing: 13) {
             ProgressView()
-                .tint(.brandPrimary)
+                .tint(.blue)
 
             Text("Loading recipes")
                 .appFont(size: 17, weight: .bold)
@@ -268,9 +283,9 @@ private struct RecipeListEmptyState: View {
         VStack(spacing: 16) {
             Image(systemName: "book.closed.fill")
                 .appFont(size: 40, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
                 .frame(width: 76, height: 76)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(Color.blue.opacity(0.12), in: Circle())
 
             VStack(spacing: 5) {
                 Text("No saved recipes yet")
@@ -284,7 +299,7 @@ private struct RecipeListEmptyState: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button("Create Recipe", action: onCreate)
+            Button("Create recipe", action: onCreate)
                 .buttonStyle(PrimaryButtonStyle())
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -300,9 +315,9 @@ private struct RecipeListNoMatchesState: View {
         VStack(spacing: 11) {
             Image(systemName: "magnifyingglass")
                 .appFont(size: 22, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.blue)
                 .frame(width: 48, height: 48)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .background(Color.blue.opacity(0.12), in: Circle())
 
             Text("No matching recipes")
                 .appFont(size: 16, weight: .bold)

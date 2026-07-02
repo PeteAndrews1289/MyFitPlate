@@ -37,7 +37,7 @@ struct ManualGroceryItemSheet: View {
                             .appFont(size: 15, weight: .bold)
                             .foregroundColor(.textPrimary)
 
-                        TextField("Chicken breast, blueberries, paper towels...", text: $name)
+                        TextField("Chicken breast, blueberries, paper towels", text: $name)
                             .textInputAutocapitalization(.words)
                             .padding(14)
                             .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -82,7 +82,7 @@ struct ManualGroceryItemSheet: View {
                 .padding(.bottom, 86)
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Manual Item")
+            .navigationTitle("Manual item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -90,7 +90,7 @@ struct ManualGroceryItemSheet: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Button(initialItem == nil ? "Add Item" : "Save Changes") {
+                Button(initialItem == nil ? "Add item" : "Save changes") {
                     var newItem = initialItem ?? GroceryListItem(
                         name: trimmedName,
                         quantity: quantityValue,
@@ -133,8 +133,8 @@ struct ManualGroceryItemSheet: View {
     @ViewBuilder
     private func categoryButton(for option: String) -> some View {
         let isSelected = (category == option)
-        let fgColor: Color = isSelected ? Color.brandPrimary : Color(UIColor.secondaryLabel)
-        let bgSelection = Color.brandPrimary.opacity(0.14)
+        let fgColor: Color = isSelected ? Color.blue : Color(UIColor.secondaryLabel)
+        let bgSelection = Color.blue.opacity(0.14)
         let bgDefault = Color.backgroundPrimary.opacity(0.58)
         let bgColor: Color = isSelected ? bgSelection : bgDefault
         
@@ -158,13 +158,13 @@ struct ManualGroceryItemSheet: View {
             HStack(spacing: 12) {
                 Image(systemName: "cart.badge.plus")
                     .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.blue)
                     .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(initialItem == nil ? "Add Grocery Item" : "Edit Grocery Item")
-                        .appFont(size: 24, weight: .bold)
+                    Text(initialItem == nil ? "Add grocery item" : "Edit grocery item")
+                        .appFont(size: 21, weight: .bold)
                         .foregroundColor(.textPrimary)
 
                     Text(initialItem == nil ? "Add anything you need outside the generated meal plan." : "Update this item's details.")

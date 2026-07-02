@@ -70,8 +70,8 @@ struct HomeView: View {
             text: "Your calories and macros for the day, front and center. Swipe left or right to move between the Summary, Hydration, and Micronutrient views."
         ),
         "quickActions": (
-            title: "Command Center",
-            text: "Your most-used tools in one tap — start a Workout, open Coaching for Maia's game plan, repeat Yesterday's meals, scan a Menu, log your Weight, or track a Fast."
+            title: "Quick actions",
+            text: "Your most-used tools in one tap: start a workout, open Maia's plan, repeat yesterday's meals, scan a menu, log weight, or track a fast."
         ),
         "menuScanner": (
             title: "Menu Matchmaker",
@@ -470,7 +470,7 @@ struct HomeView: View {
             }) {
                 Image(systemName: "chevron.left")
                     .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .frame(width: 38, height: 38)
                     .background(Color.backgroundPrimary.opacity(0.82), in: Circle())
             }
@@ -494,7 +494,7 @@ struct HomeView: View {
             }) {
                 Image(systemName: "chevron.right")
                     .appFont(size: 14, weight: .bold)
-                    .foregroundColor(isToday ? Color(UIColor.tertiaryLabel) : .brandPrimary)
+                    .foregroundColor(isToday ? Color(UIColor.tertiaryLabel) : Color(UIColor.secondaryLabel))
                     .frame(width: 38, height: 38)
                     .background(Color.backgroundPrimary.opacity(isToday ? 0.36 : 0.82), in: Circle())
             }
@@ -519,25 +519,28 @@ struct HomeView: View {
             HStack(spacing: 12) {
                 Image(systemName: "sparkles")
                     .appFont(size: 20, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundColor(.accentPositive)
+                    .frame(width: 38, height: 38)
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Weekly Check-In Ready")
+                    Text("Weekly check-in ready")
                         .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(.textPrimary)
                     Text("Tap to review your new targets")
                         .appFont(size: 12, weight: .medium)
-                        .foregroundColor(.white.opacity(0.8))
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
                     .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(16)
-            .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(Color.backgroundSecondary.opacity(0.70), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
     }

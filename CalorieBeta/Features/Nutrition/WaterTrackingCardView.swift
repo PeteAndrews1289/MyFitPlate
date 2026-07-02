@@ -39,7 +39,7 @@ struct WaterTrackingCardView: View {
                             .foregroundColor(.textPrimary)
                     }
 
-                    Text(remainingWater > 0 ? "\(Int(remainingWater.rounded())) oz left to hit your goal." : "Goal reached. Keep sipping as needed.")
+                    Text(remainingWater > 0 ? "\(Int(remainingWater.rounded()).formatted()) oz left to hit your goal." : "Goal reached. Keep sipping as needed.")
                         .appFont(size: 14, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
 
@@ -47,10 +47,10 @@ struct WaterTrackingCardView: View {
                         GeometryReader { geometry in
                             ZStack(alignment: .leading) {
                                 Capsule()
-                                    .fill(Color.cyan.opacity(0.12))
+                                    .fill(Color(UIColor.secondarySystemFill))
 
                                 Capsule()
-                                    .fill(LinearGradient(colors: [.cyan, Color.brandPrimary.opacity(0.78)], startPoint: .leading, endPoint: .trailing))
+                                    .fill(Color.cyan)
                                     .frame(width: geometry.size.width * CGFloat(progress))
                                     .animation(.easeInOut(duration: 0.45), value: progress)
                             }
@@ -58,13 +58,13 @@ struct WaterTrackingCardView: View {
                         .frame(height: 10)
 
                         HStack {
-                            Text("\(Int(waterIntake.rounded())) / \(Int(waterGoal.rounded())) oz")
+                            Text("\(Int(waterIntake.rounded()).formatted()) / \(Int(waterGoal.rounded()).formatted()) oz")
                                 .appFont(size: 12, weight: .semibold)
                                 .foregroundColor(.textPrimary)
 
                             Spacer()
 
-                            Text("\(Int((progress * 100).rounded()))%")
+                            Text("\(Int((progress * 100).rounded()).formatted())%")
                                 .appFont(size: 12, weight: .semibold)
                                 .foregroundColor(.cyan)
                         }
@@ -89,11 +89,7 @@ struct WaterTrackingCardView: View {
                     ZStack(alignment: .bottom) {
                         Rectangle()
                             .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [.cyan, Color.brandPrimary.opacity(0.72)]),
-                                    startPoint: .bottom,
-                                    endPoint: .top
-                                )
+                                Color.cyan
                             )
                             .frame(height: geometry.size.height * CGFloat(progress))
                             .animation(.easeInOut(duration: 0.5), value: progress)
@@ -159,10 +155,10 @@ private struct WaterAdjustButton: View {
                 Text(title)
                     .appFont(size: 12, weight: .semibold)
             }
-            .foregroundColor(.brandPrimary)
+            .foregroundColor(.cyan)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+            .background(Color(UIColor.secondarySystemFill), in: Capsule())
         }
         .buttonStyle(.plain)
     }

@@ -35,5 +35,5 @@ public protocol WorkoutServicing: AnyObject {
     func fetchHistory(for exerciseName: String) async -> [WorkoutSessionLog]
     func fetchPreviousPerformance(for exerciseName: String) async -> CompletedExercise?
     
-    func selectPreBuiltProgram(_ program: WorkoutProgram) async -> WorkoutProgram?
+    func selectPreBuiltProgram(_ program: WorkoutProgram, startDate: Date) async -> WorkoutProgram?
 }

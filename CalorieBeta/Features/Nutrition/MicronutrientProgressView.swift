@@ -49,7 +49,8 @@ struct MicronutrientProgressView: View {
         } else {
             VStack {
                 ProgressView()
-                Text("Loading Goals...")
+                    .tint(.blue)
+                Text("Loading goals")
                     .font(.caption)
                     .foregroundColor(.gray)
             }
@@ -144,7 +145,7 @@ struct MicronutrientRow: View {
         if isSodium {
             return progress >= 1.0 ? .red : .primary
         } else {
-            return progress >= 1.0 ? .green : .primary
+            return progress >= 1.0 ? .accentPositive : .primary
         }
     }
 }
@@ -158,7 +159,7 @@ struct CustomProgressBar: View {
         if isSodium {
             return value >= 1.0 ? .red : .orange
         } else {
-            return value >= 1.0 ? .green : .accentColor
+            return value >= 1.0 ? .accentPositive : .blue
         }
     }
 
