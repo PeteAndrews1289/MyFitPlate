@@ -130,6 +130,15 @@ struct FoodDetailView: View {
         FoodDataSanity.findings(for: sanityCheckItem)
     }
 
+    /// Trust telemetry: which correction affordances get used, per source. Over time this
+    /// says empirically which database is dirtiest and can weight search ranking.
+    private func logCorrectionAction(_ action: String) {
+        DIContainer.shared.analyticsManager?.logEvent("food_correction_action", parameters: [
+            "action": action,
+            "source": sourceDescriptor.sourceKey
+        ])
+    }
+
     private func logSuspiciousDataIfNeeded() {
         guard !hasLoggedSuspiciousData else { return }
         let findings = sanityFindings
@@ -174,17 +183,36 @@ struct FoodDetailView: View {
 
                         if shouldShowBarcodeCorrectionCard {
                             FoodDetailBarcodeCorrectionCard(
-                                fixAction: { showingCorrectionEditor = true },
-                                rememberAction: saveAsCustomFood
+                                fixAction: {
+                                    logCorrectionAction("fix_opened")
+                                    showingCorrectionEditor = true
+                                },
+                                rememberAction: {
+                                    logCorrectionAction("remember")
+                                    saveAsCustomFood()
+                                }
                             )
                         }
 
                         if !sanityFindings.isEmpty {
                             FoodDataSanityCard(
                                 findings: sanityFindings,
-                                fixAction: { showingCorrectionEditor = true }
+                                fixAction: {
+                                    logCorrectionAction("sanity_fix_opened")
+                                    showingCorrectionEditor = true
+                                }
                             )
                             .onAppear(perform: logSuspiciousDataIfNeeded)
+                        }
+
+                        // AI estimates get a persistent refine path even when the numbers
+                        // pass every sanity check — the least-trusted source should always
+                        // be the easiest to correct.
+                        if sourceDescriptor.isEstimated {
+                            FoodDetailAIRefineCard(refineAction: {
+                                logCorrectionAction("refine_opened")
+                                showingCorrectionEditor = true
+                            })
                         }
 
                         if isShowingDetailsLoading {
@@ -605,6 +633,7 @@ struct FoodDetailView: View {
     }
 
     private func applyFoodCorrectionAndRemember(foodName correctedName: String, serving correctedServing: ServingSizeOption) {
+        logCorrectionAction("correction_saved")
         foodName = correctedName
         availableServings.insert(correctedServing, at: 0)
         selectedServingID = correctedServing.id

@@ -238,6 +238,44 @@ private struct FoodDetailCorrectionButtonStyle: ButtonStyle {
     }
 }
 
+struct FoodDetailAIRefineCard: View {
+    let refineAction: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "sparkles")
+                    .appFont(size: 17, weight: .bold)
+                    .foregroundColor(.orange)
+                    .frame(width: 42, height: 42)
+                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("This is an AI estimate")
+                        .appFont(size: 15, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Portions and hidden ingredients vary. A 30-second refine makes it yours.")
+                        .appFont(size: 12, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            Button(action: refineAction) {
+                Label("Refine Estimate", systemImage: "slider.horizontal.3")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .brandPrimary, isFilled: true))
+            .accessibilityHint("Opens an editor to adjust this estimate's name, serving, and macros.")
+        }
+        .padding(14)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
 struct FoodDataSanityCard: View {
     let findings: [FoodDataSanity.Finding]
     let fixAction: () -> Void
