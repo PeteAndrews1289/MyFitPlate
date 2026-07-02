@@ -91,13 +91,15 @@ struct MainTabView: View {
                         .zIndex(1)
 
                     VStack(alignment: .leading, spacing: 16) {
-                        let buttons: [(title: String, subtitle: String, icon: String, tint: Color, action: () -> Void)] = [
-                            ("Search Food", "Find from the food database", "magnifyingglass", .brandPrimary, { self.showingFoodSearch = true }),
-                            ("Scan Barcode", "Fast packaged food lookup", "barcode.viewfinder", .accentCarbs, { self.showingBarcodeScanner = true }),
-                            ("Log with Camera", "Estimate nutrition from a photo", "camera.fill", .orange, { self.showingImagePicker = true }),
-                            ("Describe Your Meal", "Tell Maia what you ate", "text.bubble.fill", .accentPositive, { self.showingAITextLog = true }),
-                            ("Log Exercise", "Record activity and calories", "figure.walk", .accentPositive, { self.showingAddExerciseView = true }),
-                            ("Log Recipe/Meal", "Use saved recipes and meals", "list.clipboard", .accentFats, { self.showingRecipeListView = true })
+                        // DESIGN.md rule 2: one hero (search, the primary path, in brand green);
+                        // the other rows are neutral — no per-row rainbow tints.
+                        let buttons: [(title: String, subtitle: String, icon: String, isPrimary: Bool, action: () -> Void)] = [
+                            ("Search food", "Find from the food database", "magnifyingglass", true, { self.showingFoodSearch = true }),
+                            ("Scan barcode", "Fast packaged food lookup", "barcode.viewfinder", false, { self.showingBarcodeScanner = true }),
+                            ("Log with camera", "Estimate nutrition from a photo", "camera.fill", false, { self.showingImagePicker = true }),
+                            ("Describe your meal", "Tell Maia what you ate", "text.bubble.fill", false, { self.showingAITextLog = true }),
+                            ("Log exercise", "Record activity and calories", "figure.walk", false, { self.showingAddExerciseView = true }),
+                            ("Log recipe or meal", "Use saved recipes and meals", "list.clipboard", false, { self.showingRecipeListView = true })
                         ]
 
                         Capsule()
@@ -108,11 +110,11 @@ struct MainTabView: View {
 
                         HStack(alignment: .top, spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Quick Log")
+                                Text("Quick log")
                                     .foregroundColor(.textPrimary)
                                     .appFont(size: 24, weight: .bold)
 
-                                Text("Choose the fastest way to capture food, workouts, or notes.")
+                                Text("The fastest ways to capture food and activity.")
                                     .foregroundColor(Color(UIColor.secondaryLabel))
                                     .appFont(size: 14)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -140,7 +142,7 @@ struct MainTabView: View {
                                 title: buttonInfo.title,
                                 subtitle: buttonInfo.subtitle,
                                 icon: buttonInfo.icon,
-                                tint: buttonInfo.tint
+                                isPrimary: buttonInfo.isPrimary
                             ) {
                                 buttonInfo.action()
                                 self.showingAddOptions = false
@@ -325,7 +327,7 @@ struct MainTabView: View {
         )
     }
     
-    private func actionButton(title: String, subtitle: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {
+    private func actionButton(title: String, subtitle: String, icon: String, isPrimary: Bool, action: @escaping () -> Void) -> some View {
         Button(action: {
             HapticsService.shared.playImpact(style: .light)
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -335,11 +337,11 @@ struct MainTabView: View {
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(tint.opacity(0.14))
+                        .fill(isPrimary ? Color.brandPrimary : Color(UIColor.secondarySystemFill))
 
                     Image(systemName: icon)
                         .appFont(size: 18, weight: .semibold)
-                        .foregroundColor(tint)
+                        .foregroundColor(isPrimary ? .white : Color(UIColor.secondaryLabel))
                 }
                 .frame(width: 44, height: 44)
 
