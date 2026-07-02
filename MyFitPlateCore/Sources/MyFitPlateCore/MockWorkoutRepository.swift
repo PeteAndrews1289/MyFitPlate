@@ -39,7 +39,13 @@ public final class MockWorkoutRepository: WorkoutRepositoryProtocol, @unchecked 
     public func removeListener(_ handle: Any) {
         removeListenerCalledCount += 1
     }
-    public func saveProgram(userID: String, program: WorkoutProgram) async throws -> WorkoutProgram { return mockSaveProgramResult ?? program }
+    public var saveProgramError: Error?
+    public func saveProgram(userID: String, program: WorkoutProgram) async throws -> WorkoutProgram {
+        if let saveProgramError {
+            throw saveProgramError
+        }
+        return mockSaveProgramResult ?? program
+    }
     
     public var deletedProgramIDs: [String] = []
     public var deleteProgramError: Error?
@@ -59,7 +65,11 @@ public final class MockWorkoutRepository: WorkoutRepositoryProtocol, @unchecked 
         deletedRoutineIDs.append(routineID)
     }
     
+    public var saveWorkoutSessionLogError: Error?
     public func saveWorkoutSessionLog(userID: String, log: WorkoutSessionLog) async throws {
+        if let saveWorkoutSessionLogError {
+            throw saveWorkoutSessionLogError
+        }
         savedSessionLogs.append(log)
     }
     public func fetchHistory(userID: String, exerciseName: String) async throws -> [WorkoutSessionLog] { return mockFetchHistoryResult }

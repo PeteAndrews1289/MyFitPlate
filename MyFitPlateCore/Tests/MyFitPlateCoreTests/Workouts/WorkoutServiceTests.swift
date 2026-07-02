@@ -5,6 +5,7 @@ import XCTest
 final class WorkoutServiceTests: XCTestCase {
     var service: WorkoutService!
     var mockRepo: MockWorkoutRepository!
+    var mockCrash: MockCrashManager!
 
     override func setUp() {
         super.setUp()
@@ -15,8 +16,46 @@ final class WorkoutServiceTests: XCTestCase {
         let mockAuth = MockAuthService()
         mockAuth.currentUserID = "user_123"
         DIContainer.shared.authService = mockAuth
-        
+        mockCrash = MockCrashManager()
+        DIContainer.shared.crashManager = mockCrash
+        ToastManager.shared.toast = nil
+
         service = WorkoutService()
+    }
+
+    // MARK: - Failure surfacing (silent write failures once froze program progress)
+
+    func testSaveProgramFailureRecordsNonFatalAndToasts() async {
+        mockRepo.saveProgramError = NSError(domain: "test", code: 7)
+        let program = WorkoutProgram(id: "p1", userID: "user_123", name: "P", dateCreated: Date(), routines: [])
+
+        let saved = await service.saveProgram(program)
+
+        XCTAssertNil(saved)
+        XCTAssertEqual(mockCrash.recordedErrors.count, 1)
+        XCTAssertEqual(mockCrash.recordedErrors.first?.userInfo["operation"] as? String, "save_program")
+        XCTAssertNotNil(ToastManager.shared.toast, "A failed program save must be surfaced to the user")
+    }
+
+    func testSaveSessionLogFailureRecordsNonFatalAndToasts() async {
+        mockRepo.saveWorkoutSessionLogError = NSError(domain: "test", code: 8)
+        let log = WorkoutSessionLog(id: "log1", date: Date(), routineID: "r1", completedExercises: [])
+
+        await service.saveWorkoutSessionLog(log)
+
+        XCTAssertEqual(mockCrash.recordedErrors.count, 1)
+        XCTAssertEqual(mockCrash.recordedErrors.first?.userInfo["operation"] as? String, "save_workout_session_log")
+        XCTAssertNotNil(ToastManager.shared.toast)
+    }
+
+    func testSaveProgramSuccessRecordsNoFailure() async {
+        let program = WorkoutProgram(id: "p1", userID: "user_123", name: "P", dateCreated: Date(), routines: [])
+
+        let saved = await service.saveProgram(program)
+
+        XCTAssertNotNil(saved)
+        XCTAssertTrue(mockCrash.recordedErrors.isEmpty)
+        XCTAssertNil(ToastManager.shared.toast)
     }
 
     override func tearDown() {

@@ -70,6 +70,20 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
         loadPreBuiltPrograms()
     }
 
+    // MARK: - Failure reporting
+
+    /// Every data-layer failure in this service used to vanish into os.log only — a silently
+    /// failing program write once froze progression for weeks with zero telemetry (v2.1).
+    /// This funnel records a Crashlytics non-fatal for every failure, and tells the user via
+    /// the global toast when the loss is theirs (an unsaved workout or program change).
+    private func reportFailure(_ error: Error, operation: String, userMessage: String? = nil) {
+        AppLog.workouts.error("\(operation, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+        DIContainer.shared.crashManager?.record(error: error, additionalUserInfo: ["operation": operation])
+        if let userMessage {
+            ToastManager.shared.showToast(message: userMessage)
+        }
+    }
+
     // MARK: - Fetching & Saving
     
     public func fetchWorkoutSessionLog(workoutID: String, sessionID: String) async -> Result<WorkoutSessionLog, Error> {
@@ -95,7 +109,7 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
             let recent = try await DIContainer.shared.workoutRepository.fetchRecentSessionLogs(userID: userID, sinceDays: windowDays)
             return recent.filter { WorkoutRules.logBelongsToProgram($0, program: program) }
         } catch {
-            AppLog.workouts.error("Failed to fetch session logs: \(error.localizedDescription, privacy: .public)")
+            reportFailure(error, operation: "fetch_session_logs")
             return []
         }
     }
@@ -115,7 +129,7 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
         do {
             return try await DIContainer.shared.workoutRepository.fetchRecentSessionLogs(userID: userID, sinceDays: days)
         } catch {
-            AppLog.workouts.error("Failed to fetch recent session logs: \(error.localizedDescription, privacy: .public)")
+            reportFailure(error, operation: "fetch_recent_session_logs")
             return []
         }
     }
@@ -136,7 +150,7 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
                 self?.userPrograms = programs
                 self?.restoreActiveProgram()
             case .failure(let error):
-                AppLog.workouts.error("Failed to fetch user programs: \(error.localizedDescription, privacy: .public)")
+                self?.reportFailure(error, operation: "programs_snapshot_listener")
             }
         }
 
@@ -145,7 +159,7 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
             case .success(let routines):
                 self?.userRoutines = routines
             case .failure(let error):
-                AppLog.workouts.error("Failed to fetch user routines: \(error.localizedDescription, privacy: .public)")
+                self?.reportFailure(error, operation: "routines_snapshot_listener")
             }
         }
     }
@@ -186,7 +200,11 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
             }
             return savedProgram
         } catch {
-            AppLog.workouts.error("Failed to save workout program: \(error.localizedDescription, privacy: .public)")
+            reportFailure(
+                error,
+                operation: "save_program",
+                userMessage: "Couldn't save your program changes. Please try again."
+            )
             return nil
         }
     }
@@ -232,7 +250,8 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
             removeDeletedProgramFromLocalState(programID: programID, fallbackName: program.name)
             return .deleted
         } catch {
-            AppLog.workouts.error("Failed to delete workout program: \(error.localizedDescription, privacy: .public)")
+            // No toast here: the ProgramDeletionResult carries the user-facing message.
+            reportFailure(error, operation: "delete_program")
             return .failed(error.localizedDescription)
         }
     }
@@ -256,7 +275,11 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
             do {
                 try await DIContainer.shared.workoutRepository.deleteRoutine(userID: userID, routineID: routine.id)
             } catch {
-                AppLog.workouts.error("Failed to delete workout routine: \(error.localizedDescription, privacy: .public)")
+                reportFailure(
+                    error,
+                    operation: "delete_routine",
+                    userMessage: "Couldn't delete the routine. Please try again."
+                )
             }
         }
     }
@@ -266,7 +289,11 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
         do {
             try await DIContainer.shared.workoutRepository.saveWorkoutSessionLog(userID: userID, log: log)
         } catch {
-            AppLog.workouts.error("Failed to save workout session log: \(error.localizedDescription, privacy: .public)")
+            reportFailure(
+                error,
+                operation: "save_workout_session_log",
+                userMessage: "Couldn't save your workout to history. Check your connection."
+            )
         }
     }
 
@@ -276,7 +303,7 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
         do {
             return try await DIContainer.shared.workoutRepository.fetchHistory(userID: userID, exerciseName: exerciseName)
         } catch {
-            AppLog.workouts.error("Failed to fetch exercise history: \(error.localizedDescription, privacy: .public)")
+            reportFailure(error, operation: "fetch_exercise_history")
             return []
         }
     }
@@ -286,7 +313,7 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
         do {
              return try await DIContainer.shared.workoutRepository.fetchPreviousPerformance(userID: userID, exerciseName: exerciseName)
         } catch {
-            AppLog.workouts.error("Failed to fetch previous performance for \(exerciseName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            reportFailure(error, operation: "fetch_previous_performance")
             return nil
         }
     }
@@ -346,7 +373,7 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
             case .apiError(let message):
                 return .failure(.apiError(message))
             case .decodingError(let error):
-                AppLog.workouts.error("Failed to decode AI workout response: \(error.localizedDescription, privacy: .public)")
+                reportFailure(error, operation: "decode_ai_workout_response")
                 return .failure(.decodingError(error))
             }
         case .failure(let error):
