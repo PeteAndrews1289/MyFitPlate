@@ -122,6 +122,11 @@ struct TodaysNextStepSlider: View {
                     .appFont(size: 21, weight: .bold)
                     .foregroundColor(.textPrimary)
                     .lineLimit(1)
+
+                // DESIGN.md rule 3: progress in words a stranger understands.
+                Text("Day \(min(currentIndex + 1, totalSlots)) of \(totalSlots)")
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
             }
 
             Spacer()
@@ -171,7 +176,7 @@ struct TodaysNextStepSlider: View {
                 Text(ExerciseEmojiMapper.getEmoji(for: routine?.exercises.first?.name ?? routine?.name ?? "💪"))
                     .font(.title2)
                     .frame(width: 44, height: 44)
-                    .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(routine?.name ?? "Rest / Unscheduled")
@@ -194,7 +199,7 @@ struct TodaysNextStepSlider: View {
                             Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
                                 .font(.footnote)
                                 .frame(width: 26, height: 26)
-                                .background(Color.brandPrimary.opacity(0.08), in: Circle())
+                                .background(Color(UIColor.tertiarySystemFill), in: Circle())
                             Text(exercise.name)
                                 .appFont(size: 13, weight: .semibold)
                                 .foregroundColor(.textPrimary)

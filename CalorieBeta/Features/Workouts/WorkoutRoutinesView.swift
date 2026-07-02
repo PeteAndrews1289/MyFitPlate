@@ -27,36 +27,13 @@ struct WorkoutRoutinesView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     let nextWorkout = viewModel.nextWorkoutInfo(for: workoutService.activeProgram)
 
-                    TrainingHeroCard(
-                        activeProgramName: workoutService.activeProgram?.name,
-                        routineCount: workoutService.userRoutines.count,
-                        programCount: workoutService.userPrograms.count
-                    )
-
                     let todayLog = dailyLogService.currentDailyLog.flatMap { log in
                         Calendar.current.isDateInToday(log.date) ? log : nil
                     }
-                    TrainingReadinessCard(brief: viewModel.trainingBrief(todayLog: todayLog, goalSettings: goalSettings))
 
-                    if workoutService.activeProgram != nil {
-                        MuscleRecoveryMapView()
-                    }
-
-                    TrainingDecisionCard(
-                        nextWorkout: nextWorkout,
-                        activeProgramName: workoutService.activeProgram?.name,
-                        routineCount: workoutService.userRoutines.count,
-                        onStartWorkout: {
-                            if let nextWorkout {
-                                self.routineToPlay = nextWorkout.routine
-                            }
-                        }
-                    )
-
-                    if let program = workoutService.activeProgram {
-                        TrainingWeekPreviewCard(program: program, nextWorkout: nextWorkout)
-                    }
-
+                    // DESIGN.md rule 1: the Train screen answers "what do I do right now?"
+                    // With a program, the slider is the single hero; the Training Hub banner
+                    // and path-chooser card only appear in the no-program empty state.
                     if let program = workoutService.activeProgram {
                         TodaysNextStepSlider(
                             program: program,
@@ -67,6 +44,31 @@ struct WorkoutRoutinesView: View {
                             },
                             onReview: { log in self.reviewLog = log }
                         )
+
+                        TrainingWeekPreviewCard(program: program, nextWorkout: nextWorkout)
+                    } else {
+                        TrainingHeroCard(
+                            activeProgramName: nil,
+                            routineCount: workoutService.userRoutines.count,
+                            programCount: workoutService.userPrograms.count
+                        )
+
+                        TrainingDecisionCard(
+                            nextWorkout: nextWorkout,
+                            activeProgramName: nil,
+                            routineCount: workoutService.userRoutines.count,
+                            onStartWorkout: {
+                                if let nextWorkout {
+                                    self.routineToPlay = nextWorkout.routine
+                                }
+                            }
+                        )
+                    }
+
+                    TrainingReadinessCard(brief: viewModel.trainingBrief(todayLog: todayLog, goalSettings: goalSettings))
+
+                    if workoutService.activeProgram != nil {
+                        MuscleRecoveryMapView()
                     }
 
                     if let program = workoutService.activeProgram {

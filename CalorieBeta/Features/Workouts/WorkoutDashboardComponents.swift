@@ -152,12 +152,14 @@ struct TrainingWeekPreviewCard: View {
 
                 Spacer()
 
-                Text("\(program.daysOfWeek?.count ?? 0)/7")
+                // DESIGN.md rule 3: progress in words, not bare fractions ("5/7" read as
+                // program progress when it meant training days per week).
+                Text("\(program.daysOfWeek?.count ?? 0) training days")
                     .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                    .background(Color.backgroundSecondary.opacity(0.7), in: Capsule())
             }
 
             HStack(spacing: 7) {
@@ -172,22 +174,13 @@ struct TrainingWeekPreviewCard: View {
                 }
             }
 
-            HStack(spacing: 9) {
-                Image(systemName: "arrow.forward.circle.fill")
-                    .appFont(size: 15, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-
-                Text(nextWorkout.map { "Next: \($0.routine.name)" } ?? "Set a schedule in program details.")
+            // DESIGN.md rule 1: no "Next: ..." row here — the hero card above already
+            // names the next workout. The schedule hint only appears when it adds info.
+            if nextWorkout == nil {
+                Text("Set a schedule in program details.")
                     .appFont(size: 13, weight: .semibold)
-                    .foregroundColor(.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-
-                Spacer(minLength: 0)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.brandPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .asCard()
     }
@@ -219,19 +212,22 @@ struct TrainingWeekDayChip: View {
     let isActive: Bool
     let isNext: Bool
 
+    // DESIGN.md rule 2: green marks "now", not "scheduled" — only the next session's
+    // chip carries brand color; other training days are neutral so the week reads at
+    // a glance instead of as a wall of green.
     var body: some View {
         VStack(spacing: 5) {
             Text(label)
                 .appFont(size: 11, weight: .bold)
-                .foregroundColor(isActive ? .brandPrimary : Color(UIColor.secondaryLabel))
+                .foregroundColor(isNext ? .brandPrimary : Color(UIColor.secondaryLabel))
 
             Text(detail ?? "-")
                 .appFont(size: 10, weight: .bold)
-                .foregroundColor(isActive ? .textPrimary : Color(UIColor.tertiaryLabel))
+                .foregroundColor(isNext ? .brandPrimary : (isActive ? .textPrimary : Color(UIColor.tertiaryLabel)))
                 .frame(width: 26, height: 26)
                 .background(
                     Circle()
-                        .fill(isActive ? Color.brandPrimary.opacity(isNext ? 0.22 : 0.10) : Color.backgroundSecondary.opacity(0.58))
+                        .fill(isNext ? Color.brandPrimary.opacity(0.15) : Color.backgroundSecondary.opacity(isActive ? 0.9 : 0.45))
                 )
                 .overlay(
                     Circle()
@@ -240,7 +236,6 @@ struct TrainingWeekDayChip: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 7)
-        .background(isNext ? Color.brandPrimary.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 }
 
