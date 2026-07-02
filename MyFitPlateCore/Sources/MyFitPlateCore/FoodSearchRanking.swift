@@ -119,4 +119,88 @@ public enum FoodSearchRanking {
         let score: Int
         let originalIndex: Int
     }
+
+    // MARK: - Search-source merging + quick-log hydration
+
+    /// Combines branded FatSecret results with USDA whole-food results. FatSecret leads
+    /// (brands, portion-friendly servings); USDA appends entries whose names FatSecret
+    /// doesn't already cover — they carry the full micronutrient spectrum that FatSecret's
+    /// preview strings never have.
+    public static func mergedSearchResults(
+        fatSecret: [FoodItem],
+        usda: [FoodItem],
+        usdaLimit: Int = 8
+    ) -> [FoodItem] {
+        let existingNames = Set(fatSecret.map { normalized($0.name) })
+        let distinctUSDA = usda
+            .filter { !existingNames.contains(normalized($0.name)) }
+            .prefix(usdaLimit)
+        return fatSecret + distinctUSDA
+    }
+
+    /// Builds the item a quick-log should record once food details have been fetched.
+    /// Prefers the serving that matches what the search row previewed (so logged calories
+    /// match what the user saw); falls back to the details' base serving.
+    public static func hydratedQuickLogItem(
+        preview: FoodItem,
+        detailBase: FoodItem,
+        availableServings: [ServingSizeOption]
+    ) -> FoodItem {
+        let previewServing = normalized(preview.servingSize)
+        guard !previewServing.isEmpty,
+              let match = availableServings.first(where: { normalized($0.description) == previewServing }) else {
+            return detailBase
+        }
+
+        let adjusted = ServingNutritionCalculator.adjustedNutrition(base: match, quantityValue: 1)
+        return FoodItem(
+            id: detailBase.id,
+            name: detailBase.name,
+            calories: adjusted.calories,
+            protein: adjusted.protein,
+            carbs: adjusted.carbs,
+            fats: adjusted.fats,
+            saturatedFat: adjusted.saturatedFat,
+            polyunsaturatedFat: adjusted.polyunsaturatedFat,
+            monounsaturatedFat: adjusted.monounsaturatedFat,
+            fiber: adjusted.fiber,
+            servingSize: adjusted.servingDescription,
+            servingWeight: adjusted.servingWeightGrams,
+            timestamp: nil,
+            sourceMetadata: detailBase.sourceMetadata,
+            calcium: adjusted.calcium,
+            iron: adjusted.iron,
+            potassium: adjusted.potassium,
+            sodium: adjusted.sodium,
+            vitaminA: adjusted.vitaminA,
+            vitaminC: adjusted.vitaminC,
+            vitaminD: adjusted.vitaminD,
+            vitaminB12: adjusted.vitaminB12,
+            folate: adjusted.folate,
+            magnesium: adjusted.magnesium,
+            phosphorus: adjusted.phosphorus,
+            zinc: adjusted.zinc,
+            copper: adjusted.copper,
+            manganese: adjusted.manganese,
+            selenium: adjusted.selenium,
+            vitaminB1: adjusted.vitaminB1,
+            vitaminB2: adjusted.vitaminB2,
+            vitaminB3: adjusted.vitaminB3,
+            vitaminB5: adjusted.vitaminB5,
+            vitaminB6: adjusted.vitaminB6,
+            vitaminE: adjusted.vitaminE,
+            vitaminK: adjusted.vitaminK,
+            quantityValue: adjusted.quantityValue,
+            servingUnit: adjusted.servingUnit
+        )
+    }
+
+    /// Whether a search result still needs a details fetch before it carries real nutrition:
+    /// FatSecret previews (numeric ids) with no micronutrient data.
+    public static func needsNutritionHydration(_ food: FoodItem) -> Bool {
+        let hasAnyMicro = food.calcium != nil || food.sodium != nil
+            || food.potassium != nil || food.iron != nil
+        let isFatSecretID = !food.id.isEmpty && food.id.allSatisfy(\.isNumber)
+        return isFatSecretID && !hasAnyMicro
+    }
 }

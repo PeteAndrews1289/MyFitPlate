@@ -41,6 +41,7 @@ class FoodSearchViewModel: ObservableObject {
     }
 
     private let foodAPIService = FatSecretFoodAPIService()
+    private let usdaService = USDAFoodAPIService()
     private var cancellables = Set<AnyCancellable>()
     private var dailyLogService: DailyLogService?
 
@@ -81,17 +82,32 @@ class FoodSearchViewModel: ObservableObject {
     }
 
     private func searchByQuery(query: String) {
-        foodAPIService.fetchFoodByQuery(query: query) { [weak self] result in
-            DispatchQueue.main.async {
-                guard let self = self, query == self.activeSearchQuery else { return }
-                self.isLoading = false
-                switch result {
-                case .success(let foodItems):
-                    self.searchErrorMessage = nil
-                    self.searchResults = foodItems
-                case .failure(let error):
+        // FatSecret (brands) and USDA (whole foods with full micronutrients) run
+        // concurrently; USDA results append for names FatSecret doesn't cover, and
+        // salvage the search entirely if FatSecret errors.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            async let usdaResults = self.usdaService.searchFoods(query: query)
+
+            let fatSecretResult: Result<[FoodItem], Error> = await withCheckedContinuation { continuation in
+                self.foodAPIService.fetchFoodByQuery(query: query) { continuation.resume(returning: $0) }
+            }
+            let usda = await usdaResults
+
+            guard query == self.activeSearchQuery else { return }
+            self.isLoading = false
+
+            switch fatSecretResult {
+            case .success(let foodItems):
+                self.searchErrorMessage = nil
+                self.searchResults = FoodSearchRanking.mergedSearchResults(fatSecret: foodItems, usda: usda)
+            case .failure(let error):
+                if usda.isEmpty {
                     self.searchErrorMessage = "Check your connection and try again. \(error.localizedDescription)"
                     self.searchResults = []
+                } else {
+                    self.searchErrorMessage = nil
+                    self.searchResults = usda
                 }
             }
         }
@@ -163,21 +179,52 @@ class FoodSearchViewModel: ObservableObject {
         guard let service = dailyLogService else { return }
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let sourceFoodID = food.id
-        var itemToLog = food
-        itemToLog.id = UUID().uuidString
-        itemToLog.timestamp = Date()
-        service.addMealToLog(
-            for: userID,
-            date: service.activelyViewedDate,
-            mealName: selectedMeal,
-            foodItems: [itemToLog],
-            source: "quick_log"
-        )
+        let mealName = selectedMeal
+
         quickLoggedFoodIDs.insert(sourceFoodID)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
             self.quickLoggedFoodIDs.remove(sourceFoodID)
         }
         HapticManager.instance.feedback(.medium)
+
+        resolveNutritionIfNeeded(for: food) { resolved in
+            var itemToLog = resolved
+            itemToLog.id = UUID().uuidString
+            itemToLog.timestamp = Date()
+            service.addMealToLog(
+                for: userID,
+                date: service.activelyViewedDate,
+                mealName: mealName,
+                foodItems: [itemToLog],
+                source: "quick_log"
+            )
+        }
+    }
+
+    /// FatSecret search rows are previews parsed from a description string — no
+    /// micronutrients, zeroed fat breakdown. Hydrate from the details endpoint before
+    /// logging so a quick-logged food carries the same nutrition as one logged through
+    /// the detail screen. Falls back to the preview if the fetch fails.
+    private func resolveNutritionIfNeeded(for food: FoodItem, completion: @escaping (FoodItem) -> Void) {
+        guard FoodSearchRanking.needsNutritionHydration(food) else {
+            completion(food)
+            return
+        }
+
+        foodAPIService.fetchFoodDetails(foodId: food.id) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let details):
+                    completion(FoodSearchRanking.hydratedQuickLogItem(
+                        preview: food,
+                        detailBase: details.foodInfo,
+                        availableServings: details.availableServings
+                    ))
+                case .failure:
+                    completion(food)
+                }
+            }
+        }
     }
 
     func sourceForTrustedSearchResult(_ food: FoodItem) -> String {

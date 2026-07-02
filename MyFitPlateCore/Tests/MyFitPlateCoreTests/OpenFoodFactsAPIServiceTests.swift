@@ -45,7 +45,9 @@ final class OpenFoodFactsAPIServiceTests: XCTestCase {
         // Converted values (g -> mg)
         XCTAssertEqual(item.sodium ?? 0, 500.0, accuracy: 0.1) // 0.5g = 500mg
         XCTAssertEqual(item.calcium ?? 0, 100.0, accuracy: 0.1) // 0.1g = 100mg
-        XCTAssertEqual(item.potassium ?? 0, 2.0, accuracy: 0.1)
+        // 2g = 2000mg — this assertion previously codified the missing conversion
+        // (expected the raw gram value), which is how the bug survived.
+        XCTAssertEqual(item.potassium ?? 0, 2000.0, accuracy: 0.1)
         XCTAssertEqual(item.vitaminC ?? 0, 50.0, accuracy: 0.1) // 0.05g = 50mg
     }
     

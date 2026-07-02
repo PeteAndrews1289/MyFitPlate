@@ -68,7 +68,9 @@ public enum OpenFoodFactsParser {
             // Open Food Facts reports these minerals in grams/100g; the app stores mg.
             calcium: n.calcium100g.map { $0 * 1000 },
             iron: n.iron100g.map { $0 * 1000 },
-            potassium: n.potassium100g,
+            // Potassium was the one mineral missing this conversion — OFF values arrived
+            // 1000x too small ("micros aren't parsed correctly").
+            potassium: n.potassium100g.map { $0 * 1000 },
             sodium: n.sodium100g.map { $0 * 1000 },
             vitaminA: n.vitaminA100g,
             vitaminC: n.vitaminC100g.map { $0 * 1000 },

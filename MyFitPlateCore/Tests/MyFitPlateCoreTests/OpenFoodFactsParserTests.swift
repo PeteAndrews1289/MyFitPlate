@@ -23,6 +23,7 @@ final class OpenFoodFactsParserTests: XCTestCase {
               "sodium_100g": 0.5,
               "calcium_100g": 0.12,
               "iron_100g": 0.008,
+              "potassium_100g": 0.3,
               "vitamin-c_100g": 0.06
             }
           }
@@ -43,6 +44,8 @@ final class OpenFoodFactsParserTests: XCTestCase {
         XCTAssertEqual(item.sodium ?? 0, 500, accuracy: 0.001)
         XCTAssertEqual(item.calcium ?? 0, 120, accuracy: 0.001)
         XCTAssertEqual(item.iron ?? 0, 8, accuracy: 0.001)
+        // Regression: potassium was the one mineral missing the g->mg conversion.
+        XCTAssertEqual(item.potassium ?? 0, 300, accuracy: 0.001)
         XCTAssertEqual(item.vitaminC ?? 0, 60, accuracy: 0.001)
     }
 
