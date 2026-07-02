@@ -862,7 +862,13 @@
     "Back" : {
 
     },
+    "Barcode %@" : {
+
+    },
     "Barcode Error" : {
+
+    },
+    "Barcode match" : {
 
     },
     "Barcode scanning is not supported or camera access was denied on this device." : {
@@ -1119,6 +1125,9 @@
 
     },
     "Core" : {
+
+    },
+    "Correct barcode match" : {
 
     },
     "Could not add meal" : {
@@ -1446,6 +1455,15 @@
 
     },
     "Fits your budget" : {
+
+    },
+    "Fix" : {
+
+    },
+    "Fix Food" : {
+
+    },
+    "Fix the match or save this version for future scans." : {
 
     },
     "Food name" : {
@@ -2134,6 +2152,9 @@
     "Number of servings" : {
 
     },
+    "Nutrition" : {
+
+    },
     "Nutrition Audit" : {
 
     },
@@ -2442,6 +2463,9 @@
     "REMAINING" : {
 
     },
+    "Remember" : {
+
+    },
     "Remove %@" : {
 
     },
@@ -2557,6 +2581,9 @@
 
     },
     "Saved to your routine for future workouts." : {
+
+    },
+    "Saves this food as the match for this barcode." : {
 
     },
     "Saving Recipe..." : {
