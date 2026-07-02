@@ -51,10 +51,6 @@ struct FoodPickerRow: View {
     let onQuickLog: ((FoodItem) -> Void)?
     let onDelete: ((FoodItem) -> Void)?
 
-    @State private var offset: CGFloat = 0
-    @State private var isSwipedRight: Bool = false
-    @State private var isSwipedLeft: Bool = false
-
     private var detailText: String {
         guard food.calories > 0 || food.protein > 0 || food.carbs > 0 || food.fats > 0 else {
             return "Tap to review nutrition"
@@ -79,61 +75,13 @@ struct FoodPickerRow: View {
         return FoodSourceClassifier.descriptor(forFoodID: food.id)
     }
 
+    // No swipe-to-reveal here: a row-level DragGesture claims vertical drags too, which
+    // blocked ScrollView scrolling that started on a food item. Quick log and delete are
+    // already inline buttons on the row, so the swipe duplicated them at the cost of scroll.
     var body: some View {
-        ZStack(alignment: offset > 0 ? .leading : .trailing) {
-            if isSwipedRight && onQuickLog != nil {
-                HStack {
-                    Button {
-                        withAnimation(.easeInOut) {
-                            if !isQuickLogged { onQuickLog?(food) }
-                            offset = 0
-                            isSwipedRight = false
-                        }
-                    } label: {
-                        Image(systemName: isQuickLogged ? "checkmark" : "plus")
-                            .foregroundColor(.white)
-                            .frame(width: 60, height: 60, alignment: .center)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .background(isQuickLogged ? Color.accentPositive : Color.brandPrimary)
-                    .contentShape(Rectangle())
-                    .cornerRadius(18)
-                    Spacer()
-                }
-                .transition(.move(edge: .leading).combined(with: .opacity))
-            } else if isSwipedLeft && onDelete != nil {
-                HStack {
-                    Spacer()
-                    Button {
-                        withAnimation(.easeInOut) {
-                            onDelete?(food)
-                            offset = 0
-                            isSwipedLeft = false
-                        }
-                    } label: {
-                        Image(systemName: "trash")
-                            .foregroundColor(.white)
-                            .frame(width: 60, height: 60, alignment: .center)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .background(Color.red)
-                    .contentShape(Rectangle())
-                    .cornerRadius(18)
-                }
-                .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
-
             HStack(spacing: 10) {
                 Button(action: {
-                    if isSwipedRight || isSwipedLeft {
-                        withAnimation(.easeInOut) {
-                            offset = 0
-                            isSwipedRight = false
-                            isSwipedLeft = false
-                        }
-                    } else {
-                        onSelect(food)
-                    }
+                    onSelect(food)
                 }) {
                     HStack(spacing: 12) {
                         Text(FoodEmojiMapper.getEmoji(for: food.name))
@@ -204,43 +152,6 @@ struct FoodPickerRow: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(Color.primary.opacity(0.05), lineWidth: 1)
             )
-            .offset(x: offset)
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        if value.translation.width > 0 && onQuickLog != nil {
-                            if !isSwipedLeft {
-                                offset = min(value.translation.width, 70)
-                            } else {
-                                offset = -70 + value.translation.width
-                            }
-                        } else if value.translation.width < 0 && onDelete != nil {
-                            if !isSwipedRight {
-                                offset = max(value.translation.width, -70)
-                            } else {
-                                offset = 70 + value.translation.width
-                            }
-                        }
-                    }
-                    .onEnded { value in
-                        withAnimation(.easeInOut) {
-                            if value.translation.width > 50 && onQuickLog != nil {
-                                offset = 70
-                                isSwipedRight = true
-                                isSwipedLeft = false
-                            } else if value.translation.width < -50 && onDelete != nil {
-                                offset = -70
-                                isSwipedLeft = true
-                                isSwipedRight = false
-                            } else {
-                                offset = 0
-                                isSwipedRight = false
-                                isSwipedLeft = false
-                            }
-                        }
-                    }
-            )
-        }
     }
 }
 

@@ -610,16 +610,19 @@ struct WorkoutHistoryRow: View {
         return preview + (log.completedExercises.count > 2 ? "..." : "")
     }
 
+    // Split into typed steps: the previous single chained expression with inline
+    // Epley arithmetic exceeded the CI compiler's type-check time budget.
     private var topSetText: String? {
-        let topSet = log.completedExercises
-            .flatMap(\.sets)
-            .filter { $0.weight > 0 && $0.reps > 0 }
-            .max { lhs, rhs in
-                lhs.weight * (1 + Double(lhs.reps) / 30) < rhs.weight * (1 + Double(rhs.reps) / 30)
-            }
+        let allSets: [CompletedSet] = log.completedExercises.flatMap(\.sets)
+        let workingSets: [CompletedSet] = allSets.filter { $0.weight > 0 && $0.reps > 0 }
+        let topSet: CompletedSet? = workingSets.max { estimatedOneRepMax($0) < estimatedOneRepMax($1) }
 
         guard let topSet else { return nil }
         return "\(Int(topSet.weight)) lb x \(topSet.reps)"
+    }
+
+    private func estimatedOneRepMax(_ set: CompletedSet) -> Double {
+        set.weight * (1.0 + Double(set.reps) / 30.0)
     }
 
     var body: some View {
