@@ -1,5 +1,9 @@
 import SwiftUI
 
+// DESIGN.md rule 1: search is this screen's hero. The alternate logging paths are one
+// compact, horizontally scrollable row of chips (~44pt) instead of a 2x3 grid of 82pt
+// tiles (~280pt) — the user's saved and recent foods rise above the fold, where the
+// actual logging happens.
 struct FoodSearchActionGrid: View {
     let manualAction: () -> Void
     let quickAddAction: () -> Void
@@ -9,56 +13,41 @@ struct FoodSearchActionGrid: View {
     let textAction: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("More ways to log")
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
-                FoodSearchActionTile(title: "Quick macros", subtitle: "Instant numbers", icon: "bolt.fill", action: quickAddAction)
-                FoodSearchActionTile(title: "Manual food", subtitle: "Custom entries", icon: "square.and.pencil", action: manualAction)
-                FoodSearchActionTile(title: "Barcode", subtitle: "Scan package", icon: "barcode.viewfinder", action: barcodeAction)
-                FoodSearchActionTile(title: "Camera", subtitle: "Snap meal", icon: "camera.fill", action: cameraAction)
-                FoodSearchActionTile(title: "Menu", subtitle: "Scan menu", icon: "list.bullet.rectangle.portrait.fill", action: menuAction)
-                FoodSearchActionTile(title: "Describe", subtitle: "Use text", icon: "text.bubble.fill", action: textAction)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                FoodSearchActionChip(title: "Barcode", icon: "barcode.viewfinder", action: barcodeAction)
+                FoodSearchActionChip(title: "Camera", icon: "camera.fill", action: cameraAction)
+                FoodSearchActionChip(title: "Describe", icon: "text.bubble.fill", action: textAction)
+                FoodSearchActionChip(title: "Menu", icon: "list.bullet.rectangle.portrait.fill", action: menuAction)
+                FoodSearchActionChip(title: "Quick macros", icon: "bolt.fill", action: quickAddAction)
+                FoodSearchActionChip(title: "Manual", icon: "square.and.pencil", action: manualAction)
             }
         }
     }
 }
 
-struct FoodSearchActionTile: View {
+struct FoodSearchActionChip: View {
     let title: String
-    let subtitle: String
     let icon: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 7) {
                 Image(systemName: icon)
-                    .appFont(size: 17, weight: .bold)
+                    .appFont(size: 13, weight: .bold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
-                    .frame(width: 34, height: 34)
-                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .appFont(size: 14, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
-
-                    Text(subtitle)
-                        .appFont(size: 11, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
+                Text(title)
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
-            .padding(12)
-            .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(.horizontal, 13)
+            .padding(.vertical, 10)
+            .background(Color.backgroundSecondary.opacity(0.78), in: Capsule())
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                Capsule()
                     .stroke(Color.primary.opacity(0.05), lineWidth: 1)
             )
         }

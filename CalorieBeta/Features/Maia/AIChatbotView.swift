@@ -6,8 +6,6 @@ struct AIChatbotView: View {
 
     @StateObject private var viewModel = AIChatbotViewModel()
 
-    var bgGreen = Color(red: 16/255, green: 20/255, blue: 21/255)
-
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
