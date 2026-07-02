@@ -64,7 +64,21 @@ red = destructive, `accentPositive` = success. Never decorate with them.
 - No duplicated messaging; no exclamation marks in system copy; contractions welcome.
 - Empty states invite ("Choose training days to unlock scheduling") — never apologize.
 
-## 6. Per-screen checklist (run before commit)
+## 6. Emoji tiles are brand — keep them (decision, 2026-07-02)
+
+Food and exercise emoji tiles (🍗 🏋️ via `FoodEmojiMapper`/`ExerciseEmojiMapper`) are a
+deliberate brand choice, not clutter. They make MyFitPlate instantly recognizable next to
+sterile flat-icon competitors. Rules:
+
+- Never replace emoji tiles with SF Symbols in list rows, sliders, or diary entries.
+- Emoji sit on **neutral** containers (system fills), sized 26pt in rows / 42–44pt in
+  hero tiles — the container is quiet so the emoji carries the personality.
+- Emoji are decorative: containers get `accessibilityHidden(true)` or are excluded from
+  the combined element's label. Never rely on an emoji to convey meaning alone.
+- System UI chrome (tab bar, toolbars, settings) stays SF Symbols — emoji are for
+  *content* (foods, exercises), not controls.
+
+## 7. Per-screen checklist (run before commit)
 
 - [ ] One hero, one filled CTA, no duplicated actions
 - [ ] Squint test: ≤3 green elements, all meaningful

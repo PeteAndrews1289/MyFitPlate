@@ -124,18 +124,19 @@ struct HomeView: View {
                                     .padding(.horizontal)
                             }
 
-                            if let currentDailyLog = currentLogForSelectedDate {
-                                HomeDashboardHeader(
-                                dailyLog: currentDailyLog,
+                            // DESIGN.md rule 1: the rings are Home's hero and always render —
+                            // before anything is logged they show a zeroed day, which invites
+                            // the first log instead of hiding the screen's whole answer.
+                            HomeDashboardHeader(
+                                dailyLog: currentLogForSelectedDate ?? DailyLog(date: selectedDate, meals: []),
                                 isToday: isToday,
                                 selectedDateFormattedString: selectedDateFormattedString,
                                 weeklyInsight: weeklyInsight,
                                 isHeaderSpotlightActive: isSpotlightActive(for: "dashboardHeader"),
                                 showingDetailedInsights: $showingDetailedInsights
                             )
-                                    .padding(.horizontal)
-                                    .id("dashboardHeader")
-                            }
+                                .padding(.horizontal)
+                                .id("dashboardHeader")
 
                             HomeQuickActionsView(
                                 showingWorkoutRoutines: $showingWorkoutRoutines,
@@ -152,14 +153,9 @@ struct HomeView: View {
                                 .padding(.horizontal)
                                 .id("quickActions")
 
-                            if currentLogForSelectedDate != nil {
-                                HealthActivityCard()
-                                    .padding(.horizontal)
-
-                                HomeWeightTrackingCard(showingWeightEntrySheet: $showingWeightEntrySheet)
-                                    .padding(.horizontal)
-                            }
-
+                            // DESIGN.md rule 1: the diary is the most-touched section, so it
+                            // sits directly under the hero + actions; activity and weight are
+                            // supporting cards and follow it.
                             HomeFoodDiarySection(
                                 currentLogForDisplay: currentLogForSelectedDate,
                                 isToday: isToday,
@@ -173,6 +169,14 @@ struct HomeView: View {
                             )
                                 .padding(.horizontal)
                                 .id("dailyLog")
+
+                            if currentLogForSelectedDate != nil {
+                                HealthActivityCard()
+                                    .padding(.horizontal)
+
+                                HomeWeightTrackingCard(showingWeightEntrySheet: $showingWeightEntrySheet)
+                                    .padding(.horizontal)
+                            }
                         }
                         .frame(width: geometry.size.width, alignment: .top)
                         .clipped()
@@ -359,8 +363,13 @@ struct HomeView: View {
                   onHomeViewAppear()
               }
           }
-          .navigationDestination(isPresented: $showingWorkoutRoutines) {
-              WorkoutRoutinesView()
+          // The "start workout" quick action switches to the Train tab instead of pushing
+          // a second copy of the whole Train screen inside Home's navigation stack.
+          .onChange(of: showingWorkoutRoutines) { _, isShowing in
+              if isShowing {
+                  showingWorkoutRoutines = false
+                  appState.selectedTab = 2
+              }
           }
           .navigationDestination(isPresented: $showingWorkoutDetail) {
               if let selectedExerciseForDetail {
