@@ -93,6 +93,9 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
     public var notes: String?
     public var originalEstimate: FoodNutritionSnapshot?
     public var userCorrection: FoodNutritionSnapshot?
+    /// Independent databases whose entries agreed with this one at lookup time
+    /// (see FoodSourceAgreement). Optional so previously stored metadata decodes unchanged.
+    public var crossVerifiedBy: [String]?
 
     public init(
         sourceType: FoodSourceType,
@@ -105,7 +108,8 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
         createdAt: Date? = Date(),
         notes: String? = nil,
         originalEstimate: FoodNutritionSnapshot? = nil,
-        userCorrection: FoodNutritionSnapshot? = nil
+        userCorrection: FoodNutritionSnapshot? = nil,
+        crossVerifiedBy: [String]? = nil
     ) {
         self.sourceType = sourceType
         self.confidence = confidence
@@ -118,6 +122,7 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
         self.notes = notes
         self.originalEstimate = originalEstimate
         self.userCorrection = userCorrection
+        self.crossVerifiedBy = crossVerifiedBy
     }
 
     public static func database(
@@ -405,13 +410,17 @@ public enum FoodSourceClassifier {
     }
 
     private static func reviewAwareDetail(_ metadata: FoodSourceMetadata, defaultDetail: String) -> String {
+        var detail = defaultDetail
+        if let confirmedBy = metadata.crossVerifiedBy, !confirmedBy.isEmpty {
+            detail += " Confirmed by \(confirmedBy.joined(separator: " and "))."
+        }
         switch metadata.reviewStatus {
         case .userEdited:
-            return "\(defaultDetail) Edited by you."
+            return "\(detail) Edited by you."
         case .userConfirmed:
-            return "\(defaultDetail) Reviewed by you."
+            return "\(detail) Reviewed by you."
         case .notRequired, .unreviewed:
-            return defaultDetail
+            return detail
         }
     }
 
@@ -423,6 +432,12 @@ public enum FoodSourceClassifier {
             return metadata.confidence == .estimated ? "User Reviewed" : "User Verified"
         case .notRequired, .unreviewed:
             break
+        }
+
+        // Two independent databases agreeing beats either database's solo confidence.
+        if metadata.crossVerifiedBy?.isEmpty == false,
+           metadata.confidence == .verified || metadata.confidence == .databaseMatch {
+            return "Cross-Verified"
         }
 
         switch metadata.confidence {
@@ -675,23 +690,40 @@ public final class BarcodeFoodLookupService {
         }
 
         if let item = await lookupFatSecret(trimmedBarcode) {
+            let primary = item.withDatabaseSource(
+                .fatSecret,
+                sourceName: "FatSecret",
+                barcode: trimmedBarcode
+            )
+            // Ask the remaining chain sources concurrently; whoever agrees earns the
+            // "Cross-Verified" badge. A miss or disagreement just means no badge.
+            async let usdaCandidate = usdaService.lookupBarcode(trimmedBarcode)
+            async let offCandidate = lookupOpenFoodFacts(trimmedBarcode)
+            let confirmedBy = FoodSourceAgreement.agreeingSourceNames(
+                primary: primary,
+                candidates: [
+                    ("USDA", await usdaCandidate),
+                    ("Open Food Facts", await offCandidate)
+                ]
+            )
             return BarcodeFoodLookupResult(
-                item: item.withDatabaseSource(
-                    .fatSecret,
-                    sourceName: "FatSecret",
-                    barcode: trimmedBarcode
-                ),
+                item: primary.withCrossVerification(confirmedBy),
                 source: "barcode_result"
             )
         }
 
         if let item = await usdaService.lookupBarcode(trimmedBarcode) {
+            let primary = item.withDatabaseSource(
+                .usda,
+                sourceName: "USDA FoodData Central",
+                barcode: trimmedBarcode
+            )
+            let confirmedBy = FoodSourceAgreement.agreeingSourceNames(
+                primary: primary,
+                candidates: [("Open Food Facts", await lookupOpenFoodFacts(trimmedBarcode))]
+            )
             return BarcodeFoodLookupResult(
-                item: item.withDatabaseSource(
-                    .usda,
-                    sourceName: "USDA FoodData Central",
-                    barcode: trimmedBarcode
-                ),
+                item: primary.withCrossVerification(confirmedBy),
                 source: "usda_barcode"
             )
         }
