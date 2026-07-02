@@ -375,6 +375,16 @@
         }
       }
     },
+    "%lld %@ an all-time best this week." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld %2$@ an all-time best this week."
+          }
+        }
+      }
+    },
     "%lld %@ logged" : {
       "localizations" : {
         "en" : {
@@ -785,6 +795,9 @@
     "Add/Edit Note" : {
 
     },
+    "Adding up your week" : {
+
+    },
     "Additional Preferences (Optional)" : {
 
     },
@@ -1004,6 +1017,9 @@
 
     },
     "Calories Burned" : {
+
+    },
+    "Calories, workouts, and records from the last 7 days" : {
 
     },
     "Cancel" : {
@@ -1659,6 +1675,9 @@
     "Health trends" : {
 
     },
+    "Here's what the week added up to." : {
+
+    },
     "Hide done" : {
 
     },
@@ -1855,6 +1874,9 @@
 
     },
     "Log a few more weigh-ins" : {
+
+    },
+    "Log a meal or a workout and next week's recap fills up." : {
 
     },
     "Log a meal to see your daily split." : {
@@ -2081,6 +2103,9 @@
 
     },
     "My recipes" : {
+
+    },
+    "My week with MyFitPlate" : {
 
     },
     "MyFitPlate" : {
@@ -2835,6 +2860,9 @@
     "Share Summary" : {
 
     },
+    "Share your week" : {
+
+    },
     "Shopping run" : {
 
     },
@@ -3115,6 +3143,9 @@
 
     },
     "Total weight on barbell" : {
+
+    },
+    "Tracked with MyFitPlate" : {
 
     },
     "Train" : {
@@ -3409,6 +3440,9 @@
 
     },
     "Your true TDEE" : {
+
+    },
+    "Your week" : {
 
     },
     "Your workout is already saved. Trends and coaching notes will appear when ready." : {

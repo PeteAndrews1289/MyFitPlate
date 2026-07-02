@@ -8,7 +8,7 @@ public class InsightsService: ObservableObject {
     @Published public var currentInsights: [UserInsight] = []
     @Published public var smartSuggestion: UserInsight? = nil
     @Published public var isLoadingInsights: Bool = false
-    @Published var isGeneratingSuggestion: Bool = false
+    @Published public var isGeneratingSuggestion: Bool = false
 
     private let dailyLogService: DailyLogService
     private let goalSettings: GoalSettings
