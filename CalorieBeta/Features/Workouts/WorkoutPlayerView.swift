@@ -362,6 +362,7 @@ struct WorkoutPlayerView: View {
         totalWorkoutTimer.stop()
         LiveActivityManager.shared.endActivity()
         DIContainer.shared.analyticsManager.log(.workoutCompleted, ["completed_sets": completedSetCount])
+        ActivationFunnel.logOnce(ActivationFunnel.firstWorkoutCompleted)
         self.completedSessionLog = sessionLog
         notifyWorkoutCompleteIfNeeded()
         self.showingAnalyticsSheet = true

@@ -238,6 +238,67 @@ private struct FoodDetailCorrectionButtonStyle: ButtonStyle {
     }
 }
 
+struct FoodDataSanityCard: View {
+    let findings: [FoodDataSanity.Finding]
+    let fixAction: () -> Void
+
+    private var hasWarning: Bool {
+        findings.contains { $0.severity == .warning }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: hasWarning ? "exclamationmark.triangle.fill" : "info.circle.fill")
+                    .appFont(size: 17, weight: .bold)
+                    .foregroundColor(hasWarning ? .orange : .blue)
+                    .frame(width: 42, height: 42)
+                    .background((hasWarning ? Color.orange : Color.blue).opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(hasWarning ? "This data looks off" : "Worth a quick look")
+                        .appFont(size: 15, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("MyFitPlate checks every food against nutrition math.")
+                        .appFont(size: 12, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(findings) { finding in
+                    HStack(alignment: .top, spacing: 7) {
+                        Image(systemName: finding.severity == .warning ? "exclamationmark.circle.fill" : "info.circle")
+                            .appFont(size: 11, weight: .bold)
+                            .foregroundColor(finding.severity == .warning ? .orange : Color(UIColor.secondaryLabel))
+                            .padding(.top, 1)
+
+                        Text(finding.message)
+                            .appFont(size: 12, weight: .medium)
+                            .foregroundColor(.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            if hasWarning {
+                Button(action: fixAction) {
+                    Label("Fix This Data", systemImage: "pencil")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
+                .accessibilityHint("Opens an editor to correct this food's nutrition data.")
+            }
+        }
+        .padding(14)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
 struct FoodDetailCorrectionSheet: View {
     let serving: ServingSizeOption
     let barcode: String?

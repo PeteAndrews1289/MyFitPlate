@@ -388,6 +388,7 @@ struct ContentView: View {
         self.shouldShowOnboardingSurvey = false
         self.shouldShowFeatureTour = true
         NotificationManager.shared.requestDailyLogReminderAuthorization()
+        ActivationFunnel.logOnce(ActivationFunnel.onboardingCompleted)
     }
     
     private func handleLoginStateChange(isLoggedIn: Bool) {

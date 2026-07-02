@@ -31,6 +31,7 @@ struct FoodDetailView: View {
 
     @State private var showingImagePicker = false
     @State private var showingCorrectionEditor = false
+    @State private var hasLoggedSuspiciousData = false
     @State private var isProcessingLabel = false
     @State private var scanError: (Bool, String) = (false, "")
 
@@ -107,6 +108,39 @@ struct FoodDetailView: View {
         selectedServingOption ?? ServingNutritionCalculator.baseServing(from: initialFoodItem)
     }
 
+    // Sanity-checks the currently selected base serving (per one serving, not quantity-scaled,
+    // so a big quantity can't trip the physical-plausibility rules).
+    private var sanityCheckItem: FoodItem {
+        let serving = correctionBaseServing
+        return FoodItem(
+            name: foodName,
+            calories: serving.calories,
+            protein: serving.protein,
+            carbs: serving.carbs,
+            fats: serving.fats,
+            fiber: serving.fiber,
+            servingSize: serving.description,
+            servingWeight: serving.servingWeightGrams ?? 1.0,
+            potassium: serving.potassium,
+            sodium: serving.sodium
+        )
+    }
+
+    private var sanityFindings: [FoodDataSanity.Finding] {
+        FoodDataSanity.findings(for: sanityCheckItem)
+    }
+
+    private func logSuspiciousDataIfNeeded() {
+        guard !hasLoggedSuspiciousData else { return }
+        let findings = sanityFindings
+        guard findings.contains(where: { $0.severity == .warning }) else { return }
+        hasLoggedSuspiciousData = true
+        DIContainer.shared.analyticsManager?.logEvent("food_data_suspicious", parameters: [
+            "kinds": findings.map(\.id).joined(separator: ","),
+            "source": sourceDescriptor.sourceKey
+        ])
+    }
+
     // MARK: - Adjusted Nutrients Calculation
     private var adjustedNutrients: AdjustedServingNutrition {
         let baseNutrients = selectedServingOption ?? ServingNutritionCalculator.baseServing(from: initialFoodItem)
@@ -143,6 +177,14 @@ struct FoodDetailView: View {
                                 fixAction: { showingCorrectionEditor = true },
                                 rememberAction: saveAsCustomFood
                             )
+                        }
+
+                        if !sanityFindings.isEmpty {
+                            FoodDataSanityCard(
+                                findings: sanityFindings,
+                                fixAction: { showingCorrectionEditor = true }
+                            )
+                            .onAppear(perform: logSuspiciousDataIfNeeded)
                         }
 
                         if isShowingDetailsLoading {

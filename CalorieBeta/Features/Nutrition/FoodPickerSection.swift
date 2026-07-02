@@ -104,6 +104,13 @@ struct FoodPickerRow: View {
                                 if let sourceDescriptor {
                                     FoodSourceMiniBadge(descriptor: sourceDescriptor)
                                 }
+
+                                if FoodDataSanity.isSuspicious(food) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .appFont(size: 10, weight: .bold)
+                                        .foregroundColor(.orange)
+                                        .accessibilityLabel("Nutrition data looks off")
+                                }
                             }
 
                             Text(detailText)

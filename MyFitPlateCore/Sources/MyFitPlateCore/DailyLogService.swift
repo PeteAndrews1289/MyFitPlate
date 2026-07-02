@@ -117,6 +117,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                 ])
 
                 await MainActor.run {
+                    ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
                     self.bannerService?.showBanner(title: "Success", message: "\(foodItem.name) logged to \(mealType)!")
                     self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
                     self.rescheduleDailyReminder()
@@ -263,6 +264,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                         ])
 
                         Task { @MainActor in
+                            ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
                             self.bannerService?.showBanner(title: "Success", message: "\(itemToAdd.name) logged!")
                             self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
                             self.rescheduleDailyReminder()
