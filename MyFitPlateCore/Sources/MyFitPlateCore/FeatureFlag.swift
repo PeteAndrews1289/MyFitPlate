@@ -6,6 +6,7 @@ public enum FeatureFlag: String, CaseIterable {
     case premiumFeatures
     case menuScanner
     case receiptScanner
+    case communityBarcodeCorrections
 
     /// Value used when neither a local override nor a remote value is present.
     /// New/gated features stay dark until deliberately enabled. Already-shipped, higher-risk
@@ -17,6 +18,8 @@ public enum FeatureFlag: String, CaseIterable {
         case .premiumFeatures: return false
         case .menuScanner: return true
         case .receiptScanner: return true
+        // Dark until the extended barcodes rules are deployed and the pool has soaked.
+        case .communityBarcodeCorrections: return false
         }
     }
 

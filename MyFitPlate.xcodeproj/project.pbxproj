@@ -179,6 +179,7 @@
 		DC82EF8ED3498946C8A3B936 /* AddExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1258275B90A9A5D1C9D31FF8 /* AddExerciseView.swift */; };
 		DE2AD91146AB04CA9EE80377 /* MainAppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A411836458D36A8BCD415382 /* MainAppView.swift */; };
 		DE8E3341500B3DEAF77D60D5 /* FirestoreWorkoutRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF398EB57BC77214BB39E4D /* FirestoreWorkoutRepository.swift */; };
+		E0FA38815EFACFECD2B901D7 /* FirestoreCommunityBarcodeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FCD7CF43A42ED22AC5A53DA /* FirestoreCommunityBarcodeStore.swift */; };
 		DF9C27A9DC712EFEBCFAE5E9 /* ManualGroceryItemSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3FE48CE509F662265955223 /* ManualGroceryItemSheet.swift */; };
 		E3203805EB376FD56953B645 /* SleepReportCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 278275F9739ED4C96650EB4A /* SleepReportCard.swift */; };
 		E4B7C966034D398F5753576F /* PastWorkoutDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB7489852F3C2BCF3A62638 /* PastWorkoutDetailView.swift */; };
@@ -342,6 +343,7 @@
 		4CBDD039C41BDDC823E1EEE9 /* ExerciseTrendChartView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExerciseTrendChartView.swift; sourceTree = "<group>"; };
 		4D0B4876FEFB57758A234C46 /* PantryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PantryView.swift; sourceTree = "<group>"; };
 		4DF398EB57BC77214BB39E4D /* FirestoreWorkoutRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreWorkoutRepository.swift; sourceTree = "<group>"; };
+		1FCD7CF43A42ED22AC5A53DA /* FirestoreCommunityBarcodeStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreCommunityBarcodeStore.swift; sourceTree = "<group>"; };
 		4FA9C3AA5D9F344C602ABC10 /* HealthDisclaimerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthDisclaimerView.swift; sourceTree = "<group>"; };
 		4FED79A6764CD428B2D56264 /* FoodSearchActionGrid.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FoodSearchActionGrid.swift; sourceTree = "<group>"; };
 		501AD9D6DBBB3CA36533605F /* RoutineEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RoutineEditorView.swift; sourceTree = "<group>"; };
@@ -890,6 +892,7 @@
 				F99B0ADD63EACCE1DE4D43C9 /* FirestoreSeeder.swift */,
 				5F02E41905CDF950561F0E06 /* FirestoreSettingsRepository.swift */,
 				4DF398EB57BC77214BB39E4D /* FirestoreWorkoutRepository.swift */,
+				1FCD7CF43A42ED22AC5A53DA /* FirestoreCommunityBarcodeStore.swift */,
 				24494F090F695D8EF543AD11 /* AIService.swift */,
 			);
 			path = Firebase;
@@ -1427,6 +1430,7 @@
 				320ACBD087736044CD278A0F /* FirestoreSeeder.swift in Sources */,
 				E9BFA98FDA0EA24C90963CC9 /* FirestoreSettingsRepository.swift in Sources */,
 				DE8E3341500B3DEAF77D60D5 /* FirestoreWorkoutRepository.swift in Sources */,
+				E0FA38815EFACFECD2B901D7 /* FirestoreCommunityBarcodeStore.swift in Sources */,
 				72982B88D94F2496D0D4205D /* AnalyticsManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

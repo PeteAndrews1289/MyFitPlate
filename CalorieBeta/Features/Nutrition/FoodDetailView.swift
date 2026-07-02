@@ -584,10 +584,23 @@ struct FoodDetailView: View {
                         ? "\(foodName) will be used for future scans of this barcode."
                         : "\(foodName) added to My Foods."
                     bannerService.showBanner(title: "Saved", message: message)
+                    self.contributeToCommunityPoolIfEligible(itemToSave)
                 } else {
                     bannerService.showBanner(title: "Error", message: "Could not save custom food.", iconName: "xmark.circle.fill", iconColor: .red)
                 }
             }
+        }
+    }
+
+    /// Shares a saved barcode correction with the community pool when the feature flag is
+    /// on and the entry passes the sanity checker. Best-effort: failures stay silent.
+    private func contributeToCommunityPoolIfEligible(_ item: FoodItem) {
+        guard let barcode = item.sourceMetadata?.barcode else { return }
+        let flagEnabled = DIContainer.shared.featureFlagService?.boolValue(for: .communityBarcodeCorrections) ?? false
+        guard CommunityBarcodeRules.isEligibleForContribution(item, barcode: barcode, flagEnabled: flagEnabled),
+              let store = DIContainer.shared.communityBarcodeStore else { return }
+        Task {
+            await store.contribute(item, barcode: barcode)
         }
     }
 

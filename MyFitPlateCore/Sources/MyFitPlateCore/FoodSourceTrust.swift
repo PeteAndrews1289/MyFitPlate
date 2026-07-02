@@ -308,6 +308,19 @@ public enum FoodSourceClassifier {
             return aiDescriptor(for: metadata)
 
         case .manual, .custom:
+            if CommunityBarcodeRules.isCommunityMatch(metadata) {
+                return FoodSourceDescriptor(
+                    sourceKey: "community_barcode",
+                    title: "Community Match",
+                    detail: reviewAwareDetail(
+                        metadata,
+                        defaultDetail: "Matched from a fix shared by another MyFitPlate user."
+                    ),
+                    confidence: "Community Verified",
+                    systemImage: "person.2.fill"
+                )
+            }
+
             if metadata.barcode?.isEmpty == false {
                 return FoodSourceDescriptor(
                     sourceKey: "custom_barcode",
@@ -689,6 +702,15 @@ public final class BarcodeFoodLookupService {
             )
         }
 
+        // Community pool: another user's sanity-checked fix for this barcode. Checked after
+        // the user's own corrections (yours always win) and before external databases.
+        if let item = await lookupCommunityCorrection(trimmedBarcode) {
+            return BarcodeFoodLookupResult(
+                item: item,
+                source: "community_barcode"
+            )
+        }
+
         if let item = await lookupFatSecret(trimmedBarcode) {
             let primary = item.withDatabaseSource(
                 .fatSecret,
@@ -740,6 +762,18 @@ public final class BarcodeFoodLookupService {
         }
 
         return nil
+    }
+
+    private func lookupCommunityCorrection(_ barcode: String) async -> FoodItem? {
+        let dependencies = await MainActor.run { () -> (enabled: Bool, store: CommunityBarcodeStoreProtocol?) in
+            let flags: FeatureFlagServiceProtocol? = DIContainer.shared.featureFlagService
+            return (
+                flags?.boolValue(for: .communityBarcodeCorrections) ?? false,
+                DIContainer.shared.communityBarcodeStore
+            )
+        }
+        guard dependencies.enabled, let store = dependencies.store else { return nil }
+        return await store.communityFood(for: barcode)
     }
 
     private func lookupFatSecret(_ barcode: String) async -> FoodItem? {

@@ -157,6 +157,7 @@ struct CalorieBetaApp: App {
                 featureFlagService: FeatureFlagService(remoteProvider: FirebaseRemoteConfigFeatureFlagProvider.makeIfConfigured()),
                 aiService: AIService.shared
             )
+            DIContainer.shared.communityBarcodeStore = FirestoreCommunityBarcodeStore()
         }
 
         ReleaseHealth.configure(

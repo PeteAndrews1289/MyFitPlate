@@ -19,7 +19,10 @@ public class DIContainer: ObservableObject {
     public var analyticsManager: AnalyticsManagerProtocol!
     public var crashManager: CrashManagerProtocol!
     public var featureFlagService: FeatureFlagServiceProtocol!
-    
+    /// Optional: the shared community barcode-correction pool. Nil when Firebase isn't
+    /// configured (tests, previews) — lookups just skip the community step.
+    public var communityBarcodeStore: CommunityBarcodeStoreProtocol?
+
     private init() {}
     
     public func configure(
