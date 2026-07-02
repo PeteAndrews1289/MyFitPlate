@@ -1,6 +1,10 @@
 import SwiftUI
 import ActivityKit
 
+// DESIGN.md rule 1: in the player, the hero is the set you're doing — header and control
+// bar are chrome and stay compact. Progress is stated once (bar + one caption), not five
+// ways; the rainbow metric tiles are gone. Green marks "now": the rest countdown and the
+// finish action.
 struct WorkoutSessionControlBar: View {
     let completedSets: Int
     let totalSets: Int
@@ -9,85 +13,58 @@ struct WorkoutSessionControlBar: View {
     let onPlateCalculator: () -> Void
     let onFinish: () -> Void
 
-    private var progressText: String {
-        totalSets == 0 ? "No sets planned" : "\(completedSets)/\(totalSets) sets complete"
-    }
-
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                autoRestToggleView
-                plateCalculatorButton
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "timer")
+                    .appFont(size: 12, weight: .bold)
+                    .foregroundColor(isAutoRestEnabled ? .accentPositive : Color(UIColor.secondaryLabel))
+
+                Text("Auto rest")
+                    .appFont(size: 12, weight: .bold)
+                    .foregroundColor(.textPrimary)
+
+                Toggle("", isOn: $isAutoRestEnabled)
+                    .labelsHidden()
+                    .tint(.accentPositive)
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Auto rest timer")
+            .accessibilityValue(isAutoRestEnabled ? "On" : "Off")
+
+            Button(action: onPlateCalculator) {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.stack.3d.up.fill")
+                        .appFont(size: 12, weight: .bold)
+                    Text("Plates")
+                        .appFont(size: 12, weight: .bold)
+                }
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+                .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Plate math")
 
             Button(action: {
                 HapticManager.instance.notification(.success)
                 onFinish()
             }) {
-                HStack {
-                    Label("Finish Workout", systemImage: "checkmark.seal.fill")
-                    Spacer()
-                    Text(remainingSets == 0 ? "Ready" : "\(remainingSets) left")
-                        .appFont(size: 12, weight: .bold)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.16), in: Capsule())
-                }
+                Label("Finish workout", systemImage: "checkmark.seal.fill")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .buttonStyle(PrimaryButtonStyle())
-
-            Text(progressText)
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .frame(maxWidth: .infinity, alignment: .center)
-        }
-        .padding(12)
-        .background(Color.backgroundSecondary.opacity(0.96), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.brandPrimary.opacity(0.08), lineWidth: 1)
-        )
-    }
-
-    @ViewBuilder
-    private var autoRestToggleView: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "timer")
-                .appFont(size: 12, weight: .bold)
-                .foregroundColor(isAutoRestEnabled ? .accentPositive : Color(UIColor.secondaryLabel))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Auto Rest")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Text(isAutoRestEnabled ? "On after each set" : "Manual timer")
-                    .appFont(size: 10, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
-
-            Toggle("", isOn: $isAutoRestEnabled)
-                .labelsHidden()
-                .tint(.accentPositive)
+            .buttonStyle(.plain)
         }
         .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
-
-    @ViewBuilder
-    private var plateCalculatorButton: some View {
-        Button(action: onPlateCalculator) {
-            VStack(spacing: 4) {
-                Image(systemName: "square.stack.3d.up.fill")
-                    .appFont(size: 15, weight: .bold)
-                Text("Plates")
-                    .appFont(size: 11, weight: .bold)
-            }
-            .foregroundColor(Color(UIColor.secondaryLabel))
-            .frame(width: 72, height: 58)
-            .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
-        .buttonStyle(.plain)
+        .background(Color.backgroundSecondary.opacity(0.96), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 
@@ -106,120 +83,80 @@ struct WorkoutSessionHeaderCard: View {
     var isCompact: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: isCompact ? 8 : 14) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    if !isCompact {
-                        Text("Live Workout")
-                            .appFont(size: 11, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .textCase(.uppercase)
-                    }
-
-                    Text(routineName)
-                        .appFont(size: isCompact ? 16 : 23, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(isCompact ? 1 : 2)
-
-                    if !isCompact {
-                        Text("Now: \(currentExerciseName)")
-                            .appFont(size: 13, weight: .semibold)
-                            .foregroundColor(.brandPrimary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.82)
-                    }
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 10) {
+                Text(routineName)
+                    .appFont(size: 16, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(1)
 
                 Spacer(minLength: 8)
 
+                Text(elapsedTime)
+                    .appFont(size: 14, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .monospacedDigit()
+
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .appFont(size: 13, weight: .bold)
+                        .appFont(size: 12, weight: .bold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 30, height: 30)
                         .background(Color.backgroundPrimary.opacity(0.72), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close workout")
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                if !isCompact {
-                    HStack {
-                        Text("\(completedSets) of \(max(totalSets, 0)) sets")
-                            .appFont(size: 12, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color(UIColor.secondarySystemFill))
 
-                        Spacer()
-
-                        Text("\(Int((progress * 100).rounded()))%")
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(.brandPrimary)
-                    }
+                    Capsule()
+                        .fill(Color.brandPrimary)
+                        .frame(width: geometry.size.width * CGFloat(progress))
+                        .animation(.easeInOut(duration: 0.25), value: progress)
                 }
-
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.brandPrimary.opacity(0.12))
-
-                        Capsule()
-                            .fill(Color.brandPrimary)
-                            .frame(width: geometry.size.width * CGFloat(progress))
-                            .animation(.easeInOut(duration: 0.25), value: progress)
-                    }
-                }
-                .frame(height: 8)
             }
+            .frame(height: 6)
+            .accessibilityElement()
+            .accessibilityLabel("Workout progress")
+            .accessibilityValue("\(completedSets) of \(totalSets) sets complete")
 
             if !isCompact {
-                HStack(spacing: 10) {
-                    WorkoutHeaderMetric(title: "Elapsed", value: elapsedTime, icon: "clock.fill", color: .blue)
-                    WorkoutHeaderMetric(title: "Exercises", value: "\(completedExercises)/\(totalExercises)", icon: "list.bullet", color: .orange)
+                HStack(spacing: 8) {
+                    Text("\(completedSets) of \(totalSets) sets · Now: \(currentExerciseName)")
+                        .appFont(size: 12, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+
+                    Spacer(minLength: 6)
 
                     if let restTime {
                         Button(action: onStopRest) {
-                            WorkoutHeaderMetric(title: "Rest", value: restTime, icon: "timer", color: .accentPositive)
+                            HStack(spacing: 5) {
+                                Image(systemName: "timer")
+                                    .appFont(size: 11, weight: .bold)
+                                Text("Rest \(restTime)")
+                                    .appFont(size: 12, weight: .bold)
+                                    .monospacedDigit()
+                                Image(systemName: "xmark.circle.fill")
+                                    .appFont(size: 11, weight: .bold)
+                                    .opacity(0.7)
+                            }
+                            .foregroundColor(.accentPositive)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.accentPositive.opacity(0.12), in: Capsule())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Stop rest timer")
-                    } else {
-                        WorkoutHeaderMetric(title: "Rest", value: "Ready", icon: "timer", color: .accentPositive)
+                        .accessibilityLabel("Rest timer \(restTime). Double tap to stop.")
                     }
                 }
             }
         }
         .asCard()
-    }
-}
-
-struct WorkoutHeaderMetric: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .appFont(size: 10, weight: .bold)
-                    .foregroundColor(color)
-
-                Text(title)
-                    .appFont(size: 10, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(1)
-            }
-
-            Text(value)
-                .appFont(size: 14, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
