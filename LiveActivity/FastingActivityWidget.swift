@@ -48,7 +48,7 @@ struct FastingActivityWidget: Widget {
                 HStack {
                     Spacer()
                     Button(intent: EndFastIntent()) {
-                        Text("End Fast")
+                        Text("End fast")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .padding(.horizontal, 16)
@@ -89,7 +89,7 @@ struct FastingActivityWidget: Widget {
                     HStack {
                         Spacer()
                         Button(intent: EndFastIntent()) {
-                            Text("End Fast")
+                            Text("End fast")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                                 .padding(.horizontal, 16)

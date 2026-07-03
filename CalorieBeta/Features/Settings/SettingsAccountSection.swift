@@ -1,14 +1,21 @@
 import SwiftUI
+import MyFitPlateCore
 
 struct SettingsAccountSection: View {
     @EnvironmentObject var goalSettings: GoalSettings
-    
+    @EnvironmentObject var dailyLogService: DailyLogService
+    @EnvironmentObject var workoutService: WorkoutService
+
     @Binding var showCaloricCalculator: Bool
     @Binding var feetInput: String
     @Binding var inchesInput: String
     @Binding var showHeightEditor: Bool
     @Binding var waterGoalInput: String
     @Binding var showingWaterGoalSheet: Bool
+
+    @State private var isExporting = false
+    @State private var exportURLs: [URL] = []
+    @State private var showingExportShare = false
 
     var body: some View {
         SettingsSectionCard(title: "Account") {
@@ -55,6 +62,61 @@ struct SettingsAccountSection: View {
                 }
             }
             .padding(16)
+
+            Divider().padding(.leading, 50)
+
+            Button {
+                exportData()
+            } label: {
+                HStack {
+                    SettingsLabel(
+                        icon: "square.and.arrow.up",
+                        title: "Export your data",
+                        subtitle: "Food diary and workouts as CSV files.",
+                        color: .blue
+                    )
+                    if isExporting {
+                        Spacer()
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(isExporting)
+            .padding(16)
+        }
+        .sheet(isPresented: $showingExportShare) {
+            PDFShareView(activityItems: exportURLs)
+        }
+    }
+
+    /// Fetches the user's full history, writes two CSVs to temp files, and hands them to
+    /// the share sheet. Best-effort: partial data still exports (an empty CSV has a header).
+    private func exportData() {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        isExporting = true
+
+        Task {
+            let logsResult = await dailyLogService.fetchDailyHistory(for: userID, startDate: nil, endDate: nil)
+            let sessions = await workoutService.fetchRecentSessionLogs(sinceDays: 3650)
+
+            let foodCSV = DataExporter.foodLogCSV(from: (try? logsResult.get()) ?? [])
+            let workoutCSV = DataExporter.workoutCSV(from: sessions)
+
+            let directory = FileManager.default.temporaryDirectory
+            let foodURL = directory.appendingPathComponent("myfitplate-food-diary.csv")
+            let workoutURL = directory.appendingPathComponent("myfitplate-workouts.csv")
+
+            do {
+                try foodCSV.write(to: foodURL, atomically: true, encoding: .utf8)
+                try workoutCSV.write(to: workoutURL, atomically: true, encoding: .utf8)
+                exportURLs = [foodURL, workoutURL]
+                DIContainer.shared.analyticsManager?.logEvent("data_exported", parameters: nil)
+                showingExportShare = true
+            } catch {
+                AppLog.app.error("Data export failed: \(error.localizedDescription, privacy: .public)")
+            }
+
+            isExporting = false
         }
     }
 }
