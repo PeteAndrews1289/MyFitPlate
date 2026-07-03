@@ -596,11 +596,12 @@ struct HomeView: View {
     }
 
     /// "Fill my macros" appears when it can actually help: viewing today, from mid-afternoon
-    /// on, with a sane meal's worth of calories left — not at 7am, not after the day's done.
+    /// on, with at least a snack's worth of calories left. No upper bound — a lightly
+    /// logged day with 1,800 remaining is exactly when a planned dinner helps most.
     private var shouldOfferFillMyMacros: Bool {
         guard isToday, goalSettings.calories != nil else { return false }
         let hour = Calendar.current.component(.hour, from: Date())
-        return hour >= 15 && remainingCaloriesToday >= 150 && remainingCaloriesToday <= 1500
+        return hour >= 15 && remainingCaloriesToday >= 150
     }
 
     private var fillMyMacrosCard: some View {

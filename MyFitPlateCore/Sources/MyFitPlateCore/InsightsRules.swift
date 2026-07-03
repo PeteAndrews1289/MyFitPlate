@@ -272,6 +272,18 @@ public enum InsightsRules {
         """
     }
 
+    /// Extracts the JSON object from an AI response that may be wrapped in markdown fences
+    /// or stray prose. json_object mode usually prevents this, but the decode path must
+    /// not die on a ```json fence.
+    public static func extractJSONPayload(_ raw: String) -> String {
+        guard let first = raw.firstIndex(of: "{"),
+              let last = raw.lastIndex(of: "}"),
+              first <= last else {
+            return raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return String(raw[first...last])
+    }
+
     public static func determineSmartSuggestion(
         log: DailyLog?,
         isToday: Bool,

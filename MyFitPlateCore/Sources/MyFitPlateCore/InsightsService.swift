@@ -88,13 +88,23 @@ public class InsightsService: ObservableObject {
             self.isGeneratingSuggestion = false
             return nil
         }
-        guard let jsonData = responseString.data(using: .utf8) else {
+        guard let jsonData = InsightsRules.extractJSONPayload(responseString).data(using: .utf8) else {
             self.isGeneratingSuggestion = false
             return nil
         }
-        let suggestion = try? JSONDecoder().decode(MealSuggestion.self, from: jsonData)
-        self.isGeneratingSuggestion = false
-        return suggestion
+
+        do {
+            let suggestion = try JSONDecoder().decode(MealSuggestion.self, from: jsonData)
+            self.isGeneratingSuggestion = false
+            return suggestion
+        } catch {
+            // This decode failing silently is exactly how the feature shipped dead —
+            // leave a non-fatal trail with the reason.
+            AppLog.ai.error("Meal suggestion decode failed: \(error.localizedDescription, privacy: .public)")
+            DIContainer.shared.crashManager?.record(error: error, additionalUserInfo: ["operation": "decode_meal_suggestion"])
+            self.isGeneratingSuggestion = false
+            return nil
+        }
     }
 
     public func generateDailySmartInsight() {
