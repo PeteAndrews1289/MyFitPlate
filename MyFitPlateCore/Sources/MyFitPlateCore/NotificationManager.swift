@@ -62,19 +62,27 @@ public enum NotificationType: Sendable {
 
 public class NotificationManager {
     public static let shared = NotificationManager()
-    
-    private init() {}
-    
+
+    private let center: UserNotificationScheduling
+    private let defaults: UserDefaults
+    /// The XCTest guard below only protects the REAL center (app-target test runs must not
+    /// mutate the device's pending notifications). Injected fakes are exactly for tests.
+    private let isSystemCenter: Bool
+
+    public init(center: UserNotificationScheduling = SystemUserNotificationCenter(),
+                defaults: UserDefaults = .standard) {
+        self.center = center
+        self.defaults = defaults
+        self.isSystemCenter = center is SystemUserNotificationCenter
+    }
+
     public func clearNotificationBadge() {
-#if os(iOS)
-        UNUserNotificationCenter.current().setBadgeCount(0)
-#endif
+        center.setBadgeCount(0)
     }
 
     public func requestAuthorization(completion: @escaping (Bool) -> Void) {
-        let center = UNUserNotificationCenter.current()
-        center.getNotificationSettings { settings in
-            switch settings.authorizationStatus {
+        center.authorizationStatus { status in
+            switch status {
             case .authorized, .provisional, .ephemeral:
                 DispatchQueue.main.async {
                     completion(true)
@@ -85,7 +93,7 @@ public class NotificationManager {
                 }
             case .notDetermined:
                 let options: UNAuthorizationOptions = [.alert, .sound, .badge]
-                center.requestAuthorization(options: options) { success, error in
+                self.center.requestAuthorization(options: options) { success, error in
                     if let error {
                         AppLog.notifications.error("Error requesting notification authorization: \(error.localizedDescription, privacy: .public)")
                     }
@@ -104,19 +112,19 @@ public class NotificationManager {
     public func requestDailyLogReminderAuthorization() {
         requestAuthorization { granted in
             guard granted else { return }
-            let hour = UserDefaults.standard.object(forKey: "notificationHour") as? Int ?? 20
-            let minute = UserDefaults.standard.object(forKey: "notificationMinute") as? Int ?? 0
+            let hour = self.defaults.object(forKey: "notificationHour") as? Int ?? 20
+            let minute = self.defaults.object(forKey: "notificationMinute") as? Int ?? 0
             self.scheduleCalendarNotification(.dailyLogReminder(hour: hour, minute: minute))
         }
     }
 
     public func scheduleDailyLogReminderIfAuthorized() {
-        if NSClassFromString("XCTest") != nil { return }
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            switch settings.authorizationStatus {
+        if isSystemCenter && NSClassFromString("XCTest") != nil { return }
+        center.authorizationStatus { status in
+            switch status {
             case .authorized, .provisional, .ephemeral:
-                let hour = UserDefaults.standard.object(forKey: "notificationHour") as? Int ?? 20
-                let minute = UserDefaults.standard.object(forKey: "notificationMinute") as? Int ?? 0
+                let hour = self.defaults.object(forKey: "notificationHour") as? Int ?? 20
+                let minute = self.defaults.object(forKey: "notificationMinute") as? Int ?? 0
                 self.scheduleCalendarNotification(.dailyLogReminder(hour: hour, minute: minute))
             case .denied, .notDetermined:
                 break
@@ -131,7 +139,7 @@ public class NotificationManager {
     /// Enables or disables recurring hydration reminders spread through the day.
     public func setHydrationReminders(enabled: Bool) {
         let ids = hydrationHours.indices.map { "hydration_\($0)" }
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+        center.removePendingRequests(withIdentifiers: ids)
         guard enabled else { return }
         requestAuthorization { granted in
             guard granted else { return }
@@ -145,7 +153,7 @@ public class NotificationManager {
                 dateComponents.minute = 0
                 let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
                 let request = UNNotificationRequest(identifier: "hydration_\(index)", content: content, trigger: trigger)
-                UNUserNotificationCenter.current().add(request) { error in
+                self.center.add(request) { error in
                     if let error {
                         AppLog.notifications.error("Error scheduling hydration reminder: \(error.localizedDescription, privacy: .public)")
                     }
@@ -169,7 +177,7 @@ public class NotificationManager {
             dateComponents.minute = minute
             let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
             let request = UNNotificationRequest(identifier: NotificationType.weighInReminder.id, content: content, trigger: trigger)
-            UNUserNotificationCenter.current().add(request) { error in
+            self.center.add(request) { error in
                 if let error {
                     AppLog.notifications.error("Error scheduling weigh-in reminder: \(error.localizedDescription, privacy: .public)")
                 }
@@ -190,8 +198,8 @@ public class NotificationManager {
         // Schedule for X hours from now
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delayHours * 3600, repeats: false)
         let request = UNNotificationRequest(identifier: "smart_ai_nudge", content: content, trigger: trigger)
-        
-        UNUserNotificationCenter.current().add(request) { error in
+
+        center.add(request) { error in
             if let error = error {
                 AppLog.notifications.error("Error scheduling smart nudge: \(error.localizedDescription, privacy: .public)")
             }
@@ -217,11 +225,11 @@ public class NotificationManager {
                 
                 let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
                 let request = UNNotificationRequest(identifier: NotificationType.dailyBriefing.id, content: content, trigger: trigger)
-                
-                do {
-                    try await UNUserNotificationCenter.current().add(request)
-                } catch {
-                    AppLog.notifications.error("Error scheduling daily briefing: \(error.localizedDescription, privacy: .public)")
+
+                self.center.add(request) { error in
+                    if let error {
+                        AppLog.notifications.error("Error scheduling daily briefing: \(error.localizedDescription, privacy: .public)")
+                    }
                 }
             }
         }
@@ -248,8 +256,8 @@ public class NotificationManager {
                     dateComponents.minute = minute
                     let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
                     let request = UNNotificationRequest(identifier: type.id, content: content, trigger: trigger)
-                    
-                    UNUserNotificationCenter.current().add(request) { error in
+
+                    self.center.add(request) { error in
                         if let error = error {
                             AppLog.notifications.error("Error scheduling calendar notification \(type.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
                         }
@@ -270,7 +278,7 @@ public class NotificationManager {
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: timeInterval, repeats: repeats)
         let request = UNNotificationRequest(identifier: type.id, content: content, trigger: trigger)
 
-        UNUserNotificationCenter.current().add(request) { error in
+        center.add(request) { error in
             if let error = error {
                 AppLog.notifications.error("Error scheduling interval notification \(type.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
@@ -278,7 +286,7 @@ public class NotificationManager {
     }
 
     public func cancelNotification(identifier: String) {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
+        center.removePendingRequests(withIdentifiers: [identifier])
     }
     
     private func fetchUserData(userID: String, completion: @escaping (Double, Double) -> Void) {
