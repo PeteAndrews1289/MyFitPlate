@@ -401,6 +401,12 @@
     "%lld Comments" : {
 
     },
+    "%lld day logging streak" : {
+
+    },
+    "%lld day logging streak. Log today to keep it." : {
+
+    },
     "%lld days" : {
 
     },
@@ -532,6 +538,12 @@
 
     },
     "%lld training days" : {
+
+    },
+    "%lld-day streak" : {
+
+    },
+    "%lld-day streak — log to keep it" : {
 
     },
     "%lld:%lld" : {
@@ -1506,6 +1518,9 @@
     "Fill from %@" : {
 
     },
+    "Fill my macros" : {
+
+    },
     "Find foods where macros and calories disagree." : {
 
     },
@@ -1809,7 +1824,7 @@
     "Keep Training" : {
 
     },
-    "Key Gains" : {
+    "Key gains" : {
 
     },
     "Last 7 days" : {
@@ -1985,6 +2000,9 @@
     "Maia" : {
 
     },
+    "Maia builds a meal from your pantry for the remaining %@ cal" : {
+
+    },
     "Maia insights" : {
 
     },
@@ -1997,7 +2015,13 @@
     "Maia is ready" : {
 
     },
+    "Maia plans a meal for your remaining %@ cal" : {
+
+    },
     "Maia suggestions" : {
+
+    },
+    "Maia suggests a meal that fits your remaining calories and macros." : {
 
     },
     "Maia will estimate nutrition from plain language." : {
@@ -2147,7 +2171,7 @@
     "New PRs" : {
 
     },
-    "New Records" : {
+    "New records" : {
 
     },
     "Next" : {

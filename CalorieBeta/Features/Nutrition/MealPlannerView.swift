@@ -174,14 +174,9 @@ struct MealPlannerView: View {
                 .id("weekView")
                 .onChange(of: selectedDate) { _, _ in fetchPlan() }
 
-                WeeklyPlanOverviewCard(
-                    plans: visibleWeekPlans,
-                    onOpenGrocery: { showingGroceryList = true },
-                    onStartMealPrep: { showingMealPrepMode = true }
-                )
-                
-                scanPantryButton
-
+                // DESIGN.md rule 1: the selected day's plan is the hero and comes straight
+                // after the week selector; grocery/meal-prep and pantry scan are utilities
+                // and follow the plan.
                 if isLoading {
                     MealPlanLoadingState(message: loadingMessage)
                         .padding(.top, 24)
@@ -195,6 +190,14 @@ struct MealPlannerView: View {
                     .featureSpotlight(isActive: isSpotlightActive(for: "planContent"))
                     .id("planContent")
                 }
+
+                WeeklyPlanOverviewCard(
+                    plans: visibleWeekPlans,
+                    onOpenGrocery: { showingGroceryList = true },
+                    onStartMealPrep: { showingMealPrepMode = true }
+                )
+
+                scanPantryButton
             }
             .padding(16)
         }

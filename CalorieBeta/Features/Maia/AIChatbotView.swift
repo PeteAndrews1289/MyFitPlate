@@ -116,7 +116,7 @@ struct AIChatbotView: View {
                 }
 
                 HStack(spacing: 10) {
-                    TextField("Ask Maia anything...", text: $viewModel.userMessage, axis: .vertical)
+                    TextField("Ask Maia anything", text: $viewModel.userMessage, axis: .vertical)
                         .textFieldStyle(PlainTextFieldStyle())
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
