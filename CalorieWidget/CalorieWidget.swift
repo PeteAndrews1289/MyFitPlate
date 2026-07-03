@@ -33,6 +33,8 @@ private enum WidgetPalette {
     static let accentProtein = Color(red: 0.310, green: 0.525, blue: 0.749)
     static let accentCarbs = Color(red: 0.839, green: 0.659, blue: 0.243)
     static let accentFats = Color(red: 0.588, green: 0.427, blue: 0.675)
+    static let accentWater = Color(red: 0.290, green: 0.663, blue: 0.741)
+    static let accentSignal = Color(red: 0.878, green: 0.541, blue: 0.294)
 
 #if os(iOS)
     static let backgroundPrimary = Color(uiColor: .systemBackground)
@@ -49,35 +51,119 @@ struct CalorieWidgetEntryView: View {
         URL(string: "myfitplate://home")!
     }
 
+    private var isAccessory: Bool {
+        switch family {
+        case .accessoryCircular, .accessoryRectangular, .accessoryInline:
+            return true
+        default:
+            return false
+        }
+    }
+
     @ViewBuilder
     var body: some View {
-        VStack {
-            if let data = entry.data {
-                switch family {
-                case .systemSmall:
-                    SmallWidgetView(data: data)
-                case .systemLarge:
-                    LargeWidgetView(data: data)
-                default:
-                    MediumWidgetView(data: data)
-                }
-            } else {
-                VStack(alignment: .center, spacing: 5) {
-                    Text("MyFitPlate")
-                        .font(.headline)
-                    Text("Log a meal to see your stats here!")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }.padding()
+        Group {
+            switch family {
+            case .accessoryCircular:
+                AccessoryCircularCaloriesView(data: entry.data)
+            case .accessoryRectangular:
+                AccessoryRectangularCaloriesView(data: entry.data)
+            case .accessoryInline:
+                AccessoryInlineCaloriesView(data: entry.data)
+            case .systemSmall:
+                if let data = entry.data { SmallWidgetView(data: data) } else { emptyInvite }
+            case .systemLarge:
+                if let data = entry.data { LargeWidgetView(data: data) } else { emptyInvite }
+            default:
+                if let data = entry.data { MediumWidgetView(data: data) } else { emptyInvite }
             }
         }
         .widgetURL(homeURL)
         .containerBackground(for: .widget) {
-            ZStack {
-                Rectangle().fill(.thickMaterial)
-                WidgetPalette.backgroundPrimary.opacity(0.2)
+            if isAccessory {
+                AccessoryWidgetBackground()
+            } else {
+                ZStack {
+                    Rectangle().fill(.thickMaterial)
+                    WidgetPalette.backgroundPrimary.opacity(0.2)
+                }
             }
+        }
+    }
+
+    private var emptyInvite: some View {
+        VStack(alignment: .center, spacing: 5) {
+            Text("MyFitPlate")
+                .font(.headline)
+            Text("Log a meal to see your day here.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }.padding()
+    }
+}
+
+// Lock screen + watch complications. The system renders these vibrant or tinted,
+// so layout carries the meaning — the brand tint is a bonus where it survives.
+struct AccessoryCircularCaloriesView: View {
+    let data: WidgetData?
+
+    var body: some View {
+        if let data, data.calorieGoal > 0 {
+            Gauge(value: min(data.calories, data.calorieGoal), in: 0...data.calorieGoal) {
+                Text("cal")
+            } currentValueLabel: {
+                Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted())")
+            }
+            .gaugeStyle(.accessoryCircularCapacity)
+            .tint(WidgetPalette.brandPrimary)
+        } else {
+            VStack(spacing: 1) {
+                Image(systemName: "fork.knife")
+                Text("Log")
+                    .font(.caption2)
+            }
+        }
+    }
+}
+
+struct AccessoryRectangularCaloriesView: View {
+    let data: WidgetData?
+
+    var body: some View {
+        if let data, data.calorieGoal > 0 {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
+                    .font(.headline)
+                    .widgetAccentable()
+                Gauge(value: min(data.calories, data.calorieGoal), in: 0...data.calorieGoal) {
+                    EmptyView()
+                }
+                .gaugeStyle(.accessoryLinearCapacity)
+                .tint(WidgetPalette.brandPrimary)
+                Text("P \(Int(data.protein))g · C \(Int(data.carbs))g · F \(Int(data.fats))g")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("MyFitPlate")
+                    .font(.headline)
+                Text("Log a meal to see your day here.")
+                    .font(.caption2)
+            }
+        }
+    }
+}
+
+struct AccessoryInlineCaloriesView: View {
+    let data: WidgetData?
+
+    var body: some View {
+        if let data, data.calorieGoal > 0 {
+            Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
+        } else {
+            Text("MyFitPlate — log a meal")
         }
     }
 }
@@ -117,11 +203,11 @@ struct MediumWidgetView: View {
             VStack {
                 Text("Remaining")
                     .font(.caption2)
-                Text(String(format: "%.0f", max(0, data.calorieGoal - data.calories)))
+                Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted())")
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundColor(WidgetPalette.brandPrimary)
-                Text("kcal")
+                Text("cal")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -136,7 +222,7 @@ struct MediumWidgetView: View {
                     if hasMacroWarning {
                         Label("Check macros", systemImage: "info.circle.fill")
                             .font(.caption2)
-                            .foregroundColor(.orange)
+                            .foregroundColor(WidgetPalette.accentSignal)
                     }
 
                     Spacer()
@@ -146,7 +232,7 @@ struct MediumWidgetView: View {
                             .font(.caption)
                             .foregroundColor(.white)
                             .padding(6)
-                            .background(Color.blue)
+                            .background(WidgetPalette.accentWater)
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -167,7 +253,7 @@ struct SmallWidgetView: View {
                 MiniProgressBubble(
                     value: data.calories, goal: data.calorieGoal,
                     percentage: data.calorieGoal > 0 ? (data.calories / data.calorieGoal) : 0,
-                    label: "Calories", color: .red
+                    label: "Calories", color: WidgetPalette.brandPrimary
                 )
                 MiniProgressBubble(
                     value: data.protein, goal: data.proteinGoal,
@@ -200,7 +286,7 @@ struct LargeWidgetView: View {
                 ProgressBubble(
                     value: data.calories, goal: data.calorieGoal,
                     percentage: data.calorieGoal > 0 ? (data.calories / data.calorieGoal) : 0,
-                    label: "Calories", unit: "cal", color: .red
+                    label: "Calories", unit: "cal", color: WidgetPalette.brandPrimary
                 )
                 ProgressBubble(
                     value: data.protein, goal: data.proteinGoal,
@@ -222,7 +308,7 @@ struct LargeWidgetView: View {
             if let delta = data.macroCalorieDelta, abs(delta) >= 75 {
                 Text("Macros imply \(Int(abs(delta).rounded())) cal \(delta > 0 ? "more" : "less").")
                     .font(.caption2)
-                    .foregroundColor(.orange)
+                    .foregroundColor(WidgetPalette.accentSignal)
                     .lineLimit(1)
             }
         }
@@ -243,7 +329,7 @@ struct MiniProgressBubble: View {
                 Circle().stroke(lineWidth: 5).opacity(0.2).foregroundColor(color)
                 Circle().trim(from: 0, to: CGFloat(percentage)).stroke(style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round)).foregroundColor(color).rotationEffect(.degrees(-90))
                 VStack {
-                    Text("\(String(format: "%.0f", value))")
+                    Text("\(Int(value).formatted())")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.7)
                 }
@@ -292,9 +378,9 @@ struct ProgressBubble: View {
                 Circle().stroke(lineWidth: 8).opacity(0.2).foregroundColor(color)
                 Circle().trim(from: 0, to: CGFloat(percentage)).stroke(style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round)).foregroundColor(color).rotationEffect(.degrees(-90))
                 VStack {
-                    Text("\(String(format: "%.0f", value))")
+                    Text("\(Int(value).formatted())")
                         .font(.body.weight(.medium))
-                    Text("/ \(String(format: "%.0f", goal)) \(unit)")
+                    Text("/ \(Int(goal).formatted()) \(unit)")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
