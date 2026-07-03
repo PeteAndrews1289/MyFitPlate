@@ -78,7 +78,20 @@ sterile flat-icon competitors. Rules:
 - System UI chrome (tab bar, toolbars, settings) stays SF Symbols — emoji are for
   *content* (foods, exercises), not controls.
 
-## 7. Per-screen checklist (run before commit)
+## 7. Motion + empty states
+
+- One spring everywhere: `.spring(response: 0.35, dampingFraction: 0.8)` for entrances and
+  state changes. No bespoke curves per screen.
+- Numbers that change while visible get `.contentTransition(.numericText())` — values roll,
+  they don't teleport.
+- Haptics map: `.light` = navigation tap · `.medium` = a log/save action · `.success`
+  notification = a completed workout or a new record. Never on scroll or passive updates.
+- Celebrate records once, at the moment of reveal (spring entrance + success haptic) —
+  no repeat fanfare on re-visits of the same data.
+- Empty states are invitations: icon + one bold line + one supporting line + optional CTA
+  (patterns: `FoodSearchEmptyState`, `EmptyDailyLogView`). Never apologize, never blank.
+
+## 8. Per-screen checklist (run before commit)
 
 - [ ] One hero, one filled CTA, no duplicated actions
 - [ ] Squint test: ≤3 green elements, all meaningful

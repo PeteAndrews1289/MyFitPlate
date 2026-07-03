@@ -210,6 +210,8 @@ struct WeightTrackingView: View {
                             .appFont(size: 36, weight: .bold)
                             .foregroundColor(.textPrimary)
                             .monospacedDigit()
+                            .contentTransition(.numericText())
+                            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: goalSettings.weight)
 
                         Text(unit)
                             .appFont(size: 15, weight: .semibold)

@@ -91,7 +91,7 @@ struct WorkoutCompleteAnalyticsView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             Image(systemName: "crown.fill").foregroundColor(.yellow)
-                            Text("New Records").appFont(size: 20, weight: .bold)
+                            Text("New records").appFont(size: 20, weight: .bold)
                         }
                         .padding(.horizontal)
 
@@ -104,11 +104,19 @@ struct WorkoutCompleteAnalyticsView: View {
                             .padding(.horizontal)
                         }
                     }
+                    // DESIGN.md §7: celebrate records once, at the moment of reveal — a
+                    // spring entrance and a success haptic, no repeat fanfare.
+                    .scaleEffect(isAnimated ? 1 : 0.92)
+                    .opacity(isAnimated ? 1 : 0)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8).delay(0.15), value: isAnimated)
+                    .onAppear {
+                        HapticManager.instance.notification(.success)
+                    }
                 }
 
                 if !trendData.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Key Gains")
+                        Text("Key gains")
                             .appFont(size: 20, weight: .bold)
                             .padding(.horizontal)
 
