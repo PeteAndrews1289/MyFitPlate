@@ -28,10 +28,11 @@ struct SimpleEntry: TimelineEntry {
 }
 
 private enum WidgetPalette {
+    // Tuned palette (DESIGN.md 2a) — must stay in sync with the app's colorsets.
     static let brandPrimary = Color(red: 0.263, green: 0.678, blue: 0.435)
-    static let accentProtein = Color(red: 0.204, green: 0.596, blue: 0.859)
-    static let accentCarbs = Color(red: 0.945, green: 0.769, blue: 0.059)
-    static let accentFats = Color(red: 0.608, green: 0.349, blue: 0.714)
+    static let accentProtein = Color(red: 0.310, green: 0.525, blue: 0.749)
+    static let accentCarbs = Color(red: 0.839, green: 0.659, blue: 0.243)
+    static let accentFats = Color(red: 0.588, green: 0.427, blue: 0.675)
 
 #if os(iOS)
     static let backgroundPrimary = Color(uiColor: .systemBackground)

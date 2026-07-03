@@ -37,6 +37,29 @@ than ~3 green elements survive, the screen fails.
 Semantic accents stay semantic: `accentProtein` blue = protein, orange = warnings/AI,
 red = destructive, `accentPositive` = success. Never decorate with them.
 
+### 2a. The palette (closed — decided 2026-07-05)
+
+Two-tone brand + five semantic accents + neutrals. Every color has exactly one job;
+the box never grows. Tuned as one family (muted, matched lightness) — never revert to
+stock system hues.
+
+| Color | Hex | Job |
+|---|---|---|
+| Deep green | `#173829` | Brand at full strength: app icon, share cards, App Store canvas |
+| Brand green (`brandPrimary`) | `#43AD6F` | Action + success + now. The one filled CTA |
+| Protein (`AccentProtein`) | `#4F86BF` | Protein data, info, selection |
+| Carbs (`AccentCarbs`) | `#D6A83E` | Carb data only |
+| Fats (`AccentFats`) | `#966DAC` | Fat data only |
+| Water (`AccentWater`) | `#4AA9BD` | Hydration only (replaces inline `.cyan`) |
+| Signal (`AccentSignal`) | `#E08A4B` | AI estimates, warnings, streak flame (replaces inline `.orange`) |
+| Neutrals | system | Everything else — the stage |
+
+- **Per-screen budget:** neutrals + brand green + at most two semantic accents visible.
+  The macro trio counts as one unit when shown together as data.
+- Inline `.cyan` / `.orange` usages migrate to `AccentWater` / `AccentSignal` tokens as
+  screens get touched — no new inline system colors.
+- Widget/extension literals (`WidgetPalette`) mirror these values and move with them.
+
 ## 3. Numbers are typography
 
 - Thousands separators always: `12,650`, never `12650`. Compact above 5 digits where
