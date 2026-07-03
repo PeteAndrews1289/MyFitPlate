@@ -1,0 +1,10 @@
+{
+  "shots": [
+    { "file": "1.png", "headline": "Your whole day,\none glance", "subline": "Calories, macros, and momentum — front and center" },
+    { "file": "2.png", "headline": "Nutrition you\ncan trust", "subline": "Every food checked against real math, verified across databases" },
+    { "file": "3.png", "headline": "Log anything\nin seconds", "subline": "Search, scan, snap, or just describe it" },
+    { "file": "4.png", "headline": "Training that\nruns itself", "subline": "27 programs, smart progression, rest timers on your lock screen" },
+    { "file": "5.png", "headline": "Meet Maia,\nyour AI coach", "subline": "She builds dinner from your pantry and your remaining macros" },
+    { "file": "6.png", "headline": "Watch your\nweek add up", "subline": "Days logged, volume moved, records set — shareable in one tap" }
+  ]
+}
