@@ -3,14 +3,27 @@
 ## App Store "What's New" (paste-ready)
 
 ```
-Food data you can actually trust.
+Our biggest update yet: a fresh look, your week at a glance, and food data you can actually trust.
 
-• Nutrition sanity check — every food is checked against nutrition math. Bad database entries (impossible calories, unit mistakes) get flagged with a clear "This data looks off" card.
-• Fix This Data — one tap opens an editor to correct any flagged entry. Your fix is remembered for future scans and searches.
-• Cross-Verified badge — when two independent databases agree on a barcode, we tell you. When they don't, you'll know to double-check.
-• AI estimates, refined — every AI photo or menu estimate now has a one-tap "Refine Estimate" so you can dial in portions in seconds.
-• Smarter search — foods you've saved, fixed, or logged before now rank above generic database results.
-• Accessibility improvements and general reliability fixes.
+A FRESH LOOK
+• New app icon and one calm, consistent color palette (dark-mode icon included).
+• Redesigned Home, workout player, weight tracking, reports, and meal planner — every screen now leads with the one thing that matters.
+
+YOUR WEEK, UNDERSTOOD
+• Weekly Recap — workouts, new records, calorie averages, and weight trend in one card you can share.
+• Logging streak with a built-in grace day, right in the date bar.
+• Fill my macros — from mid-afternoon on, Maia can suggest a dinner that fits exactly what you have left today (and can build it from your pantry).
+
+FOOD DATA YOU CAN TRUST
+• Every food is checked against nutrition math. Bad database entries get flagged with a clear "This data looks off" card, and one tap opens an editor to fix them — your fix is remembered.
+• Cross-Verified badge when two independent databases agree on a barcode.
+• Search now blends USDA data, so more foods come with complete vitamins and minerals — and quick-logging captures full nutrition, not a preview.
+• AI photo and menu estimates get a one-tap "Refine Estimate" to dial in portions.
+
+AND MORE
+• Fasting Live Activity on your lock screen and in the Dynamic Island.
+• Export your food diary and workouts as CSV any time, from Settings.
+• Accessibility improvements and reliability fixes throughout.
 ```
 
 ## Internal changelog (2.1 archive → 2.2)
@@ -23,10 +36,28 @@ Food data you can actually trust.
 | Food trust | Cross-source agreement: per-100g comparison, `crossVerifiedBy` metadata, "Cross-Verified" descriptor | 6334f5cb |
 | Food trust | Community barcode-correction pool — **dark**, flag `communityBarcodeCorrections` (Remote Config `feature_communityBarcodeCorrections`); rules deployed, flip after 2.2 is live | 29fddecd |
 | Food trust | AI-estimate refine card + `food_correction_action` telemetry (per-source fix/remember rates) | fd505665 |
+| Design system | DESIGN.md written (one hero, green-means-something, type/copy rules) + Train screen; app-wide sweep incl. calorie-goal reset fix | 31515892, 3d04b7ca |
+| Design: structure | Home hero restructure + emoji-tiles decision; Food Search chip row; quick-log menu; weight tracking rebuild; Reports (trend = hero); Meal Plan + Maia passes | c8b05aec, 08900aa7, 28b751a2, febaa786, 183631a4 |
+| Workout player | Compact header + one-row control bar (~200pt returned to set cards); Auto-rest label clamp | cfd27cb7, 592522bc |
+| Weekly Recap | Core builder (PR/weight/volume math) + Your Week sheet, shareable card, Home entry | 62522604, b4814cae, 682e26ce |
+| Fill my macros | Home card ≥3pm → Maia dinner from remaining macros + pantry; decoder fix (was rejecting every AI response) | 7751ba27, 14ec9154, d4d6b8d7 |
+| Streak | Grace-day streak math (Core) + flame in Home's date bar | 6e49409d |
+| Motion | DESIGN.md §7: one spring, number roll-ups, haptics map, PR celebration | e4f64f7d |
+| Food data | Micronutrient ingestion fixed: quick-log hydrates full nutrition, USDA merged into search, OFF potassium unit slip | 805114ea |
+| Data export | Food diary + workout CSVs from Settings (RFC 4180) | a2bfd78b |
+| Fasting | Live Activity polish (lock screen + Dynamic Island; verified on hardware) | a2bfd78b |
+| Stability | Weekly Recap crash (WorkoutService injection) + fill-my-macros silent failure, from device reports | 09d3eb15, d4d6b8d7 |
+| Brand | New app icon (deep-green MFP monogram, iOS 18 dark/tinted) + tuned one-family palette (DESIGN.md §2a); Watch icon matched | c49a9b25, b32c9a9e |
+| Marketing | App Store screenshot pipeline: narrative, captions, compositor | 54105645 |
 | Infra | firestore.indexes.json live snapshot (unblocks rules deploys) | b850a43f |
-| Release | Version 2.2 (build 3) across app + extensions; accessibility pass on main flows | this batch |
+| Release | Version 2.2 (build 3) across app + extensions; accessibility pass on main flows | ac243e5a, c4da8f6c |
+
+## Before archive
+1. Recapture the six App Store shots on-device (current composites show the pre-tune accent colors), rerun `tools/screenshots/compose.py`, upload.
+2. Device sanity: Weekly Recap opens, fill-my-macros suggests after 3pm, streak flame shows, new icon on home screen + watch.
+3. Confirm version/build across app + extensions still aligned.
 
 ## Post-release checklist
 1. Flip `feature_communityBarcodeCorrections` → `true` in Firebase Console → Remote Config (instant kill switch: set back to `false`).
-2. Watch Firebase → Analytics → Events: `food_data_suspicious`, `food_correction_action`, funnel events.
-3. Watch Crashlytics non-fatals for `operation`-tagged data-layer failures.
+2. Watch Firebase → Analytics → Events: `food_data_suspicious`, `food_correction_action`, funnel events, `weekly_recap_viewed`.
+3. Watch Crashlytics non-fatals for `operation`-tagged failures (data layer + `decode_meal_suggestion`).
