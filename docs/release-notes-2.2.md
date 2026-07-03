@@ -53,9 +53,10 @@ AND MORE
 | Release | Version 2.2 (build 3) across app + extensions; accessibility pass on main flows | ac243e5a, c4da8f6c |
 
 ## Before archive
-1. Recapture the six App Store shots on-device (current composites show the pre-tune accent colors), rerun `tools/screenshots/compose.py`, upload.
-2. Device sanity: Weekly Recap opens, fill-my-macros suggests after 3pm, streak flame shows, new icon on home screen + watch.
-3. Confirm version/build across app + extensions still aligned.
+1. **Revoke the watch Gemini API key** in Google AI Studio. The old watch Recipe Bot bundled `Secrets.plist` into the watch app (synced folder groups auto-include it), so the key shipped inside every build that contained the watch app — treat it as public. The bot and the plist are removed from the build; revoking the key closes it out.
+2. Recapture the six App Store shots on-device (current composites show the pre-tune accent colors), rerun `tools/screenshots/compose.py`, upload.
+3. Device sanity: Weekly Recap opens, fill-my-macros suggests after 3pm, streak flame shows, new icon on home screen + watch; watch check: Today glance shows live numbers, crown-log water lands on the phone.
+4. Confirm version/build across app + extensions still aligned.
 
 ## Post-release checklist
 1. Flip `feature_communityBarcodeCorrections` → `true` in Firebase Console → Remote Config (instant kill switch: set back to `false`).

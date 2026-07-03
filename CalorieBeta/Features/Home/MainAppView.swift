@@ -21,6 +21,10 @@ final class MyFitPlateAppCheckProviderFactory: NSObject, AppCheckProviderFactory
 class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var isReachable: Bool = false
 
+    /// Water logged on the watch, waiting to be written to the daily log. Mirrors the
+    /// widget's pending-water pattern: accumulate here, drain exactly once on the main actor.
+    @Published private(set) var pendingWatchWaterOunces: Double = 0
+
     override init() {
         super.init()
         if WCSession.isSupported() {
@@ -44,7 +48,21 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         }
     }
 
-    func sendNutritionToWatch(goalCal: Double, userCal: Int, userProt: Double, totalProt: Double, totalCarb: Double, totalFat: Double, userCarb: Double, userFat: Double, goalWeight: Double, userWeight: Double, currWater: Double, goalWater: Double) {
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        guard let ounces = userInfo["logWaterOunces"] as? Double, ounces > 0 else { return }
+        DispatchQueue.main.async {
+            self.pendingWatchWaterOunces += ounces
+        }
+    }
+
+    /// Returns the accumulated watch water and resets it, so each transfer logs exactly once.
+    func claimPendingWatchWater() -> Double {
+        let claimed = pendingWatchWaterOunces
+        pendingWatchWaterOunces = 0
+        return claimed
+    }
+
+    func sendNutritionToWatch(goalCal: Double, userCal: Int, userProt: Double, totalProt: Double, totalCarb: Double, totalFat: Double, userCarb: Double, userFat: Double, goalWeight: Double, userWeight: Double, currWater: Double, goalWater: Double, usesMetric: Bool) {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         guard session.activationState == .activated else { return }
@@ -56,7 +74,8 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
             "userCarb": userCarb, "totalCarb": totalCarb,
             "userFat": userFat, "totalFat": totalFat,
             "userWeight": userWeight, "goalWeight": goalWeight,
-            "currWater": currWater, "goalWater": goalWater
+            "currWater": currWater, "goalWater": goalWater,
+            "usesMetric": usesMetric
         ]
         
         do {
@@ -252,6 +271,7 @@ struct ContentView: View {
     @State private var isLoadingUserState = true
     @State private var shouldShowOnboardingSurvey = false
     @State private var shouldShowFeatureTour = false
+    @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits: Bool = Locale.current.measurementSystem != .us
 
     private var currentUserID: String? {
         DIContainer.shared.authService.currentUserID
@@ -272,6 +292,9 @@ struct ContentView: View {
                 }
                 .onChange(of: dailyLogService.currentDailyLog) {
                     sendNutritionToWatchIfNeeded()
+                }
+                .onChange(of: connectivityManager.pendingWatchWaterOunces) { _, pending in
+                    if pending > 0 { drainPendingWatchWater() }
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .background && appState.isUserLoggedIn {
@@ -360,7 +383,8 @@ struct ContentView: View {
             goalWeight: goalSettings.targetWeight ?? 0.0,
             userWeight: goalSettings.weight,
             currWater: dailyLogService.currentDailyLog?.waterTracker?.totalOunces ?? 0.0,
-            goalWater: max(1, goalSettings.waterGoal)
+            goalWater: max(1, goalSettings.waterGoal),
+            usesMetric: useMetricBodyUnits
         )
     }
 
@@ -369,6 +393,7 @@ struct ContentView: View {
             healthKitViewModel.checkAuthorizationStatus()
             sendNutritionToWatchIfNeeded()
             drainPendingWidgetWater()
+            drainPendingWatchWater()
         }
     }
 
@@ -380,6 +405,16 @@ struct ContentView: View {
         guard pending > 0 else { return }
         dailyLogService.addWaterToCurrentLog(for: userID, amount: pending, goalOunces: goalSettings.waterGoal)
         bannerService.showBanner(title: "Water Logged", message: "Added \(Int(pending)) oz from your widget.")
+    }
+
+    /// Same idea for water logged on the watch: the log write mutates currentDailyLog, which
+    /// re-pushes context so the watch's optimistic total gets replaced by the real one.
+    private func drainPendingWatchWater() {
+        guard appState.isUserLoggedIn, let userID = currentUserID else { return }
+        let pending = connectivityManager.claimPendingWatchWater()
+        guard pending > 0 else { return }
+        dailyLogService.addWaterToCurrentLog(for: userID, amount: pending, goalOunces: goalSettings.waterGoal)
+        bannerService.showBanner(title: "Water Logged", message: "Added \(Int(pending)) oz from your watch.")
     }
     
     private func handleOnboardingComplete() {

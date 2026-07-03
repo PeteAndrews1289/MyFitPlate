@@ -29,6 +29,7 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
     @Published var goalWater: Double = 0.0
     @Published var sleepScore: Int = 0
     @Published var sleepHours: Double = 0.0
+    @Published var usesMetric: Bool = false
     
     override init() {
         super.init()
@@ -69,6 +70,20 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
             self.goalWater = context["goalWater"] as? Double ?? self.goalWater
             self.sleepScore = context["sleepScore"] as? Int ?? self.sleepScore
             self.sleepHours = context["sleepHours"] as? Double ?? self.sleepHours
+            self.usesMetric = context["usesMetric"] as? Bool ?? self.usesMetric
         }
+    }
+
+    /// Logs water optimistically on the watch and queues it for the phone. transferUserInfo
+    /// survives unreachability — the phone drains it next time it runs, then pushes fresh
+    /// context back, replacing our optimistic value with the real total.
+    func logWater(ounces: Double) {
+        guard ounces > 0 else { return }
+        currWater += ounces
+        guard WCSession.default.activationState == .activated else {
+            watchConnectivityLog.error("Cannot queue water log: session not activated.")
+            return
+        }
+        WCSession.default.transferUserInfo(["logWaterOunces": ounces])
     }
 }

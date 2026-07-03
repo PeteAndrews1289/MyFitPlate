@@ -1,141 +1,129 @@
-//
-//  CalorieSummaryView.swift
-//  WatchPlate Watch App
-//
-//  Created by Omar Sabeha on 6/12/25.
-//
-
 import SwiftUI
 
+// DESIGN.md rule 1: the watch answers "how am I doing today?" the moment it opens.
+// The glance IS the home — calories remaining as hero, the macro trio under it,
+// then two quiet links. No tile menu between the user and their day.
 struct HomeView: View {
     @EnvironmentObject var appDelegate: AppDelegate
+
+    private var remainingCalories: Int {
+        max(0, Int(appDelegate.goalCal - appDelegate.userCal))
+    }
+
+    private var hasData: Bool {
+        appDelegate.goalCal > 0
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 10) {
-//                    Text("MyFitPlate")
-//                        .font(.headline)
-//                        .foregroundColor(Color(red: 232/255, green: 240/255, blue: 197/255))
-//                        .padding(.top)
-                    HStack(spacing: 15) {
-                        NavigationLink(destination: NutritionSummaryView()) {
-                            VStack {
-                                Image(systemName: "fork.knife.circle")
-                                    .resizable()
-                                    .frame(width: 25, height: 25)
-                                    .padding(.bottom)
-                                Text("Nutrition")
-                                    .font(.system(size: 12))
-//
-//                                Text("summary")
-//                                    .font(.system(size: 12))
+                VStack(alignment: .leading, spacing: 12) {
+                    if hasData {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(remainingCalories.formatted()) cal left")
+                                .font(.system(.title3, design: .rounded, weight: .bold))
+                                .contentTransition(.numericText())
+                            Gauge(value: min(appDelegate.userCal, appDelegate.goalCal), in: 0...max(appDelegate.goalCal, 1)) {
+                                EmptyView()
                             }
-                                .foregroundColor(Color.white)
-                                .padding()
-                                .frame(width: 80, height: 80)
-                                .background(Color(red: 40/255, green: 41/255, blue: 40/255))
-                                    .cornerRadius(25)
-                            
+                            .gaugeStyle(.accessoryLinearCapacity)
+                            .tint(WatchPalette.brandPrimary)
                         }
-                        .buttonStyle(.plain)
-                        .foregroundColor(Color(red: 29/255, green: 33/255, blue: 30/255))
-                        
-                        NavigationLink(destination: WaterBottleView()) {
-                            VStack {
-                                Image(systemName: "drop")
-                                    .resizable()
-                                    .frame(width: 15, height: 25)
-                                    .padding(.bottom)
-                                Text("Water Log")
-                                    .font(.system(size: 12))
-                            }
-                                .foregroundColor(Color.white)
-                                .padding(.vertical, 15)
-                                .frame(width: 80, height: 80)
-                                .background(Color(red: 40/255, green: 41/255, blue: 40/255))
-                                .cornerRadius(25)
-                        }
-                            .buttonStyle(.plain)
-                            .foregroundColor(Color(red: 29/255, green: 33/255, blue: 30/255))
-                        
-                    }
-                    
-                    HStack(spacing: 15) {
-                        NavigationLink(destination: WeightTracker()) {
-                            VStack {
-                                Image(systemName: "chart.xyaxis.line")
-                                    .resizable()
-                                    .frame(width: 25, height: 25)
-                                    .padding(.bottom)
-                                Text("Weight")
-                                    .font(.system(size: 12))
-//                                Text("Tracker")
-//                                    .font(.system(size: 12))
-                            }
-                                .foregroundColor(Color.white)
-//                                .padding(.vertical,15)
-                                .frame(width: 80, height: 80)
-                                .background(Color(red: 40/255, green: 41/255, blue: 40/255))
-                                .cornerRadius(25)
-                        }
-                            .buttonStyle(.plain)
-                            .foregroundColor(Color(red: 29/255, green: 33/255, blue: 30/255))
-                        
-                        NavigationLink(destination: AIBot()) {
-                            VStack {
-                                Image(systemName: "message")
-                                    .resizable()
-                                    .frame(width: 25, height: 25)
-                                    .padding(.bottom)
-                                Text("Recipe Bot")
-                                    .font(.system(size: 12))
-                            }
-                                .foregroundColor(Color.white)
-//                                .padding(.vertical,15)
-                                .frame(width: 80, height: 80)
-                                .background(Color(red: 40/255, green: 41/255, blue: 40/255))
-                                .cornerRadius(25)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(Color(red: 29/255, green: 33/255, blue: 30/255))
-                    }
-                    
-                    HStack(spacing: 15) {
-                        NavigationLink(destination: AIBot()) {
-                            VStack {
-                                Image(systemName: "person.circle")
-                                    .resizable()
-                                    .frame(width: 25, height: 25)
-                                    .padding(.bottom)
-                                Text("Profile")
-                                    .font(.system(size: 12))
-                            }
-                                .foregroundColor(Color.white)
-//                                .padding(.vertical,15)
-                                .frame(width: 80, height: 80)
-                                .background(Color(red: 40/255, green: 41/255, blue: 40/255))
-                                .cornerRadius(25)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(Color(red: 29/255, green: 33/255, blue: 30/255))
-                    }
-                }
-//                .padding(.top)
-//
-                .navigationTitle("") // hide default title
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Text("MyFitPlate")
-                            .font(.headline)
-                            .foregroundColor(Color(red: 164/255, green: 164/255, blue: 164/255))
-                    }
-                }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(remainingCalories) calories left today")
 
+                        VStack(alignment: .leading, spacing: 8) {
+                            MacroGaugeRow(label: "Protein", consumed: appDelegate.userProt, goal: appDelegate.totalProt, color: WatchPalette.accentProtein)
+                            MacroGaugeRow(label: "Carbs", consumed: appDelegate.userCarb, goal: appDelegate.totalCarb, color: WatchPalette.accentCarbs)
+                            MacroGaugeRow(label: "Fats", consumed: appDelegate.userFat, goal: appDelegate.totalFat, color: WatchPalette.accentFats)
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("No data yet")
+                                .font(.headline)
+                            Text("Open MyFitPlate on your phone to sync today.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    VStack(spacing: 6) {
+                        NavigationLink(destination: WaterBottleView()) {
+                            HomeLinkRow(icon: "drop.fill", title: "Log water", iconColor: WatchPalette.accentWater)
+                        }
+                        .buttonStyle(.plain)
+
+                        NavigationLink(destination: WeightTracker()) {
+                            HomeLinkRow(icon: "chart.xyaxis.line", title: "Weight", iconColor: .secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.top, 2)
+                }
+                .padding(.horizontal, 2)
             }
+            .navigationTitle("Today")
         }
+    }
+}
+
+private struct MacroGaugeRow: View {
+    let label: String
+    let consumed: Double
+    let goal: Double
+    let color: Color
+
+    private var progress: Double {
+        guard goal > 0 else { return 0 }
+        return min(consumed / goal, 1.0)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(label)
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Text("\(Int(consumed)) / \(Int(goal))g")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            Gauge(value: progress) {
+                EmptyView()
+            }
+            .gaugeStyle(.accessoryLinearCapacity)
+            .tint(color)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label): \(Int(consumed)) of \(Int(goal)) grams")
+    }
+}
+
+private struct HomeLinkRow: View {
+    let icon: String
+    let title: String
+    let iconColor: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(iconColor)
+                .frame(width: 22)
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
 #Preview {
     HomeView()
+        .environmentObject(AppDelegate())
 }
