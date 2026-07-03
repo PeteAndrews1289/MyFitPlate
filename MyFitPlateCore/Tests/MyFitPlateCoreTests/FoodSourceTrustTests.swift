@@ -23,6 +23,43 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertNil(FoodSourceClassifier.descriptor(forFoodID: UUID().uuidString))
     }
 
+    // The string-based fallback branches drive the trust badge whenever an entry carries no
+    // structured metadata (everything logged before 2.2, plus quick paths that skip it).
+    func testStringFallbackClassifiesUserHistorySources() {
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: "quick_log").sourceKey, "recent")
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: "recent_foods").sourceKey, "recent")
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: "recipe_builder").sourceKey, "planned")
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: "meal_plan_generated").sourceKey, "planned")
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: "manual_entry").sourceKey, "manual")
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: "custom_food").sourceKey, "manual")
+    }
+
+    func testStringFallbackClassifiesDatabaseSourcesWithoutIDs() {
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: "usda_search").sourceKey, "usda")
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: "open_food_facts").sourceKey, "open_food_facts")
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: "fatsecret_search").sourceKey, "fatsecret")
+
+        let usdaByID = FoodSourceClassifier.descriptor(for: "search", foodID: "usda_999")
+        XCTAssertEqual(usdaByID.sourceKey, "usda")
+        let offByID = FoodSourceClassifier.descriptor(for: "search", foodID: "off_999")
+        XCTAssertEqual(offByID.sourceKey, "open_food_facts")
+    }
+
+    func testStringFallbackClassifiesAllAIShapes() {
+        for source in ["image_scan", "menu_scan", "pantry_vision"] {
+            let descriptor = FoodSourceClassifier.descriptor(for: source)
+            XCTAssertEqual(descriptor.sourceKey, "ai_estimate", "\(source) should read as an AI estimate")
+            XCTAssertTrue(descriptor.isEstimated)
+        }
+    }
+
+    func testUnknownSourceFallsBackToNeutralReviewDescriptor() {
+        let descriptor = FoodSourceClassifier.descriptor(for: "some_future_source", foodID: UUID().uuidString)
+        XCTAssertEqual(descriptor.sourceKey, "unknown")
+        XCTAssertEqual(descriptor.confidence, "Review")
+        XCTAssertFalse(descriptor.isEstimated)
+    }
+
     func testMetadataDescriptorPrefersStructuredSource() {
         let metadata = FoodSourceMetadata.database(
             .openFoodFacts,
