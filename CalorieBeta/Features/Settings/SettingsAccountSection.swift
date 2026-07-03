@@ -4,7 +4,9 @@ import MyFitPlateCore
 struct SettingsAccountSection: View {
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
-    @EnvironmentObject var workoutService: WorkoutService
+    // Owned, not environment: WorkoutService has no app-wide instance (same latent crash
+    // the Weekly Recap sheet hit on device).
+    @StateObject private var workoutService = WorkoutService()
 
     @Binding var showCaloricCalculator: Bool
     @Binding var feetInput: String

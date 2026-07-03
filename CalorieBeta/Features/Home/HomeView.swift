@@ -615,6 +615,9 @@ struct HomeView: View {
                 if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
                     self.mealSuggestion = suggestion
                     self.showingSuggestionDetail = true
+                } else {
+                    // Never fail silently (the AI call needs a network round-trip).
+                    ToastManager.shared.showToast(message: "Maia couldn't build a meal right now. Check your connection and try again.")
                 }
             }
         }) {

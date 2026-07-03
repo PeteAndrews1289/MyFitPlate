@@ -6,8 +6,11 @@ import MyFitPlateCore
 // hero, stats are neutral tiles, Share is the single filled CTA.
 struct WeeklyRecapView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
-    @EnvironmentObject var workoutService: WorkoutService
     @EnvironmentObject var goalSettings: GoalSettings
+    // WorkoutService is NOT an app-wide environment object — each consumer owns its
+    // instance (the codebase idiom). Reading it from the environment here crashed the
+    // sheet on device: "No ObservableObject of type WorkoutService found."
+    @StateObject private var workoutService = WorkoutService()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.displayScale) private var displayScale
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
