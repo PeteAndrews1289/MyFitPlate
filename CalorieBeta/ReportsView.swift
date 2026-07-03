@@ -39,6 +39,13 @@ struct ReportsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                // DESIGN.md rule 1: Reports answers "is it working?" — the timeframe picker
+                // is chrome and leads (it scopes everything below, including the overview);
+                // the headline trend is the hero, directly under it.
+                timeframeSelectorAndPickers
+
+                TrendDashboardView(weightHistory: goalSettings.weightHistory)
+
                 ReportsOverviewCard(
                     selectedTimeframe: selectedTimeframe,
                     customStartDate: customStartDate,
@@ -53,8 +60,6 @@ struct ReportsView: View {
                     }
                 )
 
-                TrendDashboardView(weightHistory: goalSettings.weightHistory)
-
                 if let insight = insightsService.smartSuggestion {
                     SmartReportInsightCard(insight: insight)
                 }
@@ -62,8 +67,6 @@ struct ReportsView: View {
                 if goalSettings.gender.lowercased() == "female" {
                     CycleTrackingCard()
                 }
-
-                timeframeSelectorAndPickers
 
                 contentStateView
             }
@@ -200,13 +203,9 @@ struct ReportsView: View {
         }
     }
 
+    // Compact filter chrome, not a card with its own headline — DESIGN.md rule 4.
     private var timeframeSelectorAndPickers: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ReportSectionHeader(
-                title: "Timeframe",
-                subtitle: "Choose the window for every card below."
-            )
-
             Picker("Timeframe", selection: $selectedTimeframe) {
                 ForEach(ReportTimeframe.allCases) { tf in Text(tf.rawValue).tag(tf) }
             }
@@ -220,7 +219,7 @@ struct ReportsView: View {
                                 .appFont(size: 13, weight: .semibold)
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                                 .gridColumnAlignment(.leading)
-                            DatePicker("Start Date", selection: $customStartDate, in: ...customEndDate, displayedComponents: .date)
+                            DatePicker("Start date", selection: $customStartDate, in: ...customEndDate, displayedComponents: .date)
                                 .labelsHidden()
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                         }
@@ -229,7 +228,7 @@ struct ReportsView: View {
                                 .appFont(size: 13, weight: .semibold)
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                                 .gridColumnAlignment(.leading)
-                            DatePicker("End Date", selection: $customEndDate, in: customStartDate..., displayedComponents: .date)
+                            DatePicker("End date", selection: $customEndDate, in: customStartDate..., displayedComponents: .date)
                                 .labelsHidden()
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                         }
@@ -237,12 +236,12 @@ struct ReportsView: View {
                     Button("View custom report") { fetchDataForCurrentSelection() }
                         .buttonStyle(PrimaryButtonStyle())
                 }
-                .padding(.top, 10)
+                .padding(14)
+                .background(Color.backgroundSecondary.opacity(0.7), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .transition(.asymmetric(insertion: .scale(scale: 0.95).combined(with: .opacity), removal: .opacity))
-                .animation(.easeInOut(duration: 0.2), value: selectedTimeframe)
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: selectedTimeframe)
             }
         }
-        .asCard()
     }
 
     private var WeightCardReport: some View {
@@ -267,7 +266,7 @@ struct ReportsView: View {
             ZStack {
                 Circle()
                     .trim(from: 0, to: 5/6)
-                    .stroke(Color.gray.opacity(0.3), style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                    .stroke(Color(UIColor.secondarySystemFill), style: StrokeStyle(lineWidth: 14, lineCap: .round))
                     .rotationEffect(.degrees(120))
                     .frame(width: 105, height: 105)
                 Circle()
