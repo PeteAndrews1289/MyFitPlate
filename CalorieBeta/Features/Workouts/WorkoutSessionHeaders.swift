@@ -23,6 +23,8 @@ struct WorkoutSessionControlBar: View {
                 Text("Auto rest")
                     .appFont(size: 12, weight: .bold)
                     .foregroundColor(.textPrimary)
+                    .lineLimit(1)
+                    .fixedSize()
 
                 Toggle("", isOn: $isAutoRestEnabled)
                     .labelsHidden()
