@@ -126,7 +126,17 @@ struct CalorieBetaApp: App {
         #endif
         // When ENABLE_APP_CHECK is defined, the App Check factory must be set BEFORE configure().
         FirebaseApp.configure()
-        
+
+        #if DEBUG
+        // Debug builds, simulators, and CI test hosts otherwise register as "active users" in
+        // the production Analytics dashboards (every fresh simulator = a new pseudo-ID). Keep
+        // collection off in DEBUG; launch with -enable-debug-analytics for a DebugView session.
+        // Crashlytics and Remote Config are unaffected.
+        Analytics.setAnalyticsCollectionEnabled(
+            ProcessInfo.processInfo.arguments.contains("-enable-debug-analytics")
+        )
+        #endif
+
         let isUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")
         #if DEBUG
         let isDebugBuild = true
