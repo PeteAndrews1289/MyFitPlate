@@ -53,6 +53,11 @@ struct HomeView: View {
     @State private var showingMenuScanner = false
     @State private var showingWeeklyRecap = false
 
+    // Streak inputs: past logged days fetched once per day; today joins live the moment
+    // food is logged, so the flame ticks immediately.
+    @State private var pastLoggedDays: [Date] = []
+    @State private var lastStreakFetchDay: Date?
+
     private var isMenuScannerEnabled: Bool {
         DIContainer.shared.featureFlagService?.isFeatureEnabled(.menuScanner) ?? FeatureFlag.menuScanner.defaultValue
     }
@@ -404,6 +409,7 @@ struct HomeView: View {
     private func onHomeViewAppear() {
         dailyLogService.activelyViewedDate = selectedDate
         fetchLogForSelectedDate()
+        refreshStreakHistory()
         if isToday {
             healthKitViewModel.checkAuthorizationStatus()
             cycleService.fetchAIInsight()
@@ -504,9 +510,27 @@ struct HomeView: View {
                     .appFont(size: 17, weight: .bold)
                     .foregroundColor(.textPrimary)
 
-                Text(selectedDateSubtitle)
-                    .appFont(size: 12, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                // The streak replaces the weekday line once it means something. Orange is
+                // the flame's semantic color; the grace-day copy nudges without shaming.
+                if isToday, streakDays >= 2 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "flame.fill")
+                            .appFont(size: 10, weight: .bold)
+                            .foregroundColor(.orange)
+                        Text(streakOnGrace ? "\(streakDays)-day streak — log to keep it" : "\(streakDays)-day streak")
+                            .appFont(size: 11, weight: .semibold)
+                            .foregroundColor(streakOnGrace ? .orange : Color(UIColor.secondaryLabel))
+                            .contentTransition(.numericText())
+                    }
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: streakDays)
+                    .accessibilityLabel(streakOnGrace
+                        ? "\(streakDays) day logging streak. Log today to keep it."
+                        : "\(streakDays) day logging streak")
+                } else {
+                    Text(selectedDateSubtitle)
+                        .appFont(size: 12, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
             }
 
             Spacer()
@@ -531,6 +555,40 @@ struct HomeView: View {
             Capsule()
                 .stroke(Color.white.opacity(0.16), lineWidth: 1)
         )
+    }
+
+    private var todayHasLoggedFood: Bool {
+        guard let log = dailyLogService.currentDailyLog,
+              Calendar.current.isDateInToday(log.date) else { return false }
+        return !log.meals.flatMap(\.foodItems).isEmpty
+    }
+
+    private var streakInputDays: [Date] {
+        todayHasLoggedFood ? pastLoggedDays + [Date()] : pastLoggedDays
+    }
+
+    private var streakDays: Int {
+        LoggingStreak.currentStreak(loggedDays: streakInputDays)
+    }
+
+    private var streakOnGrace: Bool {
+        LoggingStreak.isOnGraceDay(loggedDays: streakInputDays)
+    }
+
+    private func refreshStreakHistory() {
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        if let last = lastStreakFetchDay, Calendar.current.isDate(last, inSameDayAs: todayStart) { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        lastStreakFetchDay = todayStart
+
+        Task {
+            let start = Calendar.current.date(byAdding: .day, value: -45, to: todayStart)
+            if case .success(let logs) = await dailyLogService.fetchDailyHistory(for: userID, startDate: start, endDate: Date()) {
+                pastLoggedDays = logs
+                    .filter { !$0.meals.flatMap(\.foodItems).isEmpty && !Calendar.current.isDateInToday($0.date) }
+                    .map(\.date)
+            }
+        }
     }
 
     private var remainingCaloriesToday: Double {
