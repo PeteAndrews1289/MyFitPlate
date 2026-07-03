@@ -885,7 +885,7 @@
     "Ask for food ideas, meal logging, recipe help, or a quick read on today." : {
 
     },
-    "Ask Maia anything..." : {
+    "Ask Maia anything" : {
 
     },
     "Audit" : {
@@ -1435,7 +1435,7 @@
     "End" : {
 
     },
-    "End Date" : {
+    "End date" : {
 
     },
     "End Fast" : {
@@ -2982,6 +2982,9 @@
 
     },
     "Start cooking timer" : {
+
+    },
+    "Start date" : {
 
     },
     "Start Date" : {

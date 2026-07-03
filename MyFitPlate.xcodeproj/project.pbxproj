@@ -123,6 +123,7 @@
 		962BC293EB2D602E4612FF9C /* FoodSearchViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB557B9F1155B0AC707AC507 /* FoodSearchViewComponents.swift */; };
 		9710B2B3B1F38E4E53266D0F /* FirestoreGroupRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50EC1F8E9DB8FABAB94ED9F2 /* FirestoreGroupRepository.swift */; };
 		98A0E5D2C9F0D2CD9036A5BB /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37C6FCD392DAA594F53AE8C1 /* LoginView.swift */; };
+		9A744407266AED50FC9CFE18 /* WeeklyRecapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD3DB29E78F7C168EF51C1B /* WeeklyRecapView.swift */; };
 		9AC8EED4B548E2C96D674464 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4180672E4964440B1FB6DD68 /* ImagePicker.swift */; };
 		9B789140A83C3CFC871CD982 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53B7A21F718ECDDA786A5100 /* MainTabView.swift */; };
 		9B9FDCF8A32649902D48552F /* UserProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 474B671A01476E32396D1127 /* UserProfileView.swift */; };
@@ -144,7 +145,6 @@
 		AFA341A4CED099669904ADBA /* WellnessScoreDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BCBCE38CABDFEBB2CA35817 /* WellnessScoreDetailView.swift */; };
 		B10000000000000000000001 /* HomeQuickActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000001 /* HomeQuickActionsView.swift */; };
 		B10000000000000000000002 /* HomeWeightTrackingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* HomeWeightTrackingCard.swift */; };
-		9A744407266AED50FC9CFE18 /* WeeklyRecapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD3DB29E78F7C168EF51C1B /* WeeklyRecapView.swift */; };
 		B10000000000000000000003 /* HomeSmartSuggestionsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* HomeSmartSuggestionsSection.swift */; };
 		B10000000000000000000004 /* HomeDashboardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* HomeDashboardComponents.swift */; };
 		B10000000000000000000005 /* HomeFoodDiarySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000005 /* HomeFoodDiarySection.swift */; };
@@ -180,8 +180,8 @@
 		DC82EF8ED3498946C8A3B936 /* AddExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1258275B90A9A5D1C9D31FF8 /* AddExerciseView.swift */; };
 		DE2AD91146AB04CA9EE80377 /* MainAppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A411836458D36A8BCD415382 /* MainAppView.swift */; };
 		DE8E3341500B3DEAF77D60D5 /* FirestoreWorkoutRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF398EB57BC77214BB39E4D /* FirestoreWorkoutRepository.swift */; };
-		E0FA38815EFACFECD2B901D7 /* FirestoreCommunityBarcodeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FCD7CF43A42ED22AC5A53DA /* FirestoreCommunityBarcodeStore.swift */; };
 		DF9C27A9DC712EFEBCFAE5E9 /* ManualGroceryItemSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3FE48CE509F662265955223 /* ManualGroceryItemSheet.swift */; };
+		E0FA38815EFACFECD2B901D7 /* FirestoreCommunityBarcodeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FCD7CF43A42ED22AC5A53DA /* FirestoreCommunityBarcodeStore.swift */; };
 		E3203805EB376FD56953B645 /* SleepReportCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 278275F9739ED4C96650EB4A /* SleepReportCard.swift */; };
 		E4B7C966034D398F5753576F /* PastWorkoutDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB7489852F3C2BCF3A62638 /* PastWorkoutDetailView.swift */; };
 		E9419459ABD24C111332CFDF /* PreBuiltProgramsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91A7545CC33F5AD1040C64C1 /* PreBuiltProgramsView.swift */; };
@@ -295,6 +295,7 @@
 		1DCD4E7EBE884ABDBD31E5C2 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		1EC87628BF596B4CF19BECF6 /* GroceryListStates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GroceryListStates.swift; sourceTree = "<group>"; };
 		1F6D99E6A289432EF97728E2 /* MyFitPlate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyFitPlate.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1FCD7CF43A42ED22AC5A53DA /* FirestoreCommunityBarcodeStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreCommunityBarcodeStore.swift; sourceTree = "<group>"; };
 		24494F090F695D8EF543AD11 /* AIService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
 		25DBAC08245DF730F4A57058 /* ProgramCreatorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProgramCreatorView.swift; sourceTree = "<group>"; };
 		2643D4CD6C5D106DFD0E9345 /* PlateMathVisualizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlateMathVisualizer.swift; sourceTree = "<group>"; };
@@ -338,13 +339,13 @@
 		4BA2DB3B2D42A37B00B6BDED /* MLImageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLImageModel.swift; sourceTree = "<group>"; };
 		4BCCF5052DFC830E00ACC8F4 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		4BCF27142FE6FFE20054378E /* MyFitPlate.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = MyFitPlate.xctestplan; sourceTree = "<group>"; };
+		4BD3DB29E78F7C168EF51C1B /* WeeklyRecapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyRecapView.swift; sourceTree = "<group>"; };
 		4BD5F38F2E1EC85E00DF283D /* SimpleWatchConnectivity Watch App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SimpleWatchConnectivity Watch App.entitlements"; sourceTree = "<group>"; };
 		4BF46DDF2DF76A6F0018668F /* AddMealToPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMealToPlanView.swift; sourceTree = "<group>"; };
 		4C7977712B6C1417C896E2BA /* CycleSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CycleSettingsView.swift; sourceTree = "<group>"; };
 		4CBDD039C41BDDC823E1EEE9 /* ExerciseTrendChartView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExerciseTrendChartView.swift; sourceTree = "<group>"; };
 		4D0B4876FEFB57758A234C46 /* PantryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PantryView.swift; sourceTree = "<group>"; };
 		4DF398EB57BC77214BB39E4D /* FirestoreWorkoutRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreWorkoutRepository.swift; sourceTree = "<group>"; };
-		1FCD7CF43A42ED22AC5A53DA /* FirestoreCommunityBarcodeStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreCommunityBarcodeStore.swift; sourceTree = "<group>"; };
 		4FA9C3AA5D9F344C602ABC10 /* HealthDisclaimerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthDisclaimerView.swift; sourceTree = "<group>"; };
 		4FED79A6764CD428B2D56264 /* FoodSearchActionGrid.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FoodSearchActionGrid.swift; sourceTree = "<group>"; };
 		501AD9D6DBBB3CA36533605F /* RoutineEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RoutineEditorView.swift; sourceTree = "<group>"; };
@@ -451,7 +452,6 @@
 		EE8F70EFA7CD53F3CA61B33C /* WorkoutSessionHeaders.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutSessionHeaders.swift; sourceTree = "<group>"; };
 		F10000000000000000000001 /* HomeQuickActionsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeQuickActionsView.swift; sourceTree = "<group>"; };
 		F10000000000000000000002 /* HomeWeightTrackingCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeWeightTrackingCard.swift; sourceTree = "<group>"; };
-		4BD3DB29E78F7C168EF51C1B /* WeeklyRecapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyRecapView.swift; sourceTree = "<group>"; };
 		F10000000000000000000003 /* HomeSmartSuggestionsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeSmartSuggestionsSection.swift; sourceTree = "<group>"; };
 		F10000000000000000000004 /* HomeDashboardComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeDashboardComponents.swift; sourceTree = "<group>"; };
 		F10000000000000000000005 /* HomeFoodDiarySection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeFoodDiarySection.swift; sourceTree = "<group>"; };
