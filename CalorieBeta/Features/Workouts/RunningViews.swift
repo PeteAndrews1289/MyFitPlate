@@ -82,6 +82,15 @@ struct RunHistoryView: View {
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("Running")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                NavigationLink(destination: RunMapView(runs: viewModel.runs)) {
+                    Image(systemName: "map")
+                        .foregroundColor(.brandPrimary)
+                }
+                .accessibilityLabel("Route map")
+            }
+        }
         .onAppear { viewModel.load() }
         .fullScreenCover(isPresented: $showingRecorder, onDismiss: { viewModel.load() }) {
             RunRecorderView()
@@ -372,6 +381,80 @@ struct RunRecordsCard: View {
                 .foregroundColor(.textPrimary)
                 .monospacedDigit()
         }
+    }
+}
+
+// MARK: - All-routes map
+
+/// Every recent outdoor route on one map — the Strava-wall feel. Routes are decimated
+/// (RouteSimplify, tested) and capped so thirty runs render as smoothly as three; the
+/// latest run draws at full strength, history fades behind it.
+struct RunMapView: View {
+    let runs: [Run]
+
+    private struct LoadedRoute {
+        let id: String
+        let coordinates: [CLLocationCoordinate2D]
+        let isLatest: Bool
+    }
+
+    @State private var routes: [LoadedRoute] = []
+    @State private var isLoading = true
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
+
+    private static let maxRoutes = 30
+
+    var body: some View {
+        Map(initialPosition: .automatic) {
+            ForEach(routes, id: \.id) { route in
+                MapPolyline(coordinates: route.coordinates)
+                    .stroke(
+                        route.isLatest ? Color.brandPrimary : Color.brandPrimary.opacity(0.35),
+                        lineWidth: route.isLatest ? 4 : 3
+                    )
+            }
+        }
+        .overlay(alignment: .bottom) {
+            Group {
+                if isLoading {
+                    Label("Drawing your routes", systemImage: "map")
+                        .appFont(size: 12, weight: .semibold)
+                } else if routes.isEmpty {
+                    Text("No routes yet — outdoor runs draw themselves here.")
+                        .appFont(size: 12, weight: .semibold)
+                } else {
+                    Text(routes.count == 1 ? "Your latest route" : "Your last \(routes.count) routes")
+                        .appFont(size: 12, weight: .semibold)
+                }
+            }
+            .foregroundColor(.textPrimary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.thinMaterial, in: Capsule())
+            .padding(.bottom, 12)
+        }
+        .navigationTitle("Route map")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await loadRoutes() }
+    }
+
+    @MainActor
+    private func loadRoutes() async {
+        guard routes.isEmpty else { return }
+        let importer = RunImportService()
+        let candidates = runs.filter { !$0.isIndoor }.prefix(Self.maxRoutes)
+
+        for (index, run) in candidates.enumerated() {
+            let fixes = await withCheckedContinuation { (continuation: CheckedContinuation<[RunLocationFix], Never>) in
+                importer.fetchRoute(forRunID: run.id) { continuation.resume(returning: $0) }
+            }
+            guard fixes.count > 1 else { continue }
+            let coordinates = RouteSimplify.decimate(fixes, maxPoints: 200).map {
+                CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+            }
+            routes.append(LoadedRoute(id: run.id, coordinates: coordinates, isLatest: index == 0))
+        }
+        isLoading = false
     }
 }
 

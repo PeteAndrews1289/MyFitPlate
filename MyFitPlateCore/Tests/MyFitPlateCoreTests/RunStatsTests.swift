@@ -101,3 +101,34 @@ final class RunStatsTests: XCTestCase {
         XCTAssertTrue(empty.allSatisfy { $0.meters == 0 })
     }
 }
+
+final class RouteSimplifyTests: XCTestCase {
+
+    private func trace(_ count: Int) -> [RunLocationFix] {
+        (0..<count).map {
+            RunLocationFix(latitude: 40 + Double($0) * 0.0001, longitude: -74,
+                           horizontalAccuracy: 5,
+                           timestamp: Date(timeIntervalSince1970: Double($0)))
+        }
+    }
+
+    func testShortTracesPassThroughUntouched() {
+        let short = trace(150)
+        XCTAssertEqual(RouteSimplify.decimate(short, maxPoints: 200), short)
+    }
+
+    func testLongTracesThinToTheCapWithEndpointsIntact() {
+        let long = trace(3600)
+        let thinned = RouteSimplify.decimate(long, maxPoints: 200)
+        XCTAssertEqual(thinned.count, 200)
+        XCTAssertEqual(thinned.first, long.first, "Start point must survive")
+        XCTAssertEqual(thinned.last, long.last, "End point must survive")
+        let latitudes = thinned.map(\.latitude)
+        XCTAssertEqual(latitudes, latitudes.sorted(), "Order is preserved")
+    }
+
+    func testDegenerateCapReturnsInput() {
+        let input = trace(10)
+        XCTAssertEqual(RouteSimplify.decimate(input, maxPoints: 1), input)
+    }
+}

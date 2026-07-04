@@ -88,3 +88,20 @@ public enum RunStats {
         }
     }
 }
+
+/// Keeps map rendering cheap when many routes draw at once.
+public enum RouteSimplify {
+    /// Evenly thins a trace to at most `maxPoints`, always preserving both endpoints —
+    /// a 1 Hz hour-long run (3,600 fixes) becomes a ~200-point line nobody can tell apart
+    /// at overview zoom.
+    public static func decimate(_ fixes: [RunLocationFix], maxPoints: Int) -> [RunLocationFix] {
+        guard maxPoints >= 2, fixes.count > maxPoints else { return fixes }
+        let stride = Double(fixes.count - 1) / Double(maxPoints - 1)
+        var kept: [RunLocationFix] = []
+        kept.reserveCapacity(maxPoints)
+        for index in 0..<maxPoints {
+            kept.append(fixes[Int((Double(index) * stride).rounded())])
+        }
+        return kept
+    }
+}
