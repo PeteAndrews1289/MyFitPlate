@@ -1,6 +1,9 @@
 import SwiftUI
 import CoreLocation
 import MyFitPlateCore
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
 
 // The in-app GPS run recorder. CoreLocation stays out here at the app layer; every fix
 // is adapted into a plain RunLocationFix for the tested RunSession engine, and raw
@@ -76,8 +79,14 @@ final class RunRecorderViewModel: ObservableObject {
     private var rawLocations: [CLLocation] = []
     private var timer: Timer?
     private let store = RunRecorderStore()
+    private let metric: Bool
+    #if canImport(ActivityKit)
+    private var liveActivity: Activity<RunActivityAttributes>?
+    private var lastActivityPush = Date.distantPast
+    #endif
 
     init(metric: Bool) {
+        self.metric = metric
         session = RunSession(metric: metric)
         locationService.onLocation = { [weak self] location in
             Task { @MainActor in
@@ -97,6 +106,7 @@ final class RunRecorderViewModel: ObservableObject {
             locationService.startTracking()
             startTimer()
             stage = .running
+            startLiveActivity()
             HapticsService.shared.playImpact(style: .medium)
         case .notDetermined:
             stage = .permission
@@ -109,18 +119,21 @@ final class RunRecorderViewModel: ObservableObject {
     func pause() {
         session.pause()
         stage = .paused
+        pushLiveActivity(force: true)
         HapticsService.shared.playImpact(style: .light)
     }
 
     func resume() {
         session.resume()
         stage = .running
+        pushLiveActivity(force: true)
         HapticsService.shared.playImpact(style: .light)
     }
 
     func finish(weightLbs: Double) {
         locationService.stopTracking()
         stopTimer()
+        endLiveActivity()
         guard let run = session.finish() else { return }
         stage = .saving
 
@@ -137,7 +150,61 @@ final class RunRecorderViewModel: ObservableObject {
     func discard() {
         locationService.stopTracking()
         stopTimer()
+        endLiveActivity()
     }
+
+    // MARK: Live Activity
+
+    private func startLiveActivity() {
+        #if canImport(ActivityKit)
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        do {
+            liveActivity = try Activity.request(
+                attributes: RunActivityAttributes(),
+                content: .init(state: activityState(), staleDate: nil)
+            )
+        } catch {
+            AppLog.liveActivity.error("Run Live Activity failed to start: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
+    }
+
+    /// Distance/pace only change with GPS fixes, so pushes are throttled to ~8s; the
+    /// timer renders live on the lock screen via timerInterval without any pushes.
+    private func pushLiveActivity(force: Bool = false) {
+        #if canImport(ActivityKit)
+        guard let liveActivity else { return }
+        guard force || Date().timeIntervalSince(lastActivityPush) > 8 else { return }
+        lastActivityPush = Date()
+        let state = activityState()
+        Task {
+            await liveActivity.update(.init(state: state, staleDate: nil))
+        }
+        #endif
+    }
+
+    private func endLiveActivity() {
+        #if canImport(ActivityKit)
+        guard let liveActivity else { return }
+        let state = activityState()
+        Task {
+            await liveActivity.end(.init(state: state, staleDate: nil), dismissalPolicy: .immediate)
+        }
+        self.liveActivity = nil
+        #endif
+    }
+
+    #if canImport(ActivityKit)
+    private func activityState() -> RunActivityAttributes.ContentState {
+        RunActivityAttributes.ContentState(
+            startTime: Date().addingTimeInterval(-elapsedSeconds),
+            distanceText: RunFormat.distanceText(meters: distanceMeters, metric: metric),
+            paceText: RunFormat.paceText(secondsPerKm: currentPace ?? averagePace, metric: metric) ?? "— pace",
+            elapsedText: RunFormat.durationText(seconds: elapsedSeconds),
+            isPaused: stage == .paused
+        )
+    }
+    #endif
 
     private func ingest(_ location: CLLocation) {
         guard stage == .running else { return }
@@ -149,6 +216,7 @@ final class RunRecorderViewModel: ObservableObject {
             timestamp: location.timestamp
         ))
         tick += 1
+        pushLiveActivity()
     }
 
     private func startTimer() {

@@ -8,6 +8,7 @@ struct LiveActivityBundle: WidgetBundle {
         // Use the struct name we defined in LiveActivity.swift
         WorkoutActivityWidget()
         FastingActivityWidget()
+        RunActivityWidget()
         
         // If you have other widgets (like a home screen widget), add them here:
         // MyHomeScreenWidget()
