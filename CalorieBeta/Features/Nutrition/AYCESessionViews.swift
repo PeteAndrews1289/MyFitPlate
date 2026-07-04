@@ -50,6 +50,30 @@ final class AYCESessionManager: ObservableObject {
         session?.entries.first(where: { $0.item.id == item.id })?.count ?? 0
     }
 
+    /// Plate-scanned items join as their own one-count entries (unique ids, no merging).
+    func addScanned(_ items: [AYCECatalogItem]) {
+        guard var session else { return }
+        for item in items {
+            session.entries.append(AYCESessionEntry(item: item, count: 1))
+        }
+        self.session = session
+        celebrateIfJustBrokeEven()
+        persistDraft()
+    }
+
+    /// Scanned entries appear at the top of a scanned-items strip; catalog tiles keep
+    /// their grid. Sorted newest-last so the strip reads in eating order.
+    var scannedEntries: [AYCESessionEntry] {
+        session?.entries.filter { $0.item.isAIEstimated } ?? []
+    }
+
+    func removeEntry(_ entry: AYCESessionEntry) {
+        guard var session, let index = session.entries.firstIndex(where: { $0.id == entry.id }) else { return }
+        session.entries.remove(at: index)
+        self.session = session
+        persistDraft()
+    }
+
     /// Ends the session and returns it for the summary; the draft is cleared.
     func end() -> AYCESession? {
         let finished = session
@@ -227,7 +251,31 @@ private struct AYCELiveSessionView: View {
     @ObservedObject var manager: AYCESessionManager
     let onEnd: () -> Void
 
+    @State private var showingScanner = false
+    @State private var isPricingScan = false
+    private let imageModel = MLImageModel()
+
     private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+
+    private func handleScannedImage(_ image: UIImage, cuisine: AYCECuisine) {
+        isPricingScan = true
+        imageModel.estimateNutritionFromImage(image: image) { result in
+            Task { @MainActor in
+                switch result {
+                case .success(let foods) where !foods.isEmpty:
+                    let items = await AYCEPriceService().pricedCatalogItems(for: foods, cuisine: cuisine)
+                    manager.addScanned(items)
+                    let value = items.reduce(0) { $0 + $1.restaurantPrice }
+                    ToastManager.shared.showToast(message: "Added \(items.count) from your plate · about \(AYCERules.money(value))")
+                case .success:
+                    ToastManager.shared.showToast(message: "Couldn't spot any food in that photo.")
+                case .failure:
+                    ToastManager.shared.showToast(message: "Plate scan didn't go through. Try the tiles instead.")
+                }
+                isPricingScan = false
+            }
+        }
+    }
 
     var body: some View {
         guard let session = manager.session else { return AnyView(EmptyView()) }
@@ -265,6 +313,65 @@ private struct AYCELiveSessionView: View {
                                 .monospacedDigit()
                         }
                         .asCard()
+
+                        Button {
+                            showingScanner = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                if isPricingScan {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text("Pricing your plate")
+                                        .appFont(size: 14, weight: .semibold)
+                                } else {
+                                    Image(systemName: "camera.fill")
+                                        .appFont(size: 14, weight: .semibold)
+                                    Text("Scan your plate")
+                                        .appFont(size: 14, weight: .semibold)
+                                }
+                            }
+                            .foregroundColor(.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isPricingScan)
+                        .accessibilityLabel("Scan your plate with the camera")
+
+                        if !manager.scannedEntries.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("From your plate")
+                                    .appFont(size: 12, weight: .semibold)
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                                ForEach(manager.scannedEntries) { entry in
+                                    HStack(spacing: 8) {
+                                        Text(entry.item.emoji)
+                                            .font(.system(size: 16))
+                                            .accessibilityHidden(true)
+                                        Text(entry.item.name)
+                                            .appFont(size: 13, weight: .semibold)
+                                            .foregroundColor(.textPrimary)
+                                            .lineLimit(1)
+                                        Spacer()
+                                        Text("~\(AYCERules.money(entry.item.restaurantPrice))")
+                                            .appFont(size: 12)
+                                            .foregroundColor(Color(UIColor.secondaryLabel))
+                                            .monospacedDigit()
+                                        Button {
+                                            manager.removeEntry(entry)
+                                        } label: {
+                                            Image(systemName: "minus.circle.fill")
+                                                .appFont(size: 15)
+                                                .foregroundColor(Color(UIColor.tertiaryLabel))
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Remove \(entry.item.name)")
+                                    }
+                                }
+                            }
+                            .asCard()
+                        }
 
                         LazyVGrid(columns: columns, spacing: 10) {
                             ForEach(AYCECatalog.items(for: session.cuisine)) { item in
@@ -307,6 +414,15 @@ private struct AYCELiveSessionView: View {
             .background(Color.backgroundPrimary.ignoresSafeArea())
             .navigationTitle("\(session.cuisine.emoji) \(session.cuisine.displayName)")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingScanner) {
+                ImagePicker(
+                    sourceType: UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary,
+                    onImagePicked: { image in
+                        handleScannedImage(image, cuisine: session.cuisine)
+                    }
+                )
+                .ignoresSafeArea()
+            }
         )
     }
 }

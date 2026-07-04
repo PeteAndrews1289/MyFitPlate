@@ -43,11 +43,14 @@ public struct AYCECatalogItem: Codable, Identifiable, Equatable, Sendable {
     public let restaurantPrice: Double
     /// Approximate grocery cost per unit to make it yourself.
     public let homeCost: Double
+    /// True for plate-scanned items whose nutrition and prices came from the AI —
+    /// they carry AI-estimate source metadata into the diary instead of user-entered.
+    public let isAIEstimated: Bool
 
     public init(
         id: String, cuisine: AYCECuisine, name: String, emoji: String, unit: String,
         calories: Double, protein: Double, carbs: Double, fats: Double,
-        restaurantPrice: Double, homeCost: Double
+        restaurantPrice: Double, homeCost: Double, isAIEstimated: Bool = false
     ) {
         self.id = id
         self.cuisine = cuisine
@@ -60,6 +63,28 @@ public struct AYCECatalogItem: Codable, Identifiable, Equatable, Sendable {
         self.fats = fats
         self.restaurantPrice = restaurantPrice
         self.homeCost = homeCost
+        self.isAIEstimated = isAIEstimated
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, cuisine, name, emoji, unit, calories, protein, carbs, fats, restaurantPrice, homeCost, isAIEstimated
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        cuisine = try container.decode(AYCECuisine.self, forKey: .cuisine)
+        name = try container.decode(String.self, forKey: .name)
+        emoji = try container.decode(String.self, forKey: .emoji)
+        unit = try container.decode(String.self, forKey: .unit)
+        calories = try container.decode(Double.self, forKey: .calories)
+        protein = try container.decode(Double.self, forKey: .protein)
+        carbs = try container.decode(Double.self, forKey: .carbs)
+        fats = try container.decode(Double.self, forKey: .fats)
+        restaurantPrice = try container.decode(Double.self, forKey: .restaurantPrice)
+        homeCost = try container.decode(Double.self, forKey: .homeCost)
+        // Absent in drafts persisted before this field existed.
+        isAIEstimated = try container.decodeIfPresent(Bool.self, forKey: .isAIEstimated) ?? false
     }
 }
 
@@ -183,7 +208,9 @@ public enum AYCERules {
             carbs: entry.item.carbs * count,
             fats: entry.item.fats * count,
             servingSize: "\(entry.count) \(entry.item.unit)",
-            sourceMetadata: .userEntered(sourceName: "Beat the buffet")
+            sourceMetadata: entry.item.isAIEstimated
+                ? .aiEstimate(.aiImage, sourceName: "Beat the buffet")
+                : .userEntered(sourceName: "Beat the buffet")
         )
     }
 
