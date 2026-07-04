@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import Charts
 import MyFitPlateCore
 
 // Running history + detail. Runs come straight from HealthKit (any watch whose app
@@ -32,6 +33,10 @@ final class RunHistoryViewModel: ObservableObject {
     var thisWeekCount: Int {
         runs.filter { Calendar.current.isDate($0.startDate, equalTo: Date(), toGranularity: .weekOfYear) }.count
     }
+
+    var records: RunStats.PersonalRecords {
+        RunStats.personalRecords(from: runs)
+    }
 }
 
 struct RunHistoryView: View {
@@ -56,6 +61,7 @@ struct RunHistoryView: View {
 
                 if !viewModel.runs.isEmpty {
                     weekHero
+                    RunRecordsCard(records: viewModel.records, metric: useMetric)
                     LazyVStack(spacing: 10) {
                         ForEach(viewModel.runs) { run in
                             NavigationLink(destination: RunDetailView(run: run)) {
@@ -314,5 +320,113 @@ private struct RunStatTile: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .asCard()
+    }
+}
+
+// MARK: - Records
+
+struct RunRecordsCard: View {
+    let records: RunStats.PersonalRecords
+    let metric: Bool
+
+    private var hasAnything: Bool {
+        records.longestRun != nil || records.best5KSeconds != nil || records.best10KSeconds != nil
+    }
+
+    var body: some View {
+        if hasAnything {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Records")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(.textPrimary)
+
+                if let longest = records.longestRun {
+                    recordRow("Longest run", RunFormat.distanceText(meters: longest.distanceMeters, metric: metric))
+                }
+                if let best5K = records.best5KSeconds {
+                    recordRow("Best 5K", RunFormat.durationText(seconds: best5K))
+                }
+                if let best10K = records.best10KSeconds {
+                    recordRow("Best 10K", RunFormat.durationText(seconds: best10K))
+                }
+
+                Text("5K and 10K times are estimated from each run's average pace.")
+                    .appFont(size: 10)
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+            .asCard()
+        }
+    }
+
+    private func recordRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text("🏅")
+                .font(.system(size: 14))
+                .accessibilityHidden(true)
+            Text(label)
+                .appFont(size: 13)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+            Spacer()
+            Text(value)
+                .appFont(size: 13, weight: .bold)
+                .foregroundColor(.textPrimary)
+                .monospacedDigit()
+        }
+    }
+}
+
+// MARK: - Reports card
+
+/// Weekly mileage over the last 8 weeks, shown in Reports only when there's any running
+/// at all — non-runners never see an empty chart.
+struct RunMileageCard: View {
+    @State private var weeks: [RunStats.WeekMileage] = []
+    @State private var loaded = false
+    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
+
+    private var totalMeters: Double { weeks.reduce(0) { $0 + $1.meters } }
+
+    var body: some View {
+        Group {
+            if loaded && totalMeters > 0 {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Running")
+                            .appFont(size: 14, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                        Spacer()
+                        Text("Last 8 weeks · \(RunFormat.distanceText(meters: totalMeters, metric: useMetric))")
+                            .appFont(size: 11)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+
+                    Chart(weeks, id: \.weekStart) { week in
+                        BarMark(
+                            x: .value("Week", week.weekStart, unit: .weekOfYear),
+                            y: .value("Distance", useMetric ? week.meters / 1000 : week.meters / RunFormat.metersPerMile)
+                        )
+                        .foregroundStyle(Color.brandPrimary)
+                        .cornerRadius(3)
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: .stride(by: .weekOfYear, count: 2)) { _ in
+                            AxisValueLabel(format: .dateTime.month(.abbreviated).day(), centered: true)
+                                .font(.system(size: 9))
+                        }
+                    }
+                    .frame(height: 110)
+                    .accessibilityLabel("Weekly running distance, last 8 weeks")
+                }
+                .asCard()
+            }
+        }
+        .onAppear {
+            guard !loaded else { return }
+            let since = Calendar.current.date(byAdding: .weekOfYear, value: -8, to: Date()) ?? Date()
+            RunImportService().fetchRuns(since: since) { runs in
+                weeks = RunStats.weeklyMileage(runs: runs, weeks: 8)
+                loaded = true
+            }
+        }
     }
 }

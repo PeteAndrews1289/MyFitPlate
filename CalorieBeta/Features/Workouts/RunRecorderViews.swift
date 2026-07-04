@@ -73,6 +73,7 @@ final class RunRecorderViewModel: ObservableObject {
     @Published var stage: Stage = .ready
     @Published var elapsedSeconds: Double = 0
     @Published private(set) var tick = 0
+    @Published private(set) var finishedSetRecord = false
 
     let locationService = RunLocationService()
     private(set) var session: RunSession
@@ -142,8 +143,15 @@ final class RunRecorderViewModel: ObservableObject {
             if savedID == nil {
                 ToastManager.shared.showToast(message: "Saved locally, but Health sync failed.")
             }
-            HapticManager.instance.notification(.success)
-            self.stage = .summary(run)
+            // Records are judged against strictly-past runs so the just-saved copy of
+            // this run (different HK UUID, same stats) can't mask its own achievement.
+            let since = Calendar.current.date(byAdding: .year, value: -1, to: run.startDate) ?? run.startDate
+            RunImportService().fetchRuns(since: since) { history in
+                let past = history.filter { $0.endDate <= run.startDate }
+                self.finishedSetRecord = RunStats.setsRecord(run, against: past + [run])
+                HapticManager.instance.notification(.success)
+                self.stage = .summary(run)
+            }
         }
     }
 
@@ -266,7 +274,7 @@ struct RunRecorderView: View {
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     }
                 case .summary(let run):
-                    RunRecorderSummary(run: run, metric: useMetric) { dismiss() }
+                    RunRecorderSummary(run: run, metric: useMetric, setRecord: viewModel.finishedSetRecord) { dismiss() }
                 }
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
@@ -412,6 +420,7 @@ struct RunRecorderView: View {
 private struct RunRecorderSummary: View {
     let run: Run
     let metric: Bool
+    let setRecord: Bool
     let onDone: () -> Void
 
     var body: some View {
@@ -421,6 +430,11 @@ private struct RunRecorderSummary: View {
                     Text("Run complete")
                         .appFont(size: 24, weight: .bold)
                         .foregroundColor(.textPrimary)
+                    if setRecord {
+                        Text("🏅 New record — see the Records card in your history.")
+                            .appFont(size: 13, weight: .semibold)
+                            .foregroundColor(.brandPrimary)
+                    }
                     Text("Saved to Apple Health — it's in your run history now.")
                         .appFont(size: 13)
                         .foregroundColor(Color(UIColor.secondaryLabel))

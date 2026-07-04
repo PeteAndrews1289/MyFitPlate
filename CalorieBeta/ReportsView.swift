@@ -64,6 +64,8 @@ struct ReportsView: View {
                     SmartReportInsightCard(insight: insight)
                 }
 
+                RunMileageCard()
+
                 if goalSettings.gender.lowercased() == "female" {
                     CycleTrackingCard()
                 }
