@@ -53,7 +53,7 @@ AND MORE
 | Release | Version 2.2 (build 3) across app + extensions; accessibility pass on main flows | ac243e5a, c4da8f6c |
 
 ## Before archive
-1. **Revoke the watch Gemini API key** in Google AI Studio. The old watch Recipe Bot bundled `Secrets.plist` into the watch app (synced folder groups auto-include it), so the key shipped inside every build that contained the watch app — treat it as public. The bot and the plist are removed from the build; revoking the key closes it out.
+1. **Watch Gemini key — resolved on our side; ask the contributor to revoke.** The old watch Recipe Bot shipped a contributor-owned Gemini key inside the watch bundle. The bot, the plist, and every Gemini reference are gone from the codebase (verified 2026-07-08) — all AI goes through Firebase Functions with the OpenAI server secret, so MyFitPlate has zero dependency on that key. The only remaining exposure is the contributor's own Google quota: ask them to delete the key in their AI Studio (aistudio.google.com/apikey).
 2. Recapture the six App Store shots on-device (current composites show the pre-tune accent colors), rerun `tools/screenshots/compose.py`, upload.
 3. Device sanity: Weekly Recap opens, fill-my-macros suggests after 3pm, streak flame shows, new icon on home screen + watch; watch check: Today glance shows live numbers, crown-log water lands on the phone.
 4. Confirm version/build across app + extensions still aligned.
