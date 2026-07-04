@@ -85,6 +85,24 @@ struct WorkoutRoutinesView: View {
                         }
                     }
 
+                    VStack(alignment: .leading, spacing: 12) {
+                        TrainingSectionHeader(
+                            title: "Running",
+                            subtitle: "Every run from every watch, in one place."
+                        )
+
+                        NavigationLink(destination: RunHistoryView()) {
+                            TrainingActionTile(
+                                icon: "figure.run",
+                                title: "Your runs",
+                                subtitle: "History, splits, routes",
+                                color: Color(UIColor.secondaryLabel)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("running_history_button")
+                    }
+
                     if workoutService.activeProgram == nil {
                         VStack(alignment: .leading, spacing: 12) {
                             TrainingSectionHeader(

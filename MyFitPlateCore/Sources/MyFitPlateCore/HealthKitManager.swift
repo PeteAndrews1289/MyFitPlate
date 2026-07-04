@@ -56,6 +56,7 @@ public class HealthKitManager: HealthKitManaging {
               let exerciseTimeType = HKObjectType.quantityType(forIdentifier: .appleExerciseTime),
               let biologicalSexType = HKObjectType.characteristicType(forIdentifier: .biologicalSex),
               let hrvType = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN),
+              let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate),
               let waterType = HKQuantityType.quantityType(forIdentifier: .dietaryWater) else {
             completion(false, NSError(domain: "com.MyFitPlate.HealthKit", code: 2, userInfo: [NSLocalizedDescriptionKey: "Required HealthKit types are unavailable."]))
             return
@@ -72,9 +73,11 @@ public class HealthKitManager: HealthKitManaging {
 
         let typesToRead: Set<HKObjectType> = [
             HKObjectType.workoutType(),
+            HKSeriesType.workoutRoute(),
             activeEnergyType,
             sleepAnalysisType,
             restingHeartRateType,
+            heartRateType,
             stepCountType,
             distanceType,
             flightsType,
