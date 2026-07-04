@@ -6,16 +6,19 @@ import Foundation
 /// the feature's premise (restaurant > home) gets corrected, not displayed.
 public enum AYCEPricingRules {
 
-    public static func prompt(for itemNames: [String], cuisine: AYCECuisine) -> String {
+    public static func prompt(for itemNames: [String], cuisine: AYCECuisine, city: AYCECity = AYCECityIndex.national) -> String {
         let list = itemNames.map { "- \($0)" }.joined(separator: "\n")
+        let market = city.slug == AYCECityIndex.national.slug
+            ? "in a typical US city"
+            : "in \(city.name)"
         return """
-        You estimate restaurant menu prices. The user is at an all-you-can-eat \(cuisine.displayName) restaurant in the US and ate these items:
+        You estimate restaurant menu prices. The user is at an all-you-can-eat \(cuisine.displayName) restaurant \(market) and ate these items:
 
         \(list)
 
         For each item, estimate:
-        1. "restaurantPrice": typical US à-la-carte menu price for one serving, in dollars.
-        2. "homeCost": approximate grocery-ingredient cost to make one serving at home, in dollars. Always lower than restaurantPrice.
+        1. "restaurantPrice": the à-la-carte menu price for one serving at a typical MID-RANGE neighborhood restaurant \(market), in dollars. Use median local spots as the reference — never premium, fine-dining, or tourist-district restaurants.
+        2. "homeCost": approximate grocery-ingredient cost to make one serving at home \(market), in dollars. Always lower than restaurantPrice.
 
         Respond with ONLY a valid JSON object: {"items": [{"name": "...", "restaurantPrice": 0.0, "homeCost": 0.0}]}
         Use the exact item names given.
@@ -115,13 +118,13 @@ public final class AYCEPriceService {
 
     public init() {}
 
-    public func pricedCatalogItems(for foods: [FoodItem], cuisine: AYCECuisine) async -> [AYCECatalogItem] {
+    public func pricedCatalogItems(for foods: [FoodItem], cuisine: AYCECuisine, city: AYCECity = AYCECityIndex.national) async -> [AYCECatalogItem] {
         guard !foods.isEmpty else { return [] }
 
         var pricesByName: [String: AYCEPricingRules.PricedItem] = [:]
 
         let result = await DIContainer.shared.aiService.performRequest(
-            messages: [["role": "user", "content": AYCEPricingRules.prompt(for: foods.map(\.name), cuisine: cuisine)]],
+            messages: [["role": "user", "content": AYCEPricingRules.prompt(for: foods.map(\.name), cuisine: cuisine, city: city)]],
             model: "gpt-4o-mini",
             temperature: 0.2,
             responseFormat: ["type": "json_object"]
@@ -145,7 +148,13 @@ public final class AYCEPriceService {
             if let matched = pricesByName[food.name.lowercased()] {
                 prices = (matched.restaurantPrice, matched.homeCost)
             } else {
-                prices = AYCEPricingRules.heuristicPrices(calories: food.calories)
+                // Heuristic fallback is national-baseline; scale it here because scanned
+                // items bypass the city multiplier downstream (they're city-native).
+                let base = AYCEPricingRules.heuristicPrices(calories: food.calories)
+                prices = AYCEPricingRules.clampedPrices(
+                    restaurant: base.restaurant * city.restaurantMultiplier,
+                    home: base.home * city.homeMultiplier
+                )
             }
             return AYCEPricingRules.catalogItem(
                 name: food.name,

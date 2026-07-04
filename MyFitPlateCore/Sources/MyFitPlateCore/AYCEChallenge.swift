@@ -112,20 +112,27 @@ public struct AYCESession: Codable, Identifiable, Equatable {
     public var buffetPrice: Double
     public var startedAt: Date
     public var entries: [AYCESessionEntry]
+    /// AYCECityIndex slug scaling curated prices to the local market; nil = US average.
+    /// Optional, so drafts persisted before city support still decode.
+    public var citySlug: String?
 
     public init(
         id: String = UUID().uuidString,
         cuisine: AYCECuisine,
         buffetPrice: Double,
         startedAt: Date = Date(),
-        entries: [AYCESessionEntry] = []
+        entries: [AYCESessionEntry] = [],
+        citySlug: String? = nil
     ) {
         self.id = id
         self.cuisine = cuisine
         self.buffetPrice = buffetPrice
         self.startedAt = startedAt
         self.entries = entries
+        self.citySlug = citySlug
     }
+
+    public var city: AYCECity { AYCECityIndex.city(slug: citySlug) }
 }
 
 public enum AYCERules {
@@ -133,6 +140,8 @@ public enum AYCERules {
     public struct Totals: Equatable {
         public let restaurantValue: Double
         public let homeCost: Double
+        /// What the ingredients likely cost the restaurant itself (wholesale).
+        public let restaurantFoodCost: Double
         public let calories: Double
         public let protein: Double
         public let carbs: Double
@@ -140,15 +149,55 @@ public enum AYCERules {
         public let itemCount: Int
     }
 
+    /// Restaurants buy wholesale — their ingredient cost runs below your grocery cost for
+    /// the same portion, bounded so it never exceeds a plausible share of the menu price.
+    public static func restaurantFoodCost(homeCost: Double, menuPrice: Double) -> Double {
+        max(0.15, min(homeCost * 0.7, menuPrice * 0.45))
+    }
+
+    /// The menu price a single unit displays and sums at, in this session's city.
+    /// AI-scanned items were priced FOR the city already and pass through untouched;
+    /// curated catalog items scale by the city's multipliers.
+    public static func unitPrices(for item: AYCECatalogItem, in session: AYCESession) -> (restaurant: Double, home: Double) {
+        guard !item.isAIEstimated else {
+            return (item.restaurantPrice, item.homeCost)
+        }
+        let city = session.city
+        return (item.restaurantPrice * city.restaurantMultiplier, item.homeCost * city.homeMultiplier)
+    }
+
     public static func totals(for session: AYCESession) -> Totals {
-        Totals(
-            restaurantValue: session.entries.reduce(0) { $0 + $1.restaurantValue },
-            homeCost: session.entries.reduce(0) { $0 + $1.homeValue },
-            calories: session.entries.reduce(0) { $0 + $1.calories },
-            protein: session.entries.reduce(0) { $0 + $1.item.protein * Double($1.count) },
-            carbs: session.entries.reduce(0) { $0 + $1.item.carbs * Double($1.count) },
-            fats: session.entries.reduce(0) { $0 + $1.item.fats * Double($1.count) },
-            itemCount: session.entries.reduce(0) { $0 + $1.count }
+        var restaurantValue = 0.0
+        var homeCost = 0.0
+        var foodCost = 0.0
+        var calories = 0.0
+        var protein = 0.0
+        var carbs = 0.0
+        var fats = 0.0
+        var itemCount = 0
+
+        for entry in session.entries {
+            let unit = unitPrices(for: entry.item, in: session)
+            let count = Double(entry.count)
+            restaurantValue += unit.restaurant * count
+            homeCost += unit.home * count
+            foodCost += restaurantFoodCost(homeCost: unit.home, menuPrice: unit.restaurant) * count
+            calories += entry.item.calories * count
+            protein += entry.item.protein * count
+            carbs += entry.item.carbs * count
+            fats += entry.item.fats * count
+            itemCount += entry.count
+        }
+
+        return Totals(
+            restaurantValue: restaurantValue,
+            homeCost: homeCost,
+            restaurantFoodCost: foodCost,
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fats: fats,
+            itemCount: itemCount
         )
     }
 
@@ -189,6 +238,11 @@ public enum AYCERules {
     /// The secondary honesty line: what this meal would have cost from the grocery store.
     public static func homeCostLine(session: AYCESession) -> String {
         "Cooking this at home: about \(money(totals(for: session).homeCost))"
+    }
+
+    /// The gloat line: what the restaurant likely spent on the ingredients it fed you.
+    public static func ingredientCostLine(session: AYCESession) -> String {
+        "Their ingredients: about \(money(totals(for: session).restaurantFoodCost))"
     }
 
     public static func money(_ amount: Double) -> String {

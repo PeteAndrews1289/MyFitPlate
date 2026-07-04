@@ -97,6 +97,88 @@ final class AYCEPricingTests: XCTestCase {
         XCTAssertEqual(catalog.sourceMetadata?.sourceType, .manual, "Curated catalog entries stay user-entered")
     }
 
+    // MARK: City-aware pricing
+
+    func testCityLookupFallsBackToNationalForUnknownSlugs() {
+        XCTAssertEqual(AYCECityIndex.city(slug: "nyc").name, "New York")
+        XCTAssertEqual(AYCECityIndex.city(slug: nil).slug, "us_average")
+        XCTAssertEqual(AYCECityIndex.city(slug: "atlantis").slug, "us_average")
+        XCTAssertEqual(AYCECityIndex.pickerOptions.first?.slug, "us_average", "Baseline leads the picker")
+    }
+
+    func testCityMultipliersStayMidMarket() {
+        for city in AYCECityIndex.pickerOptions {
+            XCTAssertGreaterThanOrEqual(city.restaurantMultiplier, 0.9, "\(city.name) below plausible range")
+            XCTAssertLessThanOrEqual(city.restaurantMultiplier, 1.35, "\(city.name): mid-market calibration, not premium")
+            XCTAssertLessThanOrEqual(
+                abs(city.homeMultiplier - 1), abs(city.restaurantMultiplier - 1) * 0.5,
+                "\(city.name): groceries must swing less than menus"
+            )
+        }
+    }
+
+    func testCuratedItemsScaleByCityButScannedItemsDoNot() {
+        let nigiri = AYCECatalog.item(id: "sushi_salmon_nigiri")!
+        let scanned = AYCEPricingRules.catalogItem(
+            name: "Dragon roll", cuisine: .sushi,
+            calories: 320, protein: 12, carbs: 40, fats: 11,
+            restaurantPrice: 14.0, homeCost: 4.0
+        )
+        let nyc = AYCESession(
+            cuisine: .sushi, buffetPrice: 40,
+            entries: [AYCESessionEntry(item: nigiri, count: 2), AYCESessionEntry(item: scanned, count: 1)],
+            citySlug: "nyc"
+        )
+
+        let totals = AYCERules.totals(for: nyc)
+        let expectedCurated = nigiri.restaurantPrice * 1.30 * 2
+        XCTAssertEqual(totals.restaurantValue, expectedCurated + 14.0, accuracy: 0.001,
+                       "NYC scales the catalog nigiri; the NYC-prompted scan passes through untouched")
+
+        let unit = AYCERules.unitPrices(for: nigiri, in: nyc)
+        XCTAssertEqual(unit.restaurant, nigiri.restaurantPrice * 1.30, accuracy: 0.001)
+        XCTAssertEqual(unit.home, nigiri.homeCost * AYCECityIndex.city(slug: "nyc").homeMultiplier, accuracy: 0.001)
+    }
+
+    func testRestaurantFoodCostSitsBelowBothOtherTiers() {
+        let foodCost = AYCERules.restaurantFoodCost(homeCost: 0.95, menuPrice: 3.25)
+        XCTAssertEqual(foodCost, 0.95 * 0.7, accuracy: 0.001)
+        XCTAssertLessThan(foodCost, 0.95)
+
+        let capped = AYCERules.restaurantFoodCost(homeCost: 100, menuPrice: 10)
+        XCTAssertEqual(capped, 4.5, accuracy: 0.001, "Never above 45% of the menu price")
+        XCTAssertEqual(AYCERules.restaurantFoodCost(homeCost: 0.01, menuPrice: 1), 0.15, "Floor holds")
+    }
+
+    func testIngredientCostLineAndTotalsCarryTheThirdTier() {
+        let session = AYCESession(
+            cuisine: .sushi, buffetPrice: 30,
+            entries: [AYCESessionEntry(item: AYCECatalog.item(id: "sushi_salmon_nigiri")!, count: 4)]
+        )
+        let totals = AYCERules.totals(for: session)
+        XCTAssertEqual(totals.restaurantFoodCost, 0.95 * 0.7 * 4, accuracy: 0.001)
+        XCTAssertEqual(AYCERules.ingredientCostLine(session: session), "Their ingredients: about $2.66")
+    }
+
+    func testPromptNamesTheCityAndForbidsPremiumReferences() {
+        let nyc = AYCEPricingRules.prompt(for: ["Dragon roll"], cuisine: .sushi, city: AYCECityIndex.city(slug: "nyc"))
+        XCTAssertTrue(nyc.contains("in New York"))
+        XCTAssertTrue(nyc.contains("MID-RANGE"))
+        XCTAssertTrue(nyc.contains("never premium"))
+
+        let national = AYCEPricingRules.prompt(for: ["Dragon roll"], cuisine: .sushi)
+        XCTAssertTrue(national.contains("typical US city"))
+    }
+
+    func testOldSessionDraftsWithoutCityStillDecode() throws {
+        let legacy = """
+        {"id": "s1", "cuisine": "sushi", "buffetPrice": 30, "startedAt": 700000000, "entries": []}
+        """
+        let session = try JSONDecoder().decode(AYCESession.self, from: Data(legacy.utf8))
+        XCTAssertNil(session.citySlug)
+        XCTAssertEqual(session.city.slug, "us_average")
+    }
+
     func testOldDraftsWithoutTheNewFieldStillDecode() throws {
         let legacyJSON = """
         {"id": "x", "cuisine": "sushi", "name": "Salmon nigiri", "emoji": "🍣", "unit": "piece",

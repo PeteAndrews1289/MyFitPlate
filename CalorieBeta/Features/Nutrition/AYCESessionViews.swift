@@ -16,8 +16,8 @@ final class AYCESessionManager: ObservableObject {
         restoreDraft()
     }
 
-    func start(cuisine: AYCECuisine, buffetPrice: Double) {
-        session = AYCESession(cuisine: cuisine, buffetPrice: buffetPrice)
+    func start(cuisine: AYCECuisine, buffetPrice: Double, citySlug: String?) {
+        session = AYCESession(cuisine: cuisine, buffetPrice: buffetPrice, citySlug: citySlug)
         hasCelebratedBreakEven = false
         persistDraft()
     }
@@ -127,8 +127,8 @@ struct AYCEFlowView: View {
                         finishedSession = manager.end()
                     })
                 } else {
-                    AYCEStartView(onStart: { cuisine, price in
-                        manager.start(cuisine: cuisine, buffetPrice: price)
+                    AYCEStartView(onStart: { cuisine, price, citySlug in
+                        manager.start(cuisine: cuisine, buffetPrice: price, citySlug: citySlug)
                     })
                 }
             }
@@ -151,15 +151,18 @@ struct AYCEFlowView: View {
 // MARK: - Start
 
 private struct AYCEStartView: View {
-    let onStart: (AYCECuisine, Double) -> Void
+    let onStart: (AYCECuisine, Double, String?) -> Void
 
     @State private var cuisine: AYCECuisine = .sushi
     @State private var priceText = ""
+    @AppStorage("ayceCitySlug") private var citySlug: String = AYCECityIndex.national.slug
     @FocusState private var priceFocused: Bool
 
     private var price: Double? {
         Double(priceText.replacingOccurrences(of: ",", with: "."))
     }
+
+    private var selectedCity: AYCECity { AYCECityIndex.city(slug: citySlug) }
 
     var body: some View {
         ScrollView {
@@ -218,10 +221,39 @@ private struct AYCEStartView: View {
                     .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
 
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Pricing region")
+                            .appFont(size: 14, weight: .semibold)
+                            .foregroundColor(.textPrimary)
+                        Text("Mid-range spots for that market, never the premium ones.")
+                            .appFont(size: 11)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                    Spacer()
+                    Menu {
+                        ForEach(AYCECityIndex.pickerOptions) { option in
+                            Button(option.name) { citySlug = option.slug }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(selectedCity.name)
+                                .appFont(size: 13, weight: .semibold)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .appFont(size: 10, weight: .bold)
+                        }
+                        .foregroundColor(.textPrimary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.backgroundSecondary, in: Capsule())
+                    }
+                    .accessibilityLabel("Pricing region: \(selectedCity.name)")
+                }
+
                 Button {
                     if let price, price > 0 {
                         HapticsService.shared.playImpact(style: .medium)
-                        onStart(cuisine, price)
+                        onStart(cuisine, price, citySlug == AYCECityIndex.national.slug ? nil : citySlug)
                     }
                 } label: {
                     Text("Start eating")
@@ -234,7 +266,7 @@ private struct AYCEStartView: View {
                 .buttonStyle(.plain)
                 .disabled((price ?? 0) <= 0)
 
-                Text("Menu prices are typical US estimates, not your restaurant's exact menu.")
+                Text("Menu prices are typical mid-range estimates for \(selectedCity.name), not your restaurant's exact menu.")
                     .appFont(size: 11)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
@@ -263,7 +295,11 @@ private struct AYCELiveSessionView: View {
             Task { @MainActor in
                 switch result {
                 case .success(let foods) where !foods.isEmpty:
-                    let items = await AYCEPriceService().pricedCatalogItems(for: foods, cuisine: cuisine)
+                    let items = await AYCEPriceService().pricedCatalogItems(
+                        for: foods,
+                        cuisine: cuisine,
+                        city: manager.session?.city ?? AYCECityIndex.national
+                    )
                     manager.addScanned(items)
                     let value = items.reduce(0) { $0 + $1.restaurantPrice }
                     ToastManager.shared.showToast(message: "Added \(items.count) from your plate · about \(AYCERules.money(value))")
@@ -377,6 +413,7 @@ private struct AYCELiveSessionView: View {
                             ForEach(AYCECatalog.items(for: session.cuisine)) { item in
                                 AYCEItemTile(
                                     item: item,
+                                    displayPrice: AYCERules.unitPrices(for: item, in: session).restaurant,
                                     logged: manager.count(for: item),
                                     onAdd: {
                                         HapticsService.shared.playImpact(style: .light)
@@ -387,7 +424,7 @@ private struct AYCELiveSessionView: View {
                             }
                         }
 
-                        Text("Prices are typical US menu estimates.")
+                        Text("Prices are typical mid-range estimates for \(session.city.name).")
                             .appFont(size: 11)
                             .foregroundColor(Color(UIColor.tertiaryLabel))
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -429,6 +466,7 @@ private struct AYCELiveSessionView: View {
 
 private struct AYCEItemTile: View {
     let item: AYCECatalogItem
+    let displayPrice: Double
     let logged: Int
     let onAdd: () -> Void
     let onRemove: () -> Void
@@ -463,7 +501,7 @@ private struct AYCEItemTile: View {
                     .minimumScaleFactor(0.85)
 
                 HStack {
-                    Text("~\(AYCERules.money(item.restaurantPrice)) · \(Int(item.calories)) cal")
+                    Text("~\(AYCERules.money(displayPrice)) · \(Int(item.calories)) cal")
                         .appFont(size: 11)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .lineLimit(1)
@@ -486,7 +524,7 @@ private struct AYCEItemTile: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.name), about \(AYCERules.money(item.restaurantPrice)), \(Int(item.calories)) calories")
+        .accessibilityLabel("\(item.name), about \(AYCERules.money(displayPrice)), \(Int(item.calories)) calories")
         .accessibilityValue(logged >= 1 ? "\(logged) logged" : "")
         .accessibilityHint("Adds one")
     }
@@ -516,6 +554,9 @@ private struct AYCESummaryView: View {
                         .appFont(size: 24, weight: .bold)
                         .foregroundColor(.textPrimary)
                     Text(AYCERules.homeCostLine(session: session))
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                    Text(AYCERules.ingredientCostLine(session: session))
                         .appFont(size: 13)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
@@ -558,7 +599,7 @@ private struct AYCESummaryView: View {
                 }
                 .buttonStyle(.plain)
 
-                Text("Values are estimates from typical US menu prices.")
+                Text("Values are mid-range estimates for \(session.city.name).")
                     .appFont(size: 11)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
                     .frame(maxWidth: .infinity, alignment: .center)
