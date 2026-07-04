@@ -30,6 +30,9 @@ struct MainTabView: View {
     @State private var showingImagePicker = false
     @State private var isProcessingImage = false
     @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems?
+
+    @State private var showingAYCESession = false
+    @State private var showingRunHistory = false
     
     @State private var scannedFoodItem: FoodItem?
     @State private var scannedFoodSource: String = "barcode_result"
@@ -99,7 +102,9 @@ struct MainTabView: View {
                             ("Log with camera", "Estimate nutrition from a photo", "camera.fill", false, { self.showingImagePicker = true }),
                             ("Describe your meal", "Tell Maia what you ate", "text.bubble.fill", false, { self.showingAITextLog = true }),
                             ("Log exercise", "Record activity and calories", "figure.walk", false, { self.showingAddExerciseView = true }),
-                            ("Log recipe or meal", "Use saved recipes and meals", "list.clipboard", false, { self.showingRecipeListView = true })
+                            ("Log recipe or meal", "Use saved recipes and meals", "list.clipboard", false, { self.showingRecipeListView = true }),
+                            ("Beat the buffet", "Log an all-you-can-eat session", "fork.knife", false, { self.showingAYCESession = true }),
+                            ("Running", "Your runs from every watch", "figure.run", false, { self.showingRunHistory = true })
                         ]
 
                         Capsule()
@@ -242,6 +247,14 @@ struct MainTabView: View {
                 }
             }
             .sheet(isPresented: $showingAITextLog) { AITextLogView() }
+            .fullScreenCover(isPresented: $showingAYCESession) {
+                AYCEFlowView()
+                    .environmentObject(dailyLogService)
+                    .environmentObject(goalSettings)
+            }
+            .sheet(isPresented: $showingRunHistory) {
+                NavigationStack { RunHistoryView() }
+            }
             .sheet(isPresented: $showingAddExerciseView) {
                 AddExerciseView { newExercise in
                     if let userID = DIContainer.shared.authService.currentUserID {

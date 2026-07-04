@@ -95,6 +95,7 @@
 		5F62A22E5FCB90E1071A803B /* FastingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07D05B9D4E2F4BED3CB41B21 /* FastingManager.swift */; };
 		626E9EE01A1A3E975533826E /* FirestoreNutritionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A67B47A0D8FF8AEFB1F846CB /* FirestoreNutritionRepository.swift */; };
 		62992ECF038BF8DF15DC8249 /* QuickAddMacrosView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 596F113E58BF96F6625FA145 /* QuickAddMacrosView.swift */; };
+		4EA60D07AB960E2C9D514CC3 /* AYCESessionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78FD5BE2828BB51ADA9159E /* AYCESessionViews.swift */; };
 		63DB67E365CDE275083400EB /* RoutineEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501AD9D6DBBB3CA36533605F /* RoutineEditorView.swift */; };
 		65F11F38EE30E5502678DC9D /* MyFitPlateCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC927C22FF199C400C46AA9 /* MyFitPlateCore */; };
 		674EB146C152810F3434476A /* AIChatbotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F1A21D7F1890DA3618B9092 /* AIChatbotView.swift */; };
@@ -357,6 +358,7 @@
 		54473EE46835F753086266F6 /* SetWaterGoalView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SetWaterGoalView.swift; sourceTree = "<group>"; };
 		54E45C44C964310D562B526C /* GlobalImports.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlobalImports.swift; sourceTree = "<group>"; };
 		596F113E58BF96F6625FA145 /* QuickAddMacrosView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickAddMacrosView.swift; sourceTree = "<group>"; };
+		D78FD5BE2828BB51ADA9159E /* AYCESessionViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AYCESessionViews.swift; sourceTree = "<group>"; };
 		5AB7489852F3C2BCF3A62638 /* PastWorkoutDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PastWorkoutDetailView.swift; sourceTree = "<group>"; };
 		5EAAEFDB326C38451C0B3409 /* FirestoreAchievementRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreAchievementRepository.swift; sourceTree = "<group>"; };
 		5F02E41905CDF950561F0E06 /* FirestoreSettingsRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreSettingsRepository.swift; sourceTree = "<group>"; };
@@ -846,6 +848,7 @@
 				4D0B4876FEFB57758A234C46 /* PantryView.swift */,
 				B1477D10015907504DC152A4 /* PlateCalculatorView.swift */,
 				596F113E58BF96F6625FA145 /* QuickAddMacrosView.swift */,
+				D78FD5BE2828BB51ADA9159E /* AYCESessionViews.swift */,
 				ADEE61D45127905D95702FA5 /* RecipeDetailView.swift */,
 				44D481E732F7297DBC9F4935 /* RecipeListView.swift */,
 				FD84244101B704B064DC45EB /* RecipeLoggingView.swift */,
@@ -1310,6 +1313,7 @@
 				F2C40F227B654686C3829BC2 /* PantryView.swift in Sources */,
 				C492B917130A45C906C4F13C /* PlateCalculatorView.swift in Sources */,
 				62992ECF038BF8DF15DC8249 /* QuickAddMacrosView.swift in Sources */,
+				4EA60D07AB960E2C9D514CC3 /* AYCESessionViews.swift in Sources */,
 				D9576C06B0AC007F1276EC05 /* RecipeDetailView.swift in Sources */,
 				B614A333B3574F70082F99E0 /* RecipeListView.swift in Sources */,
 				68E2441A105207BB3351550D /* RecipeLoggingView.swift in Sources */,
