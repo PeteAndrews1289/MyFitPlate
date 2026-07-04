@@ -137,6 +137,19 @@ final class RunSessionTests: XCTestCase {
     }
 }
 
+final class RunEnergyTests: XCTestCase {
+
+    func testFlatRunEstimateMatchesTheStandardFormula() {
+        // 5 km at 165 lbs (74.8 kg): 5 × 74.8 × 1.036 ≈ 388 kcal.
+        XCTAssertEqual(RunEnergy.estimateKcal(distanceMeters: 5000, weightLbs: 165), 387.7, accuracy: 1)
+    }
+
+    func testDegenerateInputsProduceZero() {
+        XCTAssertEqual(RunEnergy.estimateKcal(distanceMeters: 0, weightLbs: 165), 0)
+        XCTAssertEqual(RunEnergy.estimateKcal(distanceMeters: 5000, weightLbs: 0), 0)
+    }
+}
+
 final class RunFormatTests: XCTestCase {
 
     func testDistanceTextInBothUnitSystems() {

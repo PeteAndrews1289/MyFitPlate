@@ -68,7 +68,13 @@ public class HealthKitManager: HealthKitManaging {
             dietaryCarbType,
             dietaryFatType,
             bodyMassType,
-            waterType
+            waterType,
+            // The in-app run recorder writes workouts back so other apps (and our own
+            // import path) see MyFitPlate runs like any watch's.
+            HKObjectType.workoutType(),
+            HKSeriesType.workoutRoute(),
+            distanceType,
+            activeEnergyType
         ]
 
         let typesToRead: Set<HKObjectType> = [

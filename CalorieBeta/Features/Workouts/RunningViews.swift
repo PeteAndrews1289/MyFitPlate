@@ -37,10 +37,23 @@ final class RunHistoryViewModel: ObservableObject {
 struct RunHistoryView: View {
     @StateObject private var viewModel = RunHistoryViewModel()
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
+    @State private var showingRecorder = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                Button {
+                    showingRecorder = true
+                } label: {
+                    Label("Start run", systemImage: "figure.run")
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
                 if !viewModel.runs.isEmpty {
                     weekHero
                     LazyVStack(spacing: 10) {
@@ -64,6 +77,9 @@ struct RunHistoryView: View {
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("Running")
         .onAppear { viewModel.load() }
+        .fullScreenCover(isPresented: $showingRecorder, onDismiss: { viewModel.load() }) {
+            RunRecorderView()
+        }
     }
 
     // DESIGN.md rule 1: the question is "how is my running week going?"
@@ -94,7 +110,7 @@ struct RunHistoryView: View {
             Text("No runs yet")
                 .appFont(size: 16, weight: .bold)
                 .foregroundColor(.textPrimary)
-            Text("Finish a run on any watch that syncs to Apple Health — Apple Watch, Garmin, Polar, Coros — and it shows up here.")
+            Text("Record one right here with Start run, or finish a run on any watch that syncs to Apple Health — Apple Watch, Garmin, Polar, Coros — and it shows up automatically.")
                 .appFont(size: 13)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
