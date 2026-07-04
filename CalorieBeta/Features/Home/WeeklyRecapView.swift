@@ -102,6 +102,14 @@ struct WeeklyRecapView: View {
                                 value: recap.weightChange.map { String(format: "%+.1f %@", BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric), unit) } ?? "—",
                                 icon: "chart.line.flattrend.xyaxis"
                             )
+                            if recap.runCount > 0 {
+                                RecapStatTile(
+                                    title: "Running",
+                                    value: RunFormat.distanceText(meters: recap.runMeters, metric: useMetric),
+                                    detail: recap.runCount == 1 ? "1 run" : "\(recap.runCount) runs",
+                                    icon: "figure.run"
+                                )
+                            }
                         }
 
                         if recap.personalRecords > 0 {
@@ -168,6 +176,10 @@ struct WeeklyRecapView: View {
         let weekSessions = sessions.filter { $0.date >= weekStart }
         let priorSessions = sessions.filter { $0.date < weekStart }
 
+        let runs = await withCheckedContinuation { (continuation: CheckedContinuation<[Run], Never>) in
+            RunImportService().fetchRuns(since: weekStart) { continuation.resume(returning: $0) }
+        }
+
         let built = WeeklyRecapBuilder.build(
             weekEnding: Date(),
             calendar: calendar,
@@ -175,6 +187,7 @@ struct WeeklyRecapView: View {
             sessionLogs: weekSessions,
             priorSessionLogs: priorSessions,
             weightHistory: goalSettings.weightHistory,
+            runs: runs,
             calorieGoal: goalSettings.calories
         )
 

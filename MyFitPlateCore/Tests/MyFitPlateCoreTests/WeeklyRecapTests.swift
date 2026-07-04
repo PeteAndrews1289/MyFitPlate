@@ -31,6 +31,7 @@ final class WeeklyRecapTests: XCTestCase {
         sessionLogs: [WorkoutSessionLog] = [],
         priorSessionLogs: [WorkoutSessionLog] = [],
         weightHistory: [(id: String, date: Date, weight: Double)] = [],
+        runs: [Run] = [],
         calorieGoal: Double? = 2200
     ) -> WeeklyRecap {
         WeeklyRecapBuilder.build(
@@ -40,8 +41,40 @@ final class WeeklyRecapTests: XCTestCase {
             sessionLogs: sessionLogs,
             priorSessionLogs: priorSessionLogs,
             weightHistory: weightHistory,
+            runs: runs,
             calorieGoal: calorieGoal
         )
+    }
+
+    private func runEntry(daysAgo: Int, meters: Double) -> Run {
+        Run(
+            source: .imported(appName: "Garmin Connect"),
+            startDate: day(daysAgo),
+            endDate: day(daysAgo).addingTimeInterval(1800),
+            distanceMeters: meters,
+            movingSeconds: 1800
+        )
+    }
+
+    // MARK: - Running
+
+    func testRunsInsideTheWindowAreSummed() {
+        let recap = build(runs: [
+            runEntry(daysAgo: 1, meters: 5000),
+            runEntry(daysAgo: 4, meters: 8000),
+            runEntry(daysAgo: 9, meters: 12_000)   // before the window — excluded
+        ])
+        XCTAssertEqual(recap.runCount, 2)
+        XCTAssertEqual(recap.runMeters, 13_000, accuracy: 0.01)
+    }
+
+    func testRunningAloneCountsAsActivity() {
+        let recap = build(runs: [runEntry(daysAgo: 2, meters: 5000)])
+        XCTAssertTrue(recap.hasAnyActivity, "A running-only week is not a quiet week")
+
+        let quiet = build()
+        XCTAssertFalse(quiet.hasAnyActivity)
+        XCTAssertEqual(quiet.runCount, 0)
     }
 
     // MARK: - Nutrition

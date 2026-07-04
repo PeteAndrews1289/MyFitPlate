@@ -19,11 +19,15 @@ public struct WeeklyRecap: Equatable {
     /// Exercises where this week's best estimated 1RM beat everything before the week.
     public let personalRecords: Int
 
+    /// Runs in the window — recorded in-app or imported from any watch.
+    public let runCount: Int
+    public let runMeters: Double
+
     /// Change across the window (negative = lost weight), nil without enough entries.
     public let weightChange: Double?
 
     public var hasAnyActivity: Bool {
-        daysLogged > 0 || workoutsCompleted > 0
+        daysLogged > 0 || workoutsCompleted > 0 || runCount > 0
     }
 }
 
@@ -42,6 +46,7 @@ public enum WeeklyRecapBuilder {
         sessionLogs: [WorkoutSessionLog],
         priorSessionLogs: [WorkoutSessionLog],
         weightHistory: [(id: String, date: Date, weight: Double)],
+        runs: [Run] = [],
         calorieGoal: Double?
     ) -> WeeklyRecap {
         let weekEnd = calendar.startOfDay(for: weekEnding).addingTimeInterval(24 * 60 * 60 - 1)
@@ -83,6 +88,10 @@ public enum WeeklyRecapBuilder {
             priorSessions: priorSessionLogs.filter { $0.date < weekStart }
         )
 
+        // Running.
+        let weekRuns = runs.filter { inWindow($0.startDate) }
+        let runMeters = weekRuns.reduce(0.0) { $0 + $1.distanceMeters }
+
         // Weight: last entry in the window vs. the latest entry at or before the window start
         // (falling back to the first in-window entry when there's no prior baseline).
         let sortedWeights = weightHistory.sorted { $0.date < $1.date }
@@ -106,6 +115,8 @@ public enum WeeklyRecapBuilder {
             workoutsCompleted: weekSessions.count,
             totalVolume: totalVolume,
             personalRecords: personalRecords,
+            runCount: weekRuns.count,
+            runMeters: runMeters,
             weightChange: weightChange
         )
     }
