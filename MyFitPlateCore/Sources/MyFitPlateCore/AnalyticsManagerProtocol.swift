@@ -35,4 +35,12 @@ public extension AnalyticsManagerProtocol {
     func aiFeatureUsed(_ feature: AIFeature) {
         log(.aiFeatureUsed, ["feature": feature.rawValue])
     }
+
+    func barcodeLookupOutcome(_ outcome: BarcodeLookupOutcome) {
+        logEvent(BarcodeLookupOutcome.eventName, parameters: outcome.analyticsParameters)
+    }
+
+    func barcodeMissRecovery(_ outcome: BarcodeRecoveryOutcome) {
+        logEvent(BarcodeRecoveryOutcome.eventName, parameters: outcome.analyticsParameters)
+    }
 }

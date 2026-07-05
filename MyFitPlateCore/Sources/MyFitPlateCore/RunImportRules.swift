@@ -57,7 +57,8 @@ public struct ImportedWorkoutSummary: Equatable {
 /// vendor APIs. The cost is duplicates — handled here.
 public enum RunImportRules {
 
-    /// Workouts our own recorder wrote back to HealthKit must not be re-imported.
+    /// Workouts our own recorder wrote back to HealthKit are still imported from Apple
+    /// Health, but shown as MyFitPlate-recorded runs instead of third-party imports.
     public static func isOwnRecording(sourceBundleID: String) -> Bool {
         sourceBundleID.hasPrefix("MyFitPlate.")
     }
@@ -67,7 +68,6 @@ public enum RunImportRules {
     /// indoor treadmill included.
     public static func isImportableRun(_ workout: ImportedWorkoutSummary) -> Bool {
         guard workout.activity == .running else { return false }
-        guard !isOwnRecording(sourceBundleID: workout.sourceBundleID) else { return false }
         guard workout.endDate > workout.startDate else { return false }
         // A "run" with no distance and under 2 minutes is a false start / watch fumble.
         let duration = workout.endDate.timeIntervalSince(workout.startDate)
@@ -78,7 +78,9 @@ public enum RunImportRules {
     public static func run(from workout: ImportedWorkoutSummary) -> Run {
         Run(
             id: workout.uuid,
-            source: .imported(appName: workout.sourceName),
+            source: isOwnRecording(sourceBundleID: workout.sourceBundleID)
+                ? .recorded
+                : .imported(appName: workout.sourceName),
             startDate: workout.startDate,
             endDate: workout.endDate,
             distanceMeters: workout.distanceMeters ?? 0,
@@ -105,7 +107,7 @@ public enum RunImportRules {
                 kept.append(candidate)
             }
         }
-        return kept
+        return kept.sorted { $0.startDate > $1.startDate }
     }
 
     static func isDuplicate(_ a: Run, _ b: Run) -> Bool {

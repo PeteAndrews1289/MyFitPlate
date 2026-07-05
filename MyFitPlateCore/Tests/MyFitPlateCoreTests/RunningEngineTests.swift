@@ -202,14 +202,16 @@ final class RunImportRulesTests: XCTestCase {
         XCTAssertEqual(run.averageHeartRate, 152)
     }
 
-    func testOwnRecordingsAreNotReImported() {
+    func testOwnRecordingsComeBackAsRecordedRuns() {
         let own = ImportedWorkoutSummary(
             uuid: "x", activity: .running,
             startDate: noon, endDate: noon.addingTimeInterval(1500),
             distanceMeters: 5000,
             sourceName: "MyFitPlate", sourceBundleID: "MyFitPlate.CalorieBeta"
         )
-        XCTAssertFalse(RunImportRules.isImportableRun(own))
+        XCTAssertTrue(RunImportRules.isImportableRun(own))
+        XCTAssertEqual(RunImportRules.run(from: own).source, .recorded)
+        XCTAssertEqual(RunImportRules.run(from: own).source.displayName, "MyFitPlate")
         XCTAssertTrue(RunImportRules.isImportableRun(garminRun()))
     }
 
@@ -276,6 +278,21 @@ final class RunImportRulesTests: XCTestCase {
             distanceMeters: 6000, movingSeconds: 1800
         )
         XCTAssertEqual(RunImportRules.deduplicated([morning, evening]).count, 2)
+    }
+
+    func testDeduplicatedRunsReturnNewestFirst() {
+        let oldest = Run(
+            id: "old", source: .imported(appName: "Garmin Connect"),
+            startDate: noon.addingTimeInterval(-7_200), endDate: noon.addingTimeInterval(-5_400),
+            distanceMeters: 5000, movingSeconds: 1800
+        )
+        let newest = Run(
+            id: "new", source: .recorded,
+            startDate: noon, endDate: noon.addingTimeInterval(1_500),
+            distanceMeters: 5000, movingSeconds: 1500
+        )
+
+        XCTAssertEqual(RunImportRules.deduplicated([oldest, newest]).map(\.id), ["new", "old"])
     }
 
     func testOverlappingButDifferentDistancesAreNotMerged() {

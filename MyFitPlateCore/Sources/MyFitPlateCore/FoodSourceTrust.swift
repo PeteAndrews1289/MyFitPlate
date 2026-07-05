@@ -25,6 +25,156 @@ public struct FoodSourceDescriptor: Equatable, Sendable {
     }
 }
 
+public struct FoodTrustEvaluation: Equatable, Sendable {
+    public enum Level: String, Equatable, Sendable {
+        case excellent
+        case strong
+        case review
+        case low
+    }
+
+    public let score: Int
+    public let level: Level
+    public let label: String
+    public let summary: String
+    public let reasons: [String]
+    public let action: String?
+
+    public init(score: Int, level: Level, label: String, summary: String, reasons: [String], action: String? = nil) {
+        self.score = score
+        self.level = level
+        self.label = label
+        self.summary = summary
+        self.reasons = reasons
+        self.action = action
+    }
+
+    public static func evaluate(
+        item: FoodItem,
+        descriptor: FoodSourceDescriptor,
+        metadata: FoodSourceMetadata? = nil
+    ) -> FoodTrustEvaluation {
+        var score = baseScore(for: descriptor, metadata: metadata)
+        var reasons = baseReasons(for: descriptor, metadata: metadata)
+        let findings = FoodDataSanity.findings(for: item)
+
+        if metadata?.crossVerifiedBy?.isEmpty == false {
+            score += 10
+            reasons.append("Confirmed by another database")
+        }
+
+        switch metadata?.reviewStatus {
+        case .userEdited:
+            score += 12
+            reasons.append("Edited and saved by you")
+        case .userConfirmed:
+            score += 8
+            reasons.append("Reviewed by you")
+        case .notRequired, .unreviewed, nil:
+            break
+        }
+
+        if descriptor.isEstimated {
+            score -= metadata?.reviewStatus == .userConfirmed || metadata?.reviewStatus == .userEdited ? 4 : 18
+            reasons.append("Estimated food, not a label match")
+        }
+
+        if item.servingWeight < FoodSourceAgreement.minimumComparableServingWeight {
+            score -= 7
+            reasons.append("Serving weight is missing or too small to compare")
+        }
+
+        if findings.contains(where: { $0.severity == .warning }) {
+            score = min(score, 34)
+            reasons.append("Nutrition math needs a correction")
+        } else if !findings.isEmpty {
+            score -= 8
+            reasons.append("One nutrition detail deserves a quick look")
+        }
+
+        let clampedScore = min(max(score, 0), 99)
+        return evaluation(score: clampedScore, reasons: Array(reasons.uniqued().prefix(4)))
+    }
+
+    private static func baseScore(for descriptor: FoodSourceDescriptor, metadata: FoodSourceMetadata?) -> Int {
+        if metadata?.crossVerifiedBy?.isEmpty == false { return 88 }
+
+        switch descriptor.sourceKey {
+        case "usda": return 86
+        case "fatsecret": return 74
+        case "open_food_facts": return 68
+        case "custom_barcode", "manual", "planned", "recent": return 82
+        case "community_barcode": return 78
+        case "ai_estimate": return 58
+        default: return 55
+        }
+    }
+
+    private static func baseReasons(for descriptor: FoodSourceDescriptor, metadata: FoodSourceMetadata?) -> [String] {
+        switch descriptor.sourceKey {
+        case "usda":
+            return ["USDA sourced nutrition"]
+        case "fatsecret":
+            return ["Packaged-food database match"]
+        case "open_food_facts":
+            return ["Public packaged-food database match"]
+        case "custom_barcode":
+            return ["Saved from your own food library"]
+        case "community_barcode":
+            return ["Shared correction passed sanity checks"]
+        case "manual":
+            return ["User-entered food"]
+        case "planned":
+            return ["Built from your recipes or meal plan"]
+        case "recent":
+            return ["Reused from your own history"]
+        case "ai_estimate":
+            return ["Maia estimate"]
+        default:
+            return [metadata?.sourceName ?? descriptor.title]
+        }
+    }
+
+    private static func evaluation(score: Int, reasons: [String]) -> FoodTrustEvaluation {
+        switch score {
+        case 90...:
+            return FoodTrustEvaluation(
+                score: score,
+                level: .excellent,
+                label: "Excellent trust",
+                summary: "This entry is very safe to use as-is.",
+                reasons: reasons
+            )
+        case 75..<90:
+            return FoodTrustEvaluation(
+                score: score,
+                level: .strong,
+                label: "Strong trust",
+                summary: "This entry looks reliable, with normal serving review still worthwhile.",
+                reasons: reasons
+            )
+        case 55..<75:
+            return FoodTrustEvaluation(
+                score: score,
+                level: .review,
+                label: "Review serving",
+                summary: "Good enough to log, but check the serving or label if precision matters.",
+                reasons: reasons,
+                action: "Check serving"
+            )
+        default:
+            return FoodTrustEvaluation(
+                score: score,
+                level: .low,
+                label: "Needs correction",
+                summary: "Fix this entry before you rely on it for daily totals.",
+                reasons: reasons,
+                action: "Fix data"
+            )
+        }
+    }
+}
+
 public enum FoodSourceType: String, Codable, Sendable {
     case usda
     case fatSecret
@@ -595,10 +745,159 @@ private extension FoodSourceType {
 public struct BarcodeFoodLookupResult: Sendable {
     public let item: FoodItem
     public let source: String
+    public let scannedBarcode: String
+    public let matchedBarcode: String
+    public let candidateCount: Int
 
-    public init(item: FoodItem, source: String) {
+    public init(
+        item: FoodItem,
+        source: String,
+        scannedBarcode: String? = nil,
+        matchedBarcode: String? = nil,
+        candidateCount: Int = 1
+    ) {
         self.item = item
         self.source = source
+        let scanned = BarcodeCorrectionRules.normalizedBarcode(scannedBarcode ?? item.sourceMetadata?.barcode ?? "")
+        let matched = BarcodeCorrectionRules.normalizedBarcode(matchedBarcode ?? scanned)
+        self.scannedBarcode = scanned
+        self.matchedBarcode = matched
+        self.candidateCount = max(candidateCount, 1)
+    }
+
+    public var usedRelatedBarcode: Bool {
+        !scannedBarcode.isEmpty && !matchedBarcode.isEmpty && scannedBarcode != matchedBarcode
+    }
+}
+
+public struct BarcodeLookupOutcome: Equatable, Sendable {
+    public static let eventName = "barcode_lookup_outcome"
+
+    public let result: String
+    public let source: String
+    public let scannedLength: Int
+    public let matchedLength: Int
+    public let candidateCount: Int
+    public let usedRelatedBarcode: Bool
+    public let crossVerifiedCount: Int
+    public let trustScore: Int?
+    public let trustLevel: String?
+
+    public var analyticsParameters: [String: Any] {
+        var params: [String: Any] = [
+            "result": result,
+            "source": source,
+            "scanned_length": scannedLength,
+            "matched_length": matchedLength,
+            "candidate_count": candidateCount,
+            "used_related_barcode": usedRelatedBarcode,
+            "cross_verified_count": crossVerifiedCount
+        ]
+        if let trustScore {
+            params["trust_score"] = trustScore
+        }
+        if let trustLevel {
+            params["trust_level"] = trustLevel
+        }
+        return params
+    }
+
+    public static func success(_ lookupResult: BarcodeFoodLookupResult) -> BarcodeLookupOutcome {
+        let descriptor = FoodSourceClassifier.descriptor(
+            for: lookupResult.source,
+            foodID: lookupResult.item.id,
+            metadata: lookupResult.item.sourceMetadata
+        )
+        let evaluation = FoodTrustEvaluation.evaluate(
+            item: lookupResult.item,
+            descriptor: descriptor,
+            metadata: lookupResult.item.sourceMetadata
+        )
+
+        return BarcodeLookupOutcome(
+            result: "hit",
+            source: lookupResult.source,
+            scannedLength: lookupResult.scannedBarcode.count,
+            matchedLength: lookupResult.matchedBarcode.count,
+            candidateCount: lookupResult.candidateCount,
+            usedRelatedBarcode: lookupResult.usedRelatedBarcode,
+            crossVerifiedCount: lookupResult.item.sourceMetadata?.crossVerifiedBy?.count ?? 0,
+            trustScore: evaluation.score,
+            trustLevel: evaluation.level.rawValue
+        )
+    }
+
+    public static func miss(barcode: String) -> BarcodeLookupOutcome {
+        let normalized = BarcodeCorrectionRules.normalizedBarcode(barcode)
+        return BarcodeLookupOutcome(
+            result: "miss",
+            source: "none",
+            scannedLength: normalized.count,
+            matchedLength: 0,
+            candidateCount: BarcodeCorrectionRules.lookupCandidates(for: normalized).count,
+            usedRelatedBarcode: false,
+            crossVerifiedCount: 0,
+            trustScore: nil,
+            trustLevel: nil
+        )
+    }
+}
+
+public struct BarcodeRecoveryOutcome: Equatable, Sendable {
+    public static let eventName = "barcode_miss_recovery"
+
+    public let action: String
+    public let scannedLength: Int
+    public let candidateCount: Int
+    public let trustScore: Int?
+    public let trustLevel: String?
+
+    public var analyticsParameters: [String: Any] {
+        var params: [String: Any] = [
+            "action": action,
+            "scanned_length": scannedLength,
+            "candidate_count": candidateCount
+        ]
+        if let trustScore {
+            params["trust_score"] = trustScore
+        }
+        if let trustLevel {
+            params["trust_level"] = trustLevel
+        }
+        return params
+    }
+
+    public static func selected(action: String, barcode: String?) -> BarcodeRecoveryOutcome {
+        let normalized = BarcodeCorrectionRules.normalizedBarcode(barcode ?? "")
+        return BarcodeRecoveryOutcome(
+            action: action,
+            scannedLength: normalized.count,
+            candidateCount: normalized.isEmpty ? 0 : BarcodeCorrectionRules.lookupCandidates(for: normalized).count,
+            trustScore: nil,
+            trustLevel: nil
+        )
+    }
+
+    public static func manualFoodCreated(_ item: FoodItem) -> BarcodeRecoveryOutcome {
+        let normalized = BarcodeCorrectionRules.normalizedBarcode(item.sourceMetadata?.barcode ?? "")
+        let descriptor = FoodSourceClassifier.descriptor(
+            for: "manual_barcode_create",
+            foodID: item.id,
+            metadata: item.sourceMetadata
+        )
+        let evaluation = FoodTrustEvaluation.evaluate(
+            item: item,
+            descriptor: descriptor,
+            metadata: item.sourceMetadata
+        )
+
+        return BarcodeRecoveryOutcome(
+            action: "manual_food_created",
+            scannedLength: normalized.count,
+            candidateCount: normalized.isEmpty ? 0 : BarcodeCorrectionRules.lookupCandidates(for: normalized).count,
+            trustScore: evaluation.score,
+            trustLevel: evaluation.level.rawValue
+        )
     }
 }
 
@@ -609,20 +908,52 @@ public enum BarcodeCorrectionRules {
         return digits.isEmpty ? trimmed : String(digits)
     }
 
-    public static func bestCorrectedFood(in foods: [FoodItem], barcode: String) -> FoodItem? {
+    public static func lookupCandidates(for barcode: String) -> [String] {
         let normalized = normalizedBarcode(barcode)
-        guard !normalized.isEmpty else { return nil }
+        guard !normalized.isEmpty else { return [] }
+        guard normalized.allSatisfy(\.isNumber) else { return [normalized] }
+
+        var candidates = [normalized]
+        switch normalized.count {
+        case 12:
+            candidates.append("0\(normalized)")
+        case 13:
+            if normalized.hasPrefix("0") {
+                candidates.append(String(normalized.dropFirst()))
+            }
+        case 14:
+            candidates.append(String(normalized.suffix(13)))
+            candidates.append(String(normalized.suffix(12)))
+            if normalized.hasPrefix("0") {
+                candidates.append(String(normalized.dropFirst()))
+            }
+        default:
+            break
+        }
+        return candidates.uniqued()
+    }
+
+    public static func bestCorrectedFood(in foods: [FoodItem], barcode: String) -> FoodItem? {
+        let candidates = lookupCandidates(for: barcode)
+        guard !candidates.isEmpty else { return nil }
 
         return foods
-            .filter { matches($0, barcode: normalized) }
-            .sorted { correctionScore(for: $0) > correctionScore(for: $1) }
+            .filter { food in
+                guard let barcode = food.sourceMetadata?.barcode else { return false }
+                return candidates.contains(normalizedBarcode(barcode))
+            }
+            .sorted { lhs, rhs in
+                let lhsScore = correctionScore(for: lhs, candidates: candidates)
+                let rhsScore = correctionScore(for: rhs, candidates: candidates)
+                return lhsScore > rhsScore
+            }
             .first
-            .map { correctedFood(from: $0, barcode: normalized) }
+            .map { correctedFood(from: $0, barcode: candidates[0]) }
     }
 
     public static func matches(_ food: FoodItem, barcode: String) -> Bool {
         guard let foodBarcode = food.sourceMetadata?.barcode else { return false }
-        return normalizedBarcode(foodBarcode) == normalizedBarcode(barcode)
+        return lookupCandidates(for: barcode).contains(normalizedBarcode(foodBarcode))
     }
 
     public static func correctedFood(from food: FoodItem, barcode: String) -> FoodItem {
@@ -642,6 +973,12 @@ public enum BarcodeCorrectionRules {
         case nil:
             return 0
         }
+    }
+
+    private static func correctionScore(for food: FoodItem, candidates: [String]) -> Int {
+        let barcode = normalizedBarcode(food.sourceMetadata?.barcode ?? "")
+        let candidateBonus = max(0, candidates.count - (candidates.firstIndex(of: barcode) ?? candidates.count))
+        return correctionScore(for: food) * 10 + candidateBonus
     }
 }
 
@@ -694,74 +1031,124 @@ public final class BarcodeFoodLookupService {
     public func lookup(_ barcode: String) async -> BarcodeFoodLookupResult? {
         let trimmedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode)
         guard !trimmedBarcode.isEmpty else { return nil }
+        let barcodeCandidates = BarcodeCorrectionRules.lookupCandidates(for: trimmedBarcode)
 
         if let item = await correctionStore?.correctedFood(for: trimmedBarcode) {
             return BarcodeFoodLookupResult(
                 item: item,
-                source: "custom_barcode"
+                source: "custom_barcode",
+                scannedBarcode: trimmedBarcode,
+                matchedBarcode: item.sourceMetadata?.barcode ?? trimmedBarcode,
+                candidateCount: barcodeCandidates.count
             )
         }
 
         // Community pool: another user's sanity-checked fix for this barcode. Checked after
         // the user's own corrections (yours always win) and before external databases.
-        if let item = await lookupCommunityCorrection(trimmedBarcode) {
-            return BarcodeFoodLookupResult(
-                item: item,
-                source: "community_barcode"
-            )
+        for candidate in barcodeCandidates {
+            if let item = await lookupCommunityCorrection(candidate) {
+                return BarcodeFoodLookupResult(
+                    item: item,
+                    source: "community_barcode",
+                    scannedBarcode: trimmedBarcode,
+                    matchedBarcode: candidate,
+                    candidateCount: barcodeCandidates.count
+                )
+            }
         }
 
-        if let item = await lookupFatSecret(trimmedBarcode) {
-            let primary = item.withDatabaseSource(
-                .fatSecret,
-                sourceName: "FatSecret",
-                barcode: trimmedBarcode
-            )
-            // Ask the remaining chain sources concurrently; whoever agrees earns the
-            // "Cross-Verified" badge. A miss or disagreement just means no badge.
-            async let usdaCandidate = usdaService.lookupBarcode(trimmedBarcode)
-            async let offCandidate = lookupOpenFoodFacts(trimmedBarcode)
-            let confirmedBy = FoodSourceAgreement.agreeingSourceNames(
-                primary: primary,
-                candidates: [
-                    ("USDA", await usdaCandidate),
-                    ("Open Food Facts", await offCandidate)
-                ]
-            )
-            return BarcodeFoodLookupResult(
-                item: primary.withCrossVerification(confirmedBy),
-                source: "barcode_result"
-            )
+        for candidate in barcodeCandidates {
+            if let item = await lookupFatSecret(candidate) {
+                let primary = databaseSourcedItem(
+                    item,
+                    sourceType: .fatSecret,
+                    sourceName: "FatSecret",
+                    scannedBarcode: trimmedBarcode,
+                    matchedBarcode: candidate
+                )
+                // Ask the remaining chain sources concurrently; whoever agrees earns the
+                // "Cross-Verified" badge. A miss or disagreement just means no badge.
+                async let usdaCandidate = usdaService.lookupBarcode(candidate)
+                async let offCandidate = lookupOpenFoodFacts(candidate)
+                let confirmedBy = FoodSourceAgreement.agreeingSourceNames(
+                    primary: primary,
+                    candidates: [
+                        ("USDA", await usdaCandidate),
+                        ("Open Food Facts", await offCandidate)
+                    ]
+                )
+                return BarcodeFoodLookupResult(
+                    item: primary.withCrossVerification(confirmedBy),
+                    source: "barcode_result",
+                    scannedBarcode: trimmedBarcode,
+                    matchedBarcode: candidate,
+                    candidateCount: barcodeCandidates.count
+                )
+            }
         }
 
-        if let item = await usdaService.lookupBarcode(trimmedBarcode) {
-            let primary = item.withDatabaseSource(
-                .usda,
-                sourceName: "USDA FoodData Central",
-                barcode: trimmedBarcode
-            )
-            let confirmedBy = FoodSourceAgreement.agreeingSourceNames(
-                primary: primary,
-                candidates: [("Open Food Facts", await lookupOpenFoodFacts(trimmedBarcode))]
-            )
-            return BarcodeFoodLookupResult(
-                item: primary.withCrossVerification(confirmedBy),
-                source: "usda_barcode"
-            )
+        for candidate in barcodeCandidates {
+            if let item = await usdaService.lookupBarcode(candidate) {
+                let primary = databaseSourcedItem(
+                    item,
+                    sourceType: .usda,
+                    sourceName: "USDA FoodData Central",
+                    scannedBarcode: trimmedBarcode,
+                    matchedBarcode: candidate
+                )
+                let confirmedBy = FoodSourceAgreement.agreeingSourceNames(
+                    primary: primary,
+                    candidates: [("Open Food Facts", await lookupOpenFoodFacts(candidate))]
+                )
+                return BarcodeFoodLookupResult(
+                    item: primary.withCrossVerification(confirmedBy),
+                    source: "usda_barcode",
+                    scannedBarcode: trimmedBarcode,
+                    matchedBarcode: candidate,
+                    candidateCount: barcodeCandidates.count
+                )
+            }
         }
 
-        if let item = await lookupOpenFoodFacts(trimmedBarcode) {
-            return BarcodeFoodLookupResult(
-                item: item.withDatabaseSource(
-                    .openFoodFacts,
-                    sourceName: "Open Food Facts",
-                    barcode: trimmedBarcode
-                ),
-                source: "open_food_facts_barcode"
-            )
+        for candidate in barcodeCandidates {
+            if let item = await lookupOpenFoodFacts(candidate) {
+                return BarcodeFoodLookupResult(
+                    item: databaseSourcedItem(
+                        item,
+                        sourceType: .openFoodFacts,
+                        sourceName: "Open Food Facts",
+                        scannedBarcode: trimmedBarcode,
+                        matchedBarcode: candidate
+                    ),
+                    source: "open_food_facts_barcode",
+                    scannedBarcode: trimmedBarcode,
+                    matchedBarcode: candidate,
+                    candidateCount: barcodeCandidates.count
+                )
+            }
         }
 
         return nil
+    }
+
+    private func databaseSourcedItem(
+        _ item: FoodItem,
+        sourceType: FoodSourceType,
+        sourceName: String,
+        scannedBarcode: String,
+        matchedBarcode: String
+    ) -> FoodItem {
+        var metadata = FoodSourceMetadata.database(
+            sourceType,
+            sourceName: sourceName,
+            sourceID: item.id,
+            barcode: scannedBarcode,
+            matchedFoodID: item.id
+        )
+        if scannedBarcode != matchedBarcode {
+            metadata.notes = "Matched using related barcode \(matchedBarcode)."
+        }
+        return item.withSourceMetadata(metadata)
     }
 
     private func lookupCommunityCorrection(_ barcode: String) async -> FoodItem? {
@@ -790,5 +1177,12 @@ public final class BarcodeFoodLookupService {
                 continuation.resume(returning: try? result.get())
             }
         }
+    }
+}
+
+private extension Sequence where Element: Hashable {
+    func uniqued() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
     }
 }

@@ -10,6 +10,31 @@ struct FoodPickerSection: View {
     let onSelect: (FoodItem) -> Void
     let onQuickLog: ((FoodItem) -> Void)?
     let onDelete: ((FoodItem) -> Void)?
+    let sourceForFood: ((FoodItem) -> String)?
+
+    init(
+        title: String,
+        subtitle: String,
+        foods: [FoodItem],
+        quickLoggedFoodIDs: Set<String>,
+        emptyTitle: String,
+        emptyMessage: String,
+        onSelect: @escaping (FoodItem) -> Void,
+        onQuickLog: ((FoodItem) -> Void)?,
+        onDelete: ((FoodItem) -> Void)?,
+        sourceForFood: ((FoodItem) -> String)? = nil
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.foods = foods
+        self.quickLoggedFoodIDs = quickLoggedFoodIDs
+        self.emptyTitle = emptyTitle
+        self.emptyMessage = emptyMessage
+        self.onSelect = onSelect
+        self.onQuickLog = onQuickLog
+        self.onDelete = onDelete
+        self.sourceForFood = sourceForFood
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 11) {
@@ -35,7 +60,8 @@ struct FoodPickerSection: View {
                             isQuickLogged: quickLoggedFoodIDs.contains(food.id),
                             onSelect: onSelect,
                             onQuickLog: onQuickLog,
-                            onDelete: onDelete
+                            onDelete: onDelete,
+                            source: sourceForFood?(food)
                         )
                     }
                 }
@@ -50,6 +76,7 @@ struct FoodPickerRow: View {
     let onSelect: (FoodItem) -> Void
     let onQuickLog: ((FoodItem) -> Void)?
     let onDelete: ((FoodItem) -> Void)?
+    let source: String?
 
     private var detailText: String {
         guard food.calories > 0 || food.protein > 0 || food.carbs > 0 || food.fats > 0 else {
@@ -71,6 +98,9 @@ struct FoodPickerRow: View {
     private var sourceDescriptor: FoodSourceDescriptor? {
         if let metadata = food.sourceMetadata {
             return FoodSourceClassifier.descriptor(for: metadata)
+        }
+        if let source {
+            return FoodSourceClassifier.descriptor(for: source, foodID: food.id)
         }
         return FoodSourceClassifier.descriptor(forFoodID: food.id)
     }
@@ -102,7 +132,11 @@ struct FoodPickerRow: View {
                                     .lineLimit(1)
 
                                 if let sourceDescriptor {
-                                    FoodSourceMiniBadge(descriptor: sourceDescriptor)
+                                    FoodTrustMiniBadge(
+                                        food: food,
+                                        descriptor: sourceDescriptor,
+                                        metadata: food.sourceMetadata
+                                    )
                                 }
 
                                 if FoodDataSanity.isSuspicious(food) {
@@ -166,24 +200,68 @@ struct FoodPickerRow: View {
     }
 }
 
-private struct FoodSourceMiniBadge: View {
+struct FoodTrustMiniBadge: View {
+    let food: FoodItem
     let descriptor: FoodSourceDescriptor
+    let metadata: FoodSourceMetadata?
+
+    init(food: FoodItem, source: String? = nil) {
+        self.food = food
+        self.metadata = food.sourceMetadata
+        self.descriptor = FoodSourceClassifier.descriptor(
+            for: source ?? "unknown",
+            foodID: food.id,
+            metadata: food.sourceMetadata
+        )
+    }
+
+    init(food: FoodItem, descriptor: FoodSourceDescriptor, metadata: FoodSourceMetadata? = nil) {
+        self.food = food
+        self.descriptor = descriptor
+        self.metadata = metadata
+    }
+
+    private var evaluation: FoodTrustEvaluation {
+        FoodTrustEvaluation.evaluate(item: food, descriptor: descriptor, metadata: metadata)
+    }
 
     private var tint: Color {
-        switch descriptor.sourceKey {
-        case "usda", "fatsecret", "manual", "planned":
+        switch evaluation.level {
+        case .excellent, .strong:
             return .accentPositive
-        case "open_food_facts", "recent":
-            return .blue
-        case "ai_estimate":
+        case .review:
             return .orange
-        default:
-            return Color(UIColor.secondaryLabel)
+        case .low:
+            return .red
+        }
+    }
+
+    private var title: String {
+        switch evaluation.level {
+        case .excellent:
+            return "Excellent"
+        case .strong:
+            return "Strong"
+        case .review:
+            return "Review"
+        case .low:
+            return "Fix"
+        }
+    }
+
+    private var icon: String {
+        switch evaluation.level {
+        case .excellent, .strong:
+            return "shield.checkered"
+        case .review:
+            return "exclamationmark.circle.fill"
+        case .low:
+            return "exclamationmark.triangle.fill"
         }
     }
 
     var body: some View {
-        Label(descriptor.title, systemImage: descriptor.systemImage)
+        Label(title, systemImage: icon)
             .labelStyle(.titleAndIcon)
             .appFont(size: 10, weight: .bold)
             .foregroundColor(tint)
@@ -191,6 +269,6 @@ private struct FoodSourceMiniBadge: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(tint.opacity(0.10), in: Capsule())
-            .accessibilityLabel("\(descriptor.title), \(descriptor.confidence)")
+            .accessibilityLabel("\(evaluation.label), \(descriptor.title)")
     }
 }

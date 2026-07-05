@@ -540,6 +540,7 @@ struct AddFoodView: View {
             barcode: foodItem.sourceMetadata?.barcode,
             originalItem: initialFoodItem
         )
+        DIContainer.shared.analyticsManager.barcodeMissRecovery(.manualFoodCreated(correction))
         dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: correction) { _ in }
     }
 

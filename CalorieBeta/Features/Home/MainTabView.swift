@@ -224,12 +224,15 @@ struct MainTabView: View {
                     DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                     Task { @MainActor in
                         if let result = await barcodeLookupService.lookup(barcode) {
+                            DIContainer.shared.analyticsManager.barcodeLookupOutcome(.success(result))
                             self.isSearchingAfterScan = false
                             self.pendingManualBarcode = nil
                             self.scannedFoodSource = result.source
                             self.scannedFoodItem = result.item
+                            showBarcodeResultFeedback(result)
                             return
                         }
+                        DIContainer.shared.analyticsManager.barcodeLookupOutcome(.miss(barcode: barcode))
                         self.isSearchingAfterScan = false
                         self.scanError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Create it manually, use camera capture, or search by name.")
                     }
@@ -266,9 +269,25 @@ struct MainTabView: View {
                 RecipeListView().environmentObject(recipeService)
             }
             .alert("Scan Error", isPresented: $scanError.0) {
-                Button("Create Food") { showingAddFoodManually = true }
-                Button("Use Camera") { showingImagePicker = true }
-                Button("OK", role: .cancel) {}
+                Button("Create Food") {
+                    DIContainer.shared.analyticsManager.barcodeMissRecovery(
+                        .selected(action: "create_food", barcode: pendingManualBarcode)
+                    )
+                    showingAddFoodManually = true
+                }
+                Button("Use Camera") {
+                    DIContainer.shared.analyticsManager.barcodeMissRecovery(
+                        .selected(action: "use_camera", barcode: pendingManualBarcode)
+                    )
+                    pendingManualBarcode = nil
+                    showingImagePicker = true
+                }
+                Button("OK", role: .cancel) {
+                    DIContainer.shared.analyticsManager.barcodeMissRecovery(
+                        .selected(action: "dismissed", barcode: pendingManualBarcode)
+                    )
+                    pendingManualBarcode = nil
+                }
             } message: {
                 Text(scanError.1)
             }
@@ -338,6 +357,14 @@ struct MainTabView: View {
             servingWeight: 0,
             sourceMetadata: metadata
         )
+    }
+
+    private func showBarcodeResultFeedback(_ result: BarcodeFoodLookupResult) {
+        if result.source == "custom_barcode" {
+            ToastManager.shared.showToast(message: "Matched from My Foods.")
+        } else if result.usedRelatedBarcode {
+            ToastManager.shared.showToast(message: "Found a related barcode match.")
+        }
     }
     
     private func actionButton(title: String, subtitle: String, icon: String, isPrimary: Bool, action: @escaping () -> Void) -> some View {

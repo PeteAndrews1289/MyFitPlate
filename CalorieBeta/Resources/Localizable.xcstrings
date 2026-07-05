@@ -244,6 +244,16 @@
     "%@ logged" : {
 
     },
+    "%@ of the %@ you paid · %@ cal" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ of the %2$@ you paid · %3$@ cal"
+          }
+        }
+      }
+    },
     "%@ oz" : {
 
     },
@@ -259,6 +269,16 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, about %@, %lld calories" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, about %2$@, %3$lld calories"
           }
         }
       }
@@ -432,6 +452,9 @@
     "%lld lbs" : {
 
     },
+    "%lld logged" : {
+
+    },
     "%lld minutes" : {
 
     },
@@ -502,6 +525,9 @@
 
     },
     "%lld routine rotation" : {
+
+    },
+    "%lld runs" : {
 
     },
     "%lld sets - %@" : {
@@ -633,10 +659,50 @@
     "+%lld pts" : {
 
     },
+    "×%lld" : {
+
+    },
+    "~%@" : {
+
+    },
+    "~%@ · %lld cal" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "~%1$@ · %2$lld cal"
+          }
+        }
+      }
+    },
+    "🍽️" : {
+
+    },
+    "🏃" : {
+
+    },
+    "🏃‍♂️" : {
+
+    },
+    "🏅" : {
+
+    },
+    "🏅 New record — see the Records card in your history." : {
+
+    },
+    "🏆" : {
+
+    },
+    "$" : {
+
+    },
     "0" : {
 
     },
     "0.0" : {
+
+    },
+    "1 run" : {
 
     },
     "5 picks · %@ fit your remaining %@ cal" : {
@@ -649,7 +715,13 @@
         }
       }
     },
+    "5K and 10K times are estimated from each run's average pace." : {
+
+    },
     "7-Day Meal Plan" : {
+
+    },
+    "32.99" : {
 
     },
     "A few days of meals, workouts, and sleep give me enough to spot patterns and tailor your targets." : {
@@ -798,6 +870,9 @@
     "Add to plan" : {
 
     },
+    "Add to today's diary" : {
+
+    },
     "Add Warmup Sets" : {
 
     },
@@ -810,7 +885,13 @@
     "Adding up your week" : {
 
     },
+    "Adding…" : {
+
+    },
     "Additional Preferences (Optional)" : {
+
+    },
+    "Adds one" : {
 
     },
     "Adjust the start date or training days when life moves around." : {
@@ -939,6 +1020,9 @@
     "Based on what I saw, here's what you can make." : {
 
     },
+    "Beat the buffet" : {
+
+    },
     "Bedtime Consistency" : {
 
     },
@@ -946,6 +1030,9 @@
 
     },
     "Biological sex" : {
+
+    },
+    "Break-even progress" : {
 
     },
     "Build a Plan" : {
@@ -1357,6 +1444,12 @@
     "Detected serving options" : {
 
     },
+    "Discard" : {
+
+    },
+    "Discard session" : {
+
+    },
     "Discard this workout?" : {
 
     },
@@ -1364,6 +1457,9 @@
 
     },
     "Disclaimers & Sources" : {
+
+    },
+    "Distance" : {
 
     },
     "DISTANCE" : {
@@ -1379,6 +1475,9 @@
 
     },
     "Done" : {
+
+    },
+    "Drawing your routes" : {
 
     },
     "Dumbbell Bench Press, Push-up" : {
@@ -1439,6 +1538,9 @@
 
     },
     "End Fast" : {
+
+    },
+    "End session" : {
 
     },
     "Ends: %@" : {
@@ -1533,6 +1635,9 @@
     "Finish Anyway" : {
 
     },
+    "Finish run" : {
+
+    },
     "Finish setup" : {
 
     },
@@ -1576,6 +1681,9 @@
 
     },
     "Forgot password" : {
+
+    },
+    "From your plate" : {
 
     },
     "Generate" : {
@@ -1755,6 +1863,9 @@
     "Includes grocery list generation" : {
 
     },
+    "Indoor run" : {
+
+    },
     "Ingredients" : {
 
     },
@@ -1818,6 +1929,9 @@
     "Keep momentum with focused goals." : {
 
     },
+    "Keep running" : {
+
+    },
     "Keep screen awake" : {
 
     },
@@ -1828,6 +1942,9 @@
 
     },
     "Last 7 days" : {
+
+    },
+    "Last 8 weeks · %@" : {
 
     },
     "Last entry %@ %@ · %@" : {
@@ -1883,6 +2000,12 @@
 
     },
     "Loading workout history" : {
+
+    },
+    "Location is off for MyFitPlate. Enable it in Settings to record runs." : {
+
+    },
+    "Location makes this a run tracker" : {
 
     },
     "Log" : {
@@ -1952,6 +2075,9 @@
 
     },
     "Log Weight" : {
+
+    },
+    "Log what you eat and see when you've out-eaten the price of admission." : {
 
     },
     "Log Workout" : {
@@ -2087,7 +2213,20 @@
     "Meal suggestion preferences" : {
 
     },
+    "Menu %lld percent. Kitchen spend %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Menu %1$lld percent. Kitchen spend %2$@."
+          }
+        }
+      }
+    },
     "Menu matchmaker" : {
+
+    },
+    "Menu prices are typical mid-range estimates for %@, not your restaurant's exact menu." : {
 
     },
     "Menu Results" : {
@@ -2100,6 +2239,9 @@
 
     },
     "MFP" : {
+
+    },
+    "Mid-range spots for that market, never the premium ones." : {
 
     },
     "miles" : {
@@ -2237,6 +2379,12 @@
     "No prior set" : {
 
     },
+    "No routes yet — outdoor runs draw themselves here." : {
+
+    },
+    "No runs yet" : {
+
+    },
     "No saved plans yet" : {
 
     },
@@ -2265,6 +2413,9 @@
 
     },
     "Nothing logged on this day" : {
+
+    },
+    "Nothing to save yet" : {
 
     },
     "Notification" : {
@@ -2378,6 +2529,12 @@
     "Paste your recipe text here..." : {
 
     },
+    "Pause run" : {
+
+    },
+    "Paused" : {
+
+    },
     "Period stats" : {
 
     },
@@ -2457,6 +2614,18 @@
 
     },
     "Preview Plan" : {
+
+    },
+    "Prices are typical mid-range estimates for %@." : {
+
+    },
+    "Pricing region" : {
+
+    },
+    "Pricing region: %@" : {
+
+    },
+    "Pricing your plate" : {
 
     },
     "Primary goal" : {
@@ -2581,6 +2750,15 @@
     "Recipe name" : {
 
     },
+    "Record one right here with Start run, or finish a run on any watch that syncs to Apple Health — Apple Watch, Garmin, Polar, Coros — and it shows up automatically." : {
+
+    },
+    "Recorded with %@" : {
+
+    },
+    "Records" : {
+
+    },
     "Refine estimate" : {
 
     },
@@ -2620,6 +2798,9 @@
     "Remove meal" : {
 
     },
+    "Remove one %@" : {
+
+    },
     "Remove this meal?" : {
 
     },
@@ -2653,6 +2834,9 @@
     "Rest timer %@. Double tap to stop." : {
 
     },
+    "Resume run" : {
+
+    },
     "Retrieving full workout details..." : {
 
     },
@@ -2677,6 +2861,12 @@
     "Reviewing your recent data" : {
 
     },
+    "Route map" : {
+
+    },
+    "Route map of this run" : {
+
+    },
     "Routine Builder" : {
 
     },
@@ -2684,6 +2874,12 @@
 
     },
     "Routines / Days" : {
+
+    },
+    "Run complete" : {
+
+    },
+    "Running" : {
 
     },
     "Save" : {
@@ -2728,6 +2924,9 @@
     "Saved Plans" : {
 
     },
+    "Saved to Apple Health — it's in your run history now." : {
+
+    },
     "Saved to your routine for future workouts." : {
 
     },
@@ -2738,6 +2937,9 @@
 
     },
     "Saving Recipe..." : {
+
+    },
+    "Saving your run" : {
 
     },
     "Scan a grocery receipt" : {
@@ -2762,6 +2964,12 @@
 
     },
     "Scan receipt" : {
+
+    },
+    "Scan your plate" : {
+
+    },
+    "Scan your plate with the camera" : {
 
     },
     "Schedule" : {
@@ -2840,6 +3048,9 @@
 
     },
     "Session Breakdown" : {
+
+    },
+    "Session over" : {
 
     },
     "Session Review" : {
@@ -2972,6 +3183,9 @@
     "Speak" : {
 
     },
+    "Splits" : {
+
+    },
     "Stage" : {
 
     },
@@ -2993,10 +3207,16 @@
     "Start Early" : {
 
     },
+    "Start eating" : {
+
+    },
     "Start Fast" : {
 
     },
     "Start meal prep" : {
+
+    },
+    "Start run" : {
 
     },
     "Start timer" : {
@@ -3029,6 +3249,9 @@
 
     },
     "Suggestion Preferences" : {
+
+    },
+    "Summary" : {
 
     },
     "Swap Exercise" : {
@@ -3133,7 +3356,16 @@
     "This removes the saved conversation history on this device." : {
 
     },
+    "This run is under 50 meters. Discard it?" : {
+
+    },
+    "This week" : {
+
+    },
     "This will reset all the \"Quick tip\" bubbles throughout the app so you can see them again." : {
+
+    },
+    "Time" : {
 
     },
     "TIME" : {
@@ -3265,6 +3497,9 @@
     "Username" : {
 
     },
+    "Values are mid-range estimates for %@." : {
+
+    },
     "View custom report" : {
 
     },
@@ -3287,6 +3522,9 @@
 
     },
     "We've analyzed your weight and nutrition data from the past 3 weeks to adjust your metabolism estimate." : {
+
+    },
+    "Week" : {
 
     },
     "Week %lld · Day %lld" : {
@@ -3312,6 +3550,9 @@
 
     },
     "Weekly check-in ready" : {
+
+    },
+    "Weekly running distance, last 8 weeks" : {
 
     },
     "Weekly Sleep Details" : {
@@ -3348,6 +3589,9 @@
 
     },
     "Wellness Score" : {
+
+    },
+    "What does the buffet cost?" : {
 
     },
     "What I'm seeing in your recent nutrition, sleep, and activity." : {
@@ -3442,6 +3686,12 @@
     "Your information" : {
 
     },
+    "Your last %lld routes" : {
+
+    },
+    "Your latest route" : {
+
+    },
     "Your New Program: %@" : {
 
     },
@@ -3455,6 +3705,9 @@
 
     },
     "Your progress from this session won't be saved." : {
+
+    },
+    "Your route, distance, and pace come from GPS while you run. Nothing is tracked outside a recording." : {
 
     },
     "Your smoothed weight trend, adjusted for day-to-day fluctuations." : {

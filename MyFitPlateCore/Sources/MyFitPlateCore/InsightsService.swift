@@ -7,6 +7,7 @@ import HealthKit
 public class InsightsService: ObservableObject {
     @Published public var currentInsights: [UserInsight] = []
     @Published public var smartSuggestion: UserInsight? = nil
+    @Published public var currentCoachingPlan: AdaptiveCoachingPlan?
     @Published public var isLoadingInsights: Bool = false
     @Published public var isGeneratingSuggestion: Bool = false
 
@@ -118,6 +119,13 @@ public class InsightsService: ObservableObject {
             hour: hour,
             proteinGoal: goalSettings.protein
         )
+        self.currentCoachingPlan = InsightsRules.adaptiveCoachingPlan(
+            today: log,
+            recentLogs: log.map { [$0] } ?? [],
+            sleepHours: [],
+            goals: goalSnapshot(),
+            now: Date()
+        )
     }
 
     public func generateAndFetchInsights(forLastDays days: Int = 7) {
@@ -150,6 +158,14 @@ public class InsightsService: ObservableObject {
 
             switch result {
             case .success(let logs):
+                self.currentCoachingPlan = InsightsRules.adaptiveCoachingPlan(
+                    today: logs.first { Calendar.current.isDateInToday($0.date) },
+                    recentLogs: logs,
+                    sleepHours: sleepData.map { $0.endDate.timeIntervalSince($0.startDate) / 3600 },
+                    goals: self.goalSnapshot(),
+                    now: Date()
+                )
+
                 if logs.count < 3 {
                     let noDataInsight = [UserInsight(title: "More Data Needed", message: "Log consistently for a few more days to unlock your personalized weekly insights!", category: .nutritionGeneral, priority: 100)]
                     self.handleInsightsResult(insights: noDataInsight, error: nil)
@@ -264,11 +280,16 @@ public class InsightsService: ObservableObject {
         return InsightsRules.localInsights(
             from: logs,
             sleepHours: sleepHours,
-            goals: InsightsRules.GoalSnapshot(
-                calories: goals.calories ?? 0,
-                protein: goals.protein,
-                weightGoal: goals.goal
-            )
+            goals: goalSnapshot(from: goals)
+        )
+    }
+
+    private func goalSnapshot(from goals: GoalSettings? = nil) -> InsightsRules.GoalSnapshot {
+        let goals = goals ?? goalSettings
+        return InsightsRules.GoalSnapshot(
+            calories: goals.calories ?? 0,
+            protein: goals.protein,
+            weightGoal: goals.goal
         )
     }
 

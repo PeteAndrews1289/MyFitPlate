@@ -8,12 +8,18 @@ public enum AYCECuisine: String, Codable, CaseIterable, Sendable {
     case sushi
     case kbbq
     case hotpot
+    case chinese
+    case dimSum
+    case indian
 
     public var displayName: String {
         switch self {
         case .sushi: return "Sushi"
         case .kbbq: return "Korean BBQ"
         case .hotpot: return "Hot pot"
+        case .chinese: return "Chinese buffet"
+        case .dimSum: return "Dim sum"
+        case .indian: return "Indian buffet"
         }
     }
 
@@ -22,6 +28,9 @@ public enum AYCECuisine: String, Codable, CaseIterable, Sendable {
         case .sushi: return "🍣"
         case .kbbq: return "🥩"
         case .hotpot: return "🍲"
+        case .chinese: return "🥡"
+        case .dimSum: return "🥟"
+        case .indian: return "🍛"
         }
     }
 }
@@ -243,6 +252,28 @@ public enum AYCERules {
     /// The gloat line: what the restaurant likely spent on the ingredients it fed you.
     public static func ingredientCostLine(session: AYCESession) -> String {
         "Their ingredients: about \(money(totals(for: session).restaurantFoodCost))"
+    }
+
+    // MARK: The second game — beating the kitchen itself
+
+    /// Dollars of the restaurant's OWN ingredient spend beyond what the user paid.
+    /// Menu-value break-even is the warm-up; this is the real trophy: the kitchen
+    /// spent more feeding you than you handed them.
+    public static func kitchenDelta(session: AYCESession) -> Double {
+        totals(for: session).restaurantFoodCost - session.buffetPrice
+    }
+
+    public static func hasBeatenKitchen(session: AYCESession) -> Bool {
+        session.buffetPrice > 0 && kitchenDelta(session: session) >= 0
+    }
+
+    /// Live-ticker second line tracking the kitchen's spend on this table.
+    public static func kitchenLine(session: AYCESession) -> String {
+        let spent = totals(for: session).restaurantFoodCost
+        if hasBeatenKitchen(session: session) {
+            return "Their kitchen has spent \(money(spent)) on you — they're losing money"
+        }
+        return "Their kitchen has spent about \(money(spent)) on you"
     }
 
     public static func money(_ amount: Double) -> String {

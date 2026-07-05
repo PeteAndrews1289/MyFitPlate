@@ -163,6 +163,7 @@ private struct AYCEStartView: View {
     }
 
     private var selectedCity: AYCECity { AYCECityIndex.city(slug: citySlug) }
+    private let cuisineColumns = [GridItem(.adaptive(minimum: 104), spacing: 10)]
 
     var body: some View {
         ScrollView {
@@ -176,7 +177,7 @@ private struct AYCEStartView: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
 
-                HStack(spacing: 10) {
+                LazyVGrid(columns: cuisineColumns, spacing: 10) {
                     ForEach(AYCECuisine.allCases, id: \.self) { option in
                         Button {
                             cuisine = option
@@ -189,8 +190,11 @@ private struct AYCEStartView: View {
                                 Text(option.displayName)
                                     .appFont(size: 12, weight: .semibold)
                                     .foregroundColor(.textPrimary)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.8)
                             }
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, minHeight: 74)
                             .padding(.vertical, 14)
                             .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                             .overlay(
@@ -317,6 +321,7 @@ private struct AYCELiveSessionView: View {
         guard let session = manager.session else { return AnyView(EmptyView()) }
         let totals = AYCERules.totals(for: session)
         let progress = AYCERules.breakEvenProgress(session: session)
+        let kitchenProgress = session.buffetPrice > 0 ? totals.restaurantFoodCost / session.buffetPrice : 0
 
         return AnyView(
             VStack(spacing: 0) {
@@ -329,19 +334,25 @@ private struct AYCELiveSessionView: View {
                                 .foregroundColor(.textPrimary)
                                 .contentTransition(.numericText())
 
-                            GeometryReader { geometry in
-                                ZStack(alignment: .leading) {
-                                    Capsule().fill(Color(UIColor.secondarySystemFill))
-                                    Capsule()
-                                        .fill(Color.brandPrimary)
-                                        .frame(width: geometry.size.width * CGFloat(min(progress, 1)))
-                                        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: progress)
-                                }
+                            Text(AYCERules.kitchenLine(session: session))
+                                .appFont(size: 13, weight: AYCERules.hasBeatenKitchen(session: session) ? .bold : .semibold)
+                                .foregroundColor(AYCERules.hasBeatenKitchen(session: session) ? .brandPrimary : Color(UIColor.secondaryLabel))
+
+                            VStack(spacing: 7) {
+                                progressRow(
+                                    label: "Menu value",
+                                    value: progress,
+                                    trailing: "\(Int((min(progress, 1) * 100).rounded()))%"
+                                )
+                                progressRow(
+                                    label: "Kitchen spend",
+                                    value: kitchenProgress,
+                                    trailing: AYCERules.money(totals.restaurantFoodCost)
+                                )
                             }
-                            .frame(height: 8)
-                            .accessibilityElement()
+                            .accessibilityElement(children: .combine)
                             .accessibilityLabel("Break-even progress")
-                            .accessibilityValue("\(Int((min(progress, 1) * 100).rounded())) percent")
+                            .accessibilityValue("Menu \(Int((min(progress, 1) * 100).rounded())) percent. Kitchen spend \(AYCERules.money(totals.restaurantFoodCost)).")
 
                             Text("\(AYCERules.money(totals.restaurantValue)) of the \(AYCERules.money(session.buffetPrice)) you paid · \(Int(totals.calories.rounded()).formatted()) cal")
                                 .appFont(size: 12)
@@ -461,6 +472,32 @@ private struct AYCELiveSessionView: View {
                 .ignoresSafeArea()
             }
         )
+    }
+
+    private func progressRow(label: String, value: Double, trailing: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                Spacer()
+                Text(trailing)
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(.textPrimary)
+                    .monospacedDigit()
+            }
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(UIColor.secondarySystemFill))
+                    Capsule()
+                        .fill(Color.brandPrimary)
+                        .frame(width: geometry.size.width * CGFloat(min(max(value, 0), 1)))
+                        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: value)
+                }
+            }
+            .frame(height: 7)
+        }
     }
 }
 

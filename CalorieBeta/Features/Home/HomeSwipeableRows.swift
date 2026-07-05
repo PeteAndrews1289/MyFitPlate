@@ -163,10 +163,15 @@ struct SwipeableFoodItemView: View {
                         .appFont(size: 16, weight: .semibold)
                         .foregroundColor(.textPrimary)
 
-                    Text(macroSummary)
-                        .appFont(size: 12)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(macroSummary)
+                            .appFont(size: 12)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .lineLimit(1)
+
+                        FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
+                    }
+                    .lineLimit(1)
                 }
 
                 Spacer()

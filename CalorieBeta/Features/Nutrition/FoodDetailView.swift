@@ -130,12 +130,29 @@ struct FoodDetailView: View {
         FoodDataSanity.findings(for: sanityCheckItem)
     }
 
+    private var trustEvaluation: FoodTrustEvaluation {
+        FoodTrustEvaluation.evaluate(
+            item: sanityCheckItem,
+            descriptor: sourceDescriptor,
+            metadata: initialFoodItem.sourceMetadata
+        )
+    }
+
     /// Trust telemetry: which correction affordances get used, per source. Over time this
     /// says empirically which database is dirtiest and can weight search ranking.
     private func logCorrectionAction(_ action: String) {
         DIContainer.shared.analyticsManager?.logEvent("food_correction_action", parameters: [
             "action": action,
             "source": sourceDescriptor.sourceKey
+        ])
+    }
+
+    private func logTrustAction(_ action: String) {
+        DIContainer.shared.analyticsManager?.logEvent("food_trust_action", parameters: [
+            "action": action,
+            "source": sourceDescriptor.sourceKey,
+            "trust_score": trustEvaluation.score,
+            "trust_level": trustEvaluation.level.rawValue
         ])
     }
 
@@ -179,7 +196,16 @@ struct FoodDetailView: View {
                             servingDescription: adjustedNutrients.servingDescription
                         )
 
-                        FoodSourceConfidenceCard(descriptor: sourceDescriptor)
+                        FoodSourceConfidenceCard(
+                            descriptor: sourceDescriptor,
+                            evaluation: trustEvaluation,
+                            onAction: trustEvaluation.action.map { actionTitle in
+                                {
+                                    logTrustAction(actionTitle)
+                                    showingCorrectionEditor = true
+                                }
+                            }
+                        )
 
                         if shouldShowBarcodeCorrectionCard {
                             FoodDetailBarcodeCorrectionCard(
@@ -849,53 +875,111 @@ struct FoodDetailView: View {
 
 private struct FoodSourceConfidenceCard: View {
     let descriptor: FoodSourceDescriptor
+    let evaluation: FoodTrustEvaluation
+    let onAction: (() -> Void)?
 
     private var tint: Color {
-        switch descriptor.sourceKey {
-        case "usda", "fatsecret", "manual", "planned", "custom_barcode":
+        switch evaluation.level {
+        case .excellent, .strong:
             return .accentPositive
-        case "open_food_facts", "recent":
-            return .blue
-        case "ai_estimate":
+        case .review:
             return .orange
-        default:
-            return .blue
+        case .low:
+            return .red
         }
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: descriptor.systemImage)
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(tint)
-                .frame(width: 38, height: 38)
-                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: descriptor.systemImage)
+                    .appFont(size: 17, weight: .bold)
+                    .foregroundColor(tint)
+                    .frame(width: 38, height: 38)
+                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Text(descriptor.title)
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(descriptor.title)
+                            .appFont(size: 15, weight: .bold)
+                            .foregroundColor(.textPrimary)
 
-                    Text(descriptor.confidence)
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundColor(tint)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(tint.opacity(0.10), in: Capsule())
+                        Text(descriptor.confidence)
+                            .appFont(size: 11, weight: .bold)
+                            .foregroundColor(tint)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(tint.opacity(0.10), in: Capsule())
+                    }
+
+                    Text(descriptor.detail)
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Text(descriptor.detail)
-                    .appFont(size: 12)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
 
-            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(evaluation.label)
+                        .appFont(size: 14, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Spacer()
+
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        Text("\(evaluation.score)")
+                            .appFont(size: 16, weight: .bold)
+                            .foregroundColor(tint)
+
+                        Text("/99")
+                            .appFont(size: 11, weight: .bold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                }
+
+                GeometryReader { proxy in
+                    Capsule()
+                        .fill(Color(UIColor.tertiarySystemFill))
+                        .overlay(alignment: .leading) {
+                            Capsule()
+                                .fill(tint)
+                                .frame(width: proxy.size.width * CGFloat(evaluation.score) / 99)
+                        }
+                }
+                .frame(height: 7)
+
+                Text(evaluation.summary)
+                    .appFont(size: 12, weight: .medium)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(Array(evaluation.reasons.prefix(3)), id: \.self) { reason in
+                    Label(reason, systemImage: "checkmark.circle.fill")
+                        .appFont(size: 11, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let action = evaluation.action, let onAction {
+                    Button(action: onAction) {
+                        Label(action, systemImage: action == "Fix data" ? "pencil" : "slider.horizontal.3")
+                            .appFont(size: 13, weight: .bold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(tint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the nutrition editor for this food.")
+                }
+            }
         }
         .padding(14)
         .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(descriptor.title). \(descriptor.confidence). \(descriptor.detail)")
+        .accessibilityLabel("\(descriptor.title). \(descriptor.confidence). \(evaluation.label). \(evaluation.summary)")
     }
 }

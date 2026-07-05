@@ -92,12 +92,15 @@ struct FoodSearchView: View {
                         DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                         Task { @MainActor in
                             if let result = await barcodeLookupService.lookup(barcode) {
+                                DIContainer.shared.analyticsManager.barcodeLookupOutcome(.success(result))
                                 self.isSearchingAfterScan = false
                                 self.pendingManualBarcode = nil
                                 self.scannedFoodSource = result.source
                                 self.scannedFoodItem = result.item
+                                showBarcodeResultFeedback(result)
                                 return
                             }
+                            DIContainer.shared.analyticsManager.barcodeLookupOutcome(.miss(barcode: barcode))
                             self.isSearchingAfterScan = false
                             self.scanError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Create it from the label, use camera capture, or search by name.")
                         }
@@ -165,9 +168,25 @@ struct FoodSearchView: View {
                      AIMenuSelectionView(estimatedItems: .constant(wrapper.items))
                 }
                 .alert("Scan error", isPresented: $scanError.0) {
-                    Button("Create food") { showingAddFoodManually = true }
-                    Button("Use camera") { showingImagePicker = true }
-                    Button("OK", role: .cancel) {}
+                    Button("Create food") {
+                        DIContainer.shared.analyticsManager.barcodeMissRecovery(
+                            .selected(action: "create_food", barcode: pendingManualBarcode)
+                        )
+                        showingAddFoodManually = true
+                    }
+                    Button("Use camera") {
+                        DIContainer.shared.analyticsManager.barcodeMissRecovery(
+                            .selected(action: "use_camera", barcode: pendingManualBarcode)
+                        )
+                        pendingManualBarcode = nil
+                        showingImagePicker = true
+                    }
+                    Button("OK", role: .cancel) {
+                        DIContainer.shared.analyticsManager.barcodeMissRecovery(
+                            .selected(action: "dismissed", barcode: pendingManualBarcode)
+                        )
+                        pendingManualBarcode = nil
+                    }
                 } message: {
                     Text(scanError.1)
                 }
@@ -196,7 +215,8 @@ struct FoodSearchView: View {
                 emptyTitle: "",
                 emptyMessage: "",
                 onSelect: { handleSelection(food: $0, source: "recent_tap") },
-                onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil
+                onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil,
+                source: "recent_tap"
             )
         }
     }
@@ -309,7 +329,8 @@ struct FoodSearchView: View {
                     )
                 },
                 onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil,
-                onDelete: nil
+                onDelete: nil,
+                sourceForFood: { viewModel.sourceForTrustedSearchResult($0) }
             )
         }
 
@@ -337,7 +358,8 @@ struct FoodSearchView: View {
                 emptyMessage: "",
                 onSelect: { handleSelection(food: $0, source: "search_result") },
                 onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil,
-                onDelete: nil
+                onDelete: nil,
+                sourceForFood: { _ in "search_result" }
             )
         }
     }
@@ -352,7 +374,8 @@ struct FoodSearchView: View {
             emptyTitle: "No saved foods yet",
             emptyMessage: "Star foods from detail screens and they will appear here.",
             onSelect: { handleSelection(food: $0, source: "custom_food") },
-            onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil
+            onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil,
+            source: "custom_food"
         )
 
         FoodHorizontalScroller(
@@ -363,7 +386,8 @@ struct FoodSearchView: View {
             emptyTitle: "No recent foods",
             emptyMessage: "Foods you log will appear here for one-tap reuse.",
             onSelect: { handleSelection(food: $0, source: "recent_tap") },
-            onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil
+            onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil,
+            source: "recent_tap"
         )
     }
 
@@ -407,6 +431,14 @@ struct FoodSearchView: View {
 
     private func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    private func showBarcodeResultFeedback(_ result: BarcodeFoodLookupResult) {
+        if result.source == "custom_barcode" {
+            ToastManager.shared.showToast(message: "Matched from My Foods.")
+        } else if result.usedRelatedBarcode {
+            ToastManager.shared.showToast(message: "Found a related barcode match.")
+        }
     }
 
     private func deleteRecent(food: FoodItem) {

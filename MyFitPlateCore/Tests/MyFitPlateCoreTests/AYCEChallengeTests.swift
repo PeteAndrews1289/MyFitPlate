@@ -81,6 +81,20 @@ final class AYCEChallengeTests: XCTestCase {
         }
     }
 
+    func testKitchenLineTracksRestaurantIngredientSpendAsTheHarderGame() {
+        let behindKitchen = sushiSession(buffetPrice: 30, entries: [entry("sushi_salmon_nigiri", count: 4)])
+        XCTAssertEqual(AYCERules.kitchenDelta(session: behindKitchen), 0.95 * 0.7 * 4 - 30, accuracy: 0.001)
+        XCTAssertFalse(AYCERules.hasBeatenKitchen(session: behindKitchen))
+        XCTAssertEqual(AYCERules.kitchenLine(session: behindKitchen), "Their kitchen has spent about $2.66 on you")
+
+        let kitchenLoss = sushiSession(buffetPrice: 20, entries: [entry("sushi_spicy_tuna_roll", count: 12)])
+        XCTAssertTrue(AYCERules.hasBeatenKitchen(session: kitchenLoss))
+        XCTAssertEqual(
+            AYCERules.kitchenLine(session: kitchenLoss),
+            "Their kitchen has spent $21.84 on you — they're losing money"
+        )
+    }
+
     // MARK: Daily-log bridge
 
     func testFoodItemBridgeMultipliesByCountAndLabelsTheLine() {
@@ -99,14 +113,21 @@ final class AYCEChallengeTests: XCTestCase {
         XCTAssertEqual(AYCERules.mealName(for: .sushi), "All-you-can-eat Sushi")
         XCTAssertEqual(AYCERules.mealName(for: .kbbq), "All-you-can-eat Korean BBQ")
         XCTAssertEqual(AYCERules.mealName(for: .hotpot), "All-you-can-eat Hot pot")
+        XCTAssertEqual(AYCERules.mealName(for: .chinese), "All-you-can-eat Chinese buffet")
+        XCTAssertEqual(AYCERules.mealName(for: .dimSum), "All-you-can-eat Dim sum")
+        XCTAssertEqual(AYCERules.mealName(for: .indian), "All-you-can-eat Indian buffet")
     }
 
     // MARK: Catalog sanity — the data IS the feature
 
     func testEveryCuisineHasARealMenu() {
         for cuisine in AYCECuisine.allCases {
-            XCTAssertGreaterThanOrEqual(AYCECatalog.items(for: cuisine).count, 8, "\(cuisine) menu is too thin")
+            XCTAssertGreaterThanOrEqual(AYCECatalog.items(for: cuisine).count, 12, "\(cuisine) menu is too thin")
         }
+    }
+
+    func testExpandedCatalogIsLargeEnoughToFeelLikeARealBuffetLibrary() {
+        XCTAssertGreaterThanOrEqual(AYCECatalog.all.count, 100)
     }
 
     func testCatalogIDsAreUnique() {

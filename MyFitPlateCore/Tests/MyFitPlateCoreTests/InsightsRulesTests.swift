@@ -159,6 +159,90 @@ final class InsightsRulesTests: XCTestCase {
         XCTAssertEqual(general.tone, "Encouraging")
     }
 
+    func testAdaptiveCoachingPlanPrioritizesProteinWhenDayHasRoom() {
+        let now = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: fixedDate)!
+        let today = dailyLog(dayOffset: 0, calories: 800, protein: 70, water: 40, workoutCalories: 250)
+
+        let plan = InsightsRules.adaptiveCoachingPlan(
+            today: today,
+            recentLogs: [
+                today,
+                dailyLog(dayOffset: 1, calories: 2_000, protein: 120, water: nil, workoutCalories: nil),
+                dailyLog(dayOffset: 2, calories: 2_100, protein: 125, water: nil, workoutCalories: nil)
+            ],
+            sleepHours: [7.2, 7.8],
+            goals: InsightsRules.GoalSnapshot(calories: 2_300, protein: 160, weightGoal: "Gain"),
+            now: now
+        )
+
+        XCTAssertEqual(plan.title, "Anchor protein next")
+        XCTAssertTrue(plan.primaryAction.contains("protein"))
+        XCTAssertTrue(plan.dataPoints.contains("3 logged days"))
+        XCTAssertTrue(plan.patternNote.contains("protein"))
+        XCTAssertTrue(plan.dataPoints.contains("0/3 protein days"))
+    }
+
+    func testAdaptiveCoachingPlanFallsBackToBaselineWhenTodayIsEmpty() {
+        let now = Calendar.current.date(bySettingHour: 12, minute: 30, second: 0, of: fixedDate)!
+
+        let plan = InsightsRules.adaptiveCoachingPlan(
+            today: nil,
+            recentLogs: [dailyLog(dayOffset: 1, calories: 2_000, protein: 120, water: nil, workoutCalories: nil)],
+            sleepHours: [],
+            goals: InsightsRules.GoalSnapshot(calories: 2_100, protein: 150, weightGoal: "Maintain"),
+            now: now
+        )
+
+        XCTAssertEqual(plan.title, "Get today's baseline")
+        XCTAssertEqual(plan.primaryAction, "Log the next thing you eat")
+        XCTAssertEqual(plan.confidence, "Building signal")
+        XCTAssertEqual(plan.patternNote, "Pattern: still building enough data for a weekly read.")
+    }
+
+    func testAdaptiveCoachingPlanPrioritizesRecoveryOnLowSleep() {
+        let now = Calendar.current.date(bySettingHour: 13, minute: 0, second: 0, of: fixedDate)!
+        let today = dailyLog(dayOffset: 0, calories: 1_500, protein: 145, water: 64, workoutCalories: nil)
+
+        let plan = InsightsRules.adaptiveCoachingPlan(
+            today: today,
+            recentLogs: [
+                today,
+                dailyLog(dayOffset: 1, calories: 1_950, protein: 150, water: nil, workoutCalories: nil),
+                dailyLog(dayOffset: 2, calories: 2_020, protein: 155, water: nil, workoutCalories: nil),
+                dailyLog(dayOffset: 3, calories: 1_980, protein: 150, water: nil, workoutCalories: nil),
+                dailyLog(dayOffset: 4, calories: 2_010, protein: 152, water: nil, workoutCalories: nil)
+            ],
+            sleepHours: [5.8, 6.1, 6.0],
+            goals: InsightsRules.GoalSnapshot(calories: 2_000, protein: 150, weightGoal: "Maintain"),
+            now: now
+        )
+
+        XCTAssertEqual(plan.title, "Protect recovery")
+        XCTAssertEqual(plan.confidence, "High signal")
+        XCTAssertTrue(plan.dataPoints.contains("6.0h sleep avg"))
+        XCTAssertEqual(plan.patternNote, "Pattern: calories are landing close to target on most logged days.")
+    }
+
+    func testAdaptiveCoachingPlanRecognizesStrongTrainingRhythmPattern() {
+        let now = Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: fixedDate)!
+        let today = dailyLog(dayOffset: 0, calories: 1_850, protein: 150, water: 64, workoutCalories: 200)
+
+        let plan = InsightsRules.adaptiveCoachingPlan(
+            today: today,
+            recentLogs: [
+                today,
+                dailyLog(dayOffset: 1, calories: 1_700, protein: 152, water: nil, workoutCalories: 220),
+                dailyLog(dayOffset: 2, calories: 2_350, protein: 151, water: nil, workoutCalories: 180)
+            ],
+            sleepHours: [7.0, 7.2],
+            goals: InsightsRules.GoalSnapshot(calories: 2_000, protein: 150, weightGoal: "Maintain"),
+            now: now
+        )
+
+        XCTAssertEqual(plan.patternNote, "Pattern: training rhythm is strong; recovery food matters more now.")
+        XCTAssertTrue(plan.dataPoints.contains("3/3 protein days"))
+    }
+
     private func dailyLog(
         dayOffset: Int,
         calories: Double,

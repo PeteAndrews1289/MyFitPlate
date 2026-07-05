@@ -102,6 +102,29 @@ struct FoodHorizontalScroller: View {
     let emptyMessage: String
     let onSelect: (FoodItem) -> Void
     let onQuickLog: ((FoodItem) -> Void)?
+    let source: String?
+
+    init(
+        title: String,
+        subtitle: String,
+        foods: [FoodItem],
+        quickLoggedFoodIDs: Set<String>,
+        emptyTitle: String,
+        emptyMessage: String,
+        onSelect: @escaping (FoodItem) -> Void,
+        onQuickLog: ((FoodItem) -> Void)?,
+        source: String? = nil
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.foods = foods
+        self.quickLoggedFoodIDs = quickLoggedFoodIDs
+        self.emptyTitle = emptyTitle
+        self.emptyMessage = emptyMessage
+        self.onSelect = onSelect
+        self.onQuickLog = onQuickLog
+        self.source = source
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 11) {
@@ -127,7 +150,8 @@ struct FoodHorizontalScroller: View {
                                 food: food,
                                 isQuickLogged: quickLoggedFoodIDs.contains(food.id),
                                 onSelect: onSelect,
-                                onQuickLog: onQuickLog
+                                onQuickLog: onQuickLog,
+                                source: source
                             )
                         }
                     }
@@ -145,6 +169,7 @@ struct FoodCard: View {
     let isQuickLogged: Bool
     let onSelect: (FoodItem) -> Void
     let onQuickLog: ((FoodItem) -> Void)?
+    let source: String?
 
     private var servingText: String {
         let trimmed = food.servingSize.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -189,9 +214,14 @@ struct FoodCard: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .lineLimit(1)
 
-                    Text("\(Int(food.calories.rounded()).formatted()) cal")
-                        .appFont(size: 13, weight: .medium)
-                        .foregroundColor(.orange)
+                    HStack(spacing: 6) {
+                        Text("\(Int(food.calories.rounded()).formatted()) cal")
+                            .appFont(size: 13, weight: .medium)
+                            .foregroundColor(.orange)
+
+                        FoodTrustMiniBadge(food: food, source: source)
+                    }
+                    .lineLimit(1)
                 }
             }
             .padding(14)

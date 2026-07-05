@@ -212,6 +212,172 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(FoodSourceClassifier.descriptor(for: match!.sourceMetadata!).title, "My Foods Match")
     }
 
+    func testBarcodeLookupCandidatesBridgeUPCAAndEAN13() {
+        XCTAssertEqual(
+            BarcodeCorrectionRules.lookupCandidates(for: "012345678905"),
+            ["012345678905", "0012345678905"]
+        )
+        XCTAssertEqual(
+            BarcodeCorrectionRules.lookupCandidates(for: "0012345678905"),
+            ["0012345678905", "012345678905"]
+        )
+    }
+
+    func testBarcodeLookupCandidatesHandleGTIN14Fallbacks() {
+        XCTAssertEqual(
+            BarcodeCorrectionRules.lookupCandidates(for: "10012345678905"),
+            ["10012345678905", "0012345678905", "012345678905"]
+        )
+    }
+
+    func testBarcodeCorrectionsMatchRelatedVariants() {
+        let saved = FoodItem(
+            id: "ean-saved",
+            name: "Saved EAN",
+            calories: 120,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                sourceName: "My Foods",
+                barcode: "0012345678905"
+            )
+        )
+
+        XCTAssertTrue(BarcodeCorrectionRules.matches(saved, barcode: "012345678905"))
+        let match = BarcodeCorrectionRules.bestCorrectedFood(in: [saved], barcode: "012345678905")
+        XCTAssertEqual(match?.sourceMetadata?.barcode, "012345678905")
+    }
+
+    func testFoodTrustEvaluationRewardsCrossVerifiedDatabaseFoods() {
+        var metadata = FoodSourceMetadata.database(.fatSecret, sourceName: "FatSecret", sourceID: "123")
+        metadata.crossVerifiedBy = ["USDA"]
+        let item = FoodItem(
+            name: "Protein Bar",
+            calories: 220,
+            protein: 20,
+            carbs: 22,
+            fats: 8,
+            servingSize: "1 bar",
+            servingWeight: 60,
+            sourceMetadata: metadata
+        )
+        let descriptor = FoodSourceClassifier.descriptor(for: metadata)
+
+        let evaluation = FoodTrustEvaluation.evaluate(item: item, descriptor: descriptor, metadata: metadata)
+
+        XCTAssertEqual(evaluation.level, .excellent)
+        XCTAssertEqual(evaluation.label, "Excellent trust")
+        XCTAssertTrue(evaluation.reasons.contains("Confirmed by another database"))
+    }
+
+    func testFoodTrustEvaluationDropsSuspiciousDataToCorrectionState() {
+        let item = FoodItem(
+            name: "Broken Food",
+            calories: 0,
+            protein: 40,
+            carbs: 40,
+            fats: 10,
+            servingSize: "1 serving",
+            servingWeight: 50
+        ).withDatabaseSource(.fatSecret, sourceName: "FatSecret")
+        let descriptor = FoodSourceClassifier.descriptor(for: item.sourceMetadata!)
+
+        let evaluation = FoodTrustEvaluation.evaluate(item: item, descriptor: descriptor, metadata: item.sourceMetadata)
+
+        XCTAssertEqual(evaluation.level, .low)
+        XCTAssertEqual(evaluation.action, "Fix data")
+        XCTAssertTrue(evaluation.reasons.contains("Nutrition math needs a correction"))
+    }
+
+    func testBarcodeLookupOutcomeSuccessIsPrivacySafeAndTrustAware() {
+        var metadata = FoodSourceMetadata.database(.fatSecret, sourceName: "FatSecret", sourceID: "123")
+        metadata.crossVerifiedBy = ["USDA"]
+        let item = FoodItem(
+            id: "123",
+            name: "Protein Bar",
+            calories: 220,
+            protein: 20,
+            carbs: 22,
+            fats: 8,
+            servingSize: "1 bar",
+            servingWeight: 60,
+            sourceMetadata: metadata
+        )
+        let lookup = BarcodeFoodLookupResult(
+            item: item,
+            source: "barcode_result",
+            scannedBarcode: "012345678905",
+            matchedBarcode: "0012345678905",
+            candidateCount: 2
+        )
+
+        let outcome = BarcodeLookupOutcome.success(lookup)
+        let params = outcome.analyticsParameters
+
+        XCTAssertEqual(outcome.result, "hit")
+        XCTAssertTrue(outcome.usedRelatedBarcode)
+        XCTAssertEqual(params["source"] as? String, "barcode_result")
+        XCTAssertEqual(params["scanned_length"] as? Int, 12)
+        XCTAssertEqual(params["matched_length"] as? Int, 13)
+        XCTAssertEqual(params["candidate_count"] as? Int, 2)
+        XCTAssertEqual(params["cross_verified_count"] as? Int, 1)
+        XCTAssertEqual(params["trust_level"] as? String, FoodTrustEvaluation.Level.excellent.rawValue)
+        XCTAssertNil(params["barcode"], "Do not log the raw product barcode.")
+    }
+
+    func testBarcodeLookupOutcomeMissLogsOnlyShapeNotRawBarcode() {
+        let outcome = BarcodeLookupOutcome.miss(barcode: "0 12345 67890 5")
+        let params = outcome.analyticsParameters
+
+        XCTAssertEqual(outcome.result, "miss")
+        XCTAssertEqual(params["source"] as? String, "none")
+        XCTAssertEqual(params["scanned_length"] as? Int, 12)
+        XCTAssertEqual(params["candidate_count"] as? Int, 2)
+        XCTAssertNil(params["trust_score"])
+        XCTAssertNil(params["barcode"], "Miss telemetry should still avoid raw barcode values.")
+    }
+
+    func testBarcodeRecoveryOutcomeSelectionIsPrivacySafe() {
+        let outcome = BarcodeRecoveryOutcome.selected(action: "create_food", barcode: "0 12345 67890 5")
+        let params = outcome.analyticsParameters
+
+        XCTAssertEqual(outcome.action, "create_food")
+        XCTAssertEqual(params["scanned_length"] as? Int, 12)
+        XCTAssertEqual(params["candidate_count"] as? Int, 2)
+        XCTAssertNil(params["barcode"], "Recovery telemetry should avoid raw barcode values.")
+        XCTAssertNil(params["trust_score"])
+    }
+
+    func testBarcodeRecoveryOutcomeManualFoodCreatedIncludesTrustWithoutRawBarcode() {
+        let food = FoodItem(
+            id: "manual-1",
+            name: "Manual Protein Bar",
+            calories: 240,
+            protein: 20,
+            carbs: 24,
+            fats: 8,
+            servingSize: "1 bar",
+            servingWeight: 60,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                sourceName: "My Foods",
+                barcode: "0 12345 67890 5"
+            )
+        )
+
+        let outcome = BarcodeRecoveryOutcome.manualFoodCreated(food)
+        let params = outcome.analyticsParameters
+
+        XCTAssertEqual(params["action"] as? String, "manual_food_created")
+        XCTAssertEqual(params["scanned_length"] as? Int, 12)
+        XCTAssertEqual(params["trust_level"] as? String, FoodTrustEvaluation.Level.excellent.rawValue)
+        XCTAssertNotNil(params["trust_score"])
+        XCTAssertNil(params["barcode"], "Created-food telemetry should avoid raw barcode values.")
+    }
+
     func testBarcodeLookupReturnsSavedCorrectionBeforeExternalSources() async {
         let correctedFood = FoodItem(
             id: "corrected",

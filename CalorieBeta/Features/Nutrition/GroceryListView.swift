@@ -11,6 +11,7 @@ struct GroceryListView: View {
     @State private var isFetchingItemName = false
     @State private var showingClearConfirmation = false
     @State private var hideCompletedItems = false
+    @State private var pendingMissedBarcode: String?
     @State private var fetchError: (isShowing: Bool, message: String) = (false, "")
     @State private var editingItem: GroceryListItem?
     
@@ -101,24 +102,41 @@ struct GroceryListView: View {
             }
             .sheet(isPresented: $showingBarcodeScanner) {
                 BarcodeScannerView { barcode in
+                    let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode)
                     showingBarcodeScanner = false
                     isFetchingItemName = true
+                    pendingMissedBarcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
                     DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                     Task { @MainActor in
                         if let result = await barcodeLookupService.lookup(barcode) {
+                            DIContainer.shared.analyticsManager.barcodeLookupOutcome(.success(result))
                             isFetchingItemName = false
+                            pendingMissedBarcode = nil
+                            showBarcodeResultFeedback(result)
                             addBarcodeItem(result.item)
                             saveList()
                             return
                         }
+                        DIContainer.shared.analyticsManager.barcodeLookupOutcome(.miss(barcode: barcode))
                         isFetchingItemName = false
                         fetchError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Add it manually and MyFitPlate will remember it next time.")
                     }
                 }
             }
             .alert("Barcode error", isPresented: $fetchError.isShowing) {
-                Button("Add manually") { showingManualItemSheet = true }
-                Button("OK", role: .cancel) {}
+                Button("Add manually") {
+                    DIContainer.shared.analyticsManager.barcodeMissRecovery(
+                        .selected(action: "grocery_add_manually", barcode: pendingMissedBarcode)
+                    )
+                    pendingMissedBarcode = nil
+                    showingManualItemSheet = true
+                }
+                Button("OK", role: .cancel) {
+                    DIContainer.shared.analyticsManager.barcodeMissRecovery(
+                        .selected(action: "grocery_dismissed", barcode: pendingMissedBarcode)
+                    )
+                    pendingMissedBarcode = nil
+                }
             } message: {
                 Text(fetchError.message)
             }
@@ -191,7 +209,16 @@ struct GroceryListView: View {
         HapticManager.instance.feedback(.medium)
     }
 
+    private func showBarcodeResultFeedback(_ result: BarcodeFoodLookupResult) {
+        if result.source == "custom_barcode" {
+            ToastManager.shared.showToast(message: "Matched from My Foods.")
+        } else if result.usedRelatedBarcode {
+            ToastManager.shared.showToast(message: "Found a related barcode match.")
+        }
+    }
+
     private func addManualItem(_ item: GroceryListItem) {
+        pendingMissedBarcode = nil
         if let existingIndex = groceryList.firstIndex(where: {
             $0.name.caseInsensitiveCompare(item.name) == .orderedSame &&
             $0.unit.caseInsensitiveCompare(item.unit) == .orderedSame
