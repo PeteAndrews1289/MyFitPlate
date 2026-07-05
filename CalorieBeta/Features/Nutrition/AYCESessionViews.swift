@@ -9,6 +9,7 @@ import MyFitPlateCore
 final class AYCESessionManager: ObservableObject {
     @Published private(set) var session: AYCESession?
     @Published private(set) var hasCelebratedBreakEven = false
+    @Published private(set) var hasCelebratedKitchenWin = false
 
     @AppStorage("ayceSessionDraft") private var draftData: Data = Data()
 
@@ -19,6 +20,7 @@ final class AYCESessionManager: ObservableObject {
     func start(cuisine: AYCECuisine, buffetPrice: Double, citySlug: String?) {
         session = AYCESession(cuisine: cuisine, buffetPrice: buffetPrice, citySlug: citySlug)
         hasCelebratedBreakEven = false
+        hasCelebratedKitchenWin = false
         persistDraft()
     }
 
@@ -88,10 +90,18 @@ final class AYCESessionManager: ObservableObject {
     }
 
     private func celebrateIfJustBrokeEven() {
-        guard let session, !hasCelebratedBreakEven,
-              AYCERules.breakEvenProgress(session: session) >= 1.0 else { return }
-        hasCelebratedBreakEven = true
-        HapticManager.instance.notification(.success)
+        guard let session else { return }
+        // Two one-time moments, in escalating order: beating the menu, then the rare
+        // true win of out-eating the kitchen's own ingredient budget (DESIGN.md 7 —
+        // celebrate once, at the moment of reveal).
+        if !hasCelebratedBreakEven, AYCERules.breakEvenProgress(session: session) >= 1.0 {
+            hasCelebratedBreakEven = true
+            HapticManager.instance.notification(.success)
+        }
+        if !hasCelebratedKitchenWin, AYCERules.hasBeatenKitchen(session: session) {
+            hasCelebratedKitchenWin = true
+            HapticManager.instance.notification(.success)
+        }
     }
 
     private func persistDraft() {
@@ -103,6 +113,7 @@ final class AYCESessionManager: ObservableObject {
               let restored = try? JSONDecoder().decode(AYCESession.self, from: draftData) else { return }
         session = restored
         hasCelebratedBreakEven = AYCERules.breakEvenProgress(session: restored) >= 1.0
+        hasCelebratedKitchenWin = AYCERules.hasBeatenKitchen(session: restored)
     }
 }
 
@@ -601,6 +612,11 @@ private struct AYCESummaryView: View {
                     Text(AYCERules.verdictHeadline(session: session))
                         .appFont(size: 24, weight: .bold)
                         .foregroundColor(.textPrimary)
+                    if let kitchenWin = AYCERules.kitchenWinLine(session: session) {
+                        Text(kitchenWin)
+                            .appFont(size: 13, weight: .bold)
+                            .foregroundColor(.brandPrimary)
+                    }
                     Text(AYCERules.homeCostLine(session: session))
                         .appFont(size: 13)
                         .foregroundColor(Color(UIColor.secondaryLabel))

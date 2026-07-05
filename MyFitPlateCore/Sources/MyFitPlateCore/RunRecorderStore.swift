@@ -2,6 +2,24 @@ import Foundation
 import HealthKit
 import CoreLocation
 
+public enum RunRecorderRules {
+    /// True when another app's workout meaningfully overlaps the run window (over a
+    /// minute). If the user's watch recorded the same run, its energy/distance samples
+    /// are the better ones — writing ours too would double-count the day's burn, the
+    /// same failure mode as the old strength double-count.
+    public static func hasExternalOverlap(
+        runStart: Date,
+        runEnd: Date,
+        workouts: [(start: Date, end: Date, isOwn: Bool)]
+    ) -> Bool {
+        workouts.contains { workout in
+            guard !workout.isOwn else { return false }
+            let overlap = min(runEnd, workout.end).timeIntervalSince(max(runStart, workout.start))
+            return overlap > 60
+        }
+    }
+}
+
 public enum RunEnergy {
     /// Flat-ground running cost ≈ 1.036 kcal per kg per km — the standard estimate when
     /// there's no heart-rate stream to do better.
@@ -32,6 +50,47 @@ public final class RunRecorderStore {
         weightLbs: Double,
         completion: @escaping (String?) -> Void
     ) {
+        // Parallel-device guard: if a watch (or any other app) recorded this same window,
+        // save our workout + route but defer energy/distance to that recording.
+        fetchHasOverlappingExternalWorkout(start: run.startDate, end: run.endDate) { [weak self] hasExternal in
+            guard let self else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+            if hasExternal {
+                AppLog.health.info("Another recording overlaps this run; deferring energy/distance samples to it.")
+            }
+            self.performSave(run: run, locations: locations, weightLbs: weightLbs, includeQuantitySamples: !hasExternal, completion: completion)
+        }
+    }
+
+    private func fetchHasOverlappingExternalWorkout(start: Date, end: Date, completion: @escaping (Bool) -> Void) {
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let query = HKSampleQuery(
+            sampleType: .workoutType(),
+            predicate: predicate,
+            limit: 25,
+            sortDescriptors: nil
+        ) { _, samples, _ in
+            let windows = ((samples as? [HKWorkout]) ?? []).map { workout in
+                (
+                    start: workout.startDate,
+                    end: workout.endDate,
+                    isOwn: RunImportRules.isOwnRecording(sourceBundleID: workout.sourceRevision.source.bundleIdentifier)
+                )
+            }
+            completion(RunRecorderRules.hasExternalOverlap(runStart: start, runEnd: end, workouts: windows))
+        }
+        healthStore.execute(query)
+    }
+
+    private func performSave(
+        run: Run,
+        locations: [CLLocation],
+        weightLbs: Double,
+        includeQuantitySamples: Bool,
+        completion: @escaping (String?) -> Void
+    ) {
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = .running
         configuration.locationType = run.isIndoor ? .indoor : .outdoor
@@ -47,7 +106,7 @@ public final class RunRecorderStore {
             guard began else { return fail("begin", error) }
 
             var samples: [HKSample] = []
-            if run.distanceMeters > 0, let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) {
+            if includeQuantitySamples, run.distanceMeters > 0, let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) {
                 samples.append(HKQuantitySample(
                     type: distanceType,
                     quantity: HKQuantity(unit: .meter(), doubleValue: run.distanceMeters),
@@ -56,7 +115,7 @@ public final class RunRecorderStore {
                 ))
             }
             let kcal = run.activeCalories ?? RunEnergy.estimateKcal(distanceMeters: run.distanceMeters, weightLbs: weightLbs)
-            if kcal > 0, let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
+            if includeQuantitySamples, kcal > 0, let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
                 samples.append(HKQuantitySample(
                     type: energyType,
                     quantity: HKQuantity(unit: .kilocalorie(), doubleValue: kcal),

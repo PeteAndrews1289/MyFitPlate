@@ -306,3 +306,30 @@ final class RunImportRulesTests: XCTestCase {
         XCTAssertEqual(RunImportRules.deduplicated([a, b]).count, 2)
     }
 }
+
+final class RunRecorderRulesTests: XCTestCase {
+
+    private let start = Date(timeIntervalSince1970: 1_750_200_000)
+    private var end: Date { start.addingTimeInterval(1800) }
+
+    func testWatchRecordingTheSameWindowTriggersTheGuard() {
+        let watch = (start: start.addingTimeInterval(-30), end: end.addingTimeInterval(60), isOwn: false)
+        XCTAssertTrue(RunRecorderRules.hasExternalOverlap(runStart: start, runEnd: end, workouts: [watch]),
+                      "A parallel watch recording must suppress our energy/distance samples")
+    }
+
+    func testOwnWorkoutsNeverTriggerTheGuard() {
+        let ours = (start: start, end: end, isOwn: true)
+        XCTAssertFalse(RunRecorderRules.hasExternalOverlap(runStart: start, runEnd: end, workouts: [ours]))
+    }
+
+    func testBriefBrushesAndAdjacentWorkoutsDoNotTrigger() {
+        let brush = (start: end.addingTimeInterval(-45), end: end.addingTimeInterval(600), isOwn: false)
+        XCTAssertFalse(RunRecorderRules.hasExternalOverlap(runStart: start, runEnd: end, workouts: [brush]),
+                       "45 seconds of overlap is a coincidence, not a parallel recording")
+
+        let earlier = (start: start.addingTimeInterval(-3600), end: start.addingTimeInterval(-60), isOwn: false)
+        XCTAssertFalse(RunRecorderRules.hasExternalOverlap(runStart: start, runEnd: end, workouts: [earlier]))
+        XCTAssertFalse(RunRecorderRules.hasExternalOverlap(runStart: start, runEnd: end, workouts: []))
+    }
+}

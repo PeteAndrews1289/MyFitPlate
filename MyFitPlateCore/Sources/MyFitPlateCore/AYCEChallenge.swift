@@ -276,6 +276,12 @@ public enum AYCERules {
         return "Their kitchen has spent about \(money(spent)) on you"
     }
 
+    /// Summary trophy line for the rare true win; nil when the kitchen kept its margin.
+    public static func kitchenWinLine(session: AYCESession) -> String? {
+        guard hasBeatenKitchen(session: session) else { return nil }
+        return "You out-ate their ingredient budget — the kitchen lost money on this one"
+    }
+
     public static func money(_ amount: Double) -> String {
         String(format: "$%.2f", max(0, amount))
     }
