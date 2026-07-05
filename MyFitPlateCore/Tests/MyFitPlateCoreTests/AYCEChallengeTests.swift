@@ -130,6 +130,20 @@ final class AYCEChallengeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(AYCECatalog.all.count, 100)
     }
 
+    func testMenuSectionsPartitionEachCuisineExactly() {
+        for cuisine in AYCECuisine.allCases {
+            let sectioned = AYCECatalog.sections(for: cuisine).flatMap(\.items)
+            XCTAssertEqual(sectioned.map(\.id), AYCECatalog.items(for: cuisine).map(\.id),
+                           "\(cuisine): sections must cover the whole menu in order — no drops, no dupes")
+        }
+    }
+
+    func testSushiRollLibraryIsDeep() {
+        let rolls = AYCECatalog.sections(for: .sushi).first { $0.title == "Rolls" }
+        XCTAssertGreaterThanOrEqual(rolls?.items.count ?? 0, 25, "Rolls are the heart of a sushi AYCE")
+        XCTAssertGreaterThanOrEqual(AYCECatalog.items(for: .sushi).count, 45)
+    }
+
     func testCatalogIDsAreUnique() {
         let ids = AYCECatalog.all.map(\.id)
         XCTAssertEqual(ids.count, Set(ids).count)

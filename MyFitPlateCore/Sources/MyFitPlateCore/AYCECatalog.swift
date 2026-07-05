@@ -19,9 +19,32 @@ public enum AYCECatalog {
 
     public static let all: [AYCECatalogItem] = sushi + kbbq + hotpot + chinese + dimSum + indian
 
+    /// A titled slice of a cuisine's menu, for section headers in long grids.
+    public struct MenuSection: Identifiable {
+        public let title: String
+        public let items: [AYCECatalogItem]
+        public var id: String { title }
+    }
+
+    /// Sushi is big enough to need grouping; other cuisines render as one untitled section.
+    public static func sections(for cuisine: AYCECuisine) -> [MenuSection] {
+        switch cuisine {
+        case .sushi:
+            return [
+                MenuSection(title: "Nigiri & sashimi", items: sushiNigiriAndSashimi),
+                MenuSection(title: "Rolls", items: sushiRolls),
+                MenuSection(title: "Small plates & dessert", items: sushiSides)
+            ]
+        default:
+            return [MenuSection(title: "", items: items(for: cuisine))]
+        }
+    }
+
     // MARK: Sushi (per piece unless noted)
 
-    static let sushi: [AYCECatalogItem] = [
+    static let sushi: [AYCECatalogItem] = sushiNigiriAndSashimi + sushiRolls + sushiSides
+
+    static let sushiNigiriAndSashimi: [AYCECatalogItem] = [
         AYCECatalogItem(id: "sushi_salmon_nigiri", cuisine: .sushi, name: "Salmon nigiri", emoji: "🍣", unit: "piece",
                         calories: 60, protein: 3.5, carbs: 9, fats: 1.5, restaurantPrice: 3.25, homeCost: 0.95),
         AYCECatalogItem(id: "sushi_tuna_nigiri", cuisine: .sushi, name: "Tuna nigiri", emoji: "🍣", unit: "piece",
@@ -45,7 +68,10 @@ public enum AYCECatalog {
         AYCECatalogItem(id: "sushi_salmon_sashimi", cuisine: .sushi, name: "Salmon sashimi", emoji: "🐟", unit: "slice",
                         calories: 40, protein: 5, carbs: 0, fats: 2, restaurantPrice: 2.75, homeCost: 0.85),
         AYCECatalogItem(id: "sushi_tuna_sashimi", cuisine: .sushi, name: "Tuna sashimi", emoji: "🐟", unit: "slice",
-                        calories: 30, protein: 6, carbs: 0, fats: 0.3, restaurantPrice: 3.25, homeCost: 1.10),
+                        calories: 30, protein: 6, carbs: 0, fats: 0.3, restaurantPrice: 3.25, homeCost: 1.10)
+    ]
+
+    static let sushiRolls: [AYCECatalogItem] = [
         AYCECatalogItem(id: "sushi_california_roll", cuisine: .sushi, name: "California roll", emoji: "🍱", unit: "roll (6 pc)",
                         calories: 250, protein: 8, carbs: 38, fats: 7, restaurantPrice: 7.50, homeCost: 2.20),
         AYCECatalogItem(id: "sushi_spicy_tuna_roll", cuisine: .sushi, name: "Spicy tuna roll", emoji: "🍱", unit: "roll (6 pc)",
@@ -62,8 +88,51 @@ public enum AYCECatalog {
                         calories: 350, protein: 18, carbs: 40, fats: 12, restaurantPrice: 12.95, homeCost: 3.80),
         AYCECatalogItem(id: "sushi_dragon_roll", cuisine: .sushi, name: "Dragon roll", emoji: "🍱", unit: "roll (8 pc)",
                         calories: 420, protein: 14, carbs: 52, fats: 16, restaurantPrice: 13.95, homeCost: 3.60),
+        AYCECatalogItem(id: "sushi_spider_roll", cuisine: .sushi, name: "Spider roll", emoji: "🦀", unit: "roll (5 pc)",
+                        calories: 320, protein: 12, carbs: 34, fats: 15, restaurantPrice: 11.95, homeCost: 3.40),
+        AYCECatalogItem(id: "sushi_caterpillar_roll", cuisine: .sushi, name: "Caterpillar roll", emoji: "🍱", unit: "roll (8 pc)",
+                        calories: 400, protein: 12, carbs: 48, fats: 17, restaurantPrice: 12.95, homeCost: 3.40),
+        AYCECatalogItem(id: "sushi_volcano_roll", cuisine: .sushi, name: "Volcano roll", emoji: "🌋", unit: "roll (8 pc)",
+                        calories: 480, protein: 16, carbs: 46, fats: 26, restaurantPrice: 12.95, homeCost: 3.20),
+        AYCECatalogItem(id: "sushi_crunchy_roll", cuisine: .sushi, name: "Crunchy roll", emoji: "🍱", unit: "roll (8 pc)",
+                        calories: 420, protein: 12, carbs: 52, fats: 17, restaurantPrice: 10.95, homeCost: 2.90),
+        AYCECatalogItem(id: "sushi_dynamite_roll", cuisine: .sushi, name: "Dynamite roll", emoji: "🧨", unit: "roll (8 pc)",
+                        calories: 430, protein: 14, carbs: 44, fats: 21, restaurantPrice: 11.95, homeCost: 3.00),
+        AYCECatalogItem(id: "sushi_vegas_roll", cuisine: .sushi, name: "Vegas roll", emoji: "🍱", unit: "roll (8 pc)",
+                        calories: 460, protein: 15, carbs: 42, fats: 26, restaurantPrice: 12.50, homeCost: 3.10),
+        AYCECatalogItem(id: "sushi_alaska_roll", cuisine: .sushi, name: "Alaska roll", emoji: "🍱", unit: "roll (6 pc)",
+                        calories: 240, protein: 10, carbs: 30, fats: 8.5, restaurantPrice: 7.95, homeCost: 2.30),
+        AYCECatalogItem(id: "sushi_boston_roll", cuisine: .sushi, name: "Boston roll", emoji: "🍱", unit: "roll (6 pc)",
+                        calories: 230, protein: 9, carbs: 30, fats: 8, restaurantPrice: 7.50, homeCost: 2.10),
+        AYCECatalogItem(id: "sushi_spicy_yellowtail_roll", cuisine: .sushi, name: "Spicy yellowtail roll", emoji: "🍱", unit: "roll (6 pc)",
+                        calories: 280, protein: 11, carbs: 34, fats: 10.5, restaurantPrice: 8.95, homeCost: 2.70),
+        AYCECatalogItem(id: "sushi_negihama_roll", cuisine: .sushi, name: "Yellowtail scallion roll", emoji: "🍱", unit: "roll (6 pc)",
+                        calories: 220, protein: 11, carbs: 28, fats: 6.5, restaurantPrice: 7.95, homeCost: 2.50),
+        AYCECatalogItem(id: "sushi_salmon_avocado_roll", cuisine: .sushi, name: "Salmon avocado roll", emoji: "🥑", unit: "roll (6 pc)",
+                        calories: 260, protein: 9, carbs: 30, fats: 11, restaurantPrice: 7.95, homeCost: 2.30),
+        AYCECatalogItem(id: "sushi_tuna_avocado_roll", cuisine: .sushi, name: "Tuna avocado roll", emoji: "🥑", unit: "roll (6 pc)",
+                        calories: 250, protein: 10, carbs: 30, fats: 9.5, restaurantPrice: 8.50, homeCost: 2.60),
+        AYCECatalogItem(id: "sushi_eel_avocado_roll", cuisine: .sushi, name: "Eel avocado roll", emoji: "🥑", unit: "roll (6 pc)",
+                        calories: 290, protein: 9, carbs: 34, fats: 12.5, restaurantPrice: 8.95, homeCost: 2.60),
+        AYCECatalogItem(id: "sushi_eel_cucumber_roll", cuisine: .sushi, name: "Eel cucumber roll", emoji: "🥒", unit: "roll (6 pc)",
+                        calories: 250, protein: 9, carbs: 34, fats: 8, restaurantPrice: 8.50, homeCost: 2.40),
+        AYCECatalogItem(id: "sushi_cucumber_roll", cuisine: .sushi, name: "Cucumber roll", emoji: "🥒", unit: "roll (6 pc)",
+                        calories: 130, protein: 2.5, carbs: 27, fats: 0.8, restaurantPrice: 4.50, homeCost: 1.00),
+        AYCECatalogItem(id: "sushi_avocado_roll", cuisine: .sushi, name: "Avocado roll", emoji: "🥑", unit: "roll (6 pc)",
+                        calories: 180, protein: 2.5, carbs: 28, fats: 6.5, restaurantPrice: 5.50, homeCost: 1.20),
+        AYCECatalogItem(id: "sushi_sweet_potato_roll", cuisine: .sushi, name: "Sweet potato tempura roll", emoji: "🍠", unit: "roll (6 pc)",
+                        calories: 260, protein: 3, carbs: 44, fats: 7.5, restaurantPrice: 7.50, homeCost: 1.60),
+        AYCECatalogItem(id: "sushi_veggie_roll", cuisine: .sushi, name: "Veggie roll", emoji: "🥗", unit: "roll (6 pc)",
+                        calories: 170, protein: 3, carbs: 32, fats: 3, restaurantPrice: 6.50, homeCost: 1.40),
+        AYCECatalogItem(id: "sushi_futomaki", cuisine: .sushi, name: "Futomaki", emoji: "🍱", unit: "roll (5 pc)",
+                        calories: 280, protein: 7, carbs: 48, fats: 6, restaurantPrice: 8.50, homeCost: 1.90),
+        AYCECatalogItem(id: "sushi_salmon_skin_roll", cuisine: .sushi, name: "Salmon skin roll", emoji: "🍱", unit: "roll (6 pc)",
+                        calories: 250, protein: 8, carbs: 30, fats: 10.5, restaurantPrice: 7.50, homeCost: 1.80),
         AYCECatalogItem(id: "sushi_spicy_salmon_hand_roll", cuisine: .sushi, name: "Spicy salmon hand roll", emoji: "🍱", unit: "hand roll",
-                        calories: 190, protein: 8, carbs: 22, fats: 7.5, restaurantPrice: 5.50, homeCost: 1.60),
+                        calories: 190, protein: 8, carbs: 22, fats: 7.5, restaurantPrice: 5.50, homeCost: 1.60)
+    ]
+
+    static let sushiSides: [AYCECatalogItem] = [
         AYCECatalogItem(id: "sushi_shrimp_tempura_piece", cuisine: .sushi, name: "Shrimp tempura", emoji: "🍤", unit: "piece",
                         calories: 75, protein: 3, carbs: 7, fats: 4, restaurantPrice: 2.25, homeCost: 0.50),
         AYCECatalogItem(id: "sushi_gyoza", cuisine: .sushi, name: "Gyoza", emoji: "🥟", unit: "piece",

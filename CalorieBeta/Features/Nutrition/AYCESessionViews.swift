@@ -420,18 +420,29 @@ private struct AYCELiveSessionView: View {
                             .asCard()
                         }
 
-                        LazyVGrid(columns: columns, spacing: 10) {
-                            ForEach(AYCECatalog.items(for: session.cuisine)) { item in
-                                AYCEItemTile(
-                                    item: item,
-                                    displayPrice: AYCERules.unitPrices(for: item, in: session).restaurant,
-                                    logged: manager.count(for: item),
-                                    onAdd: {
-                                        HapticsService.shared.playImpact(style: .light)
-                                        manager.add(item)
-                                    },
-                                    onRemove: { manager.remove(item) }
-                                )
+                        ForEach(AYCECatalog.sections(for: session.cuisine)) { section in
+                            VStack(alignment: .leading, spacing: 8) {
+                                if !section.title.isEmpty {
+                                    Text(section.title)
+                                        .appFont(size: 13, weight: .bold)
+                                        .foregroundColor(Color(UIColor.secondaryLabel))
+                                        .padding(.top, 2)
+                                }
+
+                                LazyVGrid(columns: columns, spacing: 10) {
+                                    ForEach(section.items) { item in
+                                        AYCEItemTile(
+                                            item: item,
+                                            displayPrice: AYCERules.unitPrices(for: item, in: session).restaurant,
+                                            logged: manager.count(for: item),
+                                            onAdd: {
+                                                HapticsService.shared.playImpact(style: .light)
+                                                manager.add(item)
+                                            },
+                                            onRemove: { manager.remove(item) }
+                                        )
+                                    }
+                                }
                             }
                         }
 
