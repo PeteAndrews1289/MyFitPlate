@@ -12,6 +12,7 @@ final class AYCESessionManager: ObservableObject {
     @Published private(set) var hasCelebratedKitchenWin = false
 
     @AppStorage("ayceSessionDraft") private var draftData: Data = Data()
+    @AppStorage("ayceScoreboard") private var scoreboardData: Data = Data()
 
     init() {
         restoreDraft()
@@ -76,12 +77,27 @@ final class AYCESessionManager: ObservableObject {
         persistDraft()
     }
 
-    /// Ends the session and returns it for the summary; the draft is cleared.
+    /// Ends the session and returns it for the summary; the draft is cleared and the
+    /// result joins the lifetime scoreboard (empty sessions are ignored by the rules).
     func end() -> AYCESession? {
         let finished = session
+        if let finished {
+            let updated = AYCEScoreboard.appending(AYCESessionRecord(session: finished), to: loadScoreboard())
+            if let encoded = try? JSONEncoder().encode(updated) {
+                scoreboardData = encoded
+            }
+        }
         session = nil
         draftData = Data()
         return finished
+    }
+
+    var scoreboardRecordLine: String? {
+        AYCEScoreboard.recordLine(summary: AYCEScoreboard.summary(of: loadScoreboard()))
+    }
+
+    private func loadScoreboard() -> [AYCESessionRecord] {
+        (try? JSONDecoder().decode([AYCESessionRecord].self, from: scoreboardData)) ?? []
     }
 
     func discard() {
@@ -138,7 +154,7 @@ struct AYCEFlowView: View {
                         finishedSession = manager.end()
                     })
                 } else {
-                    AYCEStartView(onStart: { cuisine, price, citySlug in
+                    AYCEStartView(recordLine: manager.scoreboardRecordLine, onStart: { cuisine, price, citySlug in
                         manager.start(cuisine: cuisine, buffetPrice: price, citySlug: citySlug)
                     })
                 }
@@ -162,6 +178,7 @@ struct AYCEFlowView: View {
 // MARK: - Start
 
 private struct AYCEStartView: View {
+    let recordLine: String?
     let onStart: (AYCECuisine, Double, String?) -> Void
 
     @State private var cuisine: AYCECuisine = .sushi
@@ -186,6 +203,12 @@ private struct AYCEStartView: View {
                     Text("Log what you eat and see when you've out-eaten the price of admission.")
                         .appFont(size: 14)
                         .foregroundColor(Color(UIColor.secondaryLabel))
+                    if let recordLine {
+                        Text("Your record: \(recordLine)")
+                            .appFont(size: 12, weight: .semibold)
+                            .foregroundColor(.brandPrimary)
+                            .padding(.top, 2)
+                    }
                 }
 
                 LazyVGrid(columns: cuisineColumns, spacing: 10) {

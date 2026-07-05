@@ -121,7 +121,7 @@ struct WorkoutRoutinesView: View {
                                     icon: "rectangle.stack.fill",
                                     title: "Pre-built",
                                     subtitle: "Preview proven plans",
-                                    color: .orange
+                                    color: Color(UIColor.secondaryLabel)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -145,7 +145,7 @@ struct WorkoutRoutinesView: View {
                                     icon: "square.and.pencil",
                                     title: "Manual Build",
                                     subtitle: "Design your split",
-                                    color: .blue
+                                    color: Color(UIColor.secondaryLabel)
                                 )
                             }
                             .buttonStyle(.plain)
