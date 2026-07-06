@@ -82,7 +82,13 @@ final class RunRecorderViewModel: ObservableObject {
     private var timer: Timer?
     private let store = RunRecorderStore()
     private let metric: Bool
-    private let synthesizer = AVSpeechSynthesizer()
+    private let audioCoach = RunAudioCoach()
+    @Published var audioCoachEnabled: Bool = UserDefaults.standard.object(forKey: "runAudioCoachEnabled") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(audioCoachEnabled, forKey: "runAudioCoachEnabled")
+            if !audioCoachEnabled { audioCoach.stop() }
+        }
+    }
     #if canImport(ActivityKit)
     private var liveActivity: Activity<RunActivityAttributes>?
     private var lastActivityPush = Date.distantPast
@@ -108,6 +114,7 @@ final class RunRecorderViewModel: ObservableObject {
     var averagePace: Double? { session.averagePaceSecondsPerKm }
 
     private func speakSplitAnnouncement(_ split: RunSplit) {
+        guard audioCoachEnabled else { return }
         let unit = metric ? "kilometer" : "mile"
         let distanceText = "\(split.index) \(unit)\(split.index == 1 ? "" : "s") completed."
 
@@ -117,19 +124,7 @@ final class RunRecorderViewModel: ObservableObject {
 
         let totalText = "Total time: \(RunFormat.durationText(seconds: session.movingSeconds))."
 
-        let speechString = "\(distanceText) \(paceText) \(totalText)"
-
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .voicePrompt, options: [.duckOthers])
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            print("Audio session error: \(error)")
-        }
-
-        let utterance = AVSpeechUtterance(string: speechString)
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        synthesizer.speak(utterance)
+        audioCoach.announce("\(distanceText) \(paceText) \(totalText)")
     }
 
     func begin() {
@@ -167,6 +162,7 @@ final class RunRecorderViewModel: ObservableObject {
         locationService.stopTracking()
         stopTimer()
         endLiveActivity()
+        audioCoach.stop()
         guard let run = session.finish() else { return }
         stage = .saving
 
@@ -197,6 +193,7 @@ final class RunRecorderViewModel: ObservableObject {
         locationService.stopTracking()
         stopTimer()
         endLiveActivity()
+        audioCoach.stop()
     }
 
     // MARK: Live Activity
@@ -389,6 +386,22 @@ struct RunRecorderView: View {
                     liveMetric(RunFormat.paceText(secondsPerKm: viewModel.currentPace, metric: useMetric) ?? "—", "Pace")
                     liveMetric(RunFormat.paceText(secondsPerKm: viewModel.averagePace, metric: useMetric) ?? "—", "Avg pace")
                 }
+
+                Button {
+                    viewModel.audioCoachEnabled.toggle()
+                } label: {
+                    Label(
+                        viewModel.audioCoachEnabled ? "Audio coach on" : "Audio coach off",
+                        systemImage: viewModel.audioCoachEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill"
+                    )
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(viewModel.audioCoachEnabled ? .brandPrimary : Color(UIColor.secondaryLabel))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.backgroundSecondary, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(viewModel.audioCoachEnabled ? "Turn audio coach off" : "Turn audio coach on")
             }
             .id(viewModel.tick)
 
@@ -550,5 +563,54 @@ private struct RunRecorderSummary: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .asCard()
+    }
+}
+
+/// The run audio coach. Antigravity's original spoke split announcements but left the
+/// audio session active in `.playback` after every one — which ducks the runner's music
+/// and never lets it back up for the rest of the run. This owns the synthesizer, and as
+/// its delegate deactivates the session with `.notifyOthersOnDeactivation` the moment
+/// speech finishes, so music returns to full volume between kilometers.
+final class RunAudioCoach: NSObject, AVSpeechSynthesizerDelegate {
+    private let synthesizer = AVSpeechSynthesizer()
+
+    override init() {
+        super.init()
+        synthesizer.delegate = self
+    }
+
+    func announce(_ text: String) {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .voicePrompt, options: [.duckOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            AppLog.workouts.error("Run audio coach session activation failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        synthesizer.speak(utterance)
+    }
+
+    func stop() {
+        synthesizer.stopSpeaking(at: .immediate)
+        deactivateSession()
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        deactivateSession()
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        deactivateSession()
+    }
+
+    private func deactivateSession() {
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            AppLog.workouts.error("Run audio coach session deactivation failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }

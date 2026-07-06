@@ -21,6 +21,8 @@ struct RestaurantValueRadarView: View {
 
                         if viewModel.isAnalyzing {
                             loadingView
+                        } else if let error = viewModel.errorMessage {
+                            errorView(error)
                         } else if viewModel.items.isEmpty {
                             emptyStateView
                         } else {
@@ -45,6 +47,20 @@ struct RestaurantValueRadarView: View {
                 }
             }
         }
+    }
+
+    private func errorView(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle")
+                .appFont(size: 30, weight: .bold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+            Text(message)
+                .appFont(size: 14)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
     }
 
     private var headerCard: some View {
@@ -344,6 +360,7 @@ struct RestaurantValueRadarItem: Identifiable {
 class RestaurantValueRadarViewModel: ObservableObject {
     @Published var items: [RestaurantValueRadarItem] = []
     @Published var isAnalyzing = false
+    @Published var errorMessage: String?
     @Published var selectedCity: AYCECity = AYCECityIndex.national
 
     private let imageModel = MLImageModel()
@@ -366,6 +383,7 @@ class RestaurantValueRadarViewModel: ObservableObject {
     }
 
     func loadDemoMenu() {
+        self.errorMessage = nil
         self.isAnalyzing = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             let demoDishes: [(String, Double, Double, Double, Double, Double)] = [
@@ -389,19 +407,27 @@ class RestaurantValueRadarViewModel: ObservableObject {
 
     func analyzeMenuImage(_ image: UIImage) {
         self.isAnalyzing = true
+        self.errorMessage = nil
         imageModel.estimateMenuFromImage(image: image) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.isAnalyzing = false
                 switch result {
-                case .success(let foods):
+                case .success(let foods) where !foods.isEmpty:
+                    // Menu photos don't reliably carry prices, so the base price is an
+                    // estimate from the dish's own macros — the value score is a heuristic,
+                    // not a real receipt.
                     let newItems = foods.map { food in
                         let estimatedBasePrice = max(12.0, (food.protein * 0.35) + (food.calories * 0.015))
                         return RestaurantValueRadarItem(food: food, basePrice: estimatedBasePrice, cityMultiplier: self.selectedCity.restaurantMultiplier)
                     }.sorted(by: { $0.proteinPerDollar > $1.proteinPerDollar })
                     self.items = newItems
+                case .success:
+                    // Never substitute fabricated demo dishes for a real scan — the user
+                    // could log food they never ate. Be honest that nothing was read.
+                    self.errorMessage = "Couldn't read any dishes from that photo. Try a clearer shot of the menu, or use Demo Menu to see how it works."
                 case .failure:
-                    self.loadDemoMenu()
+                    self.errorMessage = "Menu scan didn't go through. Check your connection and try again."
                 }
             }
         }
