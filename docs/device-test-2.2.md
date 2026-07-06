@@ -109,8 +109,17 @@ Indoors today:
 - [ ] Metric toggle → weight surfaces AND watch flip units
 - [ ] Notification test: log reminder arrives at the set time (check tomorrow morning)
 
-## 12. System passes (10 min)
-- [ ] Dark mode sweep: Home, AYCE live, run detail, trust card, coaching — no washed-out cards
+## 12. MyFitnessPal import (10 min — needs a real MFP export)
+- [ ] Get an MFP export (myfitnesspal.com → Settings → Download My Data), unzip it
+- [ ] Settings → Account → "Import from MyFitnessPal" → instructions read clearly
+- [ ] Choose files (try selecting diary + weight CSVs together) → preview counts look sane
+- [ ] Days already logged in MyFitPlate show as "skipped (already logged here)"
+- [ ] Import → progress bar advances → completion summary
+- [ ] Reports/trends now include the imported history; weigh-ins appear in weight chart
+- [ ] Re-import the same file → every day now counts as a conflict (idempotent, no duplicates)
+
+## 13. System passes (10 min)
+- [ ] Dark mode sweep: Home, AYCE live, run detail, trust card, coaching, MFP import — no washed-out cards
 - [ ] Dynamic Type XL spot check: Home + AYCE tiles + player don't clip
 - [ ] Sign out / sign in → data returns; custom calorie goal SURVIVES (the reset-bug fix)
 
