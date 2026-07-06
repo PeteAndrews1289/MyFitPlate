@@ -143,6 +143,12 @@ final class RunRecorderViewModel: ObservableObject {
             if savedID == nil {
                 ToastManager.shared.showToast(message: "Saved locally, but Health sync failed.")
             }
+            // New recordings get the CURRENT default shoe stamped at save time — history
+            // is never retroactively re-tagged when the default changes.
+            if let savedID {
+                let shoeStore = RunningShoeStore()
+                shoeStore.tagRun(runID: savedID, withShoeID: shoeStore.defaultShoe()?.id)
+            }
             // Records are judged against strictly-past runs so the just-saved copy of
             // this run (different HK UUID, same stats) can't mask its own achievement.
             let since = Calendar.current.date(byAdding: .year, value: -1, to: run.startDate) ?? run.startDate

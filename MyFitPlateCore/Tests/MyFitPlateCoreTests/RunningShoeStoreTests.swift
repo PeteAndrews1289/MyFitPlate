@@ -95,7 +95,33 @@ final class RunningShoeStoreTests: XCTestCase {
 
         let applied = store.applyTags(to: [untaggedRun, customRun])
         XCTAssertEqual(applied.count, 2)
-        XCTAssertEqual(applied[0].shoeID, defaultShoe.id)
+        XCTAssertNil(applied[0].shoeID, "Untagged history stays untagged — the default shoe is not retroactive")
         XCTAssertEqual(applied[1].shoeID, shoe2.id)
+        XCTAssertFalse(defaultShoe.isRetired)
+    }
+
+    func testSwitchingDefaultShoeNeverRewritesHistoryMileage() {
+        guard let originalDefault = store.defaultShoe() else {
+            XCTFail("Missing default shoe")
+            return
+        }
+        let newShoe = RunningShoe(name: "Fresh Foam", brand: "NB")
+        store.addShoe(newShoe)
+
+        // One explicitly tagged run, one untagged historical import.
+        store.tagRun(runID: "tagged", withShoeID: originalDefault.id)
+        let tagged = Run(id: "tagged", source: .recorded, startDate: Date(), endDate: Date(), distanceMeters: 8000, movingSeconds: 2400)
+        let historical = Run(id: "old", source: .imported(appName: "Garmin Connect"), startDate: Date(), endDate: Date(), distanceMeters: 50_000, movingSeconds: 15_000)
+
+        let beforeSwitch = store.totalMeters(for: newShoe.id, across: store.applyTags(to: [tagged, historical]))
+        store.setDefaultShoe(id: newShoe.id)
+        let afterSwitch = store.totalMeters(for: newShoe.id, across: store.applyTags(to: [tagged, historical]))
+
+        XCTAssertEqual(beforeSwitch, afterSwitch, accuracy: 0.001,
+                       "Changing the default must not move 50 km of history onto the new shoe")
+        XCTAssertEqual(afterSwitch, newShoe.initialMeters, accuracy: 0.001)
+
+        let originalMeters = store.totalMeters(for: originalDefault.id, across: store.applyTags(to: [tagged, historical]))
+        XCTAssertEqual(originalMeters, originalDefault.initialMeters + 8000, accuracy: 0.001, "Explicit tags stay put")
     }
 }

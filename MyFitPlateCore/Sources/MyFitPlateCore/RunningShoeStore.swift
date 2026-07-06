@@ -150,13 +150,14 @@ public final class RunningShoeStore: ObservableObject, RunningShoeStoreProtocol 
            let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
             map = decoded
         }
-        let defID = defaultShoe()?.id
+        // EXPLICIT tags only. Falling back to the current default shoe here meant
+        // switching your default silently migrated the whole run history's mileage onto
+        // the new shoe. The default is a picker convenience, stamped onto NEW recordings
+        // at save time — never onto history.
         return runs.map { run in
             var r = run
             if let tagged = map[run.id] {
                 r.shoeID = tagged
-            } else if r.shoeID == nil {
-                r.shoeID = defID
             }
             return r
         }
