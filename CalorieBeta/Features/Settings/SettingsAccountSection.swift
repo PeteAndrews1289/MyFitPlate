@@ -18,6 +18,7 @@ struct SettingsAccountSection: View {
     @State private var isExporting = false
     @State private var exportURLs: [URL] = []
     @State private var showingExportShare = false
+    @State private var showingMFPImport = false
 
     var body: some View {
         SettingsSectionCard(title: "Account") {
@@ -85,9 +86,28 @@ struct SettingsAccountSection: View {
             }
             .disabled(isExporting)
             .padding(16)
+
+            Divider().padding(.leading, 50)
+
+            Button {
+                showingMFPImport = true
+            } label: {
+                SettingsLabel(
+                    icon: "square.and.arrow.down",
+                    title: "Import from MyFitnessPal",
+                    subtitle: "Bring your diary and weight history with you.",
+                    color: .accentProtein
+                )
+            }
+            .padding(16)
         }
         .sheet(isPresented: $showingExportShare) {
             PDFShareView(activityItems: exportURLs)
+        }
+        .sheet(isPresented: $showingMFPImport) {
+            MFPImportView()
+                .environmentObject(dailyLogService)
+                .environmentObject(goalSettings)
         }
     }
 

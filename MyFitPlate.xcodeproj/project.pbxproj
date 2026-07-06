@@ -143,6 +143,7 @@
 		A679A8063017DD2CC40E4817 /* Spotlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB5FB8BB155CAF0221A81004 /* Spotlight.swift */; };
 		A79130A2D5EECE475336E05F /* CurrentWeightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48664E9634718D3D7CDAD50D /* CurrentWeightView.swift */; };
 		A8F0F9AFC335F40903B0FB7B /* SettingsAccountSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EBBF453DBE05DBD865C367D /* SettingsAccountSection.swift */; };
+		74B253540F8A4FBC915004F8 /* MFPImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEB2249C4E46F695E632A88F /* MFPImportView.swift */; };
 		A91D5C95A8FCEBDDD58B167C /* GroupSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123D66242EE521992A9D27F1 /* GroupSelectionView.swift */; };
 		AD37C3E90006A2302C20AC82 /* FirebaseCloudFunctionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E4CADB7C6719C7A29C84BD7 /* FirebaseCloudFunctionService.swift */; };
 		ADAC758083955353D562FD4A /* MealPlannerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DA77751A3F64DE4D3F27F3E /* MealPlannerComponents.swift */; };
@@ -374,6 +375,7 @@
 		6E4CADB7C6719C7A29C84BD7 /* FirebaseCloudFunctionService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirebaseCloudFunctionService.swift; sourceTree = "<group>"; };
 		6E4CCCD18AD29D24D2D3212E /* ExerciseHistoryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExerciseHistoryView.swift; sourceTree = "<group>"; };
 		6EBBF453DBE05DBD865C367D /* SettingsAccountSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsAccountSection.swift; sourceTree = "<group>"; };
+		CEB2249C4E46F695E632A88F /* MFPImportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MFPImportView.swift; sourceTree = "<group>"; };
 		6F205CCE1C9A9F38DEB82AD7 /* WaterBottleUI.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WaterBottleUI.swift; sourceTree = "<group>"; };
 		6F5CD3D2B55C438A6347CD44 /* MealScoreCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealScoreCard.swift; sourceTree = "<group>"; };
 		716F97A803CF1639AA991FE9 /* FeatureTourView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FeatureTourView.swift; sourceTree = "<group>"; };
@@ -951,6 +953,7 @@
 			isa = PBXGroup;
 			children = (
 				6EBBF453DBE05DBD865C367D /* SettingsAccountSection.swift */,
+				CEB2249C4E46F695E632A88F /* MFPImportView.swift */,
 				C08E2530D8B1786C5B6CD31B /* SettingsSupportSection.swift */,
 				341DD372936EF5CFC7F0F944 /* SettingsAppearanceSection.swift */,
 				7B066B44563BD41796195AA9 /* SettingsPreferencesSection.swift */,
@@ -1427,6 +1430,7 @@
 				D8A32FF8776CE795E1F51912 /* HealthTrackingCards.swift in Sources */,
 				B47042407FC8F492945B5B8B /* ProgramDetailViewComponents.swift in Sources */,
 				A8F0F9AFC335F40903B0FB7B /* SettingsAccountSection.swift in Sources */,
+				74B253540F8A4FBC915004F8 /* MFPImportView.swift in Sources */,
 				3D61D8BDA7E88324F40DBB0B /* SettingsSupportSection.swift in Sources */,
 				AF90FDB7CEC5C05D3BCC5C44 /* SettingsAppearanceSection.swift in Sources */,
 				BB353BD4E6A7CFDC34095208 /* SettingsPreferencesSection.swift in Sources */,
