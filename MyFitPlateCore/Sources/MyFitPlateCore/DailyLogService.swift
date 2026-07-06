@@ -279,6 +279,9 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         )
     }
 
+    /// Adds ONE item. Never call this in a loop for multi-item writes — each call fetches
+    /// the day's log and saves its own copy, so concurrent calls overwrite each other and
+    /// one item survives (the AYCE diary bug). Use addMealToLog/addMealGroupsToLog instead.
     public func addFoodToLog(for userID: String, date: Date, mealName: String, foodItem: FoodItem, source: String = "unknown") {
         let dateToLog = Calendar.current.startOfDay(for: date)
         fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in

@@ -726,16 +726,15 @@ private struct AYCESummaryView: View {
             return
         }
         isLogging = true
-        let mealName = AYCERules.mealName(for: session.cuisine)
-        for entry in session.entries {
-            dailyLogService.addFoodToLog(
-                for: userID,
-                date: session.startedAt,
-                mealName: mealName,
-                foodItem: AYCERules.foodItem(from: entry),
-                source: "ayce_session"
-            )
-        }
+        // One batched write. Looping addFoodToLog races itself (each call fetches the
+        // same original log, last save wins) and exactly one buffet item survived.
+        dailyLogService.addMealToLog(
+            for: userID,
+            date: session.startedAt,
+            mealName: AYCERules.mealName(for: session.cuisine),
+            foodItems: session.entries.map { AYCERules.foodItem(from: $0) },
+            source: "ayce_session"
+        )
         onDone(true)
     }
 }
