@@ -1,64 +1,58 @@
 # MyFitPlate 2.2 — Release Notes
 
+Version 2.2, build 4. All shipping targets (app, widget, Live Activity, watch) aligned.
+
 ## App Store "What's New" (paste-ready)
 
 ```
-Our biggest update yet: a fresh look, your week at a glance, and food data you can actually trust.
+Our biggest update yet. Running, an all-you-can-eat game, and a one-tap move from MyFitnessPal — on top of a fresh look and food data you can trust.
 
-A FRESH LOOK
-• New app icon and one calm, consistent color palette (dark-mode icon included).
-• Redesigned Home, workout player, weight tracking, reports, and meal planner — every screen now leads with the one thing that matters.
+RUNNING, DONE RIGHT
+• Record a run with just your phone — live pace, distance, and splits, with a lock-screen Live Activity and an audio coach that calls out every mile.
+• Already run with a watch? Garmin, Polar, Coros, Apple Watch and more sync in automatically through Apple Health — routes, splits, and heart rate included.
+• Route map of everywhere you've run, personal records, weekly mileage, shoe mileage tracking, and instant post-run fueling targets.
 
-YOUR WEEK, UNDERSTOOD
-• Weekly Recap — workouts, new records, calorie averages, and weight trend in one card you can share.
-• Logging streak with a built-in grace day, right in the date bar.
-• Fill my macros — from mid-afternoon on, Maia can suggest a dinner that fits exactly what you have left today (and can build it from your pantry).
+BEAT THE BUFFET
+• A game for all-you-can-eat sushi, KBBQ, hot pot, and more: log what you eat and watch the à-la-carte value climb past what you paid.
+• See when you've out-eaten the kitchen's own ingredient cost, priced for your city. Scan your plate, keep a lifetime scoreboard.
 
-FOOD DATA YOU CAN TRUST
-• Every food is checked against nutrition math. Bad database entries get flagged with a clear "This data looks off" card, and one tap opens an editor to fix them — your fix is remembered.
-• Cross-Verified badge when two independent databases agree on a barcode.
-• Search now blends USDA data, so more foods come with complete vitamins and minerals — and quick-logging captures full nutrition, not a preview.
-• AI photo and menu estimates get a one-tap "Refine Estimate" to dial in portions.
+SWITCHING FROM MYFITNESSPAL?
+• Bring your history with you. Import your diary and weight in a few minutes — days you've already logged here are never touched.
 
-AND MORE
-• Fasting Live Activity on your lock screen and in the Dynamic Island.
-• Export your food diary and workouts as CSV any time, from Settings.
-• Accessibility improvements and reliability fixes throughout.
+AND A LOT MORE
+• A fresh look: new app icon, one calm palette, and every screen redesigned to lead with what matters.
+• Weekly Recap, logging streaks, and confetti when you hit your protein goal or set a record.
+• Food you can trust: every entry checked against nutrition math, cross-verified badges, fuller vitamins and minerals, and one-tap fixes that stick.
+• Maia coaching that adapts to your sleep and recovery, fasting Live Activities, CSV export, voice logging, and accessibility improvements throughout.
 ```
 
 ## Internal changelog (2.1 archive → 2.2)
 
-| Area | Change | Commits |
-|---|---|---|
-| Reliability | Silent data-layer failures now report Crashlytics non-fatals + user toasts | fb1e448b |
-| Food trust | FoodDataSanity checker (Atwater, unit slips, physical impossibility) + detail card + row badges + `food_data_suspicious` telemetry | f47fe949 |
-| Analytics | Activation funnel: onboarding_completed / first_food_logged / first_workout_completed (once per install) | f47fe949 |
-| Food trust | Cross-source agreement: per-100g comparison, `crossVerifiedBy` metadata, "Cross-Verified" descriptor | 6334f5cb |
-| Food trust | Community barcode-correction pool — **dark**, flag `communityBarcodeCorrections` (Remote Config `feature_communityBarcodeCorrections`); rules deployed, flip after 2.2 is live | 29fddecd |
-| Food trust | AI-estimate refine card + `food_correction_action` telemetry (per-source fix/remember rates) | fd505665 |
-| Design system | DESIGN.md written (one hero, green-means-something, type/copy rules) + Train screen; app-wide sweep incl. calorie-goal reset fix | 31515892, 3d04b7ca |
-| Design: structure | Home hero restructure + emoji-tiles decision; Food Search chip row; quick-log menu; weight tracking rebuild; Reports (trend = hero); Meal Plan + Maia passes | c8b05aec, 08900aa7, 28b751a2, febaa786, 183631a4 |
-| Workout player | Compact header + one-row control bar (~200pt returned to set cards); Auto-rest label clamp | cfd27cb7, 592522bc |
-| Weekly Recap | Core builder (PR/weight/volume math) + Your Week sheet, shareable card, Home entry | 62522604, b4814cae, 682e26ce |
-| Fill my macros | Home card ≥3pm → Maia dinner from remaining macros + pantry; decoder fix (was rejecting every AI response) | 7751ba27, 14ec9154, d4d6b8d7 |
-| Streak | Grace-day streak math (Core) + flame in Home's date bar | 6e49409d |
-| Motion | DESIGN.md §7: one spring, number roll-ups, haptics map, PR celebration | e4f64f7d |
-| Food data | Micronutrient ingestion fixed: quick-log hydrates full nutrition, USDA merged into search, OFF potassium unit slip | 805114ea |
-| Data export | Food diary + workout CSVs from Settings (RFC 4180) | a2bfd78b |
-| Fasting | Live Activity polish (lock screen + Dynamic Island; verified on hardware) | a2bfd78b |
-| Stability | Weekly Recap crash (WorkoutService injection) + fill-my-macros silent failure, from device reports | 09d3eb15, d4d6b8d7 |
-| Brand | New app icon (deep-green MFP monogram, iOS 18 dark/tinted) + tuned one-family palette (DESIGN.md §2a); Watch icon matched | c49a9b25, b32c9a9e |
-| Marketing | App Store screenshot pipeline: narrative, captions, compositor | 54105645 |
-| Infra | firestore.indexes.json live snapshot (unblocks rules deploys) | b850a43f |
-| Release | Version 2.2 (build 3) across app + extensions; accessibility pass on main flows | ac243e5a, c4da8f6c |
+| Area | Change |
+|---|---|
+| **Running** | GPS recorder (live pace/distance/splits, background tracking, lock-screen Live Activity, audio split coach with mute); any-watch import via HealthKit (Garmin/Polar/Coros/Apple Watch) with parallel-device dedupe + energy double-count guard; route map (all routes, decimated); records (longest, best 5K/10K, ghost pace, negative-split/fastest-split); weekly mileage in Reports; runs in Weekly Recap; shoe mileage tracker + performance leaderboard; run→recovery fueling prompt |
+| **Beat the buffet** | AYCE session game across 6 cuisines / 136 items; live menu-value vs. price + harder kitchen-ingredient-cost game; city pricing index (mid-market); plate scan → AI pricing; restaurant-ingredient-cost tier; lifetime scoreboard; buffet Live Activity + Dynamic Island |
+| **Switcher** | Import from MyFitnessPal: tolerant CSV parser (both export shapes), diary + weight, merge policy that never overwrites logged days, preview + progress |
+| Celebrations | Confetti/medal overlay on protein-goal hit (per-day guard), AYCE win, workout PR, recorded-run PR |
+| Coaching | Maia adaptive coaching plan with HRV + sleep adaptation; Restaurant Value Radar (protein-per-dollar menu scanner) |
+| Apple Health | Weight auto-import with per-day de-duplication; strength/run energy double-count protection |
+| Logging | Voice "walk & talk" logging; repeat-yesterday; rapid barcode scan tray (batched review) |
+| Food trust | FoodDataSanity checker + trust cards (0–99 score v2); cross-source agreement + Cross-Verified badge; GS1 barcode fallback + privacy-safe telemetry; AI-estimate refine; USDA-blended search; micronutrient ingestion fix (quick-log hydration, OFF potassium unit slip) |
+| Weekly Recap | Core builder (PR/weight/volume math) + Your Week sheet, shareable card, Home entry; logging streak with grace day; fill-my-macros |
+| Design | DESIGN.md system; new deep-green MFP icon (iOS 18 dark/tinted) + tuned one-family palette; app-wide restructure (Home, Food Search, quick-log, weight, Reports, Meal Plan, Maia, workout player); motion layer |
+| Data / infra | CSV export; fasting Live Activity; activation-funnel analytics; analytics off in DEBUG/CI; release-health non-fatals |
+| Quality | Core coverage ~84%; HealthKit + UNUserNotificationCenter test seams; agent-batch review fixes (audio-session leak, Value-Radar fabricated-data guard, AYCE diary write race, daily-briefing landmine, shoe-tag retroactivity) |
+
+_Full commit history on `main` from the 2.1 archive point. Core: 746 tests, 0 failures. App suite green._
 
 ## Before archive
-1. **Watch Gemini key — resolved on our side; ask the contributor to revoke.** The old watch Recipe Bot shipped a contributor-owned Gemini key inside the watch bundle. The bot, the plist, and every Gemini reference are gone from the codebase (verified 2026-07-08) — all AI goes through Firebase Functions with the OpenAI server secret, so MyFitPlate has zero dependency on that key. The only remaining exposure is the contributor's own Google quota: ask them to delete the key in their AI Studio (aistudio.google.com/apikey).
-2. Recapture the six App Store shots on-device (current composites show the pre-tune accent colors), rerun `tools/screenshots/compose.py`, upload.
-3. Device sanity: Weekly Recap opens, fill-my-macros suggests after 3pm, streak flame shows, new icon on home screen + watch; watch check: Today glance shows live numbers, crown-log water lands on the phone.
-4. Confirm version/build across app + extensions still aligned.
+1. **Watch Gemini key — ask the contributor to revoke.** Every Gemini reference is gone from the codebase (all AI runs through Firebase Functions + the OpenAI server secret); the only exposure is the contributor's own Google quota. Have them delete the key in their AI Studio.
+2. **Recapture App Store screenshots** on-device with the current build (accents + new features) and rerun `tools/screenshots/compose.py`, then upload. The switcher and running screens are strong new additions to the six-shot set.
+3. **Device pass** — run `docs/device-test-2.2.md` end to end. Highest-value: record a run (GPS + Live Activity + Health round-trip, parallel-watch energy not doubled), a full Beat-the-buffet session, a MyFitnessPal import (incl. re-import idempotency), voice logging, and the celebration triggers.
+4. Confirm version/build (2.2 / 4) still aligned across app + extensions after any Xcode changes.
 
 ## Post-release checklist
-1. Flip `feature_communityBarcodeCorrections` → `true` in Firebase Console → Remote Config (instant kill switch: set back to `false`).
-2. Watch Firebase → Analytics → Events: `food_data_suspicious`, `food_correction_action`, funnel events, `weekly_recap_viewed`.
+1. Flip `feature_communityBarcodeCorrections` → `true` in Firebase Console → Remote Config (kill switch: set back to `false`).
+2. Watch Firebase → Analytics: activation funnel, `weekly_recap_viewed`, `mfp_import_completed`, `food_data_suspicious`, `food_correction_action`.
 3. Watch Crashlytics non-fatals for `operation`-tagged failures (data layer + `decode_meal_suggestion`).
+4. gcloud scheduled Firestore backups; branch-protection ruleset; ASC privacy-label reconciliation for any new data use (location for runs, HealthKit weight/HRV).
