@@ -1,6 +1,6 @@
 # MyFitPlate 2.2 — Release Notes
 
-Version 2.2, build 4. All shipping targets (app, widget, Live Activity, watch) aligned.
+Version 2.2, build 1 (fresh build reset with the new marketing version). All shipping targets (app, widget, Live Activity, watch) aligned.
 
 ## App Store "What's New" (paste-ready)
 
@@ -49,7 +49,7 @@ _Full commit history on `main` from the 2.1 archive point. Core: 746 tests, 0 fa
 1. **Watch Gemini key — ask the contributor to revoke.** Every Gemini reference is gone from the codebase (all AI runs through Firebase Functions + the OpenAI server secret); the only exposure is the contributor's own Google quota. Have them delete the key in their AI Studio.
 2. **Recapture App Store screenshots** on-device with the current build (accents + new features) and rerun `tools/screenshots/compose.py`, then upload. The switcher and running screens are strong new additions to the six-shot set.
 3. **Device pass** — run `docs/device-test-2.2.md` end to end. Highest-value: record a run (GPS + Live Activity + Health round-trip, parallel-watch energy not doubled), a full Beat-the-buffet session, a MyFitnessPal import (incl. re-import idempotency), voice logging, and the celebration triggers.
-4. Confirm version/build (2.2 / 4) still aligned across app + extensions after any Xcode changes.
+4. Confirm version/build (2.2 / 1, or higher if a 2.2 build was already uploaded) still aligned across app + extensions after any Xcode changes.
 
 ## Post-release checklist
 1. Flip `feature_communityBarcodeCorrections` → `true` in Firebase Console → Remote Config (kill switch: set back to `false`).
