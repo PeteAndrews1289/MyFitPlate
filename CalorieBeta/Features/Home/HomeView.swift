@@ -24,6 +24,7 @@ struct HomeView: View {
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
 
+    @State private var lastRecoveryCheck: Date?
     @State private var showingProfileSheet = false
     @State private var showingAddExerciseView = false
 
@@ -426,6 +427,12 @@ struct HomeView: View {
     /// finished in the last two hours (recorded or from a watch via HealthKit) feeds the
     /// 45-minute recovery window logic.
     private func refreshRunRecoveryPrompt() {
+        // Home reappears constantly (tab switches, sheet dismissals); a HealthKit query on
+        // every appearance is wasteful and makes the banner flicker. Re-check at most once
+        // every 5 minutes — well inside the 45-minute recovery window it feeds.
+        if let last = lastRecoveryCheck, Date().timeIntervalSince(last) < 300 { return }
+        lastRecoveryCheck = Date()
+
         let since = Calendar.current.date(byAdding: .hour, value: -2, to: Date()) ?? Date()
         RunImportService().fetchRuns(since: since) { runs in
             insightsService.evaluateRunRecoveryPrompt(

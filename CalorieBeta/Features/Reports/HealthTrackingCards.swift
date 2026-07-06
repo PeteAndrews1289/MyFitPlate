@@ -162,8 +162,7 @@ struct ComprehensiveHealthCard: View {
     
     private func calculateTrend(_ data: [Double], lowerIsBetter: Bool = false) -> Trend {
         let validData = data.filter { $0 > 0 }
-        guard validData.count >= 2 else { return .neutral }
-        let current = validData.last!
+        guard validData.count >= 2, let current = validData.last else { return .neutral }
         let previous = validData.dropLast().reduce(0, +) / Double(validData.count - 1)
         
         if current > previous * 1.05 {
