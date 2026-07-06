@@ -60,7 +60,15 @@ public class MockDailyLogService: DailyLogServicing {
     public func repeatFoods(from sourceDate: Date, to targetDate: Date, for userID: String) {
         // Mock implementation
     }
-    
+
+    public func fetchYesterdayMeal(for userID: String, mealName: String, completion: @escaping ([FoodItem]) -> Void) {
+        completion([])
+    }
+
+    public func repeatYesterdayMeal(for userID: String, mealName: String, targetDate: Date, completion: @escaping (Bool) -> Void) {
+        completion(true)
+    }
+
     public func fetchRecentFoodItems(for userID: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
         completion(.success([]))
     }

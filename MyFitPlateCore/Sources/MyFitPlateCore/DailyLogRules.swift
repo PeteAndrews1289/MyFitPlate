@@ -120,4 +120,16 @@ public struct DailyLogRules {
         }
         return mealGroups
     }
+
+    public static func repeatMeal(from sourceLog: DailyLog, mealName: String) -> [FoodItem] {
+        guard let meal = sourceLog.meals.first(where: { $0.name.caseInsensitiveCompare(mealName) == .orderedSame }) else {
+            return []
+        }
+        return meal.foodItems.map { item -> FoodItem in
+            var repeated = item
+            repeated.id = UUID().uuidString
+            repeated.timestamp = Date()
+            return repeated
+        }
+    }
 }

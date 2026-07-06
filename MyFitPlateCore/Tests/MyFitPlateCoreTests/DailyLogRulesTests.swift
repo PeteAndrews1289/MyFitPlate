@@ -139,4 +139,20 @@ final class DailyLogRulesTests: XCTestCase {
         XCTAssertNotEqual(repeatedFood.id, "1") // ID should be new
         XCTAssertNotNil(repeatedFood.timestamp)
     }
+
+    func testRepeatMeal() {
+        let food1 = FoodItem(id: "1", name: "Apple", calories: 95, protein: 0.5, carbs: 25, fats: 0.3)
+        let log = DailyLog(date: Date(), meals: [
+            Meal(name: "Breakfast", foodItems: [food1]),
+            Meal(name: "Lunch", foodItems: [])
+        ])
+        
+        let breakfastItems = DailyLogRules.repeatMeal(from: log, mealName: "Breakfast")
+        XCTAssertEqual(breakfastItems.count, 1)
+        XCTAssertEqual(breakfastItems[0].name, "Apple")
+        XCTAssertNotEqual(breakfastItems[0].id, "1")
+
+        let dinnerItems = DailyLogRules.repeatMeal(from: log, mealName: "Dinner")
+        XCTAssertTrue(dinnerItems.isEmpty)
+    }
 }

@@ -89,6 +89,48 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         }
     }
 
+    public func fetchYesterdayMeal(for userID: String, mealName: String, completion: @escaping ([FoodItem]) -> Void) {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date().addingTimeInterval(-86400)
+        let yesterdayStart = Calendar.current.startOfDay(for: yesterday)
+
+        fetchLogInternal(for: userID, date: yesterdayStart) { result in
+            switch result {
+            case .success(let log):
+                let items = DailyLogRules.repeatMeal(from: log, mealName: mealName)
+                completion(items)
+            case .failure:
+                completion([])
+            }
+        }
+    }
+
+    public func repeatYesterdayMeal(for userID: String, mealName: String, targetDate: Date, completion: @escaping (Bool) -> Void) {
+        fetchYesterdayMeal(for: userID, mealName: mealName) { [weak self] items in
+            guard let self, !items.isEmpty else {
+                Task { @MainActor in
+                    self?.bannerService?.showBanner(title: "Nothing to repeat", message: "Yesterday had no \(mealName.lowercased()) logged.")
+                }
+                completion(false)
+                return
+            }
+            let targetDay = Calendar.current.startOfDay(for: targetDate)
+            self.addMealGroupsToLog(
+                for: userID,
+                date: targetDay,
+                mealGroups: [(mealName: mealName, foodItems: items)],
+                source: "repeat_yesterday_meal"
+            )
+            DIContainer.shared.analyticsManager?.logEvent("food_repeat_meal", parameters: [
+                "meal_name": mealName,
+                "item_count": items.count
+            ])
+            Task { @MainActor in
+                self.bannerService?.showBanner(title: "Repeated \(mealName)", message: "Added yesterday's items to today's log.", iconName: "checkmark.circle.fill", iconColor: .accentPositive)
+            }
+            completion(true)
+        }
+    }
+
     public func logFoodItem(_ foodItem: FoodItem, mealType: String) async {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let dateToLog = self.activelyViewedDate

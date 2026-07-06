@@ -65,6 +65,44 @@ final class RunStatsTests: XCTestCase {
                        "A mid-pack run must not trigger the celebration")
     }
 
+    // MARK: Ghost Pace
+
+    func testGhostPaceDetectsLoopPRAndCalculatesDifferentials() {
+        let history = [
+            run("loop1", meters: 5000, seconds: 1500, daysAgo: 10), // 300 sec/km
+            run("loop2", meters: 5100, seconds: 1581, daysAgo: 5),  // 310 sec/km
+            run("other10k", meters: 10000, seconds: 3200, daysAgo: 2) // not similar distance
+        ]
+
+        let newPR = run("loop3", meters: 5050, seconds: 1464.5) // 290 sec/km (faster than 300)
+        let comp = RunStats.ghostPaceComparison(for: newPR, against: history + [newPR])
+
+        XCTAssertNotNil(comp)
+        XCTAssertTrue(comp?.isPR == true)
+        XCTAssertEqual(comp?.matchingRunsCount, 2)
+        XCTAssertEqual(comp?.prPaceSecondsPerKm ?? 0, 300, accuracy: 0.1)
+        XCTAssertEqual(comp?.averagePaceSecondsPerKm ?? 0, 305, accuracy: 0.1)
+        XCTAssertEqual(comp?.paceDifferenceVsAverage ?? 0, -15, accuracy: 0.1) // 15 sec/km faster than avg
+        XCTAssertEqual(comp?.paceDifferenceVsPR ?? 0, -10, accuracy: 0.1) // 10 sec/km faster than PR
+    }
+
+    func testGhostPaceWhenNotAPROnSimilarLoop() {
+        let history = [
+            run("loop1", meters: 5000, seconds: 1400, daysAgo: 10), // 280 sec/km
+            run("loop2", meters: 5000, seconds: 1600, daysAgo: 5)   // 320 sec/km
+        ]
+
+        let slower = run("loop3", meters: 5000, seconds: 1500) // 300 sec/km (avg is 300)
+        let comp = RunStats.ghostPaceComparison(for: slower, against: history + [slower])
+
+        XCTAssertNotNil(comp)
+        XCTAssertFalse(comp?.isPR == true)
+        XCTAssertEqual(comp?.matchingRunsCount, 2)
+        XCTAssertEqual(comp?.prPaceSecondsPerKm ?? 0, 280, accuracy: 0.1)
+        XCTAssertEqual(comp?.averagePaceSecondsPerKm ?? 0, 300, accuracy: 0.1)
+        XCTAssertEqual(comp?.paceDifferenceVsAverage ?? 0, 0, accuracy: 0.1)
+    }
+
     // MARK: Weekly mileage
 
     func testWeeklyMileageZeroFillsQuietWeeksOldestFirst() {

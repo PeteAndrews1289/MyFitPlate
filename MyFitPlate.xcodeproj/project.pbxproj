@@ -123,6 +123,7 @@
 		8BE72AE7F708AD258D59E107 /* NutritionProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE351D14298ADBED2FB4DF2 /* NutritionProgressView.swift */; };
 		8C9BA63AFEB6F29F28206C86 /* WorkoutSessionHeaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8F70EFA7CD53F3CA61B33C /* WorkoutSessionHeaders.swift */; };
 		8E838AC3CFB74ADB255FD10B /* RunningViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16F549665236E63DDD1735DB /* RunningViews.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* ShoeGearManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A60718293A4B5C /* ShoeGearManagerView.swift */; };
 		917BCEFEED993B7B4B561B7A /* WorkoutAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6EE6ABC3516827EE9310BDA /* WorkoutAnalyticsView.swift */; };
 		962BC293EB2D602E4612FF9C /* FoodSearchViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB557B9F1155B0AC707AC507 /* FoodSearchViewComponents.swift */; };
 		9710B2B3B1F38E4E53266D0F /* FirestoreGroupRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50EC1F8E9DB8FABAB94ED9F2 /* FirestoreGroupRepository.swift */; };
@@ -297,6 +298,7 @@
 		12FA8ACE4194342C840B83C5 /* CrashManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CrashManager.swift; sourceTree = "<group>"; };
 		16452663171ACDF10A869684 /* DetailedInsightsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailedInsightsView.swift; sourceTree = "<group>"; };
 		16F549665236E63DDD1735DB /* RunningViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RunningViews.swift; sourceTree = "<group>"; };
+		F1E2D3C4B5A60718293A4B5C /* ShoeGearManagerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoeGearManagerView.swift; sourceTree = "<group>"; };
 		19EC4E441627CF64C71DEE10 /* CircularWeightDisplayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CircularWeightDisplayView.swift; sourceTree = "<group>"; };
 		1DCD4E7EBE884ABDBD31E5C2 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		1EC87628BF596B4CF19BECF6 /* GroceryListStates.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GroceryListStates.swift; sourceTree = "<group>"; };
@@ -790,6 +792,7 @@
 				366F7F51AD4FEC712806B4D9 /* WorkoutTimers.swift */,
 				EE8F70EFA7CD53F3CA61B33C /* WorkoutSessionHeaders.swift */,
 				16F549665236E63DDD1735DB /* RunningViews.swift */,
+				F1E2D3C4B5A60718293A4B5C /* ShoeGearManagerView.swift */,
 				68B692A056390AEEEA41E13C /* RunRecorderViews.swift */,
 				E177692C65003E9F6183CFE9 /* RunActivityAttributes.swift */,
 				BBC931BD6D999867A76E46B9 /* ExerciseCardViews.swift */,
@@ -1415,6 +1418,7 @@
 				5570A65561FD4FC126AA0597 /* WorkoutTimers.swift in Sources */,
 				8C9BA63AFEB6F29F28206C86 /* WorkoutSessionHeaders.swift in Sources */,
 				8E838AC3CFB74ADB255FD10B /* RunningViews.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* ShoeGearManagerView.swift in Sources */,
 				BFD25BC2A13355FD5902AD3D /* RunRecorderViews.swift in Sources */,
 				42DEE0ACB28F52825B84E044 /* ExerciseCardViews.swift in Sources */,
 				71DCAC9D7D1E59923E22EDE7 /* PlateMathVisualizer.swift in Sources */,

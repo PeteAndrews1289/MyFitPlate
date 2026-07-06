@@ -19,7 +19,7 @@ final class RunHistoryViewModel: ObservableObject {
             guard let self else { return }
             let since = Calendar.current.date(byAdding: .day, value: -180, to: Date()) ?? Date()
             self.importer.fetchRuns(since: since) { runs in
-                self.runs = runs
+                self.runs = RunningShoeStore().applyTags(to: runs)
                 self.isLoading = false
             }
         }
@@ -43,6 +43,7 @@ struct RunHistoryView: View {
     @StateObject private var viewModel = RunHistoryViewModel()
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @State private var showingRecorder = false
+    @State private var showingGearManager = false
 
     var body: some View {
         ScrollView {
@@ -84,16 +85,30 @@ struct RunHistoryView: View {
         .navigationTitle("Running")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                NavigationLink(destination: RunMapView(runs: viewModel.runs)) {
-                    Image(systemName: "map")
-                        .foregroundColor(.brandPrimary)
+                HStack(spacing: 16) {
+                    Button {
+                        HapticManager.instance.feedback(.light)
+                        showingGearManager = true
+                    } label: {
+                        Image(systemName: "shoeprints.fill")
+                            .foregroundColor(.brandPrimary)
+                    }
+                    .accessibilityLabel("Shoe Gear Manager")
+
+                    NavigationLink(destination: RunMapView(runs: viewModel.runs)) {
+                        Image(systemName: "map")
+                            .foregroundColor(.brandPrimary)
+                    }
+                    .accessibilityLabel("Route map")
                 }
-                .accessibilityLabel("Route map")
             }
         }
         .onAppear { viewModel.load() }
         .fullScreenCover(isPresented: $showingRecorder, onDismiss: { viewModel.load() }) {
             RunRecorderView()
+        }
+        .sheet(isPresented: $showingGearManager, onDismiss: { viewModel.load() }) {
+            ShoeGearManagerView(runs: viewModel.runs)
         }
     }
 
@@ -188,12 +203,18 @@ final class RunDetailViewModel: ObservableObject {
     @Published var splits: [RunSplit] = []
     @Published var averageHeartRate: Double?
     @Published var isLoadingRoute = true
+    @Published var ghostPaceComparison: RunStats.GhostPaceComparison?
 
     private let importer = RunImportService()
 
     func load(run: Run, metric: Bool) {
         splits = run.splits
         averageHeartRate = run.averageHeartRate
+
+        let since = Calendar.current.date(byAdding: .year, value: -2, to: Date()) ?? Date()
+        importer.fetchRuns(since: since) { [weak self] history in
+            self?.ghostPaceComparison = RunStats.ghostPaceComparison(for: run, against: history)
+        }
 
         importer.fetchRoute(forRunID: run.id) { [weak self] fixes in
             guard let self else { return }
@@ -246,6 +267,12 @@ struct RunDetailView: View {
                     splitsCard
                 }
 
+                if let comparison = viewModel.ghostPaceComparison {
+                    ghostPaceCard(comparison)
+                }
+
+                shoeTagCard
+                
                 Text("Recorded with \(run.source.displayName)")
                     .appFont(size: 12)
                     .foregroundColor(Color(UIColor.secondaryLabel))
@@ -256,6 +283,100 @@ struct RunDetailView: View {
         .navigationTitle(run.startDate.formatted(date: .abbreviated, time: .omitted))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { viewModel.load(run: run, metric: useMetric) }
+    }
+
+    private var shoeTagCard: some View {
+        let store = RunningShoeStore()
+        let currentShoe = store.shoeID(forRunID: run.id).flatMap { store.shoe(for: $0) } ?? store.defaultShoe()
+        return HStack {
+            Image(systemName: "shoeprints.fill")
+                .foregroundColor(.accentProtein)
+                .font(.system(size: 20))
+                .frame(width: 38, height: 38)
+                .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Gear Tagged")
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                Text(currentShoe.map { "\($0.brand) · \($0.name)" } ?? "Select Shoe")
+                    .appFont(size: 15, weight: .bold)
+                    .foregroundColor(.textPrimary)
+            }
+
+            Spacer()
+
+            Menu {
+                ForEach(store.shoes.filter { !$0.isRetired }) { shoe in
+                    Button {
+                        HapticManager.instance.feedback(.light)
+                        store.tagRun(runID: run.id, withShoeID: shoe.id)
+                    } label: {
+                        HStack {
+                            Text("\(shoe.brand) · \(shoe.name)")
+                            if currentShoe?.id == shoe.id {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Text("Change")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.brandPrimary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.brandPrimary.opacity(0.12), in: Capsule())
+            }
+        }
+        .asCard()
+    }
+
+    private func ghostPaceCard(_ comparison: RunStats.GhostPaceComparison) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: comparison.isPR ? "trophy.fill" : "ghost.fill")
+                .foregroundColor(comparison.isPR ? .yellow : .brandPrimary)
+                .font(.system(size: 22))
+                .frame(width: 42, height: 42)
+                .background(
+                    (comparison.isPR ? Color.yellow : Color.brandPrimary).opacity(0.15),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(comparison.isPR ? "🏆 New Route PR!" : "Ghost Pace Loop")
+                        .appFont(size: 15, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    if !comparison.isPR {
+                        Text("vs \(comparison.matchingRunsCount) similar runs")
+                            .appFont(size: 11, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                }
+
+                let diffText = RunFormat.paceDiffText(secondsPerKmDiff: comparison.paceDifferenceVsAverage, metric: useMetric)
+                Text("\(diffText) vs average on this loop")
+                    .appFont(size: 13, weight: .semibold)
+                    .foregroundColor(comparison.paceDifferenceVsAverage < 0 ? .green : .textPrimary)
+            }
+
+            Spacer()
+
+            if let prPace = RunFormat.paceText(secondsPerKm: comparison.prPaceSecondsPerKm, metric: useMetric) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Loop Best")
+                        .appFont(size: 10, weight: .bold)
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                    Text(prPace)
+                        .appFont(size: 13, weight: .bold)
+                        .foregroundColor(.brandPrimary)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .asCard()
     }
 
     private var routeMap: some View {

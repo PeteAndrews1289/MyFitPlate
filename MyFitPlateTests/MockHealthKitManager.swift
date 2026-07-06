@@ -70,4 +70,20 @@ class MockHealthKitManager: HealthKitManaging {
     func saveWeightSample(weightLbs: Double, date: Date) {
         savedWeightSamples.append((weightLbs, date))
     }
+
+    func isHealthDataAvailable() -> Bool {
+        true
+    }
+
+    func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping (HKAuthorizationRequestStatus, Error?) -> Void) {
+        completion(.unnecessary, nil)
+    }
+
+    func fetch7DayTrend(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double]) -> Void) {
+        completion([])
+    }
+
+    func saveWater(ounces: Double, date: Date) {
+        // no-op
+    }
 }

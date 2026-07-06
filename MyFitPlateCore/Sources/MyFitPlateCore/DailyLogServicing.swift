@@ -23,6 +23,8 @@ public protocol FoodLogging: AnyObject {
     func addMealToLog(for userID: String, date: Date, mealName: String, foodItems: [FoodItem], source: String)
     func addMealGroupsToLog(for userID: String, date: Date, mealGroups: [(mealName: String, foodItems: [FoodItem])], source: String)
     func repeatFoods(from sourceDate: Date, to targetDate: Date, for userID: String)
+    func fetchYesterdayMeal(for userID: String, mealName: String, completion: @escaping ([FoodItem]) -> Void)
+    func repeatYesterdayMeal(for userID: String, mealName: String, targetDate: Date, completion: @escaping (Bool) -> Void)
 
     func fetchRecentFoodItems(for userID: String, completion: @escaping (Result<[FoodItem], Error>) -> Void)
 }

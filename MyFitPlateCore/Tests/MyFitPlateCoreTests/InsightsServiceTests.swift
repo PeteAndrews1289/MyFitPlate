@@ -228,4 +228,16 @@ final class InsightsServiceTests: XCTestCase {
         XCTAssertEqual(notification?.title, "Drink Water")
         XCTAssertEqual(notification?.body, "Stay hydrated today.")
     }
+
+    func testEvaluateRunRecoveryPrompt() async {
+        let run = Run(source: .recorded, startDate: Date().addingTimeInterval(-1800), endDate: Date(), distanceMeters: 5000, movingSeconds: 1800, activeCalories: 350)
+        await MainActor.run {
+            service.evaluateRunRecoveryPrompt(recentRun: run)
+            XCTAssertNotNil(service.currentRunRecoveryPrompt)
+            XCTAssertEqual(service.currentRunRecoveryPrompt?.runID, run.id)
+
+            service.evaluateRunRecoveryPrompt(recentRun: nil)
+            XCTAssertNil(service.currentRunRecoveryPrompt)
+        }
+    }
 }

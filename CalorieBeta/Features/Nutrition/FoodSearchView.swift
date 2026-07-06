@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 struct FoodSearchView: View {
     @Binding var dailyLog: DailyLog?
@@ -10,6 +11,7 @@ struct FoodSearchView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
 
     @StateObject private var viewModel = FoodSearchViewModel()
+    @StateObject private var voiceLoggingService = VoiceLoggingService(engine: SpeechCaptureEngine())
 
     @State private var showingAddFoodManually = false
     @State private var showingQuickAddMacros = false
@@ -258,10 +260,15 @@ struct FoodSearchView: View {
                 viewModel.searchText = ""
                 viewModel.handleSearchQueryChange("")
             },
-            onSubmit: hideKeyboard
+            onSubmit: hideKeyboard,
+            onMic: { toggleVoiceRecording() },
+            isRecording: voiceLoggingService.state == .recording
         )
         .onChange(of: viewModel.searchText) { _, newValue in
             viewModel.handleSearchQueryChange(newValue)
+        }
+        .onChange(of: voiceLoggingService.state) { _, newState in
+            handleVoiceStateChange(newState)
         }
     }
 
@@ -305,6 +312,9 @@ struct FoodSearchView: View {
     @ViewBuilder
     private var mainActionContent: some View {
         searchHeaderContent
+        if voiceLoggingService.state == .recording || voiceLoggingService.state == .transcribing {
+            voiceRecordingBanner
+        }
         mealTargetContent
         actionGridContent
         smartHistoryContent
@@ -443,5 +453,91 @@ struct FoodSearchView: View {
 
     private func deleteRecent(food: FoodItem) {
         viewModel.recentFoods.removeAll { $0.id == food.id }
+    }
+
+    private var voiceRecordingBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: voiceLoggingService.state == .recording ? "waveform.circle.fill" : "sparkles")
+                .foregroundColor(.white)
+                .font(.system(size: 18, weight: .bold))
+                .frame(width: 36, height: 36)
+                .background(Color.accentProtein, in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(voiceLoggingService.state == .recording ? "Listening... Tap mic or here to stop" : "Transcribing your meal...")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Text("Speak naturally, e.g., 'Two eggs and a slice of toast'")
+                    .appFont(size: 11)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            }
+
+            Spacer()
+
+            if voiceLoggingService.state == .recording {
+                Button {
+                    HapticManager.instance.feedback(.medium)
+                    stopAndProcessVoiceLog()
+                } label: {
+                    Text("Done")
+                        .appFont(size: 13, weight: .bold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.accentProtein, in: Capsule())
+                }
+            } else {
+                ProgressView()
+            }
+        }
+        .padding(12)
+        .background(Color.accentProtein.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.accentProtein.opacity(0.3), lineWidth: 1)
+        )
+        .onTapGesture {
+            if voiceLoggingService.state == .recording {
+                HapticManager.instance.feedback(.medium)
+                stopAndProcessVoiceLog()
+            }
+        }
+    }
+
+    private func toggleVoiceRecording() {
+        if voiceLoggingService.state == .recording {
+            HapticManager.instance.feedback(.medium)
+            stopAndProcessVoiceLog()
+        } else {
+            do {
+                try voiceLoggingService.startRecording()
+                HapticManager.instance.feedback(.light)
+            } catch {
+                scanError = (true, "Could not start microphone: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func stopAndProcessVoiceLog() {
+        Task { @MainActor in
+            do {
+                let result = try await voiceLoggingService.stopRecording()
+                if result.transcript.count > 3 {
+                    HapticManager.instance.notification(.success)
+                    viewModel.searchText = result.transcript
+                    viewModel.handleSearchQueryChange(result.transcript)
+                } else {
+                    ToastManager.shared.showToast(message: "Didn't catch that — try again or type it.")
+                }
+            } catch {
+                scanError = (true, "Voice recording failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func handleVoiceStateChange(_ state: VoiceLoggingState) {
+        guard state == .error else { return }
+        scanError = (true, "Voice search needs microphone and speech recognition access. Enable both for MyFitPlate in Settings.")
+        voiceLoggingService.acknowledgeError()
     }
 }

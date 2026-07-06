@@ -57,6 +57,54 @@ public enum RunStats {
         return false
     }
 
+    public struct GhostPaceComparison: Equatable {
+        public var isPR: Bool
+        public var prPaceSecondsPerKm: Double
+        public var averagePaceSecondsPerKm: Double
+        public var paceDifferenceVsAverage: Double
+        public var paceDifferenceVsPR: Double
+        public var matchingRunsCount: Int
+
+        public init(isPR: Bool, prPaceSecondsPerKm: Double, averagePaceSecondsPerKm: Double, paceDifferenceVsAverage: Double, paceDifferenceVsPR: Double, matchingRunsCount: Int) {
+            self.isPR = isPR
+            self.prPaceSecondsPerKm = prPaceSecondsPerKm
+            self.averagePaceSecondsPerKm = averagePaceSecondsPerKm
+            self.paceDifferenceVsAverage = paceDifferenceVsAverage
+            self.paceDifferenceVsPR = paceDifferenceVsPR
+            self.matchingRunsCount = matchingRunsCount
+        }
+    }
+
+    /// Compares a run against historical runs of similar distance (within 5% distance tolerance)
+    /// to determine if it sets a route/distance PR and how its pace compares to average ("Ghost Pace").
+    public static func ghostPaceComparison(for run: Run, against history: [Run]) -> GhostPaceComparison? {
+        guard let currentPace = run.averagePaceSecondsPerKm, run.distanceMeters >= 500 else { return nil }
+
+        let similarRuns = history.filter { other in
+            other.id != run.id &&
+            other.distanceMeters >= 500 &&
+            other.averagePaceSecondsPerKm != nil &&
+            abs(other.distanceMeters - run.distanceMeters) / run.distanceMeters <= 0.05
+        }
+
+        guard !similarRuns.isEmpty else { return nil }
+
+        let paces = similarRuns.compactMap { $0.averagePaceSecondsPerKm }
+        guard let prPace = paces.min(), !paces.isEmpty else { return nil }
+
+        let avgPace = paces.reduce(0, +) / Double(paces.count)
+        let isPR = currentPace < prPace
+
+        return GhostPaceComparison(
+            isPR: isPR,
+            prPaceSecondsPerKm: prPace,
+            averagePaceSecondsPerKm: avgPace,
+            paceDifferenceVsAverage: currentPace - avgPace,
+            paceDifferenceVsPR: currentPace - prPace,
+            matchingRunsCount: similarRuns.count
+        )
+    }
+
     public struct WeekMileage: Equatable {
         public let weekStart: Date
         public let meters: Double

@@ -19,13 +19,22 @@ public protocol HealthKitManaging {
     func deleteNutrition(for foodItem: FoodItem, completion: ((Bool) -> Void)?)
     func replaceNutrition(oldItem: FoodItem, newItem: FoodItem)
     func saveWeightSample(weightLbs: Double, date: Date)
+    func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping (HKAuthorizationRequestStatus, Error?) -> Void)
+    func fetch7DayTrend(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double]) -> Void)
+    func saveWater(ounces: Double, date: Date)
+    func isHealthDataAvailable() -> Bool
 }
 
 public class HealthKitManager: HealthKitManaging {
 
 
     public static let shared = HealthKitManager()
-    public let healthStore = HKHealthStore()
+    public let store: HealthStoreScheduling
+
+    public func isHealthDataAvailable() -> Bool {
+        store.isHealthDataAvailable()
+    }
+
     private enum MetadataKey {
         static let source = "MyFitPlateSource"
         static let foodItemID = "MyFitPlateFoodItemID"
@@ -34,10 +43,16 @@ public class HealthKitManager: HealthKitManaging {
         static let calorieMacroDelta = "MyFitPlateCalorieMacroDelta"
     }
 
-    private init() { }
+    public init(store: HealthStoreScheduling = SystemHealthStore()) {
+        self.store = store
+    }
+
+    public func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping (HKAuthorizationRequestStatus, Error?) -> Void) {
+        store.getRequestStatusForAuthorization(toShare: typesToShare, read: typesToRead, completion: completion)
+    }
 
     public func requestAuthorization(completion: @escaping (Bool, Error?) -> Void) {
-        guard HKHealthStore.isHealthDataAvailable() else {
+        guard store.isHealthDataAvailable() else {
             completion(false, NSError(domain: "com.MyFitPlate.HealthKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "HealthKit not available on this device."]))
             return
         }
@@ -94,7 +109,7 @@ public class HealthKitManager: HealthKitManaging {
             waterType
         ]
 
-        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
+        store.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
             completion(success, error)
         }
     }
@@ -122,7 +137,7 @@ public class HealthKitManager: HealthKitManaging {
                 completion(workouts, nil)
             }
         }
-        healthStore.execute(query)
+        store.execute(query)
     }
 
     public func fetchSleepAnalysis(startDate: Date, endDate: Date, completion: @escaping ([HKCategorySample]?, Error?) -> Void) {
@@ -147,7 +162,7 @@ public class HealthKitManager: HealthKitManaging {
                 completion(sleepSamples, nil)
             }
         }
-        healthStore.execute(query)
+        store.execute(query)
     }
 
     public func fetchLatestRestingHeartRate(completion: @escaping (HKQuantitySample?) -> Void) {
@@ -162,7 +177,7 @@ public class HealthKitManager: HealthKitManaging {
                 completion(samples?.first as? HKQuantitySample)
             }
         }
-        healthStore.execute(query)
+        store.execute(query)
     }
 
     public func fetchLatestHRV(completion: @escaping (HKQuantitySample?) -> Void) {
@@ -177,7 +192,7 @@ public class HealthKitManager: HealthKitManaging {
                 completion(samples?.first as? HKQuantitySample)
             }
         }
-        healthStore.execute(query)
+        store.execute(query)
     }
 
     public func fetchTodaySteps(completion: @escaping (Double) -> Void) {
@@ -196,7 +211,7 @@ public class HealthKitManager: HealthKitManaging {
                 completion(sum)
             }
         }
-        healthStore.execute(query)
+        store.execute(query)
     }
 
     public func fetchTodayActiveEnergy(completion: @escaping (Double) -> Void) {
@@ -215,11 +230,11 @@ public class HealthKitManager: HealthKitManaging {
                 completion(sum)
             }
         }
-        healthStore.execute(query)
+        store.execute(query)
     }
 
     public func fetchBiologicalSex() -> HKBiologicalSexObject? {
-        return try? healthStore.biologicalSex()
+        return try? store.biologicalSex()
     }
 
     public func fetchTodayDistance(completion: @escaping (Double) -> Void) {
@@ -232,7 +247,7 @@ public class HealthKitManager: HealthKitManaging {
         let query = HKStatisticsQuery(quantityType: distanceType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, result, _ in
             DispatchQueue.main.async { completion(result?.sumQuantity()?.doubleValue(for: .mile()) ?? 0) }
         }
-        healthStore.execute(query)
+        store.execute(query)
     }
 
     public func fetchTodayFlights(completion: @escaping (Double) -> Void) {
@@ -245,7 +260,7 @@ public class HealthKitManager: HealthKitManaging {
         let query = HKStatisticsQuery(quantityType: flightsType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, result, _ in
             DispatchQueue.main.async { completion(result?.sumQuantity()?.doubleValue(for: .count()) ?? 0) }
         }
-        healthStore.execute(query)
+        store.execute(query)
     }
 
     public func fetchTodayExerciseTime(completion: @escaping (Double) -> Void) {
@@ -258,7 +273,7 @@ public class HealthKitManager: HealthKitManaging {
         let query = HKStatisticsQuery(quantityType: exerciseTimeType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, result, _ in
             DispatchQueue.main.async { completion(result?.sumQuantity()?.doubleValue(for: .minute()) ?? 0) }
         }
-        healthStore.execute(query)
+        store.execute(query)
     }
 
     public func fetch7DayTrend(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double]) -> Void) {
@@ -301,7 +316,7 @@ public class HealthKitManager: HealthKitManaging {
             
             DispatchQueue.main.async { completion(trends) }
         }
-        healthStore.execute(query)
+        store.execute(query)
     }
 
     // MARK: - Nutrition Saving
@@ -342,7 +357,7 @@ public class HealthKitManager: HealthKitManaging {
 
         guard !nutrientSamples.isEmpty else { return }
 
-        healthStore.save(nutrientSamples) { success, error in
+        store.save(nutrientSamples) { success, error in
             if !success, let error = error {
                 AppLog.health.error("Failed to save nutrition samples to HealthKit: \(error.localizedDescription, privacy: .public)")
             }
@@ -363,7 +378,7 @@ public class HealthKitManager: HealthKitManaging {
         
         let sample = HKQuantitySample(type: waterType, quantity: quantity, start: date, end: date, metadata: metadata)
         
-        healthStore.save(sample) { success, error in
+        store.save(sample) { success, error in
             if !success, let error = error {
                 AppLog.health.error("Failed to save water to HealthKit: \(error.localizedDescription, privacy: .public)")
             }
@@ -389,7 +404,7 @@ public class HealthKitManager: HealthKitManaging {
 
         for sampleType in sampleTypes {
             group.enter()
-            healthStore.deleteObjects(of: sampleType, predicate: predicate) { success, deletedCount, error in
+            store.deleteObjects(of: sampleType, predicate: predicate) { success, deletedCount, error in
                 stateLock.lock()
                 defer {
                     stateLock.unlock()
@@ -443,7 +458,7 @@ public class HealthKitManager: HealthKitManaging {
         let weightQuantity = HKQuantity(unit: .pound(), doubleValue: weightLbs)
         let weightSample = HKQuantitySample(type: bodyMassType, quantity: weightQuantity, start: date, end: date)
 
-        healthStore.save(weightSample) { success, error in
+        store.save(weightSample) { success, error in
             if !success, let error = error {
                 AppLog.health.error("Failed to save weight to HealthKit: \(error.localizedDescription, privacy: .public)")
             }

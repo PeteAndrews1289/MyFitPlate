@@ -8,9 +8,9 @@ import CoreLocation
 /// HKWorkout into the plain ImportedWorkoutSummary the rules understand.
 public final class RunImportService {
 
-    private let healthStore: HKHealthStore
+    private let healthStore: HealthStoreScheduling
 
-    public init(healthStore: HKHealthStore = HealthKitManager.shared.healthStore) {
+    public init(healthStore: HealthStoreScheduling = HealthKitManager.shared.store) {
         self.healthStore = healthStore
     }
 

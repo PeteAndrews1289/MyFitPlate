@@ -48,6 +48,9 @@
     "/ 100" : {
 
     },
+    "/99" : {
+
+    },
     "/100" : {
 
     },
@@ -303,12 +306,12 @@
         }
       }
     },
-    "%@. %@. %@" : {
+    "%@. %@. %@. %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$@. %2$@. %3$@"
+            "value" : "%1$@. %2$@. %3$@. %4$@"
           }
         }
       }
@@ -2487,6 +2490,9 @@
     "Opens logging options" : {
 
     },
+    "Opens the nutrition editor for this food." : {
+
+    },
     "Overdue: %@ — give these a session soon." : {
 
     },
@@ -3705,6 +3711,9 @@
 
     },
     "Your progress from this session won't be saved." : {
+
+    },
+    "Your record: %@" : {
 
     },
     "Your route, distance, and pace come from GPS while you run. Nothing is tracked outside a recording." : {

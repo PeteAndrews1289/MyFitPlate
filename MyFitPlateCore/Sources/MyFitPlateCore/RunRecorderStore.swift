@@ -35,9 +35,9 @@ public enum RunEnergy {
 /// our own import path exactly like a watch recording would.
 public final class RunRecorderStore {
 
-    private let healthStore: HKHealthStore
+    private let healthStore: HealthStoreScheduling
 
-    public init(healthStore: HKHealthStore = HealthKitManager.shared.healthStore) {
+    public init(healthStore: HealthStoreScheduling = HealthKitManager.shared.store) {
         self.healthStore = healthStore
     }
 
@@ -95,73 +95,36 @@ public final class RunRecorderStore {
         configuration.activityType = .running
         configuration.locationType = run.isIndoor ? .indoor : .outdoor
 
-        let builder = HKWorkoutBuilder(healthStore: healthStore, configuration: configuration, device: .local())
-
-        func fail(_ stage: String, _ error: Error?) {
-            AppLog.health.error("Run save failed at \(stage, privacy: .public): \(error?.localizedDescription ?? "unknown", privacy: .public)")
-            DispatchQueue.main.async { completion(nil) }
+        var samples: [HKSample] = []
+        if includeQuantitySamples, run.distanceMeters > 0, let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) {
+            samples.append(HKQuantitySample(
+                type: distanceType,
+                quantity: HKQuantity(unit: .meter(), doubleValue: run.distanceMeters),
+                start: run.startDate,
+                end: run.endDate
+            ))
+        }
+        let kcal = run.activeCalories ?? RunEnergy.estimateKcal(distanceMeters: run.distanceMeters, weightLbs: weightLbs)
+        if includeQuantitySamples, kcal > 0, let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
+            samples.append(HKQuantitySample(
+                type: energyType,
+                quantity: HKQuantity(unit: .kilocalorie(), doubleValue: kcal),
+                start: run.startDate,
+                end: run.endDate
+            ))
         }
 
-        builder.beginCollection(withStart: run.startDate) { [healthStore] began, error in
-            guard began else { return fail("begin", error) }
-
-            var samples: [HKSample] = []
-            if includeQuantitySamples, run.distanceMeters > 0, let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) {
-                samples.append(HKQuantitySample(
-                    type: distanceType,
-                    quantity: HKQuantity(unit: .meter(), doubleValue: run.distanceMeters),
-                    start: run.startDate,
-                    end: run.endDate
-                ))
+        healthStore.saveWorkout(
+            configuration: configuration,
+            start: run.startDate,
+            end: run.endDate,
+            samples: samples,
+            locations: locations
+        ) { uuid, error in
+            if let error {
+                AppLog.health.error("Run save failed: \(error.localizedDescription, privacy: .public)")
             }
-            let kcal = run.activeCalories ?? RunEnergy.estimateKcal(distanceMeters: run.distanceMeters, weightLbs: weightLbs)
-            if includeQuantitySamples, kcal > 0, let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
-                samples.append(HKQuantitySample(
-                    type: energyType,
-                    quantity: HKQuantity(unit: .kilocalorie(), doubleValue: kcal),
-                    start: run.startDate,
-                    end: run.endDate
-                ))
-            }
-
-            let addSamplesAndFinish = {
-                builder.endCollection(withEnd: run.endDate) { ended, error in
-                    guard ended else { return fail("end", error) }
-                    builder.finishWorkout { workout, error in
-                        guard let workout else { return fail("finish", error) }
-
-                        guard locations.count > 1 else {
-                            DispatchQueue.main.async { completion(workout.uuid.uuidString) }
-                            return
-                        }
-                        let routeBuilder = HKWorkoutRouteBuilder(healthStore: healthStore, device: nil)
-                        routeBuilder.insertRouteData(locations) { inserted, error in
-                            guard inserted else {
-                                // The workout itself saved; a lost route is a degraded
-                                // result, not a failure.
-                                AppLog.health.error("Route insert failed: \(error?.localizedDescription ?? "unknown", privacy: .public)")
-                                DispatchQueue.main.async { completion(workout.uuid.uuidString) }
-                                return
-                            }
-                            routeBuilder.finishRoute(with: workout, metadata: nil) { _, error in
-                                if let error {
-                                    AppLog.health.error("Route finish failed: \(error.localizedDescription, privacy: .public)")
-                                }
-                                DispatchQueue.main.async { completion(workout.uuid.uuidString) }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if samples.isEmpty {
-                addSamplesAndFinish()
-            } else {
-                builder.add(samples) { added, error in
-                    guard added else { return fail("samples", error) }
-                    addSamplesAndFinish()
-                }
-            }
+            DispatchQueue.main.async { completion(uuid) }
         }
     }
 }

@@ -9,20 +9,15 @@ struct CalorieLogView: View {
         ScrollView {
             VStack(spacing: 16) {
                 if let log = dailyLogService.currentDailyLog {
-                    if log.meals.flatMap(\.foodItems).isEmpty {
-                        CalorieLogEmptyState {
-                            showingAddFoodView = true
-                        }
-                    } else {
-                        CalorieLogSummaryCard(log: log)
+                    CalorieLogSummaryCard(log: log)
 
-                        ForEach(log.meals.filter { !$0.foodItems.isEmpty }) { meal in
-                            CalorieLogMealSection(
-                                meal: meal,
-                                onEdit: { foodToEdit = $0 },
-                                onDelete: deleteFood
-                            )
-                        }
+                    ForEach(displayedMeals(from: log)) { meal in
+                        CalorieLogMealSection(
+                            meal: meal,
+                            onEdit: { foodToEdit = $0 },
+                            onDelete: deleteFood,
+                            onRepeatYesterday: { repeatYesterday(for: meal) }
+                        )
                     }
                 } else {
                     CalorieLogEmptyState {
@@ -80,6 +75,30 @@ struct CalorieLogView: View {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
         dailyLogService.deleteFoodFromCurrentLog(for: userID, foodItemID: foodItem.id)
         HapticManager.instance.feedback(.light)
+    }
+
+    private func displayedMeals(from log: DailyLog) -> [Meal] {
+        let standardNames = ["Breakfast", "Lunch", "Dinner", "Snack"]
+        var meals = standardNames.map { name -> Meal in
+            if let existing = log.meals.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+                return existing
+            } else {
+                return Meal(name: name, foodItems: [])
+            }
+        }
+        let customMeals = log.meals.filter { existing in
+            !standardNames.contains(where: { $0.caseInsensitiveCompare(existing.name) == .orderedSame })
+        }
+        meals.append(contentsOf: customMeals)
+        return meals
+    }
+
+    private func repeatYesterday(for meal: Meal) {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        let targetDate = dailyLogService.activelyViewedDate
+        dailyLogService.repeatYesterdayMeal(for: userID, mealName: meal.name, targetDate: targetDate) { _ in
+            HapticManager.instance.feedback(.light)
+        }
     }
 }
 
@@ -176,6 +195,7 @@ private struct CalorieLogMealSection: View {
     let meal: Meal
     let onEdit: (FoodItem) -> Void
     let onDelete: (FoodItem) -> Void
+    let onRepeatYesterday: () -> Void
 
     private var calories: Double {
         meal.foodItems.reduce(0) { $0 + $1.calories }
@@ -189,22 +209,52 @@ private struct CalorieLogMealSection: View {
                         .appFont(size: 19, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("\(meal.foodItems.count.formatted()) items - \(Int(calories.rounded()).formatted()) cal")
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                    if !meal.foodItems.isEmpty {
+                        Text("\(meal.foodItems.count.formatted()) items - \(Int(calories.rounded()).formatted()) cal")
+                            .appFont(size: 12, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    } else {
+                        Text("No items logged")
+                            .appFont(size: 12, weight: .semibold)
+                            .foregroundColor(Color(UIColor.tertiaryLabel))
+                    }
                 }
 
                 Spacer()
+
+                Button(action: onRepeatYesterday) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Repeat Yesterday")
+                            .appFont(size: 11, weight: .semibold)
+                    }
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color(UIColor.tertiarySystemFill))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
 
-            VStack(spacing: 9) {
-                ForEach(meal.foodItems) { foodItem in
-                    CalorieLogFoodRow(
-                        foodItem: foodItem,
-                        onEdit: { onEdit(foodItem) },
-                        onDelete: { onDelete(foodItem) }
-                    )
+            if !meal.foodItems.isEmpty {
+                VStack(spacing: 9) {
+                    ForEach(meal.foodItems) { foodItem in
+                        CalorieLogFoodRow(
+                            foodItem: foodItem,
+                            onEdit: { onEdit(foodItem) },
+                            onDelete: { onDelete(foodItem) }
+                        )
+                    }
                 }
+            } else {
+                Text("Tap + above to add food or repeat from yesterday")
+                    .appFont(size: 13, weight: .regular)
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .background(Color.backgroundSecondary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }
     }

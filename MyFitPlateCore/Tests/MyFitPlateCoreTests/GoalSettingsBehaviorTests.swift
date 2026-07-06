@@ -411,6 +411,8 @@ final class GoalSettingsBehaviorTests: XCTestCase {
 private final class MockCoreHealthKitManager: HealthKitManaging {
     private(set) var savedWeightSamples: [(weight: Double, date: Date)] = []
 
+    func isHealthDataAvailable() -> Bool { true }
+
     func requestAuthorization(completion: @escaping (Bool, Error?) -> Void) {
         completion(true, nil)
     }
@@ -470,6 +472,16 @@ private final class MockCoreHealthKitManager: HealthKitManaging {
     func saveWeightSample(weightLbs: Double, date: Date) {
         savedWeightSamples.append((weightLbs, date))
     }
+
+    func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping (HKAuthorizationRequestStatus, Error?) -> Void) {
+        completion(.unnecessary, nil)
+    }
+
+    func fetch7DayTrend(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double]) -> Void) {
+        completion(Array(repeating: 0.0, count: 7))
+    }
+
+    func saveWater(ounces: Double, date: Date) {}
 }
 
 final class GoalSettingsAdditionalTests: XCTestCase {

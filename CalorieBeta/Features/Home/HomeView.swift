@@ -52,6 +52,7 @@ struct HomeView: View {
     @State private var showingWeeklyCheckIn = false
     @State private var showingMenuScanner = false
     @State private var showingWeeklyRecap = false
+    @State private var showingRecoveryFuelSearch = false
 
     // Streak inputs: past logged days fetched once per day; today joins live the moment
     // food is logged, so the flame ticks immediately.
@@ -128,6 +129,11 @@ struct HomeView: View {
 
                             if goalSettings.isCheckInReady {
                                 weeklyCheckInBanner
+                                    .padding(.horizontal)
+                            }
+
+                            if let target = insightsService.currentRunRecoveryPrompt, !target.isExpired {
+                                runRecoveryBanner(for: target)
                                     .padding(.horizontal)
                             }
 
@@ -369,6 +375,15 @@ struct HomeView: View {
               if isMenuScannerEnabled {
                   menuScannerSheet
               }
+          }
+          .sheet(isPresented: $showingRecoveryFuelSearch) {
+              FoodSearchView(
+                  dailyLog: $dailyLogService.currentDailyLog,
+                  onFoodItemLogged: {
+                      showingRecoveryFuelSearch = false
+                  },
+                  searchContext: "run_recovery"
+              )
           }
           .onAppear(perform: onHomeViewAppear)
           .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
@@ -721,6 +736,86 @@ struct HomeView: View {
                 Image(systemName: "chevron.right")
                     .appFont(size: 14, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+            .padding(16)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(Color.backgroundSecondary.opacity(0.70), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func runRecoveryBanner(for target: RunRecoveryTarget) -> some View {
+        Button(action: {
+            HapticManager.instance.feedback(.light)
+            showingRecoveryFuelSearch = true
+        }) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: "bolt.heart.fill")
+                        .appFont(size: 20, weight: .bold)
+                        .foregroundColor(.accentSignal)
+                        .frame(width: 38, height: 38)
+                        .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("Run recovery window")
+                                .appFont(size: 16, weight: .bold)
+                                .foregroundColor(.textPrimary)
+                            Text("• \(target.remainingMinutes) min left")
+                                .appFont(size: 12, weight: .semibold)
+                                .foregroundColor(.accentSignal)
+                                .monospacedDigit()
+                        }
+                        Text("Log fuel within 45 min to optimize muscle synthesis")
+                            .appFont(size: 12, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .appFont(size: 14, weight: .bold)
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                }
+
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Text("\(target.targetCarbGrams)g")
+                            .appFont(size: 13, weight: .bold)
+                            .foregroundColor(.accentCarbs)
+                        Text("carbs")
+                            .appFont(size: 12, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                    HStack(spacing: 4) {
+                        Text("\(target.targetProteinGrams)g")
+                            .appFont(size: 13, weight: .bold)
+                            .foregroundColor(.accentProtein)
+                        Text("protein")
+                            .appFont(size: 12, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                    HStack(spacing: 4) {
+                        Text("\(target.rehydrateMilliLiters) mL")
+                            .appFont(size: 13, weight: .bold)
+                            .foregroundColor(.accentWater)
+                        Text("water")
+                            .appFont(size: 12, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
             }
             .padding(16)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))

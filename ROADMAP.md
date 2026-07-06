@@ -1,58 +1,55 @@
-# MyFitPlate Roadmap
+# MyFitPlate Roadmap — Single Point of Truth (SPOT)
 
-A living roadmap, maintained alongside the code and re-ranked as real usage data
-comes in. Tags: 🟢 quick win (low effort) · 🔵 larger effort.
-
-## Guiding principle: let analytics drive priorities
-
-2.0 ships with full analytics enabled — use it. Before committing to the features
-below, give 2.0 ~1–2 weeks of real usage and let adoption data do the ranking.
-Watch:
-
-- **Feature adoption** — % of users touching Maia chat, photo logging, the menu
-  scanner, meal plans, fasting. Low adoption = a discovery problem or a candidate to deprioritize.
-- **Logging-method split** — photo vs. search vs. Maia chat. Shows where to invest the core loop.
-- **Funnel** — onboarding completion, D1 / D7 retention.
-- **Cost** — chat / photo / meal-plan call frequency vs. the ~$90/mo at-scale estimate.
+A living, definitive roadmap and product vision for MyFitPlate. Designed around unique, gamified real-world experiences and high-trust nutrition tracking.
 
 ---
 
-## Now — during / just after review
-- [x] Wire release-health instrumentation and document Crashlytics / Analytics dashboards for 2.1
-- [ ] Create Firebase Console dashboards/alerts from `docs/release-health-2.1.md`
-- [ ] Write integration / UI tests (the CI scaffold is ready to host them)
-- [ ] Plan App Check enforcement — flip only once 2.0 is the dominant installed version
-
-## 2.1 — core-loop polish (the retention lever)
-Logging speed is the #1 retention driver for nutrition apps.
-- [ ] 🟢 Quick-add: favorites, recent foods, "repeat yesterday," meal templates
-- [ ] 🟢 Photo-library logging — currently camera-only; add "choose from library"
-- [ ] 🟢 Log reminders / notifications — meal times, water, weigh-in
-- [ ] 🔵 Metric units — ft/in + lbs only today; unlocks international users
-- [ ] 🟢 Loose ends: weight backdating, multiple pantry-recipe ideas, Key Gains date handling
-
-## 2.2–2.3 — stickiness
-- [ ] 🔵 Streaks / habit tracking / daily goals
-- [ ] 🔵 Apple Watch app build-out (the `watchkitapp` target already exists)
-- [ ] 🟢 Widget expansion (`CalorieWidget` exists) — calorie ring + quick-log
-- [ ] 🔵 Progress photos + body measurements
-- [ ] 🟢 Data export (CSV / PDF)
-- [ ] 🔵 Deeper Health sync — steps / active energy auto-adjusting targets
-
-## 3.0 — bigger bets
-- [ ] 🔵 Revive community (dormant Firestore code exists) — only if data shows demand
-- [ ] 🔵 Monetization tuning — paywall placement, trial, premium AI tier
-- [ ] 🔵 Localization (pairs with metric units)
-- [ ] 🔵 Advanced AI — smarter weekly reviews, predictive insights, voice logging
-- [ ] 🟢 Sign in with Apple — reduce signup friction
-
-## Always-on — technical / ops
-- [ ] Cost monitoring vs. the at-scale estimate
-- [ ] Apply GitHub branch protection from `docs/release-health-2.1.md`
-- [ ] Expand CI to integration tests
-- [ ] App Check enforcement once 2.0 is dominant
-- [ ] Crashlytics triage
+## 🏁 Shipped Foundation (Versions 2.0 – 2.2)
+- [x] **AYCE Challenge & Scoreboard**: 6-cuisine buffet tracker, sushi roll library (48 items), live value vs. price game, haptic kitchen wins, and persistent lifetime scoreboard ("kitchens defeated").
+- [x] **Apple Health & Running Engine**: Bidirectional workout sync, GPS route mapping, false-start filtering (<100m/<2min), and parallel-watch calorie double-count protection.
+- [x] **High-Trust Nutrition Logging**: GS1 barcode fallback, multi-database cross-verification (USDA, FatSecret, OpenFoodFacts), and 0–99 Trust Cards.
+- [x] **Maia Adaptive Coaching**: Daily strategy cards linking sleep, recovery, training, and nutrition adjustments.
+- [x] **HealthKit Test Seams**: Protocol-abstracted seam (`HealthStoreScheduling`) with deep unit coverage across health and running services (package line coverage 84%).
 
 ---
 
-_Living document — re-rank as analytics arrive. Last updated: 2026-06-25._
+## 🚀 Version 2.3 — Running Superpowers & Friction Killers (Completed)
+Focusing on running gear management, immediate post-run recovery nutrition, and effortless daily logging.
+
+### Running Engine & Recovery
+- [x] **Shoe Mileage Tracker (Core Engine)**: Added `RunningShoe` struct, `shoeID` tagging on runs, and `RunningShoeStore` for local gear persistence and wear calculations.
+- [x] **Shoe Mileage Tracker (UI)**: Built gear management screens (`ShoeGearManagerView`) and run tagging UI (`RunHistoryView`, `RunDetailView`).
+- [x] **Run-to-Fuel Recovery Prompts (Core Engine)**: Built `RunRecoveryRules` with dynamic carb/protein formula scaling and integrated `currentRunRecoveryPrompt` into `InsightsService`.
+- [x] **Run-to-Fuel Recovery Prompts (UI)**: Display immediate post-run recovery banner cards in Home/Insights views.
+- [x] **Route Personal Records ("Ghost Pace")**: Track and highlight fastest average paces and PRs across familiar GPS routes and loops (`GhostPaceComparison` in `RunStats`, UI card in `RunDetailView`).
+
+### Effortless Logging Polish
+- [x] **1-Tap Quick Logging (Core Engine)**: Implemented `repeatMeal`, `fetchYesterdayMeal`, and `repeatYesterdayMeal` in `DailyLogService` and `DailyLogRules`.
+- [x] **1-Tap Quick Logging (UI)**: Added "Repeat Yesterday" action button in logging screens (`CalorieLogView`).
+- [x] **Photo Library Logging (Core & UI)**: Implemented `AICameraService` for image preparation and payload scaling; `imageSourceDialog` integrated in UI.
+- [x] **"Walk & Talk" Voice Logging (Core Engine)**: Implemented `VoiceLoggingService` async state machine (`idle`, `recording`, `transcribing`, `completed`).
+- [x] **"Walk & Talk" Voice Logging (UI)**: Added mic button and live recording status banner in daily log view (`FoodSearchView`).
+
+---
+
+## 🌟 Version 2.4 / 3.0 — Gamified Lifestyle & Advanced Dining
+Expanding the unique gamification architecture that makes MyFitPlate stand out from generic calorie counters.
+
+### Gamified Dining & Nutrition
+- [ ] **Restaurant Value Radar**: AI menu scanner that analyzes restaurant menus or photos and ranks dishes by Protein-to-Dollar and Protein-to-Calorie ratios with a live "Value Score".
+- [ ] **Legendary Refeed Mode**: Anabolic carb-cycling and glycogen supercompensation tracking for heavy leg days or endurance runs, replacing standard guilt-based calorie overage alerts.
+
+### Platform Expansion & Community
+- [ ] **Apple Watch Standalone App**: Build out the dedicated wrist UI (`watchkitapp` target) for quick-logging and real-time workout tracking.
+- [ ] **Social AYCE & Step Challenges**: Friend scoreboards, shared buffet challenges, and weekly running/step competitions.
+- [ ] **Data Export & Reporting**: Comprehensive PDF and CSV export for medical or personal coaching review.
+
+---
+
+## 🛠️ Always-On — Ops, Quality & Health
+- [x] Wire release-health instrumentation and Crashlytics/Analytics dashboards.
+- [ ] Monitor LLM / AI call frequencies against cost estimates.
+- [ ] Keep package test coverage at 80%+ with behavior tests on every core engine and data calculation path.
+
+---
+_Living document — Single Point of Truth. Last updated: 2026-07-05._

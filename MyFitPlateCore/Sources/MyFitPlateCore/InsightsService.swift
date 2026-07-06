@@ -8,6 +8,7 @@ public class InsightsService: ObservableObject {
     @Published public var currentInsights: [UserInsight] = []
     @Published public var smartSuggestion: UserInsight? = nil
     @Published public var currentCoachingPlan: AdaptiveCoachingPlan?
+    @Published public var currentRunRecoveryPrompt: RunRecoveryTarget? = nil
     @Published public var isLoadingInsights: Bool = false
     @Published public var isGeneratingSuggestion: Bool = false
 
@@ -435,6 +436,18 @@ public class InsightsService: ObservableObject {
 
     private func determineMealType(for date: Date) -> String {
         return InsightsRules.determineMealType(for: date)
+    }
+
+    public func evaluateRunRecoveryPrompt(recentRun: Run?, weightLbs: Double = 165.0) {
+        guard let run = recentRun else {
+            self.currentRunRecoveryPrompt = nil
+            return
+        }
+        if let target = RunRecoveryRules.calculateTarget(for: run, weightLbs: weightLbs), !target.isExpired {
+            self.currentRunRecoveryPrompt = target
+        } else {
+            self.currentRunRecoveryPrompt = nil
+        }
     }
 }
 

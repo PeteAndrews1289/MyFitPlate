@@ -30,6 +30,7 @@ public struct Run: Codable, Identifiable, Equatable {
     public var isIndoor: Bool
     public var splits: [RunSplit]
     public var hasRoute: Bool
+    public var shoeID: String?
 
     public init(
         id: String = UUID().uuidString,
@@ -42,7 +43,8 @@ public struct Run: Codable, Identifiable, Equatable {
         averageHeartRate: Double? = nil,
         isIndoor: Bool = false,
         splits: [RunSplit] = [],
-        hasRoute: Bool = false
+        hasRoute: Bool = false,
+        shoeID: String? = nil
     ) {
         self.id = id
         self.source = source
@@ -55,6 +57,7 @@ public struct Run: Codable, Identifiable, Equatable {
         self.isIndoor = isIndoor
         self.splits = splits
         self.hasRoute = hasRoute
+        self.shoeID = shoeID
     }
 
     /// Average pace in seconds per kilometer; nil when the run is too short to be meaningful.
@@ -119,5 +122,60 @@ public enum RunFormat {
             return String(format: "%d:%02d:%02d", hours, minutes, secs)
         }
         return String(format: "%d:%02d", minutes, secs)
+    }
+
+    public static func paceDiffText(secondsPerKmDiff: Double, metric: Bool) -> String {
+        guard secondsPerKmDiff.isFinite else { return "" }
+        let perUnitDiff = metric ? secondsPerKmDiff : secondsPerKmDiff * (metersPerMile / 1000)
+        let absSec = abs(Int(perUnitDiff.rounded()))
+        let sign = perUnitDiff < -0.5 ? "-" : (perUnitDiff > 0.5 ? "+" : "")
+        let mins = absSec / 60
+        let secs = absSec % 60
+        return String(format: "%@%d:%02d %@", sign, mins, secs, metric ? "/km" : "/mi")
+    }
+}
+
+/// A pair of running shoes tracked for mileage and wear-and-tear replacement alerts.
+public struct RunningShoe: Codable, Identifiable, Equatable {
+    public let id: String
+    public var name: String
+    public var brand: String
+    /// Initial mileage already on the shoe when added to the app (in meters).
+    public var initialMeters: Double
+    /// Maximum recommended mileage before replacement (default ~350 miles / ~563,270 meters).
+    public var maxMeters: Double
+    public var isRetired: Bool
+    public var isDefault: Bool
+    public var addedDate: Date
+
+    public init(
+        id: String = UUID().uuidString,
+        name: String,
+        brand: String,
+        initialMeters: Double = 0,
+        maxMeters: Double = 563270.4, // ~350 miles
+        isRetired: Bool = false,
+        isDefault: Bool = false,
+        addedDate: Date = Date()
+    ) {
+        self.id = id
+        self.name = name
+        self.brand = brand
+        self.initialMeters = initialMeters
+        self.maxMeters = maxMeters
+        self.isRetired = isRetired
+        self.isDefault = isDefault
+        self.addedDate = addedDate
+    }
+
+    /// Returns wear percentage (0.0 to 1.0+) given total accumulated meters.
+    public func wearPercentage(totalMeters: Double) -> Double {
+        guard maxMeters > 0 else { return 0 }
+        return totalMeters / maxMeters
+    }
+
+    /// True if the shoe has exceeded its recommended mileage limit.
+    public func isWornOut(totalMeters: Double) -> Bool {
+        totalMeters >= maxMeters
     }
 }

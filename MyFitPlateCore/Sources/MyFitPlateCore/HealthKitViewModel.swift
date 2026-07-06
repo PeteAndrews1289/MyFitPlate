@@ -23,7 +23,11 @@ public struct SleepHealthSummary: Equatable {
 
 @MainActor
 public class HealthKitViewModel: ObservableObject {
-    public init() {}
+    private let manager: HealthKitManaging
+
+    public init(manager: HealthKitManaging = HealthKitManager.shared) {
+        self.manager = manager
+    }
 
     @Published public var isAuthorized = false
     @Published public var workouts: [LoggedExercise] = []
@@ -47,7 +51,6 @@ public class HealthKitViewModel: ObservableObject {
     /// never be trusted on its own to mean "connected."
     @Published public var lastSyncedAt: Date?
 
-    private let manager = HealthKitManager.shared
     private weak var dailyLogService: DailyLogService?
 
     public func setup(dailyLogService: DailyLogService) {
@@ -70,7 +73,7 @@ public class HealthKitViewModel: ObservableObject {
     }
 
     public func checkAuthorizationStatus() {
-        guard HKHealthStore.isHealthDataAvailable() else {
+        guard manager.isHealthDataAvailable() else {
             DispatchQueue.main.async { self.isAuthorized = false }
             return
         }
@@ -89,7 +92,7 @@ public class HealthKitViewModel: ObservableObject {
             stepCountType
         ]
 
-        manager.healthStore.getRequestStatusForAuthorization(toShare: [], read: typesToRead) { [weak self] (status, error) in
+        manager.getRequestStatusForAuthorization(toShare: [], read: typesToRead) { [weak self] (status, error) in
             guard let self = self else { return }
 
             DispatchQueue.main.async {

@@ -5,6 +5,8 @@ struct FoodSearchHeader: View {
     let placeholder: String
     let onClear: () -> Void
     let onSubmit: () -> Void
+    var onMic: (() -> Void)? = nil
+    var isRecording: Bool = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -25,6 +27,18 @@ struct FoodSearchHeader: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")
+            }
+
+            if let onMic = onMic {
+                Button(action: onMic) {
+                    Image(systemName: isRecording ? "mic.fill" : "mic")
+                        .appFont(size: 18, weight: .semibold)
+                        .foregroundColor(isRecording ? .accentProtein : .brandPrimary)
+                        .padding(6)
+                        .background(isRecording ? Color.accentProtein.opacity(0.15) : Color.clear, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Voice search")
             }
         }
         .padding(.horizontal, 14)

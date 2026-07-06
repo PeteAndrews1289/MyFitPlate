@@ -387,4 +387,34 @@ final class DailyLogServiceTests: XCTestCase {
         
         XCTAssertNotNil(mockRepo.lastUpdatedLog)
     }
+
+    func testRepeatYesterdayMealSuccess() async {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date().addingTimeInterval(-86400)
+        let yesterdayStart = Calendar.current.startOfDay(for: yesterday)
+        let food1 = FoodItem(id: "1", name: "Eggs", calories: 150)
+        let sourceLog = DailyLog(date: yesterdayStart, meals: [Meal(name: "Breakfast", foodItems: [food1])])
+        mockRepo.mockFetchLogResult = .success(sourceLog)
+
+        let exp = XCTestExpectation(description: "Repeat meal")
+        service.repeatYesterdayMeal(for: "user", mealName: "Breakfast", targetDate: Date()) { success in
+            XCTAssertTrue(success)
+            exp.fulfill()
+        }
+        await fulfillment(of: [exp], timeout: 1.0)
+        XCTAssertNotNil(mockRepo.lastUpdatedLog)
+    }
+
+    func testRepeatYesterdayMealEmpty() async {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date().addingTimeInterval(-86400)
+        let yesterdayStart = Calendar.current.startOfDay(for: yesterday)
+        let sourceLog = DailyLog(date: yesterdayStart, meals: [Meal(name: "Lunch", foodItems: [])])
+        mockRepo.mockFetchLogResult = .success(sourceLog)
+
+        let exp = XCTestExpectation(description: "Repeat meal empty")
+        service.repeatYesterdayMeal(for: "user", mealName: "Breakfast", targetDate: Date()) { success in
+            XCTAssertFalse(success)
+            exp.fulfill()
+        }
+        await fulfillment(of: [exp], timeout: 1.0)
+    }
 }
