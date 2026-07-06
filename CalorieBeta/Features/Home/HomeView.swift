@@ -421,6 +421,20 @@ struct HomeView: View {
 
     // MARK: - Logic
 
+    /// The recovery banner reads insightsService.currentRunRecoveryPrompt, but nothing
+    /// computed it — the feature could never fire. Home evaluates on appear: any run
+    /// finished in the last two hours (recorded or from a watch via HealthKit) feeds the
+    /// 45-minute recovery window logic.
+    private func refreshRunRecoveryPrompt() {
+        let since = Calendar.current.date(byAdding: .hour, value: -2, to: Date()) ?? Date()
+        RunImportService().fetchRuns(since: since) { runs in
+            insightsService.evaluateRunRecoveryPrompt(
+                recentRun: runs.first,
+                weightLbs: goalSettings.weight
+            )
+        }
+    }
+
     private func onHomeViewAppear() {
         dailyLogService.activelyViewedDate = selectedDate
         fetchLogForSelectedDate()
@@ -428,6 +442,7 @@ struct HomeView: View {
         if isToday {
             healthKitViewModel.checkAuthorizationStatus()
             cycleService.fetchAIInsight()
+            refreshRunRecoveryPrompt()
 
             // Adaptive TDEE loop: proactively recompute the metabolism estimate (throttled to once
             // per day) so the weekly check-in can fire on Home without requiring a Reports visit.
