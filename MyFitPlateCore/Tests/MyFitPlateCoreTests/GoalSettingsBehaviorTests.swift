@@ -410,6 +410,8 @@ final class GoalSettingsBehaviorTests: XCTestCase {
 
 private final class MockCoreHealthKitManager: HealthKitManaging {
     private(set) var savedWeightSamples: [(weight: Double, date: Date)] = []
+    var recentWeightSamplesToReturn: [HKQuantitySample]? = []
+    var latestWeightToReturn: HKQuantitySample? = nil
 
     func isHealthDataAvailable() -> Bool { true }
 
@@ -425,12 +427,24 @@ private final class MockCoreHealthKitManager: HealthKitManaging {
         completion([], nil)
     }
 
+    func fetchHRVSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void) {
+        completion([], nil)
+    }
+
     func fetchLatestRestingHeartRate(completion: @escaping (HKQuantitySample?) -> Void) {
         completion(nil)
     }
 
     func fetchLatestHRV(completion: @escaping (HKQuantitySample?) -> Void) {
         completion(nil)
+    }
+
+    func fetchLatestWeight(completion: @escaping (HKQuantitySample?) -> Void) {
+        completion(latestWeightToReturn)
+    }
+
+    func fetchRecentWeightSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void) {
+        completion(recentWeightSamplesToReturn, nil)
     }
 
     func fetchTodaySteps(completion: @escaping (Double) -> Void) {
@@ -487,11 +501,13 @@ private final class MockCoreHealthKitManager: HealthKitManaging {
 final class GoalSettingsAdditionalTests: XCTestCase {
     var settings: GoalSettings!
     var mockRepo: MockSettingsRepository!
-    
+    private var mockHK: MockCoreHealthKitManager!
+
     @MainActor
     override func setUp() {
         super.setUp()
-        settings = GoalSettings(healthKitManager: MockCoreHealthKitManager())
+        mockHK = MockCoreHealthKitManager()
+        settings = GoalSettings(healthKitManager: mockHK)
         mockRepo = MockSettingsRepository()
         DIContainer.shared.settingsRepository = mockRepo
         let mockAuth = MockAuthService()
@@ -543,5 +559,27 @@ final class GoalSettingsAdditionalTests: XCTestCase {
         }
         
         wait(for: [exp], timeout: 1.0)
+    }
+    
+    @MainActor
+    func testSyncWeightFromHealthKit() {
+        let hkManager = mockHK!
+
+        guard let bodyMassType = HKQuantityType.quantityType(forIdentifier: .bodyMass) else { return }
+        let sample = HKQuantitySample(type: bodyMassType, quantity: HKQuantity(unit: .pound(), doubleValue: 178.5), start: Date(), end: Date())
+        hkManager.recentWeightSamplesToReturn = [sample]
+        
+        settings.weightHistory = []
+        settings.syncWeightFromHealthKit()
+        
+        let dispatchExp = expectation(description: "dispatch")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            dispatchExp.fulfill()
+        }
+        wait(for: [dispatchExp], timeout: 1.0)
+        
+        XCTAssertEqual(settings.weight, 178.5)
+        // Verify that syncToHealthKit: false prevented saving a duplicate sample back to HealthKit
+        XCTAssertTrue(hkManager.savedWeightSamples.isEmpty)
     }
 }

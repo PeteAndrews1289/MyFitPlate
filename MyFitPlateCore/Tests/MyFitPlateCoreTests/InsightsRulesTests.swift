@@ -404,4 +404,40 @@ final class InsightsRulesTests: XCTestCase {
         let insightGreatWork = InsightsRules.determineSmartSuggestion(log: log, isToday: true, hour: 10, proteinGoal: 150)
         XCTAssertEqual(insightGreatWork.title, "Keep Up the Great Work!")
     }
+
+    func testAdaptiveCoachingPlanHRVRedRecoveryAlert() {
+        let now = Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: fixedDate)!
+        let today = dailyLog(dayOffset: 0, calories: 1_800, protein: 140, water: 64, workoutCalories: nil)
+
+        let plan = InsightsRules.adaptiveCoachingPlan(
+            today: today,
+            recentLogs: [today],
+            sleepHours: [6.5, 7.0],
+            hrvAverage: 32.0,
+            goals: InsightsRules.GoalSnapshot(calories: 2_000, protein: 150, weightGoal: "Maintain"),
+            now: now
+        )
+
+        XCTAssertEqual(plan.title, "Red Recovery Alert")
+        XCTAssertEqual(plan.primaryAction, "Switch to active recovery or rest")
+        XCTAssertTrue(plan.subtitle.contains("32 ms"))
+    }
+
+    func testAdaptiveCoachingPlanHRVPeakGreenRecovery() {
+        let now = Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: fixedDate)!
+        let today = dailyLog(dayOffset: 0, calories: 1_800, protein: 140, water: 64, workoutCalories: nil)
+
+        let plan = InsightsRules.adaptiveCoachingPlan(
+            today: today,
+            recentLogs: [today],
+            sleepHours: [7.5, 8.0],
+            hrvAverage: 62.0,
+            goals: InsightsRules.GoalSnapshot(calories: 2_000, protein: 150, weightGoal: "Maintain"),
+            now: now
+        )
+
+        XCTAssertEqual(plan.title, "Peak Recovery State (Green)")
+        XCTAssertEqual(plan.primaryAction, "Push intensity or tackle progressive overload")
+        XCTAssertTrue(plan.subtitle.contains("62 ms"))
+    }
 }

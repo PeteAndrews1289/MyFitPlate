@@ -35,10 +35,14 @@ public struct ExerciseTrendPoint: Identifiable {
     public let value: Double // Max Weight or Volume
 }
 
-public struct WorkoutComparison {
+public struct WorkoutComparison: Equatable {
     public let volumeDiffPercent: Double
     public let durationDiffPercent: Double
     public let previousDate: Date?
+
+    public var isPR: Bool {
+        volumeDiffPercent > 0 && previousDate != nil
+    }
 }
 
 public struct MuscleSplitPoint: Identifiable {

@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreLocation
 import MyFitPlateCore
+import AVFoundation
 #if canImport(ActivityKit)
 import ActivityKit
 #endif
@@ -81,6 +82,7 @@ final class RunRecorderViewModel: ObservableObject {
     private var timer: Timer?
     private let store = RunRecorderStore()
     private let metric: Bool
+    private let synthesizer = AVSpeechSynthesizer()
     #if canImport(ActivityKit)
     private var liveActivity: Activity<RunActivityAttributes>?
     private var lastActivityPush = Date.distantPast
@@ -94,11 +96,41 @@ final class RunRecorderViewModel: ObservableObject {
                 self?.ingest(location)
             }
         }
+        session.onSplitCompleted = { [weak self] split in
+            Task { @MainActor in
+                self?.speakSplitAnnouncement(split)
+            }
+        }
     }
 
     var distanceMeters: Double { session.distanceMeters }
     var currentPace: Double? { session.currentPaceSecondsPerKm }
     var averagePace: Double? { session.averagePaceSecondsPerKm }
+
+    private func speakSplitAnnouncement(_ split: RunSplit) {
+        let unit = metric ? "kilometer" : "mile"
+        let distanceText = "\(split.index) \(unit)\(split.index == 1 ? "" : "s") completed."
+
+        let paceMinutes = Int(split.seconds / 60)
+        let paceSeconds = Int(split.seconds.truncatingRemainder(dividingBy: 60))
+        let paceText = "Split pace: \(paceMinutes) minutes and \(paceSeconds) seconds per \(unit)."
+
+        let totalText = "Total time: \(RunFormat.durationText(seconds: session.movingSeconds))."
+
+        let speechString = "\(distanceText) \(paceText) \(totalText)"
+
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .voicePrompt, options: [.duckOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("Audio session error: \(error)")
+        }
+
+        let utterance = AVSpeechUtterance(string: speechString)
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        synthesizer.speak(utterance)
+    }
 
     func begin() {
         switch locationService.authorizationStatus {
@@ -429,6 +461,8 @@ private struct RunRecorderSummary: View {
     let setRecord: Bool
     let onDone: () -> Void
 
+    @State private var showingCelebration = false
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -493,6 +527,15 @@ private struct RunRecorderSummary: View {
         }
         .navigationTitle("Summary")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            // The summary is a one-shot screen (seen once per finished run), so a plain
+            // on-appear guard is enough — no per-day persistence needed.
+            guard setRecord else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                showingCelebration = true
+            }
+        }
+        .celebrationOverlay(type: .routePR, isPresented: $showingCelebration)
     }
 
     private func summaryTile(_ value: String, _ label: String) -> some View {

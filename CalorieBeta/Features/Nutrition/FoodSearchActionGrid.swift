@@ -11,6 +11,7 @@ struct FoodSearchActionGrid: View {
     let menuAction: () -> Void
     let barcodeAction: () -> Void
     let textAction: () -> Void
+    let valueRadarAction: () -> Void
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -19,6 +20,7 @@ struct FoodSearchActionGrid: View {
                 FoodSearchActionChip(title: "Camera", icon: "camera.fill", action: cameraAction)
                 FoodSearchActionChip(title: "Describe", icon: "text.bubble.fill", action: textAction)
                 FoodSearchActionChip(title: "Menu", icon: "list.bullet.rectangle.portrait.fill", action: menuAction)
+                FoodSearchActionChip(title: "Value Radar", icon: "chart.pie.fill", action: valueRadarAction)
                 FoodSearchActionChip(title: "Quick macros", icon: "bolt.fill", action: quickAddAction)
                 FoodSearchActionChip(title: "Manual", icon: "square.and.pencil", action: manualAction)
             }

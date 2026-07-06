@@ -138,6 +138,33 @@ final class RunStatsTests: XCTestCase {
         XCTAssertEqual(empty.count, 3)
         XCTAssertTrue(empty.allSatisfy { $0.meters == 0 })
     }
+
+    // MARK: Negative Split & Fastest Split
+
+    func testNegativeSplitDetection() {
+        let positiveSplits = [
+            RunSplit(index: 1, distanceMeters: 1000, seconds: 240), // 4:00/km
+            RunSplit(index: 2, distanceMeters: 1000, seconds: 260)  // 4:20/km (slower second half)
+        ]
+        XCTAssertFalse(RunStats.isNegativeSplit(splits: positiveSplits))
+
+        let negativeSplits = [
+            RunSplit(index: 1, distanceMeters: 1000, seconds: 300), // 5:00/km
+            RunSplit(index: 2, distanceMeters: 1000, seconds: 280)  // 4:40/km (faster second half)
+        ]
+        XCTAssertTrue(RunStats.isNegativeSplit(splits: negativeSplits))
+        XCTAssertEqual(RunStats.negativeSplitDeltaSecondsPerKm(splits: negativeSplits) ?? 0, 20.0, accuracy: 0.1)
+    }
+
+    func testFastestSplit() {
+        let splits = [
+            RunSplit(index: 1, distanceMeters: 1000, seconds: 300),
+            RunSplit(index: 2, distanceMeters: 1000, seconds: 270), // Fastest valid
+            RunSplit(index: 3, distanceMeters: 150, seconds: 30)    // Tiny tail (<200m), should be ignored
+        ]
+        let best = RunStats.fastestSplit(splits: splits)
+        XCTAssertEqual(best?.index, 2)
+    }
 }
 
 final class RouteSimplifyTests: XCTestCase {

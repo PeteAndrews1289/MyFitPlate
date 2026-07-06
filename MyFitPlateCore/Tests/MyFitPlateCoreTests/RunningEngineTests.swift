@@ -135,6 +135,20 @@ final class RunSessionTests: XCTestCase {
         XCTAssertEqual(session.distanceMeters, 0)
         XCTAssertEqual(session.routePointCount, 0)
     }
+
+    func testOnSplitCompletedCallbackFires() {
+        let session = runningSession(metric: true)
+        var firedSplits: [RunSplit] = []
+        session.onSplitCompleted = { split in
+            firedSplits.append(split)
+        }
+        for fix in steadyFixes(seconds: 400, metersPerSecond: 3.33, startingAt: start) {
+            session.ingest(fix)
+        }
+        XCTAssertEqual(firedSplits.count, 1)
+        XCTAssertEqual(firedSplits[0].index, 1)
+        XCTAssertEqual(firedSplits[0].distanceMeters, 1000)
+    }
 }
 
 final class RunEnergyTests: XCTestCase {

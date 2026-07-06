@@ -121,7 +121,8 @@ public class InsightsService: ObservableObject {
         self.currentCoachingPlan = InsightsRules.adaptiveCoachingPlan(
             today: log,
             recentLogs: log.map { [$0] } ?? [],
-            sleepHours: [],
+            sleepHours: self.healthKitViewModel?.sleepSamples.map { $0.endDate.timeIntervalSince($0.startDate) / 3600 } ?? [],
+            hrvAverage: self.healthKitViewModel?.hrvAverage,
             goals: goalSnapshot(),
             now: Date()
         )
@@ -161,6 +162,7 @@ public class InsightsService: ObservableObject {
                     today: logs.first { Calendar.current.isDateInToday($0.date) },
                     recentLogs: logs,
                     sleepHours: sleepData.map { $0.endDate.timeIntervalSince($0.startDate) / 3600 },
+                    hrvAverage: self.healthKitViewModel?.hrvAverage,
                     goals: self.goalSnapshot(),
                     now: Date()
                 )

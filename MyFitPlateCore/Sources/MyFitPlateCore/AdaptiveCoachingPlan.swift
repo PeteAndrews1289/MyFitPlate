@@ -39,6 +39,7 @@ public extension InsightsRules {
         today: DailyLog?,
         recentLogs: [DailyLog],
         sleepHours: [Double],
+        hrvAverage: Double? = nil,
         goals: GoalSnapshot,
         now: Date = Date(),
         calendar: Calendar = .current
@@ -83,8 +84,37 @@ public extension InsightsRules {
             proteinAlignedDays: proteinAlignedDays,
             calorieAlignedDays: calorieAlignedDays,
             workouts: workouts.count,
-            averageSleep: averageSleep
+            averageSleep: averageSleep,
+            hrvAverage: hrvAverage
         )
+
+        if let hrv = hrvAverage, hrv > 0 && hrv < 38.0 {
+            return AdaptiveCoachingPlan(
+                title: "Red Recovery Alert",
+                subtitle: "HRV is suppressed (\(Int(hrv.rounded())) ms). Autonomic nervous system recovery is compromised today.",
+                patternNote: patternNote,
+                primaryAction: "Switch to active recovery or rest",
+                mealMove: "Prioritize anti-inflammatory whole foods and keep protein intake high (\(Int(proteinGoal.rounded()))g) to support tissue repair.",
+                trainingMove: "Avoid high-intensity intervals or heavy lifting. Choose mobility work, zone 1 cardio, or complete rest today.",
+                recoveryMove: "Target 8+ hours of sleep tonight. Hydrate early and consider magnesium before bed.",
+                confidence: signal,
+                dataPoints: dataPoints
+            )
+        }
+
+        if let hrv = hrvAverage, hrv >= 55.0 && averageSleep >= 7.0 {
+            return AdaptiveCoachingPlan(
+                title: "Peak Recovery State (Green)",
+                subtitle: "HRV is strong (\(Int(hrv.rounded())) ms) and sleep is solid (\(String(format: "%.1f", averageSleep))h). Your body is primed for adaptation.",
+                patternNote: patternNote,
+                primaryAction: "Push intensity or tackle progressive overload",
+                mealMove: "Ensure pre- and post-workout carbohydrates match your training strain.",
+                trainingMove: "Great day for PR attempts, heavy compound lifts, or high-intensity interval training.",
+                recoveryMove: "Capitalize on high recovery capacity. Do not skip post-workout hydration and refueling.",
+                confidence: signal,
+                dataPoints: dataPoints
+            )
+        }
 
         if todayLog == nil && hour >= 11 {
             return AdaptiveCoachingPlan(
@@ -193,7 +223,8 @@ public extension InsightsRules {
         proteinAlignedDays: Int,
         calorieAlignedDays: Int,
         workouts: Int,
-        averageSleep: Double
+        averageSleep: Double,
+        hrvAverage: Double? = nil
     ) -> [String] {
         var points = ["\(loggedDays) logged day\(loggedDays == 1 ? "" : "s")"]
         if averageCalories > 0 {
@@ -209,6 +240,9 @@ public extension InsightsRules {
         points.append("\(workouts) workout\(workouts == 1 ? "" : "s") logged")
         if averageSleep > 0 {
             points.append("\(String(format: "%.1f", averageSleep))h sleep avg")
+        }
+        if let hrv = hrvAverage, hrv > 0 {
+            points.append("\(Int(hrv.rounded())) ms HRV avg")
         }
         return points
     }

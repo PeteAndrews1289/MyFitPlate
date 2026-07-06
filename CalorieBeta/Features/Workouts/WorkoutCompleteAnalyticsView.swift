@@ -17,6 +17,7 @@ struct WorkoutCompleteAnalyticsView: View {
     
     @State private var isAnimated = false
     @State private var isLoading = true
+    @State private var showingPRCelebration = false
 
     private var displayedAnalytics: WorkoutAnalytics {
         analytics ?? localAnalytics
@@ -193,7 +194,18 @@ struct WorkoutCompleteAnalyticsView: View {
         .onAppear {
             isAnimated = true
             loadData()
+            if !localAnalytics.personalRecords.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    showingPRCelebration = true
+                }
+            }
         }
+        .onChange(of: comparison) { newComp in
+            if newComp?.isPR == true {
+                showingPRCelebration = true
+            }
+        }
+        .celebrationOverlay(type: .workoutPR, isPresented: $showingPRCelebration)
     }
     
     private func loadData() {

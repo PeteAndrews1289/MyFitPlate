@@ -15,6 +15,8 @@ struct NutritionProgressView: View {
     private let totalViews = 3
 
     @State private var showingAudit = false
+    @State private var showingProteinCelebration = false
+    @AppStorage("lastCelebratedProteinDate") private var lastCelebratedProteinDate: String = ""
 
     var body: some View {
         let totalCalories = max(0, dailyLog.totalCalories())
@@ -93,6 +95,24 @@ struct NutritionProgressView: View {
             }
         }
         .padding(.bottom, 8)
+        .onChange(of: dailyLog.totalMacros().protein) { newProtein in
+            let dateKey = dailyLog.date.formatted(date: .numeric, time: .omitted)
+            if newProtein >= max(goal.protein, 1) && lastCelebratedProteinDate != dateKey {
+                lastCelebratedProteinDate = dateKey
+                showingProteinCelebration = true
+            }
+        }
+        .onAppear {
+            let proteinVal = dailyLog.totalMacros().protein
+            let dateKey = dailyLog.date.formatted(date: .numeric, time: .omitted)
+            if proteinVal >= max(goal.protein, 1) && lastCelebratedProteinDate != dateKey {
+                lastCelebratedProteinDate = dateKey
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    showingProteinCelebration = true
+                }
+            }
+        }
+        .celebrationOverlay(type: .proteinGoal, isPresented: $showingProteinCelebration)
     }
 
     @ViewBuilder

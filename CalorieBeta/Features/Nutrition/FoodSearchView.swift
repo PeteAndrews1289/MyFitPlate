@@ -19,6 +19,7 @@ struct FoodSearchView: View {
     @State private var showingImagePicker = false
     @State private var showingMenuImagePicker = false
     @State private var showingAITextLog = false
+    @State private var showingValueRadar = false
 
     @State private var selectedFoodItem: FoodItem?
     @State private var selectedFoodSource: String = "search_result"
@@ -86,27 +87,47 @@ struct FoodSearchView: View {
                     )
                 }
                 .sheet(isPresented: $showingBarcodeScanner) {
-                    BarcodeScannerView { barcode in
-                        let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode)
-                        self.showingBarcodeScanner = false
-                        self.isSearchingAfterScan = true
-                        self.pendingManualBarcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
-                        DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
-                        Task { @MainActor in
-                            if let result = await barcodeLookupService.lookup(barcode) {
-                                DIContainer.shared.analyticsManager.barcodeLookupOutcome(.success(result))
+                    BarcodeScannerView(
+                        onBarcodeDetected: { barcode in
+                            let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode)
+                            self.showingBarcodeScanner = false
+                            self.isSearchingAfterScan = true
+                            self.pendingManualBarcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
+                            DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
+                            Task { @MainActor in
+                                if let result = await barcodeLookupService.lookup(barcode) {
+                                    DIContainer.shared.analyticsManager.barcodeLookupOutcome(.success(result))
+                                    self.isSearchingAfterScan = false
+                                    self.pendingManualBarcode = nil
+                                    self.scannedFoodSource = result.source
+                                    self.scannedFoodItem = result.item
+                                    showBarcodeResultFeedback(result)
+                                    return
+                                }
+                                DIContainer.shared.analyticsManager.barcodeLookupOutcome(.miss(barcode: barcode))
                                 self.isSearchingAfterScan = false
-                                self.pendingManualBarcode = nil
-                                self.scannedFoodSource = result.source
-                                self.scannedFoodItem = result.item
-                                showBarcodeResultFeedback(result)
-                                return
+                                self.scanError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Create it from the label, use camera capture, or search by name.")
                             }
-                            DIContainer.shared.analyticsManager.barcodeLookupOutcome(.miss(barcode: barcode))
-                            self.isSearchingAfterScan = false
-                            self.scanError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Create it from the label, use camera capture, or search by name.")
+                        },
+                        onBarcodesDetected: { barcodes in
+                            self.showingBarcodeScanner = false
+                            self.isSearchingAfterScan = true
+                            Task { @MainActor in
+                                var foundItems: [FoodItem] = []
+                                for barcode in barcodes {
+                                    if let result = await barcodeLookupService.lookup(barcode) {
+                                        foundItems.append(result.item)
+                                    }
+                                }
+                                self.isSearchingAfterScan = false
+                                if !foundItems.isEmpty {
+                                    self.estimatedFoodItemsWrapper = IdentifiableFoodItems(items: foundItems)
+                                } else {
+                                    self.scanError = (true, "No items in the rapid scan tray could be matched to our databases.")
+                                }
+                            }
                         }
-                    }
+                    )
                 }
                 .imageSourceDialog(isPresented: $showingImagePicker) { image in
                     self.isProcessingImage = true
@@ -137,6 +158,7 @@ struct FoodSearchView: View {
                     }
                 }
                 .sheet(isPresented: $showingAITextLog) { AITextLogView() }
+                .sheet(isPresented: $showingValueRadar) { RestaurantValueRadarView() }
                 .sheet(item: $selectedFoodItem) { foodItem in
                     FoodDetailView(
                         initialFoodItem: foodItem,
@@ -292,7 +314,8 @@ struct FoodSearchView: View {
                 cameraAction: { showingImagePicker = true },
                 menuAction: { showingMenuImagePicker = true },
                 barcodeAction: { showingBarcodeScanner = true },
-                textAction: { showingAITextLog = true }
+                textAction: { showingAITextLog = true },
+                valueRadarAction: { showingValueRadar = true }
             )
 
             if viewModel.hasYesterdayFoods {

@@ -36,6 +36,9 @@ public struct ShoeGearManagerView: View {
                     if shoeStore.shoes.isEmpty {
                         emptyStateView
                     } else {
+                        if !runs.isEmpty {
+                            leaderboardSection
+                        }
                         LazyVStack(spacing: 12) {
                             ForEach(shoeStore.shoes) { shoe in
                                 shoeCard(for: shoe)
@@ -61,6 +64,71 @@ public struct ShoeGearManagerView: View {
                 AddShoeModal(shoeStore: shoeStore)
             }
         }
+    }
+
+    private var leaderboardSection: some View {
+        let validShoes = shoeStore.shoes.filter { !$0.isRetired }
+        let ranked = validShoes.compactMap { shoe -> (RunningShoe, Double)? in
+            guard let pace = shoeStore.averagePaceSecondsPerKm(for: shoe.id, across: runs) else { return nil }
+            return (shoe, pace)
+        }.sorted(by: { $0.1 < $1.1 })
+
+        guard !ranked.isEmpty else { return AnyView(EmptyView()) }
+
+        return AnyView(
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "trophy.fill")
+                        .foregroundColor(.yellow)
+                        .font(.system(size: 18))
+                    Text("Shoe Performance Leaderboard")
+                        .appFont(size: 15, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                }
+
+                ForEach(Array(ranked.enumerated()), id: \.element.0.id) { index, item in
+                    let (shoe, pace) = item
+                    let count = shoeStore.runCount(for: shoe.id, across: runs)
+                    let longest = shoeStore.longestRunDistance(for: shoe.id, across: runs) ?? 0
+
+                    HStack(spacing: 12) {
+                        Text(index == 0 ? "🥇" : (index == 1 ? "🥈" : (index == 2 ? "🥉" : "#\(index + 1)")))
+                            .font(.system(size: 18))
+                            .frame(width: 28)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(shoe.brand) \(shoe.name)")
+                                .appFont(size: 14, weight: .bold)
+                                .foregroundColor(.textPrimary)
+                            Text("\(count) runs · Longest: \(RunFormat.distanceText(meters: longest, metric: useMetric))")
+                                .appFont(size: 11)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
+                        }
+
+                        Spacer()
+
+                        VStack(alignment: .trailing, spacing: 2) {
+                            if let paceStr = RunFormat.paceText(secondsPerKm: pace, metric: useMetric) {
+                                Text(paceStr)
+                                    .appFont(size: 15, weight: .bold)
+                                    .foregroundColor(index == 0 ? .yellow : .textPrimary)
+                                    .monospacedDigit()
+                            }
+                            Text("AVG PACE")
+                                .appFont(size: 9, weight: .bold)
+                                .foregroundColor(Color(UIColor.tertiaryLabel))
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    if index < ranked.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+            .asCard()
+            .padding(.horizontal)
+        )
     }
 
     private var emptyStateView: some View {
@@ -200,6 +268,23 @@ public struct ShoeGearManagerView: View {
                             .foregroundColor(.accentSignal)
                     }
                     .padding(.top, 2)
+                }
+
+                let count = shoeStore.runCount(for: shoe.id, across: runs)
+                if count > 0 {
+                    HStack {
+                        if let pace = shoeStore.averagePaceSecondsPerKm(for: shoe.id, across: runs),
+                           let paceStr = RunFormat.paceText(secondsPerKm: pace, metric: useMetric) {
+                            Label("Avg Pace: \(paceStr)", systemImage: "timer")
+                        }
+                        Spacer()
+                        if let longest = shoeStore.longestRunDistance(for: shoe.id, across: runs) {
+                            Label("Longest: \(RunFormat.distanceText(meters: longest, metric: useMetric))", systemImage: "arrow.left.and.right")
+                        }
+                    }
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .padding(.top, 4)
                 }
             }
         }

@@ -19,12 +19,24 @@ class MockHealthKitManager: HealthKitManaging {
         completion([], nil)
     }
     
+    func fetchHRVSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void) {
+        completion([], nil)
+    }
+    
     func fetchLatestRestingHeartRate(completion: @escaping (HKQuantitySample?) -> Void) {
         completion(nil)
     }
     
     func fetchLatestHRV(completion: @escaping (HKQuantitySample?) -> Void) {
         completion(nil)
+    }
+    
+    func fetchLatestWeight(completion: @escaping (HKQuantitySample?) -> Void) {
+        completion(nil)
+    }
+
+    func fetchRecentWeightSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void) {
+        completion([], nil)
     }
     
     func fetchTodaySteps(completion: @escaping (Double) -> Void) {

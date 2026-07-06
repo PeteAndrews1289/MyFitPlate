@@ -73,7 +73,7 @@ final class RunningShoeStoreTests: XCTestCase {
     }
 
     func testWornOutShoeDetection() {
-        var shoe = RunningShoe(name: "Old shoe", brand: "Asics", initialMeters: 500000, maxMeters: 500000)
+        let shoe = RunningShoe(name: "Old shoe", brand: "Asics", initialMeters: 500000, maxMeters: 500000)
         store.addShoe(shoe)
 
         XCTAssertTrue(store.isWornOut(shoeID: shoe.id, across: []))
@@ -123,5 +123,24 @@ final class RunningShoeStoreTests: XCTestCase {
 
         let originalMeters = store.totalMeters(for: originalDefault.id, across: store.applyTags(to: [tagged, historical]))
         XCTAssertEqual(originalMeters, originalDefault.initialMeters + 8000, accuracy: 0.001, "Explicit tags stay put")
+    }
+
+    func testShoePerformanceAnalytics() {
+        let fastShoe = RunningShoe(name: "Vaporfly", brand: "Nike")
+        let slowShoe = RunningShoe(name: "Pegasus", brand: "Nike")
+        store.addShoe(fastShoe)
+        store.addShoe(slowShoe)
+
+        let run1 = Run(id: "r1", source: .recorded, startDate: Date(), endDate: Date(), distanceMeters: 5000, movingSeconds: 1000, shoeID: fastShoe.id) // 200 s/km
+        let run2 = Run(id: "r2", source: .recorded, startDate: Date(), endDate: Date(), distanceMeters: 10000, movingSeconds: 3000, shoeID: slowShoe.id) // 300 s/km
+
+        let fastPace = store.averagePaceSecondsPerKm(for: fastShoe.id, across: [run1, run2])
+        let slowPace = store.averagePaceSecondsPerKm(for: slowShoe.id, across: [run1, run2])
+
+        XCTAssertEqual(fastPace ?? 0, 200, accuracy: 0.1)
+        XCTAssertEqual(slowPace ?? 0, 300, accuracy: 0.1)
+        XCTAssertEqual(store.runCount(for: fastShoe.id, across: [run1, run2]), 1)
+        XCTAssertEqual(store.longestRunDistance(for: slowShoe.id, across: [run1, run2]), 10000)
+        XCTAssertEqual(store.fastestShoeID(across: [run1, run2]), fastShoe.id)
     }
 }

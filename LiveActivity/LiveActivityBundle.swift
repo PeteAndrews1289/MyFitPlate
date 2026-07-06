@@ -9,6 +9,7 @@ struct LiveActivityBundle: WidgetBundle {
         WorkoutActivityWidget()
         FastingActivityWidget()
         RunActivityWidget()
+        AYCEActivityWidget()
         
         // If you have other widgets (like a home screen widget), add them here:
         // MyHomeScreenWidget()

@@ -242,10 +242,19 @@ final class RunDetailViewModel: ObservableObject {
     }
 }
 
+enum MapDisplayMode: String, CaseIterable {
+    case standard = "Standard Map"
+    case heatmap = "Pace Heatmap"
+}
+
 struct RunDetailView: View {
     let run: Run
     @StateObject private var viewModel = RunDetailViewModel()
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
+    @EnvironmentObject private var dailyLogService: DailyLogService
+    @State private var mapDisplayMode: MapDisplayMode = .standard
+    @State private var showingStoryPoster = false
+    @State private var showingRecoveryFoodSearch = false
 
     var body: some View {
         ScrollView {
@@ -262,6 +271,8 @@ struct RunDetailView: View {
                 }
 
                 statsGrid
+
+                glycogenImpactCard
 
                 if !viewModel.splits.isEmpty {
                     splitsCard
@@ -282,6 +293,30 @@ struct RunDetailView: View {
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle(run.startDate.formatted(date: .abbreviated, time: .omitted))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    HapticManager.instance.feedback(.light)
+                    showingStoryPoster = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .foregroundColor(.brandPrimary)
+                }
+                .accessibilityLabel("Share Run Story")
+            }
+        }
+        .sheet(isPresented: $showingStoryPoster) {
+            RunStoryPosterView(run: run, routeCoordinates: viewModel.routeCoordinates, useMetric: useMetric)
+        }
+        .sheet(isPresented: $showingRecoveryFoodSearch) {
+            FoodSearchView(
+                dailyLog: $dailyLogService.currentDailyLog,
+                onFoodItemLogged: {
+                    showingRecoveryFoodSearch = false
+                },
+                searchContext: "run_recovery"
+            )
+        }
         .onAppear { viewModel.load(run: run, metric: useMetric) }
     }
 
@@ -380,13 +415,27 @@ struct RunDetailView: View {
     }
 
     private var routeMap: some View {
-        Map(interactionModes: []) {
-            MapPolyline(coordinates: viewModel.routeCoordinates)
-                .stroke(Color.brandPrimary, lineWidth: 4)
+        VStack(spacing: 8) {
+            Picker("Map Mode", selection: $mapDisplayMode) {
+                ForEach(MapDisplayMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Map(interactionModes: []) {
+                if mapDisplayMode == .heatmap {
+                    MapPolyline(coordinates: viewModel.routeCoordinates)
+                        .stroke(Gradient(colors: [.yellow, .green, .brandPrimary, .cyan]), style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                } else {
+                    MapPolyline(coordinates: viewModel.routeCoordinates)
+                        .stroke(Color.brandPrimary, lineWidth: 4)
+                }
+            }
+            .frame(height: 220)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .accessibilityLabel("Route map of this run")
         }
-        .frame(height: 220)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .accessibilityLabel("Route map of this run")
     }
 
     private var statsGrid: some View {
@@ -405,29 +454,124 @@ struct RunDetailView: View {
         }
     }
 
-    private var splitsCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Splits")
+    private var glycogenImpactCard: some View {
+        let carbsBurned = Int((run.activeCalories ?? (run.distanceMeters * 0.063)) * 0.65 / 4.0)
+        let sweatMl = Int(run.distanceMeters * 0.08)
+        let recovery = RunRecoveryRules.calculateTarget(for: run) ?? RunRecoveryTarget(targetCarbGrams: carbsBurned, targetProteinGrams: 25, rehydrateMilliLiters: sweatMl, runDistanceMeters: run.distanceMeters, activeCalories: run.activeCalories ?? 0, runID: run.id)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "bolt.batteryblock.fill")
+                    .foregroundColor(.yellow)
+                    .font(.system(size: 18))
+                Text("Glycogen & Fuel Impact")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(.textPrimary)
+            }
+
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Carbs Depleted")
+                        .appFont(size: 11, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                    Text("~\(carbsBurned)g")
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.yellow)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Est. Sweat Loss")
+                        .appFont(size: 11, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                    Text("~\(sweatMl) ml")
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.blue)
+                }
+            }
+
+            Text("Target: Eat \(recovery.targetCarbGrams)g Carbs + \(recovery.targetProteinGrams)g Protein within 45m for glycogen supercompensation.")
+                .appFont(size: 12)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+
+            Button {
+                showingRecoveryFoodSearch = true
+            } label: {
+                HStack {
+                    Image(systemName: "bolt.fill")
+                    Text("Log Recovery Meal Now")
+                }
                 .appFont(size: 14, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Color.accentProtein, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .asCard()
+    }
+
+    private var splitsCard: some View {
+        let bestSplit = RunStats.fastestSplit(splits: viewModel.splits)
+        let maxPace = viewModel.splits.compactMap { $0.paceSecondsPerKm }.max() ?? 300
+        let minPace = viewModel.splits.compactMap { $0.paceSecondsPerKm }.min() ?? 240
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Splits")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Spacer()
+                if RunStats.isNegativeSplit(splits: viewModel.splits),
+                   let delta = RunStats.negativeSplitDeltaSecondsPerKm(splits: viewModel.splits) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                        Text("Negative Split! (-\(Int(delta.rounded()))s/km)")
+                    }
+                    .appFont(size: 11, weight: .bold)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.12), in: Capsule())
+                }
+            }
 
             ForEach(viewModel.splits, id: \.index) { split in
-                HStack {
-                    Text("\(split.index)")
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(width: 24, alignment: .leading)
-                    Text(split.distanceMeters + 1 < (useMetric ? 1000 : RunFormat.metersPerMile)
-                         ? RunFormat.distanceText(meters: split.distanceMeters, metric: useMetric)
-                         : (useMetric ? "1 km" : "1 mi"))
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                    Spacer()
-                    Text(RunFormat.paceText(secondsPerKm: split.paceSecondsPerKm, metric: useMetric) ?? RunFormat.durationText(seconds: split.seconds))
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(.textPrimary)
-                        .monospacedDigit()
+                let isBest = split.index == bestSplit?.index
+                let barRatio = maxPace > 0 && split.paceSecondsPerKm != nil ? min(1.0, max(0.15, 1.0 - ((split.paceSecondsPerKm! - minPace) / (max(1, maxPace - minPace) * 1.5)))) : 0.5
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("\(split.index)")
+                            .appFont(size: 13, weight: .semibold)
+                            .foregroundColor(isBest ? .yellow : Color(UIColor.secondaryLabel))
+                            .frame(width: 24, alignment: .leading)
+                        Text(split.distanceMeters + 1 < (useMetric ? 1000 : RunFormat.metersPerMile)
+                             ? RunFormat.distanceText(meters: split.distanceMeters, metric: useMetric)
+                             : (useMetric ? "1 km" : "1 mi"))
+                            .appFont(size: 13)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                        if isBest {
+                            Text("🏅 Fastest")
+                                .appFont(size: 10, weight: .bold)
+                                .foregroundColor(.yellow)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.yellow.opacity(0.15), in: Capsule())
+                        }
+                        Spacer()
+                        Text(RunFormat.paceText(secondsPerKm: split.paceSecondsPerKm, metric: useMetric) ?? RunFormat.durationText(seconds: split.seconds))
+                            .appFont(size: 13, weight: .semibold)
+                            .foregroundColor(isBest ? .yellow : .textPrimary)
+                            .monospacedDigit()
+                    }
+
+                    GeometryReader { geo in
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(isBest ? Color.yellow : Color.brandPrimary.opacity(0.6))
+                            .frame(width: geo.size.width * barRatio, height: 4)
+                    }
+                    .frame(height: 4)
                 }
+                .padding(.vertical, 2)
             }
         }
         .asCard()

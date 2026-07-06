@@ -44,6 +44,9 @@ public final class RunSession {
     public private(set) var routePointCount: Int = 0
     public private(set) var startDate: Date?
 
+    /// Optional callback invoked whenever a new split is completed (for audio announcements / haptics).
+    public var onSplitCompleted: ((RunSplit) -> Void)?
+
     /// Meters per split boundary: 1000 (metric) or one mile.
     public let splitDistanceMeters: Double
 
@@ -174,11 +177,13 @@ public final class RunSession {
             let fraction = remainingMeters > 0 ? metersToBoundary / remainingMeters : 0
             let secondsToBoundary = remainingSeconds * fraction
 
-            completedSplits.append(RunSplit(
+            let newSplit = RunSplit(
                 index: completedSplits.count + 1,
                 distanceMeters: splitDistanceMeters,
                 seconds: secondsIntoCurrentSplit + secondsToBoundary
-            ))
+            )
+            completedSplits.append(newSplit)
+            onSplitCompleted?(newSplit)
 
             remainingMeters -= metersToBoundary
             remainingSeconds -= secondsToBoundary

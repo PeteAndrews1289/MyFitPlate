@@ -1,5 +1,8 @@
 import SwiftUI
 import MyFitPlateCore
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
 
 // "Beat the buffet": log an all-you-can-eat session and watch the à-la-carte value climb
 // past what you paid. All math lives in AYCERules (Core, tested); prices are typical US
@@ -14,8 +17,21 @@ final class AYCESessionManager: ObservableObject {
     @AppStorage("ayceSessionDraft") private var draftData: Data = Data()
     @AppStorage("ayceScoreboard") private var scoreboardData: Data = Data()
 
+    #if canImport(ActivityKit)
+    private var liveActivity: Activity<AYCEActivityAttributes>?
+    #endif
+
     init() {
         restoreDraft()
+        #if canImport(ActivityKit)
+        if session != nil {
+            if let activity = Activity<AYCEActivityAttributes>.activities.first(where: { $0.activityState == .active }) {
+                self.liveActivity = activity
+            } else {
+                startLiveActivity()
+            }
+        }
+        #endif
     }
 
     func start(cuisine: AYCECuisine, buffetPrice: Double, citySlug: String?) {
@@ -23,6 +39,7 @@ final class AYCESessionManager: ObservableObject {
         hasCelebratedBreakEven = false
         hasCelebratedKitchenWin = false
         persistDraft()
+        startLiveActivity()
     }
 
     func add(_ item: AYCECatalogItem) {
@@ -35,6 +52,7 @@ final class AYCESessionManager: ObservableObject {
         self.session = session
         celebrateIfJustBrokeEven()
         persistDraft()
+        updateLiveActivity()
     }
 
     func remove(_ item: AYCECatalogItem) {
@@ -47,6 +65,7 @@ final class AYCESessionManager: ObservableObject {
         }
         self.session = session
         persistDraft()
+        updateLiveActivity()
     }
 
     func count(for item: AYCECatalogItem) -> Int {
@@ -62,6 +81,7 @@ final class AYCESessionManager: ObservableObject {
         self.session = session
         celebrateIfJustBrokeEven()
         persistDraft()
+        updateLiveActivity()
     }
 
     /// Scanned entries appear at the top of a scanned-items strip; catalog tiles keep
@@ -75,11 +95,13 @@ final class AYCESessionManager: ObservableObject {
         session.entries.remove(at: index)
         self.session = session
         persistDraft()
+        updateLiveActivity()
     }
 
     /// Ends the session and returns it for the summary; the draft is cleared and the
     /// result joins the lifetime scoreboard (empty sessions are ignored by the rules).
     func end() -> AYCESession? {
+        endLiveActivity()
         let finished = session
         if let finished {
             let updated = AYCEScoreboard.appending(AYCESessionRecord(session: finished), to: loadScoreboard())
@@ -101,6 +123,7 @@ final class AYCESessionManager: ObservableObject {
     }
 
     func discard() {
+        endLiveActivity()
         session = nil
         draftData = Data()
     }
@@ -131,6 +154,64 @@ final class AYCESessionManager: ObservableObject {
         hasCelebratedBreakEven = AYCERules.breakEvenProgress(session: restored) >= 1.0
         hasCelebratedKitchenWin = AYCERules.hasBeatenKitchen(session: restored)
     }
+
+    // MARK: - Live Activity
+
+    private func startLiveActivity() {
+        #if canImport(ActivityKit)
+        guard ActivityAuthorizationInfo().areActivitiesEnabled, let session else { return }
+        do {
+            liveActivity = try Activity.request(
+                attributes: AYCEActivityAttributes(cuisineName: session.cuisine.displayName),
+                content: .init(state: activityState(), staleDate: nil)
+            )
+        } catch {
+            print("AYCE Live Activity failed to start: \(error.localizedDescription)")
+        }
+        #endif
+    }
+
+    private func updateLiveActivity() {
+        #if canImport(ActivityKit)
+        guard let liveActivity else { return }
+        let state = activityState()
+        Task {
+            await liveActivity.update(.init(state: state, staleDate: nil))
+        }
+        #endif
+    }
+
+    private func endLiveActivity() {
+        #if canImport(ActivityKit)
+        guard let liveActivity else { return }
+        let state = activityState()
+        Task {
+            await liveActivity.end(.init(state: state, staleDate: nil), dismissalPolicy: .immediate)
+        }
+        self.liveActivity = nil
+        #endif
+    }
+
+    #if canImport(ActivityKit)
+    private func activityState() -> AYCEActivityAttributes.ContentState {
+        let value = session != nil ? AYCERules.totals(for: session!).restaurantValue : 0
+        let buffetPrice = session?.buffetPrice ?? 0
+        let isBeaten = value >= buffetPrice
+        let itemsCount = session?.entries.reduce(0) { $0 + $1.count } ?? 0
+        
+        let buffetPriceText = String(format: "$%.2f", buffetPrice)
+        let currentValueText = String(format: "$%.2f", value)
+        let statusText = isBeaten ? "🔥 Buffet Beaten!" : String(format: "$%.2f to go", buffetPrice - value)
+        
+        return AYCEActivityAttributes.ContentState(
+            buffetPriceText: buffetPriceText,
+            currentValueText: currentValueText,
+            itemsCount: itemsCount,
+            statusText: statusText,
+            isBeaten: isBeaten
+        )
+    }
+    #endif
 }
 
 struct AYCEFlowView: View {
@@ -621,6 +702,7 @@ private struct AYCESummaryView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @State private var hasAppeared = false
     @State private var isLogging = false
+    @State private var showingCelebration = false
 
     private var totals: AYCERules.Totals { AYCERules.totals(for: session) }
     private var won: Bool { AYCERules.beatByAmount(session: session) >= 0 }
@@ -702,8 +784,14 @@ private struct AYCESummaryView: View {
             }
             if won {
                 HapticManager.instance.notification(.success)
+                if AYCERules.kitchenWinLine(session: session) != nil || won {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        showingCelebration = true
+                    }
+                }
             }
         }
+        .celebrationOverlay(type: .ayceWin, isPresented: $showingCelebration)
     }
 
     private func summaryRow(_ label: String, _ value: String) -> some View {

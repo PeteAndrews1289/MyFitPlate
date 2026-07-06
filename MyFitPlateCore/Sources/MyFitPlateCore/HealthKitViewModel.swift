@@ -33,6 +33,8 @@ public class HealthKitViewModel: ObservableObject {
     @Published public var workouts: [LoggedExercise] = []
     @Published public var sleepSamples: [HKCategorySample] = []
     @Published public var sleepSummary: SleepHealthSummary = .empty
+    @Published public var hrvSamples: [HKQuantitySample] = []
+    @Published public var hrvAverage: Double? = nil
     @Published public var todaySteps: Double = 0
     @Published public var todayActiveEnergy: Double = 0
     
@@ -52,9 +54,11 @@ public class HealthKitViewModel: ObservableObject {
     @Published public var lastSyncedAt: Date?
 
     private weak var dailyLogService: DailyLogService?
+    public weak var goalSettings: GoalSettings?
 
-    public func setup(dailyLogService: DailyLogService) {
+    public func setup(dailyLogService: DailyLogService, goalSettings: GoalSettings? = nil) {
         self.dailyLogService = dailyLogService
+        self.goalSettings = goalSettings
         checkAuthorizationStatus()
     }
 
@@ -124,8 +128,10 @@ public class HealthKitViewModel: ObservableObject {
         guard isAuthorized else { return }
         fetchTodayWorkouts()
         fetchLastSevenDaysSleep()
+        fetchLastSevenDaysHRV()
         fetchTodayPassiveData()
         fetchComprehensiveWeeklyData()
+        goalSettings?.syncWeightFromHealthKit()
     }
 
     public func fetchComprehensiveWeeklyData() {
@@ -207,6 +213,30 @@ public class HealthKitViewModel: ObservableObject {
             self.sleepSamples = samples
             self.sleepSummary = self.makeSleepSummary(from: samples)
             AppLog.health.info("Fetched \(samples.count, privacy: .public) HealthKit sleep samples across \(self.sleepSummary.nightCount, privacy: .public) nights.")
+        }
+    }
+
+    public func fetchLastSevenDaysHRV() {
+        guard isAuthorized else { return }
+        let endDate = Date()
+        guard let startDate = Calendar.current.date(byAdding: .day, value: -7, to: endDate) else { return }
+
+        manager.fetchHRVSamples(startDate: startDate, endDate: endDate) { [weak self] (samples, error) in
+            guard let self = self else { return }
+            if let error {
+                AppLog.health.error("Failed to fetch seven-day HRV samples: \(error.localizedDescription, privacy: .public)")
+                return
+            }
+            guard let samples = samples, !samples.isEmpty else {
+                self.hrvSamples = []
+                self.hrvAverage = nil
+                return
+            }
+            self.hrvSamples = samples
+            let unit = HKUnit.secondUnit(with: .milli)
+            let values = samples.map { $0.quantity.doubleValue(for: unit) }
+            self.hrvAverage = values.reduce(0, +) / Double(values.count)
+            AppLog.health.info("Fetched \(samples.count, privacy: .public) HealthKit HRV samples with avg \(self.hrvAverage ?? 0, privacy: .public) ms.")
         }
     }
 

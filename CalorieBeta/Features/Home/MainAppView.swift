@@ -232,7 +232,7 @@ struct CalorieBetaApp: App {
         logService.bannerService = bannerSvc
         logService.achievementService = achieveService
         achieveService.setupDependencies(dailyLogService: logService, goalSettings: goalsSvc, bannerService: bannerSvc)
-        hkViewModel.setup(dailyLogService: logService)
+        hkViewModel.setup(dailyLogService: logService, goalSettings: goalsSvc)
         cycleSvc.setupDependencies(goalSettings: goalsSvc, dailyLogService: logService)
         
         NotificationManager.shared.clearNotificationBadge()

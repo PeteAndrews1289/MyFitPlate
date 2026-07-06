@@ -14,6 +14,10 @@ public protocol RunningShoeStoreProtocol: AnyObject {
     func shoeID(forRunID runID: String) -> String?
     func tagRun(runID: String, withShoeID shoeID: String?)
     func applyTags(to runs: [Run]) -> [Run]
+    func averagePaceSecondsPerKm(for shoeID: String, across runs: [Run]) -> Double?
+    func runCount(for shoeID: String, across runs: [Run]) -> Int
+    func longestRunDistance(for shoeID: String, across runs: [Run]) -> Double?
+    func fastestShoeID(across runs: [Run]) -> String?
 }
 
 public final class RunningShoeStore: ObservableObject, RunningShoeStoreProtocol {
@@ -161,5 +165,32 @@ public final class RunningShoeStore: ObservableObject, RunningShoeStoreProtocol 
             }
             return r
         }
+    }
+
+    public func averagePaceSecondsPerKm(for shoeID: String, across runs: [Run]) -> Double? {
+        let shoeRuns = runs.filter { $0.shoeID == shoeID && $0.distanceMeters >= 500 && $0.movingSeconds > 0 }
+        guard !shoeRuns.isEmpty else { return nil }
+        let totalDist = shoeRuns.reduce(0.0) { $0 + $1.distanceMeters }
+        let totalSec = shoeRuns.reduce(0.0) { $0 + $1.movingSeconds }
+        guard totalDist > 0 else { return nil }
+        return totalSec / (totalDist / 1000.0)
+    }
+
+    public func runCount(for shoeID: String, across runs: [Run]) -> Int {
+        runs.filter { $0.shoeID == shoeID }.count
+    }
+
+    public func longestRunDistance(for shoeID: String, across runs: [Run]) -> Double? {
+        let shoeRuns = runs.filter { $0.shoeID == shoeID }
+        return shoeRuns.map { $0.distanceMeters }.max()
+    }
+
+    public func fastestShoeID(across runs: [Run]) -> String? {
+        let validShoes = shoes.filter { !$0.isRetired }
+        let withPaces = validShoes.compactMap { shoe -> (String, Double)? in
+            guard let pace = averagePaceSecondsPerKm(for: shoe.id, across: runs) else { return nil }
+            return (shoe.id, pace)
+        }
+        return withPaces.min(by: { $0.1 < $1.1 })?.0
     }
 }

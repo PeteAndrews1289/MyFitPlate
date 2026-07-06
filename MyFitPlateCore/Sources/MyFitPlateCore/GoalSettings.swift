@@ -104,6 +104,8 @@ public class GoalSettings: ObservableObject {
     private var weightHistoryCancellable: AnyCancellable?
     private var cancellables = Set<AnyCancellable>()
     private var isHydratingPersistedGoals = false
+    private var isSyncingWeightFromHealthKit = false
+    private var hasAutoSyncedWeightThisSession = false
     public weak var dailyLogService: DailyLogService?
     public weak var adaptiveGoalService: AdaptiveGoalService?
 
@@ -382,31 +384,92 @@ public class GoalSettings: ObservableObject {
         weightHistoryCancellable = DIContainer.shared.settingsRepository.weightHistoryPublisher(userID: userID)
             .receive(on: DispatchQueue.main)
             .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] history in
-                self?.weightHistory = history
+                guard let self else { return }
+                self.weightHistory = history
+                // Auto-import HealthKit weights ONCE per session, not on every emission:
+                // syncWeightFromHealthKit writes back into history, which re-emits here — a
+                // feedback loop the dedup check only just contains, plus a redundant HK
+                // round-trip on every weigh-in. Skip entirely under XCTest (async HK writes
+                // otherwise bleed across test cases). Explicit syncWeightFromHealthKit() calls
+                // are unaffected.
+                if !self.hasAutoSyncedWeightThisSession && NSClassFromString("XCTest") == nil {
+                    self.hasAutoSyncedWeightThisSession = true
+                    self.syncWeightFromHealthKit()
+                }
             })
     }
     
-    public func updateUserWeight(_ newWeight: Double, date: Date = Date()) {
-    Task { @MainActor in
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+    public func updateUserWeight(_ newWeight: Double, date: Date = Date(), syncToHealthKit: Bool = true) {
+        Task { @MainActor in
+            guard let userID = DIContainer.shared.authService.currentUserID else { return }
 
-        // Only a present-day weigh-in should move the "current" weight and re-run goal math.
-        // A back-dated entry just fills in history so the trend and adaptive TDEE stay accurate.
+            // Only a present-day weigh-in should move the "current" weight and re-run goal math.
+            // A back-dated entry just fills in history so the trend and adaptive TDEE stay accurate.
             if Calendar.current.isDateInToday(date) {
                 self.weight = newWeight
                 self.recalculateAllGoals()
                 self.saveUserGoals(userID: userID)
             }
         
-        do {
-            try await DIContainer.shared.settingsRepository.saveWeightEntry(userID: userID, weight: newWeight, date: date)
-            self.loadWeightHistory()
-        } catch {
-            AppLog.data.error("Failed to save weight sample: \(error.localizedDescription)")
+            do {
+                try await DIContainer.shared.settingsRepository.saveWeightEntry(userID: userID, weight: newWeight, date: date)
+                self.loadWeightHistory()
+            } catch {
+                AppLog.data.error("Failed to save weight sample: \(error.localizedDescription)")
+            }
+        }
+        if syncToHealthKit {
+            self.healthKitManager.saveWeightSample(weightLbs: newWeight, date: date)
         }
     }
-    self.healthKitManager.saveWeightSample(weightLbs: newWeight, date: date)
-}
+
+    @MainActor
+    public func syncWeightFromHealthKit() {
+        guard !isSyncingWeightFromHealthKit, healthKitManager.isHealthDataAvailable() else { return }
+        isSyncingWeightFromHealthKit = true
+        let endDate = Date()
+        guard let startDate = Calendar.current.date(byAdding: .day, value: -30, to: endDate) else {
+            isSyncingWeightFromHealthKit = false
+            return
+        }
+
+        healthKitManager.fetchRecentWeightSamples(startDate: startDate, endDate: endDate) { [weak self] samples, error in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.isSyncingWeightFromHealthKit = false
+                guard let samples = samples, !samples.isEmpty else { return }
+                
+                let calendar = Calendar.current
+                var latestSamplePerDay: [Date: HKQuantitySample] = [:]
+                for sample in samples {
+                    let dayStart = calendar.startOfDay(for: sample.startDate)
+                    if let existing = latestSamplePerDay[dayStart] {
+                        if sample.startDate > existing.startDate {
+                            latestSamplePerDay[dayStart] = sample
+                        }
+                    } else {
+                        latestSamplePerDay[dayStart] = sample
+                    }
+                }
+                
+                let sortedDays = latestSamplePerDay.keys.sorted()
+                for day in sortedDays {
+                    guard let sample = latestSamplePerDay[day] else { continue }
+                    let weightLbs = sample.quantity.doubleValue(for: .pound())
+                    let sampleDate = sample.startDate
+                    
+                    let alreadyLogged = self.weightHistory.contains { entry in
+                        calendar.isDate(entry.date, inSameDayAs: sampleDate) && abs(entry.weight - weightLbs) < 0.2
+                    }
+                    
+                    if !alreadyLogged {
+                        AppLog.health.info("Importing weight sample from HealthKit: \(weightLbs) lbs on \(sampleDate)")
+                        self.updateUserWeight(weightLbs, date: sampleDate, syncToHealthKit: false)
+                    }
+                }
+            }
+        }
+    }
     
     public func deleteWeightEntry(entryID: String, completion: @escaping (Error?) -> Void) {
     Task { @MainActor in

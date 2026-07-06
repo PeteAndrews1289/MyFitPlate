@@ -105,6 +105,38 @@ public enum RunStats {
         )
     }
 
+    /// Determines if a run achieved a "Negative Split" (running the second half faster than the first half).
+    public static func isNegativeSplit(splits: [RunSplit]) -> Bool {
+        guard let delta = negativeSplitDeltaSecondsPerKm(splits: splits) else { return false }
+        return delta > 0.5 // At least 0.5s/km faster in the second half
+    }
+
+    /// Returns the speedup in seconds per km of the second half compared to the first half, if any.
+    public static func negativeSplitDeltaSecondsPerKm(splits: [RunSplit]) -> Double? {
+        guard splits.count >= 2 else { return nil }
+        let mid = splits.count / 2
+        let firstHalf = splits.prefix(mid)
+        let secondHalf = splits.suffix(splits.count - mid)
+
+        let dist1 = firstHalf.reduce(0.0) { $0 + $1.distanceMeters }
+        let sec1 = firstHalf.reduce(0.0) { $0 + $1.seconds }
+        let dist2 = secondHalf.reduce(0.0) { $0 + $1.distanceMeters }
+        let sec2 = secondHalf.reduce(0.0) { $0 + $1.seconds }
+
+        guard dist1 > 0, dist2 > 0 else { return nil }
+        let pace1 = sec1 / (dist1 / 1000.0)
+        let pace2 = sec2 / (dist2 / 1000.0)
+
+        return pace1 - pace2
+    }
+
+    /// Identifies the fastest split in a run, ignoring tiny partial tail splits (< 200m) unless no other splits exist.
+    public static func fastestSplit(splits: [RunSplit]) -> RunSplit? {
+        let validSplits = splits.filter { $0.distanceMeters >= 200 }
+        let candidates = validSplits.isEmpty ? splits : validSplits
+        return candidates.min(by: { ($0.paceSecondsPerKm ?? .infinity) < ($1.paceSecondsPerKm ?? .infinity) })
+    }
+
     public struct WeekMileage: Equatable {
         public let weekStart: Date
         public let meters: Double

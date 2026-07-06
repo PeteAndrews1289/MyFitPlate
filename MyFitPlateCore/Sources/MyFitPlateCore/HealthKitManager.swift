@@ -6,6 +6,7 @@ public protocol HealthKitManaging {
     func requestAuthorization(completion: @escaping (Bool, Error?) -> Void)
     func fetchWorkouts(for date: Date, completion: @escaping ([HKWorkout]?, Error?) -> Void)
     func fetchSleepAnalysis(startDate: Date, endDate: Date, completion: @escaping ([HKCategorySample]?, Error?) -> Void)
+    func fetchHRVSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void)
     func fetchLatestRestingHeartRate(completion: @escaping (HKQuantitySample?) -> Void)
     func fetchLatestHRV(completion: @escaping (HKQuantitySample?) -> Void)
     func fetchTodaySteps(completion: @escaping (Double) -> Void)
@@ -23,6 +24,8 @@ public protocol HealthKitManaging {
     func fetch7DayTrend(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double]) -> Void)
     func saveWater(ounces: Double, date: Date)
     func isHealthDataAvailable() -> Bool
+    func fetchLatestWeight(completion: @escaping (HKQuantitySample?) -> Void)
+    func fetchRecentWeightSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void)
 }
 
 public class HealthKitManager: HealthKitManaging {
@@ -165,6 +168,27 @@ public class HealthKitManager: HealthKitManaging {
         store.execute(query)
     }
 
+    public func fetchHRVSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void) {
+        guard let hrvType = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN) else {
+            completion(nil, NSError(domain: "com.MyFitPlate.HealthKit", code: 2, userInfo: [NSLocalizedDescriptionKey: "HRV is not available."]))
+            return
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: [])
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+
+        let query = HKSampleQuery(sampleType: hrvType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sortDescriptor]) { _, samples, error in
+            DispatchQueue.main.async {
+                guard let hrvSamples = samples as? [HKQuantitySample], error == nil else {
+                    completion(nil, error)
+                    return
+                }
+                completion(hrvSamples, nil)
+            }
+        }
+        store.execute(query)
+    }
+
     public func fetchLatestRestingHeartRate(completion: @escaping (HKQuantitySample?) -> Void) {
         guard let restingHeartRateType = HKObjectType.quantityType(forIdentifier: .restingHeartRate) else {
             completion(nil)
@@ -190,6 +214,42 @@ public class HealthKitManager: HealthKitManaging {
         let query = HKSampleQuery(sampleType: hrvType, predicate: nil, limit: 1, sortDescriptors: [sortDescriptor]) { _, samples, _ in
             DispatchQueue.main.async {
                 completion(samples?.first as? HKQuantitySample)
+            }
+        }
+        store.execute(query)
+    }
+
+    public func fetchLatestWeight(completion: @escaping (HKQuantitySample?) -> Void) {
+        guard let bodyMassType = HKQuantityType.quantityType(forIdentifier: .bodyMass) else {
+            completion(nil)
+            return
+        }
+
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+        let query = HKSampleQuery(sampleType: bodyMassType, predicate: nil, limit: 1, sortDescriptors: [sortDescriptor]) { _, samples, _ in
+            DispatchQueue.main.async {
+                completion(samples?.first as? HKQuantitySample)
+            }
+        }
+        store.execute(query)
+    }
+
+    public func fetchRecentWeightSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void) {
+        guard let bodyMassType = HKQuantityType.quantityType(forIdentifier: .bodyMass) else {
+            completion(nil, NSError(domain: "com.MyFitPlate.HealthKit", code: 2, userInfo: [NSLocalizedDescriptionKey: "Body mass is not available."]))
+            return
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: [])
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: true)
+
+        let query = HKSampleQuery(sampleType: bodyMassType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sortDescriptor]) { _, samples, error in
+            DispatchQueue.main.async {
+                guard let weightSamples = samples as? [HKQuantitySample], error == nil else {
+                    completion(nil, error)
+                    return
+                }
+                completion(weightSamples, nil)
             }
         }
         store.execute(query)

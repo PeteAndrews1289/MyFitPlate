@@ -14,8 +14,13 @@ public final class MockHealthKitManager: HealthKitManaging, @unchecked Sendable 
     public var workoutsError: Error? = nil
     public var sleepResult: [HKCategorySample]? = []
     public var sleepError: Error? = nil
+    public var hrvSamplesResult: [HKQuantitySample]? = []
+    public var hrvSamplesError: Error? = nil
     public var restingHRResult: HKQuantitySample? = nil
     public var hrvResult: HKQuantitySample? = nil
+    public var latestWeightResult: HKQuantitySample? = nil
+    public var recentWeightSamplesResult: [HKQuantitySample]? = []
+    public var recentWeightSamplesError: Error? = nil
 
     public var todayStepsResult: Double = 0
     public var todayActiveEnergyResult: Double = 0
@@ -50,6 +55,12 @@ public final class MockHealthKitManager: HealthKitManaging, @unchecked Sendable 
         DispatchQueue.main.async { completion(result, error) }
     }
 
+    public func fetchHRVSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void) {
+        let result = hrvSamplesResult
+        let error = hrvSamplesError
+        DispatchQueue.main.async { completion(result, error) }
+    }
+
     public func fetchLatestRestingHeartRate(completion: @escaping (HKQuantitySample?) -> Void) {
         let result = restingHRResult
         DispatchQueue.main.async { completion(result) }
@@ -58,6 +69,17 @@ public final class MockHealthKitManager: HealthKitManaging, @unchecked Sendable 
     public func fetchLatestHRV(completion: @escaping (HKQuantitySample?) -> Void) {
         let result = hrvResult
         DispatchQueue.main.async { completion(result) }
+    }
+
+    public func fetchLatestWeight(completion: @escaping (HKQuantitySample?) -> Void) {
+        let result = latestWeightResult
+        DispatchQueue.main.async { completion(result) }
+    }
+
+    public func fetchRecentWeightSamples(startDate: Date, endDate: Date, completion: @escaping ([HKQuantitySample]?, Error?) -> Void) {
+        let result = recentWeightSamplesResult
+        let error = recentWeightSamplesError
+        DispatchQueue.main.async { completion(result, error) }
     }
 
     public func fetchTodaySteps(completion: @escaping (Double) -> Void) {
