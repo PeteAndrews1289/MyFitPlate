@@ -58,8 +58,6 @@ public class InsightsService: ObservableObject {
             .store(in: &cancellables)
     }
 
-    // ... [generateSingleMealSuggestion, createMealSuggestionPrompt, generateDailySmartInsight remain unchanged] ...
-    // (Keep existing implementations)
     public func generateSingleMealSuggestion(pantryItems: [String] = []) async -> MealSuggestion? {
         self.isGeneratingSuggestion = true
         
@@ -220,12 +218,18 @@ public class InsightsService: ObservableObject {
         }
     }
 
-    // ... [generateDailyBriefing and other methods remain unchanged] ...
-    // (Keep existing implementations)
-    public func generateDailyBriefing(for userID: String) async -> (title: String, body: String)? {
-        let wellnessScoreSummary = "Good Recovery"
-        let todaysWorkout = "Leg Day"
-
+    /// NOT WIRED UP — no caller schedules this (scheduleDailyBriefingNotification is itself
+    /// uncalled). ⚠️ LANDMINE: `wellnessScoreSummary` and `todaysWorkout` below are HARDCODED
+    /// placeholders. Do NOT schedule the daily briefing without first feeding them the real
+    /// wellness score (HealthKitViewModel.sleepSummary.lastNightScore) and today's program
+    /// day (WorkoutService.activeProgram) — otherwise every briefing tells the user "Good
+    /// Recovery" and "Leg Day" regardless of reality. This is the fill-my-macros trap:
+    /// orphan code that looks done but lies. Test its output path before wiring it.
+    public func generateDailyBriefing(
+        for userID: String,
+        wellnessScoreSummary: String,
+        todaysWorkout: String
+    ) async -> (title: String, body: String)? {
         let prompt = InsightsRules.createDailyBriefingPrompt(
             wellnessScoreSummary: wellnessScoreSummary,
             todaysWorkout: todaysWorkout
@@ -239,8 +243,13 @@ public class InsightsService: ObservableObject {
             let body: String
         }
 
-        guard let decoded = try? JSONDecoder().decode(BriefingResponse.self, from: data) else { return nil }
-        return (title: decoded.title, body: decoded.body)
+        do {
+            let decoded = try JSONDecoder().decode(BriefingResponse.self, from: data)
+            return (title: decoded.title, body: decoded.body)
+        } catch {
+            AppLog.ai.error("Failed to decode daily briefing: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     private func handleInsightsResult(insights: [UserInsight], error: String?) {

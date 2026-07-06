@@ -206,13 +206,16 @@ public class NotificationManager {
         }
     }
     
-    public func scheduleDailyBriefingNotification(insightsService: InsightsService) {
+    /// NOT WIRED UP yet (no caller). When it is: `wellnessScoreSummary` and `todaysWorkout`
+    /// MUST be real (from HealthKitViewModel + WorkoutService), never placeholders — see the
+    /// landmine note on generateDailyBriefing.
+    public func scheduleDailyBriefingNotification(insightsService: InsightsService, wellnessScoreSummary: String, todaysWorkout: String) {
         Task { @MainActor in
             guard let userID = DIContainer.shared.authService.currentUserID else { return }
-            
+
             self.cancelNotification(identifier: NotificationType.dailyBriefing.id) // Cancel any existing briefing
-            
-            if let briefing = await insightsService.generateDailyBriefing(for: userID) {
+
+            if let briefing = await insightsService.generateDailyBriefing(for: userID, wellnessScoreSummary: wellnessScoreSummary, todaysWorkout: todaysWorkout) {
                 let content = UNMutableNotificationContent()
                 content.title = briefing.title
                 content.body = briefing.body

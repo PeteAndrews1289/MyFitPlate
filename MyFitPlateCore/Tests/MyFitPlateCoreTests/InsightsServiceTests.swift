@@ -192,11 +192,17 @@ final class InsightsServiceTests: XCTestCase {
         """
         mockAI.mockResult = .success(json)
         
-        let briefing = await service.generateDailyBriefing(for: "user1")
-        
+        let briefing = await service.generateDailyBriefing(for: "user1", wellnessScoreSummary: "Fair recovery", todaysWorkout: "Push day")
+
         XCTAssertNotNil(briefing)
         XCTAssertEqual(briefing?.title, "Morning Briefing")
         XCTAssertEqual(briefing?.body, "Good morning! Here is your plan.")
+    }
+
+    func testGenerateDailyBriefingLogsAndReturnsNilOnMalformedResponse() async {
+        mockAI.mockResult = .success("not json at all")
+        let briefing = await service.generateDailyBriefing(for: "user1", wellnessScoreSummary: "Fair", todaysWorkout: "Rest")
+        XCTAssertNil(briefing, "A malformed AI response yields nil, not a crash")
     }
     
     // MARK: - Smart Notification
