@@ -264,7 +264,7 @@ struct StrengthExerciseView: View {
     var body: some View {
         VStack(spacing: 10) {
             if let previousPerformance {
-                StrengthProgressionCoachCard(previousPerformance: previousPerformance)
+                StrengthProgressionCoachCard(previousPerformance: previousPerformance, targetReps: exercise.targetReps)
             }
 
             ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, _ in
@@ -288,6 +288,15 @@ struct StrengthExerciseView: View {
 
 private struct StrengthProgressionCoachCard: View {
     let previousPerformance: CompletedExercise
+    var targetReps: String = "8-12"
+
+    /// Autoregulated next-session move derived from last time's top working set + effort.
+    private var suggestion: ProgressionSuggestion? {
+        ProgressionRules.suggest(
+            previous: previousPerformance,
+            targetReps: ProgressionRules.targetRepsLowEnd(targetReps)
+        )
+    }
 
     private var bestSet: CompletedSet? {
         previousPerformance.sets
@@ -321,14 +330,32 @@ private struct StrengthProgressionCoachCard: View {
                 .frame(width: 28, height: 28)
                 .background(Color.blue.opacity(0.10), in: Circle())
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Progression")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Text(guidanceText)
-                    .appFont(size: 12, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 3) {
+                if let suggestion {
+                    HStack(spacing: 6) {
+                        Text("Next")
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                        Text(suggestion.headline)
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(.brandPrimary)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Color.brandPrimary.opacity(0.12), in: Capsule())
+                    }
+                    Text(suggestion.rationale)
+                        .appFont(size: 12, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("Progression")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    Text(guidanceText)
+                        .appFont(size: 12, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer(minLength: 0)
