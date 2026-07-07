@@ -20,13 +20,18 @@ public enum NutritionCalorieConsistency {
         }
     }
 
-    public static func macroDerivedCalories(protein: Double, carbs: Double, fats: Double) -> Double {
-        max(0, protein) * 4 + max(0, carbs) * 4 + max(0, fats) * 9
+    /// Atwater estimate. Dietary fiber is part of total carbs but is largely non-caloric —
+    /// high-fiber foods (e.g. "carb balance" tortillas) are labeled on NET carbs — so we
+    /// count net carbs (carbs − fiber) at 4 cal/g and fiber at ~0. Without this, a 26g-fiber
+    /// tortilla reads as "222 cal" and gets falsely flagged against its true ~110.
+    public static func macroDerivedCalories(protein: Double, carbs: Double, fats: Double, fiber: Double? = nil) -> Double {
+        let netCarbs = max(0, max(0, carbs) - max(0, fiber ?? 0))
+        return max(0, protein) * 4 + netCarbs * 4 + max(0, fats) * 9
     }
 
-    public static func status(calories: Double, protein: Double, carbs: Double, fats: Double) -> Status {
+    public static func status(calories: Double, protein: Double, carbs: Double, fats: Double, fiber: Double? = nil) -> Status {
         let loggedCalories = max(0, calories)
-        let macroCalories = macroDerivedCalories(protein: protein, carbs: carbs, fats: fats)
+        let macroCalories = macroDerivedCalories(protein: protein, carbs: carbs, fats: fats, fiber: fiber)
         let delta = macroCalories - loggedCalories
         let denominator = max(max(loggedCalories, macroCalories), 1)
         let relativeDelta = abs(delta) / denominator
@@ -41,10 +46,10 @@ public enum NutritionCalorieConsistency {
         )
     }
 
-    public static func normalizedCaloriesForEstimatedSource(calories: Double, protein: Double, carbs: Double, fats: Double, source: String) -> Double {
+    public static func normalizedCaloriesForEstimatedSource(calories: Double, protein: Double, carbs: Double, fats: Double, fiber: Double? = nil, source: String) -> Double {
         guard isEstimatedSource(source) else { return calories }
 
-        let consistency = status(calories: calories, protein: protein, carbs: carbs, fats: fats)
+        let consistency = status(calories: calories, protein: protein, carbs: carbs, fats: fats, fiber: fiber)
         guard consistency.macroDerivedCalories > 0 else { return max(0, calories) }
 
         if calories <= 0 {
@@ -163,11 +168,11 @@ public struct FoodItem: Codable, Identifiable, Hashable, Sendable {
 
 public extension FoodItem {
     var macroDerivedCalories: Double {
-        NutritionCalorieConsistency.macroDerivedCalories(protein: protein, carbs: carbs, fats: fats)
+        NutritionCalorieConsistency.macroDerivedCalories(protein: protein, carbs: carbs, fats: fats, fiber: fiber)
     }
 
     var calorieConsistencyStatus: NutritionCalorieConsistency.Status {
-        NutritionCalorieConsistency.status(calories: calories, protein: protein, carbs: carbs, fats: fats)
+        NutritionCalorieConsistency.status(calories: calories, protein: protein, carbs: carbs, fats: fats, fiber: fiber)
     }
 
     var hasMeaningfulCalorieMacroMismatch: Bool {
@@ -181,6 +186,7 @@ public extension FoodItem {
             protein: protein,
             carbs: carbs,
             fats: fats,
+            fiber: fiber,
             source: source
         )
         return item
@@ -320,13 +326,16 @@ public struct DailyLog: Codable, Identifiable, Equatable {
 
     public func totalCalories() -> Double { meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.calories } }
     public func totalMacros() -> (protein: Double, fats: Double, carbs: Double) { let p = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.protein }; let f = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.fats }; let c = meals.flatMap { $0.foodItems }.reduce(0) { $0 + $1.carbs }; return (p, f, c) }
+    public func totalFiber() -> Double {
+        meals.flatMap { $0.foodItems }.reduce(0) { $0 + max(0, $1.fiber ?? 0) }
+    }
     public func macroDerivedCalories() -> Double {
         let macros = totalMacros()
-        return NutritionCalorieConsistency.macroDerivedCalories(protein: macros.protein, carbs: macros.carbs, fats: macros.fats)
+        return NutritionCalorieConsistency.macroDerivedCalories(protein: macros.protein, carbs: macros.carbs, fats: macros.fats, fiber: totalFiber())
     }
     public func calorieConsistencyStatus() -> NutritionCalorieConsistency.Status {
         let macros = totalMacros()
-        return NutritionCalorieConsistency.status(calories: totalCalories(), protein: macros.protein, carbs: macros.carbs, fats: macros.fats)
+        return NutritionCalorieConsistency.status(calories: totalCalories(), protein: macros.protein, carbs: macros.carbs, fats: macros.fats, fiber: totalFiber())
     }
     public func foodsWithMeaningfulCalorieMacroMismatch() -> [FoodItem] {
         meals.flatMap(\.foodItems).filter(\.hasMeaningfulCalorieMacroMismatch)

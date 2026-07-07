@@ -63,12 +63,14 @@ public enum FoodDataSanity {
         }
 
         if item.servingWeight >= minimumKnownServingWeight {
-            let macroAndFiberGrams = macroGrams + max(0, item.fiber ?? 0)
-            if macroAndFiberGrams > item.servingWeight * 1.05 {
+            // Dietary fiber is PART of total carbs, not an extra mass — adding it here
+            // double-counted it and falsely flagged high-fiber foods (a 32g-carb / 26g-fiber
+            // tortilla read as 74g of macros instead of 48g).
+            if macroGrams > item.servingWeight * 1.05 {
                 findings.append(Finding(
                     id: "macros_exceed_serving_weight",
                     severity: .warning,
-                    message: "\(Int(macroAndFiberGrams.rounded()))g of macros can't fit in a \(Int(item.servingWeight.rounded()))g serving."
+                    message: "\(Int(macroGrams.rounded()))g of macros can't fit in a \(Int(item.servingWeight.rounded()))g serving."
                 ))
             }
 

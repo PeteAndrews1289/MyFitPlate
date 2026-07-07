@@ -169,7 +169,8 @@ final class NutritionLogModelTests: XCTestCase {
         XCTAssertEqual(macros.protein, 75, accuracy: 0.001)
         XCTAssertEqual(macros.carbs, 85, accuracy: 0.001)
         XCTAssertEqual(macros.fats, 22, accuracy: 0.001)
-        XCTAssertEqual(log.macroDerivedCalories(), 838, accuracy: 0.001)
+        // Net-carb Atwater: fiber (6 + 8 = 14g) is non-caloric, so 838 − 4*14 = 782.
+        XCTAssertEqual(log.macroDerivedCalories(), 782, accuracy: 0.001)
         XCTAssertFalse(log.calorieConsistencyStatus().hasMeaningfulMismatch)
 
         let micros = log.totalMicronutrients()
