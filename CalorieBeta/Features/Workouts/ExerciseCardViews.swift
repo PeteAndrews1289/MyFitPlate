@@ -498,12 +498,49 @@ struct StrengthSetRow: View {
 
     private let weightIncrement: Double = 2.5
 
+    /// Whether this row logs effort as RPE or RIR (the user's Settings choice).
+    @AppStorage("liftingEffortMetric") private var effortMetricRaw: String = "rpe"
+    private var effortScale: SetEffort.Scale { effortMetricRaw == "rir" ? .rir : .rpe }
+    private var effortOptions: [Double] {
+        effortScale == .rir ? [0, 1, 2, 3, 4, 5] : [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10]
+    }
+    /// Convert any stored effort into the currently-selected scale, so a set logged as
+    /// RPE still reads correctly when the user prefers RIR (and vice-versa).
+    private func effortInScale(_ effort: SetEffort) -> Double {
+        if effort.scale == effortScale { return effort.value }
+        let rpe = effort.normalizedRPE
+        return effortScale == .rpe ? rpe : max(0, 10 - rpe)
+    }
+    private var effortDisplayValue: Double? {
+        guard let effort = set.effort else { return nil }
+        return effortInScale(effort)
+    }
+    private func formatEffort(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
+    }
+    private var setTypeBinding: Binding<SetType> {
+        Binding(get: { set.resolvedSetType }, set: { set.setKind($0) })
+    }
+    private var setTypeColor: Color {
+        switch set.resolvedSetType {
+        case .warmup: return .orange
+        case .drop: return .brandPrimary
+        case .failure: return .red
+        case .normal: return .textPrimary
+        }
+    }
+
     private var targetText: String {
         self.set.target ?? "Work set"
     }
 
     private var setLabel: String {
-        return set.isWarmup ? "Warmup" : "Set \(setIndex)"
+        switch set.resolvedSetType {
+        case .warmup: return "Warm-up"
+        case .drop: return "Drop set"
+        case .failure: return "Failure"
+        case .normal: return "Set \(setIndex)"
+        }
     }
 
     private var targetSummary: String {
@@ -524,7 +561,11 @@ struct StrengthSetRow: View {
 
     private var previousText: String {
         guard let previousSet else { return "No prior set" }
-        return "Last \(formatWeight(previousSet.weight)) lb x \(previousSet.reps)"
+        var text = "Last \(formatWeight(previousSet.weight)) lb x \(previousSet.reps)"
+        if let effort = previousSet.effort {
+            text += " · \(effortScale == .rir ? "RIR" : "RPE") \(formatEffort(effortInScale(effort)))"
+        }
+        return text
     }
 
     private var completionIcon: String {
@@ -544,9 +585,7 @@ struct StrengthSetRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(setLabel)
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.textPrimary)
+                setTypeMenu
 
                 Text(targetSummary)
                     .appFont(size: 13, weight: .semibold)
@@ -582,6 +621,7 @@ struct StrengthSetRow: View {
             HStack(alignment: .bottom, spacing: 10) {
                 weightInputGroup
                 repsInputGroup
+                effortInputGroup
                 completeButton
             }
         }
@@ -726,6 +766,55 @@ struct StrengthSetRow: View {
             .accessibilityValue(set.isCompleted ? "Completed" : "Not completed")
         }
         .frame(width: 48)
+    }
+
+    private var setTypeMenu: some View {
+        Menu {
+            Picker("Set type", selection: setTypeBinding) {
+                Label("Working set", systemImage: "circle.fill").tag(SetType.normal)
+                Label("Warm-up", systemImage: "flame").tag(SetType.warmup)
+                Label("Drop set", systemImage: "arrow.down.circle").tag(SetType.drop)
+                Label("To failure", systemImage: "bolt.circle").tag(SetType.failure)
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(setLabel)
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(setTypeColor)
+                Image(systemName: "chevron.down")
+                    .appFont(size: 9, weight: .bold)
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+        }
+        .accessibilityLabel("Set type: \(setLabel)")
+        .accessibilityHint("Change between working, warm-up, drop, or failure set.")
+    }
+
+    private var effortInputGroup: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(effortScale == .rir ? "RIR" : "RPE")
+                .appFont(size: 11, weight: .bold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+
+            Menu {
+                Button("Not logged") { set.effort = nil }
+                ForEach(effortOptions, id: \.self) { value in
+                    Button(formatEffort(value)) {
+                        set.effort = SetEffort(scale: effortScale, value: value)
+                    }
+                }
+            } label: {
+                Text(effortDisplayValue.map(formatEffort) ?? "–")
+                    .appFont(size: 18, weight: .bold)
+                    .foregroundColor(effortDisplayValue == nil ? Color(UIColor.tertiaryLabel) : .textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .accessibilityLabel(effortScale == .rir ? "Reps in reserve" : "Rate of perceived exertion")
+            .accessibilityValue(effortDisplayValue.map(formatEffort) ?? "Not logged")
+        }
+        .frame(width: 60)
     }
 
     private func setAdjustButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {

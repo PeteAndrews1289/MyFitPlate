@@ -7,6 +7,8 @@ struct SettingsPreferencesSection: View {
     @Binding var weighInReminderEnabled: Bool
     @Binding var notificationTimeBinding: Date
 
+    @AppStorage("liftingEffortMetric") private var liftingEffortMetric: String = "rpe"
+
     var body: some View {
         VStack(spacing: 24) {
             SettingsSectionCard(title: "Integrations") {
@@ -99,6 +101,23 @@ struct SettingsPreferencesSection: View {
                     .onChange(of: weighInReminderEnabled) { _, enabled in
                         NotificationManager.shared.setWeighInReminder(enabled: enabled)
                     }
+                }
+                .padding(16)
+            }
+
+            SettingsSectionCard(title: "Training") {
+                VStack(alignment: .leading, spacing: 12) {
+                    SettingsLabel(
+                        icon: "figure.strengthtraining.traditional",
+                        title: "Set effort metric",
+                        subtitle: "How you rate each set — RPE (how hard, 6–10) or RIR (reps left in the tank).",
+                        color: .brandPrimary
+                    )
+                    Picker("Effort metric", selection: $liftingEffortMetric) {
+                        Text("RPE").tag("rpe")
+                        Text("RIR").tag("rir")
+                    }
+                    .pickerStyle(.segmented)
                 }
                 .padding(16)
             }
