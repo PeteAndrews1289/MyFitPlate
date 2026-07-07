@@ -205,6 +205,9 @@
     "%@ cal goal" : {
 
     },
+    "%@ cal/day" : {
+
+    },
     "%@ checked" : {
 
     },
@@ -513,9 +516,6 @@
     "%lld minutes" : {
 
     },
-    "%lld mL" : {
-
-    },
     "%lld of %lld" : {
       "localizations" : {
         "en" : {
@@ -715,9 +715,6 @@
     "%lldx" : {
 
     },
-    "• %lld min left" : {
-
-    },
     "+ %lld more" : {
 
     },
@@ -860,6 +857,9 @@
 
     },
     "Achievements" : {
+
+    },
+    "Action needs retry" : {
 
     },
     "Actionable Tips" : {
@@ -1007,6 +1007,9 @@
     "Adds one" : {
 
     },
+    "Adjust before logging" : {
+
+    },
     "Adjust the start date or training days when life moves around." : {
 
     },
@@ -1142,6 +1145,9 @@
     "Barcode %@" : {
 
     },
+    "Barcode correction" : {
+
+    },
     "Barcode error" : {
 
     },
@@ -1183,6 +1189,9 @@
 
     },
     "Brand (e.g. Nike, Hoka, Brooks)" : {
+
+    },
+    "Break superset" : {
 
     },
     "Break-even progress" : {
@@ -1295,9 +1304,6 @@
     "Carb goal" : {
 
     },
-    "carbs" : {
-
-    },
     "Carbs" : {
 
     },
@@ -1314,6 +1320,9 @@
 
     },
     "Change" : {
+
+    },
+    "Change between working, warm-up, drop, or failure set." : {
 
     },
     "Change Program" : {
@@ -1672,6 +1681,9 @@
     "Drawing your routes" : {
 
     },
+    "Drop set" : {
+
+    },
     "Dumbbell Bench Press, Push-up" : {
 
     },
@@ -1718,6 +1730,12 @@
 
     },
     "Edit Target Reps" : {
+
+    },
+    "Effort metric" : {
+
+    },
+    "Eligible fixes may help future scans" : {
 
     },
     "Email" : {
@@ -1818,7 +1836,16 @@
     "Fill from %@" : {
 
     },
+    "Fill macros" : {
+
+    },
     "Fill my macros" : {
+
+    },
+    "Find food" : {
+
+    },
+    "Find recovery food" : {
 
     },
     "Finding item" : {
@@ -2005,6 +2032,9 @@
     "Health trends" : {
 
     },
+    "Heart-rate zones" : {
+
+    },
     "Here's what the week added up to." : {
 
     },
@@ -2169,6 +2199,12 @@
     "Key gains" : {
 
     },
+    "Label not scanned" : {
+
+    },
+    "Label scanned" : {
+
+    },
     "Last 7 days" : {
 
     },
@@ -2260,6 +2296,9 @@
     "Log day" : {
 
     },
+    "Log estimate" : {
+
+    },
     "Log Exercise" : {
 
     },
@@ -2267,9 +2306,6 @@
 
     },
     "Log Food" : {
-
-    },
-    "Log fuel within 45 min to optimize muscle synthesis" : {
 
     },
     "Log in" : {
@@ -2299,7 +2335,7 @@
     "Log Selected Items" : {
 
     },
-    "Log this meal" : {
+    "Log this food once and future scans for barcode %@ will use your saved label." : {
 
     },
     "Log this planned day?" : {
@@ -2356,6 +2392,9 @@
     "Macro" : {
 
     },
+    "Macro fit" : {
+
+    },
     "Macronutrient distribution" : {
 
     },
@@ -2393,6 +2432,9 @@
 
     },
     "Maia's Analysis" : {
+
+    },
+    "Maia's answer is still shown, but the action button payload was incomplete." : {
 
     },
     "Maia's Phase Guide" : {
@@ -2681,6 +2723,9 @@
     "Not enough sleep data for chart." : {
 
     },
+    "Not logged" : {
+
+    },
     "Not now" : {
 
     },
@@ -2771,6 +2816,9 @@
     "Pantry" : {
 
     },
+    "Pantry fit" : {
+
+    },
     "Pantry recipes" : {
 
     },
@@ -2802,9 +2850,6 @@
 
     },
     "Pause run" : {
-
-    },
-    "Paused" : {
 
     },
     "Period stats" : {
@@ -2946,9 +2991,6 @@
     "Progressive Overload (%@)" : {
 
     },
-    "protein" : {
-
-    },
     "Protein" : {
 
     },
@@ -3000,6 +3042,9 @@
     "Rapid Scan ON" : {
 
     },
+    "Rate of perceived exertion" : {
+
+    },
     "Reactivate Shoe" : {
 
     },
@@ -3007,6 +3052,9 @@
 
     },
     "ready" : {
+
+    },
+    "Ready" : {
 
     },
     "Ready for your first log" : {
@@ -3050,6 +3098,9 @@
 
     },
     "Records" : {
+
+    },
+    "Recovery meal" : {
 
     },
     "Refine estimate" : {
@@ -3118,6 +3169,9 @@
     "Reps" : {
 
     },
+    "Reps in reserve" : {
+
+    },
     "Reset" : {
 
     },
@@ -3169,10 +3223,16 @@
     "Review sources, cross-checks, and nutrition math for today's logged foods." : {
 
     },
+    "Review today" : {
+
+    },
     "Review your true TDEE and metabolism trend." : {
 
     },
     "Reviewing your recent data" : {
+
+    },
+    "RIR" : {
 
     },
     "Route map" : {
@@ -3190,10 +3250,10 @@
     "Routines / Days" : {
 
     },
-    "Run complete" : {
+    "RPE" : {
 
     },
-    "Run recovery window" : {
+    "Run complete" : {
 
     },
     "Running" : {
@@ -3269,6 +3329,9 @@
 
     },
     "Scan Error" : {
+
+    },
+    "Scan label again" : {
 
     },
     "Scan menu" : {
@@ -3410,6 +3473,12 @@
 
     },
     "Set timer" : {
+
+    },
+    "Set type" : {
+
+    },
+    "Set type: %@" : {
 
     },
     "Set your daily hydration target to feel your best." : {
@@ -3619,6 +3688,12 @@
     "Summary" : {
 
     },
+    "Superset %@" : {
+
+    },
+    "Superset with next" : {
+
+    },
     "Swap Exercise" : {
 
     },
@@ -3764,10 +3839,22 @@
     "Timer" : {
 
     },
+    "To failure" : {
+
+    },
+    "Today fuel check" : {
+
+    },
+    "Today fuel plan" : {
+
+    },
     "Today logged" : {
 
     },
     "Today's Best Next Step" : {
+
+    },
+    "Today's moves" : {
 
     },
     "Today's weight" : {
@@ -3923,7 +4010,7 @@
     "vs %lld similar runs" : {
 
     },
-    "water" : {
+    "Warm-up" : {
 
     },
     "We need at least 7 days of weight data and 10 days of food logs to confidently adjust your TDEE." : {
@@ -4009,6 +4096,9 @@
 
     },
     "Why this target" : {
+
+    },
+    "Working set" : {
 
     },
     "Workout Analysis" : {
@@ -4159,6 +4249,9 @@
 
     },
     "Your workout is already saved. Trends and coaching notes will appear when ready." : {
+
+    },
+    "Z%lld" : {
 
     }
   },

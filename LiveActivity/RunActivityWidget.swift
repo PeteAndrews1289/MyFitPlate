@@ -13,14 +13,23 @@ struct RunActivityWidget: Widget {
                 HStack {
                     Image(systemName: "figure.run")
                         .foregroundColor(brandGreen)
-                    Text(context.state.isPaused ? "Run paused" : "Running")
+                    Text(context.state.workoutStepText ?? (context.state.isPaused ? "Run paused" : "Running"))
                         .font(.headline)
                         .foregroundColor(.white)
+                        .lineLimit(1)
                     Spacer()
                     Text(context.state.paceText)
                         .font(.subheadline)
                         .monospacedDigit()
                         .foregroundColor(.secondary)
+                }
+
+                if let target = context.state.workoutTargetText {
+                    Text(target)
+                        .font(.caption)
+                        .foregroundColor(brandGreen)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(2)
                 }
 
                 HStack(alignment: .bottom) {
@@ -78,7 +87,20 @@ struct RunActivityWidget: Widget {
                         .foregroundColor(.white)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if context.state.isPaused {
+                    if let step = context.state.workoutStepText {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(step)
+                                .font(.caption)
+                                .foregroundColor(.white)
+                                .lineLimit(1)
+                            if let target = context.state.workoutTargetText {
+                                Text(target)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    } else if context.state.isPaused {
                         Text("Paused · \(context.state.elapsedText)")
                             .font(.caption)
                             .foregroundColor(.secondary)

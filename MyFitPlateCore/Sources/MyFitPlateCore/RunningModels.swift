@@ -67,6 +67,58 @@ public struct Run: Codable, Identifiable, Equatable {
     }
 }
 
+public enum ManualRunEntryRules {
+    public static func buildIndoorRun(
+        startDate: Date,
+        distanceMeters: Double,
+        movingSeconds: Double,
+        metric: Bool,
+        activeCalories: Double? = nil
+    ) -> Run? {
+        guard distanceMeters >= 100, movingSeconds >= 60 else { return nil }
+        let safeDistance = max(0, distanceMeters)
+        let safeSeconds = max(0, movingSeconds)
+
+        return Run(
+            source: .recorded,
+            startDate: startDate,
+            endDate: startDate.addingTimeInterval(safeSeconds),
+            distanceMeters: safeDistance,
+            movingSeconds: safeSeconds,
+            activeCalories: activeCalories,
+            isIndoor: true,
+            splits: splits(distanceMeters: safeDistance, movingSeconds: safeSeconds, metric: metric),
+            hasRoute: false
+        )
+    }
+
+    public static func splits(distanceMeters: Double, movingSeconds: Double, metric: Bool) -> [RunSplit] {
+        guard distanceMeters > 50, movingSeconds > 0 else { return [] }
+        let splitDistance = metric ? 1000.0 : RunFormat.metersPerMile
+        let fullSplitCount = Int(distanceMeters / splitDistance)
+        let remainingMeters = distanceMeters - (Double(fullSplitCount) * splitDistance)
+        let secondsPerMeter = movingSeconds / distanceMeters
+
+        var splits: [RunSplit] = (0..<fullSplitCount).map { index in
+            RunSplit(
+                index: index + 1,
+                distanceMeters: splitDistance,
+                seconds: splitDistance * secondsPerMeter
+            )
+        }
+
+        if remainingMeters > 50 {
+            splits.append(RunSplit(
+                index: splits.count + 1,
+                distanceMeters: remainingMeters,
+                seconds: remainingMeters * secondsPerMeter
+            ))
+        }
+
+        return splits
+    }
+}
+
 /// One completed distance interval (per km or per mile, by the user's unit setting).
 public struct RunSplit: Codable, Equatable {
     /// 1-based split number.

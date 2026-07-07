@@ -660,18 +660,25 @@ struct StrengthSetRow: View {
                 .accessibilityLabel(previousSet == nil ? "No prior set" : "Fill from \(previousText)")
             }
 
-            if let targetGuidance {
-                Text(targetGuidance)
-                    .appFont(size: 12, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 8) {
+                if let targetGuidance {
+                    Text(targetGuidance)
+                        .appFont(size: 12, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                effortMenuChip
             }
 
             HStack(alignment: .bottom, spacing: 10) {
                 weightInputGroup
+                    .layoutPriority(2)
                 repsInputGroup
-                effortInputGroup
+                    .layoutPriority(2)
                 completeButton
             }
         }
@@ -840,31 +847,32 @@ struct StrengthSetRow: View {
         .accessibilityHint("Change between working, warm-up, drop, or failure set.")
     }
 
-    private var effortInputGroup: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(effortScale == .rir ? "RIR" : "RPE")
-                .appFont(size: 11, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-
-            Menu {
-                Button("Not logged") { set.effort = nil }
-                ForEach(effortOptions, id: \.self) { value in
-                    Button(formatEffort(value)) {
-                        set.effort = SetEffort(scale: effortScale, value: value)
-                    }
+    private var effortMenuChip: some View {
+        Menu {
+            Button("Not logged") { set.effort = nil }
+            ForEach(effortOptions, id: \.self) { value in
+                Button(formatEffort(value)) {
+                    set.effort = SetEffort(scale: effortScale, value: value)
                 }
-            } label: {
-                Text(effortDisplayValue.map(formatEffort) ?? "–")
-                    .appFont(size: 18, weight: .bold)
-                    .foregroundColor(effortDisplayValue == nil ? Color(UIColor.tertiaryLabel) : .textPrimary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            .accessibilityLabel(effortScale == .rir ? "Reps in reserve" : "Rate of perceived exertion")
-            .accessibilityValue(effortDisplayValue.map(formatEffort) ?? "Not logged")
+        } label: {
+            HStack(spacing: 6) {
+                Text(effortScale == .rir ? "RIR" : "RPE")
+                    .appFont(size: 11, weight: .bold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+
+                Text(effortDisplayValue.map(formatEffort) ?? "–")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(effortDisplayValue == nil ? Color(UIColor.tertiaryLabel) : .textPrimary)
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(Color.backgroundSecondary.opacity(0.86), in: Capsule())
         }
-        .frame(width: 60)
+        .buttonStyle(.plain)
+        .accessibilityLabel(effortScale == .rir ? "Reps in reserve" : "Rate of perceived exertion")
+        .accessibilityValue(effortDisplayValue.map(formatEffort) ?? "Not logged")
     }
 
     private func setAdjustButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {

@@ -164,6 +164,60 @@ final class RunEnergyTests: XCTestCase {
     }
 }
 
+final class ManualRunEntryRulesTests: XCTestCase {
+    private let start = Date(timeIntervalSince1970: 1_750_020_000)
+
+    func testBuildIndoorRunCreatesTreadmillRunWithSplits() throws {
+        let run = try XCTUnwrap(ManualRunEntryRules.buildIndoorRun(
+            startDate: start,
+            distanceMeters: 5_000,
+            movingSeconds: 1_500,
+            metric: true,
+            activeCalories: 410
+        ))
+
+        XCTAssertEqual(run.source, .recorded)
+        XCTAssertTrue(run.isIndoor)
+        XCTAssertFalse(run.hasRoute)
+        XCTAssertEqual(run.distanceMeters, 5_000)
+        XCTAssertEqual(run.movingSeconds, 1_500)
+        XCTAssertEqual(run.activeCalories, 410)
+        XCTAssertEqual(run.splits.count, 5)
+        XCTAssertEqual(run.splits.first?.seconds ?? 0, 300, accuracy: 0.001)
+        XCTAssertEqual(run.averagePaceSecondsPerKm ?? 0, 300, accuracy: 0.001)
+        XCTAssertEqual(run.endDate, start.addingTimeInterval(1_500))
+    }
+
+    func testBuildIndoorRunRejectsFalseStarts() {
+        XCTAssertNil(ManualRunEntryRules.buildIndoorRun(
+            startDate: start,
+            distanceMeters: 99,
+            movingSeconds: 1_500,
+            metric: true
+        ))
+        XCTAssertNil(ManualRunEntryRules.buildIndoorRun(
+            startDate: start,
+            distanceMeters: 1_000,
+            movingSeconds: 59,
+            metric: true
+        ))
+    }
+
+    func testIndoorRunSplitsUseMilesWhenImperial() throws {
+        let run = try XCTUnwrap(ManualRunEntryRules.buildIndoorRun(
+            startDate: start,
+            distanceMeters: RunFormat.metersPerMile * 2.5,
+            movingSeconds: 1_800,
+            metric: false
+        ))
+
+        XCTAssertEqual(run.splits.count, 3)
+        XCTAssertEqual(run.splits[0].distanceMeters, RunFormat.metersPerMile, accuracy: 0.001)
+        XCTAssertEqual(run.splits[1].distanceMeters, RunFormat.metersPerMile, accuracy: 0.001)
+        XCTAssertEqual(run.splits[2].distanceMeters, RunFormat.metersPerMile * 0.5, accuracy: 0.001)
+    }
+}
+
 final class RunFormatTests: XCTestCase {
 
     func testDistanceTextInBothUnitSystems() {
