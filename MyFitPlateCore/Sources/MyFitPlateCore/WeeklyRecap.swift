@@ -79,7 +79,7 @@ public enum WeeklyRecapBuilder {
         let weekSessions = sessionLogs.filter { inWindow($0.date) }
         let totalVolume = weekSessions.reduce(0.0) { sum, session in
             sum + session.completedExercises.reduce(0.0) { exerciseSum, exercise in
-                exerciseSum + exercise.sets.reduce(0.0) { $0 + ($1.weight * Double($1.reps)) }
+                exerciseSum + exercise.sets.filter(\.isWorkingSet).reduce(0.0) { $0 + ($1.weight * Double($1.reps)) }
             }
         }
 
@@ -140,6 +140,7 @@ public enum WeeklyRecapBuilder {
                     let name = exercise.exerciseName.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !name.isEmpty else { continue }
                     let sessionBest = exercise.sets
+                        .filter(\.isWorkingSet)
                         .map { estimatedOneRepMax(weight: $0.weight, reps: $0.reps) }
                         .max() ?? 0
                     best[name] = max(best[name] ?? 0, sessionBest)

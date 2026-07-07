@@ -379,7 +379,7 @@ struct WorkoutPlayerView: View {
 
         let completedExercisesForLog = routine.exercises.compactMap { exercise -> CompletedExercise? in
             let completedSets = exercise.sets.filter { $0.isCompleted }.map {
-                CompletedSet(reps: $0.reps, weight: $0.weight, distance: $0.distance, durationInSeconds: $0.durationInSeconds)
+                CompletedSet(reps: $0.reps, weight: $0.weight, distance: $0.distance, durationInSeconds: $0.durationInSeconds, setType: $0.resolvedSetType, effort: $0.effort)
             }
             return completedSets.isEmpty ? nil : CompletedExercise(exerciseName: exercise.name, exercise: exercise, sets: completedSets)
         }

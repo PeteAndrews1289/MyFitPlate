@@ -75,7 +75,7 @@ public class WorkoutAnalyticsService: ObservableObject {
 
             if case .success(let sessionLog) = sessionResult {
                 for completedExercise in sessionLog.completedExercises {
-                    for set in completedExercise.sets {
+                    for set in completedExercise.sets where set.isWorkingSet {
                         let volume = set.weight * Double(set.reps)
                         totalVolume += volume
 
@@ -189,8 +189,8 @@ public class WorkoutAnalyticsService: ObservableObject {
             // Process logs in reverse (oldest to newest for the chart)
             for log in logs.reversed() {
                 if let completedExercise = log.completedExercises.first(where: { $0.exerciseName == exerciseName }) {
-                    // Calculate "Max Weight Used" as the metric for the chart
-                    let maxWeight = completedExercise.sets.map { $0.weight }.max() ?? 0
+                    // Calculate "Max Weight Used" as the metric for the chart (working sets only)
+                    let maxWeight = completedExercise.sets.filter(\.isWorkingSet).map { $0.weight }.max() ?? 0
                     if maxWeight > 0 {
                         points.append(ExerciseTrendPoint(date: log.date, value: maxWeight))
                     }
@@ -233,7 +233,7 @@ public class WorkoutAnalyticsService: ObservableObject {
         
         for exercise in log.completedExercises {
             let muscle = guessMuscleGroup(exerciseName: exercise.exerciseName)
-            distribution[muscle, default: 0] += Double(exercise.sets.count)
+            distribution[muscle, default: 0] += Double(exercise.sets.filter(\.isWorkingSet).count)
         }
         
         return distribution.map { MuscleSplitPoint(muscleName: $0.key, setCount: $0.value) }
@@ -358,7 +358,7 @@ public class WorkoutAnalyticsService: ObservableObject {
     
     private func calculateTotalVolume(log: WorkoutSessionLog) -> Double {
         return log.completedExercises.reduce(0) { exerciseSum, exercise in
-            exerciseSum + exercise.sets.reduce(0) { setSum, set in
+            exerciseSum + exercise.sets.filter(\.isWorkingSet).reduce(0) { setSum, set in
                 setSum + (set.weight * Double(set.reps))
             }
         }
@@ -490,12 +490,12 @@ public class WorkoutAnalyticsService: ObservableObject {
     }
 
     private func exerciseVolume(_ exercise: CompletedExercise) -> Double {
-        exercise.sets.reduce(0) { $0 + ($1.weight * Double($1.reps)) }
+        exercise.sets.filter(\.isWorkingSet).reduce(0) { $0 + ($1.weight * Double($1.reps)) }
     }
 
     private func bestStrengthSet(in sets: [CompletedSet]) -> CompletedSet? {
         sets
-            .filter { $0.weight > 0 && $0.reps > 0 }
+            .filter { $0.isWorkingSet && $0.weight > 0 && $0.reps > 0 }
             .max { estimatedOneRepMax($0) < estimatedOneRepMax($1) }
     }
 

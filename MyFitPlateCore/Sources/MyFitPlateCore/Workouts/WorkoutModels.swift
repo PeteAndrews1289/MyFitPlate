@@ -116,6 +116,43 @@ public struct RoutineExercise: Identifiable, Codable {
     }
 }
 
+/// The role of a set within an exercise. Only working sets (`normal`/`drop`/`failure`)
+/// count toward volume, 1RM, and PRs; `warmup` sets are excluded from that math.
+public enum SetType: String, Codable, CaseIterable, Sendable {
+    case warmup, normal, drop, failure
+
+    public var shortLabel: String {
+        switch self {
+        case .warmup: return "W"
+        case .normal: return ""
+        case .drop: return "D"
+        case .failure: return "F"
+        }
+    }
+}
+
+/// A single effort rating on a set. The user chooses in Settings whether they log
+/// RPE or RIR; we store exactly what they entered plus which scale it was on (honest
+/// to the app's trust ethos), and normalize to RPE only when analytics need one axis.
+public struct SetEffort: Codable, Equatable, Sendable {
+    public enum Scale: String, Codable, Sendable { case rpe, rir }
+    public var scale: Scale
+    public var value: Double
+
+    public init(scale: Scale, value: Double) {
+        self.scale = scale
+        self.value = value
+    }
+
+    /// RPE-6…10 equivalent. RIR maps as RPE = 10 − RIR; both clamp to a sane band.
+    public var normalizedRPE: Double {
+        switch scale {
+        case .rpe: return min(10, max(1, value))
+        case .rir: return min(10, max(1, 10 - value))
+        }
+    }
+}
+
 public struct ExerciseSet: Identifiable, Codable {
     public var id: String = UUID().uuidString
     public var isCompleted: Bool = false
@@ -123,17 +160,36 @@ public struct ExerciseSet: Identifiable, Codable {
     public var previousPerformance: String?
     public var isWarmup: Bool = false
 
+    /// Richer set role (drop/failure). Optional so legacy docs — which only carried
+    /// `isWarmup` — still decode; nil falls back to the `isWarmup` bridge below.
+    public var setType: SetType?
+    /// RPE or RIR as the user entered it. Optional/nil when they logged no effort.
+    public var effort: SetEffort?
+
     public var reps: Int = 0
     public var weight: Double = 0.0
     public var distance: Double = 0.0
     public var durationInSeconds: Int = 0
 
-    public init(id: String = UUID().uuidString, isCompleted: Bool = false, target: String? = nil, previousPerformance: String? = nil, isWarmup: Bool = false, reps: Int = 0, weight: Double = 0.0, distance: Double = 0.0, durationInSeconds: Int = 0) {
+    /// Effective role, reconciling the new `setType` with the legacy `isWarmup` flag.
+    public var resolvedSetType: SetType { setType ?? (isWarmup ? .warmup : .normal) }
+    /// Working sets are everything that isn't a warmup; only these count in analytics.
+    public var isWorkingSet: Bool { resolvedSetType != .warmup }
+
+    /// Set the role and keep the legacy `isWarmup` flag in sync so older UI/queries stay correct.
+    public mutating func setKind(_ kind: SetType) {
+        setType = kind
+        isWarmup = (kind == .warmup)
+    }
+
+    public init(id: String = UUID().uuidString, isCompleted: Bool = false, target: String? = nil, previousPerformance: String? = nil, isWarmup: Bool = false, setType: SetType? = nil, effort: SetEffort? = nil, reps: Int = 0, weight: Double = 0.0, distance: Double = 0.0, durationInSeconds: Int = 0) {
         self.id = id
         self.isCompleted = isCompleted
         self.target = target
         self.previousPerformance = previousPerformance
         self.isWarmup = isWarmup
+        self.setType = setType
+        self.effort = effort
         self.reps = reps
         self.weight = weight
         self.distance = distance
@@ -179,11 +235,23 @@ public struct CompletedSet: Identifiable, Codable {
     public var distance: Double?
     public var durationInSeconds: Int?
 
-    public init(id: String = UUID().uuidString, reps: Int, weight: Double, distance: Double? = nil, durationInSeconds: Int? = nil) {
+    /// Persisted set role. Optional so pre-existing history (which never stored it) decodes;
+    /// legacy sets resolve to `.normal` and stay counted, exactly as before.
+    public var setType: SetType?
+    /// Persisted effort (RPE/RIR) as entered.
+    public var effort: SetEffort?
+
+    public var resolvedSetType: SetType { setType ?? .normal }
+    /// Only working sets count toward volume, 1RM, and PRs.
+    public var isWorkingSet: Bool { resolvedSetType != .warmup }
+
+    public init(id: String = UUID().uuidString, reps: Int, weight: Double, distance: Double? = nil, durationInSeconds: Int? = nil, setType: SetType? = nil, effort: SetEffort? = nil) {
         self.id = id
         self.reps = reps
         self.weight = weight
         self.distance = distance
         self.durationInSeconds = durationInSeconds
+        self.setType = setType
+        self.effort = effort
     }
 }
