@@ -42,10 +42,10 @@ struct ExerciseTrendChartView: View {
             } else {
                 Chart(dataPoints) { point in
                     LineMark(x: .value("Date", point.date), y: .value(metric, point.value))
-                        .interpolationMethod(.catmullRom).foregroundStyle(Color.brandPrimary)
+                        .interpolationMethod(.monotone).foregroundStyle(Color.brandPrimary)
                         .symbol { Circle().fill(Color.brandPrimary).frame(width: 8, height: 8) }
                     AreaMark(x: .value("Date", point.date), y: .value(metric, point.value))
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
                         .foregroundStyle(LinearGradient(colors: [Color.brandPrimary.opacity(0.3), Color.brandPrimary.opacity(0.0)], startPoint: .top, endPoint: .bottom))
                 }
                 .frame(height: 180)
