@@ -438,6 +438,16 @@ struct RunDetailView: View {
         }
     }
 
+    /// Training zone of the run's *average* HR (not time-in-zone — that needs a per-sample
+    /// HR series we don't capture yet). Max HR is age-predicted from the user's profile.
+    private var hrZoneText: String? {
+        guard let bpm = viewModel.averageHeartRate else { return nil }
+        let age = dailyLogService.goalSettings?.age ?? 30
+        let maxHR = HeartRateZones.estimatedMaxHR(age: age)
+        guard let zone = HeartRateZones.zone(forHeartRate: bpm, maxHR: maxHR) else { return nil }
+        return "Z\(zone.number) · \(zone.name)"
+    }
+
     private var statsGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             RunStatTile(label: "Distance", value: RunFormat.distanceText(meters: run.distanceMeters, metric: useMetric))
@@ -447,6 +457,9 @@ struct RunDetailView: View {
             }
             if let bpm = viewModel.averageHeartRate {
                 RunStatTile(label: "Avg heart rate", value: "\(Int(bpm.rounded())) bpm")
+                if let zone = hrZoneText {
+                    RunStatTile(label: "HR zone (avg)", value: zone)
+                }
             }
             if let calories = run.activeCalories {
                 RunStatTile(label: "Calories", value: "\(Int(calories.rounded()).formatted()) cal")
