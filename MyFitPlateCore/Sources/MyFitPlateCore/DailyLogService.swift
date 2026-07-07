@@ -331,39 +331,54 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
 
     public func updateFoodInCurrentLog(for userID: String, updatedFoodItem: FoodItem) {
         let dateToLog = self.activelyViewedDate
+
+        // Edit the in-memory log the UI is actually showing rather than re-fetching from
+        // Firestore first. A fresh fetch can lag a very recent write (e.g. the achievement
+        // write that fires right after logging), so the edit would recompute totals from a
+        // stale copy and silently revert — which is why delete + re-add "fixed" it once
+        // Firestore caught up. This keeps currentDailyLog and the edit in lockstep.
+        if let currentLog = currentDailyLog,
+           Calendar.current.isDate(currentLog.date, inSameDayAs: dateToLog) {
+            applyFoodUpdate(for: userID, date: dateToLog, baseLog: currentLog, updatedFoodItem: updatedFoodItem)
+            return
+        }
+
         fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
             guard let self = self else { return }
             switch result {
-            case .success(var log):
-                let (itemUpdated, previousItem) = DailyLogRules.updateFoodInLog(log: &log, updatedFoodItem: updatedFoodItem)
-                let previousFoodItem = previousItem
-
-                if itemUpdated {
-                    DispatchQueue.main.async {
-                        self.publishCurrentDailyLog(log)
-                    }
-
-                    self.updateDailyLog(for: userID, updatedLog: log) { success in
-                        if success {
-                            if let previousFoodItem {
-                                EcosystemSyncManager.shared.replaceNutritionInHealthKit(oldItem: previousFoodItem, newItem: updatedFoodItem)
-                            }
-                            Task { @MainActor in
-                                self.bannerService?.showBanner(title: "Success", message: "\(updatedFoodItem.name) updated!")
-                                self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
-                            }
-                        } else {
-                             Task { @MainActor in
-                                self.bannerService?.showBanner(title: "Error", message: "Failed to update \(updatedFoodItem.name).", iconName: "xmark.circle.fill", iconColor: .red)
-                            }
-                        }
-                    }
-                }
+            case .success(let log):
+                self.applyFoodUpdate(for: userID, date: dateToLog, baseLog: log, updatedFoodItem: updatedFoodItem)
             case .failure(let e):
                 AppLog.data.error("Failed to fetch log for updating food: \(e.localizedDescription, privacy: .public)")
-                 Task { @MainActor in
-                     self.bannerService?.showBanner(title: "Error", message: "Could not fetch log to update food.", iconName: "xmark.circle.fill", iconColor: .red)
-                 }
+                Task { @MainActor in
+                    self.bannerService?.showBanner(title: "Error", message: "Could not fetch log to update food.", iconName: "xmark.circle.fill", iconColor: .red)
+                }
+            }
+        }
+    }
+
+    private func applyFoodUpdate(for userID: String, date: Date, baseLog: DailyLog, updatedFoodItem: FoodItem) {
+        var log = baseLog
+        let (itemUpdated, previousFoodItem) = DailyLogRules.updateFoodInLog(log: &log, updatedFoodItem: updatedFoodItem)
+        guard itemUpdated else { return }
+
+        DispatchQueue.main.async {
+            self.publishCurrentDailyLog(log)
+        }
+
+        self.updateDailyLog(for: userID, updatedLog: log) { success in
+            if success {
+                if let previousFoodItem {
+                    EcosystemSyncManager.shared.replaceNutritionInHealthKit(oldItem: previousFoodItem, newItem: updatedFoodItem)
+                }
+                Task { @MainActor in
+                    self.bannerService?.showBanner(title: "Success", message: "\(updatedFoodItem.name) updated!")
+                    self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: date)
+                }
+            } else {
+                Task { @MainActor in
+                    self.bannerService?.showBanner(title: "Error", message: "Failed to update \(updatedFoodItem.name).", iconName: "xmark.circle.fill", iconColor: .red)
+                }
             }
         }
     }
@@ -434,36 +449,46 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
 
     public func deleteFoodFromCurrentLog(for userID: String, foodItemID: String) {
         let dateToLog = self.activelyViewedDate
+        // Same reasoning as updateFoodInCurrentLog: mutate the in-memory log the UI shows so a
+        // stale fetch can't drop a concurrently-added item or revert the totals.
+        if let currentLog = currentDailyLog,
+           Calendar.current.isDate(currentLog.date, inSameDayAs: dateToLog) {
+            applyFoodDeletion(for: userID, baseLog: currentLog, foodItemID: foodItemID)
+            return
+        }
         fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
             guard let self = self else { return }
             switch result {
-            case .success(var log):
-                let (deleted, removedItem, name) = DailyLogRules.deleteFoodFromLog(log: &log, foodItemID: foodItemID)
-                let removedFoodItem = removedItem
-                let foodName = name
-                if deleted {
-                     DispatchQueue.main.async {
-                         self.publishCurrentDailyLog(log)
-                     }
-
-                     self.updateDailyLog(for: userID, updatedLog: log) { success in
-                          Task { @MainActor in
-                              if success {
-                                  if let removedFoodItem {
-                                      EcosystemSyncManager.shared.deleteNutritionFromHealthKit(item: removedFoodItem)
-                                  }
-                                  self.bannerService?.showBanner(title: "Deleted", message: "\(foodName ?? "Item") removed from log.")
-                              } else {
-                                  self.bannerService?.showBanner(title: "Error", message: "Failed to delete item.", iconName: "xmark.circle.fill", iconColor: .red)
-                              }
-                          }
-                     }
-                 }
+            case .success(let log):
+                self.applyFoodDeletion(for: userID, baseLog: log, foodItemID: foodItemID)
             case .failure(let e):
                 AppLog.data.error("Failed to fetch log for deleting food: \(e.localizedDescription, privacy: .public)")
-             Task { @MainActor in
-                 self.bannerService?.showBanner(title: "Error", message: "Could not fetch log to delete item.", iconName: "xmark.circle.fill", iconColor: .red)
-             }
+                Task { @MainActor in
+                    self.bannerService?.showBanner(title: "Error", message: "Could not fetch log to delete item.", iconName: "xmark.circle.fill", iconColor: .red)
+                }
+            }
+        }
+    }
+
+    private func applyFoodDeletion(for userID: String, baseLog: DailyLog, foodItemID: String) {
+        var log = baseLog
+        let (deleted, removedFoodItem, foodName) = DailyLogRules.deleteFoodFromLog(log: &log, foodItemID: foodItemID)
+        guard deleted else { return }
+
+        DispatchQueue.main.async {
+            self.publishCurrentDailyLog(log)
+        }
+
+        self.updateDailyLog(for: userID, updatedLog: log) { success in
+            Task { @MainActor in
+                if success {
+                    if let removedFoodItem {
+                        EcosystemSyncManager.shared.deleteNutritionFromHealthKit(item: removedFoodItem)
+                    }
+                    self.bannerService?.showBanner(title: "Deleted", message: "\(foodName ?? "Item") removed from log.")
+                } else {
+                    self.bannerService?.showBanner(title: "Error", message: "Failed to delete item.", iconName: "xmark.circle.fill", iconColor: .red)
+                }
             }
         }
     }

@@ -82,6 +82,35 @@ final class DailyLogServiceTests: XCTestCase {
         XCTAssertEqual(updatedLog.meals[0].foodItems[0].calories, 100)
     }
 
+    /// Regression: editing servings must apply to the in-memory log the UI is showing, not a
+    /// fresh Firestore fetch that can lag a very recent write. Here the fetch is deliberately
+    /// stale (missing the chicken); the edit must still land on the full displayed log.
+    func testUpdateAppliesToInMemoryLogNotStaleFetch() async throws {
+        let date = Calendar.current.startOfDay(for: Date())
+        service.activelyViewedDate = date
+
+        let rice = FoodItem(id: "rice", name: "Rice", calories: 300, protein: 6, carbs: 70, fats: 1)
+        let chicken = FoodItem(id: "chicken", name: "Chicken", calories: 325, protein: 63, carbs: 0, fats: 8)
+        let displayedLog = DailyLog(id: "1", date: date, meals: [Meal(id: UUID(), name: "Dinner", foodItems: [rice, chicken])])
+        service.publishCurrentDailyLog(displayedLog)
+
+        // A stale fetch that dropped the chicken (a write still in flight).
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: [Meal(id: UUID(), name: "Dinner", foodItems: [rice])]))
+
+        var rice3 = rice   // bump 2 → 3 servings
+        rice3.calories = 450; rice3.carbs = 105; rice3.protein = 9
+        service.updateFoodInCurrentLog(for: "user", updatedFoodItem: rice3)
+
+        try? await Task.sleep(nanoseconds: 150_000_000)
+
+        // 450 (rice) + 325 (chicken) — the edit landed and no item was lost to the stale fetch.
+        let published = try XCTUnwrap(service.currentDailyLog)
+        XCTAssertEqual(published.totalCalories(), 775, accuracy: 0.001)
+        let persisted = try XCTUnwrap(mockRepo.lastUpdatedLog)
+        XCTAssertEqual(persisted.totalCalories(), 775, accuracy: 0.001)
+        XCTAssertTrue(published.meals.flatMap { $0.foodItems.map(\.name) }.contains("Chicken"))
+    }
+
     func testDeleteFoodFromCurrentLog() async {
         let date = Calendar.current.startOfDay(for: Date())
         service.activelyViewedDate = date
