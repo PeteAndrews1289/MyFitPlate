@@ -66,6 +66,30 @@ struct WorkoutPlayerView: View {
         return min(Double(completedSetCount) / Double(totalSetCount), 1)
     }
 
+    private var supersetPositions: [SupersetRules.Position] {
+        SupersetRules.positions(for: routine.exercises)
+    }
+
+    /// Link this exercise with the next as a superset (or unlink if already paired).
+    private func toggleSupersetWithNext(at index: Int) {
+        guard index < routine.exercises.count - 1 else { return }
+        let current = routine.exercises[index].supersetGroupID
+        let next = routine.exercises[index + 1].supersetGroupID
+        if let current, current == next {
+            routine.exercises[index + 1].supersetGroupID = nil
+            // If that leaves the group with a single member, dissolve it entirely.
+            if routine.exercises.filter({ $0.supersetGroupID == current }).count < 2 {
+                for i in routine.exercises.indices where routine.exercises[i].supersetGroupID == current {
+                    routine.exercises[i].supersetGroupID = nil
+                }
+            }
+        } else {
+            let groupID = current ?? UUID().uuidString
+            routine.exercises[index].supersetGroupID = groupID
+            routine.exercises[index + 1].supersetGroupID = groupID
+        }
+    }
+
     private var completedExerciseCount: Int {
         routine.exercises.filter { exercise in
             !exercise.sets.isEmpty && exercise.sets.allSatisfy(\.isCompleted)
@@ -141,7 +165,9 @@ struct WorkoutPlayerView: View {
                                 },
                                 onMoveUp: index > 0 ? { moveExercise(from: IndexSet(integer: index), to: index - 1) } : nil,
                                 onMoveDown: index < routine.exercises.count - 1 ? { moveExercise(from: IndexSet(integer: index), to: index + 2) } : nil,
-                                onRemove: routine.exercises.count > 1 ? { removeExercise(at: index) } : nil
+                                onRemove: routine.exercises.count > 1 ? { removeExercise(at: index) } : nil,
+                                supersetPosition: supersetPositions[index],
+                                onToggleSupersetWithNext: index < routine.exercises.count - 1 ? { toggleSupersetWithNext(at: index) } : nil
                             )
                         }
 

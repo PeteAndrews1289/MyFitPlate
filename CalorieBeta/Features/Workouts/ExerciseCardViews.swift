@@ -15,6 +15,13 @@ struct ExerciseCardView: View {
     var onMoveUp: (() -> Void)?
     var onMoveDown: (() -> Void)?
     var onRemove: (() -> Void)?
+    var supersetPosition: SupersetRules.Position = .standalone
+    var onToggleSupersetWithNext: (() -> Void)?
+
+    /// True when this exercise is supersetted with the one after it — the point of a
+    /// superset is that you don't rest here, you go straight to the paired lift.
+    private var isLinkedToNext: Bool { supersetPosition.isInSuperset && !supersetPosition.isLastInGroup }
+    private var suppressAutoRest: Bool { isLinkedToNext }
 
     @State private var showingTargetRepsEditor = false
     @State private var targetRepsInput = ""
@@ -71,6 +78,15 @@ struct ExerciseCardView: View {
                             Text("\(completedSetCount)/\(totalSetCount) sets")
                                 .appFont(size: 11, weight: .bold)
                                 .foregroundColor(Color(UIColor.secondaryLabel))
+
+                            if supersetPosition.isInSuperset, let label = supersetPosition.groupLabel {
+                                Label("Superset \(label)", systemImage: "link")
+                                    .appFont(size: 11, weight: .bold)
+                                    .foregroundColor(.brandPrimary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.brandPrimary.opacity(0.12), in: Capsule())
+                            }
                         }
 
                         Text(exercise.name)
@@ -130,8 +146,9 @@ struct ExerciseCardView: View {
                             }
                         }
 
-                        // Auto-start rest timer
-                        if isAutoRestEnabled {
+                        // Auto-start rest timer — but not between the exercises inside a
+                        // superset; you go straight to the paired lift and rest after the last.
+                        if isAutoRestEnabled && !suppressAutoRest {
                             restTimer.start(duration: TimeInterval(exercise.restTimeInSeconds), routineName: routineName)
                         }
                     }
@@ -153,7 +170,8 @@ struct ExerciseCardView: View {
         .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(typeChip.color.opacity(0.08), lineWidth: 1)
+                .stroke(supersetPosition.isInSuperset ? Color.brandPrimary.opacity(0.45) : typeChip.color.opacity(0.08),
+                        lineWidth: supersetPosition.isInSuperset ? 1.5 : 1)
         )
     }
 
@@ -196,6 +214,11 @@ struct ExerciseCardView: View {
                 Button("Swap Exercise", action: onSwap)
                 Button("View Demo & History", action: onViewHistory)
                 Toggle("Auto-Rest Timer", isOn: $isAutoRestEnabled)
+                if let onToggleSupersetWithNext {
+                    Button(action: onToggleSupersetWithNext) {
+                        Label(isLinkedToNext ? "Break superset" : "Superset with next", systemImage: "link")
+                    }
+                }
                 if onMoveUp != nil || onMoveDown != nil {
                     Divider()
                     if let onMoveUp {

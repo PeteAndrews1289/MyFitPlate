@@ -103,7 +103,12 @@ public struct RoutineExercise: Identifiable, Codable {
     public var targetSets: Int = 3
     public var targetReps: String = "8-12"
 
-    public init(id: String = UUID().uuidString, name: String, type: ExerciseType = .strength, sets: [ExerciseSet] = [], notes: String? = nil, restTimeInSeconds: Int = 60, alternatives: [String]? = nil, targetSets: Int = 3, targetReps: String = "8-12") {
+    /// Exercises that share the same non-nil id (and sit next to each other in the
+    /// routine) form a superset: you alternate through them and only rest after the
+    /// last one. Optional so routines saved before supersets existed decode unchanged.
+    public var supersetGroupID: String?
+
+    public init(id: String = UUID().uuidString, name: String, type: ExerciseType = .strength, sets: [ExerciseSet] = [], notes: String? = nil, restTimeInSeconds: Int = 60, alternatives: [String]? = nil, targetSets: Int = 3, targetReps: String = "8-12", supersetGroupID: String? = nil) {
         self.id = id
         self.name = name
         self.type = type
@@ -113,6 +118,7 @@ public struct RoutineExercise: Identifiable, Codable {
         self.alternatives = alternatives
         self.targetSets = targetSets
         self.targetReps = targetReps
+        self.supersetGroupID = supersetGroupID
     }
 }
 
@@ -149,6 +155,46 @@ public struct SetEffort: Codable, Equatable, Sendable {
         switch scale {
         case .rpe: return min(10, max(1, value))
         case .rir: return min(10, max(1, 10 - value))
+        }
+    }
+}
+
+public enum SupersetRules {
+    /// Where an exercise sits inside its superset group.
+    public struct Position: Equatable, Sendable {
+        public let isInSuperset: Bool
+        public let isFirstInGroup: Bool
+        public let isLastInGroup: Bool
+        /// "A", "B", … assigned per distinct group in order of appearance; nil when standalone.
+        public let groupLabel: String?
+
+        public static let standalone = Position(isInSuperset: false, isFirstInGroup: false, isLastInGroup: false, groupLabel: nil)
+    }
+
+    /// Superset positions for a routine. A group is a run of 2+ *adjacent* exercises that
+    /// share the same non-nil `supersetGroupID`; a lone tagged exercise is treated as standalone.
+    public static func positions(for exercises: [RoutineExercise]) -> [Position] {
+        var labels: [String: String] = [:]
+        var nextLabel = 0
+        func label(for gid: String) -> String {
+            if let existing = labels[gid] { return existing }
+            let letter = String(UnicodeScalar(65 + (nextLabel % 26))!)
+            labels[gid] = letter
+            nextLabel += 1
+            return letter
+        }
+
+        return exercises.indices.map { i in
+            guard let gid = exercises[i].supersetGroupID else { return Position.standalone }
+            let prevSame = i > 0 && exercises[i - 1].supersetGroupID == gid
+            let nextSame = i < exercises.count - 1 && exercises[i + 1].supersetGroupID == gid
+            guard prevSame || nextSame else { return Position.standalone }
+            return Position(
+                isInSuperset: true,
+                isFirstInGroup: !prevSame,
+                isLastInGroup: !nextSame,
+                groupLabel: label(for: gid)
+            )
         }
     }
 }
