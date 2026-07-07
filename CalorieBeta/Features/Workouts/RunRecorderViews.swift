@@ -571,6 +571,7 @@ private struct RunRecorderSummary: View {
 /// and never lets it back up for the rest of the run. This owns the synthesizer, and as
 /// its delegate deactivates the session with `.notifyOthersOnDeactivation` the moment
 /// speech finishes, so music returns to full volume between kilometers.
+@MainActor
 final class RunAudioCoach: NSObject, AVSpeechSynthesizerDelegate {
     private let synthesizer = AVSpeechSynthesizer()
 
@@ -595,18 +596,23 @@ final class RunAudioCoach: NSObject, AVSpeechSynthesizerDelegate {
 
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
-        deactivateSession()
+        Self.deactivateSession()
     }
 
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        deactivateSession()
+    // The delegate callbacks stay `nonisolated`: AVSpeechSynthesizerDelegate is not main-actor
+    // isolated, so isolating these to the main actor makes the conformance cross actors (a data-race
+    // warning, and an error in Swift 6). They only tear the session down, which is thread-agnostic.
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Self.deactivateSession()
     }
 
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        deactivateSession()
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Self.deactivateSession()
     }
 
-    private func deactivateSession() {
+    /// Releasing the audio session touches only `AVAudioSession`, which is safe off the main actor,
+    /// so this is a `nonisolated static` both the main-actor `stop()` and the delegate callbacks can call.
+    private nonisolated static func deactivateSession() {
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         } catch {

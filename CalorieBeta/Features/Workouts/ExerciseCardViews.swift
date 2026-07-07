@@ -376,12 +376,24 @@ struct SwapExerciseView: View {
     @State private var infoText = ""
     @State private var showingInfo = false
 
+    /// Muscle group of the exercise being swapped, if it's a known exercise.
+    /// Used to lead with same-group options so a back row doesn't surface chest first.
+    private var swappedCategory: String? {
+        ExerciseList.category(for: exercise.name)
+    }
+
     private var suggested: [String] {
-        (exercise.alternatives ?? []).filter { $0 != exercise.name }
+        let alts = (exercise.alternatives ?? []).filter { $0 != exercise.name }
+        guard let group = swappedCategory else { return alts }
+        // Same-muscle-group alternatives first (an AI-generated plan can list off-group swaps).
+        let sameGroup = alts.filter { ExerciseList.category(for: $0) == group }
+        let others = alts.filter { ExerciseList.category(for: $0) != group }
+        return sameGroup + others
     }
 
     private var filteredCategories: [(category: String, exercises: [String])] {
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        let group = swappedCategory
         return ExerciseList.categorizedExercises
             .map { (category: $0.key, exercises: $0.value) }
             .map { pair -> (category: String, exercises: [String]) in
@@ -389,7 +401,14 @@ struct SwapExerciseView: View {
                 return (pair.category, matches.filter { $0 != exercise.name })
             }
             .filter { !$0.exercises.isEmpty }
-            .sorted { $0.category < $1.category }
+            .sorted { lhs, rhs in
+                // Lead with the muscle group being worked, then fall back to alphabetical.
+                if let group {
+                    if lhs.category == group { return true }
+                    if rhs.category == group { return false }
+                }
+                return lhs.category < rhs.category
+            }
     }
 
     var body: some View {

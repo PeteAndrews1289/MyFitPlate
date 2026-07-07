@@ -1362,7 +1362,6 @@
 				80DA09F113E6A36D392A8CDB /* FastingActivityAttributes.swift in Sources */,
 				C1E1EB1A2828BB51ADA9159E /* AYCEActivityAttributes.swift in Sources */,
 				C1E1EBF12828BB51ADA9159E /* RestaurantValueRadarView.swift in Sources */,
-				C1E1EBFA2828BB51ADA9159E /* CelebrationOverlayView.swift in Sources */,
 				3D70A48A61E380FC0217298E /* RunActivityAttributes.swift in Sources */,
 				5F62A22E5FCB90E1071A803B /* FastingManager.swift in Sources */,
 				5591AD5E3BBF911A71F34F4C /* FastingTrackerCard.swift in Sources */,

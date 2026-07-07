@@ -95,7 +95,7 @@ struct NutritionProgressView: View {
             }
         }
         .padding(.bottom, 8)
-        .onChange(of: dailyLog.totalMacros().protein) { newProtein in
+        .onChange(of: dailyLog.totalMacros().protein) { _, newProtein in
             let dateKey = dailyLog.date.formatted(date: .numeric, time: .omitted)
             if newProtein >= max(goal.protein, 1) && lastCelebratedProteinDate != dateKey {
                 lastCelebratedProteinDate = dateKey

@@ -200,7 +200,7 @@ struct WorkoutCompleteAnalyticsView: View {
                 }
             }
         }
-        .onChange(of: comparison) { newComp in
+        .onChange(of: comparison) { _, newComp in
             if newComp?.isPR == true {
                 showingPRCelebration = true
             }

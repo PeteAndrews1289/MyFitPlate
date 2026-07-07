@@ -34,6 +34,8 @@ public struct ExerciseList {
         Entry(name: "Push-up", category: "Chest", howTo: "In a plank, lower your chest to just above the floor with elbows ~45°, then push back to a straight-arm plank."),
         Entry(name: "Machine Chest Press", category: "Chest", howTo: "Set the seat so handles are at chest height; press forward to near lockout and return under control."),
         Entry(name: "Machine Fly (Pec Deck)", category: "Chest", howTo: "Bring the pads or handles together in front of your chest with soft elbows; squeeze, then open slowly."),
+        Entry(name: "Smith Machine Bench Press", category: "Chest", howTo: "On a flat bench under the Smith bar, unrack, lower to mid-chest, and press along the fixed track to lockout."),
+        Entry(name: "Incline Machine Chest Press", category: "Chest", howTo: "On an incline press machine, set the seat so the handles meet the upper chest; press up and slightly in, then return under control."),
 
         // MARK: Back
         Entry(name: "Deadlift (Conventional)", category: "Back", howTo: "Grip the bar just outside the knees, brace, and drive the floor away — hips and shoulders rise together to lockout."),
@@ -53,6 +55,10 @@ public struct ExerciseList {
         Entry(name: "Good Mornings", category: "Back", howTo: "With the bar on your back and soft knees, hinge forward until your torso is near parallel, then stand tall."),
         Entry(name: "Back Extension (Hyperextension)", category: "Back", howTo: "Hinge over the pad, lower your torso, then raise it to a straight line by squeezing the glutes and lower back."),
         Entry(name: "Inverted Row", category: "Back", howTo: "Hang under a fixed bar with a straight body; pull your chest to the bar and lower with control."),
+        Entry(name: "Chest-Supported Row Machine", category: "Back", howTo: "With your chest against the pad, row the handles to your ribs by driving the elbows back; squeeze the shoulder blades and return slowly."),
+        Entry(name: "Machine High Row", category: "Back", howTo: "From a seated machine with the handles overhead, pull down and back to your upper ribs driving the elbows low; control the return."),
+        Entry(name: "Smith Machine Bent-over Row", category: "Back", howTo: "Hinge over the fixed Smith bar and row it to your lower ribs, squeezing the lats; lower along the track under control."),
+        Entry(name: "Assisted Chin-up (Machine)", category: "Back", howTo: "Kneel on the assist pad and pull with an underhand grip until the chin clears the bar; lower under control."),
 
         // MARK: Shoulders
         Entry(name: "Barbell Overhead Press (Military Press)", category: "Shoulders", howTo: "From the front rack, brace and press the bar overhead to lockout, moving your head 'through' at the top."),
@@ -66,6 +72,9 @@ public struct ExerciseList {
         Entry(name: "Dumbbell Shrug", category: "Shoulders", howTo: "With dumbbells at your sides, elevate the shoulders straight up, squeeze the traps, and lower slowly."),
         Entry(name: "Dumbbell Rear Delt Fly", category: "Shoulders", howTo: "Hinge forward and raise the dumbbells out to the sides with soft elbows; squeeze the rear delts at the top."),
         Entry(name: "Upright Row", category: "Shoulders", howTo: "Pull the bar or dumbbells up the front of the body to chest height, leading with the elbows; lower under control."),
+        Entry(name: "Machine Lateral Raise", category: "Shoulders", howTo: "Set the pads against your outer arms and raise the elbows out to shoulder height; pause, then lower slowly for constant tension."),
+        Entry(name: "Reverse Pec Deck (Rear Delt Machine)", category: "Shoulders", howTo: "Facing the pad, sweep the handles out and back with soft elbows, squeezing the rear delts; return under control."),
+        Entry(name: "Smith Machine Overhead Press", category: "Shoulders", howTo: "Seated or standing under the Smith bar at shoulder height, press overhead to lockout along the track, then lower to the collarbone."),
 
         // MARK: Biceps
         Entry(name: "Barbell Curl", category: "Biceps", howTo: "With elbows pinned to your sides, curl the bar to your shoulders, then lower slowly without swinging."),
@@ -75,6 +84,8 @@ public struct ExerciseList {
         Entry(name: "Concentration Curl", category: "Biceps", howTo: "Seated with your elbow braced on your inner thigh, curl the dumbbell up and squeeze; lower fully."),
         Entry(name: "Incline Dumbbell Curl", category: "Biceps", howTo: "Lie back on an incline with arms hanging; curl the dumbbells up for a deep biceps stretch, then lower slowly."),
         Entry(name: "Cable Curl", category: "Biceps", howTo: "From a low pulley, curl the bar or handle up with elbows fixed; keep tension constant on the way down."),
+        Entry(name: "Machine Bicep Curl", category: "Biceps", howTo: "Rest the upper arms on the pad and curl the handles up, squeezing the biceps; lower until the arms are nearly straight."),
+        Entry(name: "Machine Preacher Curl", category: "Biceps", howTo: "With your arms on the angled pad, curl the handle up under control, then lower slowly for a full biceps stretch."),
 
         // MARK: Triceps
         Entry(name: "Close-Grip Bench Press", category: "Triceps", howTo: "Bench with hands shoulder-width; tuck the elbows and press, emphasizing the triceps at lockout."),
@@ -84,6 +95,8 @@ public struct ExerciseList {
         Entry(name: "Triceps Pushdown (Cable)", category: "Triceps", howTo: "With elbows pinned to your sides, push the bar or rope down to full extension; control the return."),
         Entry(name: "Overhead Triceps Extension (Dumbbell/Cable)", category: "Triceps", howTo: "Keep the upper arms by your ears and extend the weight overhead, then lower behind the head for a stretch."),
         Entry(name: "Triceps Kickback", category: "Triceps", howTo: "Hinge forward, upper arm parallel to the floor; extend the forearm back to lockout and squeeze the triceps."),
+        Entry(name: "Triceps Extension Machine", category: "Triceps", howTo: "Grip the handles with your elbows fixed and extend to lockout against resistance; return slowly to keep tension on the triceps."),
+        Entry(name: "Assisted Dip Machine", category: "Triceps", howTo: "Kneel on the assist pad and press down to lockout keeping the torso upright to bias the triceps; lower until the elbows reach ~90°."),
 
         // MARK: Forearms
         Entry(name: "Wrist Curl", category: "Forearms", howTo: "Rest forearms on your thighs, palms up; curl the bar with the wrists only, then lower for a full stretch."),
@@ -107,6 +120,10 @@ public struct ExerciseList {
         Entry(name: "Lying Leg Curl", category: "Legs", howTo: "Curl the pad toward your glutes by bending the knees, squeeze the hamstrings, then lower under control."),
         Entry(name: "Seated Leg Curl", category: "Legs", howTo: "Curl the pad down and under by bending the knees; pause, then return slowly for constant hamstring tension."),
         Entry(name: "Sumo Squat", category: "Legs", howTo: "Wide stance, toes out; squat straight down pushing the knees out, then stand and squeeze the glutes."),
+        Entry(name: "Smith Machine Squat", category: "Legs", howTo: "With the bar on your upper back under the Smith track, sit down to at least parallel and drive up through mid-foot."),
+        Entry(name: "Pendulum Squat", category: "Legs", howTo: "Shoulders under the pads, lower along the machine's arc into a deep squat, then press back up through the whole foot."),
+        Entry(name: "Belt Squat Machine", category: "Legs", howTo: "With the belt around your hips, squat to depth and stand tall; it loads the legs while keeping weight off the spine."),
+        Entry(name: "Hip Adduction (Machine)", category: "Legs", howTo: "Squeeze the pads together by driving the knees in against resistance; pause, then return slowly to work the inner thighs."),
 
         // MARK: Glutes
         Entry(name: "Barbell Hip Thrust", category: "Glutes", howTo: "Shoulders on a bench, bar over the hips; drive the hips up to a flat back-to-knee line and squeeze the glutes."),
@@ -116,12 +133,15 @@ public struct ExerciseList {
         Entry(name: "Hip Abduction (Machine)", category: "Glutes", howTo: "Push the pads apart by driving the knees out against resistance; squeeze, then return slowly."),
         Entry(name: "Curtsy Lunge", category: "Glutes", howTo: "Step one leg behind and across the other and lower into a lunge; drive up through the front heel."),
         Entry(name: "Frog Pump", category: "Glutes", howTo: "Soles of the feet together, knees out; pulse the hips up squeezing the glutes, then lower."),
+        Entry(name: "Machine Glute Kickback", category: "Glutes", howTo: "Brace against the pad and drive one foot back and up against the platform, squeezing the glute; return under control."),
+        Entry(name: "Smith Machine Hip Thrust", category: "Glutes", howTo: "Shoulders on a bench with the Smith bar over your hips, drive up to a flat back-to-knee line and squeeze the glutes; lower under control."),
 
         // MARK: Calves
         Entry(name: "Standing Calf Raise", category: "Calves", howTo: "Rise onto the balls of your feet as high as possible, pause, then lower the heels for a deep stretch."),
         Entry(name: "Seated Calf Raise", category: "Calves", howTo: "With pads on your knees, press up onto the balls of your feet, squeeze, and lower slowly (targets the soleus)."),
         Entry(name: "Leg Press Calf Raise", category: "Calves", howTo: "With the balls of your feet on the platform edge, press the platform by extending the ankles, then lower."),
         Entry(name: "Single-Leg Calf Raise", category: "Calves", howTo: "On one foot, rise onto the ball of the foot for a full range, then lower under control; switch sides."),
+        Entry(name: "Smith Machine Calf Raise", category: "Calves", howTo: "With the balls of your feet on a plate under the Smith bar, rise onto your toes to full height, then lower the heels for a stretch."),
 
         // MARK: Core
         Entry(name: "Plank", category: "Core", howTo: "Hold a straight line from head to heels on the forearms, bracing the abs and glutes; don't let the hips sag."),
@@ -137,6 +157,8 @@ public struct ExerciseList {
         Entry(name: "Ab Wheel Rollout", category: "Core", howTo: "From the knees, roll the wheel forward keeping the abs braced and back flat, then pull back to the start."),
         Entry(name: "Mountain Climber", category: "Core", howTo: "In a plank, drive the knees toward the chest alternately at a quick pace while keeping the hips level."),
         Entry(name: "Leg Raise", category: "Core", howTo: "Lying down, raise straight legs to vertical, then lower slowly without letting the lower back arch."),
+        Entry(name: "Ab Crunch Machine", category: "Core", howTo: "Grip the handles and crunch the rib cage toward the pelvis against resistance, rounding the spine; return slowly."),
+        Entry(name: "Rotary Torso Machine", category: "Core", howTo: "With your torso braced against the pads, rotate against resistance to work the obliques; control the return and switch sides."),
 
         // MARK: Cardio
         Entry(name: "Treadmill Run", category: "Cardio", howTo: "Run at a steady or interval pace with an upright posture and relaxed arms; set incline as desired."),
