@@ -391,6 +391,9 @@ struct HomeView: View {
                   .environmentObject(goalSettings)
           }
           .onAppear(perform: onHomeViewAppear)
+          .onChange(of: spotlightManager.replayToken) { _, _ in
+              startSpotlightTourIfNeeded()
+          }
           .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
               // Check if we need to advance the day when app comes to foreground
               let today = Calendar.current.startOfDay(for: Date())
@@ -474,19 +477,20 @@ struct HomeView: View {
             }
         }
 
-        // Check which spotlights haven't been seen yet
+        startSpotlightTourIfNeeded()
+    }
+
+    /// Starts the Home tour for any spotlights not yet seen. Called on appear and when the
+    /// user taps "Replay feature tour" in Settings (which clears the seen flags first).
+    private func startSpotlightTourIfNeeded() {
         let needed = spotlightOrder.filter { !spotlightManager.isShown(id: $0) }
-
-        if !needed.isEmpty {
-            self.tourSpotlightIDs = needed
-            self.currentSpotlightIndex = 0
-
-            // Mark the FIRST one as shown immediately so it doesn't repeat if they leave now
-            spotlightManager.markAsShown(id: needed[0])
-
-            withAnimation {
-                self.showingSpotlightTour = true
-            }
+        guard !needed.isEmpty else { return }
+        self.tourSpotlightIDs = needed
+        self.currentSpotlightIndex = 0
+        // Mark the FIRST one as shown immediately so it doesn't repeat if they leave now.
+        spotlightManager.markAsShown(id: needed[0])
+        withAnimation {
+            self.showingSpotlightTour = true
         }
     }
 

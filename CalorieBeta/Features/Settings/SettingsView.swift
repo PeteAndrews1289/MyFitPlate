@@ -133,13 +133,16 @@ struct SettingsView: View {
             deleteErrorMessage: $deleteErrorMessage,
             onConfirm: reauthenticateAndDelete
         ))
-        .alert("Reset tooltips?", isPresented: $showingResetTourConfirmation) {
+        .alert("Replay feature tour?", isPresented: $showingResetTourConfirmation) {
             Button("Cancel", role: .cancel) {}
-            Button("Reset", role: .destructive) {
-                spotlightManager.resetSpotlights()
+            Button("Replay") {
+                // requestReplay() clears the seen flags AND bumps a token the Home tour
+                // observes, so it restarts immediately; closing Settings reveals it.
+                spotlightManager.requestReplay()
+                showSettings = false
             }
         } message: {
-            Text("This will reset all the \"Quick tip\" bubbles throughout the app so you can see them again.")
+            Text("Closes Settings and plays the guided tips again from the Home screen.")
         }
     }
     
