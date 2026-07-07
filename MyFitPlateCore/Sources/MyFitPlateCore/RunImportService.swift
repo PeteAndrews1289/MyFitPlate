@@ -88,6 +88,30 @@ public final class RunImportService {
         healthStore.execute(query)
     }
 
+    /// The full heart-rate series (in start-date order) for a run window — the input to
+    /// time-in-zone. Empty when there's no HR data (e.g. a phone-only run with no sensor).
+    public func fetchHeartRateSeries(start: Date, end: Date, completion: @escaping ([(date: Date, bpm: Double)]) -> Void) {
+        guard let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate) else {
+            DispatchQueue.main.async { completion([]) }
+            return
+        }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let sort = [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+        let bpmUnit = HKUnit.count().unitDivided(by: .minute())
+        let query = HKSampleQuery(
+            sampleType: heartRateType,
+            predicate: predicate,
+            limit: HKObjectQueryNoLimit,
+            sortDescriptors: sort
+        ) { _, samples, _ in
+            let series: [(date: Date, bpm: Double)] = (samples as? [HKQuantitySample] ?? []).map {
+                (date: $0.startDate, bpm: $0.quantity.doubleValue(for: bpmUnit))
+            }
+            DispatchQueue.main.async { completion(series) }
+        }
+        healthStore.execute(query)
+    }
+
     // MARK: - Mapping
 
     static func summary(from workout: HKWorkout) -> ImportedWorkoutSummary {

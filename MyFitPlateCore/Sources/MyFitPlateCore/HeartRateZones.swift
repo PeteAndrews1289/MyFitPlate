@@ -43,4 +43,25 @@ public enum HeartRateZones {
         let fraction = hr / maxHR
         return zones.last(where: { fraction >= $0.lowerPercent }) ?? zones.first
     }
+
+    /// Seconds spent in each zone `[Z1…Z5]` from a heart-rate series. Each sample holds
+    /// its zone until the next sample; gaps longer than `maxGapSeconds` (a pause or a
+    /// dropout) are skipped so they don't get charged to whatever zone came before.
+    public static func timeInZones(
+        samples: [(date: Date, bpm: Double)],
+        maxHR: Double,
+        maxGapSeconds: Double = 600
+    ) -> [Double] {
+        var seconds = [Double](repeating: 0, count: zones.count)
+        guard samples.count >= 2, maxHR > 0 else { return seconds }
+        let sorted = samples.sorted { $0.date < $1.date }
+        for i in 0..<(sorted.count - 1) {
+            let dt = sorted[i + 1].date.timeIntervalSince(sorted[i].date)
+            guard dt > 0, dt <= maxGapSeconds else { continue }
+            guard let zone = zone(forHeartRate: sorted[i].bpm, maxHR: maxHR) else { continue }
+            let index = zone.number - 1
+            if index >= 0, index < seconds.count { seconds[index] += dt }
+        }
+        return seconds
+    }
 }

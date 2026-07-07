@@ -204,8 +204,20 @@ final class RunDetailViewModel: ObservableObject {
     @Published var averageHeartRate: Double?
     @Published var isLoadingRoute = true
     @Published var ghostPaceComparison: RunStats.GhostPaceComparison?
+    /// Seconds in each HR zone [Z1…Z5], or nil when the run carried no heart-rate series.
+    @Published var heartRateZoneSeconds: [Double]?
 
     private let importer = RunImportService()
+
+    /// Pull the run's HR series and reduce it to time-in-zone. Kept separate from `load`
+    /// because it needs the user's max HR, which the view derives from their age.
+    func loadHeartRateZones(start: Date, end: Date, maxHR: Double) {
+        importer.fetchHeartRateSeries(start: start, end: end) { [weak self] series in
+            guard let self else { return }
+            let seconds = HeartRateZones.timeInZones(samples: series, maxHR: maxHR)
+            self.heartRateZoneSeconds = seconds.reduce(0, +) > 0 ? seconds : nil
+        }
+    }
 
     func load(run: Run, metric: Bool) {
         splits = run.splits
@@ -272,6 +284,10 @@ struct RunDetailView: View {
 
                 statsGrid
 
+                if let zones = viewModel.heartRateZoneSeconds {
+                    heartRateZonesCard(zones)
+                }
+
                 glycogenImpactCard
 
                 if !viewModel.splits.isEmpty {
@@ -317,7 +333,11 @@ struct RunDetailView: View {
                 searchContext: "run_recovery"
             )
         }
-        .onAppear { viewModel.load(run: run, metric: useMetric) }
+        .onAppear {
+            viewModel.load(run: run, metric: useMetric)
+            let age = dailyLogService.goalSettings?.age ?? 30
+            viewModel.loadHeartRateZones(start: run.startDate, end: run.endDate, maxHR: HeartRateZones.estimatedMaxHR(age: age))
+        }
     }
 
     private var shoeTagCard: some View {
@@ -465,6 +485,47 @@ struct RunDetailView: View {
                 RunStatTile(label: "Calories", value: "\(Int(calories.rounded()).formatted()) cal")
             }
         }
+    }
+
+    /// Time-in-zone distribution. Uses the conventional HR heat gradient (cool→hot) rather
+    /// than the brand palette because the color IS the information — same reason the pace
+    /// heatmap does. Only shown when the run carried a real HR series.
+    private func heartRateZonesCard(_ seconds: [Double]) -> some View {
+        let total = max(seconds.reduce(0, +), 1)
+        let colors: [Color] = [.blue, .green, .yellow, .orange, .red]
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Heart-rate zones")
+                .appFont(size: 15, weight: .bold)
+                .foregroundColor(.textPrimary)
+
+            ForEach(Array(HeartRateZones.zones.enumerated()), id: \.offset) { index, zone in
+                let secs = index < seconds.count ? seconds[index] : 0
+                HStack(spacing: 10) {
+                    Text("Z\(zone.number)")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(colors[index])
+                        .frame(width: 24, alignment: .leading)
+                    Text(zone.name)
+                        .appFont(size: 12, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .frame(width: 76, alignment: .leading)
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(colors[index].opacity(0.14))
+                            Capsule().fill(colors[index])
+                                .frame(width: max(0, geo.size.width * CGFloat(secs / total)))
+                        }
+                    }
+                    .frame(height: 8)
+                    Text(secs > 0 ? RunFormat.durationText(seconds: secs) : "–")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(secs > 0 ? .textPrimary : Color(UIColor.tertiaryLabel))
+                        .frame(width: 52, alignment: .trailing)
+                }
+            }
+        }
+        .padding(14)
+        .background(Color.backgroundSecondary.opacity(0.6), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var glycogenImpactCard: some View {
