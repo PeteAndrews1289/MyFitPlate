@@ -5,6 +5,18 @@ struct WeeklyCheckInView: View {
     @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
     @Environment(\.dismiss) var dismiss
     @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits: Bool = Locale.current.measurementSystem != .us
+    @State private var hasLoggedProposalView = false
+
+    private var goalProposal: AdaptiveGoalService.WeeklyGoalProposal? {
+        adaptiveGoalService.currentWeeklyGoalProposal(
+            currentCalories: goalSettings.calories,
+            goal: goalSettings.goal,
+            gender: goalSettings.gender,
+            proteinPercentage: goalSettings.proteinPercentage,
+            carbsPercentage: goalSettings.carbsPercentage,
+            fatsPercentage: goalSettings.fatsPercentage
+        )
+    }
 
     private var averageIntakeText: String {
         guard let average = adaptiveGoalService.last21DaysCalorieAverage else { return "--" }
@@ -27,6 +39,9 @@ struct WeeklyCheckInView: View {
     }
 
     private var targetDeltaText: String {
+        if let goalProposal {
+            return goalProposal.summary
+        }
         guard let current = goalSettings.calories,
               let calculated = adaptiveGoalService.calculatedTDEE else {
             return "MyFitPlate will switch your targets to the latest adaptive estimate."
@@ -81,6 +96,7 @@ struct WeeklyCheckInView: View {
             .background(Color.backgroundPrimary.ignoresSafeArea())
             .navigationTitle("Weekly check-in")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear(perform: logProposalViewedIfNeeded)
             .toolbar {
                 // Toolbar empty to enforce rigid check-in
             }
@@ -218,6 +234,10 @@ struct WeeklyCheckInView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
+            if let goalProposal {
+                proposalDetails(goalProposal)
+            }
+
             Text("Accepting keeps the app in adaptive mode. Keeping current targets simply delays the change; your data will keep updating.")
                 .appFont(size: 12)
                 .foregroundColor(Color(UIColor.secondaryLabel))
@@ -225,6 +245,61 @@ struct WeeklyCheckInView: View {
         }
         .padding(18)
         .asCard()
+    }
+
+    private func proposalDetails(_ proposal: AdaptiveGoalService.WeeklyGoalProposal) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(proposal.title)
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    Text("\(Int(proposal.proposedCalories.rounded()).formatted()) cal/day")
+                        .appFont(size: 28, weight: .heavy)
+                        .foregroundColor(.brandPrimary)
+                }
+
+                Spacer()
+
+                Text(deltaText(for: proposal.calorieDelta))
+                    .appFont(size: 12, weight: .bold)
+                    .foregroundColor(proposal.shouldAdjust ? .orange : .accentPositive)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background((proposal.shouldAdjust ? Color.orange : Color.accentPositive).opacity(0.10), in: Capsule())
+            }
+
+            HStack(spacing: 8) {
+                proposalMacroChip("P", value: proposal.macroGoals.protein, color: .accentProtein)
+                proposalMacroChip("C", value: proposal.macroGoals.carbs, color: .accentCarbs)
+                proposalMacroChip("F", value: proposal.macroGoals.fats, color: .accentFats)
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                ForEach(proposal.reasons, id: \.self) { reason in
+                    Label(reason, systemImage: "checkmark.circle.fill")
+                        .appFont(size: 11, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func proposalMacroChip(_ title: String, value: Double, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .appFont(size: 10, weight: .bold)
+                .foregroundColor(color)
+            Text("\(Int(value.rounded()))g")
+                .appFont(size: 13, weight: .bold)
+                .foregroundColor(.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(9)
+        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
     
     private var needsDataSection: some View {
@@ -259,6 +334,7 @@ struct WeeklyCheckInView: View {
     
     private func acceptTargets() {
         HapticManager.instance.feedback(.light)
+        logProposalDecision("accepted")
         goalSettings.calorieGoalMethod = .dynamicTDEE
         goalSettings.lastCheckInDate = Date()
         goalSettings.recalculateAllGoals()
@@ -270,11 +346,41 @@ struct WeeklyCheckInView: View {
     
     private func skipCheckIn() {
         HapticManager.instance.feedback(.light)
+        logProposalDecision("kept_current")
         goalSettings.lastCheckInDate = Date()
         if let userID = DIContainer.shared.authService.currentUserID {
             goalSettings.saveUserGoals(userID: userID)
         }
         dismiss()
+    }
+
+    private func deltaText(for delta: Double) -> String {
+        guard abs(delta) >= 1 else { return "No change" }
+        return delta > 0
+            ? "+\(Int(delta.rounded()).formatted()) cal"
+            : "-\(Int(abs(delta.rounded())).formatted()) cal"
+    }
+
+    private func logProposalViewedIfNeeded() {
+        guard !hasLoggedProposalView, let proposal = goalProposal else { return }
+        hasLoggedProposalView = true
+        DIContainer.shared.analyticsManager?.logEvent("weekly_goal_proposal_viewed", parameters: [
+            "confidence": proposal.confidence.rawValue,
+            "should_adjust": proposal.shouldAdjust,
+            "delta": Int(proposal.calorieDelta.rounded()),
+            "training_load": proposal.trainingLoadLabel
+        ])
+    }
+
+    private func logProposalDecision(_ decision: String) {
+        guard let proposal = goalProposal else { return }
+        DIContainer.shared.analyticsManager?.logEvent("weekly_goal_proposal_decision", parameters: [
+            "decision": decision,
+            "confidence": proposal.confidence.rawValue,
+            "should_adjust": proposal.shouldAdjust,
+            "delta": Int(proposal.calorieDelta.rounded()),
+            "training_load": proposal.trainingLoadLabel
+        ])
     }
 }
 

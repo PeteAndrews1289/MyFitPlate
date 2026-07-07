@@ -37,6 +37,209 @@ struct SuggestionButtonsView: View {
     }
 }
 
+struct MaiaActionBoardView: View {
+    let remainingCalories: Double
+    let remainingProtein: Double
+    let waterRemaining: Double
+    let hasWorkoutToday: Bool
+    let hasNutritionMismatch: Bool
+    let healthKitEnabled: Bool
+    let pantryCount: Int
+    let isGeneratingMeal: Bool
+    var onFillMacros: () -> Void
+    var onProteinOrRecovery: () -> Void
+    var onTrustOrToday: () -> Void
+    var onHydrate: () -> Void
+
+    private let columns: [GridItem] = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
+    ]
+
+    private var proteinCardTitle: String {
+        hasWorkoutToday ? "Recovery meal" : "Protein anchor"
+    }
+
+    private var proteinCardSubtitle: String {
+        if hasWorkoutToday {
+            return "\(Int(remainingProtein.rounded()))g protein left"
+        }
+        return remainingProtein >= 15 ? "\(Int(remainingProtein.rounded()))g to target" : "Keep the next meal steady"
+    }
+
+    private var trustCardTitle: String {
+        hasNutritionMismatch ? "Review trust" : "Read today"
+    }
+
+    private var trustCardSubtitle: String {
+        hasNutritionMismatch ? "Macro math needs review" : "Food, water, training"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Today's moves")
+                    .appFont(size: 15, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Spacer()
+                Text("Ready")
+                    .appFont(size: 11, weight: .bold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(UIColor.secondarySystemFill), in: Capsule())
+            }
+            .padding(.horizontal)
+
+            LazyVGrid(columns: columns, spacing: 10) {
+                MaiaActionCardButton(
+                    title: "Fill macros",
+                    subtitle: "\(Int(remainingCalories.rounded())) cal left",
+                    icon: "fork.knife.circle.fill",
+                    tint: .orange,
+                    isLoading: isGeneratingMeal,
+                    action: onFillMacros
+                )
+
+                MaiaActionCardButton(
+                    title: proteinCardTitle,
+                    subtitle: proteinCardSubtitle,
+                    icon: hasWorkoutToday ? "bolt.heart.fill" : "figure.strengthtraining.traditional",
+                    tint: hasWorkoutToday ? .accentSignal : .accentProtein,
+                    action: onProteinOrRecovery
+                )
+
+                MaiaActionCardButton(
+                    title: trustCardTitle,
+                    subtitle: trustCardSubtitle,
+                    icon: hasNutritionMismatch ? "exclamationmark.shield.fill" : "checkmark.shield.fill",
+                    tint: hasNutritionMismatch ? .orange : .accentPositive,
+                    action: onTrustOrToday
+                )
+
+                MaiaActionCardButton(
+                    title: "Hydrate",
+                    subtitle: waterRemaining > 0 ? "Add 16 oz now" : "Goal covered",
+                    icon: "drop.fill",
+                    tint: .accentWater,
+                    isDisabled: waterRemaining <= 0,
+                    action: onHydrate
+                )
+            }
+            .padding(.horizontal)
+
+            MaiaDataBoundaryStrip(
+                healthKitEnabled: healthKitEnabled,
+                pantryCount: pantryCount
+            )
+            .padding(.horizontal)
+        }
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
+}
+
+private struct MaiaActionCardButton: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    let tint: Color
+    var isLoading = false
+    var isDisabled = false
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .appFont(size: 14, weight: .bold)
+                        .foregroundColor(tint)
+                        .frame(width: 30, height: 30)
+                        .background(tint.opacity(0.12), in: Circle())
+
+                    Spacer(minLength: 0)
+
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        Image(systemName: isDisabled ? "checkmark.circle.fill" : "chevron.right")
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(isDisabled ? .accentPositive : Color(UIColor.tertiaryLabel))
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .appFont(size: 14, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+
+                    Text(subtitle)
+                        .appFont(size: 11, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+            .padding(12)
+            .background(Color.backgroundSecondary.opacity(isDisabled ? 0.38 : 0.78), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(tint.opacity(isDisabled ? 0.08 : 0.16), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled || isLoading)
+        .accessibilityLabel("\(title), \(subtitle)")
+    }
+}
+
+private struct MaiaDataBoundaryStrip: View {
+    let healthKitEnabled: Bool
+    let pantryCount: Int
+
+    var body: some View {
+        HStack(spacing: 7) {
+            MaiaDataChip(icon: "calendar", text: "Today", color: .brandPrimary)
+            MaiaDataChip(icon: "target", text: "Goals", color: .accentPositive)
+            if healthKitEnabled {
+                MaiaDataChip(icon: "applewatch", text: "HealthKit", color: .blue)
+            }
+            if pantryCount > 0 {
+                MaiaDataChip(icon: "cabinet.fill", text: "\(pantryCount) pantry", color: .orange)
+            }
+            MaiaDataChip(icon: "sparkles", text: "Estimates", color: .purple)
+        }
+        .padding(9)
+        .background(Color.backgroundSecondary.opacity(0.52), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct MaiaDataChip: View {
+    let icon: String
+    let text: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .appFont(size: 9, weight: .bold)
+            Text(text)
+                .appFont(size: 10, weight: .bold)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
+        .foregroundColor(color)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.10), in: Capsule())
+    }
+}
+
 struct ChatBubble: View {
     @Environment(\.colorScheme) var colorScheme
 
@@ -58,26 +261,40 @@ struct ChatBubble: View {
         self.canBeLogged = !message.isUser && message.text.contains("---Nutritional Breakdown---") && message.text.contains("Calories:")
     }
 
-    private func parseStructuredPayloads(from text: String) -> (String, [MaiaActionPayload]) {
+    private struct ActionPayloadIssue: Identifiable {
+        let id = UUID()
+        let kind: String
+    }
+
+    private func parseStructuredPayloads(from text: String) -> (String, [MaiaActionPayload], [ActionPayloadIssue]) {
         var cleanText = text
         var payloads: [MaiaActionPayload] = []
+        var issues: [ActionPayloadIssue] = []
 
         let pattern = "```json\\s*(\\{.*?\\})\\s*```"
-        if let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive]) {
-            let nsString = text as NSString
-            let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
-
-            for match in matches.reversed() {
-                let jsonString = nsString.substring(with: match.range(at: 1))
-                if let data = jsonString.data(using: .utf8),
-                   let payload = try? JSONDecoder().decode(MaiaActionPayload.self, from: data) {
-                    payloads.append(payload)
-                }
-                cleanText = (cleanText as NSString).replacingCharacters(in: match.range, with: "")
-            }
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive]) else {
+            return (text, [], [ActionPayloadIssue(kind: "regex_failed")])
         }
 
-        return (cleanText.trimmingCharacters(in: .whitespacesAndNewlines), payloads.reversed())
+        let nsString = text as NSString
+        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+
+        for match in matches.reversed() {
+            let jsonString = nsString.substring(with: match.range(at: 1))
+            if let data = jsonString.data(using: .utf8) {
+                do {
+                    let payload = try JSONDecoder().decode(MaiaActionPayload.self, from: data)
+                    payloads.append(payload)
+                } catch {
+                    issues.append(ActionPayloadIssue(kind: "decode_failed"))
+                }
+            } else {
+                issues.append(ActionPayloadIssue(kind: "encoding_failed"))
+            }
+            cleanText = (cleanText as NSString).replacingCharacters(in: match.range, with: "")
+        }
+
+        return (cleanText.trimmingCharacters(in: .whitespacesAndNewlines), payloads.reversed(), issues)
     }
 
     var body: some View {
@@ -102,6 +319,12 @@ struct ChatBubble: View {
                     let parsed = parseStructuredPayloads(from: message.text)
                     let displayText = parsed.0
                     let payloads = parsed.1
+                    let validationIssues = payloads.compactMap { payload -> ActionPayloadIssue? in
+                        guard let issueKind = payload.validationIssueKind else { return nil }
+                        return ActionPayloadIssue(kind: issueKind)
+                    }
+                    let payloadIssues = parsed.2 + validationIssues
+                    let renderablePayloads = payloads.filter(\.isRenderableAction)
 
                     if !displayText.isEmpty {
                         Text(.init(displayText))
@@ -128,8 +351,8 @@ struct ChatBubble: View {
                             .frame(maxWidth: 310, alignment: message.isUser ? .trailing : .leading)
                     }
 
-                    if !payloads.isEmpty && !message.isUser {
-                        ForEach(payloads) { payload in
+                    if !renderablePayloads.isEmpty && !message.isUser {
+                        ForEach(renderablePayloads) { payload in
                             if payload.type == "meal_suggestion" || payload.type == nil {
                                 if let name = payload.mealName, let c = payload.calories, let p = payload.protein, let cb = payload.carbs, let f = payload.fats {
                                     AIChatActionCard(mealName: name, calories: c, protein: p, carbs: cb, fats: f, onLog: {
@@ -184,6 +407,11 @@ struct ChatBubble: View {
                             }
                         }
                     }
+
+                    if !payloadIssues.isEmpty && !message.isUser {
+                        MaiaActionParseFallbackCard(issueCount: payloadIssues.count)
+                            .frame(maxWidth: 310, alignment: .leading)
+                    }
                 }
 
                 if !message.isUser {
@@ -217,6 +445,43 @@ struct ChatBubble: View {
             }
             .padding(.leading, message.isUser ? 0 : 44)
             .padding(.trailing, message.isUser ? 44 : 0)
+        }
+    }
+}
+
+private struct MaiaActionParseFallbackCard: View {
+    let issueCount: Int
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .appFont(size: 14, weight: .bold)
+                .foregroundColor(.orange)
+                .frame(width: 28, height: 28)
+                .background(Color.orange.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Action needs retry")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Text("Maia's answer is still shown, but the action button payload was incomplete.")
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.orange.opacity(0.16), lineWidth: 1)
+        )
+        .onAppear {
+            DIContainer.shared.analyticsManager?.logEvent("maia_action_payload_failed", parameters: [
+                "issue_count": issueCount
+            ])
         }
     }
 }

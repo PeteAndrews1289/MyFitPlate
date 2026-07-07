@@ -19,6 +19,7 @@ struct MainTabView: View {
     
     @State private var showSettings = false
     @State private var showingAddOptions = false
+    @State private var showingAllQuickLogActions = false
 
     @State private var showingFoodSearch = false
     @State private var showingBarcodeScanner = false
@@ -37,6 +38,9 @@ struct MainTabView: View {
     @State private var scannedFoodItem: FoodItem?
     @State private var scannedFoodSource: String = "barcode_result"
     @State private var pendingManualBarcode: String?
+    @State private var showingBarcodeRecovery = false
+    @State private var barcodeRecoveryMessage = ""
+    @State private var barcodeRecoveryResolved = false
     @State private var isSearchingAfterScan = false
     @State private var scanError: (Bool, String) = (false, "")
     
@@ -78,6 +82,9 @@ struct MainTabView: View {
                         HapticsService.shared.playImpact(style: .light)
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                             showingAddOptions.toggle()
+                            if !showingAddOptions {
+                                showingAllQuickLogActions = false
+                            }
                         }
                     }
                 )
@@ -89,6 +96,7 @@ struct MainTabView: View {
                             HapticsService.shared.playImpact(style: .medium)
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                                 showingAddOptions = false
+                                showingAllQuickLogActions = false
                             }
                         }
                         .zIndex(1)
@@ -96,11 +104,13 @@ struct MainTabView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         // DESIGN.md rule 2: one hero (search, the primary path, in brand green);
                         // the other rows are neutral — no per-row rainbow tints.
-                        let buttons: [(title: String, subtitle: String, icon: String, isPrimary: Bool, action: () -> Void)] = [
+                        let primaryButtons: [(title: String, subtitle: String, icon: String, isPrimary: Bool, action: () -> Void)] = [
                             ("Search food", "Find from the food database", "magnifyingglass", true, { self.showingFoodSearch = true }),
                             ("Scan barcode", "Fast packaged food lookup", "barcode.viewfinder", false, { self.showingBarcodeScanner = true }),
+                            ("Describe your meal", "Tell Maia what you ate", "text.bubble.fill", false, { self.showingAITextLog = true })
+                        ]
+                        let moreButtons: [(title: String, subtitle: String, icon: String, isPrimary: Bool, action: () -> Void)] = [
                             ("Log with camera", "Estimate nutrition from a photo", "camera.fill", false, { self.showingImagePicker = true }),
-                            ("Describe your meal", "Tell Maia what you ate", "text.bubble.fill", false, { self.showingAITextLog = true }),
                             ("Log exercise", "Record activity and calories", "figure.walk", false, { self.showingAddExerciseView = true }),
                             ("Log recipe or meal", "Use saved recipes and meals", "list.clipboard", false, { self.showingRecipeListView = true }),
                             ("Beat the buffet", "Log an all-you-can-eat session", "fork.knife", false, { self.showingAYCESession = true }),
@@ -142,7 +152,7 @@ struct MainTabView: View {
                             .accessibilityLabel("Close quick log menu")
                         }
 
-                        ForEach(Array(buttons.enumerated()), id: \.offset) { index, buttonInfo in
+                        ForEach(Array(primaryButtons.enumerated()), id: \.offset) { index, buttonInfo in
                             actionButton(
                                 title: buttonInfo.title,
                                 subtitle: buttonInfo.subtitle,
@@ -151,9 +161,32 @@ struct MainTabView: View {
                             ) {
                                 buttonInfo.action()
                                 self.showingAddOptions = false
+                                self.showingAllQuickLogActions = false
                             }
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                             .animation(.spring(response: 0.3, dampingFraction: 0.6).delay(0.05 * Double(index)), value: showingAddOptions)
+                        }
+
+                        quickLogMoreButton
+
+                        if showingAllQuickLogActions {
+                            ForEach(Array(moreButtons.enumerated()), id: \.offset) { index, buttonInfo in
+                                actionButton(
+                                    title: buttonInfo.title,
+                                    subtitle: buttonInfo.subtitle,
+                                    icon: buttonInfo.icon,
+                                    isPrimary: buttonInfo.isPrimary
+                                ) {
+                                    buttonInfo.action()
+                                    self.showingAddOptions = false
+                                    self.showingAllQuickLogActions = false
+                                }
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                                .animation(
+                                    .spring(response: 0.3, dampingFraction: 0.6).delay(0.04 * Double(index)),
+                                    value: showingAllQuickLogActions
+                                )
+                            }
                         }
                     }
                     .padding(.horizontal, 18)
@@ -189,7 +222,7 @@ struct MainTabView: View {
                     showingFoodSearch = false
                 }, searchContext: "general_search")
             }
-            .sheet(isPresented: $showingAddFoodManually) {
+            .sheet(isPresented: $showingAddFoodManually, onDismiss: { pendingManualBarcode = nil }) {
                 AddFoodView(
                     initialFoodItem: manualFoodSeed(),
                     dailyLog: $dailyLogService.currentDailyLog,
@@ -234,7 +267,10 @@ struct MainTabView: View {
                         }
                         DIContainer.shared.analyticsManager.barcodeLookupOutcome(.miss(barcode: barcode))
                         self.isSearchingAfterScan = false
-                        self.scanError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Create it manually, use camera capture, or search by name.")
+                        self.presentBarcodeRecovery(
+                            message: "No match found in FatSecret, USDA, or Open Food Facts.",
+                            barcode: barcode
+                        )
                     }
                 }
             }
@@ -268,26 +304,18 @@ struct MainTabView: View {
             .sheet(isPresented: $showingRecipeListView) {
                 RecipeListView().environmentObject(recipeService)
             }
+            .sheet(isPresented: $showingBarcodeRecovery, onDismiss: handleBarcodeRecoveryDismissed) {
+                BarcodeMissRecoveryView(
+                    message: barcodeRecoveryMessage,
+                    barcode: pendingManualBarcode,
+                    createFromLabel: createFoodFromBarcodeMiss,
+                    useCamera: useCameraFromBarcodeMiss,
+                    searchByName: searchByNameFromBarcodeMiss,
+                    dismiss: dismissBarcodeRecovery
+                )
+            }
             .alert("Scan Error", isPresented: $scanError.0) {
-                Button("Create Food") {
-                    DIContainer.shared.analyticsManager.barcodeMissRecovery(
-                        .selected(action: "create_food", barcode: pendingManualBarcode)
-                    )
-                    showingAddFoodManually = true
-                }
-                Button("Use Camera") {
-                    DIContainer.shared.analyticsManager.barcodeMissRecovery(
-                        .selected(action: "use_camera", barcode: pendingManualBarcode)
-                    )
-                    pendingManualBarcode = nil
-                    showingImagePicker = true
-                }
-                Button("OK", role: .cancel) {
-                    DIContainer.shared.analyticsManager.barcodeMissRecovery(
-                        .selected(action: "dismissed", barcode: pendingManualBarcode)
-                    )
-                    pendingManualBarcode = nil
-                }
+                Button("OK", role: .cancel) {}
             } message: {
                 Text(scanError.1)
             }
@@ -365,6 +393,113 @@ struct MainTabView: View {
         } else if result.usedRelatedBarcode {
             ToastManager.shared.showToast(message: "Found a related barcode match.")
         }
+    }
+
+    private func presentBarcodeRecovery(message: String, barcode: String?) {
+        let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode ?? "")
+        pendingManualBarcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
+        barcodeRecoveryMessage = message
+        barcodeRecoveryResolved = false
+        showingBarcodeRecovery = true
+        DIContainer.shared.analyticsManager.barcodeMissRecovery(
+            .selected(action: "recovery_shown", barcode: pendingManualBarcode)
+        )
+    }
+
+    private func handleBarcodeRecoveryDismissed() {
+        if !barcodeRecoveryResolved {
+            DIContainer.shared.analyticsManager.barcodeMissRecovery(
+                .selected(action: "dismissed", barcode: pendingManualBarcode)
+            )
+            pendingManualBarcode = nil
+        }
+        barcodeRecoveryMessage = ""
+    }
+
+    private func resolveBarcodeRecovery(action: String) {
+        barcodeRecoveryResolved = true
+        DIContainer.shared.analyticsManager.barcodeMissRecovery(
+            .selected(action: action, barcode: pendingManualBarcode)
+        )
+        showingBarcodeRecovery = false
+    }
+
+    private func createFoodFromBarcodeMiss() {
+        resolveBarcodeRecovery(action: "create_from_label")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            showingAddFoodManually = true
+        }
+    }
+
+    private func useCameraFromBarcodeMiss() {
+        resolveBarcodeRecovery(action: "use_camera")
+        pendingManualBarcode = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            showingImagePicker = true
+        }
+    }
+
+    private func searchByNameFromBarcodeMiss() {
+        resolveBarcodeRecovery(action: "search_by_name")
+        pendingManualBarcode = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            showingFoodSearch = true
+        }
+    }
+
+    private func dismissBarcodeRecovery() {
+        barcodeRecoveryResolved = true
+        DIContainer.shared.analyticsManager.barcodeMissRecovery(
+            .selected(action: "dismissed", barcode: pendingManualBarcode)
+        )
+        pendingManualBarcode = nil
+        showingBarcodeRecovery = false
+    }
+
+    private var quickLogMoreButton: some View {
+        Button {
+            HapticsService.shared.playImpact(style: .light)
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                showingAllQuickLogActions.toggle()
+            }
+            DIContainer.shared.analyticsManager?.logEvent("quick_log_more_toggled", parameters: [
+                "expanded": showingAllQuickLogActions
+            ])
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: showingAllQuickLogActions ? "chevron.up.circle" : "ellipsis.circle")
+                    .appFont(size: 18, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .frame(width: 44, height: 44)
+                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(showingAllQuickLogActions ? "Fewer options" : "More options")
+                        .foregroundColor(.textPrimary)
+                        .appFont(size: 16, weight: .semibold)
+
+                    Text(showingAllQuickLogActions ? "Hide specialty logging tools" : "Camera, exercise, recipes, buffet, and running")
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appFont(size: 13)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)
+                }
+
+                Spacer()
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Color.backgroundPrimary.opacity(0.62), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(showingAllQuickLogActions ? "Fewer options" : "More options")
+        .accessibilityValue(showingAllQuickLogActions ? "Hide specialty logging tools" : "Show specialty logging tools")
+        .accessibilityAddTraits(.isButton)
     }
     
     private func actionButton(title: String, subtitle: String, icon: String, isPrimary: Bool, action: @escaping () -> Void) -> some View {

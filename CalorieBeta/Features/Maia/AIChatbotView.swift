@@ -12,9 +12,13 @@ struct AIChatbotView: View {
     @EnvironmentObject var achievementService: AchievementService
     @EnvironmentObject var mealPlannerService: MealPlannerService
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
+    @EnvironmentObject var insightsService: InsightsService
+    @EnvironmentObject var pantryService: PantryService
 
     @Environment(\.colorScheme) var colorScheme
     @StateObject private var ttsManager = TTSManager.shared
+    @State private var mealSuggestion: MealSuggestion?
+    @State private var showingSuggestionDetail = false
 
     private var bottomSafeAreaInset: CGFloat {
         UIApplication.shared.connectedScenes
@@ -24,31 +28,25 @@ struct AIChatbotView: View {
             .safeAreaInsets.bottom ?? 0
     }
 
-    private var starterSuggestions: [String] {
-        var suggestions: [String] = []
+    private var hasNutritionMismatch: Bool {
+        dailyLogService.currentDailyLog?.calorieConsistencyStatus().hasMeaningfulMismatch == true
+    }
 
-        if dailyLogService.currentDailyLog?.calorieConsistencyStatus().hasMeaningfulMismatch == true {
-            suggestions.append("Audit today's calorie and macro mismatch.")
-        }
-
-        if viewModel.remainingProtein >= 15 {
-            suggestions.append("Help me hit \(Int(viewModel.remainingProtein.rounded()))g more protein.")
-        }
-
+    private var proteinOrRecoveryPrompt: String {
         if viewModel.workoutCount > 0 {
-            suggestions.append("What should I eat after today's workout?")
+            return "Build a post-workout meal for today. Keep it close to my remaining calories and protein, explain the macro target, and return a loggable meal card if you suggest one."
         }
-
-        if viewModel.mealCount == 0 {
-            suggestions.append("Build my first meal for today.")
-        } else {
-            suggestions.append("What should I eat with \(Int(viewModel.remainingCalories.rounded())) calories left?")
+        if viewModel.remainingProtein >= 15 {
+            return "Help me hit \(Int(viewModel.remainingProtein.rounded()))g more protein today. Give me one practical option and return a loggable meal card if it fits."
         }
+        return "Give me one simple next meal idea that keeps today on track. Return a loggable meal card if it fits."
+    }
 
-        suggestions.append("Give me a simple dinner idea.")
-        suggestions.append("Log 1 apple and a handful of almonds.")
-
-        return Array(suggestions.prefix(4))
+    private var trustOrTodayPrompt: String {
+        if hasNutritionMismatch {
+            return "Audit today's calorie and macro mismatch. Tell me what to review first, what looks trustworthy, and what action I should take next."
+        }
+        return "Give me a quick read on today's logged food, water, training, and remaining macros. Keep it action-oriented."
     }
 
     var body: some View {
@@ -90,10 +88,32 @@ struct AIChatbotView: View {
 
             VStack(spacing: 0) {
                 if viewModel.chatMessages.count <= 1 && !viewModel.isLoading {
-                    SuggestionButtonsView(suggestions: starterSuggestions) { prompt in
-                        viewModel.userMessage = prompt
-                        viewModel.sendMessage()
-                    }
+                    MaiaActionBoardView(
+                        remainingCalories: viewModel.remainingCalories,
+                        remainingProtein: viewModel.remainingProtein,
+                        waterRemaining: max(0, viewModel.waterGoal - viewModel.waterOunces),
+                        hasWorkoutToday: viewModel.workoutCount > 0,
+                        hasNutritionMismatch: hasNutritionMismatch,
+                        healthKitEnabled: healthKitViewModel.isAuthorized,
+                        pantryCount: pantryService.pantryItems.count,
+                        isGeneratingMeal: insightsService.isGeneratingSuggestion,
+                        onFillMacros: generateMealSuggestionFromActionBoard,
+                        onProteinOrRecovery: {
+                            let contract = viewModel.workoutCount > 0
+                                ? MaiaContextContract.recoveryMeal
+                                : MaiaContextContract.proteinAnchor
+                            sendActionPrompt(proteinOrRecoveryPrompt, contract: contract)
+                        },
+                        onTrustOrToday: {
+                            let contract = hasNutritionMismatch
+                                ? MaiaContextContract.trustAudit
+                                : MaiaContextContract.dailyRead(includeHealthKit: healthKitViewModel.isAuthorized)
+                            sendActionPrompt(trustOrTodayPrompt, contract: contract)
+                        },
+                        onHydrate: {
+                            handleHydrationAction()
+                        }
+                    )
                     .padding(.vertical, 10)
                 }
 
@@ -188,6 +208,19 @@ struct AIChatbotView: View {
         .alert(isPresented: $viewModel.showAlert) {
             Alert(title: Text("Notification"), message: Text(viewModel.alertMessage), dismissButton: .default(Text("OK")))
         }
+        .sheet(isPresented: $showingSuggestionDetail) {
+            if let mealSuggestion {
+                MealSuggestionDetailView(
+                    suggestion: mealSuggestion,
+                    pantryItemNames: pantryService.pantryItems.map(\.name),
+                    remainingCalories: viewModel.remainingCalories,
+                    remainingProtein: viewModel.remainingProtein,
+                    remainingCarbs: viewModel.remainingCarbs,
+                    remainingFats: viewModel.remainingFats,
+                    onLog: logMealSuggestion
+                )
+            }
+        }
         .confirmationDialog("Clear Maia chat?", isPresented: $viewModel.showingClearChatConfirmation, titleVisibility: .visible) {
             Button("Clear Chat", role: .destructive) { viewModel.clearChat() }
             Button("Cancel", role: .cancel) { }
@@ -198,5 +231,84 @@ struct AIChatbotView: View {
 
     private func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    private func sendActionPrompt(_ prompt: String, contract: MaiaContextContract) {
+        DIContainer.shared.analyticsManager?.logEvent("maia_action_card_tapped", parameters: [
+            "action": contract.action,
+            "context_scopes": contract.telemetryScopeList,
+            "remaining_calories": Int(viewModel.remainingCalories.rounded()),
+            "remaining_protein": Int(viewModel.remainingProtein.rounded()),
+            "has_workout": viewModel.workoutCount > 0,
+            "has_nutrition_mismatch": hasNutritionMismatch
+        ])
+        viewModel.userMessage = prompt
+        viewModel.sendMessage(contextContract: contract)
+    }
+
+    private func generateMealSuggestionFromActionBoard() {
+        guard !insightsService.isGeneratingSuggestion else { return }
+        HapticManager.instance.feedback(.light)
+        Task {
+            let pantryNames = pantryService.pantryItems.map(\.name)
+            let contract = MaiaContextContract.fillMacros
+            DIContainer.shared.analyticsManager?.logEvent("maia_action_card_tapped", parameters: [
+                "action": contract.action,
+                "context_scopes": contract.telemetryScopeList,
+                "remaining_calories": Int(viewModel.remainingCalories.rounded()),
+                "remaining_protein": Int(viewModel.remainingProtein.rounded()),
+                "pantry_count": pantryNames.count
+            ])
+
+            if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
+                mealSuggestion = suggestion
+                showingSuggestionDetail = true
+                DIContainer.shared.analyticsManager?.logEvent("maia_action_card_generated", parameters: [
+                    "action": contract.action,
+                    "context_scopes": contract.telemetryScopeList,
+                    "calories": Int(suggestion.calories.rounded()),
+                    "protein": Int(suggestion.protein.rounded())
+                ])
+            } else {
+                viewModel.alertMessage = "Maia couldn't build a meal right now. Check your connection and try again."
+                viewModel.showAlert = true
+            }
+        }
+    }
+
+    private func handleHydrationAction() {
+        let contract = MaiaContextContract.hydration
+        DIContainer.shared.analyticsManager?.logEvent("maia_action_card_tapped", parameters: [
+            "action": contract.action,
+            "context_scopes": contract.telemetryScopeList,
+            "water_remaining": Int(max(0, viewModel.waterGoal - viewModel.waterOunces).rounded())
+        ])
+        viewModel.handleMaiaAction(.logWater(amountOunces: 16))
+    }
+
+    private func logMealSuggestion(_ suggestion: MealSuggestion) {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+
+        let foodItem = FoodItem(
+            id: UUID().uuidString,
+            name: suggestion.mealName,
+            calories: suggestion.calories,
+            protein: suggestion.protein,
+            carbs: suggestion.carbs,
+            fats: suggestion.fats,
+            servingSize: "1 serving (Maia Estimate)",
+            servingWeight: 0,
+            timestamp: Date()
+        )
+        .withAIEstimateSource(.aiChat, sourceName: "Maia Action")
+
+        dailyLogService.addFoodToCurrentLog(for: userID, foodItem: foodItem, source: "maia_action_card")
+        DIContainer.shared.analyticsManager?.logEvent("maia_action_card_logged", parameters: [
+            "action": MaiaContextContract.fillMacros.action,
+            "context_scopes": MaiaContextContract.fillMacros.telemetryScopeList,
+            "calories": Int(suggestion.calories.rounded()),
+            "protein": Int(suggestion.protein.rounded())
+        ])
+        mealSuggestion = nil
     }
 }

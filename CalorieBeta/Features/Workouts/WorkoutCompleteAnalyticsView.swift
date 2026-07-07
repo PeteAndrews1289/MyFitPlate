@@ -5,6 +5,10 @@ import Charts
 
 struct WorkoutCompleteAnalyticsView: View {
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject var dailyLogService: DailyLogService
+    @EnvironmentObject var insightsService: InsightsService
+    @EnvironmentObject var pantryService: PantryService
     
     // The raw data source
     let log: WorkoutSessionLog
@@ -18,6 +22,11 @@ struct WorkoutCompleteAnalyticsView: View {
     @State private var isAnimated = false
     @State private var isLoading = true
     @State private var showingPRCelebration = false
+    @State private var showingRecoveryFoodSearch = false
+    @State private var showingRecoveryMealDetail = false
+    @State private var showingNutritionAudit = false
+    @State private var recoveryMealSuggestion: MealSuggestion?
+    @State private var didLogRecoveryHandoffViewed = false
 
     private var displayedAnalytics: WorkoutAnalytics {
         analytics ?? localAnalytics
@@ -76,6 +85,11 @@ struct WorkoutCompleteAnalyticsView: View {
                     StatCard(title: "Est. Time", value: "\(estimatedDurationMinutes)", unit: "min", icon: "clock.fill", color: .blue)
                 }
                 .padding(.horizontal)
+
+                if shouldShowRecoveryHandoff {
+                    workoutRecoveryHandoffCard(plan: workoutCompletionFuelPlan)
+                        .padding(.horizontal)
+                }
 
                 if let comp = comparison {
                     HStack(spacing: 12) {
@@ -191,9 +205,43 @@ struct WorkoutCompleteAnalyticsView: View {
             .padding(.bottom, 40)
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
+        .sheet(isPresented: $showingRecoveryFoodSearch) {
+            FoodSearchView(
+                dailyLog: $dailyLogService.currentDailyLog,
+                onFoodItemLogged: {
+                    showingRecoveryFoodSearch = false
+                },
+                searchContext: "workout_recovery"
+            )
+        }
+        .sheet(isPresented: $showingRecoveryMealDetail) {
+            if let suggestion = recoveryMealSuggestion {
+                MealSuggestionDetailView(
+                    suggestion: suggestion,
+                    pantryItemNames: pantryService.pantryItems.map(\.name),
+                    remainingCalories: remainingCaloriesToday,
+                    remainingProtein: remainingProteinToday,
+                    remainingCarbs: remainingCarbsToday,
+                    remainingFats: remainingFatsToday,
+                    onLog: logRecoveryMealSuggestion
+                )
+            }
+        }
+        .sheet(isPresented: $showingNutritionAudit) {
+            if let log = currentTodayLog {
+                NavigationStack {
+                    NutritionAuditView(
+                        dailyLog: log,
+                        dailyLogBinding: $dailyLogService.currentDailyLog,
+                        date: Date()
+                    )
+                }
+            }
+        }
         .onAppear {
             isAnimated = true
             loadData()
+            logRecoveryHandoffViewedIfNeeded()
             if !localAnalytics.personalRecords.isEmpty {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                     showingPRCelebration = true
@@ -255,6 +303,279 @@ struct WorkoutCompleteAnalyticsView: View {
 
             self.isLoading = false
         }
+    }
+
+    private var currentTodayLog: DailyLog? {
+        dailyLogService.currentDailyLog.flatMap { log in
+            Calendar.current.isDateInToday(log.date) ? log : nil
+        }
+    }
+
+    private var remainingCaloriesToday: Double {
+        max(0, (goalSettings.calories ?? 0) - (currentTodayLog?.totalCalories() ?? 0))
+    }
+
+    private var remainingProteinToday: Double {
+        max(0, goalSettings.protein - (currentTodayLog?.totalMacros().protein ?? 0))
+    }
+
+    private var remainingCarbsToday: Double {
+        max(0, goalSettings.carbs - (currentTodayLog?.totalMacros().carbs ?? 0))
+    }
+
+    private var remainingFatsToday: Double {
+        max(0, goalSettings.fats - (currentTodayLog?.totalMacros().fats ?? 0))
+    }
+
+    private var shouldShowRecoveryHandoff: Bool {
+        Calendar.current.isDateInToday(log.date) && (goalSettings.calories ?? 0) > 0
+    }
+
+    private var workoutCompletionFuelPlan: TodayFuelPlan {
+        TodayFuelPlanRules.makeWorkoutCompletionPlan(
+            today: currentTodayLog,
+            goals: TodayFuelPlanGoals(
+                calories: goalSettings.calories ?? 0,
+                protein: goalSettings.protein,
+                carbs: goalSettings.carbs,
+                fats: goalSettings.fats
+            ),
+            sessionLog: log,
+            now: Date()
+        )
+    }
+
+    private func workoutRecoveryHandoffCard(plan: TodayFuelPlan) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: recoveryHandoffIcon(for: plan.kind))
+                    .appFont(size: 20, weight: .bold)
+                    .foregroundColor(recoveryHandoffColor(for: plan.kind))
+                    .frame(width: 42, height: 42)
+                    .background(recoveryHandoffColor(for: plan.kind).opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(plan.kind == .overTargetReview ? "Today fuel check" : "Recovery meal")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(recoveryHandoffColor(for: plan.kind))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(recoveryHandoffColor(for: plan.kind).opacity(0.12), in: Capsule())
+
+                    Text(plan.title)
+                        .appFont(size: 18, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(plan.summary)
+                        .appFont(size: 13, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            Text(plan.detail)
+                .appFont(size: 12, weight: .medium)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                recoveryMetricPill(
+                    title: plan.remainingCalories >= 0 ? "Budget" : "Over",
+                    value: "\(Int(abs(plan.remainingCalories).rounded()).formatted()) cal",
+                    color: plan.remainingCalories >= 0 ? .brandPrimary : .orange
+                )
+
+                if let protein = plan.targetProteinGrams {
+                    recoveryMetricPill(title: "Protein", value: "\(protein)g", color: .accentProtein)
+                }
+
+                if let carbs = plan.targetCarbGrams {
+                    recoveryMetricPill(title: "Carbs", value: "\(carbs)g", color: .accentCarbs)
+                }
+            }
+
+            recoveryHandoffActions(for: plan)
+        }
+        .padding(16)
+        .frame(maxWidth: 520, alignment: .leading)
+        .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(recoveryHandoffColor(for: plan.kind).opacity(0.16), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private func recoveryHandoffActions(for plan: TodayFuelPlan) -> some View {
+        switch plan.action {
+        case .fillMacros:
+            HStack(spacing: 10) {
+                Button(action: openRecoveryFoodSearch) {
+                    Label("Find food", systemImage: "magnifyingglass")
+                        .appFont(size: 13, weight: .bold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Color.backgroundPrimary.opacity(0.82), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: generateRecoveryMealSuggestion) {
+                    HStack(spacing: 6) {
+                        if insightsService.isGeneratingSuggestion {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "sparkles")
+                                .appFont(size: 12, weight: .bold)
+                        }
+                        Text("Fill macros")
+                            .appFont(size: 13, weight: .bold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(insightsService.isGeneratingSuggestion)
+            }
+
+        case .reviewDay:
+            Button(action: reviewTodayFromRecoveryHandoff) {
+                Label("Review today", systemImage: "checklist")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.backgroundPrimary.opacity(0.82), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+        case .openRecoverySearch:
+            Button(action: openRecoveryFoodSearch) {
+                Label("Find recovery food", systemImage: "magnifyingglass")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.backgroundPrimary.opacity(0.82), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+        case .none:
+            EmptyView()
+        }
+    }
+
+    private func recoveryMetricPill(title: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .appFont(size: 13, weight: .bold)
+                .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Text(title)
+                .appFont(size: 10, weight: .semibold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(.horizontal, 10)
+        .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func recoveryHandoffIcon(for kind: TodayFuelPlan.Kind) -> String {
+        kind == .overTargetReview ? "exclamationmark.triangle.fill" : "fork.knife.circle.fill"
+    }
+
+    private func recoveryHandoffColor(for kind: TodayFuelPlan.Kind) -> Color {
+        kind == .overTargetReview ? .orange : .brandPrimary
+    }
+
+    private func openRecoveryFoodSearch() {
+        HapticManager.instance.feedback(.light)
+        logRecoveryHandoffAction("search")
+        showingRecoveryFoodSearch = true
+    }
+
+    private func generateRecoveryMealSuggestion() {
+        HapticManager.instance.feedback(.light)
+        logRecoveryHandoffAction("fill_macros")
+
+        Task {
+            let pantryNames = pantryService.pantryItems.map(\.name)
+            if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
+                self.recoveryMealSuggestion = suggestion
+                self.showingRecoveryMealDetail = true
+            } else {
+                ToastManager.shared.showToast(message: "Maia couldn't build a meal right now. Check your connection and try again.")
+            }
+        }
+    }
+
+    private func reviewTodayFromRecoveryHandoff() {
+        HapticManager.instance.feedback(.light)
+        logRecoveryHandoffAction("review_day")
+        if currentTodayLog != nil {
+            showingNutritionAudit = true
+        } else {
+            ToastManager.shared.showToast(message: "Nothing to review yet.")
+        }
+    }
+
+    private func logRecoveryMealSuggestion(_ suggestion: MealSuggestion) {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+
+        let foodItem = FoodItem(
+            id: UUID().uuidString,
+            name: suggestion.mealName,
+            calories: Double(suggestion.calories),
+            protein: suggestion.protein,
+            carbs: suggestion.carbs,
+            fats: suggestion.fats,
+            servingSize: "1 serving (AI Suggestion)",
+            servingWeight: 0,
+            timestamp: Date()
+        )
+
+        dailyLogService.addFoodToCurrentLog(for: userID, foodItem: foodItem, source: "workout_recovery_suggestion")
+        DIContainer.shared.analyticsManager?.logEvent("workout_recovery_handoff_logged", parameters: [
+            "calories": Int(suggestion.calories.rounded()),
+            "protein": Int(suggestion.protein.rounded()),
+            "carbs": Int(suggestion.carbs.rounded())
+        ])
+
+        withAnimation {
+            self.recoveryMealSuggestion = nil
+            self.showingRecoveryMealDetail = false
+        }
+    }
+
+    private func logRecoveryHandoffViewedIfNeeded() {
+        guard shouldShowRecoveryHandoff, !didLogRecoveryHandoffViewed else { return }
+        didLogRecoveryHandoffViewed = true
+        let plan = workoutCompletionFuelPlan
+        DIContainer.shared.analyticsManager?.logEvent("workout_recovery_handoff_viewed", parameters: [
+            "kind": plan.kind.rawValue,
+            "remaining_calories": Int(plan.remainingCalories.rounded()),
+            "target_protein": plan.targetProteinGrams ?? 0,
+            "target_carbs": plan.targetCarbGrams ?? 0,
+            "exercise_count": log.completedExercises.count,
+            "set_count": completedSetCount
+        ])
+    }
+
+    private func logRecoveryHandoffAction(_ action: String) {
+        let plan = workoutCompletionFuelPlan
+        DIContainer.shared.analyticsManager?.logEvent("workout_recovery_handoff_tapped", parameters: [
+            "kind": plan.kind.rawValue,
+            "action": action,
+            "remaining_calories": Int(plan.remainingCalories.rounded()),
+            "target_protein": plan.targetProteinGrams ?? 0,
+            "target_carbs": plan.targetCarbGrams ?? 0
+        ])
     }
     
     private func generateShareText(analytics: WorkoutAnalytics) -> String {

@@ -83,8 +83,23 @@ class AIChatbotViewModel: ObservableObject {
     var waterGoal: Double {
         relevantDailyLog?.waterTracker?.goalOunces ?? goalSettings?.waterGoal ?? 100
     }
-    
-    private var dailyContextSummary: String {
+
+    private var todayFoodItems: [FoodItem] {
+        relevantDailyLog?.meals.flatMap(\.foodItems) ?? []
+    }
+
+    private var aiEstimateCount: Int {
+        todayFoodItems.filter { item in
+            switch item.sourceMetadata?.sourceType {
+            case .aiImage?, .aiMenu?, .aiText?, .aiChat?:
+                return true
+            default:
+                return false
+            }
+        }.count
+    }
+
+    private func promptContextSummary(for contract: MaiaContextContract) -> String {
         let log = relevantDailyLog
         let macros = log?.totalMacros() ?? (protein: 0, fats: 0, carbs: 0)
         let caloriesLogged = log?.totalCalories() ?? 0
@@ -102,48 +117,104 @@ class AIChatbotViewModel: ObservableObject {
             ? "Needs review: macros imply \(Int(abs(calorieDelta).rounded())) calories \(calorieDelta > 0 ? "more" : "less") than logged."
             : "No meaningful mismatch."
 
-        return """
-        Today's logged context:
-        - Calories logged: \(Int(caloriesLogged.rounded())) of \(Int((goalSettings?.calories ?? 0).rounded())) target
-        - Macro-derived calories: \(Int(macroCalories.rounded()))
-        - Nutrition audit: \(auditStatus)
-        - Flagged foods: \(flaggedFoods)
-        - Protein logged: \(Int(macros.protein.rounded()))g of \(Int((goalSettings?.protein ?? 0).rounded()))g target
-        - Carbs logged: \(Int(macros.carbs.rounded()))g of \(Int((goalSettings?.carbs ?? 0).rounded()))g target
-        - Fats logged: \(Int(macros.fats.rounded()))g of \(Int((goalSettings?.fats ?? 0).rounded()))g target
-        - Meals logged: \(mealCount)
-        - Water logged: \(Int(waterOunces.rounded())) oz of \(Int(waterGoal.rounded())) oz target
-        - Workouts logged: \(workoutCount) (\(exerciseNames))
+        var sections: [String] = []
 
-        User coaching preferences:
-        - Training intent: \(goalSettings?.trainingIntent ?? "")
-        - Reminder style: \(goalSettings?.reminderStyle ?? "")
-        - Maia style: \(goalSettings?.maiaTone ?? "")
+        if contract.allows(.nutritionGoals) {
+            sections.append("""
+            Remaining nutrition goals:
+            - Calories: \(String(format: "%.0f", remainingCalories)) cal
+            - Protein: \(String(format: "%.0f", remainingProtein)) g
+            - Fats: \(String(format: "%.0f", remainingFats)) g
+            - Carbs: \(String(format: "%.0f", remainingCarbs)) g
+            """)
+        }
 
-        Passive Health Data (For Coaching Context Only):
-        - Steps Today: \(Int(hkSteps))
-        - Passive Active Energy Burned: \(Int(hkActiveEnergy)) kcal
-        - Sleep Last Night: \(String(format: "%.1f", sleepHours)) hours
-        - Sleep Score: \(sleepScore.map { "\($0)" } ?? "Unavailable")
-        """
+        if contract.allows(.todayLog) {
+            sections.append("""
+            Today's logged food totals:
+            - Calories logged: \(Int(caloriesLogged.rounded())) of \(Int((goalSettings?.calories ?? 0).rounded())) target
+            - Protein logged: \(Int(macros.protein.rounded()))g of \(Int((goalSettings?.protein ?? 0).rounded()))g target
+            - Carbs logged: \(Int(macros.carbs.rounded()))g of \(Int((goalSettings?.carbs ?? 0).rounded()))g target
+            - Fats logged: \(Int(macros.fats.rounded()))g of \(Int((goalSettings?.fats ?? 0).rounded()))g target
+            - Meals logged: \(mealCount)
+            """)
+        }
+
+        if contract.allows(.nutritionAudit) {
+            sections.append("""
+            Nutrition audit:
+            - Macro-derived calories: \(Int(macroCalories.rounded()))
+            - Status: \(auditStatus)
+            - Flagged foods: \(flaggedFoods)
+            """)
+        }
+
+        if contract.allows(.water) {
+            sections.append("""
+            Water progress:
+            - Water logged: \(Int(waterOunces.rounded())) oz of \(Int(waterGoal.rounded())) oz target
+            """)
+        }
+
+        if contract.allows(.loggedTraining) {
+            sections.append("""
+            Logged training:
+            - Workouts logged: \(workoutCount) (\(exerciseNames))
+            """)
+        }
+
+        if contract.allows(.coachingPreferences) {
+            sections.append("""
+            User coaching preferences:
+            - Training intent: \(goalSettings?.trainingIntent ?? "")
+            - Reminder style: \(goalSettings?.reminderStyle ?? "")
+            - Maia style: \(goalSettings?.maiaTone ?? "")
+            """)
+        }
+
+        if contract.allows(.healthKit), healthKitViewModel?.isAuthorized == true {
+            sections.append("""
+            Passive Health Data (For Coaching Context Only):
+            - Steps Today: \(Int(hkSteps))
+            - Passive Active Energy Burned: \(Int(hkActiveEnergy)) kcal
+            - Sleep Last Night: \(String(format: "%.1f", sleepHours)) hours
+            - Sleep Score: \(sleepScore.map { "\($0)" } ?? "Unavailable")
+            """)
+        }
+
+        if contract.allows(.aiEstimates) {
+            sections.append("""
+            AI estimate boundary:
+            - AI-estimated foods in today's log: \(aiEstimateCount)
+            - Treat estimates as reviewable, not exact label data.
+            """)
+        }
+
+        return sections.joined(separator: "\n\n")
     }
     
     // MARK: - Actions
     
-    func sendMessage() {
+    func sendMessage(contextContract: MaiaContextContract? = nil) {
         let trimmedMessage = userMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedMessage.isEmpty else { return }
+        let effectiveContract = contextContract ?? .generalChat(includeHealthKit: healthKitViewModel?.isAuthorized == true)
 
         let userMsg = ChatMessage(id: UUID(), text: trimmedMessage, isUser: true)
         chatMessages.append(userMsg)
         DIContainer.shared.analyticsManager.log(.aiFeatureUsed, ["feature": AIFeature.maiaChat.rawValue])
+        DIContainer.shared.analyticsManager?.logEvent("maia_context_contract_used", parameters: [
+            "action": effectiveContract.action,
+            "scopes": effectiveContract.telemetryScopeList,
+            "uses_healthkit": effectiveContract.allows(.healthKit)
+        ])
         HapticManager.instance.feedback(.light)
 
         let msgToSend = userMessage
         userMessage = ""
         isLoading = true
 
-        fetchGPT3Response(for: msgToSend) { [weak self] aiResponse in
+        fetchGPT3Response(for: msgToSend, contextContract: effectiveContract) { [weak self] aiResponse in
             guard let self = self else { return }
             let aiMsg = ChatMessage(id: UUID(), text: aiResponse, isUser: false)
             self.chatMessages.append(aiMsg)
@@ -152,13 +223,19 @@ class AIChatbotViewModel: ObservableObject {
         }
     }
     
-    func fetchGPT3Response(for message: String, completion: @escaping (String) -> Void) {
+    func fetchGPT3Response(
+        for message: String,
+        contextContract: MaiaContextContract,
+        completion: @escaping (String) -> Void
+    ) {
         let systemPrompt = """
         You are Maia, the personal nutrition and training coach inside MyFitPlate.
         Your style is warm, concise, practical, and specific to the user's logged day. Avoid generic wellness filler.
         Do not diagnose medical conditions or present estimates as clinical truth.
         Respect the user's coaching preferences in the context. If reminder style is Minimal, be brief. If Direct, be crisp and action-oriented. If Gentle, be encouraging without being vague.
         If the nutrition audit says calories and macros meaningfully disagree, mention that logged calories remain official but the item should be reviewed before making precise calorie-budget claims.
+        Respect the user's calorie target. Training fuel should be planned before hard sessions and kept inside the user's chosen target unless the user explicitly changes the target. If the user is already over target, do not give it a special mode label, do not celebrate it, and do not frame accidental over-target intake as performance fuel; give a neutral review and the next best on-target choice.
+        \(contextContract.promptSummary)
 
         You have the ability to automatically perform actions for the user! When the user asks you to log a workout, generate a meal plan, log a meal, log water, start/stop a fast, or log their weight, you MUST provide a structured JSON block AT THE END of your message.
         
@@ -228,13 +305,7 @@ class AIChatbotViewModel: ObservableObject {
         If data is missing, say what assumption you are making.
         For your own AI estimates, keep calories reasonably consistent with protein*4 + carbs*4 + fats*9. Do not invent exact precision for restaurant or packaged foods.
 
-        **User's Remaining Goals for Today:**
-        - Calories: \(String(format: "%.0f", self.remainingCalories)) cal
-        - Protein: \(String(format: "%.0f", self.remainingProtein)) g
-        - Fats: \(String(format: "%.0f", self.remainingFats)) g
-        - Carbs: \(String(format: "%.0f", self.remainingCarbs)) g
-
-        \(dailyContextSummary)
+        \(promptContextSummary(for: contextContract))
         \(chatContext.map { "Additional context: \($0)" } ?? "")
         """
 

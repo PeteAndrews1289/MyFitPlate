@@ -31,11 +31,19 @@ public struct RunRecoveryTarget: Codable, Equatable {
     }
 
     public var isExpired: Bool {
-        Date().timeIntervalSince(timestamp) > Double(windowMinutes * 60)
+        isExpired(at: Date())
     }
 
     public var remainingMinutes: Int {
-        let elapsed = Int(Date().timeIntervalSince(timestamp) / 60)
+        remainingMinutes(at: Date())
+    }
+
+    public func isExpired(at date: Date) -> Bool {
+        date.timeIntervalSince(timestamp) > Double(windowMinutes * 60)
+    }
+
+    public func remainingMinutes(at date: Date) -> Int {
+        let elapsed = Int(date.timeIntervalSince(timestamp) / 60)
         return max(0, windowMinutes - elapsed)
     }
 }

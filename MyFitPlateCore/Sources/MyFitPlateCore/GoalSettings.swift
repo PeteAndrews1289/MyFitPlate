@@ -551,6 +551,8 @@ public class AdaptiveGoalService: ObservableObject {
     @Published public var last21DaysCalorieAverage: Double?
     @Published public var weightChangeRatePerDay: Double?
     @Published public var dataConfidence: DataConfidence = .insufficient
+    @Published public var recentValidLogCount: Int = 0
+    @Published public var recentWorkoutCount: Int = 0
     /// How many weigh-ins / food-log days exist in the last 21 days. Drives the
     /// "progress to your first estimate" UI shown before there's enough data for a TDEE.
     @Published public var recentWeighInCount: Int = 0
@@ -580,6 +582,8 @@ public class AdaptiveGoalService: ObservableObject {
         public let weightChangeRatePerDay: Double?
         public let calculatedTDEE: Double?
         public let dataConfidence: DataConfidence
+        public let validLogCount: Int
+        public let recentWorkoutCount: Int
 
         public init(
             recentWeighInCount: Int,
@@ -587,7 +591,9 @@ public class AdaptiveGoalService: ObservableObject {
             last21DaysCalorieAverage: Double?,
             weightChangeRatePerDay: Double?,
             calculatedTDEE: Double?,
-            dataConfidence: DataConfidence
+            dataConfidence: DataConfidence,
+            validLogCount: Int = 0,
+            recentWorkoutCount: Int = 0
         ) {
             self.recentWeighInCount = recentWeighInCount
             self.recentLogCount = recentLogCount
@@ -595,7 +601,22 @@ public class AdaptiveGoalService: ObservableObject {
             self.weightChangeRatePerDay = weightChangeRatePerDay
             self.calculatedTDEE = calculatedTDEE
             self.dataConfidence = dataConfidence
+            self.validLogCount = validLogCount
+            self.recentWorkoutCount = recentWorkoutCount
         }
+    }
+
+    public struct WeeklyGoalProposal: Equatable {
+        public let title: String
+        public let summary: String
+        public let currentCalories: Double?
+        public let proposedCalories: Double
+        public let calorieDelta: Double
+        public let macroGoals: MacroGoals
+        public let confidence: DataConfidence
+        public let trainingLoadLabel: String
+        public let reasons: [String]
+        public let shouldAdjust: Bool
     }
 
     public static func expenditureSnapshot(
@@ -613,6 +634,9 @@ public class AdaptiveGoalService: ObservableObject {
         let recentWeighInCount = recentWeights.count
         let recentLogCount = recentLogs.count
 
+        let validLogs = recentLogs.filter { $0.totalCalories() > 500 }
+        let recentWorkoutCount = recentLogs.reduce(0) { $0 + ($1.exercises?.count ?? 0) }
+
         guard recentWeighInCount >= 7, recentLogCount >= 10 else {
             return ExpenditureSnapshot(
                 recentWeighInCount: recentWeighInCount,
@@ -620,7 +644,9 @@ public class AdaptiveGoalService: ObservableObject {
                 last21DaysCalorieAverage: nil,
                 weightChangeRatePerDay: nil,
                 calculatedTDEE: nil,
-                dataConfidence: .insufficient
+                dataConfidence: .insufficient,
+                validLogCount: validLogs.count,
+                recentWorkoutCount: recentWorkoutCount
             )
         }
 
@@ -644,7 +670,6 @@ public class AdaptiveGoalService: ObservableObject {
 
         let ratePerDay = daysBetween > 0 ? (endWeight - startWeight) / daysBetween : 0
 
-        let validLogs = recentLogs.filter { $0.totalCalories() > 500 }
         let totalCaloriesLogged = validLogs.reduce(0.0) { $0 + $1.totalCalories() }
         let averageCalories = validLogs.isEmpty ? 0 : totalCaloriesLogged / Double(validLogs.count)
 
@@ -667,7 +692,104 @@ public class AdaptiveGoalService: ObservableObject {
             last21DaysCalorieAverage: averageCalories,
             weightChangeRatePerDay: ratePerDay,
             calculatedTDEE: max(1000, min(rawTDEE, 5000)),
-            dataConfidence: confidence
+            dataConfidence: confidence,
+            validLogCount: validLogs.count,
+            recentWorkoutCount: recentWorkoutCount
+        )
+    }
+
+    public static func weeklyGoalProposal(
+        snapshot: ExpenditureSnapshot,
+        currentCalories: Double?,
+        goal: String,
+        gender: String,
+        proteinPercentage: Double,
+        carbsPercentage: Double,
+        fatsPercentage: Double
+    ) -> WeeklyGoalProposal? {
+        guard let calculatedTDEE = snapshot.calculatedTDEE,
+              snapshot.dataConfidence == .high || snapshot.dataConfidence == .medium else {
+            return nil
+        }
+
+        let proposedCalories = GoalSettingsRules.calculateCalorieGoal(
+            bmr: calculatedTDEE,
+            goal: goal,
+            gender: gender,
+            calorieGoalMethod: .dynamicTDEE,
+            activityLevel: 1.0,
+            adaptiveTDEE: calculatedTDEE,
+            manualCaloriesBurned: 0,
+            currentCalories: nil
+        )
+        let delta = proposedCalories - (currentCalories ?? proposedCalories)
+        let shouldAdjust = abs(delta) >= 50
+        let macroGoals = GoalSettingsRules.updateMacros(
+            calories: proposedCalories,
+            proteinPercentage: proteinPercentage,
+            carbsPercentage: carbsPercentage,
+            fatsPercentage: fatsPercentage
+        )
+        let trainingLoad = trainingLoadLabel(for: snapshot.recentWorkoutCount)
+        let weeklyWeightRate = (snapshot.weightChangeRatePerDay ?? 0) * 7
+        let direction = delta > 0 ? "Raise" : "Lower"
+        let title = shouldAdjust
+            ? "\(direction) target by \(Int(abs(delta).rounded())) cal"
+            : "Hold current target"
+        let summary: String
+        if shouldAdjust {
+            summary = "Maia recommends \(Int(proposedCalories.rounded()).formatted()) calories/day based on your observed expenditure and \(goal.lowercased()) goal."
+        } else {
+            summary = "Your current target is already close to the adaptive estimate, so the safest move is to keep it steady."
+        }
+
+        let reasons = [
+            "Average intake: \(formatCalories(snapshot.last21DaysCalorieAverage)) over logged days",
+            "Weight trend: \(formatWeeklyWeightRate(weeklyWeightRate)) per week",
+            "Food-log adherence: \(snapshot.validLogCount)/21 usable days",
+            "Training load: \(trainingLoad) (\(snapshot.recentWorkoutCount) workouts)"
+        ]
+
+        return WeeklyGoalProposal(
+            title: title,
+            summary: summary,
+            currentCalories: currentCalories,
+            proposedCalories: proposedCalories,
+            calorieDelta: delta,
+            macroGoals: macroGoals,
+            confidence: snapshot.dataConfidence,
+            trainingLoadLabel: trainingLoad,
+            reasons: reasons,
+            shouldAdjust: shouldAdjust
+        )
+    }
+
+    public func currentWeeklyGoalProposal(
+        currentCalories: Double?,
+        goal: String,
+        gender: String,
+        proteinPercentage: Double,
+        carbsPercentage: Double,
+        fatsPercentage: Double
+    ) -> WeeklyGoalProposal? {
+        let snapshot = ExpenditureSnapshot(
+            recentWeighInCount: recentWeighInCount,
+            recentLogCount: recentLogCount,
+            last21DaysCalorieAverage: last21DaysCalorieAverage,
+            weightChangeRatePerDay: weightChangeRatePerDay,
+            calculatedTDEE: calculatedTDEE,
+            dataConfidence: dataConfidence,
+            validLogCount: recentValidLogCount,
+            recentWorkoutCount: recentWorkoutCount
+        )
+        return Self.weeklyGoalProposal(
+            snapshot: snapshot,
+            currentCalories: currentCalories,
+            goal: goal,
+            gender: gender,
+            proteinPercentage: proteinPercentage,
+            carbsPercentage: carbsPercentage,
+            fatsPercentage: fatsPercentage
         )
     }
 
@@ -678,6 +800,8 @@ public class AdaptiveGoalService: ObservableObject {
         DispatchQueue.main.async {
             self.recentWeighInCount = snapshot.recentWeighInCount
             self.recentLogCount = snapshot.recentLogCount
+            self.recentValidLogCount = snapshot.validLogCount
+            self.recentWorkoutCount = snapshot.recentWorkoutCount
 
             if let calculatedTDEE = snapshot.calculatedTDEE {
                 self.last21DaysCalorieAverage = snapshot.last21DaysCalorieAverage
@@ -689,6 +813,32 @@ public class AdaptiveGoalService: ObservableObject {
                 self.calculatedTDEE = nil
             }
         }
+    }
+
+    private static func trainingLoadLabel(for workoutCount: Int) -> String {
+        switch workoutCount {
+        case 0:
+            return "No logged training"
+        case 1...2:
+            return "Light"
+        case 3...5:
+            return "Steady"
+        default:
+            return "High"
+        }
+    }
+
+    private static func formatCalories(_ value: Double?) -> String {
+        guard let value else { return "--" }
+        return "\(Int(value.rounded()).formatted()) cal"
+    }
+
+    private static func formatWeeklyWeightRate(_ value: Double) -> String {
+        if abs(value) < 0.05 {
+            return "stable"
+        }
+        let sign = value > 0 ? "+" : ""
+        return "\(sign)\(String(format: "%.2f", value)) lb"
     }
     
     public func fetchAndCalculate(userID: String, goalSettings: GoalSettings, dailyLogService: DailyLogService) async {

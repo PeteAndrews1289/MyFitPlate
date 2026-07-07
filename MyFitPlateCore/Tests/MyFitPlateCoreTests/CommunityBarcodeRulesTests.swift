@@ -21,18 +21,30 @@ final class CommunityBarcodeRulesTests: XCTestCase {
         XCTAssertTrue(CommunityBarcodeRules.isEligibleForContribution(
             cleanFood(), barcode: "0123456789012", flagEnabled: true
         ))
+        XCTAssertEqual(
+            CommunityBarcodeRules.contributionDecision(cleanFood(), barcode: "0123456789012", flagEnabled: true).reason,
+            "eligible"
+        )
     }
 
     func testFlagOffBlocksContribution() {
         XCTAssertFalse(CommunityBarcodeRules.isEligibleForContribution(
             cleanFood(), barcode: "0123456789012", flagEnabled: false
         ))
+        XCTAssertEqual(
+            CommunityBarcodeRules.contributionDecision(cleanFood(), barcode: "0123456789012", flagEnabled: false).reason,
+            "feature_flag_disabled"
+        )
     }
 
     func testEmptyBarcodeBlocksContribution() {
         XCTAssertFalse(CommunityBarcodeRules.isEligibleForContribution(
             cleanFood(), barcode: "  ", flagEnabled: true
         ))
+        XCTAssertEqual(
+            CommunityBarcodeRules.contributionDecision(cleanFood(), barcode: "  ", flagEnabled: true).reason,
+            "empty_barcode"
+        )
     }
 
     func testSanitySuspiciousFoodNeverPools() {
@@ -43,6 +55,10 @@ final class CommunityBarcodeRulesTests: XCTestCase {
         XCTAssertFalse(CommunityBarcodeRules.isEligibleForContribution(
             bad, barcode: "0123456789012", flagEnabled: true
         ))
+        XCTAssertEqual(
+            CommunityBarcodeRules.contributionDecision(bad, barcode: "0123456789012", flagEnabled: true).reason,
+            "suspicious_food"
+        )
     }
 
     func testOverlongOrEmptyNameBlocksContribution() {
@@ -51,6 +67,14 @@ final class CommunityBarcodeRulesTests: XCTestCase {
             barcode: "0123456789012",
             flagEnabled: true
         ))
+        XCTAssertEqual(
+            CommunityBarcodeRules.contributionDecision(
+                cleanFood(name: String(repeating: "x", count: 141)),
+                barcode: "0123456789012",
+                flagEnabled: true
+            ).reason,
+            "invalid_name"
+        )
         XCTAssertFalse(CommunityBarcodeRules.isEligibleForContribution(
             cleanFood(name: "   "), barcode: "0123456789012", flagEnabled: true
         ))
@@ -62,6 +86,16 @@ final class CommunityBarcodeRulesTests: XCTestCase {
         XCTAssertFalse(CommunityBarcodeRules.isEligibleForContribution(
             absurd, barcode: "0123456789012", flagEnabled: true
         ))
+        XCTAssertEqual(
+            CommunityBarcodeRules.contributionDecision(absurd, barcode: "0123456789012", flagEnabled: true).reason,
+            "calories_out_of_range"
+        )
+        absurd.calories = 210
+        absurd.protein = 1_200
+        XCTAssertEqual(
+            CommunityBarcodeRules.contributionDecision(absurd, barcode: "0123456789012", flagEnabled: true).reason,
+            "macros_out_of_range"
+        )
     }
 
     // MARK: - Community item builder

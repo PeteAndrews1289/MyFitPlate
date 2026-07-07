@@ -237,6 +237,9 @@ struct MFPImportView: View {
             .asCard()
 
             Button {
+                DIContainer.shared.analyticsManager?.logEvent("mfp_import_started", parameters: [
+                    "source": "instructions"
+                ])
                 showingFilePicker = true
             } label: {
                 if case .analyzing = viewModel.stage {
@@ -310,6 +313,9 @@ struct MFPImportView: View {
             .buttonStyle(.plain)
 
             Button {
+                DIContainer.shared.analyticsManager?.logEvent("mfp_import_started", parameters: [
+                    "source": "preview_choose_different"
+                ])
                 showingFilePicker = true
             } label: {
                 Text("Choose different files")

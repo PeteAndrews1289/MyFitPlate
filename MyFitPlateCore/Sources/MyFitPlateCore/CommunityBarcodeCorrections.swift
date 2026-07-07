@@ -10,6 +10,16 @@ public protocol CommunityBarcodeStoreProtocol: Sendable {
     func contribute(_ item: FoodItem, barcode: String) async
 }
 
+public struct CommunityBarcodeContributionDecision: Equatable, Sendable {
+    public let isEligible: Bool
+    public let reason: String
+
+    public init(isEligible: Bool, reason: String) {
+        self.isEligible = isEligible
+        self.reason = reason
+    }
+}
+
 public enum CommunityBarcodeRules {
     /// Source name that marks a community-pool match. Deliberately NOT a new
     /// `FoodSourceType` case: community entries ride `.custom`, so metadata stored by this
@@ -17,22 +27,41 @@ public enum CommunityBarcodeRules {
     public static let sourceName = "MyFitPlate Community"
 
     /// Contribution gate. Everything must pass before a correction leaves the device:
-    /// the feature flag, a non-empty barcode, the sanity checker (never pool data that
-    /// fails nutrition math), and the shared collection's field limits.
+    /// the feature flag, a non-empty barcode, shared collection field limits, and the
+    /// sanity checker (never pool data that fails nutrition math).
     public static func isEligibleForContribution(
         _ item: FoodItem,
         barcode: String,
         flagEnabled: Bool
     ) -> Bool {
-        guard flagEnabled else { return false }
-        guard !BarcodeCorrectionRules.normalizedBarcode(barcode).isEmpty else { return false }
-        guard !FoodDataSanity.isSuspicious(item) else { return false }
+        contributionDecision(item, barcode: barcode, flagEnabled: flagEnabled).isEligible
+    }
 
+    public static func contributionDecision(
+        _ item: FoodItem,
+        barcode: String,
+        flagEnabled: Bool
+    ) -> CommunityBarcodeContributionDecision {
+        guard flagEnabled else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "feature_flag_disabled")
+        }
+        guard !BarcodeCorrectionRules.normalizedBarcode(barcode).isEmpty else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "empty_barcode")
+        }
         let trimmedName = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty, trimmedName.count <= 140 else { return false }
-        guard item.calories >= 0, item.calories <= 5000 else { return false }
-        guard [item.protein, item.carbs, item.fats].allSatisfy({ $0 >= 0 && $0 <= 1000 }) else { return false }
-        return true
+        guard !trimmedName.isEmpty, trimmedName.count <= 140 else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "invalid_name")
+        }
+        guard item.calories >= 0, item.calories <= 5000 else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "calories_out_of_range")
+        }
+        guard [item.protein, item.carbs, item.fats].allSatisfy({ $0 >= 0 && $0 <= 1000 }) else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "macros_out_of_range")
+        }
+        guard !FoodDataSanity.isSuspicious(item) else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "suspicious_food")
+        }
+        return CommunityBarcodeContributionDecision(isEligible: true, reason: "eligible")
     }
 
     /// Builds the community-pool match returned by a lookup, from the fields the shared

@@ -32,6 +32,7 @@ struct FoodDetailView: View {
     @State private var showingImagePicker = false
     @State private var showingCorrectionEditor = false
     @State private var hasLoggedSuspiciousData = false
+    @State private var hasLoggedTrustCardView = false
     @State private var isProcessingLabel = false
     @State private var scanError: (Bool, String) = (false, "")
 
@@ -156,6 +157,19 @@ struct FoodDetailView: View {
         ])
     }
 
+    private func logTrustCardViewedIfNeeded() {
+        guard !hasLoggedTrustCardView else { return }
+        hasLoggedTrustCardView = true
+        DIContainer.shared.analyticsManager?.logEvent("food_trust_card_viewed", parameters: [
+            "source": sourceDescriptor.sourceKey,
+            "trust_score": trustEvaluation.score,
+            "trust_level": trustEvaluation.level.rawValue,
+            "cross_verified": initialFoodItem.sourceMetadata?.crossVerifiedBy?.isEmpty == false,
+            "review_status": initialFoodItem.sourceMetadata?.reviewStatus.rawValue ?? "none",
+            "sanity_findings": FoodDataSanity.telemetryKinds(for: sanityCheckItem)
+        ])
+    }
+
     private func logSuspiciousDataIfNeeded() {
         guard !hasLoggedSuspiciousData else { return }
         let findings = sanityFindings
@@ -199,6 +213,8 @@ struct FoodDetailView: View {
                         FoodSourceConfidenceCard(
                             descriptor: sourceDescriptor,
                             evaluation: trustEvaluation,
+                            metadata: initialFoodItem.sourceMetadata,
+                            findings: sanityFindings,
                             onAction: trustEvaluation.action.map { actionTitle in
                                 {
                                     logTrustAction(actionTitle)
@@ -206,6 +222,7 @@ struct FoodDetailView: View {
                                 }
                             }
                         )
+                        .onAppear(perform: logTrustCardViewedIfNeeded)
 
                         if shouldShowBarcodeCorrectionCard {
                             FoodDetailBarcodeCorrectionCard(
@@ -652,8 +669,14 @@ struct FoodDetailView: View {
     private func contributeToCommunityPoolIfEligible(_ item: FoodItem) {
         guard let barcode = item.sourceMetadata?.barcode else { return }
         let flagEnabled = DIContainer.shared.featureFlagService?.boolValue(for: .communityBarcodeCorrections) ?? false
-        guard CommunityBarcodeRules.isEligibleForContribution(item, barcode: barcode, flagEnabled: flagEnabled),
-              let store = DIContainer.shared.communityBarcodeStore else { return }
+        let decision = CommunityBarcodeRules.contributionDecision(item, barcode: barcode, flagEnabled: flagEnabled)
+        DIContainer.shared.analyticsManager?.logEvent("community_barcode_contribution_evaluated", parameters: [
+            "eligible": decision.isEligible,
+            "reason": decision.reason,
+            "flag_enabled": flagEnabled,
+            "source": sourceDescriptor.sourceKey
+        ])
+        guard decision.isEligible, let store = DIContainer.shared.communityBarcodeStore else { return }
         Task {
             await store.contribute(item, barcode: barcode)
         }
@@ -876,6 +899,8 @@ struct FoodDetailView: View {
 private struct FoodSourceConfidenceCard: View {
     let descriptor: FoodSourceDescriptor
     let evaluation: FoodTrustEvaluation
+    let metadata: FoodSourceMetadata?
+    let findings: [FoodDataSanity.Finding]
     let onAction: (() -> Void)?
 
     private var tint: Color {
@@ -887,6 +912,63 @@ private struct FoodSourceConfidenceCard: View {
         case .low:
             return .red
         }
+    }
+
+    private var sourceName: String {
+        metadata?.sourceName ?? descriptor.title
+    }
+
+    private var crossVerificationText: String {
+        guard let sources = metadata?.crossVerifiedBy, !sources.isEmpty else {
+            return descriptor.isEstimated ? "Estimate only" : "Single-source match"
+        }
+        return "Verified with \(sources.prefix(2).joined(separator: ", "))"
+    }
+
+    private var crossVerificationTint: Color {
+        metadata?.crossVerifiedBy?.isEmpty == false ? .accentPositive : Color(UIColor.secondaryLabel)
+    }
+
+    private var reviewText: String {
+        switch metadata?.reviewStatus {
+        case .userEdited:
+            return "Edited by you"
+        case .userConfirmed:
+            return "Confirmed by you"
+        case .notRequired:
+            return "No review needed"
+        case .unreviewed, nil:
+            return "Not reviewed yet"
+        }
+    }
+
+    private var reviewTint: Color {
+        switch metadata?.reviewStatus {
+        case .userEdited, .userConfirmed:
+            return .accentPositive
+        case .notRequired:
+            return Color(UIColor.secondaryLabel)
+        case .unreviewed, nil:
+            return descriptor.isEstimated ? .orange : Color(UIColor.secondaryLabel)
+        }
+    }
+
+    private var sanityText: String {
+        let warningCount = findings.filter { $0.severity == .warning }.count
+        if warningCount > 0 {
+            return warningCount == 1 ? "1 warning" : "\(warningCount) warnings"
+        }
+        if findings.isEmpty {
+            return "No math flags"
+        }
+        return "Worth a look"
+    }
+
+    private var sanityTint: Color {
+        if findings.contains(where: { $0.severity == .warning }) {
+            return .red
+        }
+        return findings.isEmpty ? .accentPositive : .orange
     }
 
     var body: some View {
@@ -956,6 +1038,13 @@ private struct FoodSourceConfidenceCard: View {
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .fixedSize(horizontal: false, vertical: true)
 
+                VStack(spacing: 7) {
+                    trustFactRow(icon: "tag.fill", title: "Source", value: sourceName, rowTint: tint)
+                    trustFactRow(icon: "checkmark.seal.fill", title: "Check", value: crossVerificationText, rowTint: crossVerificationTint)
+                    trustFactRow(icon: "person.crop.circle.badge.checkmark", title: "Review", value: reviewText, rowTint: reviewTint)
+                    trustFactRow(icon: "checkmark.shield.fill", title: "Sanity", value: sanityText, rowTint: sanityTint)
+                }
+
                 ForEach(Array(evaluation.reasons.prefix(3)), id: \.self) { reason in
                     Label(reason, systemImage: "checkmark.circle.fill")
                         .appFont(size: 11, weight: .semibold)
@@ -981,5 +1070,31 @@ private struct FoodSourceConfidenceCard: View {
         .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(descriptor.title). \(descriptor.confidence). \(evaluation.label). \(evaluation.summary)")
+    }
+
+    private func trustFactRow(icon: String, title: String, value: String, rowTint: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .appFont(size: 11, weight: .bold)
+                .foregroundColor(rowTint)
+                .frame(width: 22, height: 22)
+                .background(rowTint.opacity(0.10), in: Circle())
+
+            Text(title)
+                .appFont(size: 11, weight: .bold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .frame(width: 44, alignment: .leading)
+
+            Text(value)
+                .appFont(size: 11, weight: .semibold)
+                .foregroundColor(.textPrimary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background(Color.backgroundPrimary.opacity(0.52), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }

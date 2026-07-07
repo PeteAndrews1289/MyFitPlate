@@ -175,11 +175,15 @@ class FoodSearchViewModel: ObservableObject {
         }
     }
 
-    func quickLog(food: FoodItem) {
+    func quickLog(food: FoodItem, source: String = "quick_log") {
         guard let service = dailyLogService else { return }
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let sourceFoodID = food.id
         let mealName = selectedMeal
+        DIContainer.shared.analyticsManager?.logEvent("quick_log_tapped", parameters: [
+            "source": source,
+            "meal": mealName
+        ])
 
         quickLoggedFoodIDs.insert(sourceFoodID)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
@@ -196,7 +200,7 @@ class FoodSearchViewModel: ObservableObject {
                 date: service.activelyViewedDate,
                 mealName: mealName,
                 foodItems: [itemToLog],
-                source: "quick_log"
+                source: source
             )
         }
     }
@@ -251,6 +255,11 @@ class FoodSearchViewModel: ObservableObject {
             foodItems: itemsToLog,
             source: "repeat_yesterday_meal"
         )
+        DIContainer.shared.analyticsManager?.logEvent("repeat_yesterday_logged", parameters: [
+            "scope": "meal",
+            "meal": selectedMeal,
+            "item_count": itemsToLog.count
+        ])
 
         HapticManager.instance.feedback(.medium)
     }
@@ -264,6 +273,10 @@ class FoodSearchViewModel: ObservableObject {
         }
 
         service.repeatFoods(from: yesterday, to: service.activelyViewedDate, for: userID)
+        DIContainer.shared.analyticsManager?.logEvent("repeat_yesterday_logged", parameters: [
+            "scope": "day",
+            "item_count": yesterdaysDayItems.count
+        ])
         HapticManager.instance.feedback(.medium)
     }
 

@@ -15,7 +15,7 @@ final class AdaptiveGoalServiceTests: XCTestCase {
     func testExpenditureSnapshotProducesHighConfidenceStableTDEE() throws {
         let snapshot = try XCTUnwrap(AdaptiveGoalService.expenditureSnapshot(
             weightHistory: weightHistory(count: 21, startingWeight: 200),
-            dailyLogs: dailyLogs(count: 21, calories: 2_200),
+            dailyLogs: dailyLogs(count: 21, calories: 2_200, workoutsEvery: 3),
             today: today,
             calendar: calendar
         ))
@@ -26,6 +26,8 @@ final class AdaptiveGoalServiceTests: XCTestCase {
         assertOptionalEqual(snapshot.weightChangeRatePerDay, 0)
         assertOptionalEqual(snapshot.calculatedTDEE, 2_200)
         XCTAssertEqual(snapshot.dataConfidence, .high)
+        XCTAssertEqual(snapshot.validLogCount, 21)
+        XCTAssertEqual(snapshot.recentWorkoutCount, 7)
     }
 
     func testExpenditureSnapshotConfidenceThresholds() throws {
@@ -109,6 +111,77 @@ final class AdaptiveGoalServiceTests: XCTestCase {
         XCTAssertEqual(AdaptiveGoalService.DataConfidence.insufficient.colorName, "gray")
     }
 
+    func testWeeklyGoalProposalRaisesTargetAndExplainsInputs() throws {
+        let snapshot = try XCTUnwrap(AdaptiveGoalService.expenditureSnapshot(
+            weightHistory: weightHistory(count: 21, startingWeight: 200, dailyChange: -0.08),
+            dailyLogs: dailyLogs(count: 21, calories: 2_100, workoutsEvery: 4),
+            today: today,
+            calendar: calendar
+        ))
+
+        let proposal = try XCTUnwrap(AdaptiveGoalService.weeklyGoalProposal(
+            snapshot: snapshot,
+            currentCalories: 2_000,
+            goal: "Maintain",
+            gender: "Male",
+            proteinPercentage: 30,
+            carbsPercentage: 50,
+            fatsPercentage: 20
+        ))
+
+        XCTAssertTrue(proposal.shouldAdjust)
+        XCTAssertGreaterThan(proposal.proposedCalories, 2_000)
+        XCTAssertGreaterThan(proposal.calorieDelta, 50)
+        XCTAssertTrue(proposal.title.contains("Raise"))
+        XCTAssertEqual(proposal.trainingLoadLabel, "High")
+        XCTAssertEqual(proposal.confidence, .high)
+        XCTAssertTrue(proposal.reasons.contains { $0.contains("Food-log adherence") })
+        XCTAssertTrue(proposal.reasons.contains { $0.contains("Training load") })
+        XCTAssertEqual(proposal.macroGoals.protein, proposal.proposedCalories * 0.30 / 4, accuracy: 0.001)
+    }
+
+    func testWeeklyGoalProposalHoldsWhenCurrentTargetIsClose() throws {
+        let snapshot = try XCTUnwrap(AdaptiveGoalService.expenditureSnapshot(
+            weightHistory: weightHistory(count: 21, startingWeight: 180),
+            dailyLogs: dailyLogs(count: 21, calories: 2_200),
+            today: today,
+            calendar: calendar
+        ))
+
+        let proposal = try XCTUnwrap(AdaptiveGoalService.weeklyGoalProposal(
+            snapshot: snapshot,
+            currentCalories: 2_180,
+            goal: "Maintain",
+            gender: "Female",
+            proteinPercentage: 30,
+            carbsPercentage: 50,
+            fatsPercentage: 20
+        ))
+
+        XCTAssertFalse(proposal.shouldAdjust)
+        XCTAssertEqual(proposal.title, "Hold current target")
+        XCTAssertEqual(proposal.calorieDelta, 20, accuracy: 0.001)
+    }
+
+    func testWeeklyGoalProposalRequiresUsableConfidence() throws {
+        let snapshot = try XCTUnwrap(AdaptiveGoalService.expenditureSnapshot(
+            weightHistory: weightHistory(count: 7, startingWeight: 180),
+            dailyLogs: dailyLogs(count: 10, calories: 1_900),
+            today: today,
+            calendar: calendar
+        ))
+
+        XCTAssertNil(AdaptiveGoalService.weeklyGoalProposal(
+            snapshot: snapshot,
+            currentCalories: 1_900,
+            goal: "Lose",
+            gender: "Female",
+            proteinPercentage: 30,
+            carbsPercentage: 50,
+            fatsPercentage: 20
+        ))
+    }
+
     private func weightHistory(
         count: Int,
         startingWeight: Double,
@@ -124,7 +197,7 @@ final class AdaptiveGoalServiceTests: XCTestCase {
         }
     }
 
-    private func dailyLogs(count: Int, calories: Double) -> [DailyLog] {
+    private func dailyLogs(count: Int, calories: Double, workoutsEvery: Int? = nil) -> [DailyLog] {
         (0..<count).map { index in
             let daysAgo = count - 1 - index
             let food = FoodItem(
@@ -138,9 +211,17 @@ final class AdaptiveGoalServiceTests: XCTestCase {
             return DailyLog(
                 id: "log-\(index)",
                 date: day(daysAgo),
-                meals: [Meal(name: "Meals", foodItems: [food])]
+                meals: [Meal(name: "Meals", foodItems: [food])],
+                exercises: shouldIncludeWorkout(index: index, workoutsEvery: workoutsEvery)
+                    ? [LoggedExercise(name: "Workout", durationMinutes: 45, caloriesBurned: 250, date: day(daysAgo))]
+                    : []
             )
         }
+    }
+
+    private func shouldIncludeWorkout(index: Int, workoutsEvery: Int?) -> Bool {
+        guard let workoutsEvery, workoutsEvery > 0 else { return false }
+        return index % workoutsEvery == 0
     }
 
     private func day(_ daysAgo: Int) -> Date {

@@ -92,6 +92,15 @@ struct NutritionProgressView: View {
                 .sheet(isPresented: $showingAudit) {
                     NutritionAuditView(dailyLog: dailyLog, dailyLogBinding: $dailyLogService.currentDailyLog, date: dailyLog.date)
                 }
+            } else if !dailyLog.meals.flatMap(\.foodItems).isEmpty {
+                NutritionAuditLaunchButton {
+                    showingAudit = true
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, -6)
+                .sheet(isPresented: $showingAudit) {
+                    NutritionAuditView(dailyLog: dailyLog, dailyLogBinding: $dailyLogService.currentDailyLog, date: dailyLog.date)
+                }
             }
         }
         .padding(.bottom, 8)

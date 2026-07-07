@@ -54,11 +54,15 @@ struct HomeView: View {
     @State private var showingMenuScanner = false
     @State private var showingWeeklyRecap = false
     @State private var showingRecoveryFuelSearch = false
+    @State private var showingMFPImport = false
+    @AppStorage("mfpSwitcherPromptDismissed") private var mfpSwitcherPromptDismissed = false
+    @AppStorage("mfpSwitcherPromptSeen") private var mfpSwitcherPromptSeen = false
 
     // Streak inputs: past logged days fetched once per day; today joins live the moment
     // food is logged, so the flame ticks immediately.
     @State private var pastLoggedDays: [Date] = []
     @State private var lastStreakFetchDay: Date?
+    @State private var hasCheckedSwitcherHistory = false
 
     private var isMenuScannerEnabled: Bool {
         DIContainer.shared.featureFlagService?.isFeatureEnabled(.menuScanner) ?? FeatureFlag.menuScanner.defaultValue
@@ -133,11 +137,6 @@ struct HomeView: View {
                                     .padding(.horizontal)
                             }
 
-                            if let target = insightsService.currentRunRecoveryPrompt, !target.isExpired {
-                                runRecoveryBanner(for: target)
-                                    .padding(.horizontal)
-                            }
-
                             // DESIGN.md rule 1: the rings are Home's hero and always render —
                             // before anything is logged they show a zeroed day, which invites
                             // the first log instead of hiding the screen's whole answer.
@@ -151,6 +150,17 @@ struct HomeView: View {
                             )
                                 .padding(.horizontal)
                                 .id("dashboardHeader")
+
+                            if shouldShowTodayFuelPlan {
+                                todayFuelPlanCard(for: todayFuelPlan)
+                                    .padding(.horizontal)
+                            }
+
+                            if shouldOfferSwitcherPrompt {
+                                switcherPromptCard
+                                    .padding(.horizontal)
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
 
                             HomeQuickActionsView(
                                 showingWorkoutRoutines: $showingWorkoutRoutines,
@@ -184,7 +194,7 @@ struct HomeView: View {
                                 .padding(.horizontal)
                                 .id("dailyLog")
 
-                            if shouldOfferFillMyMacros {
+                            if shouldOfferFillMyMacros, todayFuelPlan.action == .none {
                                 fillMyMacrosCard
                                     .padding(.horizontal)
                             }
@@ -320,7 +330,15 @@ struct HomeView: View {
           }
           .sheet(isPresented: $showingSuggestionDetail) {
               if let suggestion = mealSuggestion {
-                  MealSuggestionDetailView(suggestion: suggestion, onLog: logMealSuggestion)
+                  MealSuggestionDetailView(
+                      suggestion: suggestion,
+                      pantryItemNames: pantryService.pantryItems.map(\.name),
+                      remainingCalories: remainingCaloriesToday,
+                      remainingProtein: remainingProteinToday,
+                      remainingCarbs: remainingCarbsToday,
+                      remainingFats: remainingFatsToday,
+                      onLog: logMealSuggestion
+                  )
               }
           }
           .sheet(isPresented: $showingCoachingDashboard) {
@@ -386,6 +404,11 @@ struct HomeView: View {
                   searchContext: "run_recovery"
               )
           }
+          .sheet(isPresented: $showingMFPImport) {
+              MFPImportView()
+                  .environmentObject(dailyLogService)
+                  .environmentObject(goalSettings)
+          }
           .onAppear(perform: onHomeViewAppear)
           .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
               // Check if we need to advance the day when app comes to foreground
@@ -422,7 +445,7 @@ struct HomeView: View {
 
     // MARK: - Logic
 
-    /// The recovery banner reads insightsService.currentRunRecoveryPrompt, but nothing
+    /// The Today fuel plan reads insightsService.currentRunRecoveryPrompt, but nothing
     /// computed it — the feature could never fire. Home evaluates on appear: any run
     /// finished in the last two hours (recorded or from a watch via HealthKit) feeds the
     /// 45-minute recovery window logic.
@@ -612,10 +635,108 @@ struct HomeView: View {
         LoggingStreak.isOnGraceDay(loggedDays: streakInputDays)
     }
 
+    private var shouldOfferSwitcherPrompt: Bool {
+        guard isToday,
+              hasCheckedSwitcherHistory,
+              !mfpSwitcherPromptDismissed else { return false }
+
+        let foodItemsLoggedToday = currentLogForSelectedDate?.meals.flatMap(\.foodItems).count ?? 0
+        return foodItemsLoggedToday == 0 && pastLoggedDays.isEmpty
+    }
+
+    private var switcherPromptCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "square.and.arrow.down")
+                    .appFont(size: 18, weight: .bold)
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Switching from MyFitnessPal?")
+                        .appFont(size: 17, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Bring your diary and weight history over. Days you log here stay untouched.")
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 10) {
+                Button(action: openSwitcherImport) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.and.arrow.down")
+                            .appFont(size: 13, weight: .bold)
+                        Text("Import history")
+                            .appFont(size: 14, weight: .bold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: dismissSwitcherPrompt) {
+                    Text("Not now")
+                        .appFont(size: 14, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Color.backgroundPrimary.opacity(0.75), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: 520, alignment: .leading)
+        .background(Color.backgroundSecondary.opacity(0.92), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.brandPrimary.opacity(0.16), lineWidth: 1)
+        )
+        .onAppear(perform: recordSwitcherPromptSeen)
+    }
+
+    private func recordSwitcherPromptSeen() {
+        guard !mfpSwitcherPromptSeen else { return }
+        mfpSwitcherPromptSeen = true
+        DIContainer.shared.analyticsManager?.logEvent("mfp_import_prompt_viewed", parameters: [
+            "surface": "home_empty_day"
+        ])
+    }
+
+    private func openSwitcherImport() {
+        HapticManager.instance.feedback(.light)
+        DIContainer.shared.analyticsManager?.logEvent("mfp_import_prompt_tapped", parameters: [
+            "surface": "home_empty_day"
+        ])
+        showingMFPImport = true
+    }
+
+    private func dismissSwitcherPrompt() {
+        HapticManager.instance.feedback(.light)
+        mfpSwitcherPromptDismissed = true
+        DIContainer.shared.analyticsManager?.logEvent("mfp_import_prompt_dismissed", parameters: [
+            "surface": "home_empty_day"
+        ])
+    }
+
     private func refreshStreakHistory() {
         let todayStart = Calendar.current.startOfDay(for: Date())
-        if let last = lastStreakFetchDay, Calendar.current.isDate(last, inSameDayAs: todayStart) { return }
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        if let last = lastStreakFetchDay, Calendar.current.isDate(last, inSameDayAs: todayStart) {
+            hasCheckedSwitcherHistory = true
+            return
+        }
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            hasCheckedSwitcherHistory = true
+            return
+        }
         lastStreakFetchDay = todayStart
 
         Task {
@@ -625,11 +746,43 @@ struct HomeView: View {
                     .filter { !$0.meals.flatMap(\.foodItems).isEmpty && !Calendar.current.isDateInToday($0.date) }
                     .map(\.date)
             }
+            hasCheckedSwitcherHistory = true
         }
     }
 
     private var remainingCaloriesToday: Double {
         max(0, (goalSettings.calories ?? 0) - (currentLogForSelectedDate?.totalCalories() ?? 0))
+    }
+
+    private var remainingProteinToday: Double {
+        max(0, goalSettings.protein - (currentLogForSelectedDate?.totalMacros().protein ?? 0))
+    }
+
+    private var remainingCarbsToday: Double {
+        max(0, goalSettings.carbs - (currentLogForSelectedDate?.totalMacros().carbs ?? 0))
+    }
+
+    private var remainingFatsToday: Double {
+        max(0, goalSettings.fats - (currentLogForSelectedDate?.totalMacros().fats ?? 0))
+    }
+
+    private var todayFuelPlan: TodayFuelPlan {
+        TodayFuelPlanRules.makePlan(
+            today: currentLogForSelectedDate,
+            goals: TodayFuelPlanGoals(
+                calories: goalSettings.calories ?? 0,
+                protein: goalSettings.protein,
+                carbs: goalSettings.carbs,
+                fats: goalSettings.fats
+            ),
+            runRecoveryTarget: insightsService.currentRunRecoveryPrompt,
+            now: Date()
+        )
+    }
+
+    private var shouldShowTodayFuelPlan: Bool {
+        guard isToday, (goalSettings.calories ?? 0) > 0 else { return false }
+        return todayFuelPlan.kind != .steadyDay || todayHasLoggedFood
     }
 
     /// "Fill my macros" appears when it can actually help: viewing today, from mid-afternoon
@@ -641,23 +794,216 @@ struct HomeView: View {
         return hour >= 15 && remainingCaloriesToday >= 150
     }
 
-    private var fillMyMacrosCard: some View {
-        Button(action: {
-            HapticManager.instance.feedback(.light)
-            Task {
-                let pantryNames = pantryService.pantryItems.map(\.name)
-                DIContainer.shared.analyticsManager?.logEvent("fill_my_macros_tapped", parameters: [
-                    "remaining_calories": Int(remainingCaloriesToday),
-                    "pantry_count": pantryNames.count
-                ])
-                if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
-                    self.mealSuggestion = suggestion
-                    self.showingSuggestionDetail = true
-                } else {
-                    // Never fail silently (the AI call needs a network round-trip).
-                    ToastManager.shared.showToast(message: "Maia couldn't build a meal right now. Check your connection and try again.")
+    private func todayFuelPlanCard(for plan: TodayFuelPlan) -> some View {
+        let icon = todayFuelPlanIcon(for: plan.kind)
+        let isGenerating = plan.action == .fillMacros && insightsService.isGeneratingSuggestion
+
+        return Button(action: {
+            handleTodayFuelPlan(plan)
+        }) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: icon.name)
+                        .appFont(size: 19, weight: .bold)
+                        .foregroundColor(icon.color)
+                        .frame(width: 40, height: 40)
+                        .background(icon.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 7) {
+                            Text(plan.statusLabel)
+                                .appFont(size: 11, weight: .bold)
+                                .foregroundColor(icon.color)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(icon.color.opacity(0.12), in: Capsule())
+
+                            Text("Today fuel plan")
+                                .appFont(size: 12, weight: .semibold)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
+                        }
+
+                        Text(plan.title)
+                            .appFont(size: 17, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(plan.summary)
+                            .appFont(size: 13, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if isGenerating {
+                        ProgressView()
+                    } else if plan.action != .none {
+                        Image(systemName: "chevron.right")
+                            .appFont(size: 14, weight: .bold)
+                            .foregroundColor(Color(UIColor.tertiaryLabel))
+                    }
+                }
+
+                Text(plan.detail)
+                    .appFont(size: 12, weight: .medium)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        todayFuelPlanMetricPill(
+                            title: plan.remainingCalories >= 0 ? "Budget" : "Over",
+                            value: "\(Int(abs(plan.remainingCalories).rounded()).formatted()) cal",
+                            color: plan.remainingCalories >= 0 ? .brandPrimary : .orange
+                        )
+
+                        if let protein = plan.targetProteinGrams {
+                            todayFuelPlanMetricPill(title: "Protein", value: "\(protein)g", color: .accentProtein)
+                        }
+                    }
+
+                    if plan.targetCarbGrams != nil || plan.targetWaterOunces != nil {
+                        HStack(spacing: 8) {
+                            if let carbs = plan.targetCarbGrams {
+                                todayFuelPlanMetricPill(title: "Carbs", value: "\(carbs)g", color: .accentCarbs)
+                            }
+
+                            if let water = plan.targetWaterOunces {
+                                todayFuelPlanMetricPill(title: "Water", value: "\(water) oz", color: .accentWater)
+                            }
+                        }
+                    }
+                }
+
+                if plan.action != .none {
+                    HStack(spacing: 6) {
+                        Text(plan.actionTitle)
+                            .appFont(size: 13, weight: .bold)
+                        Image(systemName: "arrow.right")
+                            .appFont(size: 12, weight: .bold)
+                    }
+                    .foregroundColor(.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.backgroundPrimary.opacity(0.82), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
             }
+            .padding(16)
+            .frame(maxWidth: 520, alignment: .leading)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(icon.color.opacity(0.16), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isGenerating)
+        .accessibilityHint(todayFuelPlanAccessibilityHint(for: plan))
+    }
+
+    private func todayFuelPlanMetricPill(title: String, value: String, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Text(value)
+                .appFont(size: 13, weight: .bold)
+                .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+
+            Text(title)
+                .appFont(size: 11, weight: .semibold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .frame(maxWidth: .infinity, minHeight: 34)
+        .padding(.horizontal, 8)
+        .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func todayFuelPlanIcon(for kind: TodayFuelPlan.Kind) -> (name: String, color: Color) {
+        switch kind {
+        case .runRecovery:
+            return ("bolt.heart.fill", .accentSignal)
+        case .workoutRecovery:
+            return ("figure.strengthtraining.traditional", .brandPrimary)
+        case .proteinCatchUp:
+            return ("fork.knife.circle.fill", .accentProtein)
+        case .planDinner:
+            return ("moon.stars.fill", .accentCarbs)
+        case .overTargetReview:
+            return ("exclamationmark.triangle.fill", .orange)
+        case .steadyDay:
+            return ("checkmark.circle.fill", .accentPositive)
+        }
+    }
+
+    private func todayFuelPlanAccessibilityHint(for plan: TodayFuelPlan) -> String {
+        switch plan.action {
+        case .openRecoverySearch:
+            return "Opens food search for recovery options."
+        case .fillMacros:
+            return "Asks Maia to suggest a meal for your remaining targets."
+        case .reviewDay:
+            return "Opens today's nutrition review."
+        case .none:
+            return "No action needed right now."
+        }
+    }
+
+    private func handleTodayFuelPlan(_ plan: TodayFuelPlan) {
+        guard plan.action != .none else { return }
+        HapticManager.instance.feedback(.light)
+        DIContainer.shared.analyticsManager?.logEvent("today_fuel_plan_tapped", parameters: [
+            "kind": plan.kind.rawValue,
+            "action": plan.action.rawValue,
+            "remaining_calories": Int(plan.remainingCalories.rounded()),
+            "target_protein": plan.targetProteinGrams ?? 0,
+            "target_carbs": plan.targetCarbGrams ?? 0
+        ])
+
+        switch plan.action {
+        case .openRecoverySearch:
+            showingRecoveryFuelSearch = true
+        case .fillMacros:
+            generateFillMacrosSuggestion(source: "today_fuel_plan", includeHaptic: false)
+        case .reviewDay:
+            if currentLogForSelectedDate != nil {
+                showingNutritionAudit = true
+            } else {
+                ToastManager.shared.showToast(message: "Nothing to review yet.")
+            }
+        case .none:
+            break
+        }
+    }
+
+    private func generateFillMacrosSuggestion(source: String, includeHaptic: Bool = true) {
+        if includeHaptic {
+            HapticManager.instance.feedback(.light)
+        }
+
+        Task {
+            let pantryNames = pantryService.pantryItems.map(\.name)
+            DIContainer.shared.analyticsManager?.logEvent("fill_my_macros_tapped", parameters: [
+                "source": source,
+                "remaining_calories": Int(remainingCaloriesToday),
+                "pantry_count": pantryNames.count
+            ])
+            if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
+                self.mealSuggestion = suggestion
+                self.showingSuggestionDetail = true
+            } else {
+                // Never fail silently (the AI call needs a network round-trip).
+                ToastManager.shared.showToast(message: "Maia couldn't build a meal right now. Check your connection and try again.")
+            }
+        }
+    }
+
+    private var fillMyMacrosCard: some View {
+        Button(action: {
+            generateFillMacrosSuggestion(source: "home_fill_macros_card")
         }) {
             HStack(spacing: 12) {
                 Image(systemName: "fork.knife.circle")
@@ -758,86 +1104,6 @@ struct HomeView: View {
                 Image(systemName: "chevron.right")
                     .appFont(size: 14, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
-            }
-            .padding(16)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .background(Color.backgroundSecondary.opacity(0.70), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func runRecoveryBanner(for target: RunRecoveryTarget) -> some View {
-        Button(action: {
-            HapticManager.instance.feedback(.light)
-            showingRecoveryFuelSearch = true
-        }) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    Image(systemName: "bolt.heart.fill")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.accentSignal)
-                        .frame(width: 38, height: 38)
-                        .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text("Run recovery window")
-                                .appFont(size: 16, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                            Text("• \(target.remainingMinutes) min left")
-                                .appFont(size: 12, weight: .semibold)
-                                .foregroundColor(.accentSignal)
-                                .monospacedDigit()
-                        }
-                        Text("Log fuel within 45 min to optimize muscle synthesis")
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .appFont(size: 14, weight: .bold)
-                        .foregroundColor(Color(UIColor.tertiaryLabel))
-                }
-
-                HStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        Text("\(target.targetCarbGrams)g")
-                            .appFont(size: 13, weight: .bold)
-                            .foregroundColor(.accentCarbs)
-                        Text("carbs")
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-                    HStack(spacing: 4) {
-                        Text("\(target.targetProteinGrams)g")
-                            .appFont(size: 13, weight: .bold)
-                            .foregroundColor(.accentProtein)
-                        Text("protein")
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-                    HStack(spacing: 4) {
-                        Text("\(target.rehydrateMilliLiters) mL")
-                            .appFont(size: 13, weight: .bold)
-                            .foregroundColor(.accentWater)
-                        Text("water")
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                }
             }
             .padding(16)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))

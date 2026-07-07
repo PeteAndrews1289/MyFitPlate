@@ -38,6 +38,7 @@ struct AddFoodView: View {
 
     @State private var showingImagePicker = false
     @State private var isProcessingLabel = false
+    @State private var hasScannedNutritionLabel = false
     @State private var scanError: (Bool, String) = (false, "")
 
     // MARK: - Robust Initializer
@@ -180,12 +181,34 @@ struct AddFoodView: View {
         return "Macros imply \(macroCalories.formatted()) cal, so this estimate will log as \(macroCalories.formatted()) cal instead of \(loggedCalories.formatted())."
     }
 
+    private var correctionBarcode: String? {
+        let normalized = BarcodeCorrectionRules.normalizedBarcode(initialFoodItem.sourceMetadata?.barcode ?? "")
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private var isBarcodeCorrectionFlow: Bool {
+        source == "manual_barcode_create" && correctionBarcode != nil
+    }
+
+    private var communityCorrectionSharingEnabled: Bool {
+        DIContainer.shared.featureFlagService?.boolValue(for: .communityBarcodeCorrections) ?? false
+    }
+
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(spacing: 16) {
                         ManualFoodIdentityCard(foodName: $foodName)
+
+                        if isBarcodeCorrectionFlow, let correctionBarcode {
+                            ManualBarcodeCorrectionCard(
+                                barcode: correctionBarcode,
+                                hasScannedLabel: hasScannedNutritionLabel,
+                                communitySharingEnabled: communityCorrectionSharingEnabled,
+                                scanAction: beginNutritionLabelScan
+                            )
+                        }
 
                         if isLoadingDetails && !isLoggedItem && source != "recent_tap" {
                             ManualFoodLoadingCard()
@@ -263,14 +286,17 @@ struct AddFoodView: View {
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(sourceType: .camera) { image in
                 isProcessingLabel = true
+                logLabelScanStarted()
                 DIContainer.shared.analyticsManager.log(.aiFeatureUsed, ["feature": AIFeature.nutritionLabel.rawValue])
                 imageModel.parseNutritionLabel(from: image) { result in
                     isProcessingLabel = false
                     switch result {
                     case .success(let nutrition):
                         handleScannedNutrition(nutrition)
+                        logLabelScanCompleted(result: "success")
                         bannerService.showBanner(title: "Success", message: "Nutrition label scanned successfully", iconName: "checkmark.circle.fill", iconColor: .accentPositive)
                     case .failure(let error):
+                        logLabelScanCompleted(result: "failure")
                         bannerService.showBanner(
                             title: "Scan error",
                             message: "Couldn't read label: \(error.localizedDescription)",
@@ -374,7 +400,7 @@ struct AddFoodView: View {
             )
 
             Button {
-                showingImagePicker = true
+                beginNutritionLabelScan()
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "camera.viewfinder")
@@ -409,11 +435,30 @@ struct AddFoodView: View {
     }
 
     private var labelScannerButton: some View {
-        Button { showingImagePicker = true } label: {
+        Button { beginNutritionLabelScan() } label: {
             Label("Scan nutrition label", systemImage: "camera.fill")
         }
         .tint(.blue)
         .padding(.top, 5)
+    }
+
+    private func beginNutritionLabelScan() {
+        showingImagePicker = true
+    }
+
+    private func logLabelScanStarted() {
+        guard isBarcodeCorrectionFlow else { return }
+        DIContainer.shared.analyticsManager?.logEvent("barcode_label_correction_scan_started", parameters: [
+            "barcode_length": correctionBarcode?.count ?? 0
+        ])
+    }
+
+    private func logLabelScanCompleted(result: String) {
+        guard isBarcodeCorrectionFlow else { return }
+        DIContainer.shared.analyticsManager?.logEvent("barcode_label_correction_scan_completed", parameters: [
+            "result": result,
+            "barcode_length": correctionBarcode?.count ?? 0
+        ])
     }
 
     private func syncEditableFieldsFromSelectedServing() {
@@ -483,6 +528,7 @@ struct AddFoodView: View {
     }
 
     private func handleScannedNutrition(_ data: NutritionLabelData) {
+        hasScannedNutritionLabel = true
         self.foodName = data.foodName
         let scanned = ServingSizeOption(description: "Scanned label", servingWeightGrams: nil, calories: data.calories, protein: data.protein, carbs: data.carbs, fats: data.fats, saturatedFat: data.saturatedFat, polyunsaturatedFat: data.polyunsaturatedFat, monounsaturatedFat: data.monounsaturatedFat, fiber: data.fiber, calcium: data.calcium, iron: data.iron, potassium: data.potassium, sodium: data.sodium, vitaminA: data.vitaminA, vitaminC: data.vitaminC, vitaminD: data.vitaminD, vitaminB12: data.vitaminB12, folate: data.folate, magnesium: data.magnesium, phosphorus: data.phosphorus, zinc: data.zinc, copper: data.copper, manganese: data.manganese, selenium: data.selenium, vitaminB1: data.vitaminB1, vitaminB2: data.vitaminB2, vitaminB3: data.vitaminB3, vitaminB5: data.vitaminB5, vitaminB6: data.vitaminB6, vitaminE: data.vitaminE, vitaminK: data.vitaminK)
         self.availableServings.insert(scanned, at: 0)
@@ -531,17 +577,47 @@ struct AddFoodView: View {
     }
 
     private func rememberManualBarcodeCorrectionIfNeeded(_ foodItem: FoodItem, userID: String) {
-        guard source == "manual_barcode_create",
-              foodItem.sourceMetadata?.barcode?.isEmpty == false else {
+        guard isBarcodeCorrectionFlow,
+              let correctionBarcode else {
             return
         }
 
-        let correction = foodItem.savedAsCustomFood(
-            barcode: foodItem.sourceMetadata?.barcode,
+        var correction = foodItem.savedAsCustomFood(
+            barcode: correctionBarcode,
             originalItem: initialFoodItem
         )
+        if hasScannedNutritionLabel {
+            correction.sourceMetadata?.notes = "Created from a scanned nutrition label after a barcode lookup miss."
+        }
         DIContainer.shared.analyticsManager.barcodeMissRecovery(.manualFoodCreated(correction))
-        dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: correction) { _ in }
+        DIContainer.shared.analyticsManager?.logEvent("barcode_label_correction_saved", parameters: [
+            "barcode_length": correctionBarcode.count,
+            "used_label_scan": hasScannedNutritionLabel,
+            "community_flag_enabled": communityCorrectionSharingEnabled
+        ])
+        dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: correction) { success in
+            if success {
+                contributeToCommunityPoolIfEligible(correction)
+            }
+        }
+    }
+
+    /// Shares a saved barcode correction with the community pool when the feature flag is
+    /// enabled and the item passes local sanity checks. Best-effort: failed writes stay silent.
+    private func contributeToCommunityPoolIfEligible(_ item: FoodItem) {
+        guard let barcode = item.sourceMetadata?.barcode else { return }
+        let flagEnabled = communityCorrectionSharingEnabled
+        let decision = CommunityBarcodeRules.contributionDecision(item, barcode: barcode, flagEnabled: flagEnabled)
+        DIContainer.shared.analyticsManager?.logEvent("community_barcode_contribution_evaluated", parameters: [
+            "eligible": decision.isEligible,
+            "reason": decision.reason,
+            "flag_enabled": flagEnabled,
+            "source": source
+        ])
+        guard decision.isEligible, let store = DIContainer.shared.communityBarcodeStore else { return }
+        Task {
+            await store.contribute(item, barcode: barcode)
+        }
     }
 
     // Save/Unsave Custom Food Logic
@@ -589,17 +665,21 @@ struct AddFoodView: View {
             vitaminE: n.vitaminE,
             vitaminK: n.vitaminK
         )
-        let itemToSave = rawItemToSave
+        var itemToSave = rawItemToSave
             .normalizedForEstimatedSource(source)
             .savedAsCustomFood(
                 barcode: initialFoodItem.sourceMetadata?.barcode,
                 originalItem: initialFoodItem
             )
+        if hasScannedNutritionLabel {
+            itemToSave.sourceMetadata?.notes = "Created from a scanned nutrition label."
+        }
         dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
             if success {
                 isSavedAsCustom = true
                 customFoodForAction = itemToSave
                 bannerService.showBanner(title: "Saved", message: "Saved to My Foods")
+                contributeToCommunityPoolIfEligible(itemToSave)
             }
         }
     }
@@ -664,6 +744,77 @@ private struct ManualFoodIdentityCard: View {
         }
         .padding(18)
         .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
+private struct ManualBarcodeCorrectionCard: View {
+    let barcode: String
+    let hasScannedLabel: Bool
+    let communitySharingEnabled: Bool
+    let scanAction: () -> Void
+
+    private var barcodeDisplay: String {
+        guard barcode.count > 4 else { return barcode }
+        return "ending \(barcode.suffix(4))"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "barcode.viewfinder")
+                    .appFont(size: 18, weight: .bold)
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Barcode correction")
+                        .appFont(size: 17, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text("Log this food once and future scans for barcode \(barcodeDisplay) will use your saved label.")
+                        .appFont(size: 12, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                Label(hasScannedLabel ? "Label scanned" : "Label not scanned", systemImage: hasScannedLabel ? "checkmark.seal.fill" : "camera.viewfinder")
+                    .appFont(size: 11, weight: .bold)
+                    .foregroundColor(hasScannedLabel ? .accentPositive : .orange)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background((hasScannedLabel ? Color.accentPositive : Color.orange).opacity(0.10), in: Capsule())
+
+                if communitySharingEnabled {
+                    Label("Eligible fixes may help future scans", systemImage: "person.2.fill")
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundColor(.accentProtein)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(Color.accentProtein.opacity(0.10), in: Capsule())
+                }
+            }
+
+            Button(action: scanAction) {
+                Label(hasScannedLabel ? "Scan label again" : "Scan nutrition label", systemImage: "camera.fill")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(16)
+        .background(Color.brandPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.brandPrimary.opacity(0.16), lineWidth: 1)
+        )
     }
 }
 

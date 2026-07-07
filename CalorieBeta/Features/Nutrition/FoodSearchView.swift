@@ -31,6 +31,9 @@ struct FoodSearchView: View {
     @State private var scannedFoodItem: FoodItem?
     @State private var scannedFoodSource: String = "barcode_result"
     @State private var pendingManualBarcode: String?
+    @State private var showingBarcodeRecovery = false
+    @State private var barcodeRecoveryMessage = ""
+    @State private var barcodeRecoveryResolved = false
     @State private var scanError: (Bool, String) = (false, "")
 
     private let foodAPIService = FatSecretFoodAPIService()
@@ -66,7 +69,7 @@ struct FoodSearchView: View {
                         viewModel.fetchYesterdayMeal(userID: userID)
                     }
                 }
-                .sheet(isPresented: $showingAddFoodManually) {
+                .sheet(isPresented: $showingAddFoodManually, onDismiss: { pendingManualBarcode = nil }) {
                     AddFoodView(
                         initialFoodItem: manualFoodSeed(),
                         dailyLog: $dailyLogService.currentDailyLog,
@@ -106,7 +109,10 @@ struct FoodSearchView: View {
                                 }
                                 DIContainer.shared.analyticsManager.barcodeLookupOutcome(.miss(barcode: barcode))
                                 self.isSearchingAfterScan = false
-                                self.scanError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Create it from the label, use camera capture, or search by name.")
+                                self.presentBarcodeRecovery(
+                                    message: "No match found in FatSecret, USDA, or Open Food Facts.",
+                                    barcode: barcode
+                                )
                             }
                         },
                         onBarcodesDetected: { barcodes in
@@ -123,7 +129,10 @@ struct FoodSearchView: View {
                                 if !foundItems.isEmpty {
                                     self.estimatedFoodItemsWrapper = IdentifiableFoodItems(items: foundItems)
                                 } else {
-                                    self.scanError = (true, "No items in the rapid scan tray could be matched to our databases.")
+                                    self.presentBarcodeRecovery(
+                                        message: "No items in the rapid scan tray could be matched to our databases.",
+                                        barcode: barcodes.first
+                                    )
                                 }
                             }
                         }
@@ -191,26 +200,18 @@ struct FoodSearchView: View {
                 .sheet(item: $estimatedMenuWrapper) { wrapper in
                      AIMenuSelectionView(estimatedItems: .constant(wrapper.items))
                 }
+                .sheet(isPresented: $showingBarcodeRecovery, onDismiss: handleBarcodeRecoveryDismissed) {
+                    BarcodeMissRecoveryView(
+                        message: barcodeRecoveryMessage,
+                        barcode: pendingManualBarcode,
+                        createFromLabel: createFoodFromBarcodeMiss,
+                        useCamera: useCameraFromBarcodeMiss,
+                        searchByName: searchByNameFromBarcodeMiss,
+                        dismiss: dismissBarcodeRecovery
+                    )
+                }
                 .alert("Scan error", isPresented: $scanError.0) {
-                    Button("Create food") {
-                        DIContainer.shared.analyticsManager.barcodeMissRecovery(
-                            .selected(action: "create_food", barcode: pendingManualBarcode)
-                        )
-                        showingAddFoodManually = true
-                    }
-                    Button("Use camera") {
-                        DIContainer.shared.analyticsManager.barcodeMissRecovery(
-                            .selected(action: "use_camera", barcode: pendingManualBarcode)
-                        )
-                        pendingManualBarcode = nil
-                        showingImagePicker = true
-                    }
-                    Button("OK", role: .cancel) {
-                        DIContainer.shared.analyticsManager.barcodeMissRecovery(
-                            .selected(action: "dismissed", barcode: pendingManualBarcode)
-                        )
-                        pendingManualBarcode = nil
-                    }
+                    Button("OK", role: .cancel) {}
                 } message: {
                     Text(scanError.1)
                 }
@@ -233,13 +234,13 @@ struct FoodSearchView: View {
         if onFoodItemSelected == nil && !viewModel.isSearching && !viewModel.recommendedFoods.isEmpty {
             FoodHorizontalScroller(
                 title: "Smart history",
-                subtitle: "Based on \(viewModel.selectedMeal) and past logging.",
+                subtitle: "One tap on + repeats your usual \(viewModel.selectedMeal.lowercased()).",
                 foods: viewModel.recommendedFoods,
                 quickLoggedFoodIDs: viewModel.quickLoggedFoodIDs,
                 emptyTitle: "",
                 emptyMessage: "",
                 onSelect: { handleSelection(food: $0, source: "recent_tap") },
-                onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil,
+                onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "smart_history_quick_log") } : nil,
                 source: "recent_tap"
             )
         }
@@ -317,17 +318,83 @@ struct FoodSearchView: View {
                 textAction: { showingAITextLog = true },
                 valueRadarAction: { showingValueRadar = true }
             )
+        }
+    }
 
-            if viewModel.hasYesterdayFoods {
-                YesterdayLogActions(
-                    selectedMeal: viewModel.selectedMeal,
-                    mealItemCount: viewModel.yesterdaysMealItems.count,
-                    mealCalories: viewModel.yesterdaysMealItems.reduce(0.0) { $0 + $1.calories },
-                    dayItemCount: viewModel.yesterdaysDayItems.count,
-                    dayCalories: viewModel.yesterdaysDayItems.reduce(0.0) { $0 + $1.calories },
-                    onLogMeal: { viewModel.logYesterdayMeal() },
-                    onLogDay: { viewModel.logYesterdayDay() }
-                )
+    private var hasFastRepeatOptions: Bool {
+        onFoodItemSelected == nil &&
+        !viewModel.isSearching &&
+        (viewModel.hasYesterdayFoods ||
+         !viewModel.recommendedFoods.isEmpty ||
+         !viewModel.savedFoods.isEmpty ||
+         !viewModel.recentFoods.isEmpty)
+    }
+
+    @ViewBuilder
+    private var fastRepeatContent: some View {
+        if hasFastRepeatOptions {
+            VStack(alignment: .leading, spacing: 13) {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .appFont(size: 17, weight: .bold)
+                        .foregroundColor(.brandPrimary)
+                        .frame(width: 36, height: 36)
+                        .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Repeat faster")
+                            .appFont(size: 18, weight: .bold)
+                            .foregroundColor(.textPrimary)
+
+                        Text("Your history is the fastest way to log today.")
+                            .appFont(size: 12, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                if viewModel.hasYesterdayFoods {
+                    YesterdayLogActions(
+                        selectedMeal: viewModel.selectedMeal,
+                        mealItemCount: viewModel.yesterdaysMealItems.count,
+                        mealCalories: viewModel.yesterdaysMealItems.reduce(0.0) { $0 + $1.calories },
+                        dayItemCount: viewModel.yesterdaysDayItems.count,
+                        dayCalories: viewModel.yesterdaysDayItems.reduce(0.0) { $0 + $1.calories },
+                        onLogMeal: { viewModel.logYesterdayMeal() },
+                        onLogDay: { viewModel.logYesterdayDay() }
+                    )
+                }
+
+                smartHistoryContent
+
+                if !viewModel.savedFoods.isEmpty {
+                    FoodHorizontalScroller(
+                        title: "My foods",
+                        subtitle: "Saved foods with your usual serving.",
+                        foods: viewModel.savedFoods,
+                        quickLoggedFoodIDs: viewModel.quickLoggedFoodIDs,
+                        emptyTitle: "",
+                        emptyMessage: "",
+                        onSelect: { handleSelection(food: $0, source: "custom_food") },
+                        onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "saved_food_quick_log") } : nil,
+                        source: "custom_food"
+                    )
+                }
+
+                if !viewModel.recentFoods.isEmpty {
+                    FoodHorizontalScroller(
+                        title: "Recent foods",
+                        subtitle: "Same foods again in two taps.",
+                        foods: viewModel.recentFoods,
+                        quickLoggedFoodIDs: viewModel.quickLoggedFoodIDs,
+                        emptyTitle: "",
+                        emptyMessage: "",
+                        onSelect: { handleSelection(food: $0, source: "recent_tap") },
+                        onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "recent_food_quick_log") } : nil,
+                        source: "recent_tap"
+                    )
+                }
             }
         }
     }
@@ -339,8 +406,8 @@ struct FoodSearchView: View {
             voiceRecordingBanner
         }
         mealTargetContent
+        fastRepeatContent
         actionGridContent
-        smartHistoryContent
     }
 
     @ViewBuilder
@@ -361,7 +428,7 @@ struct FoodSearchView: View {
                         source: viewModel.sourceForTrustedSearchResult($0)
                     )
                 },
-                onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil,
+                onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "best_match_quick_log") } : nil,
                 onDelete: nil,
                 sourceForFood: { viewModel.sourceForTrustedSearchResult($0) }
             )
@@ -390,7 +457,7 @@ struct FoodSearchView: View {
                 emptyTitle: "",
                 emptyMessage: "",
                 onSelect: { handleSelection(food: $0, source: "search_result") },
-                onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil,
+                onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "search_result_quick_log") } : nil,
                 onDelete: nil,
                 sourceForFood: { _ in "search_result" }
             )
@@ -407,7 +474,7 @@ struct FoodSearchView: View {
             emptyTitle: "No saved foods yet",
             emptyMessage: "Star foods from detail screens and they will appear here.",
             onSelect: { handleSelection(food: $0, source: "custom_food") },
-            onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil,
+            onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "saved_food_quick_log") } : nil,
             source: "custom_food"
         )
 
@@ -419,7 +486,7 @@ struct FoodSearchView: View {
             emptyTitle: "No recent foods",
             emptyMessage: "Foods you log will appear here for one-tap reuse.",
             onSelect: { handleSelection(food: $0, source: "recent_tap") },
-            onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0) } : nil,
+            onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "recent_food_quick_log") } : nil,
             source: "recent_tap"
         )
     }
@@ -428,6 +495,8 @@ struct FoodSearchView: View {
     private var searchOrSavedContent: some View {
         if viewModel.isSearching {
             searchingStateContent
+        } else if hasFastRepeatOptions {
+            EmptyView()
         } else {
             savedAndRecentFoodsContent
         }
@@ -472,6 +541,69 @@ struct FoodSearchView: View {
         } else if result.usedRelatedBarcode {
             ToastManager.shared.showToast(message: "Found a related barcode match.")
         }
+    }
+
+    private func presentBarcodeRecovery(message: String, barcode: String?) {
+        let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode ?? "")
+        pendingManualBarcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
+        barcodeRecoveryMessage = message
+        barcodeRecoveryResolved = false
+        showingBarcodeRecovery = true
+        DIContainer.shared.analyticsManager.barcodeMissRecovery(
+            .selected(action: "recovery_shown", barcode: pendingManualBarcode)
+        )
+    }
+
+    private func handleBarcodeRecoveryDismissed() {
+        if !barcodeRecoveryResolved {
+            DIContainer.shared.analyticsManager.barcodeMissRecovery(
+                .selected(action: "dismissed", barcode: pendingManualBarcode)
+            )
+            pendingManualBarcode = nil
+        }
+        barcodeRecoveryMessage = ""
+    }
+
+    private func resolveBarcodeRecovery(action: String) {
+        barcodeRecoveryResolved = true
+        DIContainer.shared.analyticsManager.barcodeMissRecovery(
+            .selected(action: action, barcode: pendingManualBarcode)
+        )
+        showingBarcodeRecovery = false
+    }
+
+    private func createFoodFromBarcodeMiss() {
+        resolveBarcodeRecovery(action: "create_from_label")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            showingAddFoodManually = true
+        }
+    }
+
+    private func useCameraFromBarcodeMiss() {
+        resolveBarcodeRecovery(action: "use_camera")
+        pendingManualBarcode = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            showingImagePicker = true
+        }
+    }
+
+    private func searchByNameFromBarcodeMiss() {
+        resolveBarcodeRecovery(action: "search_by_name")
+        pendingManualBarcode = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            viewModel.searchText = ""
+            viewModel.handleSearchQueryChange("")
+            ToastManager.shared.showToast(message: "Search by brand or product name.")
+        }
+    }
+
+    private func dismissBarcodeRecovery() {
+        barcodeRecoveryResolved = true
+        DIContainer.shared.analyticsManager.barcodeMissRecovery(
+            .selected(action: "dismissed", barcode: pendingManualBarcode)
+        )
+        pendingManualBarcode = nil
+        showingBarcodeRecovery = false
     }
 
     private func deleteRecent(food: FoodItem) {
@@ -562,5 +694,125 @@ struct FoodSearchView: View {
         guard state == .error else { return }
         scanError = (true, "Voice search needs microphone and speech recognition access. Enable both for MyFitPlate in Settings.")
         voiceLoggingService.acknowledgeError()
+    }
+}
+
+struct BarcodeMissRecoveryView: View {
+    let message: String
+    let barcode: String?
+    let createFromLabel: () -> Void
+    let useCamera: () -> Void
+    let searchByName: () -> Void
+    let dismiss: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Image(systemName: "barcode.viewfinder")
+                        .appFont(size: 24, weight: .bold)
+                        .foregroundColor(.brandPrimary)
+                        .frame(width: 54, height: 54)
+                        .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                    Text("Barcode not found")
+                        .appFont(size: 26, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text(message)
+                        .appFont(size: 14)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let barcode, !barcode.isEmpty {
+                        Text("Scanned \(barcode)")
+                            .appFont(size: 12, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.backgroundSecondary.opacity(0.78), in: Capsule())
+                    }
+                }
+
+                VStack(spacing: 10) {
+                    recoveryButton(
+                        icon: "camera.macro",
+                        title: "Create from label",
+                        subtitle: "Use the manual food screen and scan the nutrition label.",
+                        tint: .brandPrimary,
+                        action: createFromLabel
+                    )
+
+                    recoveryButton(
+                        icon: "camera.fill",
+                        title: "Use camera estimate",
+                        subtitle: "Photograph the food when the package data is missing.",
+                        tint: .accentProtein,
+                        action: useCamera
+                    )
+
+                    recoveryButton(
+                        icon: "magnifyingglass",
+                        title: "Search by name",
+                        subtitle: "Try the brand, product name, or a simpler food description.",
+                        tint: .accentSignal,
+                        action: searchByName
+                    )
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(22)
+            .frame(maxWidth: 560, alignment: .leading)
+            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Not now", action: dismiss)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func recoveryButton(icon: String, title: String, subtitle: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .appFont(size: 18, weight: .bold)
+                    .foregroundColor(tint)
+                    .frame(width: 44, height: 44)
+                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text(subtitle)
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .appFont(size: 12, weight: .bold)
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(subtitle)
+        .accessibilityAddTraits(.isButton)
     }
 }

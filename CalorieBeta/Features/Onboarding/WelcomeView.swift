@@ -24,7 +24,7 @@ struct WelcomeView: View {
                                 .foregroundColor(.textPrimary)
                                 .multilineTextAlignment(.center)
 
-                            Text("Nutrition, training, hydration, and Maia coaching in one daily command center.")
+                            Text("A food log you can trust, built for training days.")
                                 .appFont(size: 16)
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                                 .multilineTextAlignment(.center)
@@ -34,9 +34,9 @@ struct WelcomeView: View {
                     .padding(.top, 44)
 
                     VStack(spacing: 12) {
-                        WelcomeFeatureRow(icon: "fork.knife", title: "Log meals faster", subtitle: "Search, scan, describe, or use your camera.", color: .orange)
-                        WelcomeFeatureRow(icon: "chart.line.uptrend.xyaxis", title: "Understand your trends", subtitle: "Reports turn daily logs into useful guidance.", color: .orange)
-                        WelcomeFeatureRow(icon: "sparkles", title: "Coach with Maia", subtitle: "Ask for meal ideas, macro help, and nutrition estimates.", color: .purple)
+                        WelcomeFeatureRow(icon: "square.and.arrow.down", title: "Switch without starting over", subtitle: "Import MyFitnessPal diary and weight history.", color: .brandPrimary)
+                        WelcomeFeatureRow(icon: "checkmark.seal.fill", title: "Trust every entry", subtitle: "Barcode matches can be checked, corrected, and remembered.", color: .accentProtein)
+                        WelcomeFeatureRow(icon: "figure.run", title: "Fuel your training", subtitle: "Maia links food, recovery, lifting, and runs.", color: .accentSignal)
                     }
 
                     VStack(spacing: 16) {

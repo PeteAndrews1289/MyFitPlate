@@ -281,7 +281,13 @@ struct ContentView: View {
     @State private var isLoadingUserState = true
     @State private var shouldShowOnboardingSurvey = false
     @State private var shouldShowFeatureTour = false
+    @State private var shouldShowFirstSessionChoice = false
+    @State private var shouldShowFirstSessionMFPImport = false
+    @State private var shouldShowFirstSessionFoodSearch = false
     @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits: Bool = Locale.current.measurementSystem != .us
+    @AppStorage("firstSessionChoicePending") private var firstSessionChoicePending = false
+    @AppStorage("firstSessionChoiceCompleted") private var firstSessionChoiceCompleted = false
+    @AppStorage("firstSessionChoiceViewed") private var firstSessionChoiceViewed = false
 
     private var currentUserID: String? {
         DIContainer.shared.authService.currentUserID
@@ -317,6 +323,28 @@ struct ContentView: View {
         .withGlobalToast()
         .sheet(isPresented: $shouldShowFeatureTour) {
             FeatureTourView(isPresented: $shouldShowFeatureTour)
+        }
+        .sheet(isPresented: $shouldShowFirstSessionChoice, onDismiss: handleFirstSessionChoiceDismissed) {
+            FirstSessionChoiceView(
+                onImportHistory: { handleFirstSessionChoice(.importHistory) },
+                onLogFirstMeal: { handleFirstSessionChoice(.logFirstMeal) },
+                onExplore: { handleFirstSessionChoice(.explore) },
+                onViewed: recordFirstSessionChoiceViewed
+            )
+        }
+        .sheet(isPresented: $shouldShowFirstSessionMFPImport) {
+            MFPImportView()
+                .environmentObject(dailyLogService)
+                .environmentObject(goalSettings)
+        }
+        .sheet(isPresented: $shouldShowFirstSessionFoodSearch) {
+            FoodSearchView(
+                dailyLog: $dailyLogService.currentDailyLog,
+                onFoodItemLogged: {
+                    shouldShowFirstSessionFoodSearch = false
+                },
+                searchContext: "first_session_log"
+            )
         }
         .onOpenURL { url in
             AppCoordinator.shared.handle(url: url, appState: appState)
@@ -432,7 +460,15 @@ struct ContentView: View {
             goalSettings.updateUserAsOnboarded(userID: userID)
         }
         self.shouldShowOnboardingSurvey = false
-        self.shouldShowFeatureTour = true
+        self.firstSessionChoicePending = !firstSessionChoiceCompleted
+        self.loadMainUserData()
+        if firstSessionChoicePending {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                presentFirstSessionChoiceIfNeeded()
+            }
+        } else {
+            self.shouldShowFeatureTour = true
+        }
         NotificationManager.shared.requestDailyLogReminderAuthorization()
         ActivationFunnel.logOnce(ActivationFunnel.onboardingCompleted)
     }
@@ -443,6 +479,9 @@ struct ContentView: View {
         } else {
             self.isLoadingUserState = false
             self.shouldShowOnboardingSurvey = false
+            self.shouldShowFirstSessionChoice = false
+            self.shouldShowFirstSessionMFPImport = false
+            self.shouldShowFirstSessionFoodSearch = false
             self.pantryService.stopListening()
         }
     }
@@ -461,7 +500,10 @@ struct ContentView: View {
                  DispatchQueue.main.async {
                      self.shouldShowOnboardingSurvey = isFirstLogin
                      self.isLoadingUserState = false
-                     if !isFirstLogin { self.loadMainUserData() }
+                     if !isFirstLogin {
+                         self.loadMainUserData()
+                         self.presentFirstSessionChoiceIfNeeded()
+                     }
                  }
              }
         } else {
@@ -500,5 +542,166 @@ struct ContentView: View {
         }
         
         healthKitViewModel.checkAuthorizationStatus()
+    }
+
+    private func presentFirstSessionChoiceIfNeeded() {
+        guard appState.isUserLoggedIn,
+              !isLoadingUserState,
+              !shouldShowOnboardingSurvey,
+              firstSessionChoicePending,
+              !firstSessionChoiceCompleted else { return }
+        shouldShowFeatureTour = false
+        shouldShowFirstSessionChoice = true
+    }
+
+    private func recordFirstSessionChoiceViewed() {
+        guard !firstSessionChoiceViewed else { return }
+        firstSessionChoiceViewed = true
+        DIContainer.shared.analyticsManager?.logEvent("first_session_choice_viewed", parameters: nil)
+    }
+
+    private func handleFirstSessionChoiceDismissed() {
+        guard firstSessionChoicePending, !firstSessionChoiceCompleted else { return }
+        firstSessionChoicePending = false
+        firstSessionChoiceCompleted = true
+        DIContainer.shared.analyticsManager?.logEvent("first_session_choice_selected", parameters: [
+            "choice": FirstSessionChoice.explore.rawValue,
+            "dismissed": true
+        ])
+    }
+
+    private func handleFirstSessionChoice(_ choice: FirstSessionChoice) {
+        firstSessionChoicePending = false
+        firstSessionChoiceCompleted = true
+        DIContainer.shared.analyticsManager?.logEvent("first_session_choice_selected", parameters: [
+            "choice": choice.rawValue
+        ])
+        shouldShowFirstSessionChoice = false
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            switch choice {
+            case .importHistory:
+                shouldShowFirstSessionMFPImport = true
+            case .logFirstMeal:
+                appState.selectedTab = 0
+                shouldShowFirstSessionFoodSearch = true
+            case .explore:
+                shouldShowFeatureTour = true
+            }
+        }
+    }
+}
+
+private enum FirstSessionChoice: String {
+    case importHistory = "import_history"
+    case logFirstMeal = "log_first_meal"
+    case explore
+}
+
+private struct FirstSessionChoiceView: View {
+    let onImportHistory: () -> Void
+    let onLogFirstMeal: () -> Void
+    let onExplore: () -> Void
+    let onViewed: () -> Void
+
+    var body: some View {
+        ZStack {
+            AnimatedBackgroundView()
+
+            VStack(spacing: 22) {
+                VStack(spacing: 10) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .appFont(size: 28, weight: .bold)
+                        .foregroundColor(.brandPrimary)
+                        .frame(width: 62, height: 62)
+                        .background(Color.brandPrimary.opacity(0.12), in: Circle())
+
+                    Text("Start with your first win")
+                        .appFont(size: 28, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                        .multilineTextAlignment(.center)
+
+                    Text("Bring your history over or log one meal now so today has a real baseline.")
+                        .appFont(size: 15)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(spacing: 12) {
+                    firstSessionOption(
+                        icon: "square.and.arrow.down",
+                        title: "Import my history",
+                        subtitle: "Bring MyFitnessPal diary and weight history into MyFitPlate.",
+                        color: .brandPrimary,
+                        action: onImportHistory
+                    )
+
+                    firstSessionOption(
+                        icon: "fork.knife",
+                        title: "Log my first meal",
+                        subtitle: "Open food search with barcode, camera, and Maia options ready.",
+                        color: .accentProtein,
+                        action: onLogFirstMeal
+                    )
+                }
+
+                Button(action: onExplore) {
+                    Text("I'll explore first")
+                        .appFont(size: 14, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(Color.backgroundSecondary.opacity(0.7), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(24)
+            .frame(maxWidth: 540)
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .onAppear(perform: onViewed)
+    }
+
+    private func firstSessionOption(icon: String, title: String, subtitle: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .appFont(size: 20, weight: .bold)
+                    .foregroundColor(color)
+                    .frame(width: 46, height: 46)
+                    .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.textPrimary)
+
+                    Text(subtitle)
+                        .appFont(size: 13)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .appFont(size: 12, weight: .bold)
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.backgroundSecondary.opacity(0.9), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(subtitle)
+        .accessibilityAddTraits(.isButton)
     }
 }
