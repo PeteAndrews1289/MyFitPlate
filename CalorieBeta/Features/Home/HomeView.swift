@@ -151,11 +151,6 @@ struct HomeView: View {
                                 .padding(.horizontal)
                                 .id("dashboardHeader")
 
-                            if shouldShowTodayFuelPlan {
-                                todayFuelPlanCard(for: todayFuelPlan)
-                                    .padding(.horizontal)
-                            }
-
                             if shouldOfferSwitcherPrompt {
                                 switcherPromptCard
                                     .padding(.horizontal)
@@ -207,6 +202,14 @@ struct HomeView: View {
                                     .padding(.horizontal)
 
                                 HomeWeightTrackingCard(showingWeightEntrySheet: $showingWeightEntrySheet)
+                                    .padding(.horizontal)
+                            }
+
+                            // The training-aware fuel plan is a "next step" nudge, not the
+                            // screen's headline — it sits at the bottom so the rings, quick
+                            // actions, and diary keep the prime real estate up top.
+                            if shouldShowTodayFuelPlan {
+                                todayFuelPlanCard(for: todayFuelPlan)
                                     .padding(.horizontal)
                             }
                         }
