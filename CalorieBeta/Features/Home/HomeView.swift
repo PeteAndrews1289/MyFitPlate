@@ -241,46 +241,24 @@ struct HomeView: View {
                 }
             }
 
-            // MARK: - Spotlight Overlay
-            if showingSpotlightTour {
-                Color.black.opacity(0.6).ignoresSafeArea()
-                    .onTapGesture(perform: advanceTour)
-                    .transition(.opacity)
-
-                // Skip Button
-                VStack {
-                    HStack {
-                        Spacer()
-                        Button(action: skipTour) {
-                            Text("Skip Tour")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color.white.opacity(0.2))
-                                .clipShape(Capsule())
-                        }
-                        .padding(.top, 50)
-                        .padding(.trailing, 20)
-                    }
-                    Spacer()
-                }
-                .zIndex(100)
-
-                if currentSpotlightIndex < tourSpotlightIDs.count {
-                    let currentID = tourSpotlightIDs[currentSpotlightIndex]
-                    if let content = spotlightContent[currentID] {
-                        SpotlightTextView(
-                            content: content,
-                            currentIndex: currentSpotlightIndex,
-                            total: tourSpotlightIDs.count,
-                            position: .bottom,
-                            onNext: advanceTour
-                        )
-                    }
-                }
-             }
+          }
+          .overlayPreferenceValue(SpotlightBoundsKey.self) { anchor in
+              GeometryReader { proxy in
+                  if showingSpotlightTour,
+                     currentSpotlightIndex < tourSpotlightIDs.count,
+                     let content = spotlightContent[tourSpotlightIDs[currentSpotlightIndex]] {
+                      SpotlightTourOverlay(
+                          targetRect: anchor.map { proxy[$0] },
+                          containerSize: proxy.size,
+                          content: content,
+                          currentIndex: currentSpotlightIndex,
+                          total: tourSpotlightIDs.count,
+                          onNext: advanceTour,
+                          onSkip: skipTour
+                      )
+                      .animation(.easeInOut(duration: 0.25), value: currentSpotlightIndex)
+                  }
+              }
           }
           .toolbar {
               ToolbarItem(placement: .navigationBarLeading) {
@@ -526,9 +504,8 @@ struct HomeView: View {
         }
 
         if currentSpotlightIndex < tourSpotlightIDs.count - 1 {
-            let nextID = tourSpotlightIDs[currentSpotlightIndex + 1]
-            spotlightManager.markAsShown(id: nextID)
-
+            // Only mark the current step shown (above). Marking the NEXT one here meant a
+            // step the user hadn't seen yet got skipped if they left the tour mid-way.
             withAnimation {
                 currentSpotlightIndex += 1
             }

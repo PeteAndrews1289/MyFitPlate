@@ -96,8 +96,23 @@ struct MealPlannerView: View {
                     MealPrepCookingView(days: visibleWeekPlans)
                 }
 
-            if showingSpotlightTour {
-                spotlightOverlay
+        }
+        .overlayPreferenceValue(SpotlightBoundsKey.self) { anchor in
+            GeometryReader { proxy in
+                if showingSpotlightTour,
+                   currentSpotlightIndex < tourSpotlightIDs.count,
+                   let content = spotlightContent[tourSpotlightIDs[currentSpotlightIndex]] {
+                    SpotlightTourOverlay(
+                        targetRect: anchor.map { proxy[$0] },
+                        containerSize: proxy.size,
+                        content: content,
+                        currentIndex: currentSpotlightIndex,
+                        total: tourSpotlightIDs.count,
+                        onNext: advanceTour,
+                        onSkip: finishTour
+                    )
+                    .animation(.easeInOut(duration: 0.25), value: currentSpotlightIndex)
+                }
             }
         }
         .sheet(isPresented: $showingImagePicker) {
@@ -259,26 +274,6 @@ struct MealPlannerView: View {
         .id("planContent")
     }
 
-    @ViewBuilder
-    private var spotlightOverlay: some View {
-        Color.black.opacity(0.5).ignoresSafeArea()
-            .onTapGesture(perform: advanceTour)
-            .transition(.opacity)
-
-        if !tourSpotlightIDs.isEmpty && currentSpotlightIndex < tourSpotlightIDs.count {
-            let currentID = tourSpotlightIDs[currentSpotlightIndex]
-            if let content = spotlightContent[currentID] {
-                SpotlightTextView(
-                    content: content,
-                    currentIndex: currentSpotlightIndex,
-                    total: tourSpotlightIDs.count,
-                    position: .bottom,
-                    onNext: advanceTour
-                )
-            }
-        }
-    }
-    
     @ViewBuilder
     private var scanPantryButton: some View {
         Button(action: { showingImagePicker = true }) {
