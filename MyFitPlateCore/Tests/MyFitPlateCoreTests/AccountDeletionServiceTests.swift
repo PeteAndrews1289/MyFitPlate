@@ -32,6 +32,7 @@ final class AccountDeletionServiceTests: XCTestCase {
         XCTAssertEqual(database.deletedUserDataIDs, ["user-1"])
         XCTAssertTrue(cloud.deleteUserDataCalled)
         XCTAssertTrue(auth.deleteCurrentUserCalled)
+        XCTAssertTrue(auth.signOutCalled, "the session must be dropped so the account can't be re-created on next launch")
     }
 
     func testDeleteCurrentAccountRejectsEmptyPasswordBeforeSideEffects() async {
@@ -101,17 +102,17 @@ final class AccountDeletionServiceTests: XCTestCase {
         XCTAssertTrue(auth.deleteCurrentUserCalled)
     }
 
-    func testDeleteCurrentAccountWrapsAuthDeletionFailure() async {
+    func testDeleteCurrentAccountStillSignsOutWhenAuthDeletionFails() async throws {
+        // The user's data is already deleted by the time we try to remove the auth record, so a
+        // failure there must NOT abort the flow. We still sign out — otherwise the surviving
+        // session silently re-creates the (now-empty) account on the next launch.
         auth.deleteCurrentUserError = URLError(.cannotConnectToHost)
 
-        do {
-            _ = try await service.deleteCurrentAccount(password: "password123")
-            XCTFail("expected auth deletion error")
-        } catch AccountDeletionError.authDeletionFailed {
-            XCTAssertEqual(database.deletedUserDataIDs, ["user-1"])
-        } catch {
-            XCTFail("unexpected error: \(error)")
-        }
+        let outcome = try await service.deleteCurrentAccount(password: "password123")
+
+        XCTAssertEqual(outcome.userID, "user-1")
+        XCTAssertEqual(database.deletedUserDataIDs, ["user-1"])
+        XCTAssertTrue(auth.signOutCalled, "must sign out even when the auth record can't be deleted")
     }
 
     func testAccountDeletionErrorDescriptionsAreActionable() {
