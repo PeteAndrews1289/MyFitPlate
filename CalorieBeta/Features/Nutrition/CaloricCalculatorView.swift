@@ -35,6 +35,7 @@ struct GenderButtonPicker: View {
 
 struct CaloricCalculatorView: View {
     @EnvironmentObject var goalSettings: GoalSettings
+    @Environment(\.dismiss) private var dismiss
     @State private var showSaveConfirmation = false
     
     @State private var calorieInput: String = ""
@@ -120,7 +121,7 @@ struct CaloricCalculatorView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: fetchAndSetGoals)
         .alert(isPresented: $showSaveConfirmation) {
-            Alert(title: Text("Goals saved"), message: Text("Your nutrition goals are updated."), dismissButton: .default(Text("OK")))
+            Alert(title: Text("Goals saved"), message: Text("Your nutrition goals are updated."), dismissButton: .default(Text("OK")) { dismiss() })
         }
         .onChange(of: goalSettings.activityLevel) { goalSettings.recalculateAllGoals() }
         .onChange(of: goalSettings.goal) { goalSettings.recalculateAllGoals() }
