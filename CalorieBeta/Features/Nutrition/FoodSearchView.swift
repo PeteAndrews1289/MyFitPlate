@@ -27,6 +27,7 @@ struct FoodSearchView: View {
     @State private var isProcessingImage = false
     @State private var isSearchingAfterScan = false
     @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems?
+    @State private var scannedBarcodeItemsWrapper: IdentifiableFoodItems?
     @State private var estimatedMenuWrapper: IdentifiableFoodItems?
     @State private var scannedFoodItem: FoodItem?
     @State private var scannedFoodSource: String = "barcode_result"
@@ -127,7 +128,9 @@ struct FoodSearchView: View {
                                 }
                                 self.isSearchingAfterScan = false
                                 if !foundItems.isEmpty {
-                                    self.estimatedFoodItemsWrapper = IdentifiableFoodItems(items: foundItems)
+                                    // Scanned barcodes are exact product lookups, not an AI meal
+                                    // estimate — log each as its own entry in the selected meal.
+                                    self.scannedBarcodeItemsWrapper = IdentifiableFoodItems(items: foundItems)
                                 } else {
                                     self.presentBarcodeRecovery(
                                         message: "No items in the rapid scan tray could be matched to our databases.",
@@ -196,6 +199,15 @@ struct FoodSearchView: View {
                 }
                 .sheet(item: $estimatedFoodItemsWrapper) { wrapper in
                      AISummaryView(estimatedItems: .constant(wrapper.items))
+                }
+                .sheet(item: $scannedBarcodeItemsWrapper) { wrapper in
+                     AISummaryView(
+                        estimatedItems: .constant(wrapper.items),
+                        mealName: viewModel.selectedMeal,
+                        source: "barcode",
+                        isAIEstimate: false,
+                        reviewTitle: "Review scanned items"
+                     )
                 }
                 .sheet(item: $estimatedMenuWrapper) { wrapper in
                      AIMenuSelectionView(estimatedItems: .constant(wrapper.items))

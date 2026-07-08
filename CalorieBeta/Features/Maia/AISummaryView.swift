@@ -3,16 +3,25 @@ import SwiftUI
 struct AISummaryView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @Binding var estimatedItems: [FoodItem]?
+    // Defaults preserve the AI meal-estimate behavior. Barcode rapid-scan reuses this screen but
+    // logs each scanned product as its own entry into the user's selected meal (they're exact
+    // database lookups, not AI guesses), so it overrides the meal name, source, and copy.
+    var mealName: String = "AI Logged Meal"
+    var source: String = "ai_image"
+    var isAIEstimate: Bool = true
+    var reviewTitle: String = "Confirm Meal"
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                AIEstimateReviewBanner(
-                    title: "AI Estimate",
-                    message: "Check servings and macros before logging. For best accuracy next time, include the whole plate and a clear size reference."
-                )
-                .padding([.horizontal, .top])
+                if isAIEstimate {
+                    AIEstimateReviewBanner(
+                        title: "AI Estimate",
+                        message: "Check servings and macros before logging. For best accuracy next time, include the whole plate and a clear size reference."
+                    )
+                    .padding([.horizontal, .top])
+                }
 
                 List {
                     Section(header: Text("Review Items")) {
@@ -24,13 +33,15 @@ struct AISummaryView: View {
                         .onDelete(perform: deleteItem)
                     }
                 }
-                
-                Text("Tap any item to edit it, or swipe to remove anything Maia guessed incorrectly.")
+
+                Text(isAIEstimate
+                     ? "Tap any item to edit it, or swipe to remove anything Maia guessed incorrectly."
+                     : "Each scanned product logs as its own entry. Tap to edit a serving, or swipe to remove one.")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
-                
+
                 Button("Log All Items") {
                     logAllItems()
                 }
@@ -38,7 +49,7 @@ struct AISummaryView: View {
                 .padding()
                 .disabled(estimatedItems?.isEmpty ?? true)
             }
-            .navigationTitle("Confirm Meal")
+            .navigationTitle(reviewTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -93,19 +104,21 @@ struct AISummaryView: View {
     
     private func logAllItems() {
         guard let userID = DIContainer.shared.authService.currentUserID, let items = estimatedItems, !items.isEmpty else { return }
-        
-        let mealName = "AI Logged Meal"
+
+        // Barcode items already carry their matched database source (USDA / FatSecret / OFF);
+        // only fall back for AI estimates, where .aiImage is the right default.
+        let fallbackSourceType: FoodSourceType = isAIEstimate ? .aiImage : .unknown
         let reviewedItems = items.map { item in
-            item.markedUserConfirmed(sourceType: item.sourceMetadata?.sourceType ?? .aiImage)
+            item.markedUserConfirmed(sourceType: item.sourceMetadata?.sourceType ?? fallbackSourceType)
         }
         dailyLogService.addMealToLog(
             for: userID,
             date: dailyLogService.activelyViewedDate,
             mealName: mealName,
             foodItems: reviewedItems,
-            source: "ai_image"
+            source: source
         )
-        
+
         estimatedItems = nil
         dismiss()
     }
