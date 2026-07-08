@@ -968,6 +968,9 @@
     "Add Set" : {
 
     },
+    "Add step" : {
+
+    },
     "Add to log" : {
 
     },
@@ -1116,6 +1119,9 @@
 
     },
     "Average micronutrient intake" : {
+
+    },
+    "Average pace" : {
 
     },
     "Average Stages" : {
@@ -1430,6 +1436,9 @@
     "Close workout" : {
 
     },
+    "Closes Settings and plays the guided tips again from the Home screen." : {
+
+    },
     "Coach Notes" : {
 
     },
@@ -1481,6 +1490,9 @@
     "Cooking timer" : {
 
     },
+    "Cool down: %lld min" : {
+
+    },
     "Copy yesterday" : {
 
     },
@@ -1526,10 +1538,16 @@
     "Creating post in group" : {
 
     },
+    "Cue" : {
+
+    },
     "Current Program" : {
 
     },
     "Current weight" : {
+
+    },
+    "Custom run" : {
 
     },
     "Cycle Options" : {
@@ -1621,6 +1639,9 @@
     "Delete Program" : {
 
     },
+    "Delete step" : {
+
+    },
     "Delete this entry?" : {
 
     },
@@ -1669,6 +1690,9 @@
     "Distance in miles, set %lld" : {
 
     },
+    "Distance: %@" : {
+
+    },
     "Do It Now" : {
 
     },
@@ -1694,6 +1718,9 @@
 
     },
     "Duration in seconds, set %lld" : {
+
+    },
+    "Duration: %@" : {
 
     },
     "e.g. 8-12" : {
@@ -1732,6 +1759,12 @@
     "Edit Target Reps" : {
 
     },
+    "Edit workout" : {
+
+    },
+    "Edit Workout" : {
+
+    },
     "Effort metric" : {
 
     },
@@ -1751,6 +1784,9 @@
 
     },
     "End session" : {
+
+    },
+    "Ended" : {
 
     },
     "Ends: %@" : {
@@ -1791,6 +1827,9 @@
         }
       }
     },
+    "Estimated calories" : {
+
+    },
     "Everything visible is checked off" : {
 
     },
@@ -1813,6 +1852,9 @@
 
     },
     "F %@ g" : {
+
+    },
+    "Fastest: %@" : {
 
     },
     "Fasting" : {
@@ -2813,6 +2855,9 @@
     "P %@ g" : {
 
     },
+    "Pace range" : {
+
+    },
     "Pantry" : {
 
     },
@@ -2823,6 +2868,9 @@
 
     },
     "Parsing receipt. This may take a few seconds." : {
+
+    },
+    "Partial" : {
 
     },
     "Password" : {
@@ -3103,6 +3151,9 @@
     "Recovery meal" : {
 
     },
+    "Recovery: %lld sec" : {
+
+    },
     "Refine estimate" : {
 
     },
@@ -3154,7 +3205,16 @@
     "Repeat Yesterday" : {
 
     },
+    "Repeats: %lld" : {
+
+    },
     "Replace slot" : {
+
+    },
+    "Replay" : {
+
+    },
+    "Replay feature tour?" : {
 
     },
     "Report generated on: %@" : {
@@ -3172,13 +3232,7 @@
     "Reps in reserve" : {
 
     },
-    "Reset" : {
-
-    },
     "Reset link sent" : {
-
-    },
-    "Reset tooltips?" : {
 
     },
     "Rest" : {
@@ -3442,6 +3496,9 @@
     "Serving: %@" : {
 
     },
+    "Session" : {
+
+    },
     "Session Breakdown" : {
 
     },
@@ -3565,7 +3622,7 @@
     "Skip to Here" : {
 
     },
-    "Skip Tour" : {
+    "Skip tour" : {
 
     },
     "Sleep Analysis" : {
@@ -3583,6 +3640,9 @@
           }
         }
       }
+    },
+    "Slowest: %@" : {
+
     },
     "Smart pantry" : {
 
@@ -3675,6 +3735,9 @@
           }
         }
       }
+    },
+    "Step workout" : {
+
     },
     "Steps" : {
 
@@ -3773,6 +3836,9 @@
     "Tell Maia what you want to make, including portions, ingredients, cuisine, and macro goals if you have them." : {
 
     },
+    "Templates" : {
+
+    },
     "That didn't work" : {
 
     },
@@ -3821,9 +3887,6 @@
     "This week" : {
 
     },
-    "This will reset all the \"Quick tip\" bubbles throughout the app so you can see them again." : {
-
-    },
     "Time" : {
 
     },
@@ -3837,6 +3900,12 @@
 
     },
     "Timer" : {
+
+    },
+    "Timing" : {
+
+    },
+    "Title" : {
 
     },
     "To failure" : {
@@ -3906,6 +3975,12 @@
 
     },
     "Transcribing your meal..." : {
+
+    },
+    "Treadmill" : {
+
+    },
+    "Treadmill run" : {
 
     },
     "Trust Hub" : {
@@ -4010,6 +4085,9 @@
     "vs %lld similar runs" : {
 
     },
+    "Warm up: %lld min" : {
+
+    },
     "Warm-up" : {
 
     },
@@ -4098,7 +4176,19 @@
     "Why this target" : {
 
     },
+    "Work goal" : {
+
+    },
+    "Work: %@" : {
+
+    },
+    "Work: %lld sec" : {
+
+    },
     "Working set" : {
+
+    },
+    "Workout" : {
 
     },
     "Workout Analysis" : {
@@ -4114,6 +4204,9 @@
 
     },
     "Workout progress" : {
+
+    },
+    "Workout steps" : {
 
     },
     "Workout summary" : {

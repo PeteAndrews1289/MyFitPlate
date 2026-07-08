@@ -10,8 +10,8 @@ struct WorkoutCompleteAnalyticsView: View {
     @EnvironmentObject var insightsService: InsightsService
     @EnvironmentObject var pantryService: PantryService
     
-    // The raw data source
-    let log: WorkoutSessionLog
+    // The raw data source. Kept in state so past-session edits can refresh this screen in place.
+    @State private var log: WorkoutSessionLog
     
     @StateObject var analyticsService = WorkoutAnalyticsService()
     @State private var analytics: WorkoutAnalytics?
@@ -25,8 +25,14 @@ struct WorkoutCompleteAnalyticsView: View {
     @State private var showingRecoveryFoodSearch = false
     @State private var showingRecoveryMealDetail = false
     @State private var showingNutritionAudit = false
+    @State private var showingWorkoutEditor = false
+    @State private var isSavingWorkoutEdit = false
     @State private var recoveryMealSuggestion: MealSuggestion?
     @State private var didLogRecoveryHandoffViewed = false
+
+    init(log: WorkoutSessionLog) {
+        self._log = State(initialValue: log)
+    }
 
     private var displayedAnalytics: WorkoutAnalytics {
         analytics ?? localAnalytics
@@ -101,6 +107,23 @@ struct WorkoutCompleteAnalyticsView: View {
 
                 SessionExerciseBreakdownCard(exercises: log.completedExercises)
                     .padding(.horizontal)
+
+                if log.id != nil {
+                    Button {
+                        HapticManager.instance.feedback(.light)
+                        showingWorkoutEditor = true
+                    } label: {
+                        Label("Edit workout", systemImage: "pencil")
+                            .appFont(size: 15, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSavingWorkoutEdit)
+                    .padding(.horizontal)
+                }
 
                 if !displayedAnalytics.personalRecords.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
@@ -238,6 +261,25 @@ struct WorkoutCompleteAnalyticsView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingWorkoutEditor) {
+            WorkoutSessionLogEditorSheet(
+                log: log,
+                isSaving: isSavingWorkoutEdit,
+                onSave: { updatedLog in
+                    Task { await saveEditedWorkout(updatedLog) }
+                }
+            )
+        }
+        .toolbar {
+            if log.id != nil {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Edit") {
+                        showingWorkoutEditor = true
+                    }
+                    .disabled(isSavingWorkoutEdit)
+                }
+            }
+        }
         .onAppear {
             isAnimated = true
             loadData()
@@ -257,6 +299,7 @@ struct WorkoutCompleteAnalyticsView: View {
     }
     
     private func loadData() {
+        isLoading = true
         self.muscleSplit = analyticsService.calculateMuscleSplit(log: log)
 
         // If insights were already generated and saved, use them immediately.
@@ -303,6 +346,34 @@ struct WorkoutCompleteAnalyticsView: View {
 
             self.isLoading = false
         }
+    }
+
+    @MainActor
+    private func saveEditedWorkout(_ updatedLog: WorkoutSessionLog) async {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            ToastManager.shared.showToast(message: "Sign in to edit workout history.")
+            return
+        }
+
+        var logToSave = updatedLog
+        logToSave.aiInsights = nil
+        isSavingWorkoutEdit = true
+
+        do {
+            try await DIContainer.shared.workoutRepository.saveWorkoutSessionLog(userID: userID, log: logToSave)
+            log = logToSave
+            analytics = nil
+            comparison = nil
+            trendData = [:]
+            muscleSplit = []
+            showingWorkoutEditor = false
+            ToastManager.shared.showToast(message: "Workout updated.")
+            loadData()
+        } catch {
+            ToastManager.shared.showToast(message: "Couldn't update workout. Check your connection and try again.")
+        }
+
+        isSavingWorkoutEdit = false
     }
 
     private var currentTodayLog: DailyLog? {
@@ -590,6 +661,176 @@ struct WorkoutCompleteAnalyticsView: View {
 }
 
 // MARK: - Subviews
+
+private struct WorkoutSessionLogEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: WorkoutSessionLog
+    let isSaving: Bool
+    let onSave: (WorkoutSessionLog) -> Void
+
+    init(log: WorkoutSessionLog, isSaving: Bool, onSave: @escaping (WorkoutSessionLog) -> Void) {
+        self._draft = State(initialValue: log)
+        self.isSaving = isSaving
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Session") {
+                    DatePicker("Date", selection: $draft.date, displayedComponents: [.date, .hourAndMinute])
+                }
+
+                ForEach(draft.completedExercises.indices, id: \.self) { exerciseIndex in
+                    let exercise = draft.completedExercises[exerciseIndex]
+                    Section(exercise.exerciseName) {
+                        ForEach(draft.completedExercises[exerciseIndex].sets.indices, id: \.self) { setIndex in
+                            CompletedSetEditorRow(
+                                set: $draft.completedExercises[exerciseIndex].sets[setIndex],
+                                setIndex: setIndex + 1,
+                                exerciseType: exercise.exercise.type
+                            )
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Edit Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isSaving)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        onSave(sanitizedDraft())
+                    } label: {
+                        if isSaving {
+                            ProgressView()
+                        } else {
+                            Text("Save")
+                        }
+                    }
+                    .disabled(isSaving)
+                }
+            }
+        }
+    }
+
+    private func sanitizedDraft() -> WorkoutSessionLog {
+        var clean = draft
+        for exerciseIndex in clean.completedExercises.indices {
+            for setIndex in clean.completedExercises[exerciseIndex].sets.indices {
+                clean.completedExercises[exerciseIndex].sets[setIndex].weight = max(0, clean.completedExercises[exerciseIndex].sets[setIndex].weight)
+                clean.completedExercises[exerciseIndex].sets[setIndex].reps = max(0, clean.completedExercises[exerciseIndex].sets[setIndex].reps)
+                if let distance = clean.completedExercises[exerciseIndex].sets[setIndex].distance {
+                    clean.completedExercises[exerciseIndex].sets[setIndex].distance = max(0, distance)
+                }
+                if let duration = clean.completedExercises[exerciseIndex].sets[setIndex].durationInSeconds {
+                    clean.completedExercises[exerciseIndex].sets[setIndex].durationInSeconds = max(0, duration)
+                }
+            }
+        }
+        return clean
+    }
+}
+
+private struct CompletedSetEditorRow: View {
+    @Binding var set: CompletedSet
+    let setIndex: Int
+    let exerciseType: ExerciseType
+
+    private var distanceBinding: Binding<Double> {
+        Binding(
+            get: { set.distance ?? 0 },
+            set: { set.distance = max(0, $0) }
+        )
+    }
+
+    private var durationMinutesBinding: Binding<Int> {
+        Binding(
+            get: { max(0, (set.durationInSeconds ?? 0) / 60) },
+            set: { set.durationInSeconds = max(0, $0) * 60 }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Set \(setIndex)")
+                    .appFont(size: 13, weight: .bold)
+                Spacer()
+                if let effort = set.effort {
+                    Text("\(effort.scale == .rir ? "RIR" : "RPE") \(formatEffort(effort.value))")
+                        .appFont(size: 12, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+            }
+
+            switch exerciseType {
+            case .strength:
+                HStack(spacing: 12) {
+                    editableNumberField(title: "Weight", unit: "lb") {
+                        TextField("0", value: $set.weight, format: .number.precision(.fractionLength(0...1)))
+                    }
+
+                    editableNumberField(title: "Reps", unit: "reps") {
+                        TextField("0", value: $set.reps, format: .number)
+                    }
+                }
+
+            case .cardio:
+                HStack(spacing: 12) {
+                    editableNumberField(title: "Distance", unit: "mi") {
+                        TextField("0", value: distanceBinding, format: .number.precision(.fractionLength(0...2)))
+                    }
+
+                    editableNumberField(title: "Duration", unit: "min") {
+                        TextField("0", value: durationMinutesBinding, format: .number)
+                    }
+                }
+
+            case .flexibility:
+                editableNumberField(title: "Duration", unit: "min") {
+                    TextField("0", value: durationMinutesBinding, format: .number)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func editableNumberField<Field: View>(
+        title: String,
+        unit: String,
+        @ViewBuilder field: () -> Field
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .appFont(size: 11, weight: .bold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+
+            HStack(spacing: 6) {
+                field()
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .appFont(size: 17, weight: .bold)
+
+                Text(unit)
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 42)
+            .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func formatEffort(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
+    }
+}
 
 struct WorkoutSummaryHeroCard: View {
     let date: Date
