@@ -276,8 +276,9 @@ struct ContentView: View {
     @EnvironmentObject var connectivityManager: WatchConnectivityManager
     @EnvironmentObject var cycleService: CycleTrackingService
     @EnvironmentObject var pantryService: PantryService
+    @EnvironmentObject var spotlightManager: SpotlightManager
     @Environment(\.scenePhase) var scenePhase
-    
+
     @State private var isLoadingUserState = true
     @State private var shouldShowOnboardingSurvey = false
     @State private var shouldShowFeatureTour = false
@@ -459,6 +460,10 @@ struct ContentView: View {
         if let userID = currentUserID {
             goalSettings.updateUserAsOnboarded(userID: userID)
         }
+        // Spotlight "seen" flags are stored per-device, not per-account, so a second account on
+        // the same device inherited the first account's completed tour and never saw its own.
+        // A brand-new user just finished onboarding — clear the flags so the Home tour fires fresh.
+        spotlightManager.resetSpotlights()
         self.shouldShowOnboardingSurvey = false
         self.firstSessionChoicePending = !firstSessionChoiceCompleted
         self.loadMainUserData()
