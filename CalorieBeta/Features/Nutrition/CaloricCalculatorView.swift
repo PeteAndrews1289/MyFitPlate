@@ -57,10 +57,10 @@ struct CaloricCalculatorView: View {
          if let index = activityLevelValues.firstIndex(of: level) {
              return activityLevelStrings[index]
          }
-         let nearest = activityLevelValues.enumerated().min {
-             abs($0.element - level) < abs($1.element - level)
-         }
-         return activityLevelStrings[nearest?.offset ?? 0]
+         let nearestIndex = activityLevelValues.indices.min {
+             abs(activityLevelValues[$0] - level) < abs(activityLevelValues[$1] - level)
+         } ?? 0
+         return activityLevelStrings[nearestIndex]
      }
 
     private let goals = ["Lose", "Maintain", "Gain"]
@@ -123,10 +123,27 @@ struct CaloricCalculatorView: View {
         .alert(isPresented: $showSaveConfirmation) {
             Alert(title: Text("Goals saved"), message: Text("Your nutrition goals are updated."), dismissButton: .default(Text("OK")) { dismiss() })
         }
-        .onChange(of: goalSettings.activityLevel) { goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.goal) { goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.age) { goalSettings.recalculateAllGoals() }
-        .onChange(of: goalSettings.gender) { goalSettings.recalculateAllGoals() }
+        .onChange(of: goalSettings.activityLevel) { _, newLevel in
+            let newString = activityString(for: newLevel)
+            if selectedActivityString != newString {
+                selectedActivityString = newString
+            }
+            goalSettings.recalculateAllGoals()
+        }
+        .onChange(of: goalSettings.goal) { _, newGoal in
+            if goals.contains(newGoal) && selectedGoal != newGoal {
+                selectedGoal = newGoal
+            }
+            goalSettings.recalculateAllGoals()
+        }
+        .onChange(of: goalSettings.age) {
+            if goalSettings.calorieGoalMethod == .custom { goalSettings.calorieGoalMethod = .mifflinWithActivity }
+            goalSettings.recalculateAllGoals()
+        }
+        .onChange(of: goalSettings.gender) {
+            if goalSettings.calorieGoalMethod == .custom { goalSettings.calorieGoalMethod = .mifflinWithActivity }
+            goalSettings.recalculateAllGoals()
+        }
         .onChange(of: goalSettings.proteinPercentage) { goalSettings.recalculateAllGoals() }
         .onChange(of: goalSettings.carbsPercentage) { goalSettings.recalculateAllGoals() }
         .onChange(of: goalSettings.fatsPercentage) { goalSettings.recalculateAllGoals() }
@@ -159,6 +176,10 @@ struct CaloricCalculatorView: View {
             .tint(accentColor)
             .onChange(of: selectedActivityString) { _, newValue in
                 if let index = activityLevelStrings.firstIndex(of: newValue) {
+                    if goalSettings.activityLevel != activityLevelValues[index],
+                       goalSettings.calorieGoalMethod == .custom {
+                        goalSettings.calorieGoalMethod = .mifflinWithActivity
+                    }
                     goalSettings.activityLevel = activityLevelValues[index]
                 }
             }
@@ -170,6 +191,10 @@ struct CaloricCalculatorView: View {
             }
             .tint(accentColor)
             .onChange(of: selectedGoal) { _, newValue in
+                if goalSettings.goal != newValue,
+                   goalSettings.calorieGoalMethod == .custom {
+                    goalSettings.calorieGoalMethod = .mifflinWithActivity
+                }
                 goalSettings.goal = newValue
             }
         }
@@ -235,7 +260,23 @@ struct CaloricCalculatorView: View {
             return
         }
         
-        goalSettings.calorieGoalMethod = .custom
+        let bmr = GoalSettingsRules.calculateBMR(age: goalSettings.age, weightKg: goalSettings.weight * 0.453592, heightCm: goalSettings.height, gender: goalSettings.gender)
+        let manualBurn = goalSettings.dailyLogService?.currentDailyLog?.totalCaloriesBurnedFromManualExercises() ?? 0
+        let mifflinCalories = GoalSettingsRules.calculateCalorieGoal(
+            bmr: bmr,
+            goal: goalSettings.goal,
+            gender: goalSettings.gender,
+            calorieGoalMethod: .mifflinWithActivity,
+            activityLevel: goalSettings.activityLevel,
+            adaptiveTDEE: goalSettings.adaptiveGoalService?.calculatedTDEE,
+            manualCaloriesBurned: manualBurn,
+            currentCalories: nil
+        )
+        if abs(calorieValue - mifflinCalories) <= 5 {
+            goalSettings.calorieGoalMethod = .mifflinWithActivity
+        } else {
+            goalSettings.calorieGoalMethod = .custom
+        }
         let minimumGoal: Double = (goalSettings.gender.lowercased() == "male") ? 1500 : 1200
         let clampedCalories = max(minimumGoal, calorieValue)
         goalSettings.calories = clampedCalories

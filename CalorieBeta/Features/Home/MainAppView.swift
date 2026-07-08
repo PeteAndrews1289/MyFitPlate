@@ -531,12 +531,12 @@ struct ContentView: View {
         if let userID = currentUserID {
             pantryService.startListening(userID: userID)
             goalSettings.loadUserGoals(userID: userID) {
+                self.goalSettings.loadWeightHistory()
                 self.sendNutritionToWatchIfNeeded()
             }
             dailyLogService.fetchLog(for: userID, date: Date()) { _ in
                 self.sendNutritionToWatchIfNeeded()
             }
-            goalSettings.loadWeightHistory()
             insightsService.generateAndFetchInsights()
             NotificationManager.shared.scheduleDailyLogReminderIfAuthorized()
         }

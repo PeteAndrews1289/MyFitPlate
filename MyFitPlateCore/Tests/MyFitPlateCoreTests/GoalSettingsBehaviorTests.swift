@@ -399,7 +399,7 @@ final class GoalSettingsBehaviorTests: XCTestCase {
         Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date())!
     }
 
-    private func drainMainQueue() async {
+    fileprivate func drainMainQueue() async {
         await withCheckedContinuation { continuation in
             DispatchQueue.main.async {
                 continuation.resume()
@@ -549,6 +549,21 @@ final class GoalSettingsAdditionalTests: XCTestCase {
         
         XCTAssertEqual(settings.weight, 185.0)
     }
+
+    @MainActor
+    func testUpdateUserWeightBeforeGoalsLoadDoesNotSaveDefaultGoalDocument() {
+        let repo = mockRepo!
+        let exp = expectation(description: "full goal save should not happen")
+        exp.isInverted = true
+        repo.onSave = { exp.fulfill() }
+
+        settings.weightHistory = []
+        settings.updateUserWeight(185.0, syncToHealthKit: false)
+
+        wait(for: [exp], timeout: 0.2)
+        XCTAssertEqual(settings.weight, 185.0)
+        XCTAssertNil(repo.savedUserGoals)
+    }
     
     @MainActor
     func testDeleteWeightEntry() {
@@ -581,5 +596,212 @@ final class GoalSettingsAdditionalTests: XCTestCase {
         XCTAssertEqual(settings.weight, 178.5)
         // Verify that syncToHealthKit: false prevented saving a duplicate sample back to HealthKit
         XCTAssertTrue(hkManager.savedWeightSamples.isEmpty)
+    }
+
+    @MainActor
+    func testActivityLevelAndGoalTopLevelAndIntegerFallback() {
+        let repo = mockRepo!
+        // Simulate Firestore data where activityLevel is stored as an integer or at top-level
+        repo.mockFetchUserGoalsResult = [
+            "activityLevel": 1, // Integer value in JSON/Firestore
+            "goal": "Lose",
+            "goals": [
+                "calories": 2291.0
+            ]
+        ]
+
+        let exp = expectation(description: "loadUserGoals")
+        settings.loadUserGoals(userID: "user_test_fallback") {
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 1.0)
+
+        XCTAssertEqual(settings.activityLevel, 1.0, "Activity level should be parsed correctly even if stored as integer")
+        XCTAssertEqual(settings.goal, "Lose", "Goal should be loaded from top-level fallback")
+        XCTAssertEqual(settings.calories, 2291.0)
+    }
+
+    @MainActor
+    func testTopLevelSelectionWinsOverStaleNestedDefaults() {
+        let repo = mockRepo!
+        repo.mockFetchUserGoalsResult = [
+            "activityLevel": 1.55,
+            "goal": "Lose",
+            "calorieGoalMethod": CalorieGoalMethod.custom.rawValue,
+            "goals": [
+                "activityLevel": 1.2,
+                "goal": "Maintain",
+                "calories": 2291.0,
+                "proteinPercentage": 30.0,
+                "carbsPercentage": 50.0,
+                "fatsPercentage": 20.0
+            ]
+        ]
+
+        let loadExp = expectation(description: "loadUserGoals")
+        let saveExp = expectation(description: "migrate stale nested defaults")
+        repo.onSave = { saveExp.fulfill() }
+
+        settings.loadUserGoals(userID: "user_stale_nested_defaults") {
+            loadExp.fulfill()
+        }
+        wait(for: [loadExp, saveExp], timeout: 1.0)
+
+        XCTAssertEqual(settings.activityLevel, 1.55, accuracy: 0.001)
+        XCTAssertEqual(settings.goal, "Lose")
+        XCTAssertEqual(settings.calories ?? 0, 2291.0, accuracy: 0.001)
+
+        let savedGoals = repo.savedUserGoals?["goals"] as? [String: Any]
+        XCTAssertEqual(savedGoals?["activityLevel"] as? Double ?? 0, 1.55, accuracy: 0.001)
+        XCTAssertEqual(savedGoals?["goal"] as? String, "Lose")
+    }
+
+    @MainActor
+    func testSaveUserGoalsWritesRecalculatedMifflinGoalImmediately() {
+        let repo = mockRepo!
+        settings.gender = "Male"
+        settings.age = 30
+        settings.weight = 185
+        settings.height = 180
+        settings.activityLevel = 1.55
+        settings.goal = "Lose"
+        settings.calorieGoalMethod = .mifflinWithActivity
+        settings.calories = 1234
+
+        let expected = GoalSettingsRules.calculateCalorieGoal(
+            bmr: GoalSettingsRules.calculateBMR(age: settings.age, weightKg: settings.weight * 0.453592, heightCm: settings.height, gender: settings.gender),
+            goal: settings.goal,
+            gender: settings.gender,
+            calorieGoalMethod: .mifflinWithActivity,
+            activityLevel: settings.activityLevel,
+            adaptiveTDEE: nil,
+            manualCaloriesBurned: 0,
+            currentCalories: nil
+        )
+
+        let saveExp = expectation(description: "saveUserGoals")
+        repo.onSave = { saveExp.fulfill() }
+
+        settings.saveUserGoals(userID: "user_recalculate_before_save")
+        wait(for: [saveExp], timeout: 1.0)
+
+        let savedGoals = repo.savedUserGoals?["goals"] as? [String: Any]
+        XCTAssertEqual(savedGoals?["calories"] as? Double ?? 0, expected, accuracy: 0.001)
+        XCTAssertEqual(savedGoals?["activityLevel"] as? Double ?? 0, 1.55, accuracy: 0.001)
+        XCTAssertEqual(savedGoals?["goal"] as? String, "Lose")
+    }
+
+    @MainActor
+    func testNewerLocalGoalCacheWinsOverStaleRemoteDefaults() async {
+        let repo = mockRepo!
+        let testUserID = "newer_local_goal_cache_test"
+        UserDefaults.standard.removeObject(forKey: "cached_user_goals_\(testUserID)")
+
+        settings.gender = "Male"
+        settings.age = 25
+        settings.weight = 180
+        settings.height = 180
+        settings.activityLevel = 1.55
+        settings.goal = "Lose"
+        settings.calorieGoalMethod = .mifflinWithActivity
+        settings.recalculateAllGoals()
+        await drainMainQueue()
+        let expectedCalories = settings.calories ?? 0
+
+        let initialSave = expectation(description: "initial local save")
+        repo.onSave = { initialSave.fulfill() }
+        settings.saveUserGoals(userID: testUserID)
+        await fulfillment(of: [initialSave], timeout: 2.0)
+        await drainMainQueue()
+
+        repo.mockFetchUserGoalsResult = [
+            "weight": 150.0,
+            "height": 170.0,
+            "age": 25,
+            "gender": "Male",
+            "activityLevel": 1.2,
+            "goal": "Maintain",
+            "calorieGoalMethod": CalorieGoalMethod.mifflinWithActivity.rawValue,
+            "goals": [
+                "calories": 1_947.0,
+                "protein": 146.0,
+                "carbs": 243.0,
+                "fats": 43.0,
+                "proteinPercentage": 30.0,
+                "carbsPercentage": 50.0,
+                "fatsPercentage": 20.0,
+                "activityLevel": 1.2,
+                "goal": "Maintain"
+            ]
+        ]
+
+        let repairedSave = expectation(description: "repair stale remote defaults")
+        repo.onSave = { repairedSave.fulfill() }
+        let restartedSettings = GoalSettings(healthKitManager: MockCoreHealthKitManager())
+        let load = expectation(description: "load after restart")
+
+        restartedSettings.loadUserGoals(userID: testUserID) {
+            load.fulfill()
+        }
+
+        await fulfillment(of: [load, repairedSave], timeout: 2.0)
+        await drainMainQueue()
+
+        XCTAssertEqual(restartedSettings.activityLevel, 1.55, accuracy: 0.001)
+        XCTAssertEqual(restartedSettings.goal, "Lose")
+        XCTAssertEqual(restartedSettings.calories ?? 0, expectedCalories, accuracy: 0.001)
+
+        let savedGoals = repo.savedUserGoals?["goals"] as? [String: Any]
+        XCTAssertEqual(savedGoals?["activityLevel"] as? Double ?? 0, 1.55, accuracy: 0.001)
+        XCTAssertEqual(savedGoals?["goal"] as? String, "Lose")
+        XCTAssertEqual(savedGoals?["calories"] as? Double ?? 0, expectedCalories, accuracy: 0.001)
+        XCTAssertEqual(repo.savedUserGoals?["activityLevel"] as? Double ?? 0, 1.55, accuracy: 0.001)
+        XCTAssertEqual(repo.savedUserGoals?["goal"] as? String, "Lose")
+        XCTAssertEqual(repo.savedUserGoals?["calories"] as? Double ?? 0, expectedCalories, accuracy: 0.001)
+        XCTAssertNotNil(repo.savedUserGoals?["goalSettingsUpdatedAt"] as? Date)
+    }
+
+    @MainActor
+    func testOfflineCachePreservesGoalsWhenFirestoreReturnsNil() async {
+        let repo = mockRepo!
+        let testUserID = "offline_user_test"
+
+        // Step 1: Save goals to populate local cache
+        settings.weight = 180
+        settings.height = 180
+        settings.age = 25
+        settings.gender = "Male"
+        settings.activityLevel = 1.55
+        settings.goal = "Lose"
+        settings.recalculateAllGoals()
+        await drainMainQueue()
+        let expectedCalories = settings.calories
+
+        settings.saveUserGoals(userID: testUserID)
+        await drainMainQueue()
+        await drainMainQueue()
+
+        // Step 2: Simulate offline/timeout where Firestore returns nil
+        repo.mockFetchUserGoalsResult = nil
+
+        let newSettings = GoalSettings(healthKitManager: MockCoreHealthKitManager())
+        let exp = expectation(description: "loadUserGoals offline")
+        newSettings.loadUserGoals(userID: testUserID) {
+            exp.fulfill()
+        }
+        await fulfillment(of: [exp], timeout: 2.0)
+        await drainMainQueue()
+
+        XCTAssertEqual(newSettings.activityLevel, 1.55, "Activity level should be restored from local cache when offline")
+        XCTAssertEqual(newSettings.goal, "Lose", "Goal should be restored from local cache when offline")
+        XCTAssertEqual(newSettings.calories, expectedCalories, "Calories should be restored from local cache when offline")
+    }
+
+    private func drainMainQueue() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async {
+                continuation.resume()
+            }
+        }
     }
 }

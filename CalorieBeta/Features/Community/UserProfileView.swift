@@ -58,7 +58,6 @@ struct UserProfileView: View {
         }
         .onAppear {
              if let userID = DIContainer.shared.authService.currentUserID {
-                  goalSettings.loadUserGoals(userID: userID)
                   achievementService.fetchUserStatuses(userID: userID)
                   achievementService.listenToUserProfile(userID: userID)
              }

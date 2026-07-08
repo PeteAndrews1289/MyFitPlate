@@ -7,17 +7,39 @@ class FirestoreSettingsRepository: SettingsRepositoryProtocol {
     private let db = Firestore.firestore()
 
     func fetchUserGoals(userID: String, completion: @escaping ([String: Any]?) -> Void) {
-        db.collection(FirestoreCollection.users).document(userID).getDocument { document, _ in
+        let docRef = db.collection(FirestoreCollection.users).document(userID)
+        docRef.getDocument { document, _ in
             if let doc = document, doc.exists, var data = doc.data() {
-                if var goals = data["goals"] as? [String: Any], let ts = goals["lastCheckInDate"] as? Timestamp {
-                    goals["lastCheckInDate"] = ts.dateValue()
-                    data["goals"] = goals
-                }
+                data = self.normalizedGoalDates(in: data)
                 completion(data)
             } else {
-                completion(nil)
+                docRef.getDocument(source: .cache) { cachedDoc, _ in
+                    if let doc = cachedDoc, doc.exists, var data = doc.data() {
+                        data = self.normalizedGoalDates(in: data)
+                        completion(data)
+                    } else {
+                        completion(nil)
+                    }
+                }
             }
         }
+    }
+
+    private func normalizedGoalDates(in rawData: [String: Any]) -> [String: Any] {
+        var data = rawData
+        if let ts = data["goalSettingsUpdatedAt"] as? Timestamp {
+            data["goalSettingsUpdatedAt"] = ts.dateValue()
+        }
+        if var goals = data["goals"] as? [String: Any] {
+            if let ts = goals["lastCheckInDate"] as? Timestamp {
+                goals["lastCheckInDate"] = ts.dateValue()
+            }
+            if let ts = goals["updatedAt"] as? Timestamp {
+                goals["updatedAt"] = ts.dateValue()
+            }
+            data["goals"] = goals
+        }
+        return data
     }
 
     func saveUserGoals(userID: String, data: [String: Any]) async throws {

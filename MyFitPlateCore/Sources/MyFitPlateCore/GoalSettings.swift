@@ -106,6 +106,7 @@ public class GoalSettings: ObservableObject {
     private var isHydratingPersistedGoals = false
     private var isSyncingWeightFromHealthKit = false
     private var hasAutoSyncedWeightThisSession = false
+    private var loadedGoalUserIDs = Set<String>()
     public weak var dailyLogService: DailyLogService?
     public weak var adaptiveGoalService: AdaptiveGoalService?
 
@@ -229,97 +230,24 @@ public class GoalSettings: ObservableObject {
     
     @MainActor
     public func loadUserGoals(userID: String, completion: @escaping () -> Void = {}) {
+        var localResult: (updatedData: [String: Any], shouldUpdateFirestore: Bool)?
+        if let localData = loadFromLocalCache(userID: userID) {
+            localResult = applyDecodedGoals(from: localData)
+        }
         DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { [weak self] data in
             guard let self = self else { completion(); return }
             
             var shouldUpdateFirestore = false
             
-            if var data = data {
-                self.isHydratingPersistedGoals = true
-                defer { self.isHydratingPersistedGoals = false }
-
-                // Load core stats
-                if data["weight"] == nil { data["weight"] = self.weight; shouldUpdateFirestore = true }
-                if data["height"] == nil { data["height"] = self.height; shouldUpdateFirestore = true }
-                if data["age"] == nil { data["age"] = self.age; shouldUpdateFirestore = true }
-                if data["gender"] == nil { data["gender"] = self.gender; shouldUpdateFirestore = true }
-                var goalsMap = data["goals"] as? [String: Any] ?? [:]
-                let savedCalories = goalsMap["calories"] as? Double
-                if data["calorieGoalMethod"] == nil {
-                    let inferredMethod: CalorieGoalMethod = (savedCalories ?? 0) > 0 ? .custom : self.calorieGoalMethod
-                    data["calorieGoalMethod"] = inferredMethod.rawValue
+            if let data = data {
+                if let localResult, self.shouldPreferLocalGoals(local: localResult.updatedData, remote: data) {
                     shouldUpdateFirestore = true
+                    self.saveToLocalCache(userID: userID, data: localResult.updatedData)
+                } else {
+                    let result = self.applyDecodedGoals(from: data)
+                    shouldUpdateFirestore = result.shouldUpdateFirestore
+                    self.saveToLocalCache(userID: userID, data: result.updatedData)
                 }
-
-                self.weight = data["weight"] as? Double ?? self.weight
-                self.height = data["height"] as? Double ?? self.height
-                self.age = data["age"] as? Int ?? self.age
-                self.gender = data["gender"] as? String ?? self.gender
-                if let methodStr = data["calorieGoalMethod"] as? String {
-                    self.calorieGoalMethod = CalorieGoalMethod(rawValue: methodStr) ?? self.calorieGoalMethod
-                }
-
-                // Load or default new fields
-                if goalsMap["proteinPercentage"] == nil { goalsMap["proteinPercentage"] = self.proteinPercentage; shouldUpdateFirestore = true }
-                if goalsMap["carbsPercentage"] == nil { goalsMap["carbsPercentage"] = self.carbsPercentage; shouldUpdateFirestore = true }
-                if goalsMap["fatsPercentage"] == nil { goalsMap["fatsPercentage"] = self.fatsPercentage; shouldUpdateFirestore = true }
-                if goalsMap["activityLevel"] == nil { goalsMap["activityLevel"] = self.activityLevel; shouldUpdateFirestore = true }
-                if goalsMap["goal"] == nil { goalsMap["goal"] = self.goal; shouldUpdateFirestore = true }
-                if goalsMap["waterGoal"] == nil { goalsMap["waterGoal"] = self.waterGoal; shouldUpdateFirestore = true }
-                if goalsMap["trainingIntent"] == nil { goalsMap["trainingIntent"] = self.trainingIntent; shouldUpdateFirestore = true }
-                if goalsMap["reminderStyle"] == nil { goalsMap["reminderStyle"] = self.reminderStyle; shouldUpdateFirestore = true }
-                if goalsMap["maiaTone"] == nil { goalsMap["maiaTone"] = self.maiaTone; shouldUpdateFirestore = true }
-                if goalsMap["cookingStyle"] == nil { goalsMap["cookingStyle"] = self.cookingStyle; shouldUpdateFirestore = true }
-
-                if let timestamp = data["lastCheckInDate"] as? Date {
-                    self.lastCheckInDate = timestamp
-                } else if let timestamp = goalsMap["lastCheckInDate"] as? Date {
-                    // For backward compatibility with Firestore Date
-                    self.lastCheckInDate = timestamp
-                }
-
-                // Handle target weight (might be null)
-                self.targetWeight = goalsMap["targetWeight"] as? Double
-                if self.targetWeight == nil {
-                     // Backward compatibility check
-                    if let topLevelTargetWeight = data["targetWeight"] as? Double {
-                        self.targetWeight = topLevelTargetWeight
-                        goalsMap["targetWeight"] = topLevelTargetWeight
-                        shouldUpdateFirestore = true
-                    } else if goalsMap["targetWeight"] == nil {
-                        goalsMap["targetWeight"] = NSNull()
-                        shouldUpdateFirestore = true
-                    }
-                }
-                
-                // Load AI Preferences
-                self.suggestionProteins = goalsMap["suggestionProteins"] as? [String] ?? self.suggestionProteins
-                self.suggestionCuisines = goalsMap["suggestionCuisines"] as? [String] ?? self.suggestionCuisines
-                self.suggestionCarbs = goalsMap["suggestionCarbs"] as? [String] ?? self.suggestionCarbs
-                self.suggestionVeggies = goalsMap["suggestionVeggies"] as? [String] ?? self.suggestionVeggies
-                self.trainingIntent = goalsMap["trainingIntent"] as? String ?? self.trainingIntent
-                self.reminderStyle = goalsMap["reminderStyle"] as? String ?? self.reminderStyle
-                self.maiaTone = goalsMap["maiaTone"] as? String ?? self.maiaTone
-                self.cookingStyle = goalsMap["cookingStyle"] as? String ?? self.cookingStyle
-                
-                data["goals"] = goalsMap
-
-                self.proteinPercentage = goalsMap["proteinPercentage"] as? Double ?? self.proteinPercentage
-                self.carbsPercentage = goalsMap["carbsPercentage"] as? Double ?? self.carbsPercentage
-                self.fatsPercentage = goalsMap["fatsPercentage"] as? Double ?? self.fatsPercentage
-                self.activityLevel = goalsMap["activityLevel"] as? Double ?? self.activityLevel
-                self.goal = goalsMap["goal"] as? String ?? self.goal
-                self.waterGoal = goalsMap["waterGoal"] as? Double ?? self.waterGoal
-
-                // Restore saved calorie/macro targets so CUSTOM goals survive launch — the .custom
-                // method preserves self.calories instead of recomputing, so without this a custom
-                // user gets reset to the 2000 default every cold start.
-                if let savedCalories, savedCalories > 0 {
-                    self.calories = savedCalories
-                }
-                self.protein = goalsMap["protein"] as? Double ?? self.protein
-                self.carbs = goalsMap["carbs"] as? Double ?? self.carbs
-                self.fats = goalsMap["fats"] as? Double ?? self.fats
             }
             
             if shouldUpdateFirestore {
@@ -327,17 +255,242 @@ public class GoalSettings: ObservableObject {
             }
             
             DispatchQueue.main.async {
+                self.loadedGoalUserIDs.insert(userID)
                 self.recalculateAllGoals()
                 completion()
             }
         }
     }
 
+    private func applyDecodedGoals(from rawData: [String: Any]) -> (updatedData: [String: Any], shouldUpdateFirestore: Bool) {
+        var data = rawData
+        var shouldUpdateFirestore = false
+
+        self.isHydratingPersistedGoals = true
+        defer { self.isHydratingPersistedGoals = false }
+
+        // Load core stats
+        if data["weight"] == nil { data["weight"] = self.weight; shouldUpdateFirestore = true }
+        if data["height"] == nil { data["height"] = self.height; shouldUpdateFirestore = true }
+        if data["age"] == nil { data["age"] = self.age; shouldUpdateFirestore = true }
+        if data["gender"] == nil { data["gender"] = self.gender; shouldUpdateFirestore = true }
+        var goalsMap = data["goals"] as? [String: Any] ?? [:]
+        let savedCalories = doubleValue(goalsMap["calories"])
+        if data["calorieGoalMethod"] == nil {
+            let inferredMethod: CalorieGoalMethod = (savedCalories ?? 0) > 0 ? .custom : self.calorieGoalMethod
+            data["calorieGoalMethod"] = inferredMethod.rawValue
+            shouldUpdateFirestore = true
+        }
+
+        self.weight = doubleValue(data["weight"]) ?? self.weight
+        self.height = doubleValue(data["height"]) ?? self.height
+        self.age = intValue(data["age"]) ?? self.age
+        self.gender = data["gender"] as? String ?? self.gender
+        if let methodStr = data["calorieGoalMethod"] as? String {
+            self.calorieGoalMethod = CalorieGoalMethod(rawValue: methodStr) ?? self.calorieGoalMethod
+        }
+
+        // Load or default new fields
+        if goalsMap["proteinPercentage"] == nil { goalsMap["proteinPercentage"] = self.proteinPercentage; shouldUpdateFirestore = true }
+        if goalsMap["carbsPercentage"] == nil { goalsMap["carbsPercentage"] = self.carbsPercentage; shouldUpdateFirestore = true }
+        if goalsMap["fatsPercentage"] == nil { goalsMap["fatsPercentage"] = self.fatsPercentage; shouldUpdateFirestore = true }
+        let topLevelActivity = doubleValue(data["activityLevel"])
+        let nestedActivity = doubleValue(goalsMap["activityLevel"])
+        let topLevelGoal = data["goal"] as? String
+        let nestedGoal = goalsMap["goal"] as? String
+        let nestedGoalIsDefault = nestedGoal == nil || nestedGoal == "Maintain"
+        let nestedActivityIsDefault = nestedActivity == nil || abs((nestedActivity ?? 1.2) - 1.2) < 0.0001
+        let topLevelHasChosenGoal = topLevelGoal != nil && topLevelGoal != "Maintain"
+        let topLevelHasChosenActivity = topLevelActivity != nil && abs((topLevelActivity ?? 1.2) - 1.2) >= 0.0001
+
+        if nestedGoalIsDefault && topLevelHasChosenGoal, let topLevelGoal {
+            goalsMap["goal"] = topLevelGoal
+            shouldUpdateFirestore = true
+        } else if nestedGoal == nil {
+            goalsMap["goal"] = topLevelGoal ?? self.goal
+            shouldUpdateFirestore = true
+        }
+
+        if nestedActivityIsDefault && topLevelHasChosenActivity, let topLevelActivity {
+            goalsMap["activityLevel"] = topLevelActivity
+            shouldUpdateFirestore = true
+        } else if nestedActivity == nil {
+            goalsMap["activityLevel"] = topLevelActivity ?? self.activityLevel
+            shouldUpdateFirestore = true
+        }
+        if goalsMap["waterGoal"] == nil { goalsMap["waterGoal"] = self.waterGoal; shouldUpdateFirestore = true }
+        if goalsMap["trainingIntent"] == nil { goalsMap["trainingIntent"] = self.trainingIntent; shouldUpdateFirestore = true }
+        if goalsMap["reminderStyle"] == nil { goalsMap["reminderStyle"] = self.reminderStyle; shouldUpdateFirestore = true }
+        if goalsMap["maiaTone"] == nil { goalsMap["maiaTone"] = self.maiaTone; shouldUpdateFirestore = true }
+        if goalsMap["cookingStyle"] == nil { goalsMap["cookingStyle"] = self.cookingStyle; shouldUpdateFirestore = true }
+
+        if let timestamp = data["lastCheckInDate"] as? Date {
+            self.lastCheckInDate = timestamp
+        } else if let timestamp = goalsMap["lastCheckInDate"] as? Date {
+            self.lastCheckInDate = timestamp
+        } else if let tsNumber = data["lastCheckInDate"] as? TimeInterval {
+            self.lastCheckInDate = Date(timeIntervalSince1970: tsNumber)
+        } else if let tsNumber = goalsMap["lastCheckInDate"] as? TimeInterval {
+            self.lastCheckInDate = Date(timeIntervalSince1970: tsNumber)
+        }
+
+        // Handle target weight (might be null)
+        self.targetWeight = goalsMap["targetWeight"] as? Double
+        if self.targetWeight == nil {
+            if let topLevelTargetWeight = data["targetWeight"] as? Double {
+                self.targetWeight = topLevelTargetWeight
+                goalsMap["targetWeight"] = topLevelTargetWeight
+                shouldUpdateFirestore = true
+            } else if goalsMap["targetWeight"] == nil {
+                goalsMap["targetWeight"] = NSNull()
+                shouldUpdateFirestore = true
+            }
+        }
+
+        // Load AI Preferences
+        self.suggestionProteins = goalsMap["suggestionProteins"] as? [String] ?? self.suggestionProteins
+        self.suggestionCuisines = goalsMap["suggestionCuisines"] as? [String] ?? self.suggestionCuisines
+        self.suggestionCarbs = goalsMap["suggestionCarbs"] as? [String] ?? self.suggestionCarbs
+        self.suggestionVeggies = goalsMap["suggestionVeggies"] as? [String] ?? self.suggestionVeggies
+        self.trainingIntent = goalsMap["trainingIntent"] as? String ?? self.trainingIntent
+        self.reminderStyle = goalsMap["reminderStyle"] as? String ?? self.reminderStyle
+        self.maiaTone = goalsMap["maiaTone"] as? String ?? self.maiaTone
+        self.cookingStyle = goalsMap["cookingStyle"] as? String ?? self.cookingStyle
+
+        data["goals"] = goalsMap
+
+        self.proteinPercentage = doubleValue(goalsMap["proteinPercentage"]) ?? self.proteinPercentage
+        self.carbsPercentage = doubleValue(goalsMap["carbsPercentage"]) ?? self.carbsPercentage
+        self.fatsPercentage = doubleValue(goalsMap["fatsPercentage"]) ?? self.fatsPercentage
+        self.activityLevel = doubleValue(goalsMap["activityLevel"]) ?? self.activityLevel
+        self.goal = goalsMap["goal"] as? String ?? self.goal
+        self.waterGoal = doubleValue(goalsMap["waterGoal"]) ?? self.waterGoal
+
+        if let savedCalories, savedCalories > 0 {
+            self.calories = savedCalories
+        }
+        self.protein = doubleValue(goalsMap["protein"]) ?? self.protein
+        self.carbs = doubleValue(goalsMap["carbs"]) ?? self.carbs
+        self.fats = doubleValue(goalsMap["fats"]) ?? self.fats
+
+        return (data, shouldUpdateFirestore)
+    }
+
+    private func shouldPreferLocalGoals(local: [String: Any], remote: [String: Any]) -> Bool {
+        let localUpdatedAt = goalSettingsUpdatedAt(from: local)
+        let remoteUpdatedAt = goalSettingsUpdatedAt(from: remote)
+
+        if let localUpdatedAt, let remoteUpdatedAt {
+            return localUpdatedAt.timeIntervalSince(remoteUpdatedAt) > 1
+        }
+
+        if localUpdatedAt != nil && remoteUpdatedAt == nil {
+            return hasUserSelectedGoal(in: local) && hasDefaultGoalSelection(in: remote)
+        }
+
+        if localUpdatedAt == nil && remoteUpdatedAt == nil {
+            return hasUserSelectedGoal(in: local) && hasDefaultGoalSelection(in: remote)
+        }
+
+        return false
+    }
+
+    private func goalSettingsUpdatedAt(from data: [String: Any]) -> Date? {
+        if let date = dateValue(data["goalSettingsUpdatedAt"]) {
+            return date
+        }
+        if let goalsMap = data["goals"] as? [String: Any] {
+            return dateValue(goalsMap["updatedAt"])
+        }
+        return nil
+    }
+
+    private func hasUserSelectedGoal(in data: [String: Any]) -> Bool {
+        let selection = goalSelection(in: data)
+        let hasChosenActivity = selection.activityLevel.map { abs($0 - 1.2) >= 0.0001 } ?? false
+        let hasChosenGoal = selection.goal.map { $0 != "Maintain" } ?? false
+        return hasChosenActivity || hasChosenGoal
+    }
+
+    private func hasDefaultGoalSelection(in data: [String: Any]) -> Bool {
+        let selection = goalSelection(in: data)
+        let hasDefaultActivity = selection.activityLevel.map { abs($0 - 1.2) < 0.0001 } ?? true
+        let hasDefaultGoal = selection.goal.map { $0 == "Maintain" } ?? true
+        return hasDefaultActivity && hasDefaultGoal
+    }
+
+    private func goalSelection(in data: [String: Any]) -> (activityLevel: Double?, goal: String?) {
+        let goalsMap = data["goals"] as? [String: Any]
+        return (
+            doubleValue(goalsMap?["activityLevel"]) ?? doubleValue(data["activityLevel"]),
+            goalsMap?["goal"] as? String ?? data["goal"] as? String
+        )
+    }
+
+    private func doubleValue(_ value: Any?) -> Double? {
+        if let number = value as? NSNumber { return number.doubleValue }
+        if let string = value as? String { return Double(string) }
+        return nil
+    }
+
+    private func intValue(_ value: Any?) -> Int? {
+        if let number = value as? NSNumber { return number.intValue }
+        if let string = value as? String { return Int(string) }
+        return nil
+    }
+
+    private func dateValue(_ value: Any?) -> Date? {
+        if let date = value as? Date { return date }
+        if let interval = value as? TimeInterval { return Date(timeIntervalSince1970: interval) }
+        if let number = value as? NSNumber { return Date(timeIntervalSince1970: number.doubleValue) }
+        if let string = value as? String {
+            if let interval = TimeInterval(string) {
+                return Date(timeIntervalSince1970: interval)
+            }
+            return ISO8601DateFormatter().date(from: string)
+        }
+        return nil
+    }
+
+    private func plistSafeValue(_ value: Any) -> Any? {
+        if value is NSNull { return nil }
+        if let dict = value as? [String: Any] {
+            var cleanDict: [String: Any] = [:]
+            for (k, v) in dict {
+                if let cleanV = plistSafeValue(v) {
+                    cleanDict[k] = cleanV
+                }
+            }
+            return cleanDict
+        }
+        if let array = value as? [Any] {
+            return array.compactMap { plistSafeValue($0) }
+        }
+        if value is String || value is NSNumber || value is Date || value is Data {
+            return value
+        }
+        return nil
+    }
+
+    private func saveToLocalCache(userID: String, data: [String: Any]) {
+        guard !userID.isEmpty, let cleanDict = plistSafeValue(data) as? [String: Any] else { return }
+        UserDefaults.standard.set(cleanDict, forKey: "cached_user_goals_\(userID)")
+    }
+
+    private func loadFromLocalCache(userID: String) -> [String: Any]? {
+        guard !userID.isEmpty else { return nil }
+        return UserDefaults.standard.dictionary(forKey: "cached_user_goals_\(userID)")
+    }
+
     public func saveUserGoals(userID: String) {
         guard !userID.isEmpty else { return }
+        loadedGoalUserIDs.insert(userID)
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.recalculateAllGoals()
+            self._recalculateCalorieGoal()
+            self.calculateMicronutrientGoals()
+            self.syncAnalyticsUserProperties()
+            let updatedAt = Date()
             var goalsDict: [String:Any] = [
                 "calories": self.calories ?? 0, "protein": self.protein, "fats": self.fats, "carbs": self.carbs,
                 "proteinPercentage": self.proteinPercentage, "carbsPercentage": self.carbsPercentage, "fatsPercentage": self.fatsPercentage,
@@ -349,17 +502,23 @@ public class GoalSettings: ObservableObject {
                 "suggestionProteins": self.suggestionProteins, "suggestionCuisines": self.suggestionCuisines,
                 "suggestionCarbs": self.suggestionCarbs, "suggestionVeggies": self.suggestionVeggies,
                 "trainingIntent": self.trainingIntent, "reminderStyle": self.reminderStyle, "maiaTone": self.maiaTone,
-                "cookingStyle": self.cookingStyle
+                "cookingStyle": self.cookingStyle, "updatedAt": updatedAt
             ]
             if let lastDate = self.lastCheckInDate {
                 goalsDict["lastCheckInDate"] = lastDate
             }
             let userData:[String:Any] = [
                 "goals": goalsDict, "height": self.height, "weight": self.weight, "age": self.age, "gender": self.gender, "isFirstLogin": false,
-                "calorieGoalMethod": self.calorieGoalMethod.rawValue
+                "calorieGoalMethod": self.calorieGoalMethod.rawValue, "activityLevel": self.activityLevel, "goal": self.goal,
+                "calories": self.calories ?? 0, "goalSettingsUpdatedAt": updatedAt
             ]
+            self.saveToLocalCache(userID: userID, data: userData)
             Task {
-                try? await DIContainer.shared.settingsRepository.saveUserGoals(userID: userID, data: userData)
+                do {
+                    try await DIContainer.shared.settingsRepository.saveUserGoals(userID: userID, data: userData)
+                } catch {
+                    AppLog.data.error("Failed to save user goals: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -408,7 +567,11 @@ public class GoalSettings: ObservableObject {
             if Calendar.current.isDateInToday(date) {
                 self.weight = newWeight
                 self.recalculateAllGoals()
-                self.saveUserGoals(userID: userID)
+                if self.loadedGoalUserIDs.contains(userID) {
+                    self.saveUserGoals(userID: userID)
+                } else {
+                    AppLog.data.info("Skipping full goal save for weight update until persisted goals finish loading.")
+                }
             }
         
             do {
