@@ -87,7 +87,11 @@ struct AIChatbotView: View {
             .onTapGesture { hideKeyboard() }
 
             VStack(spacing: 0) {
-                if viewModel.chatMessages.count <= 1 && !viewModel.isLoading {
+                // Show the quick-action board whenever the composer is idle (empty + not loading),
+                // not just on the very first message. Chat history persists, so gating on message
+                // count meant a returning user — anyone who'd ever sent one message — never saw the
+                // action board again. Clearing the field brings it back.
+                if viewModel.userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.isLoading {
                     MaiaActionBoardView(
                         remainingCalories: viewModel.remainingCalories,
                         remainingProtein: viewModel.remainingProtein,
