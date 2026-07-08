@@ -39,6 +39,10 @@ struct CaloricCalculatorView: View {
     
     @State private var calorieInput: String = ""
     @State private var targetWeightInput: String = ""
+    // Local draft for the two pickers, seeded on appear. They write to goalSettings only on a
+    // real user change — so merely opening (and dismissing) the screen can't reset activity/goal.
+    @State private var selectedActivityString: String = "Sedentary"
+    @State private var selectedGoal: String = "Maintain"
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
 
      private let activityLevelStrings = [
@@ -46,20 +50,16 @@ struct CaloricCalculatorView: View {
      ]
      private let activityLevelValues = [1.2, 1.375, 1.55, 1.725, 1.9]
 
-     private var activityLevelSelection: Binding<String> {
-         Binding<String>(
-             get: {
-                 if let index = self.activityLevelValues.firstIndex(of: self.goalSettings.activityLevel) {
-                     return self.activityLevelStrings[index]
-                 }
-                 return self.activityLevelStrings[0]
-             },
-             set: { newValue in
-                 if let index = self.activityLevelStrings.firstIndex(of: newValue) {
-                     self.goalSettings.activityLevel = self.activityLevelValues[index]
-                 }
-             }
-         )
+     /// Map a stored multiplier to its picker label, snapping a non-preset value to the
+     /// NEAREST preset rather than silently falling back to "Sedentary".
+     private func activityString(for level: Double) -> String {
+         if let index = activityLevelValues.firstIndex(of: level) {
+             return activityLevelStrings[index]
+         }
+         let nearest = activityLevelValues.enumerated().min {
+             abs($0.element - level) < abs($1.element - level)
+         }
+         return activityLevelStrings[nearest?.offset ?? 0]
      }
 
     private let goals = ["Lose", "Maintain", "Gain"]
@@ -150,19 +150,27 @@ struct CaloricCalculatorView: View {
             GenderButtonPicker(selectedGender: $goalSettings.gender)
                 .padding(.vertical, 5)
 
-             Picker("Activity level", selection: activityLevelSelection) {
+             Picker("Activity level", selection: $selectedActivityString) {
                  ForEach(activityLevelStrings, id: \.self) { levelString in
                      Text(levelString).tag(levelString)
                  }
              }
             .tint(accentColor)
+            .onChange(of: selectedActivityString) { _, newValue in
+                if let index = activityLevelStrings.firstIndex(of: newValue) {
+                    goalSettings.activityLevel = activityLevelValues[index]
+                }
+            }
 
-            Picker("Goal", selection: $goalSettings.goal) {
+            Picker("Goal", selection: $selectedGoal) {
                 ForEach(goals, id: \.self) { goal in
-                    Text(goal)
+                    Text(goal).tag(goal)
                 }
             }
             .tint(accentColor)
+            .onChange(of: selectedGoal) { _, newValue in
+                goalSettings.goal = newValue
+            }
         }
     }
 
@@ -208,15 +216,16 @@ struct CaloricCalculatorView: View {
      }
 
     private func fetchAndSetGoals() {
-        guard let userID = DIContainer.shared.authService.currentUserID else {
-            return
+        // goalSettings is already loaded app-wide; re-loading it here on every appear re-ran the
+        // full @Published assignment churn and could recompute the goal from partially-loaded
+        // state. Seed the local fields from what's already loaded so opening this screen is
+        // read-only for the model — nothing changes unless the user edits and taps Save.
+        calorieInput = String(format: "%.0f", goalSettings.calories ?? 0)
+        if let targetWeight = goalSettings.targetWeight {
+            targetWeightInput = String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: targetWeight, metric: useMetric))
         }
-        goalSettings.loadUserGoals(userID: userID) {
-            self.calorieInput = String(format: "%.0f", self.goalSettings.calories ?? 0)
-            if let targetWeight = self.goalSettings.targetWeight {
-                self.targetWeightInput = String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: targetWeight, metric: useMetric))
-            }
-        }
+        selectedActivityString = activityString(for: goalSettings.activityLevel)
+        selectedGoal = goals.contains(goalSettings.goal) ? goalSettings.goal : "Maintain"
     }
     
     private func saveCaloricGoal() {
