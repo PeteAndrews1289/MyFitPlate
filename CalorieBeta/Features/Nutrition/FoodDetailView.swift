@@ -196,7 +196,8 @@ struct FoodDetailView: View {
             calories: nutrients.calories,
             protein: nutrients.protein,
             carbs: nutrients.carbs,
-            fats: nutrients.fats
+            fats: nutrients.fats,
+            fiber: nutrients.fiber
         )
     }
 
@@ -276,7 +277,11 @@ struct FoodDetailView: View {
                             )
 
                             let consistencyStatus = adjustedConsistencyStatus
-                            if consistencyStatus.hasMeaningfulMismatch {
+                            // Only flag when macros imply MORE calories than logged (a possible
+                            // undercount). The other direction — logged higher than macros — is the
+                            // alcohol / high-fiber / incomplete-macro case where "logged stays
+                            // official," so surfacing it just adds noise (beer, low-cal tortillas).
+                            if consistencyStatus.hasMeaningfulMismatch && consistencyStatus.delta > 0 {
                                 NutritionConsistencyNoticeCard(status: consistencyStatus, style: .detail)
                             }
 

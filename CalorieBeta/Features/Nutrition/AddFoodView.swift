@@ -164,7 +164,8 @@ struct AddFoodView: View {
             calories: nutrients.calories,
             protein: nutrients.protein,
             carbs: nutrients.carbs,
-            fats: nutrients.fats
+            fats: nutrients.fats,
+            fiber: nutrients.fiber
         )
     }
 
@@ -237,7 +238,10 @@ struct AddFoodView: View {
                         )
 
                         let consistencyStatus = adjustedConsistencyStatus
-                        if consistencyStatus.hasMeaningfulMismatch {
+                        // Only flag a possible undercount (macros imply MORE than logged). The
+                        // logged-higher direction (alcohol, fiber, incomplete macros) is the safe
+                        // "logged stays official" case — flagging it just adds noise.
+                        if consistencyStatus.hasMeaningfulMismatch && consistencyStatus.delta > 0 {
                             NutritionConsistencyNoticeCard(
                                 status: consistencyStatus,
                                 style: .detail,
