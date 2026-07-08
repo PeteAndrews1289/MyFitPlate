@@ -238,7 +238,8 @@ public enum InsightsRules {
         carbPrefs: String,
         veggiePrefs: String,
         cuisinePrefs: String,
-        pantryItems: [String] = []
+        pantryItems: [String] = [],
+        avoiding: [String] = []
     ) -> String {
         // "Fill my macros": when the user's pantry is known, the suggestion should be
         // cookable tonight from what's on hand, not a shopping list.
@@ -247,6 +248,15 @@ public enum InsightsRules {
 
         Ingredients the user has on hand — build the meal primarily from these, and mark anything not on this list as optional:
         \(pantryItems.prefix(25).joined(separator: ", "))
+        """
+
+        // When the user asks for another idea, tell the model exactly what to move away from so
+        // consecutive suggestions aren't near-identical (the "it just gives me the same one" gripe).
+        let avoidSection = avoiding.isEmpty ? "" : """
+
+
+        The user just saw these ideas and wants something clearly different — do NOT repeat them or minor variations of them, and switch up the primary protein and cuisine:
+        \(avoiding.prefix(6).joined(separator: ", "))
         """
 
         return """
@@ -262,13 +272,14 @@ public enum InsightsRules {
         - Proteins: \(proteinPrefs)
         - Carbs: \(carbPrefs)
         - Veggies: \(veggiePrefs)
-        - Cuisines: \(cuisinePrefs)\(pantrySection)
+        - Cuisines: \(cuisinePrefs)\(pantrySection)\(avoidSection)
 
         RULES:
         1. Generate a single, simple, healthy meal idea that fits the user's remaining nutritional targets AND their preferences.
-        2. **Prioritize Variety**: Do NOT suggest common items like 'quinoa' or 'chicken breast' unless they are explicitly listed in the user's preferences. Use a diverse range of ingredients.
-        3. Your response MUST be a valid JSON object. Do not include any other text.
-        4. The JSON object must have these exact keys: "mealName" (string), "calories" (number), "protein" (number), "carbs" (number), "fats" (number), "ingredients" (an array of strings), "instructions" (a single string with newlines).
+        2. **Balance the plate**: aim to close whichever macro has the biggest remaining gap, not protein by default — if carbs or fats are the largest remaining number, center the meal on those.
+        3. **Prioritize Variety**: Do NOT suggest common items like 'quinoa' or 'chicken breast' unless they are explicitly listed in the user's preferences. Use a diverse range of ingredients.
+        4. Your response MUST be a valid JSON object. Do not include any other text.
+        5. The JSON object must have these exact keys: "mealName" (string), "calories" (number), "protein" (number), "carbs" (number), "fats" (number), "ingredients" (an array of strings), "instructions" (a single string with newlines).
         """
     }
 

@@ -10,6 +10,8 @@ struct MealSuggestionDetailView: View {
     var remainingCarbs: Double?
     var remainingFats: Double?
     var onLog: (MealSuggestion) -> Void
+    var onRegenerate: (() -> Void)? = nil
+    var isRegenerating: Bool = false
 
     private var normalizedPantryNames: [String] {
         pantryItemNames
@@ -131,6 +133,9 @@ struct MealSuggestionDetailView: View {
                     substitutionSection
                     instructionsSection
                     logButton
+                    if onRegenerate != nil {
+                        regenerateButton
+                    }
                 }
                 .padding()
             }
@@ -265,6 +270,28 @@ struct MealSuggestionDetailView: View {
         }
         .buttonStyle(PrimaryButtonStyle())
         .padding(.top, 4)
+    }
+
+    private var regenerateButton: some View {
+        Button {
+            onRegenerate?()
+        } label: {
+            HStack(spacing: 8) {
+                if isRegenerating {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                }
+                Text(isRegenerating ? "Finding another idea…" : "Suggest another")
+                    .appFont(size: 15, weight: .bold)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 13)
+            .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .foregroundColor(.textPrimary)
+        }
+        .buttonStyle(.plain)
+        .disabled(isRegenerating)
     }
 
     private func ingredientUsesPantry(_ ingredient: String) -> Bool {

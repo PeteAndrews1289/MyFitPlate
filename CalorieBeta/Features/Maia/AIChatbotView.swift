@@ -19,6 +19,7 @@ struct AIChatbotView: View {
     @StateObject private var ttsManager = TTSManager.shared
     @State private var mealSuggestion: MealSuggestion?
     @State private var showingSuggestionDetail = false
+    @State private var isRegeneratingSuggestion = false
 
     private var bottomSafeAreaInset: CGFloat {
         UIApplication.shared.connectedScenes
@@ -221,7 +222,9 @@ struct AIChatbotView: View {
                     remainingProtein: viewModel.remainingProtein,
                     remainingCarbs: viewModel.remainingCarbs,
                     remainingFats: viewModel.remainingFats,
-                    onLog: logMealSuggestion
+                    onLog: logMealSuggestion,
+                    onRegenerate: regenerateMealSuggestion,
+                    isRegenerating: isRegeneratingSuggestion
                 )
             }
         }
@@ -275,6 +278,23 @@ struct AIChatbotView: View {
                 ])
             } else {
                 viewModel.alertMessage = "Maia couldn't build a meal right now. Check your connection and try again."
+                viewModel.showAlert = true
+            }
+        }
+    }
+
+    private func regenerateMealSuggestion() {
+        guard !insightsService.isGeneratingSuggestion, let current = mealSuggestion else { return }
+        HapticManager.instance.feedback(.light)
+        isRegeneratingSuggestion = true
+        Task {
+            let pantryNames = pantryService.pantryItems.map(\.name)
+            let next = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames, avoiding: [current.mealName])
+            isRegeneratingSuggestion = false
+            if let next {
+                mealSuggestion = next
+            } else {
+                viewModel.alertMessage = "Maia couldn't build another meal right now. Try again in a moment."
                 viewModel.showAlert = true
             }
         }

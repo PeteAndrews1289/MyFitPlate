@@ -58,7 +58,7 @@ public class InsightsService: ObservableObject {
             .store(in: &cancellables)
     }
 
-    public func generateSingleMealSuggestion(pantryItems: [String] = []) async -> MealSuggestion? {
+    public func generateSingleMealSuggestion(pantryItems: [String] = [], avoiding: [String] = []) async -> MealSuggestion? {
         self.isGeneratingSuggestion = true
         
         let remainingCalories = max(0, (goalSettings.calories ?? 2000) - (dailyLogService.currentDailyLog?.totalCalories() ?? 0))
@@ -82,7 +82,8 @@ public class InsightsService: ObservableObject {
             carbPrefs: carbPrefs,
             veggiePrefs: veggiePrefs,
             cuisinePrefs: cuisinePrefs,
-            pantryItems: pantryItems
+            pantryItems: pantryItems,
+            avoiding: avoiding
         )
         guard let responseString = await fetchAIResponse(prompt: prompt) else {
             self.isGeneratingSuggestion = false
