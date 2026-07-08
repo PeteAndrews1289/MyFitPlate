@@ -1,7 +1,9 @@
 import SwiftUI
+import MyFitPlateCore
 
 struct SettingsPreferencesSection: View {
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
+    @EnvironmentObject var goalSettings: GoalSettings
     @Binding var includeActiveCaloriesInGoal: Bool
     @Binding var hydrationRemindersEnabled: Bool
     @Binding var weighInReminderEnabled: Bool
@@ -118,6 +120,28 @@ struct SettingsPreferencesSection: View {
                         Text("RIR").tag("rir")
                     }
                     .pickerStyle(.segmented)
+                }
+                .padding(16)
+            }
+
+            SettingsSectionCard(title: "Maia") {
+                VStack(alignment: .leading, spacing: 12) {
+                    SettingsLabel(
+                        icon: "sparkles",
+                        title: "Assistant tone",
+                        subtitle: "How Maia talks to you — Balanced, Coach (motivating), or Analyst (data-first).",
+                        color: .brandPrimary
+                    )
+                    Picker("Assistant tone", selection: $goalSettings.maiaTone) {
+                        Text("Balanced").tag("Balanced")
+                        Text("Coach").tag("Coach")
+                        Text("Analyst").tag("Analyst")
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: goalSettings.maiaTone) { _, _ in
+                        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+                        goalSettings.saveUserGoals(userID: userID)
+                    }
                 }
                 .padding(16)
             }
