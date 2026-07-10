@@ -21,6 +21,7 @@ SWITCHING FROM MYFITNESSPAL?
 
 AND A LOT MORE
 • A fresh look: new app icon, one calm palette, and every screen redesigned to lead with what matters.
+• Fast Food Builder: assemble chain meals, coffee orders, and quick picks before the final nutrition review.
 • Weekly Recap, logging streaks, and confetti when you hit your protein goal or set a record.
 • Food you can trust: every entry checked against nutrition math, cross-verified badges, fuller vitamins and minerals, and one-tap fixes that stick.
 • Maia coaching that adapts to your sleep and recovery, fasting Live Activities, CSV export, voice logging, and accessibility improvements throughout.
@@ -36,20 +37,27 @@ AND A LOT MORE
 | Celebrations | Confetti/medal overlay on protein-goal hit (per-day guard), AYCE win, workout PR, recorded-run PR |
 | Coaching | Maia adaptive coaching plan with HRV + sleep adaptation; Restaurant Value Radar (protein-per-dollar menu scanner) |
 | Apple Health | Weight auto-import with per-day de-duplication; strength/run energy double-count protection |
-| Logging | Voice "walk & talk" logging; repeat-yesterday; rapid barcode scan tray (batched review) |
-| Food trust | FoodDataSanity checker + trust cards (0–99 score v2); cross-source agreement + Cross-Verified badge; GS1 barcode fallback + privacy-safe telemetry; AI-estimate refine; USDA-blended search; micronutrient ingestion fix (quick-log hydration, OFF potassium unit slip) |
+| **Fast Food Builder** | Offline-ready 25-chain chain-meal builder and quick-pick catalog (`ChainMealBuilderData.swift` in Core + `ChainMealBuilderView.swift`) with version stamp `2026.07.V1`. Support for `.portion` food items, capped `.stepper` drink/packet/slice quantities, `.fixed` meals, deterministic ingredient notes, catalog provenance, and honest pre-review `chainBuilder` source metadata across Chipotle, Sweetgreen, Cava, Chick-fil-A, Taco Bell, McDonald's, In-N-Out, Panera, Burger King, Popeyes, Panda Express, Qdoba, Shake Shack, Subway, Starbucks, Dunkin', Jersey Mike's, Jimmy John's, Firehouse Subs, Wingstop, Culver's, Wendy's, Tropical Smoothie, Domino's, Five Guys |
+| Logging | Voice "walk & talk" logging; repeat-yesterday; rapid barcode scan tray (batched review); 3-way concurrent search across FatSecret, USDA, and Open Food Facts |
+| Food trust | FoodDataSanity checker + trust cards (0–99 score v2); cross-source agreement + Cross-Verified badge; GS1 barcode fallback + privacy-safe telemetry; AI-estimate refine; multi-database search; micronutrient ingestion fix (quick-log hydration, OFF potassium unit slip) |
 | Weekly Recap | Core builder (PR/weight/volume math) + Your Week sheet, shareable card, Home entry; logging streak with grace day; fill-my-macros |
 | Design | DESIGN.md system; new deep-green MFP icon (iOS 18 dark/tinted) + tuned one-family palette; app-wide restructure (Home, Food Search, quick-log, weight, Reports, Meal Plan, Maia, workout player); motion layer |
 | Data / infra | CSV export; fasting Live Activity; activation-funnel analytics; analytics off in DEBUG/CI; release-health non-fatals |
-| Quality | Core coverage ~84%; HealthKit + UNUserNotificationCenter test seams; agent-batch review fixes (audio-session leak, Value-Radar fabricated-data guard, AYCE diary write race, daily-briefing landmine, shoe-tag retroactivity) |
+| Privacy / security | Explicit versioned AI consent before third-party processing; separate Apple Health sharing toggle; account identifiers removed from Analytics/Crashlytics; server-owned recursive account deletion; App Check client integration; expanded public privacy, terms, and support docs |
+| Food providers | Open Food Facts v2 product lookups, required User-Agent, explicit-submit global search, correct per-serving scaling; USDA requires a dedicated key, preserves full descriptions, and ranks exact matches; provider IDs no longer fall through to FatSecret |
+| Data integrity | Per-user/day serialized diary mutations prevent rapid logs, water, workouts, and deletes from overwriting one another; malformed Firestore logs surface an error instead of becoming a writable empty day |
+| Quality | Core coverage ~84%; HealthKit + UNUserNotificationCenter test seams; CI now includes SwiftLint, Release build, sequential UI smoke tests, Functions build, and production dependency audit; production Functions audit reports zero vulnerabilities |
 
-_Full commit history on `main` from the 2.1 archive point. Core: 746 tests, 0 failures. App suite green._
+_Full commit history on `main` from the 2.1 archive point. Latest local verification: Core 838 tests, 0 failures; app unit target green; SwiftLint clean; app, widget, Live Activity, and watch simulator builds green after the Fast Food Builder catalog moved into Core._
 
 ## Before archive
-1. **Watch Gemini key — ask the contributor to revoke.** Every Gemini reference is gone from the codebase (all AI runs through Firebase Functions + the OpenAI server secret); the only exposure is the contributor's own Google quota. Have them delete the key in their AI Studio.
-2. **Recapture App Store screenshots** on-device with the current build (accents + new features) and rerun `tools/screenshots/compose.py`, then upload. The switcher and running screens are strong new additions to the six-shot set.
-3. **Device pass** — run `docs/device-test-2.2.md` end to end. Highest-value: record a run (GPS + Live Activity + Health round-trip, parallel-watch energy not doubled), a full Beat-the-buffet session, a MyFitnessPal import (incl. re-import idempotency), voice logging, and the celebration triggers.
-4. Confirm version/build (2.2 / 1, or higher if a 2.2 build was already uploaded) still aligned across app + extensions after any Xcode changes.
+1. **Publish legal/support docs.** Commit and push the updated `docs/privacy_policy.md`, `docs/terms_of_service.md`, and new `docs/support.md` to `main`. The remote privacy page is public but still contains the older policy until this happens; Support does not exist remotely yet.
+2. **Configure production keys/services.** Put the dedicated USDA FoodData Central key in ignored `secrets.xcconfig`; deploy the updated Firebase Functions; register App Attest and the development debug token in Firebase App Check. Leave callable enforcement off until App Check metrics show production clients are ready.
+3. **App Store Connect.** Set the Privacy Policy and Support URLs, reconcile privacy labels with `PrivacyInfo.xcprivacy`, review export-compliance answers, and confirm account deletion instructions.
+4. **Watch Gemini key — ask the contributor to revoke.** Every Gemini reference is gone from the codebase (all AI runs through Firebase Functions + the OpenAI server secret); the only exposure is the contributor's own Google quota. Have them delete the key in their AI Studio.
+5. **Recapture App Store screenshots** on-device with the current build (accents + new features) and rerun `tools/screenshots/compose.py`, then upload. The switcher and running screens are strong new additions to the six-shot set.
+6. **Device pass** — run `docs/device-test-2.2.md` end to end. Highest-value: AI consent/Health toggle, account deletion with a throwaway account, record a run (GPS + Live Activity + Health round-trip), a full Beat-the-buffet session, MFP import idempotency, Fast Food Builder, and Value Radar.
+7. Confirm version/build (2.2 / 1, or higher if a 2.2 build was already uploaded) still aligned across app + extensions after any Xcode changes, then validate the signed archive.
 
 ## Post-release checklist
 1. Flip `feature_communityBarcodeCorrections` → `true` in Firebase Console → Remote Config (kill switch: set back to `false`).

@@ -1,59 +1,78 @@
-# Privacy Policy
+# MyFitPlate Privacy Policy
 
-**Effective Date:** June 22, 2026
+**Effective date:** July 9, 2026
 
-MyFitPlate ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how your personal information is collected, used, and disclosed by MyFitPlate.
+MyFitPlate ("we," "our," or "us") provides nutrition, fitness, training, and wellness tools. This policy explains what information MyFitPlate handles, why it is used, when it is shared, and the choices available to you.
 
-## 1. Information We Collect
-- **Account Information:** When you create an account, we collect your email address, username, and basic profile details.
-- **Health and Fitness Data:** We collect information such as your weight, height, age, gender, dietary preferences, calorie goals, and meal history to provide you with personalized nutrition and fitness insights.
-- **Apple Health Data:** If you opt-in, we integrate with Apple HealthKit to read and write health and fitness data. We do not use HealthKit data for marketing or advertising purposes.
-- **Camera and Images:** We may collect images you upload for the purpose of food and meal analysis.
+## 1. Information We Handle
 
-## 2. How We Use Your Information
-We use your information to:
-- Provide, maintain, and improve the app's core functionality.
-- Generate personalized meal plans and AI-driven insights.
-- Sync health data securely across your devices.
-- Respond to your support requests.
+- **Account information:** Email address, username, authentication identifiers, and basic profile settings.
+- **Nutrition and wellness information:** Food and water logs, recipes, pantry items, calorie and nutrient goals, weight history, height, age, sex or gender settings, dietary preferences, fasting entries, and journal content you choose to save.
+- **Training information:** Workout plans, exercises, sets, repetitions, effort ratings, completed sessions, runs, routes, pace, distance, heart-rate-derived summaries, and equipment such as running shoes.
+- **Apple Health information:** With your Apple Health permission, MyFitPlate may read or write the specific HealthKit categories shown in Apple's permission sheet, including workouts, activity, sleep, heart rate, body measurements, nutrition, and hydration. HealthKit information is never used for advertising or sold to data brokers.
+- **Location information:** Precise location is used only while you actively record an outdoor route. MyFitPlate does not continuously track location in the background outside an active recording.
+- **Photos, camera, microphone, and speech:** Images, audio, or transcribed text you choose to provide for food, menu, nutrition-label, or voice logging.
+- **App diagnostics and usage:** Feature interactions, device and app version, performance information, and crash diagnostics. Analytics are configured without your MyFitPlate account identifier and exclude nutrition, HealthKit, body, and workout values.
 
-## 3. Data Sharing and Security
-- **Third-Party Services:** We may share anonymized prompts and data with third-party AI services (like OpenAI) to generate meal and nutrition analysis. Your personal identity is not linked to these prompts.
-- **Security:** We use industry-standard security measures, including Firebase Authentication, to protect your data.
-- **Data Deletion:** You can delete your account and all associated data at any time from within the app settings.
+## 2. How We Use Information
 
-## 4. User-Generated Content
-We monitor user-generated content to ensure compliance with our terms. Objectionable content will be removed, and users violating these rules may face account suspension.
+We use information to provide and synchronize the app, calculate goals and trends, create reports, support workout and running features, recover your account, respond to support requests, prevent abuse, diagnose failures, and improve reliability.
 
-## 5. Contact Us
-If you have any questions about this Privacy Policy, please contact us at peteandrews1289@gmail.com.
+We do not sell personal information. We do not use HealthKit information for advertising, marketing profiles, or tracking across other companies' apps or websites.
 
----
+## 3. AI Features and Explicit Consent
 
-# Support & FAQ
+MyFitPlate uses OpenAI models through a secured Firebase Cloud Function to provide Maia chat, photo and menu analysis, meal planning, recipe extraction, and workout insights.
 
-Need help with MyFitPlate? Email **peteandrews1289@gmail.com** and we'll get back to you as soon as we can.
+Before the first AI request, MyFitPlate asks for explicit permission to share data for AI processing. When you use an AI feature, the request may include:
 
-### How do I log a meal?
-Three quick ways: snap a photo of your plate or a nutrition label and let Maia estimate the calories and macros, tell Maia in plain language (for example, "I had a chicken burrito for lunch"), or search the food database by name or barcode.
+- Text or images you intentionally submit.
+- Nutrition goals, food logs, journal entries, cycle information, pantry items, meal history, or workout details needed for the requested feature.
+- Apple Health summaries such as steps, active energy, sleep, or recovery signals only when you separately enable the **Include Apple Health data** option.
 
-### How are my calorie and macro targets calculated?
-When you set up your profile, MyFitPlate calculates your targets from your height, weight, age, activity level, and goal. From there they adapt to your real progress instead of staying on a fixed formula. You can review or change your goals anytime in Settings.
+Your email address and username are not added to AI prompts. AI requests may still contain personal information based on what you submit or the app context required for the feature, so they are not described as anonymous. You can change or revoke AI data-sharing permission at any time in **Settings > AI data sharing**. Revoking permission blocks future AI requests until you allow them again.
 
-### A logged item's calories or macros look off — can I fix it?
-Yes. Every logged entry can be edited or deleted. AI photo estimates are meant as a fast starting point, so tap an entry to adjust the amounts or values.
+AI results are estimates and may be incomplete or inaccurate. Review nutrition, pricing, workout, and health-related suggestions before relying on or logging them.
 
-### How do I connect Apple Health?
-Allow HealthKit access when prompted, or enable it later in Settings. MyFitPlate can then sync your workouts and health data. We never use Apple Health data for advertising.
+## 4. Service Providers and Data Sources
 
-### Is my data private?
-Yes. Your identity is not linked to the prompts sent to AI services, we don't sell your data, and you can delete everything at any time. Full details are in the Privacy Policy above.
+MyFitPlate uses service providers only to operate app functions:
 
-### How do I delete my account and data?
-Open the app, go to Settings, and tap **Delete Account**. This permanently removes your account and all associated data.
+- **Google Firebase:** Authentication, cloud database, server functions, configuration, analytics, and crash reporting.
+- **OpenAI:** AI processing after your explicit consent.
+- **Apple:** HealthKit, speech recognition, notifications, maps/location services, and platform services you enable.
+- **FatSecret, USDA FoodData Central, and Open Food Facts:** Food, serving, barcode, and nutrition lookup data.
 
-### I forgot my password — what do I do?
-Email **peteandrews1289@gmail.com** from the address on your account and we'll help you regain access.
+These providers process information under their own terms and privacy policies. MyFitPlate limits requests to the information needed for the selected feature.
 
-### Still need help?
-Email **peteandrews1289@gmail.com** with a description of the issue (a screenshot helps) and we'll get you sorted.
+## 5. Storage, Retention, and Security
+
+Account data is stored in Firebase and on your devices as needed for app functionality and offline performance. We retain account data while your account is active unless a longer period is required for security, fraud prevention, or legal compliance.
+
+We use authenticated connections, platform security controls, Firebase security rules, and server-side request validation. No system can guarantee absolute security, but we work to reduce access to the minimum required.
+
+## 6. Account and Data Deletion
+
+You can delete your account from **Settings > Delete account**. After password verification, MyFitPlate's server deletes your Firebase user document and subcollections, associated social and community records, usage counters, and Firebase Authentication record before reporting success. The app then clears its local account data and shared widget data.
+
+Information already written to Apple Health is controlled by Apple Health. You can review or delete that information in Apple's Health app. Records that must be retained for security or legal obligations may be kept only for the required period.
+
+For deletion help, email **peteandrews1289@gmail.com** from the address associated with your account.
+
+## 7. Your Choices
+
+You can manage Apple Health, camera, photo, microphone, speech, notification, and location permissions in iOS Settings. You can disable AI data sharing inside MyFitPlate, export available account data, correct logged entries, or delete your account.
+
+## 8. Children
+
+MyFitPlate is not directed to children under 13, and we do not knowingly collect personal information from children under 13. Age requirements may be higher where required by local law.
+
+## 9. Changes to This Policy
+
+We may update this policy as the app changes. The effective date above identifies the current version. Material changes will be communicated in the app or through another appropriate channel.
+
+## 10. Contact and Support
+
+Questions, privacy requests, and support requests can be sent to **peteandrews1289@gmail.com**.
+
+Support information is also available in [MyFitPlate Support](support.md).

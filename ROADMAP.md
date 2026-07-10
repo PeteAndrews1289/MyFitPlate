@@ -14,6 +14,7 @@ Current objective: move from "impressive broad feature set" to "obvious reason t
 - [x] **High-Trust Nutrition Logging**: GS1 barcode fallback, multi-database cross-verification (USDA, FatSecret, OpenFoodFacts), and 0–99 Trust Cards.
 - [x] **Maia Adaptive Coaching**: Daily strategy cards linking sleep, recovery, training, and nutrition adjustments.
 - [x] **HealthKit Test Seams**: Protocol-abstracted seam (`HealthStoreScheduling`) with deep unit coverage across health and running services (package line coverage 84%).
+- [x] **2.2 trust and privacy hardening**: explicit per-account AI data consent with optional Apple Health context, server-owned account deletion, privacy-safe analytics, App Check client support, serialized daily-log writes, and corrected USDA/Open Food Facts routing and serving math.
 
 ---
 
@@ -46,7 +47,7 @@ Goal: establish the competitive scoreboard and make the product story sharper be
 - [ ] **Create a competitive KPI dashboard**: track first-food-log completion, time to first log, barcode hit/miss/recovery, AI estimate review/correction, MFP import starts/completions, D1/D7 return, weekly active loggers, and LLM cost per active user.
 - [ ] **Refresh App Store story**: recapture screenshots around switcher import, Trust Cards, fast logging, Maia recovery/meal action cards, and training-to-nutrition loops. Avoid generic "whole day" framing unless the visible screen proves it.
 - [ ] **Fix screenshot-visible polish**: resolve clipped workout controls, ensure no App Store shot has cropped labels, and keep Trust/Importer shots above generic dashboards.
-- [ ] **Release gate**: `swift test --package-path MyFitPlateCore`, app simulator build, device smoke pass for log food -> trust card -> diary -> report.
+- [ ] **Release gate**: automated Core/app/UI/Functions checks are green locally; remaining gates are the real-device checklist, production Firebase Functions deployment, App Check console setup, public legal-doc push, App Store privacy-label reconciliation, screenshot recapture, and a signed archive validation.
 
 Success signal: a new user can understand why MyFitPlate exists in 10 seconds, and the team has baseline numbers for the conversion funnel.
 
@@ -113,7 +114,7 @@ Success signal: users can interact with the app without opening the phone every 
 Goal: add memorable features only after the core competitive loop is strong.
 
 ### Gamified Dining & Nutrition
-- [ ] **Restaurant Value Radar**: AI menu scanner that analyzes restaurant menus or photos and ranks dishes by Protein-to-Dollar and Protein-to-Calorie ratios with a live "Value Score".
+- [x] **Restaurant Value Radar MVP**: AI menu scanner ranks dishes by Protein-to-Dollar and Protein-to-Calorie using only prices visibly printed on the menu; nutrition remains reviewable AI estimate data, fictional demo data is labeled, and demo logging is disabled. Future work: OCR confidence, multi-page menus, and verified restaurant nutrition sources.
 - [ ] **Training fuel planner**: pre-plan carbs/protein for heavy leg days or endurance runs inside the user's target, with clear labels for planned fuel vs. accidental overage.
 - [ ] **Beat the buffet 2.0**: manual off-catalog entries, scanned item review, better city pricing confidence, and a clear "estimate" trust label on every price.
 
@@ -134,4 +135,4 @@ Success signal: users can name a MyFitPlate feature they cannot get from MyFitne
 - [ ] Every sprint must include user-facing copy review, privacy review for new data flows, and a rollback/feature-flag plan for risky launches.
 
 ---
-_Living document — Single Point of Truth. Last updated: 2026-07-07._
+_Living document — Single Point of Truth. Last updated: 2026-07-09._

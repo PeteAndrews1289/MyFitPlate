@@ -36,10 +36,12 @@ light mode, WiFi" fixes itself. "The buffet thing looked wrong" costs us a windo
 
 ## 3. Quick-log menu (5 min)
 - [ ] Tab-bar + opens the menu; Search food is the single green hero row
-- [ ] All eight rows present: Search, Barcode, Camera, Describe, Exercise, Recipe/meal, **Beat the buffet**, **Running**
-- [ ] Each row opens the right surface and the menu dismisses
+- [ ] Three primary rows present first: Search food, Scan barcode, Describe your meal
+- [ ] More options reveals: Log with camera, Log exercise, Log recipe or meal, **Beat the buffet**, **Running**
+- [ ] Each row opens the right surface and the menu dismisses; Fewer options collapses the menu cleanly
 
 ## 4. Food logging & trust (20 min)
+- [ ] Type a food name without pressing Search -> FatSecret/USDA may debounce, but Open Food Facts does not query until Search is submitted; press Search and confirm global branded results join the list
 - [ ] Search a common food → result has FULL micros (potassium, B vitamins) — the ingestion fix
 - [ ] Saved/recent foods rank above generic results
 - [ ] Quick-log a search result → logged calories MATCH the previewed calories
@@ -47,6 +49,8 @@ light mode, WiFi" fixes itself. "The buffet thing looked wrong" costs us a windo
 - [ ] Find/AI-create a suspicious entry → "This data looks off" + Fix This Data flow; your fix persists
 - [ ] Scan a common barcode → hit; note the toast if it matched My Foods or a related barcode
 - [ ] Scan something obscure → miss alert: Create food / Use camera / OK all work
+- [ ] Fast Food Builder → search chains, build a Chipotle/Starbucks order, Review meal opens Food Detail with a Chain Builder / Needs Review trust card, then logs normally
+- [ ] Builder brand chips remain readable for both bright brands (yellow/orange) and dark brands; the catalog version/estimated-review note is visible
 - [ ] Camera-log a plate → items estimated; Refine Estimate works on AI results
 - [ ] Describe a meal to Maia (text log) → parsed and logged
 - [ ] Log exercise, log a saved recipe — both land in the diary
@@ -81,6 +85,7 @@ Indoors today:
 - [ ] **Parallel-watch check**: record phone + watch simultaneously → afterwards Apple Health's active energy for that window is sane, NOT doubled (the new guard)
 
 ## 7. Train tab regression (10 min)
+- [ ] With no active program, Start a Plan scrolls to Plan Library and One-off scrolls to saved routines; create a routine if empty, then confirm it can be started, edited, and deleted
 - [ ] Tile row: only AI Program is green; Pre-built/Manual/Saved are neutral now
 - [ ] Next-workout slider, start a workout, player: compact header, rest chip, plates, Finish
 - [ ] Auto rest label doesn't letter-stack; keyboard doesn't bury the set card
@@ -104,10 +109,16 @@ Indoors today:
 - [ ] Watch complications (if added): render with data
 
 ## 11. Settings & data (10 min)
+- [ ] Trigger any AI feature on a clean install/account -> AI data-sharing sheet appears before any request; choose Not now and confirm the request stays blocked
+- [ ] Allow AI without Apple Health -> Maia works, but steps/sleep/recovery are excluded from AI context; enable the separate Health toggle and confirm the Health context indicator appears
+- [ ] Reopen Settings -> AI data sharing, change the Health toggle, then turn AI sharing off; the next AI action must ask again
+- [ ] Privacy policy, Terms, and Support links open publicly without requiring a GitHub login
 - [ ] CSV export → both files share/open with sane contents (no "Optional(0)")
 - [ ] Reminders: change time → survives logging food (the 20:00 overwrite fix)
 - [ ] Metric toggle → weight surfaces AND watch flip units
 - [ ] Notification test: log reminder arrives at the set time (check tomorrow morning)
+- [ ] Value Radar real menu scan -> every ranked item has a price visibly present in the source photo; Demo Menu is plainly fictional and cannot be logged
+- [ ] **Throwaway account only, after Functions deployment:** add a log/custom food/community record, delete the account, confirm the app does not report success on a forced server failure, then verify Auth + Firestore records are gone
 
 ## 12. MyFitnessPal import (10 min — needs a real MFP export)
 - [ ] Get an MFP export (myfitnesspal.com → Settings → Download My Data), unzip it
@@ -122,6 +133,14 @@ Indoors today:
 - [ ] Dark mode sweep: Home, AYCE live, run detail, trust card, coaching, MFP import — no washed-out cards
 - [ ] Dynamic Type XL spot check: Home + AYCE tiles + player don't clip
 - [ ] Sign out / sign in → data returns; custom calorie goal SURVIVES (the reset-bug fix)
+- [ ] Five bottom tabs are visible and usable (Home, Maia, Train, Meal Plan, Reports); the floating Quick Log button does not cover tab labels or tappable content
+
+## 14. Production services (owner check before archive)
+- [ ] Add a real `USDA_API_KEY` to ignored `secrets.xcconfig`; USDA results are intentionally disabled when it is absent
+- [ ] Deploy `generateAIResponse`, `fatSecretProxy`, and `deleteUserData` from `functions/`, then run AI, food lookup, and throwaway-account deletion smoke tests
+- [ ] Register the iOS app for Firebase App Check with App Attest; register the local debug token for development; inspect App Check metrics before enabling backend enforcement
+- [ ] Confirm the updated privacy policy, Terms, and Support docs are committed and publicly reachable on `main`
+- [ ] Reconcile App Store Connect privacy answers and set the public Privacy Policy URL and Support URL
 
 ## Expected oddities (not bugs)
 - DebugView/analytics silent in dev builds unless launched with `-enable-debug-analytics`
