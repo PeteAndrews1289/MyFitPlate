@@ -63,6 +63,30 @@ final class DailyLogServiceTests: XCTestCase {
         XCTAssertEqual(updatedLog.meals[0].foodItems[0].name, "Apple")
     }
 
+    func testRapidFoodMutationsAreSerializedWithoutLosingItems() async throws {
+        let date = Calendar.current.startOfDay(for: Date())
+        service.activelyViewedDate = date
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: []))
+
+        service.addFoodToLog(
+            for: "user",
+            date: date,
+            mealName: "Breakfast",
+            foodItem: FoodItem(id: "first", name: "Eggs", calories: 140)
+        )
+        service.addFoodToLog(
+            for: "user",
+            date: date,
+            mealName: "Breakfast",
+            foodItem: FoodItem(id: "second", name: "Toast", calories: 120)
+        )
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+
+        let foods = try XCTUnwrap(mockRepo.lastUpdatedLog).meals.flatMap(\.foodItems)
+        XCTAssertEqual(foods.map(\.id), ["first", "second"])
+    }
+
     func testUpdateFoodInCurrentLog() async {
         let date = Calendar.current.startOfDay(for: Date())
         service.activelyViewedDate = date

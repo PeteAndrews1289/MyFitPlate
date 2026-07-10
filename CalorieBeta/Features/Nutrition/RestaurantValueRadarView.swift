@@ -4,7 +4,6 @@ import MyFitPlateCore
 struct RestaurantValueRadarView: View {
     @Environment(\.presentationMode) var presentationMode
     @EnvironmentObject var dailyLogService: DailyLogService
-    @AppStorage("userID") var userID = "defaultUser"
     @StateObject private var viewModel = RestaurantValueRadarViewModel()
     @State private var showingImagePicker = false
     @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
@@ -17,7 +16,9 @@ struct RestaurantValueRadarView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         headerCard
-                        citySelectorCard
+                        if viewModel.items.isEmpty || viewModel.isDemoMode {
+                            citySelectorCard
+                        }
 
                         if viewModel.isAnalyzing {
                             loadingView
@@ -26,6 +27,14 @@ struct RestaurantValueRadarView: View {
                         } else if viewModel.items.isEmpty {
                             emptyStateView
                         } else {
+                            if viewModel.isDemoMode {
+                                Text("Demo data only. Prices and nutrition are fictional examples, and logging is disabled.")
+                                    .appFont(size: 13, weight: .semibold)
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(12)
+                                    .background(Color.accentSignal.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                            }
                             topValueHighlight
                             rankedListSection
                         }
@@ -74,7 +83,7 @@ struct RestaurantValueRadarView: View {
                     .foregroundColor(.textPrimary)
                 Spacer()
             }
-            Text("AI scanner that ranks menu dishes by Protein-to-Dollar and Macro Value adjusted for local dining costs.")
+            Text("Ranks dishes using prices visibly printed on the menu. Nutrition remains an AI estimate and should be reviewed.")
                 .appFont(size: 14)
                 .foregroundColor(.secondary)
 
@@ -231,23 +240,30 @@ struct RestaurantValueRadarView: View {
                         }
                     }
 
-                    Button {
-                        viewModel.logDish(topDish.food, service: dailyLogService, userID: userID)
-                        presentationMode.wrappedValue.dismiss()
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text("Log Top Pick")
+                    if topDish.canLog {
+                        Button {
+                            logDish(topDish.food)
+                        } label: {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                Text("Review & Log Top Pick")
+                            }
+                            .font(.subheadline.bold())
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.brandPrimary)
+                            .foregroundColor(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
-                        .font(.subheadline.bold())
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.brandPrimary)
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .buttonStyle(.plain)
+                        .padding(.top, 4)
+                    } else {
+                        Label("Demo only", systemImage: "eye.fill")
+                            .font(.subheadline.bold())
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .foregroundColor(.secondary)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.top, 4)
                 }
                 .padding(16)
                 .background(
@@ -309,23 +325,33 @@ struct RestaurantValueRadarView: View {
                         .foregroundColor(item.tierColor)
                 }
 
-                Button {
-                    viewModel.logDish(item.food, service: dailyLogService, userID: userID)
-                    presentationMode.wrappedValue.dismiss()
-                } label: {
-                    Text("Log")
-                        .font(.subheadline.bold())
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.brandPrimary)
-                        .foregroundColor(.white)
-                        .clipShape(Capsule())
+                if item.canLog {
+                    Button {
+                        logDish(item.food)
+                    } label: {
+                        Text("Review")
+                            .font(.subheadline.bold())
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.brandPrimary)
+                            .foregroundColor(.white)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 8)
                 }
-                .buttonStyle(.plain)
-                .padding(.leading, 8)
             }
         }
         .asCard()
+    }
+
+    private func logDish(_ food: FoodItem) {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            viewModel.errorMessage = "Sign in again before logging this item."
+            return
+        }
+        viewModel.logDish(food, service: dailyLogService, userID: userID)
+        presentationMode.wrappedValue.dismiss()
     }
 }
 
@@ -334,9 +360,11 @@ struct RestaurantValueRadarItem: Identifiable {
     let food: FoodItem
     let basePrice: Double
     let cityMultiplier: Double
+    let appliesCityMultiplier: Bool
+    let canLog: Bool
 
     var adjustedPrice: Double {
-        max(1.0, basePrice * cityMultiplier)
+        max(1.0, basePrice * (appliesCityMultiplier ? cityMultiplier : 1))
     }
 
     var proteinPerDollar: Double {
@@ -362,6 +390,7 @@ class RestaurantValueRadarViewModel: ObservableObject {
     @Published var isAnalyzing = false
     @Published var errorMessage: String?
     @Published var selectedCity: AYCECity = AYCECityIndex.national
+    @Published var isDemoMode = false
 
     private let imageModel = MLImageModel()
 
@@ -378,26 +407,48 @@ class RestaurantValueRadarViewModel: ObservableObject {
 
     private func recomputePrices() {
         self.items = self.items.map { item in
-            RestaurantValueRadarItem(food: item.food, basePrice: item.basePrice, cityMultiplier: selectedCity.restaurantMultiplier)
+            RestaurantValueRadarItem(
+                food: item.food,
+                basePrice: item.basePrice,
+                cityMultiplier: selectedCity.restaurantMultiplier,
+                appliesCityMultiplier: item.appliesCityMultiplier,
+                canLog: item.canLog
+            )
         }.sorted(by: { $0.proteinPerDollar > $1.proteinPerDollar })
     }
 
     func loadDemoMenu() {
         self.errorMessage = nil
+        self.isDemoMode = true
         self.isAnalyzing = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            let demoDishes: [(String, Double, Double, Double, Double, Double)] = [
-                ("12oz Ribeye Steak & Asparagus", 680, 62, 8, 44, 32.0),
-                ("Grilled Salmon & Quinoa", 540, 46, 32, 24, 26.0),
-                ("Chicken Breast Piccata", 480, 52, 12, 22, 22.0),
-                ("Spaghetti Carbonara", 820, 24, 88, 42, 21.0),
-                ("Caesar Salad with Grilled Shrimp", 420, 34, 14, 26, 18.0),
-                ("Margherita Pizza (1/2 Pie)", 650, 22, 74, 28, 17.0)
+            struct DemoDish {
+                let name: String
+                let cal: Double
+                let p: Double
+                let c: Double
+                let f: Double
+                let price: Double
+            }
+
+            let demoDishes: [DemoDish] = [
+                DemoDish(name: "12oz Ribeye Steak & Asparagus", cal: 680, p: 62, c: 8, f: 44, price: 32.0),
+                DemoDish(name: "Grilled Salmon & Quinoa", cal: 540, p: 46, c: 32, f: 24, price: 26.0),
+                DemoDish(name: "Chicken Breast Piccata", cal: 480, p: 52, c: 12, f: 22, price: 22.0),
+                DemoDish(name: "Spaghetti Carbonara", cal: 820, p: 24, c: 88, f: 42, price: 21.0),
+                DemoDish(name: "Caesar Salad with Grilled Shrimp", cal: 420, p: 34, c: 14, f: 26, price: 18.0),
+                DemoDish(name: "Margherita Pizza (1/2 Pie)", cal: 650, p: 22, c: 74, f: 28, price: 17.0)
             ]
 
-            let newItems = demoDishes.map { name, cal, p, c, f, price in
-                let food = FoodItem(name: name, calories: cal, protein: p, carbs: c, fats: f, servingSize: "1 entree")
-                return RestaurantValueRadarItem(food: food, basePrice: price, cityMultiplier: self.selectedCity.restaurantMultiplier)
+            let newItems = demoDishes.map { dish in
+                let food = FoodItem(name: dish.name, calories: dish.cal, protein: dish.p, carbs: dish.c, fats: dish.f, servingSize: "1 entree")
+                return RestaurantValueRadarItem(
+                    food: food,
+                    basePrice: dish.price,
+                    cityMultiplier: self.selectedCity.restaurantMultiplier,
+                    appliesCityMultiplier: true,
+                    canLog: false
+                )
             }.sorted(by: { $0.proteinPerDollar > $1.proteinPerDollar })
 
             self.items = newItems
@@ -408,24 +459,27 @@ class RestaurantValueRadarViewModel: ObservableObject {
     func analyzeMenuImage(_ image: UIImage) {
         self.isAnalyzing = true
         self.errorMessage = nil
-        imageModel.estimateMenuFromImage(image: image) { [weak self] result in
+        self.isDemoMode = false
+        imageModel.estimateMenuItemsWithListedPrices(image: image) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.isAnalyzing = false
                 switch result {
-                case .success(let foods) where !foods.isEmpty:
-                    // Menu photos don't reliably carry prices, so the base price is an
-                    // estimate from the dish's own macros — the value score is a heuristic,
-                    // not a real receipt.
-                    let newItems = foods.map { food in
-                        let estimatedBasePrice = max(12.0, (food.protein * 0.35) + (food.calories * 0.015))
-                        return RestaurantValueRadarItem(food: food, basePrice: estimatedBasePrice, cityMultiplier: self.selectedCity.restaurantMultiplier)
+                case .success(let scannedItems) where !scannedItems.isEmpty:
+                    let newItems = scannedItems.map { item in
+                        RestaurantValueRadarItem(
+                            food: item.food,
+                            basePrice: item.listedPrice,
+                            cityMultiplier: 1,
+                            appliesCityMultiplier: false,
+                            canLog: true
+                        )
                     }.sorted(by: { $0.proteinPerDollar > $1.proteinPerDollar })
                     self.items = newItems
                 case .success:
                     // Never substitute fabricated demo dishes for a real scan — the user
                     // could log food they never ate. Be honest that nothing was read.
-                    self.errorMessage = "Couldn't read any dishes from that photo. Try a clearer shot of the menu, or use Demo Menu to see how it works."
+                    self.errorMessage = "Couldn't read dishes with visible prices. Try a clearer photo that includes item names and printed prices."
                 case .failure:
                     self.errorMessage = "Menu scan didn't go through. Check your connection and try again."
                 }
@@ -434,7 +488,12 @@ class RestaurantValueRadarViewModel: ObservableObject {
     }
 
     func logDish(_ food: FoodItem, service: DailyLogService, userID: String) {
-        let mealName = UserDefaults.standard.string(forKey: "lastLoggedMeal") ?? "Dinner"
-        service.addFoodToLog(for: userID, date: Date(), mealName: mealName, foodItem: food, source: "ValueRadar")
+        service.addFoodToLog(
+            for: userID,
+            date: Date(),
+            mealName: DailyLogRules.determineMealType(),
+            foodItem: food,
+            source: "value_radar"
+        )
     }
 }

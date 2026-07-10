@@ -56,6 +56,7 @@
 		3EC693D42CB83700002222C6 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D32CB83700002222C6 /* FirebaseAnalytics */; };
 		3EC693D62CB83700002222C6 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D52CB83700002222C6 /* FirebaseAuth */; };
 		3EC693D82CB83700002222C6 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D72CB83700002222C6 /* FirebaseFirestore */; };
+		3EC693DA2CB83700002222C6 /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693D92CB83700002222C6 /* FirebaseAppCheck */; };
 		3EC693DC2CB8387C002222C6 /* FirebaseFirestoreCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 3EC693DB2CB8387C002222C6 /* FirebaseFirestoreCombine-Community */; };
 		42DEE0ACB28F52825B84E044 /* ExerciseCardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBC931BD6D999867A76E46B9 /* ExerciseCardViews.swift */; };
 		4410562D039A1EAF1D5CD916 /* MealSuggestionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A314E4E4DA84B9119ED26E82 /* MealSuggestionCardView.swift */; };
@@ -92,6 +93,7 @@
 		5B1F531DDD59042C77847EA3 /* WeeklyCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82BA675162481E5C7BBA4B97 /* WeeklyCheckInView.swift */; };
 		5B2D7B5BF4012BFBE6047915 /* CircularWeightDisplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EC4E441627CF64C71DEE10 /* CircularWeightDisplayView.swift */; };
 		5D2A65DB394C14A2479A6492 /* FoodSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BCA06C54344DFE69715093 /* FoodSearchView.swift */; };
+		8B1C2D3E4F5A6B7C8D9E0A13 /* ChainMealBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B1C2D3E4F5A6B7C8D9E0A14 /* ChainMealBuilderView.swift */; };
 		5D83A18AB5012EBC7FABE6B7 /* ProgramListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 058FC8B017AE7CF8B2AF44E2 /* ProgramListView.swift */; };
 		5DB7BE161EF64ED7FD208198 /* FirebaseRemoteConfig in Frameworks */ = {isa = PBXBuildFile; productRef = 9688BC4017F8B2E029447BD9 /* FirebaseRemoteConfig */; };
 		5F62A22E5FCB90E1071A803B /* FastingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07D05B9D4E2F4BED3CB41B21 /* FastingManager.swift */; };
@@ -168,6 +170,7 @@
 		B7D5A10E3187705A56E86F33 /* RunActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E177692C65003E9F6183CFE9 /* RunActivityAttributes.swift */; };
 		B7EDC9C78C346CE20CF160D9 /* SpotlightTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D91CB07B29AF48775EC6D44 /* SpotlightTextView.swift */; };
 		BB55EE146BB637F3EC1B2CEF /* SpotlightTourOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1F5B229026F1A5C431DEB6 /* SpotlightTourOverlay.swift */; };
+		5091BDF1CEC212FDE51031B7 /* SpotlightTourScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF3A6CA74E6FFA34BDA1F2CB /* SpotlightTourScaffold.swift */; };
 		B9A82E1779C8E04297FE1E8F /* ChallengesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19668B4582E36E32D2E8F45 /* ChallengesView.swift */; };
 		BA444BB02E987A88DE390A92 /* ExerciseHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E4CCCD18AD29D24D2D3212E /* ExerciseHistoryView.swift */; };
 		BA72D2F1F142AE54DA0ADE38 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 40A958A848E62C2C71292CA8 /* Localizable.xcstrings */; };
@@ -393,6 +396,7 @@
 		7CC190EEE53A5F355CAED792 /* PostRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PostRowView.swift; sourceTree = "<group>"; };
 		7D91CB07B29AF48775EC6D44 /* SpotlightTextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotlightTextView.swift; sourceTree = "<group>"; };
 		DC1F5B229026F1A5C431DEB6 /* SpotlightTourOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotlightTourOverlay.swift; sourceTree = "<group>"; };
+		CF3A6CA74E6FFA34BDA1F2CB /* SpotlightTourScaffold.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotlightTourScaffold.swift; sourceTree = "<group>"; };
 		7E1848CAF90E79615BE2E987 /* ImageProcessingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageProcessingView.swift; sourceTree = "<group>"; };
 		7F1A21D7F1890DA3618B9092 /* AIChatbotView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIChatbotView.swift; sourceTree = "<group>"; };
 		82BA675162481E5C7BBA4B97 /* WeeklyCheckInView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyCheckInView.swift; sourceTree = "<group>"; };
@@ -409,6 +413,7 @@
 		938C64A067981FDB86164AF5 /* LiveActivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiveActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		994ACE6FC910CC9668464A21 /* AITextLogView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AITextLogView.swift; sourceTree = "<group>"; };
 		99BCA06C54344DFE69715093 /* FoodSearchView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FoodSearchView.swift; sourceTree = "<group>"; };
+		8B1C2D3E4F5A6B7C8D9E0A14 /* ChainMealBuilderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChainMealBuilderView.swift; sourceTree = "<group>"; };
 		9A0D3096513C51AD152B50BA /* WorkoutReport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutReport.swift; sourceTree = "<group>"; };
 		9A85896DAB83742D73007634 /* PDFShareView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFShareView.swift; sourceTree = "<group>"; };
 		9AF2591EF97FD3B4F9DFFB2B /* AnalyticsManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnalyticsManager.swift; sourceTree = "<group>"; };
@@ -529,6 +534,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3EC693DA2CB83700002222C6 /* FirebaseAppCheck in Frameworks */,
 				3EC693D42CB83700002222C6 /* FirebaseAnalytics in Frameworks */,
 				3EB09F442CC7EB7C0088C849 /* FirebaseCore in Frameworks */,
 				3EC693DC2CB8387C002222C6 /* FirebaseFirestoreCombine-Community in Frameworks */,
@@ -837,6 +843,7 @@
 				DB5FB8BB155CAF0221A81004 /* Spotlight.swift */,
 				7D91CB07B29AF48775EC6D44 /* SpotlightTextView.swift */,
 				DC1F5B229026F1A5C431DEB6 /* SpotlightTourOverlay.swift */,
+				CF3A6CA74E6FFA34BDA1F2CB /* SpotlightTourScaffold.swift */,
 				F10000000000000000000008 /* ShimmerModifier.swift */,
 				C87AC13F07BFBD311A555528 /* MaiaAvatarView.swift */,
 				9A85896DAB83742D73007634 /* PDFShareView.swift */,
@@ -858,6 +865,7 @@
 				490D8ADB1881003B9E60D559 /* FoodDetailView.swift */,
 				BD20FDE6271D839339976660 /* FoodLogView.swift */,
 				99BCA06C54344DFE69715093 /* FoodSearchView.swift */,
+				8B1C2D3E4F5A6B7C8D9E0A14 /* ChainMealBuilderView.swift */,
 				CB557B9F1155B0AC707AC507 /* FoodSearchViewComponents.swift */,
 				CA5B2E12B72BCB3BC0388DE5 /* FoodSearchViewModel.swift */,
 				7A5C4F03C5EFECBA18FFB0E0 /* GroceryListView.swift */,
@@ -1012,6 +1020,7 @@
 			);
 			name = MyFitPlate;
 			packageProductDependencies = (
+				3EC693D92CB83700002222C6 /* FirebaseAppCheck */,
 				3EC693D32CB83700002222C6 /* FirebaseAnalytics */,
 				3EC693D52CB83700002222C6 /* FirebaseAuth */,
 				3EC693D72CB83700002222C6 /* FirebaseFirestore */,
@@ -1327,6 +1336,7 @@
 				381FF1606A213F632ABC5E02 /* FoodDetailView.swift in Sources */,
 				231F3CD45F8CA1366EBB3F6E /* FoodLogView.swift in Sources */,
 				5D2A65DB394C14A2479A6492 /* FoodSearchView.swift in Sources */,
+				8B1C2D3E4F5A6B7C8D9E0A13 /* ChainMealBuilderView.swift in Sources */,
 				962BC293EB2D602E4612FF9C /* FoodSearchViewComponents.swift in Sources */,
 				544269FEB74BBB6C47F7497D /* FoodSearchViewModel.swift in Sources */,
 				CB45F16C1F80853956621A94 /* GroceryListView.swift in Sources */,
@@ -1396,6 +1406,7 @@
 				A679A8063017DD2CC40E4817 /* Spotlight.swift in Sources */,
 				B7EDC9C78C346CE20CF160D9 /* SpotlightTextView.swift in Sources */,
 				BB55EE146BB637F3EC1B2CEF /* SpotlightTourOverlay.swift in Sources */,
+				5091BDF1CEC212FDE51031B7 /* SpotlightTourScaffold.swift in Sources */,
 				26FC75053A865AA3B5C2AE9A /* MaiaAvatarView.swift in Sources */,
 				3845E1D7B22D49226780B6E4 /* PDFShareView.swift in Sources */,
 				9E72528672FD4636311C2A65 /* DetailedInsightsView.swift in Sources */,
@@ -1693,9 +1704,10 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieBeta/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "To scan barcodes and recognize food items from images, MyFitPlate needs access to your camera.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "We need access to your workout and active energy data from HealthKit to help you accurately track your calorie balance and daily activity.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Allow MyFitPlate to save workout data to HealthKit for a consolidated view of your fitness activities (if you enable this feature in the future).";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "MyFitPlate reads workouts, activity, sleep, heart rate, and body measurements from Apple Health to build fitness, recovery, and wellness insights.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "MyFitPlate saves nutrition, hydration, workouts, and body measurements to Apple Health when you enable those features.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "To allow you to select images of food for recognition, MyFitPlate needs access to your photo library.";
+				INFOPLIST_KEY_USDA_API_KEY = "$(USDA_API_KEY)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -1724,6 +1736,7 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "ENABLE_APP_CHECK $(inherited)";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -1744,9 +1757,10 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieBeta/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "To scan barcodes and recognize food items from images, MyFitPlate needs access to your camera.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "We need access to your workout and active energy data from HealthKit to help you accurately track your calorie balance and daily activity.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Allow MyFitPlate to save workout data to HealthKit for a consolidated view of your fitness activities (if you enable this feature in the future).";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "MyFitPlate reads workouts, activity, sleep, heart rate, and body measurements from Apple Health to build fitness, recovery, and wellness insights.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "MyFitPlate saves nutrition, hydration, workouts, and body measurements to Apple Health when you enable those features.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "To allow you to select images of food for recognition, MyFitPlate needs access to your photo library.";
+				INFOPLIST_KEY_USDA_API_KEY = "$(USDA_API_KEY)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -1775,6 +1789,7 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "ENABLE_APP_CHECK $(inherited)";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -2185,6 +2200,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		3EC693D92CB83700002222C6 /* FirebaseAppCheck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3EC693D22CB83700002222C6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAppCheck;
 		};
 		3EC693DB2CB8387C002222C6 /* FirebaseFirestoreCombine-Community */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -1,19 +1,20 @@
 import Foundation
 
-// USDA FoodData Central API (free, no secret - DEMO_KEY is fine for moderate usage).
-// Register at https://fdc.nal.usda.gov/api-key-signup.html for a dedicated key.
+// USDA FoodData Central API. Production search requires a dedicated key from
+// https://fdc.nal.usda.gov/api-key-signup.html; the shared DEMO_KEY is intentionally not used.
 public class USDAFoodAPIService {
-    private let apiKey: String
+    private let apiKey: String?
     private let baseURL = "https://api.nal.usda.gov/fdc/v1"
 
     public init() {
         let plistKey = Bundle.main.object(forInfoDictionaryKey: "USDA_API_KEY") as? String
-        apiKey = (plistKey?.isEmpty == false && plistKey != "$(USDA_API_KEY)") ? plistKey! : "DEMO_KEY"
+        apiKey = (plistKey?.isEmpty == false && plistKey != "$(USDA_API_KEY)") ? plistKey : nil
     }
 
     // Text search — Foundation + SR Legacy data types (whole foods, ingredients).
     // FatSecret covers branded foods, so USDA complements with raw/cooked whole-food data.
     public func searchFoods(query: String) async -> [FoodItem] {
+        guard let apiKey else { return [] }
         guard var components = URLComponents(string: "\(baseURL)/foods/search") else { return [] }
         components.queryItems = [
             URLQueryItem(name: "query", value: query),
@@ -24,7 +25,10 @@ public class USDAFoodAPIService {
         guard let url = components.url else { return [] }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            return try USDAFoodParser.foodItems(from: data)
+            return FoodSearchRanking.rankedRemoteMatches(
+                query: query,
+                foods: try USDAFoodParser.foodItems(from: data)
+            )
         } catch {
             return []
         }
@@ -32,6 +36,7 @@ public class USDAFoodAPIService {
 
     // Barcode (GTIN/UPC) lookup — searches Branded foods dataset by the UPC string.
     public func lookupBarcode(_ barcode: String) async -> FoodItem? {
+        guard let apiKey else { return nil }
         guard var components = URLComponents(string: "\(baseURL)/foods/search") else { return nil }
         components.queryItems = [
             URLQueryItem(name: "query", value: barcode),
@@ -83,11 +88,13 @@ public enum USDAFoodParser {
             servingDescription = "100 g"
         }
 
-        // Capitalise only the first word cluster (e.g. "APPLE, RAW" → "Apple")
-        let displayName: String = {
-            let first = food.description.split(separator: ",").first.map(String.init) ?? food.description
-            return first.trimmingCharacters(in: .whitespaces).capitalized
-        }()
+        // Preserve preparation and form qualifiers. "APPLES, DRIED" must never be presented as
+        // plain "Apples" because the calorie density is materially different.
+        let displayName = food.description
+            .lowercased()
+            .capitalized
+            .replacingOccurrences(of: ",", with: ", ")
+            .replacingOccurrences(of: "  ", with: " ")
 
         return FoodItem(
             id: "usda_\(food.fdcId)",

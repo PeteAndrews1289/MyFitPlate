@@ -20,6 +20,11 @@ public class AIService: AIServiceProtocol {
         responseFormat: [String: Any]? = nil,
         retryCount: Int = 1
     ) async -> Result<String, AIError> {
+        guard let userID = DIContainer.shared.authService.currentUserID,
+              AIDataConsentStore.shared.hasCurrentConsent(for: userID) else {
+            NotificationCenter.default.post(name: .aiDataConsentRequired, object: nil)
+            return .failure(.consentRequired)
+        }
         
         var requestData: [String: Any] = [
             "model": model,

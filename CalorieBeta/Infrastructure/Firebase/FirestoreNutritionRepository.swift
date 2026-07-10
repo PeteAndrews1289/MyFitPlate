@@ -36,7 +36,11 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
                 return
             }
             if let document = document, document.exists, let data = document.data() {
-                completion(.success(self.decodeDailyLog(from: data, documentID: dateString)))
+                do {
+                    completion(.success(try self.decodeDailyLog(from: data, documentID: dateString)))
+                } catch {
+                    completion(.failure(error))
+                }
             } else {
                 let newLog = DailyLog(id: dateString, date: startOfDay, meals: [], journalEntries: [])
                 do {
@@ -70,7 +74,11 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
                 return
             }
             if document.exists, let data = document.data() {
-                onChange(.success(self.decodeDailyLog(from: data, documentID: dateString)))
+                do {
+                    onChange(.success(try self.decodeDailyLog(from: data, documentID: dateString)))
+                } catch {
+                    onChange(.failure(error))
+                }
             } else {
                 let newLog = DailyLog(id: dateString, date: startOfDay, meals: [], journalEntries: [])
                 do {
@@ -105,7 +113,7 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
         query = query.order(by: "date", descending: true)
         
         let snapshot = try await query.getDocuments()
-        return snapshot.documents.map { self.decodeDailyLog(from: $0.data(), documentID: $0.documentID) }
+        return try snapshot.documents.map { try self.decodeDailyLog(from: $0.data(), documentID: $0.documentID) }
     }
     
     func fetchRecommendedFoods(userID: String, mealName: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
@@ -130,7 +138,15 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
                 }
 
                 var foodFrequency: [String: (food: FoodItem, count: Int)] = [:]
-                let logs = documents.compactMap { try? Firestore.Decoder().decode(DailyLog.self, from: $0.data()) }
+                let logs: [DailyLog]
+                do {
+                    logs = try documents.map {
+                        try self.decodeDailyLog(from: $0.data(), documentID: $0.documentID)
+                    }
+                } catch {
+                    completion(.failure(error))
+                    return
+                }
 
                 for log in logs {
                     if let meal = log.meals.first(where: { $0.name.lowercased() == mealName.lowercased() }) {
@@ -153,14 +169,12 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
             }
     }
     
-    private func decodeDailyLog(from data: [String: Any], documentID: String) -> DailyLog {
+    private func decodeDailyLog(from data: [String: Any], documentID: String) throws -> DailyLog {
         do {
-            let decodedLog = try Firestore.Decoder().decode(DailyLog.self, from: data)
-            return decodedLog
+            return try Firestore.Decoder().decode(DailyLog.self, from: data)
         } catch {
-            AppLog.data.error("Failed to decode DailyLog \(documentID, privacy: .public). Returning default: \(error.localizedDescription, privacy: .public)")
-            let dateFromDocID = dateFormatter.date(from: documentID) ?? Calendar.current.startOfDay(for: Date())
-            return DailyLog(id: documentID, date: dateFromDocID, meals: [], journalEntries: [])
+            AppLog.data.error("Failed to decode DailyLog \(documentID, privacy: .public). Preserving remote document: \(error.localizedDescription, privacy: .public)")
+            throw FirestoreNutritionRepositoryError.dailyLogDecodeFailed(documentID: documentID, underlying: error)
         }
     }
     
@@ -312,5 +326,16 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
             .limit(to: limit)
             .getDocuments()
         return snapshot.documents.compactMap { try? $0.data(as: FoodItem.self) }
+    }
+}
+
+private enum FirestoreNutritionRepositoryError: LocalizedError {
+    case dailyLogDecodeFailed(documentID: String, underlying: Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .dailyLogDecodeFailed(let documentID, _):
+            return "The daily log for \(documentID) could not be read. Its stored data was left unchanged."
+        }
     }
 }

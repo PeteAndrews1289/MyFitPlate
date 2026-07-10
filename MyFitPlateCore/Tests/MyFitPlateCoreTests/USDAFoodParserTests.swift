@@ -6,7 +6,7 @@ final class USDAFoodParserTests: XCTestCase {
     private func data(_ json: String) -> Data { Data(json.utf8) }
 
     func testScalesToServingGramsAndCleansNameAndUsesHouseholdServing() throws {
-        // serving 50 g => scale 0.5; "APPLE, RAW" => "Apple"; household text wins for serving label.
+        // serving 50 g => scale 0.5; preparation qualifiers stay visible; household text wins.
         let json = """
         {
           "foods": [
@@ -32,7 +32,7 @@ final class USDAFoodParserTests: XCTestCase {
         let item = try XCTUnwrap(items.first)
 
         XCTAssertEqual(item.id, "usda_1102702")
-        XCTAssertEqual(item.name, "Apple")
+        XCTAssertEqual(item.name, "Apple, Raw")
         XCTAssertEqual(item.calories, 26, accuracy: 0.001)     // 52 * 0.5
         XCTAssertEqual(item.protein, 0.15, accuracy: 0.001)    // 0.3 * 0.5
         XCTAssertEqual(item.carbs, 7, accuracy: 0.001)         // 14 * 0.5

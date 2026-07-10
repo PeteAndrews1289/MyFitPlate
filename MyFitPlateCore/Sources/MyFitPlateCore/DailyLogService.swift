@@ -15,6 +15,10 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     public weak var bannerService: BannerService?
     public weak var goalSettings: GoalSettings?
     private var activeListenerDate: Date?
+    private var mutationTails: [String: Task<Void, Never>] = [:]
+    private var mutationTokens: [String: Int] = [:]
+    private var mutationSnapshots: [String: DailyLog] = [:]
+    private var nextMutationToken = 0
 
     public let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -134,23 +138,24 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     public func logFoodItem(_ foodItem: FoodItem, mealType: String) async {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let dateToLog = self.activelyViewedDate
-
-        do {
-            var log = try await fetchLogInternalAsync(for: userID, date: dateToLog)
-
-            let itemToAdd = DailyLogRules.addFoodToLog(log: &log, foodItem: foodItem, mealName: mealType, source: "manual_add")
-
-            let updatedLog = log
-            await MainActor.run {
-                self.publishCurrentDailyLog(updatedLog)
-            }
-
-            let success = await updateDailyLogAsync(for: userID, updatedLog: updatedLog)
-
-            if success {
+        await withCheckedContinuation { continuation in
+            enqueueDailyLogMutation(
+                for: userID,
+                date: dateToLog,
+                failureMessage: "Failed to log food.",
+                mutation: { log in
+                    DailyLogRules.addFoodToLog(
+                        log: &log,
+                        foodItem: foodItem,
+                        mealName: mealType,
+                        source: "manual_add"
+                    )
+                },
+                onSuccess: { [weak self] itemToAdd, _ in
+                    guard let self else { return }
                 DailyLogNotifications.postFoodLogged(itemToAdd, userID: userID)
                 EcosystemSyncManager.shared.syncNutritionToHealthKit(item: itemToAdd)
-                self.recentFoodStore.addRecentFood(for: userID, foodItem: itemToAdd, source: "recipe")
+                    self.recentFoodStore.addRecentFood(for: userID, foodItem: itemToAdd, source: "manual_add")
 
                 DIContainer.shared.analyticsManager?.logEvent("food_logged", parameters: [
                     "source": "manual_add",
@@ -158,22 +163,13 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     "calories": itemToAdd.calories
                 ])
 
-                await MainActor.run {
                     ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
                     self.bannerService?.showBanner(title: "Success", message: "\(foodItem.name) logged to \(mealType)!")
                     self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
                     self.rescheduleDailyReminder()
-                }
-            } else {
-                 await MainActor.run {
-                     self.bannerService?.showBanner(title: "Error", message: "Failed to log food.", iconName: "xmark.circle.fill", iconColor: .red)
-                 }
-            }
-        } catch {
-            AppLog.data.error("Failed to fetch log for adding food: \(error.localizedDescription, privacy: .public)")
-             await MainActor.run {
-                  self.bannerService?.showBanner(title: "Error", message: "Failed to log food.", iconName: "xmark.circle.fill", iconColor: .red)
-             }
+                },
+                completion: { _ in continuation.resume() }
+            )
         }
     }
 
@@ -197,6 +193,90 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                 continuation.resume(returning: success)
             }
         }
+    }
+
+    private func fetchRepositoryLogAsync(for userID: String, date: Date) async throws -> DailyLog {
+        try await withCheckedThrowingContinuation { continuation in
+            DIContainer.shared.nutritionRepository.fetchLogInternal(userID: userID, date: date) { result in
+                continuation.resume(with: result)
+            }
+        }
+    }
+
+    private func enqueueDailyLogMutation<Value>(
+        for userID: String,
+        date: Date,
+        failureMessage: String,
+        mutation: @escaping @MainActor (inout DailyLog) -> Value?,
+        onSuccess: @escaping @MainActor (Value, DailyLog) -> Void,
+        completion: (@MainActor (Bool) -> Void)? = nil
+    ) {
+        let normalizedDate = Calendar.current.startOfDay(for: date)
+        let key = "\(userID):\(dateFormatter.string(from: normalizedDate))"
+        let previous = mutationTails[key]
+        nextMutationToken += 1
+        let token = nextMutationToken
+        mutationTokens[key] = token
+
+        let task = Task { @MainActor [weak self] in
+            if let previous { await previous.value }
+            guard let self else {
+                completion?(false)
+                return
+            }
+
+            do {
+                var log: DailyLog
+                if let snapshot = self.mutationSnapshots[key] {
+                    log = snapshot
+                } else if let currentLog = self.currentDailyLog,
+                          Calendar.current.isDate(currentLog.date, inSameDayAs: normalizedDate) {
+                    log = currentLog
+                } else {
+                    log = try await self.fetchRepositoryLogAsync(for: userID, date: normalizedDate)
+                }
+                guard let value = mutation(&log) else {
+                    completion?(false)
+                    self.finishMutation(key: key, token: token)
+                    return
+                }
+
+                let success = await self.updateDailyLogAsync(for: userID, updatedLog: log)
+                if success {
+                    self.mutationSnapshots[key] = log
+                    if Calendar.current.isDate(normalizedDate, inSameDayAs: self.activelyViewedDate) {
+                        self.publishCurrentDailyLog(log)
+                    }
+                    onSuccess(value, log)
+                } else {
+                    self.bannerService?.showBanner(
+                        title: "Error",
+                        message: failureMessage,
+                        iconName: "xmark.circle.fill",
+                        iconColor: .red
+                    )
+                }
+                completion?(success)
+            } catch {
+                AppLog.data.error("Daily log mutation failed: \(error.localizedDescription, privacy: .public)")
+                self.bannerService?.showBanner(
+                    title: "Error",
+                    message: failureMessage,
+                    iconName: "xmark.circle.fill",
+                    iconColor: .red
+                )
+                completion?(false)
+            }
+            self.finishMutation(key: key, token: token)
+        }
+        mutationTails[key] = task
+    }
+
+    private func finishMutation(key: String, token: Int) {
+        guard mutationTokens[key] == token else { return }
+        mutationTokens[key] = nil
+        mutationTails[key] = nil
+        mutationSnapshots[key] = nil
     }
 
     public func updateDailyLog(for userID: String, updatedLog: DailyLog, completion: ((Bool) -> Void)? = nil) {
@@ -279,108 +359,57 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         )
     }
 
-    /// Adds ONE item. Never call this in a loop for multi-item writes — each call fetches
-    /// the day's log and saves its own copy, so concurrent calls overwrite each other and
-    /// one item survives (the AYCE diary bug). Use addMealToLog/addMealGroupsToLog instead.
+    /// Adds one item through the per-user/day mutation queue. Rapid taps, watch transfers, and
+    /// overlapping app actions are serialized so they cannot overwrite one another.
     public func addFoodToLog(for userID: String, date: Date, mealName: String, foodItem: FoodItem, source: String = "unknown") {
         let dateToLog = Calendar.current.startOfDay(for: date)
-        fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .success(var log):
-                let itemToAdd = DailyLogRules.addFoodToLog(log: &log, foodItem: foodItem, mealName: mealName, source: source)
-
-                if Calendar.current.isDate(dateToLog, inSameDayAs: self.activelyViewedDate) {
-                    DispatchQueue.main.async {
-                        self.publishCurrentDailyLog(log)
-                    }
-                }
-
-                self.updateDailyLog(for: userID, updatedLog: log) { success in
-                    if success {
-                        DailyLogNotifications.postFoodLogged(itemToAdd, userID: userID)
-                        EcosystemSyncManager.shared.syncNutritionToHealthKit(item: itemToAdd)
-                        self.recentFoodStore.addRecentFood(for: userID, foodItem: itemToAdd, source: source)
-
-                        DIContainer.shared.analyticsManager?.logEvent("food_logged", parameters: [
-                            "source": source,
-                            "meal_type": mealName,
-                            "calories": itemToAdd.calories
-                        ])
-
-                        Task { @MainActor in
-                            ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
-                            self.bannerService?.showBanner(title: "Success", message: "\(itemToAdd.name) logged!")
-                            self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
-                            self.rescheduleDailyReminder()
-                        }
-                    } else {
-                         Task { @MainActor in
-                             self.bannerService?.showBanner(title: "Error", message: "Failed to log \(itemToAdd.name).", iconName: "xmark.circle.fill", iconColor: .red)
-                         }
-                    }
-                }
-            case .failure(let e):
-                AppLog.data.error("Failed to fetch log for adding food: \(e.localizedDescription, privacy: .public)")
-                 Task { @MainActor in
-                     self.bannerService?.showBanner(title: "Error", message: "Could not fetch log to add food.", iconName: "xmark.circle.fill", iconColor: .red)
-                 }
+        enqueueDailyLogMutation(
+            for: userID,
+            date: dateToLog,
+            failureMessage: "Failed to log \(foodItem.name).",
+            mutation: { log in
+                DailyLogRules.addFoodToLog(
+                    log: &log,
+                    foodItem: foodItem,
+                    mealName: mealName,
+                    source: source
+                )
+            },
+            onSuccess: { [weak self] itemToAdd, _ in
+                guard let self else { return }
+                DailyLogNotifications.postFoodLogged(itemToAdd, userID: userID)
+                EcosystemSyncManager.shared.syncNutritionToHealthKit(item: itemToAdd)
+                self.recentFoodStore.addRecentFood(for: userID, foodItem: itemToAdd, source: source)
+                DIContainer.shared.analyticsManager?.logEvent("food_logged", parameters: [
+                    "source": source,
+                    "meal_type": mealName,
+                    "calories": itemToAdd.calories
+                ])
+                ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
+                self.bannerService?.showBanner(title: "Success", message: "\(itemToAdd.name) logged!")
+                self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
+                self.rescheduleDailyReminder()
             }
-        }
+        )
     }
 
     public func updateFoodInCurrentLog(for userID: String, updatedFoodItem: FoodItem) {
         let dateToLog = self.activelyViewedDate
-
-        // Edit the in-memory log the UI is actually showing rather than re-fetching from
-        // Firestore first. A fresh fetch can lag a very recent write (e.g. the achievement
-        // write that fires right after logging), so the edit would recompute totals from a
-        // stale copy and silently revert — which is why delete + re-add "fixed" it once
-        // Firestore caught up. This keeps currentDailyLog and the edit in lockstep.
-        if let currentLog = currentDailyLog,
-           Calendar.current.isDate(currentLog.date, inSameDayAs: dateToLog) {
-            applyFoodUpdate(for: userID, date: dateToLog, baseLog: currentLog, updatedFoodItem: updatedFoodItem)
-            return
-        }
-
-        fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .success(let log):
-                self.applyFoodUpdate(for: userID, date: dateToLog, baseLog: log, updatedFoodItem: updatedFoodItem)
-            case .failure(let e):
-                AppLog.data.error("Failed to fetch log for updating food: \(e.localizedDescription, privacy: .public)")
-                Task { @MainActor in
-                    self.bannerService?.showBanner(title: "Error", message: "Could not fetch log to update food.", iconName: "xmark.circle.fill", iconColor: .red)
-                }
+        enqueueDailyLogMutation(
+            for: userID,
+            date: dateToLog,
+            failureMessage: "Failed to update \(updatedFoodItem.name).",
+            mutation: { log in
+                let result = DailyLogRules.updateFoodInLog(log: &log, updatedFoodItem: updatedFoodItem)
+                return result.updated ? result.previousFoodItem : nil
+            },
+            onSuccess: { [weak self] previousFoodItem, _ in
+                guard let self else { return }
+                EcosystemSyncManager.shared.replaceNutritionInHealthKit(oldItem: previousFoodItem, newItem: updatedFoodItem)
+                self.bannerService?.showBanner(title: "Success", message: "\(updatedFoodItem.name) updated!")
+                self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
             }
-        }
-    }
-
-    private func applyFoodUpdate(for userID: String, date: Date, baseLog: DailyLog, updatedFoodItem: FoodItem) {
-        var log = baseLog
-        let (itemUpdated, previousFoodItem) = DailyLogRules.updateFoodInLog(log: &log, updatedFoodItem: updatedFoodItem)
-        guard itemUpdated else { return }
-
-        DispatchQueue.main.async {
-            self.publishCurrentDailyLog(log)
-        }
-
-        self.updateDailyLog(for: userID, updatedLog: log) { success in
-            if success {
-                if let previousFoodItem {
-                    EcosystemSyncManager.shared.replaceNutritionInHealthKit(oldItem: previousFoodItem, newItem: updatedFoodItem)
-                }
-                Task { @MainActor in
-                    self.bannerService?.showBanner(title: "Success", message: "\(updatedFoodItem.name) updated!")
-                    self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: date)
-                }
-            } else {
-                Task { @MainActor in
-                    self.bannerService?.showBanner(title: "Error", message: "Failed to update \(updatedFoodItem.name).", iconName: "xmark.circle.fill", iconColor: .red)
-                }
-            }
-        }
+        )
     }
 
     public func addMealToCurrentLog(for userID: String, mealName: String, foodItems: [FoodItem]) {
@@ -401,125 +430,80 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         let nonEmptyGroups = mealGroups.filter { !$0.foodItems.isEmpty }
         guard !nonEmptyGroups.isEmpty else { return }
 
-        fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .success(var log):
-                let (allItemsWithTimestamp, itemSource) = DailyLogRules.addMealGroupsToLog(log: &log, mealGroups: mealGroups, defaultSource: source)
-
-                if Calendar.current.isDate(dateToLog, inSameDayAs: self.activelyViewedDate) {
-                    DispatchQueue.main.async {
-                        self.publishCurrentDailyLog(log)
-                    }
+        enqueueDailyLogMutation(
+            for: userID,
+            date: dateToLog,
+            failureMessage: "Failed to log planned meals.",
+            mutation: { log in
+                let result = DailyLogRules.addMealGroupsToLog(
+                    log: &log,
+                    mealGroups: mealGroups,
+                    defaultSource: source
+                )
+                return result.addedItems.isEmpty ? nil : result
+            },
+            onSuccess: { [weak self] result, _ in
+                guard let self else { return }
+                DIContainer.shared.analyticsManager?.logEvent("food_logged_bulk", parameters: [
+                    "source": result.sourceUsed,
+                    "item_count": result.addedItems.count,
+                    "meal_count": nonEmptyGroups.count,
+                    "meal_type": nonEmptyGroups.map { $0.mealName }.joined(separator: ",")
+                ])
+                result.addedItems.forEach { item in
+                    DailyLogNotifications.postFoodLogged(item, userID: userID)
+                    EcosystemSyncManager.shared.syncNutritionToHealthKit(item: item)
+                    self.recentFoodStore.addRecentFood(for: userID, foodItem: item, source: result.sourceUsed)
                 }
-
-                self.updateDailyLog(for: userID, updatedLog: log) { success in
-                    if success {
-                        DIContainer.shared.analyticsManager?.logEvent("food_logged_bulk", parameters: [
-                            "source": itemSource,
-                            "item_count": allItemsWithTimestamp.count,
-                            "meal_count": nonEmptyGroups.count,
-                            "meal_type": nonEmptyGroups.map { $0.mealName }.joined(separator: ",")
-                        ])
-
-                        allItemsWithTimestamp.forEach { item in
-                            DailyLogNotifications.postFoodLogged(item, userID: userID)
-                            EcosystemSyncManager.shared.syncNutritionToHealthKit(item: item)
-                            self.recentFoodStore.addRecentFood(for: userID, foodItem: item, source: itemSource)
-                        }
-                        Task { @MainActor in
-                            let message = nonEmptyGroups.count == 1 ? "\(nonEmptyGroups[0].mealName) logged!" : "Planned day logged!"
-                            self.bannerService?.showBanner(title: "Success", message: message)
-                            self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
-                        }
-                    } else {
-                         Task { @MainActor in
-                             self.bannerService?.showBanner(title: "Error", message: "Failed to log planned meals.", iconName: "xmark.circle.fill", iconColor: .red)
-                         }
-                    }
-                }
-            case .failure(let e):
-                AppLog.data.error("Failed to fetch log for adding meal: \(e.localizedDescription, privacy: .public)")
-                  Task { @MainActor in
-                     self.bannerService?.showBanner(title: "Error", message: "Could not fetch log to add meal.", iconName: "xmark.circle.fill", iconColor: .red)
-                 }
+                let message = nonEmptyGroups.count == 1
+                    ? "\(nonEmptyGroups[0].mealName) logged!"
+                    : "Planned day logged!"
+                self.bannerService?.showBanner(title: "Success", message: message)
+                self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
             }
-        }
+        )
     }
 
     public func deleteFoodFromCurrentLog(for userID: String, foodItemID: String) {
         let dateToLog = self.activelyViewedDate
-        // Same reasoning as updateFoodInCurrentLog: mutate the in-memory log the UI shows so a
-        // stale fetch can't drop a concurrently-added item or revert the totals.
-        if let currentLog = currentDailyLog,
-           Calendar.current.isDate(currentLog.date, inSameDayAs: dateToLog) {
-            applyFoodDeletion(for: userID, baseLog: currentLog, foodItemID: foodItemID)
-            return
-        }
-        fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .success(let log):
-                self.applyFoodDeletion(for: userID, baseLog: log, foodItemID: foodItemID)
-            case .failure(let e):
-                AppLog.data.error("Failed to fetch log for deleting food: \(e.localizedDescription, privacy: .public)")
-                Task { @MainActor in
-                    self.bannerService?.showBanner(title: "Error", message: "Could not fetch log to delete item.", iconName: "xmark.circle.fill", iconColor: .red)
-                }
+        enqueueDailyLogMutation(
+            for: userID,
+            date: dateToLog,
+            failureMessage: "Failed to delete item.",
+            mutation: { log -> (food: FoodItem, name: String)? in
+                let result = DailyLogRules.deleteFoodFromLog(log: &log, foodItemID: foodItemID)
+                guard result.deleted, let removed = result.removedFoodItem else { return nil }
+                return (food: removed, name: result.foodName ?? "Item")
+            },
+            onSuccess: { [weak self] result, _ in
+                EcosystemSyncManager.shared.deleteNutritionFromHealthKit(item: result.food)
+                self?.bannerService?.showBanner(title: "Deleted", message: "\(result.name) removed from log.")
             }
-        }
-    }
-
-    private func applyFoodDeletion(for userID: String, baseLog: DailyLog, foodItemID: String) {
-        var log = baseLog
-        let (deleted, removedFoodItem, foodName) = DailyLogRules.deleteFoodFromLog(log: &log, foodItemID: foodItemID)
-        guard deleted else { return }
-
-        DispatchQueue.main.async {
-            self.publishCurrentDailyLog(log)
-        }
-
-        self.updateDailyLog(for: userID, updatedLog: log) { success in
-            Task { @MainActor in
-                if success {
-                    if let removedFoodItem {
-                        EcosystemSyncManager.shared.deleteNutritionFromHealthKit(item: removedFoodItem)
-                    }
-                    self.bannerService?.showBanner(title: "Deleted", message: "\(foodName ?? "Item") removed from log.")
-                } else {
-                    self.bannerService?.showBanner(title: "Error", message: "Failed to delete item.", iconName: "xmark.circle.fill", iconColor: .red)
-                }
-            }
-        }
+        )
     }
 
     public func addWaterToCurrentLog(for userID: String, amount: Double, goalOunces: Double) {
-         let dateToLog = self.activelyViewedDate
-         fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
-             guard let self = self else { return }
-              switch result {
-              case .success(var log):
-                  DailyLogRules.addWaterToLog(log: &log, amount: amount, goalOunces: goalOunces, dateToLog: dateToLog)
-
-                  DispatchQueue.main.async {
-                      if let currentLog = self.currentDailyLog, currentLog.id == log.id {
-                         self.publishCurrentDailyLog(log)
-                      }
-
-                      self.updateDailyLog(for: userID, updatedLog: log) { success in
-                          if success && amount > 0 {
-                              EcosystemSyncManager.shared.syncWaterToHealthKit(ounces: amount, date: dateToLog)
-                              DIContainer.shared.analyticsManager?.logEvent("water_logged", parameters: ["amount": amount])
-                          }
-                      }
-                  }
-              case .failure(let error):
-                  AppLog.data.error("Failed to fetch log for adding water: \(error.localizedDescription, privacy: .public)")
-                   Task { @MainActor in
-                     self.bannerService?.showBanner(title: "Error", message: "Could not update water intake.", iconName: "xmark.circle.fill", iconColor: .red)
-                 }
-              }
-         }
+        let dateToLog = self.activelyViewedDate
+        enqueueDailyLogMutation(
+            for: userID,
+            date: dateToLog,
+            failureMessage: "Could not update water intake.",
+            mutation: { log in
+                DailyLogRules.addWaterToLog(
+                    log: &log,
+                    amount: amount,
+                    goalOunces: goalOunces,
+                    dateToLog: dateToLog
+                )
+                return amount
+            },
+            onSuccess: { loggedAmount, _ in
+                if loggedAmount > 0 {
+                    EcosystemSyncManager.shared.syncWaterToHealthKit(ounces: loggedAmount, date: dateToLog)
+                    DIContainer.shared.analyticsManager?.logEvent("water_logged", parameters: ["amount": loggedAmount])
+                }
+            }
+        )
     }
 
     public func addWorkoutToCurrentLog(for userID: String, exerciseName: String, durationMinutes: Int?, caloriesBurned: Double) {
@@ -534,30 +518,18 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
 
     public func addWorkoutToLog(for userID: String, date: Date, exerciseName: String, durationMinutes: Int?, caloriesBurned: Double) {
         let dateToLog = Calendar.current.startOfDay(for: date)
-        fetchLogInternal(for: userID, date: dateToLog) { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .success(var log):
+        enqueueDailyLogMutation(
+            for: userID,
+            date: dateToLog,
+            failureMessage: "Could not log workout.",
+            mutation: { log in
                 DailyLogRules.addWorkoutToLog(log: &log, exerciseName: exerciseName, durationMinutes: durationMinutes, caloriesBurned: caloriesBurned)
-
-                DispatchQueue.main.async {
-                    if let currentLog = self.currentDailyLog, currentLog.id == log.id {
-                        self.publishCurrentDailyLog(log)
-                    }
-
-                    self.updateDailyLog(for: userID, updatedLog: log) { success in
-                        if success {
-                            DIContainer.shared.analyticsManager?.logEvent("workout_logged_ai", parameters: nil)
-                        }
-                    }
-                }
-            case .failure(let error):
-                AppLog.data.error("Failed to fetch log for adding workout: \(error.localizedDescription, privacy: .public)")
-                Task { @MainActor in
-                    self.bannerService?.showBanner(title: "Error", message: "Could not log workout.", iconName: "xmark.circle.fill", iconColor: .red)
-                }
+                return true
+            },
+            onSuccess: { _, _ in
+                DIContainer.shared.analyticsManager?.logEvent("workout_logged_ai", parameters: nil)
             }
-        }
+        )
     }
 
     public func fetchRecentFoodItems(for userID: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {

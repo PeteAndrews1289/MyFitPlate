@@ -36,7 +36,15 @@ struct ReportsView: View {
         }
     }
 
+    static let reportsTourSteps: [SpotlightTourStep] = [
+        SpotlightTourStep(id: "reports-trend", title: "Weight trend",
+                          text: "Track your real moving average smoothed over daily fluctuations."),
+        SpotlightTourStep(id: "reports-overview", title: "Overview & insights",
+                          text: "See weekly progress across calories, workouts, sleep, and AI-driven deep dives.")
+    ]
+
     var body: some View {
+        SpotlightTourScaffold(steps: ReportsView.reportsTourSteps) { isActive in
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 // DESIGN.md rule 1: Reports answers "is it working?" — the timeframe picker
@@ -45,6 +53,7 @@ struct ReportsView: View {
                 timeframeSelectorAndPickers
 
                 TrendDashboardView(weightHistory: goalSettings.weightHistory)
+                    .featureSpotlight(isActive: isActive("reports-trend"))
 
                 ReportsOverviewCard(
                     selectedTimeframe: selectedTimeframe,
@@ -59,6 +68,7 @@ struct ReportsView: View {
                         showingDetailedInsights = true
                     }
                 )
+                .featureSpotlight(isActive: isActive("reports-overview"))
 
                 if let insight = insightsService.smartSuggestion {
                     SmartReportInsightCard(insight: insight)
@@ -109,6 +119,7 @@ struct ReportsView: View {
             DetailedInsightsView(insightsService: insightsService)
         }
         #endif
+        }
     }
 
     @ViewBuilder

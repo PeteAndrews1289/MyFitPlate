@@ -43,8 +43,8 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(state.isDarkModeEnabled)
         XCTAssertEqual(database.loadedDarkModeUserIDs, ["user-1"])
         XCTAssertEqual(database.recordedLastLoginUserIDs, ["user-1"])
-        XCTAssertEqual(crash.userIDs.last, "user-1")
-        XCTAssertEqual(analytics.userIDs.last!, "user-1")
+        XCTAssertEqual(crash.userIDs.last, "")
+        XCTAssertNil(analytics.userIDs.last!)
         XCTAssertEqual(crash.customValues["is_logged_in"] as? String, "true")
     }
 

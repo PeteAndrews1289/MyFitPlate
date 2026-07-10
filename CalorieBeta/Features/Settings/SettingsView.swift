@@ -48,6 +48,7 @@ struct SettingsView: View {
     @State private var deleteErrorMessage: String?
     @State private var showingResetTourConfirmation = false
     @State private var isDeletingAccount = false
+    @State private var showingAIDataConsent = false
 
     var body: some View {
         Group {
@@ -85,6 +86,7 @@ struct SettingsView: View {
                     SettingsSupportSection(
                         showingHealthDisclaimer: $showingHealthDisclaimer,
                         showingResetTourConfirmation: $showingResetTourConfirmation,
+                        showingAIDataConsent: $showingAIDataConsent,
                         showingSignOutAlert: $showingSignOutAlert,
                         showingDeleteAccountAlert: $showingDeleteAccountAlert,
                         isDeletingAccount: isDeletingAccount
@@ -112,6 +114,9 @@ struct SettingsView: View {
             NavigationView {
                 HealthDisclaimerView()
             }
+        }
+        .sheet(isPresented: $showingAIDataConsent) {
+            AIDataConsentSheet()
         }
         }
         // Alerts
@@ -196,18 +201,9 @@ struct SettingsView: View {
     }
 
     private func clearLocalAccountData(userID: String) {
-        spotlightManager.resetSpotlights()
         let defaults = UserDefaults.standard
-        defaults.removeObject(forKey: "recentFoods_\(userID)")
-        defaults.removeObject(forKey: "chatHistory_\(userID)")
-        defaults.removeObject(forKey: "mealPlanCache")
-        defaults.removeObject(forKey: "cycleSettings")
-        defaults.removeObject(forKey: "lastPeriodStartDate")
-        defaults.removeObject(forKey: "pinnedExerciseNotes")
-        for key in ["useMetricBodyUnits", "hydrationRemindersEnabled", "weighInReminderEnabled",
-                    "notificationHour", "notificationMinute", "includeActiveCaloriesInGoal",
-                    "isAutoRestTimerEnabled"] {
-            defaults.removeObject(forKey: key)
+        if let bundleIdentifier = Bundle.main.bundleIdentifier {
+            defaults.removePersistentDomain(forName: bundleIdentifier)
         }
         SharedDataManager.shared.clearWidgetData()
     }

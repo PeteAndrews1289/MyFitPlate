@@ -39,21 +39,25 @@ final class MyFitPlateUITests: XCTestCase {
     func testFoodSearchNavigation() throws {
         let app = XCUIApplication()
 
-        let quickLogButton = app.buttons["Quick log"]
+        let quickLogButton = app.buttons["quick_log_button"]
         XCTAssertTrue(quickLogButton.waitForExistence(timeout: 5), "Quick log button should be visible")
+        let quickLogHittable = expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: quickLogButton)
+        XCTAssertEqual(XCTWaiter.wait(for: [quickLogHittable], timeout: 5), .completed)
         quickLogButton.tap()
 
-        let searchFoodButton = app.buttons["Search Food"]
-        XCTAssertTrue(searchFoodButton.waitForExistence(timeout: 2), "Search Food option should be visible")
+        let searchFoodButton = app.buttons["Search food"]
+        XCTAssertTrue(searchFoodButton.waitForExistence(timeout: 5), "Search Food option should be visible")
         searchFoodButton.tap()
 
-        let searchField = app.searchFields["Search foods, meals, brands..."]
+        let searchField = app.textFields["Search foods, meals, brands"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 5), "Food search field should appear")
 
         searchField.tap()
         searchField.typeText("Apple")
 
-        let firstResult = app.cells.firstMatch
+        let firstResult = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Test Kitchen Apple"))
+            .firstMatch
         XCTAssertTrue(firstResult.waitForExistence(timeout: 5), "Search results should populate")
     }
 }

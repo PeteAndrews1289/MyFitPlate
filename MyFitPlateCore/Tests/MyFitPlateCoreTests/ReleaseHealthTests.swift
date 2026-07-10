@@ -31,7 +31,7 @@ final class ReleaseHealthTests: XCTestCase {
         XCTAssertTrue(crash.logs.first?.contains("release_health.session_started") == true)
     }
 
-    func testIdentifyUserUpdatesCrashAndAnalyticsState() {
+    func testIdentifyUserTracksLoginStateWithoutSendingAccountIdentifier() {
         let crash = MockCrashManager()
         let analytics = MockAnalyticsManager()
 
@@ -46,9 +46,9 @@ final class ReleaseHealthTests: XCTestCase {
             analyticsManager: analytics
         )
 
-        XCTAssertEqual(crash.userIDs, ["user-123", ""])
+        XCTAssertEqual(crash.userIDs, ["", ""])
         XCTAssertEqual(analytics.userIDs.count, 2)
-        XCTAssertEqual(analytics.userIDs[0], "user-123")
+        XCTAssertNil(analytics.userIDs[0])
         XCTAssertNil(analytics.userIDs[1])
         XCTAssertEqual(crash.customValues["is_logged_in"] as? String, "false")
     }

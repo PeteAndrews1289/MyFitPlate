@@ -51,57 +51,34 @@ struct MaiaActionBoardView: View {
     var onTrustOrToday: () -> Void
     var onHydrate: () -> Void
 
-    private let columns: [GridItem] = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10)
-    ]
-
     private var proteinCardTitle: String {
         hasWorkoutToday ? "Recovery meal" : "Protein anchor"
     }
 
-    private var proteinCardSubtitle: String {
+    private var proteinCardSubtitle: String? {
         if hasWorkoutToday {
-            return "\(Int(remainingProtein.rounded()))g protein left"
+            return "\(Int(remainingProtein.rounded()))g left"
         }
-        return remainingProtein >= 15 ? "\(Int(remainingProtein.rounded()))g to target" : "Keep the next meal steady"
+        return remainingProtein >= 15 ? "\(Int(remainingProtein.rounded()))g left" : nil
     }
 
     private var trustCardTitle: String {
         hasNutritionMismatch ? "Review trust" : "Read today"
     }
 
-    private var trustCardSubtitle: String {
-        hasNutritionMismatch ? "Macro math needs review" : "Food, water, training"
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Today's moves")
-                    .appFont(size: 15, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Spacer()
-                Text("Ready")
-                    .appFont(size: 11, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(UIColor.secondarySystemFill), in: Capsule())
-            }
-            .padding(.horizontal)
-
-            LazyVGrid(columns: columns, spacing: 10) {
-                MaiaActionCardButton(
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                MaiaActionChip(
                     title: "Fill macros",
-                    subtitle: "\(Int(remainingCalories.rounded())) cal left",
+                    subtitle: "\(Int(remainingCalories.rounded())) cal",
                     icon: "fork.knife.circle.fill",
                     tint: .orange,
                     isLoading: isGeneratingMeal,
                     action: onFillMacros
                 )
 
-                MaiaActionCardButton(
+                MaiaActionChip(
                     title: proteinCardTitle,
                     subtitle: proteinCardSubtitle,
                     icon: hasWorkoutToday ? "bolt.heart.fill" : "figure.strengthtraining.traditional",
@@ -109,17 +86,17 @@ struct MaiaActionBoardView: View {
                     action: onProteinOrRecovery
                 )
 
-                MaiaActionCardButton(
+                MaiaActionChip(
                     title: trustCardTitle,
-                    subtitle: trustCardSubtitle,
+                    subtitle: nil,
                     icon: hasNutritionMismatch ? "exclamationmark.shield.fill" : "checkmark.shield.fill",
                     tint: hasNutritionMismatch ? .orange : .accentPositive,
                     action: onTrustOrToday
                 )
 
-                MaiaActionCardButton(
+                MaiaActionChip(
                     title: "Hydrate",
-                    subtitle: waterRemaining > 0 ? "Add 16 oz now" : "Goal covered",
+                    subtitle: waterRemaining > 0 ? "+16 oz" : "Covered",
                     icon: "drop.fill",
                     tint: .accentWater,
                     isDisabled: waterRemaining <= 0,
@@ -127,20 +104,14 @@ struct MaiaActionBoardView: View {
                 )
             }
             .padding(.horizontal)
-
-            MaiaDataBoundaryStrip(
-                healthKitEnabled: healthKitEnabled,
-                pantryCount: pantryCount
-            )
-            .padding(.horizontal)
         }
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 }
 
-private struct MaiaActionCardButton: View {
+private struct MaiaActionChip: View {
     let title: String
-    let subtitle: String
+    let subtitle: String?
     let icon: String
     let tint: Color
     var isLoading = false
@@ -149,51 +120,37 @@ private struct MaiaActionCardButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                } else {
                     Image(systemName: icon)
-                        .appFont(size: 14, weight: .bold)
+                        .appFont(size: 13, weight: .bold)
                         .foregroundColor(tint)
-                        .frame(width: 30, height: 30)
-                        .background(tint.opacity(0.12), in: Circle())
-
-                    Spacer(minLength: 0)
-
-                    if isLoading {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: isDisabled ? "checkmark.circle.fill" : "chevron.right")
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(isDisabled ? .accentPositive : Color(UIColor.tertiaryLabel))
-                    }
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .appFont(size: 14, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                Text(title)
+                    .appFont(size: 13, weight: .semibold)
+                    .foregroundColor(.textPrimary)
 
-                    Text(subtitle)
-                        .appFont(size: 11, weight: .semibold)
+                if let subtitle, !subtitle.isEmpty {
+                    Text("· \(subtitle)")
+                        .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
-            .padding(12)
-            .background(Color.backgroundSecondary.opacity(isDisabled ? 0.38 : 0.78), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, 13)
+            .padding(.vertical, 8)
+            .background(Color.backgroundSecondary.opacity(isDisabled ? 0.35 : 0.82), in: Capsule())
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(tint.opacity(isDisabled ? 0.08 : 0.16), lineWidth: 1)
+                Capsule()
+                    .stroke(tint.opacity(isDisabled ? 0.08 : 0.22), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
         .disabled(isDisabled || isLoading)
-        .accessibilityLabel("\(title), \(subtitle)")
+        .accessibilityLabel("\(title)\(subtitle.map { ", \($0)" } ?? "")")
     }
 }
 
@@ -787,6 +744,7 @@ struct ChatHistoryListView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 12)
             }
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: chatMessages) {
                 if let lastId = chatMessages.last?.id {
                     withAnimation {

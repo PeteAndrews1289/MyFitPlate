@@ -21,8 +21,19 @@ struct WorkoutRoutinesView: View {
         GridItem(.flexible(), spacing: 12)
     ]
 
+    static let trainTourSteps: [SpotlightTourStep] = [
+        SpotlightTourStep(id: "train-next-step", title: "Training hub",
+                          text: "Follow your active program or choose a workout routine tailored to your goals."),
+        SpotlightTourStep(id: "train-library", title: "Plan library",
+                          text: "Pick ready-made programs, generate AI plans, or build your own custom workouts.")
+    ]
+
     var body: some View {
+        SpotlightTourScaffold(steps: WorkoutRoutinesView.trainTourSteps) { isActive in
+        let isNextStepSpotlightActive = isActive("train-next-step")
+        let isLibrarySpotlightActive = isActive("train-library")
         NavigationStack {
+            ScrollViewReader { scrollProxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     let nextWorkout = viewModel.nextWorkoutInfo(for: workoutService.activeProgram)
@@ -34,36 +45,45 @@ struct WorkoutRoutinesView: View {
                     // DESIGN.md rule 1: the Train screen answers "what do I do right now?"
                     // With a program, the slider is the single hero; the Training Hub banner
                     // and path-chooser card only appear in the no-program empty state.
-                    if let program = workoutService.activeProgram {
-                        TodaysNextStepSlider(
-                            program: program,
-                            completedLogsByIndex: viewModel.completedLogsByIndex(for: program),
-                            onStart: { routine in self.routineToPlay = routine },
-                            onSkipTo: { target in
-                                Task { await workoutService.skipToIndex(target, in: program) }
-                            },
-                            onReview: { log in self.reviewLog = log }
-                        )
+                    VStack(alignment: .leading, spacing: 14) {
+                        if let program = workoutService.activeProgram {
+                            TodaysNextStepSlider(
+                                program: program,
+                                completedLogsByIndex: viewModel.completedLogsByIndex(for: program),
+                                onStart: { routine in self.routineToPlay = routine },
+                                onSkipTo: { target in
+                                    Task { await workoutService.skipToIndex(target, in: program) }
+                                },
+                                onReview: { log in self.reviewLog = log }
+                            )
 
-                        TrainingWeekPreviewCard(program: program, nextWorkout: nextWorkout)
-                    } else {
-                        TrainingHeroCard(
-                            activeProgramName: nil,
-                            routineCount: workoutService.userRoutines.count,
-                            programCount: workoutService.userPrograms.count
-                        )
+                            TrainingWeekPreviewCard(program: program, nextWorkout: nextWorkout)
+                        } else {
+                            TrainingHeroCard(
+                                activeProgramName: nil,
+                                routineCount: workoutService.userRoutines.count,
+                                programCount: workoutService.userPrograms.count
+                            )
 
-                        TrainingDecisionCard(
-                            nextWorkout: nextWorkout,
-                            activeProgramName: nil,
-                            routineCount: workoutService.userRoutines.count,
-                            onStartWorkout: {
-                                if let nextWorkout {
-                                    self.routineToPlay = nextWorkout.routine
+                            TrainingDecisionCard(
+                                nextWorkout: nextWorkout,
+                                activeProgramName: nil,
+                                routineCount: workoutService.userRoutines.count,
+                                onStartWorkout: {
+                                    if let nextWorkout {
+                                        self.routineToPlay = nextWorkout.routine
+                                    }
+                                },
+                                onChoosePlan: {
+                                    withAnimation { scrollProxy.scrollTo("plan-library", anchor: .top) }
+                                },
+                                onChooseOneOff: {
+                                    withAnimation { scrollProxy.scrollTo("one-off-workouts", anchor: .top) }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
+                    .featureSpotlight(isActive: isNextStepSpotlightActive)
 
                     TrainingReadinessCard(brief: viewModel.trainingBrief(todayLog: todayLog, goalSettings: goalSettings))
 
@@ -83,6 +103,7 @@ struct WorkoutRoutinesView: View {
                                 .environmentObject(dailyLogService)
                                 .environmentObject(achievementService)
                         }
+                        .featureSpotlight(isActive: isLibrarySpotlightActive)
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
@@ -133,12 +154,12 @@ struct WorkoutRoutinesView: View {
                                 TrainingActionTile(
                                     icon: "sparkles",
                                     title: "AI Program",
-                                    subtitle: "Create from goals",
-                                    color: .brandPrimary
+                                    subtitle: "Generate tailored plan",
+                                    color: Color.brandPrimary
                                 )
                             }
                             .buttonStyle(.plain)
-                            .accessibilityIdentifier("ai_program_button")
+                            .accessibilityIdentifier("ai_workout_generator_button")
 
                             NavigationLink(destination: ProgramCreatorView(workoutService: workoutService)) {
                                 TrainingActionTile(
@@ -164,11 +185,39 @@ struct WorkoutRoutinesView: View {
                             }
                             .buttonStyle(.plain)
                         }
-                    }
+                        }
+                        .featureSpotlight(isActive: isLibrarySpotlightActive)
+                        .id("plan-library")
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            TrainingSectionHeader(
+                                title: "One-off Workouts",
+                                subtitle: "Start a saved routine without committing to a program."
+                            )
+
+                            if workoutService.userRoutines.isEmpty {
+                                Button {
+                                    routineToEdit = WorkoutRoutine(
+                                        userID: DIContainer.shared.authService.currentUserID ?? "",
+                                        name: "",
+                                        dateCreated: Date()
+                                    )
+                                } label: {
+                                    Label("Create a Routine", systemImage: "plus")
+                                }
+                                .buttonStyle(SecondaryButtonStyle())
+                            } else {
+                                ForEach(workoutService.userRoutines) { routine in
+                                    routineRow(routine)
+                                }
+                            }
+                        }
+                        .id("one-off-workouts")
                     }
 
                 }
                 .padding()
+            }
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
             .navigationTitle("Train")
@@ -253,6 +302,7 @@ struct WorkoutRoutinesView: View {
                         }
                 }
             }
+        }
         }
     }
 

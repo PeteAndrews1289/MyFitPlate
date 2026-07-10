@@ -2,6 +2,7 @@
 
 import Foundation
 public enum AIError: Error, LocalizedError {
+    case consentRequired
     case invalidURL
     case noData
     case apiError(String)
@@ -11,6 +12,7 @@ public enum AIError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
+        case .consentRequired: return "Review and allow AI data sharing before using Maia."
         case .invalidURL: return "Invalid API URL."
         case .noData: return "The AI returned no data."
         case .apiError(let msg): return "AI Error: \(msg)"

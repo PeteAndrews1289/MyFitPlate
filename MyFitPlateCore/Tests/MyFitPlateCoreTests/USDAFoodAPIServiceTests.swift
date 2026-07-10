@@ -30,7 +30,7 @@ final class USDAFoodAPIServiceTests: XCTestCase {
         
         let apple = items[0]
         XCTAssertEqual(apple.id, "usda_1234")
-        XCTAssertEqual(apple.name, "Apple")
+        XCTAssertEqual(apple.name, "Apple, Raw, With Skin")
         XCTAssertEqual(apple.servingSize, "1 large")
         XCTAssertEqual(apple.servingWeight, 150.0)
         

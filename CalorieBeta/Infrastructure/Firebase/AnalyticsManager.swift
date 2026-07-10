@@ -21,11 +21,11 @@ public final class FirebaseAnalyticsManager: AnalyticsManagerProtocol {
     // MARK: - Feature / action events
 
     public func log(_ event: AppEvent, _ parameters: [String: Any] = [:]) {
-        Analytics.logEvent(event.rawValue, parameters: parameters.isEmpty ? nil : parameters)
+        Analytics.logEvent(event.rawValue, parameters: AnalyticsPrivacy.sanitizedParameters(parameters))
     }
 
     public func logEvent(_ name: String, parameters: [String: Any]?) {
-        Analytics.logEvent(name, parameters: parameters)
+        Analytics.logEvent(name, parameters: AnalyticsPrivacy.sanitizedParameters(parameters))
     }
 
     /// Convenience for the most common pattern: "which AI feature was used."
@@ -40,7 +40,7 @@ public final class FirebaseAnalyticsManager: AnalyticsManagerProtocol {
     }
 
     public func setUserID(_ id: String?) {
-        Analytics.setUserID(id)
+        Analytics.setUserID(nil)
     }
 }
 

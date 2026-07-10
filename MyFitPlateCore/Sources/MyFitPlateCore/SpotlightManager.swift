@@ -8,8 +8,10 @@ public class SpotlightManager: ObservableObject {
     @Published public private(set) var replayToken = 0
 
     private let userDefaultsKey = "shownSpotlightIDs"
+    private let defaults: UserDefaults
 
-    public init() {
+    public init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         loadShownSpotlights()
     }
 
@@ -30,15 +32,15 @@ public class SpotlightManager: ObservableObject {
     
     public func resetSpotlights() {
         shownSpotlightIDs.removeAll()
-        UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+        defaults.removeObject(forKey: userDefaultsKey)
     }
     
     private func loadShownSpotlights() {
-        let savedIDs = UserDefaults.standard.stringArray(forKey: userDefaultsKey) ?? []
+        let savedIDs = defaults.stringArray(forKey: userDefaultsKey) ?? []
         self.shownSpotlightIDs = Set(savedIDs)
     }
     
     private func saveShownSpotlights() {
-        UserDefaults.standard.set(Array(self.shownSpotlightIDs), forKey: userDefaultsKey)
+        defaults.set(Array(self.shownSpotlightIDs), forKey: userDefaultsKey)
     }
 }

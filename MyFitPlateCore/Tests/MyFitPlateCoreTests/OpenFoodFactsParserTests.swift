@@ -33,20 +33,20 @@ final class OpenFoodFactsParserTests: XCTestCase {
 
         XCTAssertEqual(item.id, "off_12345")
         XCTAssertEqual(item.name, "Test Bar")
-        XCTAssertEqual(item.calories, 400, accuracy: 0.001)
-        XCTAssertEqual(item.protein, 20, accuracy: 0.001)
-        XCTAssertEqual(item.carbs, 50, accuracy: 0.001)
-        XCTAssertEqual(item.fats, 10, accuracy: 0.001)
-        XCTAssertEqual(item.fiber ?? 0, 6, accuracy: 0.001)
+        XCTAssertEqual(item.calories, 160, accuracy: 0.001)
+        XCTAssertEqual(item.protein, 8, accuracy: 0.001)
+        XCTAssertEqual(item.carbs, 20, accuracy: 0.001)
+        XCTAssertEqual(item.fats, 4, accuracy: 0.001)
+        XCTAssertEqual(item.fiber ?? 0, 2.4, accuracy: 0.001)
         XCTAssertEqual(item.servingSize, "40g")
-        XCTAssertEqual(item.servingWeight, 100, accuracy: 0.001)
+        XCTAssertEqual(item.servingWeight, 40, accuracy: 0.001)
         // grams/100g -> mg
-        XCTAssertEqual(item.sodium ?? 0, 500, accuracy: 0.001)
-        XCTAssertEqual(item.calcium ?? 0, 120, accuracy: 0.001)
-        XCTAssertEqual(item.iron ?? 0, 8, accuracy: 0.001)
+        XCTAssertEqual(item.sodium ?? 0, 200, accuracy: 0.001)
+        XCTAssertEqual(item.calcium ?? 0, 48, accuracy: 0.001)
+        XCTAssertEqual(item.iron ?? 0, 3.2, accuracy: 0.001)
         // Regression: potassium was the one mineral missing the g->mg conversion.
-        XCTAssertEqual(item.potassium ?? 0, 300, accuracy: 0.001)
-        XCTAssertEqual(item.vitaminC ?? 0, 60, accuracy: 0.001)
+        XCTAssertEqual(item.potassium ?? 0, 120, accuracy: 0.001)
+        XCTAssertEqual(item.vitaminC ?? 0, 24, accuracy: 0.001)
     }
 
     func testStatusZeroReturnsNil() throws {
@@ -57,13 +57,9 @@ final class OpenFoodFactsParserTests: XCTestCase {
         XCTAssertNil(try OpenFoodFactsParser.foodItem(from: data(#"{"status": 1}"#)))
     }
 
-    func testDefaultsWhenFieldsMissing() throws {
+    func testRejectsProductsWithoutNutrition() throws {
         let json = #"{"status": 1, "product": {"code": "x", "nutriments": {}}}"#
-        let item = try XCTUnwrap(OpenFoodFactsParser.foodItem(from: data(json)))
-        XCTAssertEqual(item.name, "Unknown Product")
-        XCTAssertEqual(item.servingSize, "100g")
-        XCTAssertEqual(item.calories, 0, accuracy: 0.001)
-        XCTAssertNil(item.calcium)
+        XCTAssertNil(try OpenFoodFactsParser.foodItem(from: data(json)))
     }
 
     func testMalformedJSONThrows() {

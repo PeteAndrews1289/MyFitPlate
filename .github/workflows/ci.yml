@@ -38,7 +38,11 @@ jobs:
           cat > secrets.xcconfig <<'EOF'
           FATSECRET_PROXY_URL =
           OPENAI_API_KEY =
+          USDA_API_KEY =
           EOF
+
+      - name: Run SwiftLint
+        run: swiftlint lint --quiet
 
       - name: Resolve Swift packages
         run: |
@@ -75,6 +79,15 @@ jobs:
           COVERAGE_MINIMUM: "1.0"
         run: python3 scripts/check_xcode_coverage.py TestResults.xcresult --target MyFitPlate.app
 
+      - name: Build Release configuration
+        run: |
+          xcodebuild build -quiet \
+            -project MyFitPlate.xcodeproj \
+            -scheme MyFitPlate \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -82,6 +95,60 @@ jobs:
           name: test-results
           path: TestResults.xcresult
           if-no-files-found: ignore
+
+  ui-tests:
+    name: UI smoke tests
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Provide placeholder build secrets
+        run: |
+          cat > secrets.xcconfig <<'EOF'
+          FATSECRET_PROXY_URL =
+          OPENAI_API_KEY =
+          USDA_API_KEY =
+          EOF
+
+      - name: Run UI tests sequentially
+        run: |
+          xcodebuild test -quiet \
+            -project MyFitPlate.xcodeproj \
+            -scheme MyFitPlate \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -only-testing:MyFitPlateUITests \
+            -parallel-testing-enabled NO \
+            -maximum-concurrent-test-simulator-destinations 1 \
+            CODE_SIGNING_ALLOWED=NO
+
+  functions:
+    name: Firebase Functions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Build and audit Functions
+        working-directory: functions
+        run: |
+          npm ci
+          npm run build
+          npm audit --omit=dev --audit-level=moderate
 
   firebase-rules:
     name: Firebase rules

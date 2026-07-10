@@ -105,6 +105,34 @@ final class FoodSearchRankingTests: XCTestCase {
         XCTAssertEqual(merged.count, 8)
     }
 
+    func testMergedResultsIncludeOpenFoodFacts() {
+        let fatSecret = [FoodItem(id: "fs_1", name: "Chicken Breast", calories: 165)]
+        let usda = [FoodItem(id: "usda_1", name: "Chicken Thigh", calories: 209)]
+        let off = [
+            FoodItem(id: "off_1", name: "Chicken Breast", calories: 160), // duplicate name ignored
+            FoodItem(id: "off_2", name: "Skyr Yogurt", calories: 120)
+        ]
+
+        let merged = FoodSearchRanking.mergedSearchResults(
+            fatSecret: fatSecret,
+            usda: usda,
+            openFoodFacts: off
+        )
+        XCTAssertEqual(merged.map(\.id), ["fs_1", "usda_1", "off_2"])
+    }
+
+    func testRankedRemoteMatchesPreferPlainQueryBeforeIngredientMatches() {
+        let foods = [
+            FoodItem(id: "1", name: "Croissants, Apple", calories: 260),
+            FoodItem(id: "2", name: "Apples, Raw, With Skin", calories: 52),
+            FoodItem(id: "3", name: "Strudel, Apple", calories: 310)
+        ]
+
+        let ranked = FoodSearchRanking.rankedRemoteMatches(query: "apple", foods: foods)
+
+        XCTAssertEqual(ranked.first?.id, "2")
+    }
+
     // MARK: - Quick-log hydration
 
     private var fatSecretPreview: FoodItem {

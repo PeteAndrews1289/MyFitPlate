@@ -21,7 +21,6 @@ struct AnimatedActionButton: View {
                         .stroke(Color.white.opacity(0.4), lineWidth: 1.5)
                 )
                 .clipShape(Circle())
-                .offset(y: isActive ? -22 : -28)
                 .scaleEffect(isActive ? 0.95 : 1.0)
                 .animation(.interpolatingSpring(stiffness: 250, damping: 15), value: isActive)
         }
@@ -39,7 +38,7 @@ struct CustomTabBar: View {
     let tabs: [(icon: String, name: String)] = [
         ("house", "Home"),
         ("message", "Maia"),
-        ("", ""),
+        ("dumbbell", "Train"),
         ("calendar", "Meal Plan"),
         ("chart.bar.xaxis", "Reports")
     ]
@@ -66,43 +65,50 @@ struct CustomTabBar: View {
 
             HStack(alignment: .bottom, spacing: 0) {
                 ForEach(0..<tabs.count, id: \.self) { index in
-                    if index == tabs.count / 2 {
-                        AnimatedActionButton(isActive: showingAddOptions, action: centerButtonAction)
-                            .frame(maxWidth: .infinity)
-
-                    } else {
-                        let item = tabs[index]
-                        let isSelected = selectedIndex == index && !showingAddOptions
-                        Button {
-                            if showingAddOptions {
-                                withAnimation { showingAddOptions = false }
-                            }
-                            withAnimation(.interpolatingSpring(stiffness: 300, damping: 25)) {
-                                self.selectedIndex = index
-                            }
-                        } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: item.icon)
-                                    .font(.system(size: 22, weight: isSelected ? .bold : .medium))
-                                    .frame(width: 40, height: 28)
-                                    .background(
-                                        Capsule()
-                                            .fill(isSelected ? Color.brandPrimary.opacity(0.15) : Color.clear)
-                                    )
-                                    .scaleEffect(isSelected ? 1.05 : 1.0)
-
-                                Text(item.name)
-                                    .appFont(size: 11, weight: isSelected ? .bold : .medium)
-                            }
-                            .foregroundColor(isSelected ? Color.brandPrimary : Color(UIColor.secondaryLabel))
-                            .animation(.easeOut(duration: 0.2), value: isSelected)
+                    let item = tabs[index]
+                    let isSelected = selectedIndex == index && !showingAddOptions
+                    Button {
+                        if showingAddOptions {
+                            withAnimation { showingAddOptions = false }
                         }
-                        .buttonStyle(.plain)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityIdentifier("tab_\(item.name.lowercased().replacingOccurrences(of: " ", with: "_"))")
+                        withAnimation(.interpolatingSpring(stiffness: 300, damping: 25)) {
+                            self.selectedIndex = index
+                        }
+                    } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: item.icon)
+                                .font(.system(size: 21, weight: isSelected ? .bold : .medium))
+                                .frame(width: 38, height: 28)
+                                .background(
+                                    Capsule()
+                                        .fill(isSelected ? Color.brandPrimary.opacity(0.15) : Color.clear)
+                                )
+                                .scaleEffect(isSelected ? 1.05 : 1.0)
+
+                            Text(item.name)
+                                .appFont(size: 10, weight: isSelected ? .bold : .medium)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .foregroundColor(isSelected ? Color.brandPrimary : Color(UIColor.secondaryLabel))
+                        .animation(.easeOut(duration: 0.2), value: isSelected)
                     }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("tab_\(item.name.lowercased().replacingOccurrences(of: " ", with: "_"))")
                 }
             }.frame(height: 60).padding(.bottom, 24).padding(.horizontal, 16)
-        }.frame(height: 94)
+
+            HStack {
+                Spacer()
+                AnimatedActionButton(isActive: showingAddOptions, action: centerButtonAction)
+                    .accessibilityIdentifier("quick_log_button")
+            }
+            .padding(.trailing, 18)
+            .padding(.bottom, 90)
+        }
+        // The lifted control stays inside this layout region so its visible and tappable
+        // frames are identical and touches cannot fall through to Home content.
+        .frame(height: 152)
     }
 }

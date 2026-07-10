@@ -273,6 +273,8 @@ struct TrainingDecisionCard: View {
     let activeProgramName: String?
     let routineCount: Int
     let onStartWorkout: () -> Void
+    let onChoosePlan: () -> Void
+    let onChooseOneOff: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -324,8 +326,17 @@ struct TrainingDecisionCard: View {
                 .buttonStyle(.plain)
             } else {
                 HStack(spacing: 10) {
-                    TrainingPathPill(title: "Start a Plan", subtitle: "Use Plan Library", icon: "rectangle.stack.fill", color: .orange)
-                    TrainingPathPill(title: "One-off", subtitle: "\(routineCount) saved", icon: "bolt.fill", color: .blue)
+                    Button(action: onChoosePlan) {
+                        TrainingPathPill(title: "Start a Plan", subtitle: "Use Plan Library", icon: "rectangle.stack.fill", color: .orange)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("start_plan_button")
+
+                    Button(action: onChooseOneOff) {
+                        TrainingPathPill(title: "One-off", subtitle: "\(routineCount) saved", icon: "bolt.fill", color: .blue)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("one_off_workouts_button")
                 }
             }
         }

@@ -187,18 +187,19 @@ public class InsightsService: ObservableObject {
     // MARK: - Smart Notification Logic (Fixed "700k Days" Bug)
     public func generateSmartNotification(context: NotificationContext) async -> (title: String, body: String)? {
         let hour = Calendar.current.component(.hour, from: Date())
+        let mayShareHealthData = allowsHealthDataInAIRequests
         let plan = InsightsRules.notificationPlan(
             for: InsightsRules.NotificationSignals(
                 gender: context.gender,
                 phase: context.phase,
-                wellnessScore: context.wellnessScore,
-                sleepScore: context.sleepScore,
+                wellnessScore: mayShareHealthData ? context.wellnessScore : nil,
+                sleepScore: mayShareHealthData ? context.sleepScore : nil,
                 caloriesRemaining: context.caloriesRemaining,
                 proteinRemaining: context.proteinRemaining,
                 daysSinceLastWorkout: context.daysSinceLastWorkout,
                 lastWorkoutName: context.lastWorkoutName,
-                stepsToday: context.stepsToday,
-                activeEnergyToday: context.activeEnergyToday
+                stepsToday: mayShareHealthData ? context.stepsToday : 0,
+                activeEnergyToday: mayShareHealthData ? context.activeEnergyToday : 0
             ),
             hour: hour
         )
@@ -266,7 +267,8 @@ public class InsightsService: ObservableObject {
     }
 
     private func generateAIInsights(for logs: [DailyLog], sleepSamples: [HKCategorySample], goals: GoalSettings, retryCount: Int) async -> [UserInsight] {
-        let prompt = createAIPrompt(logs: logs, sleepSamples: sleepSamples, goals: goals)
+        let healthDataForAI = allowsHealthDataInAIRequests ? sleepSamples : []
+        let prompt = createAIPrompt(logs: logs, sleepSamples: healthDataForAI, goals: goals)
 
         guard let responseString = await fetchAIResponse(prompt: prompt) else {
             return generateLocalInsights(from: logs, sleepSamples: sleepSamples, goals: goals)
@@ -304,6 +306,11 @@ public class InsightsService: ObservableObject {
             protein: goals.protein,
             weightGoal: goals.goal
         )
+    }
+
+    private var allowsHealthDataInAIRequests: Bool {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return false }
+        return AIDataConsentStore.shared.allowsHealthData(for: userID)
     }
 
     private func createAIPrompt(logs: [DailyLog], sleepSamples: [HKCategorySample], goals: GoalSettings) -> String {

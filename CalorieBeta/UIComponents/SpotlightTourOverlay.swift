@@ -33,7 +33,6 @@ struct SpotlightTourOverlay: View {
                 .onTapGesture(perform: onNext)
 
             tooltipLayer
-            skipButton
         }
         .ignoresSafeArea()
         .transition(.opacity)
@@ -76,9 +75,17 @@ struct SpotlightTourOverlay: View {
 
     private var tooltipCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(content.title)
-                .font(.title3.bold())
-                .foregroundColor(.primary)
+            HStack(alignment: .firstTextBaseline) {
+                Text(content.title)
+                    .font(.title3.bold())
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                Button("Skip", action: onSkip)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.secondary)
+            }
 
             Text(content.text)
                 .font(.subheadline)
@@ -105,22 +112,6 @@ struct SpotlightTourOverlay: View {
         .padding(.horizontal, 20)
     }
 
-    private var skipButton: some View {
-        VStack {
-            HStack {
-                Spacer()
-                Button("Skip tour", action: onSkip)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
-                    .background(Color.white.opacity(0.18), in: Capsule())
-            }
-            Spacer()
-        }
-        .padding(.top, 54)
-        .padding(.trailing, 20)
-    }
 }
 
 private extension View {

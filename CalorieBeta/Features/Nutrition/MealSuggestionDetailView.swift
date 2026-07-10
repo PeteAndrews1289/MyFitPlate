@@ -10,7 +10,7 @@ struct MealSuggestionDetailView: View {
     var remainingCarbs: Double?
     var remainingFats: Double?
     var onLog: (MealSuggestion) -> Void
-    var onRegenerate: (() -> Void)? = nil
+    var onRegenerate: (() -> Void)?
     var isRegenerating: Bool = false
 
     private var normalizedPantryNames: [String] {

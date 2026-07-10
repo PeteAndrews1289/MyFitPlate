@@ -2,7 +2,8 @@ import Foundation
 
 public class OpenFoodFactsAPIService {
 
-    private let baseURL = "https://world.openfoodfacts.org/api/v0/product/"
+    private let baseURL = "https://world.openfoodfacts.org/api/v2/product/"
+    private let userAgent = "MyFitPlate/2.2 (iOS; contact: peteandrews1289@gmail.com)"
 
     public init() {}
 
@@ -15,7 +16,10 @@ public class OpenFoodFactsAPIService {
             return
         }
 
-        URLSession.shared.dataTask(with: url) { data, response, error in
+        var request = URLRequest(url: url)
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
 
             if let error = error {
                 DispatchQueue.main.async { completion(.failure(.networkError(error))) }
@@ -38,6 +42,29 @@ public class OpenFoodFactsAPIService {
             }
         }.resume()
     }
+
+    /// Asynchronous text search across Open Food Facts global database (~3.2M products).
+    public func searchFoods(query: String) async -> [FoodItem] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://world.openfoodfacts.org/cgi/search.pl?search_terms=\(encoded)&search_simple=1&action=process&json=1&page_size=25") else {
+            return []
+        }
+
+        do {
+            var request = URLRequest(url: url)
+            request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return []
+            }
+            return try OpenFoodFactsParser.searchFoods(from: data)
+        } catch {
+            return []
+        }
+    }
 }
 
 /// Pure, testable parsing of an Open Food Facts product payload into a `FoodItem` (per 100g).
@@ -49,38 +76,85 @@ public enum OpenFoodFactsParser {
     public static func foodItem(from data: Data) throws -> FoodItem? {
         let response = try JSONDecoder().decode(ProductResponse.self, from: data)
         guard response.status != 0, let product = response.product else { return nil }
+        return foodItem(from: product, allowsUnknownName: true)
+    }
+
+    /// Parses an Open Food Facts multi-item search response into clean FoodItem models.
+    public static func searchFoods(from data: Data) throws -> [FoodItem] {
+        let response = try JSONDecoder().decode(SearchResponse.self, from: data)
+        guard let products = response.products else { return [] }
+        return products.compactMap { foodItem(from: $0, allowsUnknownName: false) }
+    }
+
+    private static func foodItem(from product: Product, allowsUnknownName: Bool) -> FoodItem? {
+        let trimmedName = product.productName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard allowsUnknownName || !trimmedName.isEmpty else { return nil }
 
         let n = product.nutriments
+        let hasNutrition = n.energyKcalServing != nil || n.energyKcal100g != nil
+            || n.proteinsServing != nil || n.proteins100g != nil
+            || n.carbohydratesServing != nil || n.carbohydrates100g != nil
+            || n.fatServing != nil || n.fat100g != nil
+        guard hasNutrition else { return nil }
+
+        let servingWeight = resolvedServingWeight(for: product)
+        let scale = servingWeight / 100
+        func scaled(_ value: Double?) -> Double? { value.map { $0 * scale } }
+        func preferred(_ perServing: Double?, _ per100g: Double?) -> Double {
+            perServing ?? scaled(per100g) ?? 0
+        }
+        func preferredOptional(_ perServing: Double?, _ per100g: Double?) -> Double? {
+            perServing ?? scaled(per100g)
+        }
+
+        let servingDescription = product.servingSize?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayServing = servingDescription?.isEmpty == false
+            ? servingDescription!
+            : "\(Int(servingWeight.rounded())) g"
+
         return FoodItem(
             id: "off_\(product.id)",
-            name: product.productName ?? "Unknown Product",
-            calories: n.energyKcal100g ?? 0,
-            protein: n.proteins100g ?? 0,
-            carbs: n.carbohydrates100g ?? 0,
-            fats: n.fat100g ?? 0,
-            saturatedFat: n.saturatedFat100g,
-            polyunsaturatedFat: n.polyunsaturatedFat100g,
-            monounsaturatedFat: n.monounsaturatedFat100g,
-            fiber: n.fiber100g,
-            servingSize: product.servingSize ?? "100g",
-            servingWeight: 100,
+            name: trimmedName.isEmpty ? "Unknown Product" : trimmedName,
+            calories: preferred(n.energyKcalServing, n.energyKcal100g),
+            protein: preferred(n.proteinsServing, n.proteins100g),
+            carbs: preferred(n.carbohydratesServing, n.carbohydrates100g),
+            fats: preferred(n.fatServing, n.fat100g),
+            saturatedFat: preferredOptional(n.saturatedFatServing, n.saturatedFat100g),
+            polyunsaturatedFat: scaled(n.polyunsaturatedFat100g),
+            monounsaturatedFat: scaled(n.monounsaturatedFat100g),
+            fiber: preferredOptional(n.fiberServing, n.fiber100g),
+            servingSize: displayServing,
+            servingWeight: servingWeight,
             timestamp: nil,
-            // Open Food Facts reports these minerals in grams/100g; the app stores mg.
-            calcium: n.calcium100g.map { $0 * 1000 },
-            iron: n.iron100g.map { $0 * 1000 },
-            // Potassium was the one mineral missing this conversion — OFF values arrived
-            // 1000x too small ("micros aren't parsed correctly").
-            potassium: n.potassium100g.map { $0 * 1000 },
-            sodium: n.sodium100g.map { $0 * 1000 },
-            vitaminA: n.vitaminA100g,
-            vitaminC: n.vitaminC100g.map { $0 * 1000 },
-            vitaminD: n.vitaminD100g
+            calcium: scaled(n.calcium100g).map { $0 * 1000 },
+            iron: scaled(n.iron100g).map { $0 * 1000 },
+            potassium: scaled(n.potassium100g).map { $0 * 1000 },
+            sodium: preferredOptional(n.sodiumServing, n.sodium100g).map { $0 * 1000 },
+            vitaminA: scaled(n.vitaminA100g),
+            vitaminC: scaled(n.vitaminC100g).map { $0 * 1000 },
+            vitaminD: scaled(n.vitaminD100g)
         ).withDatabaseSource(
             .openFoodFacts,
             sourceName: "Open Food Facts",
             sourceID: "off_\(product.id)",
             barcode: product.id
         )
+    }
+
+    private static func resolvedServingWeight(for product: Product) -> Double {
+        if let quantity = product.servingQuantity, quantity > 0 { return quantity }
+        guard let serving = product.servingSize else { return 100 }
+        let normalized = serving.lowercased().replacingOccurrences(of: ",", with: ".")
+        let pattern = #"([0-9]+(?:\.[0-9]+)?)\s*(?:g|ml)\b"#
+        guard let expression = try? NSRegularExpression(pattern: pattern),
+              let match = expression.firstMatch(
+                in: normalized,
+                range: NSRange(normalized.startIndex..., in: normalized)
+              ),
+              let valueRange = Range(match.range(at: 1), in: normalized),
+              let value = Double(normalized[valueRange]),
+              value > 0 else { return 100 }
+        return value
     }
 }
 
@@ -89,28 +163,42 @@ private struct ProductResponse: Codable {
     public let product: Product?
 }
 
+private struct SearchResponse: Codable {
+    public let count: Int?
+    public let products: [Product]?
+}
+
 private struct Product: Codable {
     public let id: String
     public let productName: String?
     public let servingSize: String?
+    public let servingQuantity: Double?
     public let nutriments: Nutriments
 
     public enum CodingKeys: String, CodingKey {
         case id = "code"
         case productName = "product_name"
         case servingSize = "serving_size"
+        case servingQuantity = "serving_quantity"
         case nutriments
     }
 }
 
 private struct Nutriments: Codable {
     public let carbohydrates100g: Double?
+    public let carbohydratesServing: Double?
     public let energyKcal100g: Double?
+    public let energyKcalServing: Double?
     public let fat100g: Double?
+    public let fatServing: Double?
     public let proteins100g: Double?
+    public let proteinsServing: Double?
     public let saturatedFat100g: Double?
+    public let saturatedFatServing: Double?
     public let fiber100g: Double?
+    public let fiberServing: Double?
     public let sodium100g: Double?
+    public let sodiumServing: Double?
     public let potassium100g: Double?
     public let calcium100g: Double?
     public let iron100g: Double?
@@ -122,12 +210,19 @@ private struct Nutriments: Codable {
 
     public enum CodingKeys: String, CodingKey {
         case carbohydrates100g = "carbohydrates_100g"
+        case carbohydratesServing = "carbohydrates_serving"
         case energyKcal100g = "energy-kcal_100g"
+        case energyKcalServing = "energy-kcal_serving"
         case fat100g = "fat_100g"
+        case fatServing = "fat_serving"
         case proteins100g = "proteins_100g"
+        case proteinsServing = "proteins_serving"
         case saturatedFat100g = "saturated-fat_100g"
+        case saturatedFatServing = "saturated-fat_serving"
         case fiber100g = "fiber_100g"
+        case fiberServing = "fiber_serving"
         case sodium100g = "sodium_100g"
+        case sodiumServing = "sodium_serving"
         case potassium100g = "potassium_100g"
         case calcium100g = "calcium_100g"
         case iron100g = "iron_100g"

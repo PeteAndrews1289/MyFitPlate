@@ -16,9 +16,9 @@ final class AccountDeletionServiceTests: XCTestCase {
 
         XCTAssertEqual(outcome.userID, "user-123")
         XCTAssertEqual(authService.reauthenticatedPassword, "correct-password")
-        XCTAssertEqual(databaseService.deletedUserID, "user-123")
+        XCTAssertNil(databaseService.deletedUserID)
         XCTAssertEqual(cloudFunctionService.deleteCallCount, 1)
-        XCTAssertTrue(authService.didDeleteCurrentUser)
+        XCTAssertFalse(authService.didDeleteCurrentUser)
     }
 
     func testEmptyPasswordFailsBeforeRemoteCalls() async {
@@ -44,10 +44,27 @@ final class AccountDeletionServiceTests: XCTestCase {
         }
     }
 
-    func testDatabaseFailureStopsBeforeCloudAndAuthDeletion() async {
+    func testClientDatabaseFailureDoesNotAffectServerOwnedDeletion() async throws {
         let authService = MockAccountDeletionAuthService(currentUserID: "user-123")
         let databaseService = MockAccountDeletionDatabaseService(deleteError: AccountDeletionTestError.expected)
         let cloudFunctionService = MockAccountDeletionCloudFunctionService()
+        let service = AccountDeletionService(
+            authService: authService,
+            databaseService: databaseService,
+            cloudFunctionService: cloudFunctionService
+        )
+
+        _ = try await service.deleteCurrentAccount(password: "correct-password")
+
+        XCTAssertNil(databaseService.deletedUserID)
+        XCTAssertEqual(cloudFunctionService.deleteCallCount, 1)
+        XCTAssertFalse(authService.didDeleteCurrentUser)
+    }
+
+    func testCloudFunctionFailureIsSurfaced() async {
+        let authService = MockAccountDeletionAuthService(currentUserID: "user-123")
+        let databaseService = MockAccountDeletionDatabaseService()
+        let cloudFunctionService = MockAccountDeletionCloudFunctionService(deleteError: AccountDeletionTestError.expected)
         let service = AccountDeletionService(
             authService: authService,
             databaseService: databaseService,
@@ -58,31 +75,12 @@ final class AccountDeletionServiceTests: XCTestCase {
             _ = try await service.deleteCurrentAccount(password: "correct-password")
             XCTFail("Expected data deletion to fail.")
         } catch AccountDeletionError.dataDeletionFailed {
-            XCTAssertEqual(authService.reauthenticatedPassword, "correct-password")
-            XCTAssertEqual(databaseService.deletedUserID, "user-123")
-            XCTAssertEqual(cloudFunctionService.deleteCallCount, 0)
+            XCTAssertNil(databaseService.deletedUserID)
+            XCTAssertEqual(cloudFunctionService.deleteCallCount, 1)
             XCTAssertFalse(authService.didDeleteCurrentUser)
         } catch {
             XCTFail("Expected AccountDeletionError.dataDeletionFailed, got \(error).")
         }
-    }
-
-    func testCloudFunctionFailureDoesNotBlockAuthDeletion() async throws {
-        let authService = MockAccountDeletionAuthService(currentUserID: "user-123")
-        let databaseService = MockAccountDeletionDatabaseService()
-        let cloudFunctionService = MockAccountDeletionCloudFunctionService(deleteError: AccountDeletionTestError.expected)
-        let service = AccountDeletionService(
-            authService: authService,
-            databaseService: databaseService,
-            cloudFunctionService: cloudFunctionService
-        )
-
-        let outcome = try await service.deleteCurrentAccount(password: "correct-password")
-
-        XCTAssertEqual(outcome.userID, "user-123")
-        XCTAssertEqual(databaseService.deletedUserID, "user-123")
-        XCTAssertEqual(cloudFunctionService.deleteCallCount, 1)
-        XCTAssertTrue(authService.didDeleteCurrentUser)
     }
 }
 

@@ -15,6 +15,25 @@ struct AIItemResponse: Codable {
     let fats: Double
 }
 
+struct ScannedMenuValueItem {
+    let food: FoodItem
+    let listedPrice: Double
+}
+
+private struct AIMenuPriceResponse: Decodable {
+    let foods: [AIMenuPriceItemResponse]
+}
+
+private struct AIMenuPriceItemResponse: Decodable {
+    let itemName: String
+    let servingSize: String
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fats: Double
+    let price: Double?
+}
+
 struct ReceiptParseResponse: Codable {
     let items: [ReceiptItemResponse]
 }
@@ -217,6 +236,67 @@ class MLImageModel {
             sourceName: "Maia Menu",
             completion: completion
         )
+    }
+
+    func estimateMenuItemsWithListedPrices(
+        image: UIImage,
+        completion: @escaping (Result<[ScannedMenuValueItem], Error>) -> Void
+    ) {
+        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+            completion(.failure(ImageRecognitionError.imageProcessingError))
+            return
+        }
+        let base64Image = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
+        let prompt = """
+        Read the restaurant menu image. Return one entry per clearly visible dish or beverage.
+        Estimate nutrition for one listed serving, but copy only prices that are visibly printed
+        next to that item. Never infer, calculate, or invent a price. Use null when no price is visible.
+
+        JSON object only with root key "foods". Each item must contain:
+        "itemName", "servingSize", "calories", "protein", "carbs", "fats", and "price".
+        """
+        let messages: [[String: Any]] = [[
+            "role": "user",
+            "content": [
+                ["type": "text", "text": prompt],
+                ["type": "image_url", "image_url": ["url": base64Image]]
+            ]
+        ]]
+
+        Task {
+            let result = await AIService.shared.performRequest(
+                messages: messages,
+                model: "gpt-4o-mini",
+                responseFormat: ["type": "json_object"]
+            )
+            switch result {
+            case .success(let json):
+                guard let data = json.data(using: .utf8) else {
+                    completion(.failure(ImageRecognitionError.invalidOutputFormat))
+                    return
+                }
+                do {
+                    let response = try JSONDecoder().decode(AIMenuPriceResponse.self, from: data)
+                    let items = response.foods.compactMap { item -> ScannedMenuValueItem? in
+                        guard let price = item.price, price > 0 else { return nil }
+                        let food = FoodItem(
+                            name: item.itemName,
+                            calories: item.calories,
+                            protein: item.protein,
+                            carbs: item.carbs,
+                            fats: item.fats,
+                            servingSize: item.servingSize
+                        ).withAIEstimateSource(.aiMenu, sourceName: "Maia Menu")
+                        return ScannedMenuValueItem(food: food, listedPrice: price)
+                    }
+                    completion(.success(items))
+                } catch {
+                    completion(.failure(ImageRecognitionError.decodingError(error)))
+                }
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
     }
 
     // MARK: - Menu Matchmaker

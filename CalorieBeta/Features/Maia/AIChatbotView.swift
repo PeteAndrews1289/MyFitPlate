@@ -20,6 +20,7 @@ struct AIChatbotView: View {
     @State private var mealSuggestion: MealSuggestion?
     @State private var showingSuggestionDetail = false
     @State private var isRegeneratingSuggestion = false
+    @FocusState private var isInputFocused: Bool
 
     private var bottomSafeAreaInset: CGFloat {
         UIApplication.shared.connectedScenes
@@ -50,7 +51,15 @@ struct AIChatbotView: View {
         return "Give me a quick read on today's logged food, water, training, and remaining macros. Keep it action-oriented."
     }
 
+    static let maiaTourSteps: [SpotlightTourStep] = [
+        SpotlightTourStep(id: "maia-actions", title: "Quick actions",
+                          text: "Tap a card and Maia builds it — fill your remaining macros, get a protein idea, or read your day."),
+        SpotlightTourStep(id: "maia-composer", title: "Ask Maia anything",
+                          text: "Type a question about food, workouts, or your goals. She already knows today's numbers.")
+    ]
+
     var body: some View {
+        SpotlightTourScaffold(steps: AIChatbotView.maiaTourSteps) { isActive in
         VStack(spacing: 0) {
             if viewModel.chatMessages.count <= 1 {
                 MaiaBriefingCard(
@@ -92,7 +101,7 @@ struct AIChatbotView: View {
                 // not just on the very first message. Chat history persists, so gating on message
                 // count meant a returning user — anyone who'd ever sent one message — never saw the
                 // action board again. Clearing the field brings it back.
-                if viewModel.userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.isLoading {
+                if viewModel.userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.isLoading && !isInputFocused {
                     MaiaActionBoardView(
                         remainingCalories: viewModel.remainingCalories,
                         remainingProtein: viewModel.remainingProtein,
@@ -119,7 +128,8 @@ struct AIChatbotView: View {
                             handleHydrationAction()
                         }
                     )
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 6)
+                    .featureSpotlight(isActive: isActive("maia-actions"))
                 }
 
                 if viewModel.isLoading {
@@ -142,6 +152,7 @@ struct AIChatbotView: View {
 
                 HStack(spacing: 10) {
                     TextField("Ask Maia anything", text: $viewModel.userMessage, axis: .vertical)
+                        .focused($isInputFocused)
                         .textFieldStyle(PlainTextFieldStyle())
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
@@ -167,6 +178,7 @@ struct AIChatbotView: View {
                 .padding(.horizontal)
                 .padding(.top, 10)
                 .padding(.bottom, bottomSafeAreaInset)
+                .featureSpotlight(isActive: isActive("maia-composer"))
             }
             .background(
                 Rectangle()
@@ -189,6 +201,19 @@ struct AIChatbotView: View {
                     Image(systemName: "trash")
                 }
                 .disabled(viewModel.chatMessages.count <= 1)
+            }
+
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button {
+                    isInputFocused = false
+                    hideKeyboard()
+                } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.brandPrimary)
+                }
+                .accessibilityLabel("Dismiss keyboard")
             }
         }
         .onAppear {
@@ -234,9 +259,11 @@ struct AIChatbotView: View {
         } message: {
             Text("This removes the saved conversation history on this device.")
         }
+        }
     }
 
     private func hideKeyboard() {
+        isInputFocused = false
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 

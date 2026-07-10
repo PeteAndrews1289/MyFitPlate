@@ -198,7 +198,11 @@ class AIChatbotViewModel: ObservableObject {
     func sendMessage(contextContract: MaiaContextContract? = nil) {
         let trimmedMessage = userMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedMessage.isEmpty else { return }
-        let effectiveContract = contextContract ?? .generalChat(includeHealthKit: healthKitViewModel?.isAuthorized == true)
+        let userID = DIContainer.shared.authService.currentUserID ?? ""
+        let mayShareHealthData = healthKitViewModel?.isAuthorized == true
+            && AIDataConsentStore.shared.allowsHealthData(for: userID)
+        let effectiveContract = (contextContract ?? .generalChat(includeHealthKit: mayShareHealthData))
+            .respectingHealthDataConsent(mayShareHealthData)
 
         let userMsg = ChatMessage(id: UUID(), text: trimmedMessage, isUser: true)
         chatMessages.append(userMsg)

@@ -98,10 +98,11 @@ public enum ReleaseHealth {
         crashManager: CrashManagerProtocol,
         analyticsManager: AnalyticsManagerProtocol
     ) {
-        let safeUserID = userID ?? ""
-        crashManager.setUserID(safeUserID)
+        // Release health only needs logged-in state. Keeping account identifiers out of
+        // Crashlytics and Analytics preserves the app's unlinked telemetry declaration.
+        crashManager.setUserID("")
         crashManager.setCustomValue(userID == nil ? "false" : "true", forKey: "is_logged_in")
-        analyticsManager.setUserID(userID)
+        analyticsManager.setUserID(nil)
     }
 
     public static func recordStartupCompleted(

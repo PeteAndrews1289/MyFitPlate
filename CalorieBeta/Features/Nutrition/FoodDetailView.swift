@@ -766,7 +766,7 @@ struct FoodDetailView: View {
     
     private func fetchAPIServingDetails() {
         guard !isLoadingDetails else { return }
-        let likelyApiId = initialFoodItem.id.count < 20 && !initialFoodItem.id.contains("-")
+        let likelyApiId = FoodSearchRanking.isFatSecretID(initialFoodItem.id)
         
         if likelyApiId && availableServings.isEmpty {
             isLoadingDetails = true; errorLoading = nil
@@ -893,6 +893,7 @@ struct FoodDetailView: View {
         if normalizedSource.contains("menu") { return .aiMenu }
         if normalizedSource.contains("text") { return .aiText }
         if normalizedSource.contains("ai") || normalizedSource.contains("image") { return .aiImage }
+        if normalizedSource.contains("chain_builder") || normalizedSource.contains("chain builder") { return .chainBuilder }
         if normalizedSource.contains("recipe") { return .recipe }
         if normalizedSource.contains("meal_plan") { return .mealPlan }
         if normalizedSource.contains("manual") || normalizedSource.contains("custom") { return .manual }

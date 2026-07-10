@@ -65,6 +65,11 @@ public struct MaiaContextContract: Codable, Equatable {
         scopes.contains(scope)
     }
 
+    public func respectingHealthDataConsent(_ isAllowed: Bool) -> MaiaContextContract {
+        guard !isAllowed else { return self }
+        return MaiaContextContract(action: action, scopes: scopes.filter { $0 != .healthKit })
+    }
+
     public var telemetryScopeList: String {
         scopes.map(\.rawValue).joined(separator: ",")
     }

@@ -12,10 +12,12 @@ struct FoodSearchActionGrid: View {
     let barcodeAction: () -> Void
     let textAction: () -> Void
     let valueRadarAction: () -> Void
+    let chainBuilderAction: () -> Void
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                FoodSearchActionChip(title: "Fast Food", icon: "takeoutbag.and.cup.and.straw.fill", action: chainBuilderAction)
                 FoodSearchActionChip(title: "Barcode", icon: "barcode.viewfinder", action: barcodeAction)
                 FoodSearchActionChip(title: "Camera", icon: "camera.fill", action: cameraAction)
                 FoodSearchActionChip(title: "Describe", icon: "text.bubble.fill", action: textAction)

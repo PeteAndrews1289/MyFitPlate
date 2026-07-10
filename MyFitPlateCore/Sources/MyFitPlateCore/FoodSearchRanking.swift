@@ -76,7 +76,9 @@ public enum FoodSearchRanking {
             break
         }
 
-        if food.sourceMetadata?.sourceType == .custom || food.sourceMetadata?.sourceType == .manual {
+        if food.sourceMetadata?.sourceType == .custom ||
+            food.sourceMetadata?.sourceType == .manual ||
+            food.sourceMetadata?.sourceType == .chainBuilder {
             score += 40
         }
 
@@ -120,6 +122,25 @@ public enum FoodSearchRanking {
         let originalIndex: Int
     }
 
+    public static func rankedRemoteMatches(query: String, foods: [FoodItem]) -> [FoodItem] {
+        let normalizedQuery = normalized(query)
+        guard !normalizedQuery.isEmpty else { return foods }
+        let queryTokens = tokens(normalizedQuery)
+        return foods.enumerated()
+            .map { index, food in
+                RankedFood(
+                    food: food,
+                    score: score(food, query: normalizedQuery, tokens: queryTokens, isSaved: false) ?? 0,
+                    originalIndex: index
+                )
+            }
+            .sorted {
+                if $0.score == $1.score { return $0.originalIndex < $1.originalIndex }
+                return $0.score > $1.score
+            }
+            .map(\.food)
+    }
+
     // MARK: - Search-source merging + quick-log hydration
 
     /// Combines branded FatSecret results with USDA whole-food results. FatSecret leads
@@ -129,13 +150,21 @@ public enum FoodSearchRanking {
     public static func mergedSearchResults(
         fatSecret: [FoodItem],
         usda: [FoodItem],
-        usdaLimit: Int = 8
+        openFoodFacts: [FoodItem] = [],
+        usdaLimit: Int = 8,
+        openFoodFactsLimit: Int = 10
     ) -> [FoodItem] {
-        let existingNames = Set(fatSecret.map { normalized($0.name) })
+        var existingNames = Set(fatSecret.map { normalized($0.name) })
         let distinctUSDA = usda
             .filter { !existingNames.contains(normalized($0.name)) }
             .prefix(usdaLimit)
-        return fatSecret + distinctUSDA
+        for food in distinctUSDA {
+            existingNames.insert(normalized(food.name))
+        }
+        let distinctOFF = openFoodFacts
+            .filter { !existingNames.contains(normalized($0.name)) }
+            .prefix(openFoodFactsLimit)
+        return fatSecret + distinctUSDA + distinctOFF
     }
 
     /// Builds the item a quick-log should record once food details have been fetched.
@@ -200,7 +229,10 @@ public enum FoodSearchRanking {
     public static func needsNutritionHydration(_ food: FoodItem) -> Bool {
         let hasAnyMicro = food.calcium != nil || food.sodium != nil
             || food.potassium != nil || food.iron != nil
-        let isFatSecretID = !food.id.isEmpty && food.id.allSatisfy(\.isNumber)
-        return isFatSecretID && !hasAnyMicro
+        return isFatSecretID(food.id) && !hasAnyMicro
+    }
+
+    public static func isFatSecretID(_ id: String) -> Bool {
+        !id.isEmpty && id.allSatisfy(\.isNumber)
     }
 }

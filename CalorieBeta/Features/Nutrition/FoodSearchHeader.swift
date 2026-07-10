@@ -5,7 +5,7 @@ struct FoodSearchHeader: View {
     let placeholder: String
     let onClear: () -> Void
     let onSubmit: () -> Void
-    var onMic: (() -> Void)? = nil
+    var onMic: (() -> Void)?
     var isRecording: Bool = false
 
     var body: some View {

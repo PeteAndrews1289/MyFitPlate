@@ -222,6 +222,7 @@ public final class MockAccountDeletionService: AccountDeletionServicing {
 public final class MockAIService: AIServiceProtocol, @unchecked Sendable {
     public var mockResult: Result<String, AIError> = .success("Mock response")
     public var mockResults: [Result<String, AIError>] = []
+    public private(set) var lastMessages: [[String: Any]] = []
     
     public init() {}
     public func performRequest(
@@ -232,6 +233,7 @@ public final class MockAIService: AIServiceProtocol, @unchecked Sendable {
         responseFormat: [String: Any]?,
         retryCount: Int
     ) async -> Result<String, AIError> {
+        lastMessages = messages
         if !mockResults.isEmpty {
             return mockResults.removeFirst()
         }

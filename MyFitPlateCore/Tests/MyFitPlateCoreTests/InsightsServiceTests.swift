@@ -21,6 +21,7 @@ final class InsightsServiceTests: XCTestCase {
         mockAnalytics = MockAnalyticsManager()
         mockAuth = MockAuthService()
         mockAuth.currentUserID = "testUser123"
+        AIDataConsentStore.shared.revoke(for: "testUser123")
         
         DIContainer.shared.nutritionRepository = mockRepo
         DIContainer.shared.aiService = mockAI
@@ -44,6 +45,7 @@ final class InsightsServiceTests: XCTestCase {
     }
     
     override func tearDown() {
+        AIDataConsentStore.shared.revoke(for: "testUser123")
         service = nil
         mockRepo = nil
         mockAI = nil
@@ -233,6 +235,51 @@ final class InsightsServiceTests: XCTestCase {
         XCTAssertNotNil(notification)
         XCTAssertEqual(notification?.title, "Drink Water")
         XCTAssertEqual(notification?.body, "Stay hydrated today.")
+    }
+
+    func testSmartNotificationOmitsHealthSignalsWithoutHealthSharingConsent() async throws {
+        mockAI.mockResult = .success(#"{"title":"Plan","body":"Keep going."}"#)
+        let context = InsightsService.NotificationContext(
+            gender: "Unspecified",
+            phase: nil,
+            wellnessScore: 13,
+            sleepScore: 17,
+            caloriesRemaining: 0,
+            proteinRemaining: 0,
+            daysSinceLastWorkout: 0,
+            lastWorkoutName: nil,
+            stepsToday: 12_345,
+            activeEnergyToday: 678
+        )
+
+        _ = await service.generateSmartNotification(context: context)
+
+        let prompt = try XCTUnwrap(mockAI.lastMessages.first?["content"] as? String)
+        XCTAssertFalse(prompt.contains("Wellness Score is low (13)"))
+        XCTAssertFalse(prompt.contains("sleep score is low (17)"))
+        XCTAssertFalse(prompt.contains("12345 steps"))
+    }
+
+    func testSmartNotificationIncludesHealthSignalsWhenHealthSharingIsAllowed() async throws {
+        AIDataConsentStore.shared.grant(for: "testUser123", includesHealthData: true)
+        mockAI.mockResult = .success(#"{"title":"Plan","body":"Take it easy."}"#)
+        let context = InsightsService.NotificationContext(
+            gender: "Unspecified",
+            phase: nil,
+            wellnessScore: 13,
+            sleepScore: 17,
+            caloriesRemaining: 0,
+            proteinRemaining: 0,
+            daysSinceLastWorkout: 0,
+            lastWorkoutName: nil,
+            stepsToday: 12_345,
+            activeEnergyToday: 678
+        )
+
+        _ = await service.generateSmartNotification(context: context)
+
+        let prompt = try XCTUnwrap(mockAI.lastMessages.first?["content"] as? String)
+        XCTAssertTrue(prompt.contains("Wellness Score is low (13)"))
     }
 
     func testEvaluateRunRecoveryPrompt() async {

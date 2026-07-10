@@ -74,7 +74,7 @@ struct SignUpView: View {
                         .buttonStyle(PrimaryButtonStyle())
                         .disabled(!canSubmit)
 
-                        Text("By joining, you agree to our [Terms of service](https://PeteAndrews1289.github.io/MyFitPlate/terms_of_service.html) and [Privacy policy](https://PeteAndrews1289.github.io/MyFitPlate/privacy_policy.html).")
+                        Text("By joining, you agree to our [Terms of service](https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/terms_of_service.md) and [Privacy policy](https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/privacy_policy.md).")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)

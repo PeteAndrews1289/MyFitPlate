@@ -7,6 +7,23 @@ public protocol AnalyticsManagerProtocol {
     func log(_ event: AppEvent, _ parameters: [String: Any])
 }
 
+public enum AnalyticsPrivacy {
+    private static let sensitiveKeyFragments = [
+        "calorie", "protein", "carb", "fat", "weight", "height", "age", "gender",
+        "sleep", "step", "active_energy", "water", "wellness", "heart", "distance",
+        "pace", "route", "workout", "exercise", "volume", "body", "health"
+    ]
+
+    public static func sanitizedParameters(_ parameters: [String: Any]?) -> [String: Any]? {
+        guard let parameters else { return nil }
+        let sanitized = parameters.filter { key, _ in
+            let normalizedKey = key.lowercased()
+            return !sensitiveKeyFragments.contains(where: normalizedKey.contains)
+        }
+        return sanitized.isEmpty ? nil : sanitized
+    }
+}
+
 public enum AppScreen: String {
     case homeDashboard = "home_dashboard"
     case maiaChat = "maia_chat"

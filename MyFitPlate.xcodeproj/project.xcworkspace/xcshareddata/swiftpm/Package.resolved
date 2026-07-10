@@ -1,5 +1,5 @@
 {
-  "originHash" : "f3d2669628edf748aaa44f4596a4f2c2fdaa3eee3a51ba87737416d6583790f8",
+  "originHash" : "d66515dab2e157c191bc2f5971f686fb87675655e0c04e6bc855650a34eb9dee",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/app-check.git",
       "state" : {
-        "revision" : "bb4002485ff867768dec13bf904a2ddb050bd1b1",
-        "version" : "11.3.0"
+        "revision" : "3e33dd27dd4c69bd81c7c81fe61d8ccf58846902",
+        "version" : "11.3.1"
       }
     },
     {
@@ -69,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/GoogleUtilities.git",
       "state" : {
-        "revision" : "c46e5f8b7c23265f17c24ca7f9fa1b13ded7a822",
-        "version" : "8.1.1"
+        "revision" : "9f183ae842be978784f2963a343682e0c46d8fb3",
+        "version" : "8.1.2"
       }
     },
     {
@@ -141,8 +141,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/scinfu/SwiftSoup.git",
       "state" : {
-        "revision" : "49dcadd93161f4a44b4994d3a3e8de9f085aface",
-        "version" : "2.13.5"
+        "revision" : "ead56133a693d0184d8c2db1a6d6394410cacfd6",
+        "version" : "2.13.6"
       }
     }
   ],

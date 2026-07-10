@@ -45,6 +45,7 @@ struct MainTabView: View {
     @State private var scanError: (Bool, String) = (false, "")
     
     @State private var showingSpotlightTour = false
+    @State private var showingAIDataConsent = false
 
     private let imageModel = MLImageModel()
     private let barcodeLookupService = BarcodeFoodLookupService()
@@ -73,7 +74,7 @@ struct MainTabView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.bottom, 88)
+                .padding(.bottom, 176)
 
                 CustomTabBar(
                     selectedIndex: $appState.selectedTab,
@@ -217,6 +218,9 @@ struct MainTabView: View {
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
             .sheet(isPresented: $showSettings) { NavigationStack { SettingsView(showSettings: $showSettings) } }
+            .sheet(isPresented: $showingAIDataConsent) {
+                AIDataConsentSheet()
+            }
             .sheet(isPresented: $showingFoodSearch) {
                 FoodSearchView(dailyLog: $dailyLogService.currentDailyLog, onFoodItemLogged: {
                     showingFoodSearch = false
@@ -325,6 +329,9 @@ struct MainTabView: View {
                         showingSpotlightTour = true
                     }
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .aiDataConsentRequired)) { _ in
+                showingAIDataConsent = true
             }
             
             if showingSpotlightTour {
@@ -481,8 +488,8 @@ struct MainTabView: View {
                     Text(showingAllQuickLogActions ? "Hide specialty logging tools" : "Camera, exercise, recipes, buffet, and running")
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .appFont(size: 13)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.9)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()

@@ -13,15 +13,21 @@ final class DietTrackingUITests: XCTestCase {
     func testQuickLogMenuOpens() throws {
         let app = XCUIApplication()
         
-        let quickLogButton = app.buttons["Quick log"]
+        let quickLogButton = app.buttons["quick_log_button"]
         XCTAssertTrue(quickLogButton.waitForExistence(timeout: 5), "Quick log button should be visible")
-        
+        let quickLogHittable = expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: quickLogButton)
+        XCTAssertEqual(XCTWaiter.wait(for: [quickLogHittable], timeout: 5), .completed)
+
         quickLogButton.tap()
         
-        let logCameraBtn = app.buttons["Log with Camera"]
-        XCTAssertTrue(logCameraBtn.waitForExistence(timeout: 2), "Quick Log options should appear")
-        
-        let scanBarcodeBtn = app.buttons["Scan Barcode"]
-        XCTAssertTrue(scanBarcodeBtn.exists, "Scan Barcode should appear")
+        let scanBarcodeBtn = app.buttons["Scan barcode"]
+        XCTAssertTrue(scanBarcodeBtn.waitForExistence(timeout: 2), "Primary Quick Log options should appear")
+
+        let moreOptionsButton = app.buttons["More options"]
+        XCTAssertTrue(moreOptionsButton.exists, "Specialty logging tools should be collapsible")
+        moreOptionsButton.tap()
+
+        let logCameraBtn = app.buttons["Log with camera"]
+        XCTAssertTrue(logCameraBtn.waitForExistence(timeout: 2), "Expanded Quick Log options should appear")
     }
 }

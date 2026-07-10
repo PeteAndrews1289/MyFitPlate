@@ -5,7 +5,7 @@ import AVFoundation
 struct BarcodeScannerView: View {
     @Environment(\.presentationMode) var presentationMode
     var onBarcodeDetected: (String) -> Void
-    var onBarcodesDetected: (([String]) -> Void)? = nil
+    var onBarcodesDetected: (([String]) -> Void)?
 
     @State private var isRapidMode = false
     @State private var scannedBarcodes: [String] = []
@@ -147,7 +147,7 @@ struct BarcodeScannerView: View {
                 } else {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                            ForEach(Array(scannedBarcodes.enumerated()), id: \.offset) { idx, code in
+                            ForEach(Array(scannedBarcodes.enumerated()), id: \.offset) { _, code in
                                 HStack(spacing: 4) {
                                     Image(systemName: "barcode")
                                     Text(code)

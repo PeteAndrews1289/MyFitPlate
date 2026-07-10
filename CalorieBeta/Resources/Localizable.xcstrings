@@ -26,6 +26,9 @@
     "--" : {
 
     },
+    "· %@" : {
+
+    },
     "(Last Night)" : {
 
     },
@@ -371,6 +374,16 @@
     "%@'s meal plan" : {
 
     },
+    "%@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@%2$@"
+          }
+        }
+      }
+    },
     "%@%@ %@/wk" : {
       "localizations" : {
         "en" : {
@@ -495,6 +508,9 @@
 
     },
     "%lld ingredients" : {
+
+    },
+    "%lld items selected" : {
 
     },
     "%lld kcal • %lldg P • $%@" : {
@@ -708,6 +724,16 @@
     },
     "%lldg" : {
 
+    },
+    "%lldg P • %lldg C • %lldg F" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lldg P • %2$lldg C • %3$lldg F"
+          }
+        }
+      }
     },
     "%lldh" : {
 
@@ -1061,6 +1087,9 @@
     "Analysis error" : {
 
     },
+    "Analyst" : {
+
+    },
     "Analyze with Maia" : {
 
     },
@@ -1095,6 +1124,9 @@
 
     },
     "Ask Maia anything" : {
+
+    },
+    "Assistant tone" : {
 
     },
     "Audio coach off" : {
@@ -1146,6 +1178,9 @@
 
     },
     "Back" : {
+
+    },
+    "Balanced" : {
 
     },
     "Barcode %@" : {
@@ -1236,7 +1271,7 @@
     "Burned today" : {
 
     },
-    "By joining, you agree to our [Terms of service](https://PeteAndrews1289.github.io/MyFitPlate/terms_of_service.html) and [Privacy policy](https://PeteAndrews1289.github.io/MyFitPlate/privacy_policy.html)." : {
+    "By joining, you agree to our [Terms of service](https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/terms_of_service.md) and [Privacy policy](https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/privacy_policy.md)." : {
 
     },
     "By meal" : {
@@ -1437,6 +1472,9 @@
 
     },
     "Closes Settings and plays the guided tips again from the Home screen." : {
+
+    },
+    "Coach" : {
 
     },
     "Coach Notes" : {
@@ -1681,6 +1719,9 @@
     "Disclaimers & Sources" : {
 
     },
+    "Dismiss keyboard" : {
+
+    },
     "Distance" : {
 
     },
@@ -1733,6 +1774,9 @@
 
     },
     "e.g., Build muscle, lose fat..." : {
+
+    },
+    "Each scanned product logs as its own entry. Tap to edit a serving, or swipe to remove one." : {
 
     },
     "Edit" : {
@@ -1854,6 +1898,9 @@
     "F %@ g" : {
 
     },
+    "Fast Food" : {
+
+    },
     "Fastest: %@" : {
 
     },
@@ -1888,6 +1935,9 @@
 
     },
     "Find recovery food" : {
+
+    },
+    "Finding another idea…" : {
 
     },
     "Finding item" : {
@@ -2384,6 +2434,9 @@
 
     },
     "Log to" : {
+
+    },
+    "Log to meal:" : {
 
     },
     "Log Top Pick" : {
@@ -2945,6 +2998,9 @@
     "Point camera at items to rapid-scan into tray..." : {
 
     },
+    "Portion:" : {
+
+    },
     "Portions and hidden ingredients vary. A 30-second refine makes it yours." : {
 
     },
@@ -3066,6 +3122,9 @@
     "Quantity" : {
 
     },
+    "Quantity (%@):" : {
+
+    },
     "Quick actions" : {
 
     },
@@ -3100,9 +3159,6 @@
 
     },
     "ready" : {
-
-    },
-    "Ready" : {
 
     },
     "Ready for your first log" : {
@@ -3232,6 +3288,9 @@
     "Reps in reserve" : {
 
     },
+    "Reset" : {
+
+    },
     "Reset link sent" : {
 
     },
@@ -3269,6 +3328,9 @@
 
     },
     "Review Items" : {
+
+    },
+    "Review meal for %@" : {
 
     },
     "Review Session" : {
@@ -3428,6 +3490,9 @@
 
     },
     "Search any exercise" : {
+
+    },
+    "Search chains" : {
 
     },
     "Search exercise or date" : {
@@ -3742,6 +3807,9 @@
     "Steps" : {
 
     },
+    "Suggest another" : {
+
+    },
     "Suggested" : {
 
     },
@@ -3921,9 +3989,6 @@
 
     },
     "Today's Best Next Step" : {
-
-    },
-    "Today's moves" : {
 
     },
     "Today's weight" : {

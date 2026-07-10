@@ -20,6 +20,7 @@ struct FoodSearchView: View {
     @State private var showingMenuImagePicker = false
     @State private var showingAITextLog = false
     @State private var showingValueRadar = false
+    @State private var showingChainBuilder = false
 
     @State private var selectedFoodItem: FoodItem?
     @State private var selectedFoodSource: String = "search_result"
@@ -212,6 +213,12 @@ struct FoodSearchView: View {
                 .sheet(item: $estimatedMenuWrapper) { wrapper in
                      AIMenuSelectionView(estimatedItems: .constant(wrapper.items))
                 }
+                .sheet(isPresented: $showingChainBuilder) {
+                    ChainMealBuilderView(initialMeal: viewModel.selectedMeal) { mealItem, mealName in
+                        viewModel.selectedMeal = mealName
+                        handleSelection(food: mealItem, source: "chain_builder")
+                    }
+                }
                 .sheet(isPresented: $showingBarcodeRecovery, onDismiss: handleBarcodeRecoveryDismissed) {
                     BarcodeMissRecoveryView(
                         message: barcodeRecoveryMessage,
@@ -295,13 +302,13 @@ struct FoodSearchView: View {
                 viewModel.searchText = ""
                 viewModel.handleSearchQueryChange("")
             },
-            onSubmit: hideKeyboard,
+            onSubmit: {
+                viewModel.submitSearch()
+                hideKeyboard()
+            },
             onMic: { toggleVoiceRecording() },
             isRecording: voiceLoggingService.state == .recording
         )
-        .onChange(of: viewModel.searchText) { _, newValue in
-            viewModel.handleSearchQueryChange(newValue)
-        }
         .onChange(of: voiceLoggingService.state) { _, newState in
             handleVoiceStateChange(newState)
         }
@@ -328,7 +335,8 @@ struct FoodSearchView: View {
                 menuAction: { showingMenuImagePicker = true },
                 barcodeAction: { showingBarcodeScanner = true },
                 textAction: { showingAITextLog = true },
-                valueRadarAction: { showingValueRadar = true }
+                valueRadarAction: { showingValueRadar = true },
+                chainBuilderAction: { showingChainBuilder = true }
             )
         }
     }
@@ -516,7 +524,7 @@ struct FoodSearchView: View {
 
     private func handleSelection(food: FoodItem, source: String) {
         if let selectionHandler = onFoodItemSelected {
-            guard source == "search_result", isLikelyFoodAPIID(food.id) else {
+            guard source == "search_result", FoodSearchRanking.isFatSecretID(food.id) else {
                 selectionHandler(food)
                 return
             }
@@ -537,10 +545,6 @@ struct FoodSearchView: View {
             selectedFoodSource = source
             self.selectedFoodItem = food
         }
-    }
-
-    private func isLikelyFoodAPIID(_ id: String) -> Bool {
-        id.count < 20 && !id.contains("-")
     }
 
     private func hideKeyboard() {

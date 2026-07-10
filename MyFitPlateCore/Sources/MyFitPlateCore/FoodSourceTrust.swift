@@ -185,6 +185,7 @@ public enum FoodSourceType: String, Codable, Sendable {
     case aiChat
     case manual
     case custom
+    case chainBuilder
     case recipe
     case mealPlan
     case recent
@@ -490,6 +491,19 @@ public enum FoodSourceClassifier {
                 detail: "Entered or saved by you.",
                 confidence: confidenceText(for: metadata),
                 systemImage: "person.crop.circle.badge.checkmark"
+            )
+
+        case .chainBuilder:
+            return FoodSourceDescriptor(
+                sourceKey: "chain_builder",
+                title: "Chain Builder",
+                detail: reviewAwareDetail(
+                    metadata,
+                    defaultDetail: "Built from the MyFitPlate chain catalog. Review portions before logging."
+                ),
+                confidence: confidenceText(for: metadata),
+                systemImage: "takeoutbag.and.cup.and.straw.fill",
+                isEstimated: metadata.confidence == .estimated
             )
 
         case .recipe, .mealPlan:

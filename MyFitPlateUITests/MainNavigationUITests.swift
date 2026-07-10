@@ -21,6 +21,10 @@ final class MainNavigationUITests: XCTestCase {
         let maiaTab = app.buttons["tab_maia"]
         maiaTab.tap()
         XCTAssertTrue(maiaTab.isSelected || app.navigationBars["Maia"].exists || app.buttons["tab_maia"].exists, "Should navigate to Maia")
+
+        let trainTab = app.buttons["tab_train"]
+        trainTab.tap()
+        XCTAssertTrue(app.staticTexts["Train"].waitForExistence(timeout: 5), "Should navigate to Train")
         
         // Navigate to Meal Plan
         let mealPlanTab = app.buttons["tab_meal_plan"]

@@ -42,8 +42,10 @@ class FoodSearchViewModel: ObservableObject {
 
     private let foodAPIService = FatSecretFoodAPIService()
     private let usdaService = USDAFoodAPIService()
+    private let openFoodFactsService = OpenFoodFactsAPIService()
     private var cancellables = Set<AnyCancellable>()
     private var dailyLogService: DailyLogService?
+    private var searchTask: Task<Void, Never>?
 
     init() {
         setupSearchDebounce()
@@ -53,12 +55,14 @@ class FoodSearchViewModel: ObservableObject {
         self.dailyLogService = dailyLogService
     }
 
+    // MARK: - Search Pipeline
+
     private func setupSearchDebounce() {
         $searchText
             .dropFirst()
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .removeDuplicates()
-            .debounce(for: .seconds(0.5), scheduler: RunLoop.main)
+            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
             .sink { [weak self] query in
                 self?.handleSearchQueryChange(query)
             }
@@ -67,25 +71,65 @@ class FoodSearchViewModel: ObservableObject {
 
     func handleSearchQueryChange(_ query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+
         guard !trimmed.isEmpty else {
             activeSearchQuery = ""
             searchResults = []
-            searchErrorMessage = nil
             isLoading = false
+            searchErrorMessage = nil
+            searchTask?.cancel()
             return
         }
-        
+
+        guard trimmed.count >= 2 else {
+            activeSearchQuery = ""
+            searchResults = []
+            isLoading = false
+            searchErrorMessage = nil
+            return
+        }
+
         activeSearchQuery = trimmed
         isLoading = true
         searchErrorMessage = nil
-        searchByQuery(query: trimmed)
+        searchByQuery(query: trimmed, includeOpenFoodFacts: false)
     }
 
-    private func searchByQuery(query: String) {
-        // FatSecret (brands) and USDA (whole foods with full micronutrients) run
-        // concurrently; USDA results append for names FatSecret doesn't cover, and
-        // salvage the search entirely if FatSecret errors.
-        Task { @MainActor [weak self] in
+    func submitSearch() {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.count >= 2 else { return }
+        activeSearchQuery = query
+        isLoading = true
+        searchErrorMessage = nil
+        searchByQuery(query: query, includeOpenFoodFacts: true)
+    }
+
+    private func searchByQuery(query: String, includeOpenFoodFacts: Bool) {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+            searchTask?.cancel()
+            searchResults = [
+                FoodItem(
+                    id: "ui-test-apple",
+                    name: "Test Kitchen Apple",
+                    calories: 52,
+                    protein: 0.3,
+                    carbs: 14,
+                    fats: 0.2,
+                    servingSize: "100 g",
+                    servingWeight: 100
+                ).withDatabaseSource(.fatSecret, sourceName: "FatSecret", sourceID: "ui-test-apple")
+            ]
+            isLoading = false
+            searchErrorMessage = nil
+            return
+        }
+        #endif
+
+        // FatSecret and USDA support the debounced interactive search. Open Food Facts asks
+        // clients not to perform search-as-you-type, so it joins only after an explicit submit.
+        searchTask?.cancel()
+        searchTask = Task { @MainActor [weak self] in
             guard let self else { return }
             async let usdaResults = self.usdaService.searchFoods(query: query)
 
@@ -93,21 +137,33 @@ class FoodSearchViewModel: ObservableObject {
                 self.foodAPIService.fetchFoodByQuery(query: query) { continuation.resume(returning: $0) }
             }
             let usda = await usdaResults
+            let off = includeOpenFoodFacts
+                ? await self.openFoodFactsService.searchFoods(query: query)
+                : []
 
-            guard query == self.activeSearchQuery else { return }
+            guard !Task.isCancelled, query == self.activeSearchQuery else { return }
             self.isLoading = false
 
             switch fatSecretResult {
             case .success(let foodItems):
                 self.searchErrorMessage = nil
-                self.searchResults = FoodSearchRanking.mergedSearchResults(fatSecret: foodItems, usda: usda)
+                self.searchResults = FoodSearchRanking.mergedSearchResults(
+                    fatSecret: foodItems,
+                    usda: usda,
+                    openFoodFacts: off
+                )
             case .failure(let error):
-                if usda.isEmpty {
+                let fallback = FoodSearchRanking.mergedSearchResults(
+                    fatSecret: [],
+                    usda: usda,
+                    openFoodFacts: off
+                )
+                if fallback.isEmpty {
                     self.searchErrorMessage = "Check your connection and try again. \(error.localizedDescription)"
                     self.searchResults = []
                 } else {
                     self.searchErrorMessage = nil
-                    self.searchResults = usda
+                    self.searchResults = fallback
                 }
             }
         }

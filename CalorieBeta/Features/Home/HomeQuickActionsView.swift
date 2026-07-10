@@ -44,6 +44,7 @@ struct HomeQuickActionsView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("home_workouts_button")
 
                     Button(action: {
                         HapticManager.instance.feedback(.light)
