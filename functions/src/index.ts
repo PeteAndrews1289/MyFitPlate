@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 
 initializeApp();
 const db = getFirestore();
@@ -93,11 +94,8 @@ function validateMessages(messages: unknown): void {
 export const generateAIResponse = onCall(
   {
     secrets: [openAIKey],
-    // NOTE: App Check enforcement is intentionally left OFF. 2.0 ships the App Check
-    // SDK and the debug token is registered, BUT the live 1.x build has NO App Check —
-    // enforcing now would 403 every existing user. Flip this to `true` only once 2.0 is
-    // the dominant installed version (watch the App Check "APIs" metrics drop to mostly
-    // verified), and enforce Firestore/Auth in the console at the same time.
+    // Client App Check is enabled in 2.2. Keep enforcement off only until Firebase metrics
+    // confirm older non-App-Check builds no longer represent meaningful active traffic.
     // enforceAppCheck: true,
   },
   async (request) => {
@@ -173,7 +171,7 @@ export const generateAIResponse = onCall(
 export const fatSecretProxy = onCall(
   {
     secrets: [fatSecretProxyUrl],
-    // enforceAppCheck: true, // flip together with generateAIResponse once 2.0 is dominant
+    // enforceAppCheck: true, // flip together with generateAIResponse after the metrics check
   },
   async (request) => {
     if (!request.auth) {
@@ -231,8 +229,37 @@ export const deleteUserData = onCall(async (request) => {
   }
   const uid = request.auth.uid;
 
+  const deleteQueryResults = async (query: FirebaseFirestore.Query): Promise<void> => {
+    const snapshot = await query.get();
+    for (const document of snapshot.docs) {
+      await db.recursiveDelete(document.ref);
+    }
+  };
+
+  // Remove top-level social/community records tied to the account. For groups the user owns,
+  // also remove memberships that would otherwise point at a deleted group.
+  const ownedGroups = await db.collection("groups").where("creatorID", "==", uid).get();
+  const ownedGroupsLegacy = await db.collection("groups").where("creatorId", "==", uid).get();
+  const groupIDs = new Set([...ownedGroups.docs, ...ownedGroupsLegacy.docs].map((doc) => doc.id));
+  for (const groupID of groupIDs) {
+    await deleteQueryResults(db.collection("groupMemberships").where("groupID", "==", groupID));
+    await deleteQueryResults(db.collection("groupMemberships").where("groupId", "==", groupID));
+    await db.recursiveDelete(db.collection("groups").doc(groupID));
+  }
+
+  const ownedQueries = [
+    db.collection("posts").where("authorID", "==", uid),
+    db.collection("posts").where("authorId", "==", uid),
+    db.collection("groupMemberships").where("userID", "==", uid),
+    db.collection("groupMemberships").where("userId", "==", uid),
+    db.collection("barcodes").where("createdBy", "==", uid),
+  ];
+  for (const query of ownedQueries) {
+    await deleteQueryResults(query);
+  }
+
   // Recursively delete the user's document and every subcollection (logs, weight history,
-  // recent/custom foods, recipes, pantry, etc.).
+  // recent/custom foods, recipes, pantry, meal plans, workouts, etc.).
   await db.recursiveDelete(db.collection("users").doc(uid));
 
   // Delete the per-user usage counters stored in top-level collections.
@@ -245,6 +272,10 @@ export const deleteUserData = onCall(async (request) => {
     snapshot.docs.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
   }
+
+  // Delete the login record last. If any prior deletion fails, the account remains available
+  // so the user can retry instead of receiving a false-success state with orphaned data.
+  await getAuth().deleteUser(uid);
 
   return { deleted: true };
 });
