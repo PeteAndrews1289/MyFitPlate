@@ -58,7 +58,7 @@ struct AIChatbotView: View {
     }
 
     static let maiaTourSteps: [SpotlightTourStep] = [
-        SpotlightTourStep(id: "maia-actions", title: "Quick actions",
+        SpotlightTourStep(id: "maia-actions", title: "Quick Actions",
                           text: "Tap a card and Maia builds it — fill your remaining macros, get a protein idea, or read your day."),
         SpotlightTourStep(id: "maia-composer", title: "Ask Maia anything",
                           text: "Type a question about food, workouts, or your goals. She already knows today's numbers.")

@@ -31,8 +31,8 @@ experiments, but it is not stronger than Food Search in the primary sequence.
 
 All current images use deterministic local demo data. They contain no personal
 account data and do not call production nutrition, HealthKit, or AI services.
-The current gallery was recaptured after the centered Quick Log navigation change,
-so no output still contains the older right-edge action placement.
+The current gallery was recaptured after the final compact, outlined Quick Log
+refinement, so no output contains the older right-edge placement or filled teal action.
 
 ## Deterministic recapture
 
@@ -42,7 +42,7 @@ booted iPhone simulator, then launch one screen at a time:
 ```sh
 xcrun simctl launch --terminate-running-process booted MyFitPlate.CalorieBeta \
   -ui-testing -screenshot-mode -screenshot-screen home
-sleep 9
+sleep 20
 xcrun simctl io booted screenshot tools/screenshots/raw/1.png
 ```
 
@@ -61,9 +61,11 @@ Use the following screen and file pairs:
 | `quick-log` | `alternate-quick-log.png` |
 | `settings` | UI-verification target only; not in the primary gallery |
 
-Wait at least nine seconds for each destination to settle before capturing. Do not replace these fixtures
-with a personal account: deterministic data makes the gallery reproducible and avoids
-accidentally publishing private health or nutrition history.
+Wait at least 20 seconds for each destination to settle before capturing. This also
+lets translucent tab-bar layers become fully opaque in the simulator screenshot's
+alpha channel before composition. Do not replace these fixtures with a personal
+account: deterministic data makes the gallery reproducible and avoids accidentally
+publishing private health or nutrition history.
 
 ## Composition pipeline
 

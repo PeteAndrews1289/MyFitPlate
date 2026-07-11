@@ -18,7 +18,7 @@ struct HomeQuickActionsView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Quick actions")
+                    Text("Quick Actions")
                         .appFont(size: 17, weight: .bold)
                         .foregroundColor(.textPrimary)
 
