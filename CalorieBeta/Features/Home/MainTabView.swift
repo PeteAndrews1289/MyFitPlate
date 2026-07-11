@@ -58,6 +58,10 @@ struct MainTabView: View {
         ScreenshotDemoMode.isEnabled || ProcessInfo.processInfo.arguments.contains("-ui-testing")
     }
 
+    private func contentBottomInset(for width: CGFloat) -> CGFloat {
+        width < 440 ? 128 : 112
+    }
+
     init() {
         #if DEBUG
         let screenshotScreen = ScreenshotDemoData.requestedScreen
@@ -72,24 +76,26 @@ struct MainTabView: View {
     var body: some View {
         ZStack {
             ZStack(alignment: .bottom) {
-                Group {
-                    switch appState.selectedTab {
-                    case 0:
-                        NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }.trackScreen(.homeDashboard)
-                    case 1:
-                        NavigationStack { AIChatbotView(selectedTab: $appState.selectedTab) }.trackScreen(.maiaChat)
-                    case 2:
-                        WorkoutRoutinesView().trackScreen(.workoutsHome)
-                    case 3:
-                        NavigationStack { MealPlannerView() }.trackScreen(.mealPlanner)
-                    case 4:
-                        NavigationStack { ReportsView(dailyLogService: dailyLogService) }.trackScreen(.reports)
-                    default:
-                        NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }.trackScreen(.homeDashboard)
+                GeometryReader { geometry in
+                    Group {
+                        switch appState.selectedTab {
+                        case 0:
+                            NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }.trackScreen(.homeDashboard)
+                        case 1:
+                            NavigationStack { AIChatbotView(selectedTab: $appState.selectedTab) }.trackScreen(.maiaChat)
+                        case 2:
+                            WorkoutRoutinesView().trackScreen(.workoutsHome)
+                        case 3:
+                            NavigationStack { MealPlannerView() }.trackScreen(.mealPlanner)
+                        case 4:
+                            NavigationStack { ReportsView(dailyLogService: dailyLogService) }.trackScreen(.reports)
+                        default:
+                            NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }.trackScreen(.homeDashboard)
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.bottom, contentBottomInset(for: geometry.size.width))
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.bottom, 112)
 
                 CustomTabBar(
                     selectedIndex: $appState.selectedTab,
