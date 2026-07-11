@@ -91,10 +91,14 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 
 ### Must Ship — Training Fuel Planner v1
 
-- [ ] **Deterministic pre-session plan**: use the next planned lift/run, expected duration and
-  effort, time until training, today's logged intake, and remaining calorie/macro budget to
-  propose a bounded pre-workout and post-workout allocation. Never silently raise the user's
-  chosen daily target or infer a "refeed" from overage.
+- [x] **Deterministic allocation engine (Core)**: strength/run type, expected duration,
+  intensity, lower/full-body demand, time until training, today's verified log, remaining
+  calorie/macro targets, and pre/post preference now produce bounded allocations. The engine
+  never raises the daily target, spends tomorrow's budget, or turns an overage into a refeed.
+  Its transparent contract is `docs/training-fuel-planner-2.3.md`.
+- [ ] **Planned-session adapter**: derive the next strength session from the active program or
+  accept a selected run plan, then supply its editable start time, duration, intensity, and
+  strength focus to the deterministic engine.
 - [ ] **User control and honest uncertainty**: let the user change session time, duration,
   intensity, and whether they want food before or after. Explain the inputs and keep AI meal
   ideas separate from the deterministic fuel budget.
@@ -103,9 +107,12 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 - [ ] **Post-session reconciliation**: reuse the existing recovery handoff, subtract what was
   actually logged, expire stale recommendations, and switch to neutral review when the day is
   already over target.
-- [ ] **Rules and safety coverage**: test hard leg days, easy sessions, long runs, short runs,
-  late-night training, fasting, missing schedule data, tiny remaining budgets, over-target
-  days, and stale workouts. Keep language in the fitness-coaching lane, not medical advice.
+- [x] **Rules and safety coverage (Core)**: 22 adversarial tests cover hard leg days, easy
+  sessions, long/short runs, late-night training, fasting, missing/defaulted inputs, historical
+  diary state, tiny or exhausted budgets, over-target days, stale/tomorrow workouts, invalid
+  values, extreme finite corruption, and explicit pre/post choices. A 1,344-combination grid
+  also enforces the calorie, macro, phase, and minimum-action invariants. Language remains
+  general fitness coaching.
 
 ### Must Ship — Training and Fuel Report
 
@@ -179,7 +186,7 @@ not an invented industry benchmark.
 1. [x] Add exact deep-link routes and custom-product-page screenshot fixtures.
 2. [x] Audit activation/Trust/training events, close the release-health gaps, and define the
    external KPI dashboard contract.
-3. [ ] Build the deterministic fuel-plan model and adversarial Core test matrix.
+3. [x] Build the deterministic fuel-plan model and adversarial Core test matrix.
 4. [ ] Add the Home planner/review flow and connect it to existing logging destinations.
 5. [ ] Build the unified Training and Fuel report from existing running, lifting, and nutrition
    engines before adding new data collection.
@@ -209,7 +216,10 @@ Goal: establish the competitive scoreboard and make the product story sharper be
 - [x] **Refresh App Store story**: created an eight-shot deterministic gallery covering Home, Trust, fast repeat/search, the 25-chain meal builder, Train, Maia action coaching, Meal Plan, and Reports. The first three images carry the positioning and conversion story.
 - [x] **Fix screenshot-visible polish**: corrected clipped Train targets and Reports chart labels, rebuilt the builder's bottom tray, centered a compact outlined Quick Log action above five equal-width destinations, made the expanded action list reachable on compact phones, and visually checked both required phone-size galleries. A final accessibility-size sweep also corrected clipping in Trust details, Food Search, Fast Food Builder, Train, Maia, Meal Plan, and Quick Log, and hardened Trust Hub presentation against asynchronous Home refreshes.
 - [x] **Add a release feedback and referral loop**: Settings now provides a prefilled privacy-safe feedback email and direct App Store sharing; recap, achievement, run-story, and workout-summary shares point back to the live listing; review requests are limited to fresh workout completions after three distinct sessions across at least three days, once per version with a 120-day cooldown.
-- [ ] **Release gate**: automated code checks are green locally; remaining gates are the real-device checklist, production Firebase Functions deployment, App Check console setup, public legal-doc push, App Store privacy-label reconciliation, build-number increment, and a signed archive validation/upload.
+- [ ] **Release gate**: automated code checks are green locally and Peter deployed the current
+  production Firebase Functions on 2026-07-11. Remaining gates are the real-device checklist,
+  App Check console setup, public legal-doc push, App Store privacy-label reconciliation,
+  build-number increment, and a signed archive validation/upload.
 
 Success signal: a new user can understand why MyFitPlate exists in 10 seconds, and the team has baseline numbers for the conversion funnel.
 
