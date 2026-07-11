@@ -4,7 +4,7 @@ import Combine
 @MainActor
 class FoodSearchViewModel: ObservableObject {
     @Published var searchText = ""
-    @Published var selectedMeal: String = FoodSearchViewModel.defaultMealName()
+    @Published var selectedMeal: String
     
     @Published var searchResults: [FoodItem] = []
     @Published var isLoading = false
@@ -47,7 +47,8 @@ class FoodSearchViewModel: ObservableObject {
     private var dailyLogService: DailyLogService?
     private var searchTask: Task<Void, Never>?
 
-    init() {
+    init(selectedMeal: String? = nil) {
+        self.selectedMeal = selectedMeal ?? Self.defaultMealName()
         setupSearchDebounce()
     }
 

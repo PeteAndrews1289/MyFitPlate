@@ -10,7 +10,7 @@ struct FoodSearchView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
 
-    @StateObject private var viewModel = FoodSearchViewModel()
+    @StateObject private var viewModel: FoodSearchViewModel
     @StateObject private var voiceLoggingService = VoiceLoggingService(engine: SpeechCaptureEngine())
 
     @State private var showingAddFoodManually = false
@@ -55,10 +55,17 @@ struct FoodSearchView: View {
 
         #if DEBUG
         let screenshotScreen = ScreenshotDemoData.requestedScreen
+        _viewModel = StateObject(
+            wrappedValue: FoodSearchViewModel(
+                selectedMeal: ScreenshotDemoMode.isEnabled ? "Dinner" : nil
+            )
+        )
         _showingChainBuilder = State(initialValue: screenshotScreen == "builder")
         _selectedFoodItem = State(
             initialValue: screenshotScreen == "trust" ? ScreenshotDemoData.trustDemoFood : nil
         )
+        #else
+        _viewModel = StateObject(wrappedValue: FoodSearchViewModel())
         #endif
     }
 

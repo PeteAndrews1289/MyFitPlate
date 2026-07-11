@@ -23,19 +23,20 @@ struct QuickLogActionButton: View {
                     .lineLimit(1)
             }
             .frame(width: 108, height: 44)
-            .background(.regularMaterial, in: Capsule())
+            .background(
+                Capsule()
+                    .fill(Color.backgroundPrimary.opacity(0.96))
+                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+            )
             .overlay(
                 Capsule()
                     .stroke(Color(UIColor.separator).opacity(0.28), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
             .contentShape(Capsule())
             .scaleEffect(isActive ? 0.96 : 1.0)
             .animation(.interpolatingSpring(stiffness: 250, damping: 15), value: isActive)
         }
         .buttonStyle(.plain)
-        .frame(width: 108, height: 44)
-        .contentShape(Capsule())
         .accessibilityLabel("Quick Log")
         .accessibilityHint("Opens logging options")
     }
