@@ -94,4 +94,48 @@ final class MyFitPlateUITests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }
+
+    @MainActor
+    func testHomeTrustHubHasNavigationAndInteractiveRows() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "home"
+        ]
+        app.launch()
+
+        let trustButton = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Review Food Trust"))
+            .firstMatch
+        XCTAssertTrue(trustButton.waitForExistence(timeout: 8), "Home should expose the food trust review")
+        XCTAssertTrue(
+            app.staticTexts["Daily log"].waitForExistence(timeout: 8),
+            "Home should finish loading the deterministic diary before interaction"
+        )
+        let trustHittable = expectation(
+            for: NSPredicate(format: "hittable == true"),
+            evaluatedWith: trustButton
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [trustHittable], timeout: 5), .completed)
+        trustButton.tap()
+
+        let doneButton = app.buttons["Done"]
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 5), "Trust Hub should always provide a visible dismissal")
+        XCTAssertTrue(doneButton.isHittable, "Trust Hub dismissal should be tappable")
+
+        let verifiedFood = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Greek Yogurt Parfait"))
+            .firstMatch
+        XCTAssertTrue(verifiedFood.waitForExistence(timeout: 5), "Verified foods should appear in Trust Hub")
+        XCTAssertTrue(verifiedFood.isEnabled, "Trust Hub food rows should remain interactive")
+
+        doneButton.tap()
+        XCTAssertTrue(
+            app.buttons["quick_log_button"].waitForExistence(timeout: 5),
+            "Done should return to Home"
+        )
+    }
 }

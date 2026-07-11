@@ -171,6 +171,20 @@ struct FoodCard: View {
     let onQuickLog: ((FoodItem) -> Void)?
     let source: String?
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var usesAccessibilityLayout: Bool {
+        dynamicTypeSize.isAccessibilitySize
+    }
+
+    private var cardWidth: CGFloat {
+        usesAccessibilityLayout ? 224 : 168
+    }
+
+    private var cardHeight: CGFloat {
+        usesAccessibilityLayout ? 246 : 164
+    }
+
     private var servingText: String {
         let trimmed = food.servingSize.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "Usual serving" : trimmed
@@ -206,7 +220,7 @@ struct FoodCard: View {
                     Text(food.name)
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
-                        .lineLimit(2)
+                        .lineLimit(usesAccessibilityLayout ? 3 : 2)
                         .multilineTextAlignment(.leading)
 
                     Text(servingText)
@@ -214,23 +228,37 @@ struct FoodCard: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .lineLimit(1)
 
-                    HStack(spacing: 6) {
-                        Text("\(Int(food.calories.rounded()).formatted()) cal")
-                            .appFont(size: 13, weight: .medium)
-                            .foregroundColor(.orange)
-
-                        Spacer(minLength: 0)
-
-                        FoodTrustMiniBadge(food: food, source: source)
-                    }
-                    .lineLimit(1)
+                    nutritionFooter
                 }
             }
             .padding(14)
-            .frame(width: 168, height: 164)
+            .frame(width: cardWidth, height: cardHeight)
             .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var nutritionFooter: some View {
+        if usesAccessibilityLayout {
+            VStack(alignment: .leading, spacing: 4) {
+                calorieText
+                FoodTrustMiniBadge(food: food, source: source)
+            }
+        } else {
+            HStack(spacing: 6) {
+                calorieText
+                Spacer(minLength: 0)
+                FoodTrustMiniBadge(food: food, source: source)
+            }
+            .lineLimit(1)
+        }
+    }
+
+    private var calorieText: some View {
+        Text("\(Int(food.calories.rounded()).formatted()) cal")
+            .appFont(size: 13, weight: .medium)
+            .foregroundColor(.orange)
     }
 }
 

@@ -819,12 +819,26 @@ struct MaiaDailyContextRow: View {
     let water: Double
     let waterGoal: Double
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    @ViewBuilder
     var body: some View {
-        HStack(spacing: 8) {
-            MaiaContextChip(icon: "fork.knife", title: "\(mealCount)", subtitle: mealCount == 1 ? "meal" : "meals", color: .orange)
-            MaiaContextChip(icon: "figure.strengthtraining.traditional", title: "\(workoutCount)", subtitle: workoutCount == 1 ? "workout" : "workouts", color: .brandPrimary)
-            MaiaContextChip(icon: "drop.fill", title: "\(Int(water.rounded()))", subtitle: "/ \(Int(waterGoal.rounded())) oz", color: .blue)
+        if dynamicTypeSize.isAccessibilitySize {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                contextChips
+            }
+        } else {
+            HStack(spacing: 8) {
+                contextChips
+            }
         }
+    }
+
+    @ViewBuilder
+    private var contextChips: some View {
+        MaiaContextChip(icon: "fork.knife", title: "\(mealCount)", subtitle: mealCount == 1 ? "meal" : "meals", color: .orange)
+        MaiaContextChip(icon: "figure.strengthtraining.traditional", title: "\(workoutCount)", subtitle: workoutCount == 1 ? "workout" : "workouts", color: .brandPrimary)
+        MaiaContextChip(icon: "drop.fill", title: "\(Int(water.rounded()))", subtitle: "/ \(Int(waterGoal.rounded())) oz", color: .blue)
     }
 }
 
@@ -833,6 +847,8 @@ struct MaiaContextChip: View {
     let title: String
     let subtitle: String
     let color: Color
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(spacing: 7) {
@@ -849,7 +865,8 @@ struct MaiaContextChip: View {
                 Text(subtitle)
                     .appFont(size: 10, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 0)

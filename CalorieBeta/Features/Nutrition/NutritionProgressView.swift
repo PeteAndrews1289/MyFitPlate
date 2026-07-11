@@ -5,16 +5,15 @@ struct NutritionProgressView: View {
     var dailyLog: DailyLog
     @ObservedObject var goal: GoalSettings
     @Environment(\.colorScheme) var colorScheme
-    @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     var insight: UserInsight?
+    let onReviewFoodTrust: () -> Void
 
     @AppStorage("includeActiveCaloriesInGoal") var includeActiveCaloriesInGoal: Bool = false
 
     private let swipeThreshold: CGFloat = 50
     private let totalViews = 3
 
-    @State private var showingAudit = false
     @State private var showingProteinCelebration = false
     @AppStorage("lastCelebratedProteinDate") private var lastCelebratedProteinDate: String = ""
 
@@ -81,26 +80,16 @@ struct NutritionProgressView: View {
                 .padding(.bottom, 4)
 
             if consistencyStatus.hasMeaningfulMismatch {
-                Button {
-                    showingAudit = true
-                } label: {
+                Button(action: onReviewFoodTrust) {
                     NutritionConsistencyNoticeCard(status: consistencyStatus, style: .compact)
                 }
                 .buttonStyle(PlainButtonStyle())
                 .padding(.horizontal, 8)
                 .padding(.top, -6)
-                .sheet(isPresented: $showingAudit) {
-                    NutritionAuditView(dailyLog: dailyLog, dailyLogBinding: $dailyLogService.currentDailyLog, date: dailyLog.date)
-                }
             } else if !dailyLog.meals.flatMap(\.foodItems).isEmpty {
-                NutritionAuditLaunchButton {
-                    showingAudit = true
-                }
+                NutritionAuditLaunchButton(action: onReviewFoodTrust)
                 .padding(.horizontal, 8)
                 .padding(.top, -6)
-                .sheet(isPresented: $showingAudit) {
-                    NutritionAuditView(dailyLog: dailyLog, dailyLogBinding: $dailyLogService.currentDailyLog, date: dailyLog.date)
-                }
             }
         }
         .padding(.bottom, 8)

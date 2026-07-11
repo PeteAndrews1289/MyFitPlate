@@ -47,7 +47,7 @@ Goal: establish the competitive scoreboard and make the product story sharper be
 - [x] **Define the public promise**: "The food log you can trust, built for people who train." The onboarding, Maia entry state, and final App Store gallery now consistently lead with trusted nutrition built for training.
 - [ ] **Create a competitive KPI dashboard**: track first-food-log completion, time to first log, barcode hit/miss/recovery, AI estimate review/correction, MFP import starts/completions, D1/D7 return, weekly active loggers, and LLM cost per active user. The app now emits elapsed onboarding-to-first-food/workout and nutrition-plus-training loop events; the external dashboard, retention cohorts, and cost joins remain open.
 - [x] **Refresh App Store story**: created an eight-shot deterministic gallery covering Home, Trust, fast repeat/search, the 25-chain meal builder, Train, Maia action coaching, Meal Plan, and Reports. The first three images carry the positioning and conversion story.
-- [x] **Fix screenshot-visible polish**: corrected clipped Train targets and Reports chart labels, rebuilt the builder's bottom tray, centered a compact outlined Quick Log action above five equal-width destinations, made the expanded action list reachable on compact phones, and visually checked both required phone-size galleries.
+- [x] **Fix screenshot-visible polish**: corrected clipped Train targets and Reports chart labels, rebuilt the builder's bottom tray, centered a compact outlined Quick Log action above five equal-width destinations, made the expanded action list reachable on compact phones, and visually checked both required phone-size galleries. A final accessibility-size sweep also corrected clipping in Trust details, Food Search, Fast Food Builder, Train, Maia, Meal Plan, and Quick Log, and hardened Trust Hub presentation against asynchronous Home refreshes.
 - [x] **Add a release feedback and referral loop**: Settings now provides a prefilled privacy-safe feedback email and direct App Store sharing; recap, achievement, run-story, and workout-summary shares point back to the live listing; review requests are limited to fresh workout completions after three distinct sessions across at least three days, once per version with a 120-day cooldown.
 - [ ] **Release gate**: automated code checks are green locally; remaining gates are the real-device checklist, production Firebase Functions deployment, App Check console setup, public legal-doc push, App Store privacy-label reconciliation, build-number increment, and a signed archive validation/upload.
 
@@ -137,4 +137,4 @@ Success signal: users can name a MyFitPlate feature they cannot get from MyFitne
 - [ ] Every sprint must include user-facing copy review, privacy review for new data flows, and a rollback/feature-flag plan for risky launches.
 
 ---
-_Living document — Single Point of Truth. Last updated: 2026-07-10._
+_Living document — Single Point of Truth. Last updated: 2026-07-11._
