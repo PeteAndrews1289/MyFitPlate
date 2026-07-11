@@ -102,16 +102,21 @@ public struct ChainRestaurant: Identifiable, Hashable, Sendable {
     public var brandForegroundUsesDarkText: Bool {
         let hex = brandColorHex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         guard hex.count == 6, let value = Int(hex, radix: 16) else { return false }
-        let components = [
-            Double((value >> 16) & 0xFF) / 255,
-            Double((value >> 8) & 0xFF) / 255,
-            Double(value & 0xFF) / 255
-        ].map { component in
-            component <= 0.03928
-                ? component / 12.92
-                : pow((component + 0.055) / 1.055, 2.4)
+
+        let red = Double((value >> 16) & 0xFF) / 255.0
+        let green = Double((value >> 8) & 0xFF) / 255.0
+        let blue = Double(value & 0xFF) / 255.0
+
+        func linearized(_ component: Double) -> Double {
+            if component <= 0.03928 {
+                return component / 12.92
+            }
+            return pow((component + 0.055) / 1.055, 2.4)
         }
-        let luminance = 0.2126 * components[0] + 0.7152 * components[1] + 0.0722 * components[2]
+
+        let luminance = 0.2126 * linearized(red)
+            + 0.7152 * linearized(green)
+            + 0.0722 * linearized(blue)
         let contrastWithBlack = (luminance + 0.05) / 0.05
         let contrastWithWhite = 1.05 / (luminance + 0.05)
         return contrastWithBlack >= contrastWithWhite
