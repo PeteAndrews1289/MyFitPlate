@@ -11,6 +11,7 @@ struct FoodSearchView: View {
     var onFoodItemLogged: (() -> Void)?
     var onFoodItemSelected: ((FoodItem) -> Void)?
     var searchContext: String
+    var trainingFuelTarget: TrainingFuelTarget?
 
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -52,12 +53,14 @@ struct FoodSearchView: View {
         onFoodItemLogged: (() -> Void)? = nil,
         onFoodItemSelected: ((FoodItem) -> Void)? = nil,
         searchContext: String,
-        initialPresentation: FoodSearchInitialPresentation = .none
+        initialPresentation: FoodSearchInitialPresentation = .none,
+        trainingFuelTarget: TrainingFuelTarget? = nil
     ) {
         _dailyLog = dailyLog
         self.onFoodItemLogged = onFoodItemLogged
         self.onFoodItemSelected = onFoodItemSelected
         self.searchContext = searchContext
+        self.trainingFuelTarget = trainingFuelTarget
 
         #if DEBUG
         let screenshotScreen = ScreenshotDemoData.requestedScreen
@@ -83,6 +86,9 @@ struct FoodSearchView: View {
             ZStack {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
+                        if let trainingFuelTarget {
+                            TrainingFuelTargetContextView(target: trainingFuelTarget)
+                        }
                         mainActionContent
                         searchOrSavedContent
                     }
@@ -248,7 +254,10 @@ struct FoodSearchView: View {
                      AIMenuSelectionView(estimatedItems: .constant(wrapper.items))
                 }
                 .sheet(isPresented: $showingChainBuilder) {
-                    ChainMealBuilderView(initialMeal: viewModel.selectedMeal) { mealItem, mealName in
+                    ChainMealBuilderView(
+                        initialMeal: viewModel.selectedMeal,
+                        trainingFuelTarget: trainingFuelTarget
+                    ) { mealItem, mealName in
                         viewModel.selectedMeal = mealName
                         handleSelection(food: mealItem, source: "chain_builder")
                     }

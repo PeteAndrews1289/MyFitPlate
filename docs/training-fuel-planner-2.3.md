@@ -1,7 +1,7 @@
 # Training Fuel Planner 2.3 Core Contract
 
-This document defines the deterministic Core engine that will power the 2.3 Training Fuel
-Planner UI. The engine divides part of the user's existing daily calorie, protein, and carb
+This document defines the deterministic Core engine and application contract powering the 2.3
+Training Fuel Planner. The engine divides part of the user's existing daily calorie, protein, and carb
 targets around one planned strength session or run. It never changes those targets.
 
 The allocations are transparent product heuristics for general fitness coaching. They are
@@ -107,19 +107,47 @@ Personalized performance or clinical nutrition belongs with a qualified sports d
 If a session ends after midnight, its post-session allocation is not charged against today's
 budget. The future reconciliation layer must use the next day's real log instead.
 
-## Integration boundary
+## Application integration and reconciliation
 
-The Core engine is intentionally independent of SwiftUI, AI, network providers, and workout
-storage. The next implementation layer must:
+The Core engine remains independent of SwiftUI, AI, network providers, and workout storage.
+The application layer now:
 
-1. derive the next strength session from the active program or accept a selected run plan;
-2. let the user review/change time, duration, intensity, focus, and pre/post preferences;
-3. map deterministic allocations to Food Search, saved/recent meals, Fill Macros, Meal Plan,
-   and Fast Food Builder without sending the budget to AI as authority;
-4. reconcile against food actually logged and confirmed session completion;
-5. expire or recompute plans when the diary, goals, session, date, or preferences change.
+1. derives the next routine from the active strength program, including its scheduled day,
+   estimated duration, effort, and focus; it also accepts built-in/custom run plans and manual
+   strength or run sessions;
+2. requires the user to review the start time and lets them edit duration, effort, focus, and
+   independent before/after preferences. Distance-only run plans explicitly require a duration
+   review rather than receiving a fabricated estimate;
+3. stores one confirmed plan per signed-in account for the scheduled day and presents its live
+   state on Home;
+4. carries each actionable phase target into Search and Recent Foods, Fast Food Builder, Meal
+   Plan, or an optional target-specific Maia idea. AI may suggest a food that fits the budget;
+   it cannot increase or redefine that budget;
+5. attributes food logged after confirmation to the before or after phase by timestamp, with a
+   diary-delta fallback for older untimestamped foods. In-session food consumes daily budget but
+   is not mislabeled as pre-session or recovery intake. Every remaining action is re-capped to
+   the current daily calorie, protein, and carb goals before it is shown;
+6. closes the pre-session action when training begins, opens the recovery action only after the
+   estimated end, expires the plan two hours later, and returns neutral states when the daily
+   target is reached, the remaining budget is used elsewhere, or diary/goal values cannot be
+   verified;
+7. preserves the original diary baseline when the same plan's time, duration, effort, or
+   preferences are edited. Choosing a different workout creates a new plan identity and baseline.
+
+Target-specific Maia ideas are suggestions only. The response is locally rejected unless all
+nutrition values are finite and nonnegative, it remains inside the live calorie/macro room, and
+reported calories reconcile with its macros within a narrow rounding tolerance. Prompt
+instructions alone are never treated as budget enforcement.
+
+The remaining v1 reconciliation boundary is explicit workout state. Until the workout player
+or run recorder confirms completion or skipping, `in_session` and `recovery` are inferred from
+the reviewed schedule. Post-midnight recovery also remains excluded because it must be
+recomputed against the next day's real diary rather than carried over from today's budget.
 
 Regression coverage lives in
-`MyFitPlateCore/Tests/MyFitPlateCoreTests/TrainingFuelPlannerRulesTests.swift`. Its 22 focused
-tests include a deterministic 1,344-combination matrix spanning session kind, duration,
-intensity, diary budget, and every pre/post preference while enforcing all output invariants.
+`MyFitPlateCore/Tests/MyFitPlateCoreTests/TrainingFuelPlannerRulesTests.swift` and
+`TrainingFuelPlannerIntegrationTests.swift`. The 22 focused rules tests include a deterministic
+1,344-combination matrix spanning session kind, duration, intensity, diary budget, and every
+pre/post preference while enforcing all output invariants. The integration suite covers
+strength/run adaptation, editable drafts, account/day persistence, timestamp and legacy-delta
+reconciliation, live-budget caps, invalid diaries, and unreadable saved data.

@@ -3,7 +3,7 @@ import MyFitPlateCore
 import SwiftUI
 
 struct WorkoutRoutinesView: View {
-    @StateObject private var workoutService = WorkoutService()
+    @EnvironmentObject var workoutService: WorkoutService
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService

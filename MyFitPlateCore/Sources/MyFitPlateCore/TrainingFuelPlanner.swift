@@ -1,18 +1,18 @@
 import Foundation
 
-public struct TrainingFuelSession: Equatable, Sendable {
-    public enum Kind: String, Equatable, Sendable {
+public struct TrainingFuelSession: Codable, Equatable, Sendable {
+    public enum Kind: String, Codable, Equatable, Sendable {
         case strength
         case run
     }
 
-    public enum Intensity: String, Equatable, Sendable {
+    public enum Intensity: String, Codable, Equatable, Sendable {
         case easy
         case moderate
         case hard
     }
 
-    public enum StrengthFocus: String, Equatable, Sendable {
+    public enum StrengthFocus: String, Codable, Equatable, Sendable {
         case upperBody = "upper_body"
         case lowerBody = "lower_body"
         case fullBody = "full_body"
@@ -41,7 +41,7 @@ public struct TrainingFuelSession: Equatable, Sendable {
     }
 }
 
-public struct TrainingFuelPreference: Equatable, Sendable {
+public struct TrainingFuelPreference: Codable, Equatable, Sendable {
     public let wantsPreSessionFuel: Bool
     public let wantsPostSessionFuel: Bool
 
@@ -51,15 +51,15 @@ public struct TrainingFuelPreference: Equatable, Sendable {
     }
 }
 
-public struct TrainingFuelAllocation: Equatable, Sendable {
+public struct TrainingFuelAllocation: Codable, Equatable, Sendable {
     static let maximumSupportedMacroGrams = 100_000
 
-    public enum Phase: String, Equatable, Sendable {
+    public enum Phase: String, Codable, Equatable, Sendable {
         case beforeTraining = "before_training"
         case afterTraining = "after_training"
     }
 
-    public enum Timing: String, Equatable, Sendable {
+    public enum Timing: String, Codable, Equatable, Sendable {
         case within30Minutes = "within_30_minutes"
         case thirtyTo120Minutes = "30_to_120_minutes"
         case overTwoHours = "over_two_hours"
@@ -83,8 +83,8 @@ public struct TrainingFuelAllocation: Equatable, Sendable {
     }
 }
 
-public struct TrainingFuelPlannerPlan: Equatable, Sendable {
-    public enum Status: String, Equatable, Sendable {
+public struct TrainingFuelPlannerPlan: Codable, Equatable, Sendable {
+    public enum Status: String, Codable, Equatable, Sendable {
         case ready
         case needsSessionTime = "needs_session_time"
         case noFuelRequested = "no_fuel_requested"
@@ -96,7 +96,7 @@ public struct TrainingFuelPlannerPlan: Equatable, Sendable {
         case invalidCalorieTarget = "invalid_calorie_target"
     }
 
-    public enum Note: String, Equatable, Sendable {
+    public enum Note: String, Codable, Equatable, Sendable {
         case durationDefaulted = "duration_defaulted"
         case durationClamped = "duration_clamped"
         case intensityDefaulted = "intensity_defaulted"

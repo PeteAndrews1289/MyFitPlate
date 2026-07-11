@@ -56,7 +56,7 @@ public struct TodayFuelPlan: Equatable, Sendable {
     }
 }
 
-public struct TodayFuelPlanGoals: Equatable, Sendable {
+public struct TodayFuelPlanGoals: Codable, Equatable, Sendable {
     public let calories: Double
     public let protein: Double
     public let carbs: Double

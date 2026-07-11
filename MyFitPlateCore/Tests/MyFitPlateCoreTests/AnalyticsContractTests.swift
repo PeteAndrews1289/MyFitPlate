@@ -26,6 +26,26 @@ final class AnalyticsContractTests: XCTestCase {
         }
     }
 
+    func testTrainingFuelDimensionsSurviveWithoutNutritionDetails() {
+        let parameters = ProductAnalytics.firebaseParameters([
+            "training_mode": "strength",
+            "phase_count": 2,
+            "confirmation_path": "handoff",
+            "phase": "before_training",
+            "destination": "food_search",
+            "target_protein": 25,
+            "target_carbs": 40
+        ])
+
+        XCTAssertEqual(parameters["training_mode"] as? String, "strength")
+        XCTAssertEqual(parameters["phase_count"] as? Int, 2)
+        XCTAssertEqual(parameters["confirmation_path"] as? String, "handoff")
+        XCTAssertEqual(parameters["phase"] as? String, "before_training")
+        XCTAssertEqual(parameters["destination"] as? String, "food_search")
+        XCTAssertNil(parameters["target_protein"])
+        XCTAssertNil(parameters["target_carbs"])
+    }
+
     func testGenericSensitiveAliasesCannotBypassPrivacySanitizer() {
         let parameters = ProductAnalytics.firebaseParameters([
             "action": "opened",

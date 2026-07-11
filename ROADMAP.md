@@ -40,7 +40,7 @@ inside the much larger 2.2 release. They remain here as release history, not fut
 
 ---
 
-## 🎯 Version 2.3 — The Daily Training Loop (Planned)
+## 🎯 Version 2.3 — The Daily Training Loop (In Progress)
 
 **Release thesis:** 2.2 established the moat: food data that shows its work, connected to
 real training. Version 2.3 should turn that advantage into a repeatable habit by helping a
@@ -101,23 +101,34 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   calorie/macro targets, and pre/post preference now produce bounded allocations. The engine
   never raises the daily target, spends tomorrow's budget, or turns an overage into a refeed.
   Its transparent contract is `docs/training-fuel-planner-2.3.md`.
-- [ ] **Planned-session adapter**: derive the next strength session from the active program or
-  accept a selected run plan, then supply its editable start time, duration, intensity, and
-  strength focus to the deterministic engine.
-- [ ] **User control and honest uncertainty**: let the user change session time, duration,
-  intensity, and whether they want food before or after. Explain the inputs and keep AI meal
-  ideas separate from the deterministic fuel budget.
-- [ ] **Actionable handoff**: route each plan to trusted food search, saved/recent meals,
-  Fill Macros, Meal Plan, or Fast Food Builder with the intended carb/protein budget attached.
-- [ ] **Post-session reconciliation**: reuse the existing recovery handoff, subtract what was
-  actually logged, expire stale recommendations, and switch to neutral review when the day is
-  already over target.
+- [x] **Planned-session adapter**: the Home planner derives the current routine, schedule,
+  estimated duration, effort, and strength focus from the active program; built-in/custom run
+  plans can also be selected. Distance-only run plans and manual sessions require review
+  instead of receiving invented timing.
+- [x] **User control and honest uncertainty**: the review sheet exposes session type, source,
+  start time, duration, effort, strength focus, and independent before/after choices. Estimated
+  inputs are labeled, and optional Maia food ideas remain separate from the deterministic
+  calorie/protein/carb budget.
+- [x] **Actionable handoff**: each phase carries its exact live target into Search and Recent
+  Foods, Fast Food Builder, Meal Plan, or a target-specific Maia idea. The generic whole-day
+  Fill My Macros prompt is suppressed while a confirmed plan exists so the two budgets cannot
+  compete.
+- [ ] **Post-session reconciliation**: started. Confirmed plans are account/day scoped, subtract
+  food logged after confirmation, separate before/after by timestamp, cap every next action to
+  the live daily goals and diary, open actions only inside their intended phase, expire the
+  pre-session window and stale plans, and become neutral for over-target or invalid data. Food
+  logged during the workout consumes the daily budget without being mislabeled as recovery.
+  Still required: reconcile against an explicitly completed or skipped workout and handle a
+  legitimate post-midnight recovery target against the next day.
 - [x] **Rules and safety coverage (Core)**: 22 adversarial tests cover hard leg days, easy
   sessions, long/short runs, late-night training, fasting, missing/defaulted inputs, historical
   diary state, tiny or exhausted budgets, over-target days, stale/tomorrow workouts, invalid
   values, extreme finite corruption, and explicit pre/post choices. A 1,344-combination grid
   also enforces the calorie, macro, phase, and minimum-action invariants. Language remains
-  general fitness coaching.
+  general fitness coaching. Twenty integration tests now cover active-program/run adapters,
+  editable drafts, account isolation, diary attribution, live-budget recapping, stale storage,
+  phase timing, same-plan edits, and fail-closed reconciliation. AI meal ideas also pass a local
+  finite-value, nutrition-consistency, and live-budget gate before they can be shown.
 
 ### Must Ship — Training and Fuel Report
 
@@ -192,7 +203,7 @@ not an invented industry benchmark.
 2. [x] Audit activation/Trust/training events, close the release-health gaps, and define the
    external KPI dashboard contract.
 3. [x] Build the deterministic fuel-plan model and adversarial Core test matrix.
-4. [ ] Add the Home planner/review flow and connect it to existing logging destinations.
+4. [x] Add the Home planner/review flow and connect it to existing logging destinations.
 5. [ ] Build the unified Training and Fuel report from existing running, lifting, and nutrition
    engines before adding new data collection.
 6. [ ] Extend widget shared data, then deliver the narrow Watch and notification slices.

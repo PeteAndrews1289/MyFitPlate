@@ -12,6 +12,7 @@ public class AppState: ObservableObject {
     }
     @Published public var selectedTab: Int = 0
     @Published public var pendingChatPrompt: String? = nil
+    @Published public var pendingTrainingFuelTarget: TrainingFuelTarget? = nil
     
     private var authStateHandle: Any?
 
@@ -31,6 +32,7 @@ public class AppState: ObservableObject {
                     self.recordLastLogin(userID: userID)
                 } else {
                     self.isUserLoggedIn = false
+                    self.pendingTrainingFuelTarget = nil
                     self.identifyReleaseHealthUser(nil)
                 }
             }

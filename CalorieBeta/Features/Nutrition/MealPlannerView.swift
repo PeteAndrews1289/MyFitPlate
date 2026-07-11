@@ -181,6 +181,13 @@ struct MealPlannerView: View {
     private var mainScrollView: some View {
         ScrollView {
             VStack(spacing: 16) {
+                if let trainingFuelTarget = appState.pendingTrainingFuelTarget {
+                    TrainingFuelTargetContextView(
+                        target: trainingFuelTarget,
+                        onDismiss: { appState.pendingTrainingFuelTarget = nil }
+                    )
+                }
+
                 WeekView(
                     selectedDate: $selectedDate,
                     mealCountsByDay: weekMealCounts

@@ -108,6 +108,78 @@ public class InsightsService: ObservableObject {
         }
     }
 
+    public func generateTrainingFuelSuggestion(
+        target: TrainingFuelTarget,
+        pantryItems: [String] = []
+    ) async -> MealSuggestion? {
+        isGeneratingSuggestion = true
+        defer { isGeneratingSuggestion = false }
+
+        let initialBudget = currentTrainingFuelBudget()
+        guard [
+            initialBudget.calories,
+            initialBudget.protein,
+            initialBudget.carbs,
+            initialBudget.fat
+        ].allSatisfy(\.isFinite),
+              initialBudget.calories >= 60 else { return nil }
+        let prompt = InsightsRules.createTrainingFuelSuggestionPrompt(
+            target: target,
+            dailyRemainingCalories: initialBudget.calories,
+            dailyRemainingFat: initialBudget.fat,
+            proteinPrefs: goalSettings.suggestionProteins.isEmpty
+                ? "any"
+                : goalSettings.suggestionProteins.joined(separator: ", "),
+            carbPrefs: goalSettings.suggestionCarbs.isEmpty
+                ? "any"
+                : goalSettings.suggestionCarbs.joined(separator: ", "),
+            pantryItems: pantryItems
+        )
+        guard let responseString = await fetchAIResponse(prompt: prompt),
+              let jsonData = InsightsRules.extractJSONPayload(responseString).data(using: .utf8) else {
+            return nil
+        }
+
+        do {
+            let suggestion = try JSONDecoder().decode(MealSuggestion.self, from: jsonData)
+            let liveBudget = currentTrainingFuelBudget()
+            guard InsightsRules.trainingFuelSuggestionFitsBudget(
+                suggestion,
+                target: target,
+                dailyRemainingCalories: liveBudget.calories,
+                dailyRemainingProtein: liveBudget.protein,
+                dailyRemainingCarbs: liveBudget.carbs,
+                dailyRemainingFat: liveBudget.fat
+            ) else {
+                AppLog.ai.error("Training fuel suggestion failed deterministic budget validation")
+                return nil
+            }
+            return suggestion
+        } catch {
+            AppLog.ai.error("Training fuel suggestion decode failed: \(error.localizedDescription, privacy: .public)")
+            AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_training_fuel_suggestion")
+            return nil
+        }
+    }
+
+    private func currentTrainingFuelBudget() -> (
+        calories: Double,
+        protein: Double,
+        carbs: Double,
+        fat: Double
+    ) {
+        let macros = dailyLogService.currentDailyLog?.totalMacros() ?? (protein: 0, fats: 0, carbs: 0)
+        return (
+            calories: max(
+                0,
+                (goalSettings.calories ?? 0) - (dailyLogService.currentDailyLog?.totalCalories() ?? 0)
+            ),
+            protein: max(0, goalSettings.protein - macros.protein),
+            carbs: max(0, goalSettings.carbs - macros.carbs),
+            fat: max(0, goalSettings.fats - macros.fats)
+        )
+    }
+
     public func generateDailySmartInsight() {
         let hour = Calendar.current.component(.hour, from: Date())
         let log = dailyLogService.currentDailyLog

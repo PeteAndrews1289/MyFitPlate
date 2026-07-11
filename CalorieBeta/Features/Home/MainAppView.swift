@@ -102,6 +102,7 @@ struct CalorieBetaApp: App {
     @StateObject var cycleService: CycleTrackingService
     @StateObject var adaptiveGoalService: AdaptiveGoalService
     @StateObject var pantryService: PantryService
+    @StateObject var workoutService: WorkoutService
     
     @StateObject var connectivityManager = WatchConnectivityManager()
 
@@ -227,6 +228,7 @@ struct CalorieBetaApp: App {
         let cycleSvc = CycleTrackingService()
         let adaptiveSvc = AdaptiveGoalService()
         let pantrySvc = PantryService()
+        let workoutSvc = WorkoutService()
 
         _dailyLogService = StateObject(wrappedValue: logService)
         _goalSettings = StateObject(wrappedValue: goalsSvc)
@@ -242,6 +244,7 @@ struct CalorieBetaApp: App {
         _cycleService = StateObject(wrappedValue: cycleSvc)
         _adaptiveGoalService = StateObject(wrappedValue: adaptiveSvc)
         _pantryService = StateObject(wrappedValue: pantrySvc)
+        _workoutService = StateObject(wrappedValue: workoutSvc)
         
         logService.goalSettings = goalsSvc
         goalsSvc.adaptiveGoalService = adaptiveSvc
@@ -292,6 +295,7 @@ struct CalorieBetaApp: App {
                 .environmentObject(cycleService)
                 .environmentObject(adaptiveGoalService)
                 .environmentObject(pantryService)
+                .environmentObject(workoutService)
                 .environmentObject(AppCoordinator.shared)
                 .preferredColorScheme(appState.isDarkModeEnabled ? .dark : .light)
         }
