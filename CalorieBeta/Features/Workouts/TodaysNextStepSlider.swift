@@ -52,6 +52,7 @@ struct TodaysNextStepSlider: View {
     let onReview: (WorkoutSessionLog) -> Void
 
     @State private var viewedIndex: Int
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(program: WorkoutProgram,
          completedLogsByIndex: [Int: WorkoutSessionLog],
@@ -69,6 +70,8 @@ struct TodaysNextStepSlider: View {
     private var currentIndex: Int { program.currentProgressIndex ?? 0 }
     private var totalSlots: Int { max(program.totalSlots, 1) }
     private var skippedIndices: Set<Int> { Set(program.skippedIndices ?? []) }
+    private var usesAccessibilityLayout: Bool { dynamicTypeSize.isAccessibilitySize }
+    private var visibleExerciseLimit: Int { usesAccessibilityLayout ? 2 : 3 }
 
     private enum SlotState {
         case completed(WorkoutSessionLog)
@@ -121,7 +124,7 @@ struct TodaysNextStepSlider: View {
                 Text(program.name)
                     .appFont(size: 21, weight: .bold)
                     .foregroundColor(.textPrimary)
-                    .lineLimit(2)
+                    .lineLimit(usesAccessibilityLayout ? 3 : 2)
                     .fixedSize(horizontal: false, vertical: true)
 
                 // DESIGN.md rule 3: progress in words a stranger understands.
@@ -185,6 +188,7 @@ struct TodaysNextStepSlider: View {
                         .appFont(size: 20, weight: .bold)
                         .foregroundColor(.textPrimary)
                         .lineLimit(2)
+                        .minimumScaleFactor(usesAccessibilityLayout ? 0.8 : 1)
                     if let routine {
                         Text("\(routine.exercises.count) exercises")
                             .appFont(size: 12)
@@ -196,28 +200,11 @@ struct TodaysNextStepSlider: View {
 
             if let routine {
                 VStack(spacing: 6) {
-                    ForEach(Array(routine.exercises.prefix(3))) { exercise in
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "dumbbell.fill")
-                                .appFont(size: 10, weight: .semibold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .frame(width: 26, height: 26)
-                                .background(Color(UIColor.tertiarySystemFill), in: Circle())
-                            Text(exercise.name)
-                                .appFont(size: 13, weight: .semibold)
-                                .foregroundColor(.textPrimary)
-                                .lineLimit(2)
-                                .layoutPriority(1)
-                            Spacer()
-                            Text("\(max(exercise.sets.count, exercise.targetSets))×\(exercise.sets.first?.target ?? exercise.targetReps)")
-                                .appFont(size: 11, weight: .semibold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-                        }
+                    ForEach(Array(routine.exercises.prefix(visibleExerciseLimit))) { exercise in
+                        exercisePreviewRow(exercise)
                     }
-                    if routine.exercises.count > 3 {
-                        Text("+ \(routine.exercises.count - 3) more")
+                    if routine.exercises.count > visibleExerciseLimit {
+                        Text("+ \(routine.exercises.count - visibleExerciseLimit) more")
                             .appFont(size: 11, weight: .semibold)
                             .foregroundColor(.brandPrimary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -234,6 +221,61 @@ struct TodaysNextStepSlider: View {
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color.backgroundSecondary.opacity(0.55), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func exercisePreviewRow(_ exercise: RoutineExercise) -> some View {
+        if usesAccessibilityLayout {
+            HStack(alignment: .top, spacing: 8) {
+                exercisePreviewIcon
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(exercise.name)
+                        .appFont(size: 13, weight: .semibold)
+                        .foregroundColor(.textPrimary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(exerciseTargetSummary(exercise))
+                        .appFont(size: 11, weight: .semibold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+        } else {
+            HStack(alignment: .top, spacing: 8) {
+                exercisePreviewIcon
+
+                Text(exercise.name)
+                    .appFont(size: 13, weight: .semibold)
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(2)
+                    .layoutPriority(1)
+
+                Spacer()
+
+                Text(exerciseTargetSummary(exercise))
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        }
+    }
+
+    private var exercisePreviewIcon: some View {
+        Image(systemName: "dumbbell.fill")
+            .appFont(size: 10, weight: .semibold)
+            .foregroundColor(Color(UIColor.secondaryLabel))
+            .frame(width: 26, height: 26)
+            .background(Color(UIColor.tertiarySystemFill), in: Circle())
+    }
+
+    private func exerciseTargetSummary(_ exercise: RoutineExercise) -> String {
+        "\(max(exercise.sets.count, exercise.targetSets))×\(exercise.sets.first?.target ?? exercise.targetReps)"
     }
 
     @ViewBuilder

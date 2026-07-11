@@ -11,6 +11,13 @@ struct MealPlanSummaryCard: View {
     let meals: [PlannedMeal]
     let goals: GoalSettings
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var metricColumns: [GridItem] {
+        let columnCount = dynamicTypeSize.isAccessibilitySize ? 2 : 3
+        return Array(repeating: GridItem(.flexible()), count: columnCount)
+    }
+
     private var foodItems: [FoodItem] {
         meals.compactMap(\.foodItem)
     }
@@ -85,7 +92,7 @@ struct MealPlanSummaryCard: View {
                     .background(Color(UIColor.secondarySystemFill), in: Circle())
             }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            LazyVGrid(columns: metricColumns, spacing: 10) {
                 MealPlanMetric(title: "Meals", value: meals.count.formatted(), color: .blue)
                 MealPlanMetric(title: "Calories", value: "\(Int(totalCalories.rounded()).formatted()) cal", color: .orange)
                 MealPlanMetric(title: "Protein", value: "\(Int(totalProtein.rounded()).formatted()) g", color: .accentProtein)

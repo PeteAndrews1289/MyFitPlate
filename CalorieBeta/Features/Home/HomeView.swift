@@ -146,7 +146,10 @@ struct HomeView: View {
                                 selectedDateFormattedString: selectedDateFormattedString,
                                 weeklyInsight: weeklyInsight,
                                 isHeaderSpotlightActive: isSpotlightActive(for: "dashboardHeader"),
-                                showingDetailedInsights: $showingDetailedInsights
+                                showingDetailedInsights: $showingDetailedInsights,
+                                onReviewFoodTrust: {
+                                    showingNutritionAudit = true
+                                }
                             )
                                 .padding(.horizontal)
                                 .id("dashboardHeader")

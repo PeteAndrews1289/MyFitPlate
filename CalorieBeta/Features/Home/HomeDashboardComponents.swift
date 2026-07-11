@@ -10,12 +10,18 @@ struct HomeDashboardHeader: View {
     var weeklyInsight: UserInsight?
     var isHeaderSpotlightActive: Bool
     @Binding var showingDetailedInsights: Bool
+    let onReviewFoodTrust: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // DESIGN.md: Home's hero is the calorie/macro ring. Coaching stays useful,
             // but reads as a quieter support row below the nutrition state.
-            NutritionProgressView(dailyLog: dailyLog, goal: goalSettings, insight: weeklyInsight)
+            NutritionProgressView(
+                dailyLog: dailyLog,
+                goal: goalSettings,
+                insight: weeklyInsight,
+                onReviewFoodTrust: onReviewFoodTrust
+            )
                 .padding(.top, 4)
 
             DailySnapshotStrip(

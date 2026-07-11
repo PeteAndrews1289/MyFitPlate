@@ -3,6 +3,12 @@ import SwiftUI
 struct QuickLogActionButton: View {
     let isActive: Bool
     let action: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var buttonWidth: CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 132 : 108
+    }
     
     var body: some View {
         Button(action: action) {
@@ -22,7 +28,7 @@ struct QuickLogActionButton: View {
                     .foregroundColor(.textPrimary)
                     .lineLimit(1)
             }
-            .frame(width: 108, height: 44)
+            .frame(width: buttonWidth, height: 44)
             .background(
                 Capsule()
                     .fill(Color.backgroundPrimary.opacity(0.96))

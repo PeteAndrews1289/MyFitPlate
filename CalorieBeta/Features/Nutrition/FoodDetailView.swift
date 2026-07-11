@@ -909,6 +909,12 @@ private struct FoodSourceConfidenceCard: View {
     let findings: [FoodDataSanity.Finding]
     let onAction: (() -> Void)?
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var usesAccessibilityLayout: Bool {
+        dynamicTypeSize.isAccessibilitySize
+    }
+
     private var tint: Color {
         switch evaluation.level {
         case .excellent, .strong:
@@ -1078,29 +1084,50 @@ private struct FoodSourceConfidenceCard: View {
         .accessibilityLabel("\(descriptor.title). \(descriptor.confidence). \(evaluation.label). \(evaluation.summary)")
     }
 
+    @ViewBuilder
     private func trustFactRow(icon: String, title: String, value: String, rowTint: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .appFont(size: 11, weight: .bold)
-                .foregroundColor(rowTint)
-                .frame(width: 22, height: 22)
-                .background(rowTint.opacity(0.10), in: Circle())
+        HStack(alignment: usesAccessibilityLayout ? .top : .center, spacing: 8) {
+            trustFactIcon(icon, tint: rowTint)
 
-            Text(title)
-                .appFont(size: 11, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .frame(width: 44, alignment: .leading)
-
-            Text(value)
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
+            if usesAccessibilityLayout {
+                VStack(alignment: .leading, spacing: 2) {
+                    trustFactTitle(title)
+                    trustFactValue(value)
+                }
+            } else {
+                trustFactTitle(title)
+                    .frame(width: 44, alignment: .leading)
+                trustFactValue(value)
+                    .lineLimit(2)
+            }
 
             Spacer(minLength: 0)
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
         .background(Color.backgroundPrimary.opacity(0.52), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func trustFactIcon(_ icon: String, tint: Color) -> some View {
+        Image(systemName: icon)
+            .appFont(size: 11, weight: .bold)
+            .foregroundColor(tint)
+            .frame(width: 22, height: 22)
+            .background(tint.opacity(0.10), in: Circle())
+    }
+
+    private func trustFactTitle(_ title: String) -> some View {
+        Text(title)
+            .appFont(size: 11, weight: .bold)
+            .foregroundColor(Color(UIColor.secondaryLabel))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func trustFactValue(_ value: String) -> some View {
+        Text(value)
+            .appFont(size: 11, weight: .semibold)
+            .foregroundColor(.textPrimary)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

@@ -4,6 +4,7 @@ import MyFitPlateCore
 
 public struct ChainMealBuilderView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var selectedChain: ChainRestaurant = ChainRestaurantCatalog.allChains[0]
     @State private var selections: [String: ChainSelectionItem] = [:]
@@ -84,6 +85,10 @@ public struct ChainMealBuilderView: View {
 
     private var selectedItemCount: Int {
         selections.values.reduce(0) { $0 + $1.count }
+    }
+
+    private var usesAccessibilityLayout: Bool {
+        dynamicTypeSize.isAccessibilitySize
     }
 
     public var body: some View {
@@ -255,25 +260,42 @@ public struct ChainMealBuilderView: View {
     }
 
     // MARK: - Meal Selector Bar
+    @ViewBuilder
     private var mealSelectorBar: some View {
-        HStack {
-            Text("Log to meal:")
-                .appFont(size: 14, weight: .semibold)
-                .foregroundColor(.secondary)
-
-            Spacer()
-
-            Picker("Meal", selection: $selectedMeal) {
-                ForEach(["Breakfast", "Lunch", "Dinner", "Snacks"], id: \.self) { meal in
-                    Text(meal).tag(meal)
+        Group {
+            if usesAccessibilityLayout {
+                VStack(alignment: .leading, spacing: 6) {
+                    mealSelectorLabel
+                    mealPicker
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                HStack {
+                    mealSelectorLabel
+                    Spacer()
+                    mealPicker
                 }
             }
-            .pickerStyle(.menu)
-            .tint(.brandPrimary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color.backgroundSecondary.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var mealSelectorLabel: some View {
+        Text("Log to meal:")
+            .appFont(size: 14, weight: .semibold)
+            .foregroundColor(.secondary)
+    }
+
+    private var mealPicker: some View {
+        Picker("Meal", selection: $selectedMeal) {
+            ForEach(["Breakfast", "Lunch", "Dinner", "Snacks"], id: \.self) { meal in
+                Text(meal).tag(meal)
+            }
+        }
+        .pickerStyle(.menu)
+        .tint(.brandPrimary)
     }
 
     // MARK: - Category Section
@@ -466,23 +488,19 @@ public struct ChainMealBuilderView: View {
     // MARK: - Sticky Bottom Bar
     private var stickyBottomBar: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(Int(totalCalories.rounded())) cal")
-                        .appFont(size: 20, weight: .heavy)
-                        .foregroundColor(.textPrimary)
-
-                    Text("\(selectedItemCount) \(selectedItemCount == 1 ? "item" : "items") selected")
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    macroBadge(label: "P", grams: totalProtein, color: .green)
-                    macroBadge(label: "C", grams: totalCarbs, color: .orange)
-                    macroBadge(label: "F", grams: totalFat, color: .blue)
+            Group {
+                if usesAccessibilityLayout {
+                    VStack(alignment: .leading, spacing: 8) {
+                        calorieSelectionSummary
+                        macroSummary
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    HStack(spacing: 14) {
+                        calorieSelectionSummary
+                        Spacer()
+                        macroSummary
+                    }
                 }
             }
 
@@ -513,6 +531,26 @@ public struct ChainMealBuilderView: View {
             Color.backgroundSecondary
                 .shadow(color: .black.opacity(0.15), radius: 10, y: -4)
                 .ignoresSafeArea(edges: .bottom)
+        }
+    }
+
+    private var calorieSelectionSummary: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(Int(totalCalories.rounded())) cal")
+                .appFont(size: 20, weight: .heavy)
+                .foregroundColor(.textPrimary)
+
+            Text("\(selectedItemCount) \(selectedItemCount == 1 ? "item" : "items") selected")
+                .appFont(size: 12, weight: .medium)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var macroSummary: some View {
+        HStack(spacing: 8) {
+            macroBadge(label: "P", grams: totalProtein, color: .green)
+            macroBadge(label: "C", grams: totalCarbs, color: .orange)
+            macroBadge(label: "F", grams: totalFat, color: .blue)
         }
     }
 

@@ -28,6 +28,7 @@ light mode, WiFi" fixes itself. "The buffet thing looked wrong" costs us a windo
 - [ ] Streak flame in the date capsule (2+ logged days); grace-day copy if you skipped yesterday
 - [ ] Diary sits directly under the hero; entries expand/act correctly
 - [ ] Recent-food swipe rows show the mini trust badge
+- [ ] Review Food Trust opens the Trust Hub on the first tap; Done returns to Home; a listed food opens its detail instead of appearing disabled
 - [ ] "Your week" recap banner opens the recap sheet — no crash (regression)
 - [ ] Recap sheet: stat grid + **Running tile with your real watch runs**
 - [ ] After 3pm with ≥150 cal remaining: fill-my-macros card → suggestion arrives (WiFi); toast if it fails
@@ -135,7 +136,7 @@ Indoors today:
 
 ## 13. System passes (10 min)
 - [ ] Dark mode sweep: Home, AYCE live, run detail, trust card, coaching, MFP import — no washed-out cards
-- [ ] Dynamic Type XL spot check: Home + AYCE tiles + player don't clip
+- [ ] Dynamic Type accessibility XXXL spot check: Quick Log stays complete; Trust Source/Check/Review/Sanity labels remain words; Food Search cards, Fast Food Builder meal selector/summary, Train routine/exercises, Maia context chips, and Meal Plan metrics do not clip or overlap
 - [ ] Sign out / sign in → data returns; custom calorie goal SURVIVES (the reset-bug fix)
 - [ ] Five bottom tabs are visible, evenly spaced, and usable (Home, Maia, Train, Meal Plan, Reports); their label baselines stay aligned, and the centered Quick Log action does not cover labels or tappable content
 - [ ] Optional review-prompt check: on a fresh local install, complete three distinct workouts over at least three days and tap Done on the third summary. The app should request a review only then; Apple may still choose not to display the system prompt
