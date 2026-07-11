@@ -82,6 +82,21 @@ public enum FoodSearchRanking {
             score += 40
         }
 
+        let descriptor = FoodSourceClassifier.descriptor(
+            for: "search",
+            foodID: food.id,
+            metadata: food.sourceMetadata
+        )
+        let trust = FoodTrustEvaluation.evaluate(
+            item: food,
+            descriptor: descriptor,
+            metadata: food.sourceMetadata
+        )
+        score += trust.score / 5
+        if trust.requiresCorrection {
+            score -= 180
+        }
+
         return score
     }
 

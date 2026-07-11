@@ -7,6 +7,9 @@ public extension Color {
     static var accentPositive: Color {
         Color("AccentPositive", bundle: .main)
     }
+    static var accentPositiveText: Color {
+        Color("AccentPositiveText", bundle: .main)
+    }
     static var backgroundPrimary: Color {
         Color("BackgroundPrimary", bundle: .main)
     }

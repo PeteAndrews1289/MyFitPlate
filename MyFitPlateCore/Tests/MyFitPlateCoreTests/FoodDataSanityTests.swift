@@ -45,6 +45,21 @@ final class FoodDataSanityTests: XCTestCase {
         XCTAssertTrue(findingIDs(item).isEmpty)
     }
 
+    func testNonFiniteNutritionIsAWarningInsteadOfCrashingFormatting() {
+        let item = food(calories: .nan, protein: 10, carbs: 20, fats: 5, servingWeight: 100)
+        let findings = FoodDataSanity.findings(for: item)
+
+        XCTAssertEqual(findings.map(\.id), ["nutrition_value_invalid"])
+        XCTAssertEqual(findings.first?.severity, .warning)
+        XCTAssertTrue(FoodDataSanity.isSuspicious(item))
+    }
+
+    func testNegativeNutritionIsAWarning() {
+        let item = food(calories: 100, protein: -1, carbs: 20, fats: 2, servingWeight: 100)
+        XCTAssertTrue(findingIDs(item).contains("nutrition_value_negative"))
+        XCTAssertTrue(FoodDataSanity.isSuspicious(item))
+    }
+
     // MARK: - Calorie/macro rules
 
     func testMacrosWithoutCaloriesIsWarning() {
@@ -58,6 +73,21 @@ final class FoodDataSanityTests: XCTestCase {
         let item = food(calories: 150, protein: 25, carbs: 25, fats: 20, servingWeight: 200)
         XCTAssertTrue(findingIDs(item).contains("calories_undercount"))
         XCTAssertTrue(FoodDataSanity.isSuspicious(item))
+    }
+
+    func testSmallCalorieRoundingDifferenceDoesNotCreateAWarning() {
+        let item = food(calories: 5, protein: 1.5, servingWeight: 100)
+        XCTAssertTrue(FoodDataSanity.findings(for: item).isEmpty)
+    }
+
+    func testCarbohydrateOnlyCalorieGapIsReviewNotCorrection() {
+        // Zero-calorie sweeteners can report carbohydrate while using a lower energy factor.
+        let item = food(calories: 0, carbs: 20, servingWeight: 100)
+        let findings = FoodDataSanity.findings(for: item)
+
+        XCTAssertEqual(findings.map(\.id), ["calories_below_macro_estimate"])
+        XCTAssertEqual(findings.first?.severity, .info)
+        XCTAssertFalse(FoodDataSanity.isSuspicious(item))
     }
 
     func testAlcoholLikeCalorieExcessIsInfoNotWarning() {
@@ -96,6 +126,19 @@ final class FoodDataSanityTests: XCTestCase {
         XCTAssertTrue(findings.contains { $0.id == "serving_weight_implausible" && $0.severity == .info })
     }
 
+    func testSaturatedFatAboveTotalFatIsWarning() {
+        let item = FoodItem(
+            name: "Broken fat data",
+            calories: 100,
+            protein: 2,
+            carbs: 10,
+            fats: 3,
+            saturatedFat: 8,
+            servingWeight: 100
+        )
+        XCTAssertTrue(findingIDs(item).contains("saturated_fat_exceeds_total"))
+    }
+
     // MARK: - Unit-slip rules
 
     func testSodiumGramVsMilligramSlipIsWarning() {
@@ -113,6 +156,21 @@ final class FoodDataSanityTests: XCTestCase {
         // Salty soup: 900mg sodium is high but real.
         let item = food(calories: 120, protein: 6, carbs: 18, fats: 3, servingWeight: 250, sodium: 900)
         XCTAssertFalse(findingIDs(item).contains("sodium_unit_suspect"))
+    }
+
+    func testLargeRecipeMineralTotalIsReviewRatherThanUnitError() {
+        let item = food(
+            calories: 4_000,
+            protein: 250,
+            carbs: 400,
+            fats: 150,
+            servingWeight: 3_000,
+            sodium: 12_000
+        )
+        let findings = FoodDataSanity.findings(for: item)
+
+        XCTAssertTrue(findings.contains { $0.id == "sodium_high_for_entry" && $0.severity == .info })
+        XCTAssertFalse(findings.contains { $0.id == "sodium_unit_suspect" })
     }
 
     // MARK: - Aggregates

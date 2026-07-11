@@ -5,6 +5,7 @@ import Foundation
 public class USDAFoodAPIService {
     private let apiKey: String?
     private let baseURL = "https://api.nal.usda.gov/fdc/v1"
+    private let requestTimeout: TimeInterval = 6
 
     public init() {
         let plistKey = Bundle.main.object(forInfoDictionaryKey: "USDA_API_KEY") as? String
@@ -24,7 +25,10 @@ public class USDAFoodAPIService {
         ]
         guard let url = components.url else { return [] }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: URLRequest(
+                url: url,
+                timeoutInterval: requestTimeout
+            ))
             return FoodSearchRanking.rankedRemoteMatches(
                 query: query,
                 foods: try USDAFoodParser.foodItems(from: data)
@@ -46,8 +50,11 @@ public class USDAFoodAPIService {
         ]
         guard let url = components.url else { return nil }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            return try USDAFoodParser.foodItems(from: data).first
+            let (data, _) = try await URLSession.shared.data(for: URLRequest(
+                url: url,
+                timeoutInterval: requestTimeout
+            ))
+            return try USDAFoodParser.foodItem(matchingBarcode: barcode, from: data)
         } catch {
             return nil
         }
@@ -61,6 +68,21 @@ public enum USDAFoodParser {
     public static func foodItems(from data: Data) throws -> [FoodItem] {
         let response = try JSONDecoder().decode(USDASearchResponse.self, from: data)
         return response.foods.map { foodItem(from: $0) }
+    }
+
+    /// USDA's barcode endpoint is a text search, so the first result is not proof of identity.
+    /// Accept only a response carrying the scanned GTIN or a zero-padded equivalent.
+    public static func foodItem(matchingBarcode barcode: String, from data: Data) throws -> FoodItem? {
+        let candidates = Set(BarcodeCorrectionRules.lookupCandidates(for: barcode))
+        guard !candidates.isEmpty else { return nil }
+        let response = try JSONDecoder().decode(USDASearchResponse.self, from: data)
+        guard let match = response.foods.first(where: { food in
+            guard let gtin = food.gtinUpc else { return false }
+            return candidates.contains(BarcodeCorrectionRules.normalizedBarcode(gtin))
+        }) else {
+            return nil
+        }
+        return foodItem(from: match)
     }
 
     fileprivate static func foodItem(from food: USDAFood) -> FoodItem {
@@ -96,7 +118,7 @@ public enum USDAFoodParser {
             .replacingOccurrences(of: ",", with: ", ")
             .replacingOccurrences(of: "  ", with: " ")
 
-        return FoodItem(
+        let item = FoodItem(
             id: "usda_\(food.fdcId)",
             name: displayName,
             calories: v("208"),
@@ -132,11 +154,25 @@ public enum USDAFoodParser {
             vitaminB6: o("415"),
             vitaminE: o("323"),
             vitaminK: o("430")
-        ).withDatabaseSource(
+        )
+        var metadata = FoodSourceMetadata.database(
             .usda,
             sourceName: "USDA FoodData Central",
-            sourceID: "usda_\(food.fdcId)"
+            sourceID: "usda_\(food.fdcId)",
+            barcode: food.gtinUpc
         )
+        metadata.confidence = usdaConfidence(for: food.dataType)
+        return item.withSourceMetadata(metadata)
+    }
+
+    private static func usdaConfidence(for dataType: String?) -> FoodConfidenceLevel {
+        let normalized = dataType?.lowercased() ?? ""
+        if normalized.contains("foundation") || normalized.contains("sr legacy") {
+            return .verified
+        }
+        // Branded records are manufacturer label submissions hosted by USDA, not an
+        // independent laboratory confirmation. Unknown future types stay conservative.
+        return .databaseMatch
     }
 }
 
@@ -151,6 +187,7 @@ private struct USDAFood: Decodable {
     public let description: String
     public let dataType: String?
     public let brandOwner: String?
+    public let gtinUpc: String?
     public let servingSize: Double?
     public let servingSizeUnit: String?
     public let householdServingFullText: String?

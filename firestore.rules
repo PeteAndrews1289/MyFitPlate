@@ -59,10 +59,20 @@ service cloud.firestore {
           request.resource.data[field] <= 1000);
     }
 
-    function validBarcodeWrite() {
+    function validBarcodeId(barcodeId) {
+      return barcodeId is string &&
+        barcodeId.matches('^[0-9]+$') &&
+        (barcodeId.size() == 8 ||
+          barcodeId.size() == 12 ||
+          barcodeId.size() == 13 ||
+          barcodeId.size() == 14);
+    }
+
+    function validBarcodeWrite(barcodeId) {
       return signedIn() &&
+        validBarcodeId(barcodeId) &&
         request.resource.data.keys().hasOnly(["name", "calories", "protein", "carbs", "fats", "fiber", "servingSize", "servingWeight", "createdBy", "updatedAt"]) &&
-        request.resource.data.keys().hasAll(["name", "calories", "createdBy"]) &&
+        request.resource.data.keys().hasAll(["name", "calories", "protein", "carbs", "fats", "servingSize", "servingWeight", "createdBy"]) &&
         request.resource.data.name is string &&
         request.resource.data.name.size() > 0 &&
         request.resource.data.name.size() <= 140 &&
@@ -73,18 +83,18 @@ service cloud.firestore {
         validBarcodeMacro("carbs") &&
         validBarcodeMacro("fats") &&
         validBarcodeMacro("fiber") &&
-        (!request.resource.data.keys().hasAny(["servingSize"]) ||
-          (request.resource.data.servingSize is string && request.resource.data.servingSize.size() <= 80)) &&
-        (!request.resource.data.keys().hasAny(["servingWeight"]) ||
-          (request.resource.data.servingWeight is number &&
-            request.resource.data.servingWeight >= 0 &&
-            request.resource.data.servingWeight <= 5000)) &&
+        request.resource.data.servingSize is string &&
+        request.resource.data.servingSize.size() > 0 &&
+        request.resource.data.servingSize.size() <= 80 &&
+        request.resource.data.servingWeight is number &&
+        request.resource.data.servingWeight >= 10 &&
+        request.resource.data.servingWeight <= 5000 &&
         request.resource.data.createdBy == request.auth.uid &&
         (!request.resource.data.keys().hasAny(["updatedAt"]) || request.resource.data.updatedAt is timestamp);
     }
 
-    function canUpdateBarcode() {
-      return validBarcodeWrite() &&
+    function canUpdateBarcode(barcodeId) {
+      return validBarcodeWrite(barcodeId) &&
         (!resource.data.keys().hasAny(["createdBy"]) || resource.data.createdBy == request.auth.uid);
     }
     
@@ -135,8 +145,8 @@ service cloud.firestore {
     match /barcodes/{barcodeId} {
       // Signed-in users can read the shared database and contribute validated entries.
       allow read: if signedIn();
-      allow create: if validBarcodeWrite();
-      allow update: if canUpdateBarcode();
+      allow create: if validBarcodeWrite(barcodeId);
+      allow update: if canUpdateBarcode(barcodeId);
       allow delete: if false;
     }
   }

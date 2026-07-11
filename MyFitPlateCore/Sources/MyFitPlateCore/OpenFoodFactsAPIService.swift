@@ -4,6 +4,7 @@ public class OpenFoodFactsAPIService {
 
     private let baseURL = "https://world.openfoodfacts.org/api/v2/product/"
     private let userAgent = "MyFitPlate/2.2 (iOS; contact: peteandrews1289@gmail.com)"
+    private let requestTimeout: TimeInterval = 6
 
     public init() {}
 
@@ -16,7 +17,7 @@ public class OpenFoodFactsAPIService {
             return
         }
 
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, timeoutInterval: requestTimeout)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
 
         URLSession.shared.dataTask(with: request) { data, response, error in
@@ -53,7 +54,7 @@ public class OpenFoodFactsAPIService {
         }
 
         do {
-            var request = URLRequest(url: url)
+            var request = URLRequest(url: url, timeoutInterval: requestTimeout)
             request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,

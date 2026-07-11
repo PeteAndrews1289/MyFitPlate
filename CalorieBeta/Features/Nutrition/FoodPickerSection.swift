@@ -228,11 +228,11 @@ struct FoodTrustMiniBadge: View {
     private var tint: Color {
         switch evaluation.level {
         case .excellent, .strong:
-            return .accentPositive
+            return .accentPositiveText
         case .review:
             return .orange
         case .low:
-            return .red
+            return evaluation.requiresCorrection ? .red : .orange
         }
     }
 
@@ -243,9 +243,12 @@ struct FoodTrustMiniBadge: View {
         case .strong:
             return "Strong"
         case .review:
-            return "Review"
+            return evaluation.label.hasPrefix("Reviewed") ? "Reviewed" : "Review"
         case .low:
-            return "Fix"
+            if evaluation.requiresCorrection {
+                return "Fix"
+            }
+            return evaluation.label.hasPrefix("Reviewed") ? "Reviewed" : "Review"
         }
     }
 
@@ -256,7 +259,9 @@ struct FoodTrustMiniBadge: View {
         case .review:
             return "exclamationmark.circle.fill"
         case .low:
-            return "exclamationmark.triangle.fill"
+            return evaluation.requiresCorrection
+                ? "exclamationmark.triangle.fill"
+                : "exclamationmark.circle.fill"
         }
     }
 

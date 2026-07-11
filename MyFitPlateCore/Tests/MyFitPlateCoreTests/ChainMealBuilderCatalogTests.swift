@@ -91,7 +91,7 @@ final class ChainMealBuilderCatalogTests: XCTestCase {
         let confirmed = item.markedUserConfirmed(sourceType: .chainBuilder)
         XCTAssertEqual(confirmed.sourceMetadata?.sourceType, .chainBuilder)
         XCTAssertEqual(confirmed.sourceMetadata?.reviewStatus, .userConfirmed)
-        XCTAssertEqual(FoodSourceClassifier.descriptor(for: confirmed.sourceMetadata!).confidence, "User Reviewed")
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: confirmed.sourceMetadata!).confidence, "Reviewed by You")
     }
 
     func testUnknownSodiumStaysNilInsteadOfBecomingZero() {

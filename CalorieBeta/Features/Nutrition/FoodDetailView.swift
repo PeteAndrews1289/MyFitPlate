@@ -90,7 +90,7 @@ struct FoodDetailView: View {
         FoodSourceClassifier.descriptor(
             for: source,
             foodID: initialFoodItem.id,
-            metadata: initialFoodItem.sourceMetadata
+            metadata: trustMetadata
         )
     }
 
@@ -119,11 +119,34 @@ struct FoodDetailView: View {
             protein: serving.protein,
             carbs: serving.carbs,
             fats: serving.fats,
+            saturatedFat: serving.saturatedFat,
+            polyunsaturatedFat: serving.polyunsaturatedFat,
+            monounsaturatedFat: serving.monounsaturatedFat,
             fiber: serving.fiber,
             servingSize: serving.description,
             servingWeight: serving.servingWeightGrams ?? 1.0,
+            calcium: serving.calcium,
+            iron: serving.iron,
             potassium: serving.potassium,
-            sodium: serving.sodium
+            sodium: serving.sodium,
+            vitaminA: serving.vitaminA,
+            vitaminC: serving.vitaminC,
+            vitaminD: serving.vitaminD,
+            vitaminB12: serving.vitaminB12,
+            folate: serving.folate,
+            magnesium: serving.magnesium,
+            phosphorus: serving.phosphorus,
+            zinc: serving.zinc,
+            copper: serving.copper,
+            manganese: serving.manganese,
+            selenium: serving.selenium,
+            vitaminB1: serving.vitaminB1,
+            vitaminB2: serving.vitaminB2,
+            vitaminB3: serving.vitaminB3,
+            vitaminB5: serving.vitaminB5,
+            vitaminB6: serving.vitaminB6,
+            vitaminE: serving.vitaminE,
+            vitaminK: serving.vitaminK
         )
     }
 
@@ -131,11 +154,20 @@ struct FoodDetailView: View {
         FoodDataSanity.findings(for: sanityCheckItem)
     }
 
+    private var trustMetadata: FoodSourceMetadata? {
+        guard var metadata = initialFoodItem.sourceMetadata else { return nil }
+        if metadata.hasIndependentCrossVerification,
+           !FoodSourceAgreement.preservesAgreementEvidence(sanityCheckItem, initialFoodItem) {
+            metadata.crossVerifiedBy = nil
+        }
+        return metadata
+    }
+
     private var trustEvaluation: FoodTrustEvaluation {
         FoodTrustEvaluation.evaluate(
             item: sanityCheckItem,
             descriptor: sourceDescriptor,
-            metadata: initialFoodItem.sourceMetadata
+            metadata: trustMetadata
         )
     }
 
@@ -153,7 +185,9 @@ struct FoodDetailView: View {
             "action": action,
             "source": sourceDescriptor.sourceKey,
             "trust_score": trustEvaluation.score,
-            "trust_level": trustEvaluation.level.rawValue
+            "trust_level": trustEvaluation.level.rawValue,
+            "trust_model_version": FoodTrustEvaluation.modelVersion,
+            "requires_correction": trustEvaluation.requiresCorrection
         ])
     }
 
@@ -164,8 +198,10 @@ struct FoodDetailView: View {
             "source": sourceDescriptor.sourceKey,
             "trust_score": trustEvaluation.score,
             "trust_level": trustEvaluation.level.rawValue,
-            "cross_verified": initialFoodItem.sourceMetadata?.crossVerifiedBy?.isEmpty == false,
-            "review_status": initialFoodItem.sourceMetadata?.reviewStatus.rawValue ?? "none",
+            "trust_model_version": FoodTrustEvaluation.modelVersion,
+            "requires_correction": trustEvaluation.requiresCorrection,
+            "cross_verified": trustMetadata?.hasIndependentCrossVerification == true,
+            "review_status": trustMetadata?.reviewStatus.rawValue ?? "none",
             "sanity_findings": FoodDataSanity.telemetryKinds(for: sanityCheckItem)
         ])
     }
@@ -214,7 +250,7 @@ struct FoodDetailView: View {
                         FoodSourceConfidenceCard(
                             descriptor: sourceDescriptor,
                             evaluation: trustEvaluation,
-                            metadata: initialFoodItem.sourceMetadata,
+                            metadata: trustMetadata,
                             findings: sanityFindings,
                             onAction: trustEvaluation.action.map { actionTitle in
                                 {
@@ -853,7 +889,10 @@ struct FoodDetailView: View {
         )
         let loggedFoodItem = rawLoggedFoodItem
             .normalizedForEstimatedSource(itemSourceToLog)
-            .markedUserConfirmed(sourceType: inferredSourceType(for: itemSourceToLog))
+            .markedUserConfirmed(
+                sourceType: inferredSourceType(for: itemSourceToLog),
+                originalItem: initialFoodItem
+            )
 
         if isLoggedItem {
             dailyLogService.updateFoodInCurrentLog(for: userID, updatedFoodItem: loggedFoodItem)
@@ -918,11 +957,11 @@ private struct FoodSourceConfidenceCard: View {
     private var tint: Color {
         switch evaluation.level {
         case .excellent, .strong:
-            return .accentPositive
+            return .accentPositiveText
         case .review:
             return .orange
         case .low:
-            return .red
+            return evaluation.requiresCorrection ? .red : .orange
         }
     }
 
@@ -930,34 +969,51 @@ private struct FoodSourceConfidenceCard: View {
         metadata?.sourceName ?? descriptor.title
     }
 
+    private var verifiedSources: [String] {
+        metadata?.validatedCrossVerifiedBy ?? []
+    }
+
     private var crossVerificationText: String {
-        guard let sources = metadata?.crossVerifiedBy, !sources.isEmpty else {
-            return descriptor.isEstimated ? "Estimate only" : "Single-source match"
+        if !verifiedSources.isEmpty {
+            return "Calories + macros matched with \(verifiedSources.prefix(2).joined(separator: ", "))"
         }
-        return "Verified with \(sources.prefix(2).joined(separator: ", "))"
+        if descriptor.sourceKey == "community_barcode" {
+            return "One community submission"
+        }
+        if descriptor.isEstimated {
+            return "No independent database match"
+        }
+        switch descriptor.sourceKey {
+        case "usda", "fatsecret", "open_food_facts":
+            return "One database source"
+        default:
+            return "No independent database match"
+        }
     }
 
     private var crossVerificationTint: Color {
-        metadata?.crossVerifiedBy?.isEmpty == false ? .accentPositive : Color(UIColor.secondaryLabel)
+        verifiedSources.isEmpty ? Color(UIColor.secondaryLabel) : .accentPositiveText
     }
 
     private var reviewText: String {
         switch metadata?.reviewStatus {
         case .userEdited:
-            return "Edited by you"
+            return "Nutrition edited"
         case .userConfirmed:
-            return "Confirmed by you"
-        case .notRequired:
-            return "No review needed"
-        case .unreviewed, nil:
-            return "Not reviewed yet"
+            return "Serving reviewed"
+        case .notRequired, .unreviewed, nil:
+            return "Serving not reviewed"
         }
+    }
+
+    private var visibleReasons: [FoodTrustReason] {
+        evaluation.reasonDetails.filter { $0.kind != .evidence }
     }
 
     private var reviewTint: Color {
         switch metadata?.reviewStatus {
         case .userEdited, .userConfirmed:
-            return .accentPositive
+            return .accentPositiveText
         case .notRequired:
             return Color(UIColor.secondaryLabel)
         case .unreviewed, nil:
@@ -971,16 +1027,16 @@ private struct FoodSourceConfidenceCard: View {
             return warningCount == 1 ? "1 warning" : "\(warningCount) warnings"
         }
         if findings.isEmpty {
-            return "No math flags"
+            return "No warnings found"
         }
-        return "Worth a look"
+        return "1 detail to review"
     }
 
     private var sanityTint: Color {
         if findings.contains(where: { $0.severity == .warning }) {
             return .red
         }
-        return findings.isEmpty ? .accentPositive : .orange
+        return findings.isEmpty ? .accentPositiveText : .orange
     }
 
     var body: some View {
@@ -993,17 +1049,16 @@ private struct FoodSourceConfidenceCard: View {
                     .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(descriptor.title)
-                            .appFont(size: 15, weight: .bold)
-                            .foregroundColor(.textPrimary)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) {
+                            sourceTitle
+                            confidenceBadge
+                        }
 
-                        Text(descriptor.confidence)
-                            .appFont(size: 11, weight: .bold)
-                            .foregroundColor(tint)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(tint.opacity(0.10), in: Capsule())
+                        VStack(alignment: .leading, spacing: 4) {
+                            sourceTitle
+                            confidenceBadge
+                        }
                     }
 
                     Text(descriptor.detail)
@@ -1014,12 +1069,19 @@ private struct FoodSourceConfidenceCard: View {
 
                 Spacer(minLength: 0)
             }
+            .accessibilityElement(children: .combine)
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(evaluation.label)
-                        .appFont(size: 14, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Trust Score")
+                            .appFont(size: 11, weight: .bold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+
+                        Text(evaluation.label)
+                            .appFont(size: 14, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                    }
 
                     Spacer()
 
@@ -1033,6 +1095,9 @@ private struct FoodSourceConfidenceCard: View {
                             .foregroundColor(Color(UIColor.secondaryLabel))
                     }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Trust Score")
+                .accessibilityValue("\(evaluation.score) out of 99, \(evaluation.label)")
 
                 GeometryReader { proxy in
                     Capsule()
@@ -1044,6 +1109,7 @@ private struct FoodSourceConfidenceCard: View {
                         }
                 }
                 .frame(height: 7)
+                .accessibilityHidden(true)
 
                 Text(evaluation.summary)
                     .appFont(size: 12, weight: .medium)
@@ -1052,15 +1118,15 @@ private struct FoodSourceConfidenceCard: View {
 
                 VStack(spacing: 7) {
                     trustFactRow(icon: "tag.fill", title: "Source", value: sourceName, rowTint: tint)
-                    trustFactRow(icon: "checkmark.seal.fill", title: "Check", value: crossVerificationText, rowTint: crossVerificationTint)
-                    trustFactRow(icon: "person.crop.circle.badge.checkmark", title: "Review", value: reviewText, rowTint: reviewTint)
-                    trustFactRow(icon: "checkmark.shield.fill", title: "Sanity", value: sanityText, rowTint: sanityTint)
+                    trustFactRow(icon: "checkmark.seal.fill", title: "Verification", value: crossVerificationText, rowTint: crossVerificationTint)
+                    trustFactRow(icon: "person.crop.circle.badge.checkmark", title: "Your Review", value: reviewText, rowTint: reviewTint)
+                    trustFactRow(icon: "checkmark.shield.fill", title: "Nutrition Check", value: sanityText, rowTint: sanityTint)
                 }
 
-                ForEach(Array(evaluation.reasons.prefix(3)), id: \.self) { reason in
-                    Label(reason, systemImage: "checkmark.circle.fill")
+                ForEach(Array(visibleReasons.prefix(3))) { reason in
+                    Label(reason.text, systemImage: reasonIcon(for: reason))
                         .appFont(size: 11, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .foregroundColor(reasonTint(for: reason))
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -1074,14 +1140,13 @@ private struct FoodSourceConfidenceCard: View {
                             .background(tint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(action)
                     .accessibilityHint("Opens the nutrition editor for this food.")
                 }
             }
         }
         .padding(14)
         .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(descriptor.title). \(descriptor.confidence). \(evaluation.label). \(evaluation.summary)")
     }
 
     @ViewBuilder
@@ -1096,7 +1161,7 @@ private struct FoodSourceConfidenceCard: View {
                 }
             } else {
                 trustFactTitle(title)
-                    .frame(width: 44, alignment: .leading)
+                    .frame(width: 88, alignment: .leading)
                 trustFactValue(value)
                     .lineLimit(2)
             }
@@ -1106,6 +1171,7 @@ private struct FoodSourceConfidenceCard: View {
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
         .background(Color.backgroundPrimary.opacity(0.52), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     private func trustFactIcon(_ icon: String, tint: Color) -> some View {
@@ -1114,6 +1180,22 @@ private struct FoodSourceConfidenceCard: View {
             .foregroundColor(tint)
             .frame(width: 22, height: 22)
             .background(tint.opacity(0.10), in: Circle())
+    }
+
+    private var sourceTitle: some View {
+        Text(descriptor.title)
+            .appFont(size: 15, weight: .bold)
+            .foregroundColor(.textPrimary)
+    }
+
+    private var confidenceBadge: some View {
+        Text(descriptor.confidence)
+            .appFont(size: 11, weight: .bold)
+            .foregroundColor(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(tint.opacity(0.10), in: Capsule())
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     private func trustFactTitle(_ title: String) -> some View {
@@ -1129,5 +1211,27 @@ private struct FoodSourceConfidenceCard: View {
             .foregroundColor(.textPrimary)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func reasonIcon(for reason: FoodTrustReason) -> String {
+        switch reason.kind {
+        case .evidence:
+            return "checkmark.circle.fill"
+        case .caution:
+            return "exclamationmark.circle.fill"
+        case .correction:
+            return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private func reasonTint(for reason: FoodTrustReason) -> Color {
+        switch reason.kind {
+        case .evidence:
+            return Color(UIColor.secondaryLabel)
+        case .caution:
+            return .orange
+        case .correction:
+            return .red
+        }
     }
 }

@@ -20,21 +20,32 @@ final class FirestoreCommunityBarcodeStore: CommunityBarcodeStoreProtocol, @unch
             let document = try await barcodesCollection.document(normalized).getDocument()
             guard let data = document.data(),
                   let name = data["name"] as? String,
-                  let calories = data["calories"] as? Double else {
+                  let calories = doubleValue(data["calories"]),
+                  let protein = doubleValue(data["protein"]),
+                  let carbs = doubleValue(data["carbs"]),
+                  let fats = doubleValue(data["fats"]),
+                  let servingSize = data["servingSize"] as? String,
+                  let servingWeight = doubleValue(data["servingWeight"]) else {
                 return nil
             }
 
-            return CommunityBarcodeRules.communityFoodItem(
+            let item = CommunityBarcodeRules.communityFoodItem(
                 name: name,
                 calories: calories,
-                protein: data["protein"] as? Double ?? 0,
-                carbs: data["carbs"] as? Double ?? 0,
-                fats: data["fats"] as? Double ?? 0,
-                fiber: data["fiber"] as? Double,
-                servingSize: data["servingSize"] as? String ?? "",
-                servingWeight: data["servingWeight"] as? Double ?? 0,
+                protein: protein,
+                carbs: carbs,
+                fats: fats,
+                fiber: doubleValue(data["fiber"]),
+                servingSize: servingSize,
+                servingWeight: servingWeight,
                 barcode: normalized
             )
+            let decision = CommunityBarcodeRules.contributionDecision(
+                item,
+                barcode: normalized,
+                flagEnabled: true
+            )
+            return decision.isEligible ? item : nil
         } catch {
             AppLog.data.error("Community barcode read failed: \(error.localizedDescription, privacy: .public)")
             return nil
@@ -43,7 +54,12 @@ final class FirestoreCommunityBarcodeStore: CommunityBarcodeStoreProtocol, @unch
 
     func contribute(_ item: FoodItem, barcode: String) async {
         let normalized = BarcodeCorrectionRules.normalizedBarcode(barcode)
-        guard !normalized.isEmpty else { return }
+        let decision = CommunityBarcodeRules.contributionDecision(
+            item,
+            barcode: normalized,
+            flagEnabled: true
+        )
+        guard decision.isEligible else { return }
         let createdBy = await MainActor.run { DIContainer.shared.authService?.currentUserID }
         guard let createdBy else { return }
 
@@ -68,5 +84,10 @@ final class FirestoreCommunityBarcodeStore: CommunityBarcodeStoreProtocol, @unch
             // Expected for docs another user created (rules allow creator-only updates).
             AppLog.data.error("Community barcode contribution failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    private func doubleValue(_ value: Any?) -> Double? {
+        guard !(value is Bool) else { return nil }
+        return (value as? NSNumber)?.doubleValue
     }
 }

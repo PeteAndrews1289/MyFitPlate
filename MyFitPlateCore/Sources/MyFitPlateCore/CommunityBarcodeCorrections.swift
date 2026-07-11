@@ -1,10 +1,9 @@
 import Foundation
 
-/// The community correction pool: sanity-checked barcode fixes shared across all users via
-/// the validated `barcodes` Firestore collection. Every user's "Remember"/"Fix" on a barcode
-/// can improve the next user's scan — the flywheel single-database apps can't spin. Gated
-/// behind the `communityBarcodeCorrections` feature flag (default off) until the rules
-/// deploy and a soak period say otherwise.
+/// The community correction pool stores sanity-checked barcode submissions in Firestore.
+/// A single submission is recovery data, not independent verification or consensus. The
+/// feature remains off by default until server-owned aggregation and contributor-privacy
+/// work are complete.
 public protocol CommunityBarcodeStoreProtocol: Sendable {
     func communityFood(for barcode: String) async -> FoodItem?
     func contribute(_ item: FoodItem, barcode: String) async
@@ -45,21 +44,42 @@ public enum CommunityBarcodeRules {
         guard flagEnabled else {
             return CommunityBarcodeContributionDecision(isEligible: false, reason: "feature_flag_disabled")
         }
-        guard !BarcodeCorrectionRules.normalizedBarcode(barcode).isEmpty else {
+        let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode)
+        guard !normalizedBarcode.isEmpty else {
             return CommunityBarcodeContributionDecision(isEligible: false, reason: "empty_barcode")
+        }
+        guard isSupportedBarcode(normalizedBarcode) else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "invalid_barcode")
         }
         let trimmedName = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty, trimmedName.count <= 140 else {
             return CommunityBarcodeContributionDecision(isEligible: false, reason: "invalid_name")
         }
-        guard item.calories >= 0, item.calories <= 5000 else {
+        guard item.calories.isFinite, item.calories >= 0, item.calories <= 5000 else {
             return CommunityBarcodeContributionDecision(isEligible: false, reason: "calories_out_of_range")
         }
-        guard [item.protein, item.carbs, item.fats].allSatisfy({ $0 >= 0 && $0 <= 1000 }) else {
+        guard [item.protein, item.carbs, item.fats].allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= 1000 }) else {
             return CommunityBarcodeContributionDecision(isEligible: false, reason: "macros_out_of_range")
         }
-        guard !FoodDataSanity.isSuspicious(item) else {
+        if let fiber = item.fiber, !fiber.isFinite || fiber < 0 || fiber > 1000 {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "fiber_out_of_range")
+        }
+        let servingSize = item.servingSize.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !servingSize.isEmpty, servingSize.count <= 80 else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "invalid_serving_size")
+        }
+        guard item.servingWeight.isFinite,
+              item.servingWeight >= FoodSourceAgreement.minimumComparableServingWeight,
+              item.servingWeight <= 5000 else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "serving_weight_missing")
+        }
+
+        let findings = FoodDataSanity.findings(for: item)
+        guard !findings.contains(where: { $0.severity == .warning }) else {
             return CommunityBarcodeContributionDecision(isEligible: false, reason: "suspicious_food")
+        }
+        guard findings.isEmpty else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "nutrition_needs_review")
         }
         return CommunityBarcodeContributionDecision(isEligible: true, reason: "eligible")
     }
@@ -90,8 +110,8 @@ public enum CommunityBarcodeRules {
             servingWeight: servingWeight > 0 ? servingWeight : 1.0,
             sourceMetadata: FoodSourceMetadata(
                 sourceType: .custom,
-                confidence: .userVerified,
-                reviewStatus: .userConfirmed,
+                confidence: .needsReview,
+                reviewStatus: .unreviewed,
                 sourceName: sourceName,
                 sourceID: "community_\(normalized)",
                 barcode: normalized
@@ -101,5 +121,9 @@ public enum CommunityBarcodeRules {
 
     public static func isCommunityMatch(_ metadata: FoodSourceMetadata?) -> Bool {
         metadata?.sourceName == sourceName
+    }
+
+    private static func isSupportedBarcode(_ barcode: String) -> Bool {
+        BarcodeCorrectionRules.isValidGTIN(barcode)
     }
 }

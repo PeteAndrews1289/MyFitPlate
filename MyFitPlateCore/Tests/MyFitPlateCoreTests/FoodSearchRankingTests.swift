@@ -82,6 +82,41 @@ final class FoodSearchRankingTests: XCTestCase {
         XCTAssertTrue(matches.isEmpty)
     }
 
+    func testTrustedLocalMatchesDemoteNutritionThatNeedsCorrection() {
+        let broken = FoodItem(
+            id: "broken",
+            name: "Protein Bowl",
+            calories: 0,
+            protein: 40,
+            carbs: 40,
+            fats: 10,
+            servingWeight: 50,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                confidence: .userVerified,
+                reviewStatus: .userEdited,
+                sourceName: "My Foods"
+            )
+        )
+        let clean = FoodItem(
+            id: "clean",
+            name: "Protein Bowl",
+            calories: 420,
+            protein: 40,
+            carbs: 40,
+            fats: 11,
+            servingWeight: 300
+        ).withDatabaseSource(.usda, sourceName: "USDA FoodData Central")
+
+        let matches = FoodSearchRanking.trustedLocalMatches(
+            query: "protein bowl",
+            savedFoods: [broken, clean],
+            recentFoods: []
+        )
+
+        XCTAssertEqual(matches.map(\.id), ["clean", "broken"])
+    }
+
     // MARK: - Search-source merging
 
     func testMergedResultsAppendDistinctUSDAAfterFatSecret() {

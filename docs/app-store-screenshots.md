@@ -33,6 +33,9 @@ All current images use deterministic local demo data. They contain no personal
 account data and do not call production nutrition, HealthKit, or AI services.
 The current gallery was recaptured after the final compact, outlined Quick Log
 refinement, so no output contains the older right-edge placement or filled teal action.
+The Trust source (`raw/2.png`) was recaptured again after Trust Score model v2 hardening;
+both final output sizes now show the separate Source, Verification, Your Review, and
+Nutrition Check facts with the higher-contrast score treatment.
 
 ## Deterministic recapture
 
@@ -66,6 +69,9 @@ lets translucent tab-bar layers become fully opaque in the simulator screenshot'
 alpha channel before composition. Do not replace these fixtures with a personal
 account: deterministic data makes the gallery reproducible and avoids accidentally
 publishing private health or nutrition history.
+
+For dark-mode visual QA, add `-screenshot-dark-mode` to the same Debug launch command.
+This switch is for inspection only; the App Store gallery remains the approved light set.
 
 Screenshot mode pins Food Search and Fast Food Builder to Dinner so their story does
 not change with the capture time. This override is Debug-only; ordinary app launches

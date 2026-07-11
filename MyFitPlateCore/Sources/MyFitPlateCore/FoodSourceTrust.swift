@@ -25,7 +25,28 @@ public struct FoodSourceDescriptor: Equatable, Sendable {
     }
 }
 
+public struct FoodTrustReason: Hashable, Identifiable, Sendable {
+    public enum Kind: String, Hashable, Sendable {
+        case evidence
+        case caution
+        case correction
+    }
+
+    public let text: String
+    public let kind: Kind
+
+    public var id: String { "\(kind.rawValue):\(text)" }
+
+    public init(_ text: String, kind: Kind) {
+        self.text = text
+        self.kind = kind
+    }
+}
+
 public struct FoodTrustEvaluation: Equatable, Sendable {
+    /// Increment whenever score semantics change so analytics from different models are not mixed.
+    public static let modelVersion = 2
+
     public enum Level: String, Equatable, Sendable {
         case excellent
         case strong
@@ -37,16 +58,28 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
     public let level: Level
     public let label: String
     public let summary: String
-    public let reasons: [String]
+    public let reasonDetails: [FoodTrustReason]
     public let action: String?
+    public let requiresCorrection: Bool
 
-    public init(score: Int, level: Level, label: String, summary: String, reasons: [String], action: String? = nil) {
+    public var reasons: [String] { reasonDetails.map(\.text) }
+
+    public init(
+        score: Int,
+        level: Level,
+        label: String,
+        summary: String,
+        reasons: [String],
+        action: String? = nil,
+        requiresCorrection: Bool = false
+    ) {
         self.score = score
         self.level = level
         self.label = label
         self.summary = summary
-        self.reasons = reasons
+        self.reasonDetails = reasons.map { FoodTrustReason($0, kind: .evidence) }
         self.action = action
+        self.requiresCorrection = requiresCorrection
     }
 
     public static func evaluate(
@@ -54,64 +87,116 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
         descriptor: FoodSourceDescriptor,
         metadata: FoodSourceMetadata? = nil
     ) -> FoodTrustEvaluation {
-        var score = baseScore(for: descriptor, metadata: metadata)
-        var reasons = baseReasons(for: descriptor, metadata: metadata)
+        let sourceKey = trustedSourceKey(descriptor: descriptor, metadata: metadata)
+        let isEstimated = descriptor.isEstimated || metadata?.confidence == .estimated
+        let wasReviewed = metadata?.reviewStatus == .userConfirmed ||
+            metadata?.reviewStatus == .userEdited
+        let verifiedSources = metadata?.validatedCrossVerifiedBy ?? []
+        let hasComparableServing = item.servingWeight.isFinite &&
+            item.servingWeight >= FoodSourceAgreement.minimumComparableServingWeight
         let findings = FoodDataSanity.findings(for: item)
+        let requiresCorrection = findings.contains { $0.severity == .warning }
 
-        if metadata?.crossVerifiedBy?.isEmpty == false {
-            score += 10
-            reasons.append("Confirmed by another database")
+        var score = baseScore(for: sourceKey)
+        var evidenceReasons = baseReasons(
+            for: sourceKey,
+            descriptor: descriptor,
+            metadata: metadata
+        ).map { FoodTrustReason($0, kind: .evidence) }
+        var cautionReasons: [FoodTrustReason] = []
+        var correctionReasons: [FoodTrustReason] = []
+
+        if !verifiedSources.isEmpty {
+            score = max(score + 12, 92)
+            evidenceReasons.append(FoodTrustReason(
+                "Calories and macros matched another database",
+                kind: .evidence
+            ))
         }
 
         switch metadata?.reviewStatus {
         case .userEdited:
-            score += 12
-            reasons.append("Edited and saved by you")
+            score += 10
+            evidenceReasons.append(FoodTrustReason("Nutrition edited by you", kind: .evidence))
         case .userConfirmed:
-            score += 8
-            reasons.append("Reviewed by you")
+            score += 6
+            evidenceReasons.append(FoodTrustReason("Serving selected by you", kind: .evidence))
         case .notRequired, .unreviewed, nil:
             break
         }
 
-        if descriptor.isEstimated {
-            score -= metadata?.reviewStatus == .userConfirmed || metadata?.reviewStatus == .userEdited ? 4 : 18
-            reasons.append("Estimated food, not a label match")
+        if isEstimated {
+            score -= wasReviewed ? 4 : 16
+            cautionReasons.append(FoodTrustReason("Estimated food, not a label match", kind: .caution))
         }
 
-        if item.servingWeight < FoodSourceAgreement.minimumComparableServingWeight {
+        if !hasComparableServing {
             score -= 7
-            reasons.append("Serving weight is missing or too small to compare")
+            cautionReasons.append(FoodTrustReason(
+                "Serving weight is unavailable for comparison",
+                kind: .caution
+            ))
         }
 
-        if findings.contains(where: { $0.severity == .warning }) {
+        if requiresCorrection {
             score = min(score, 34)
-            reasons.append("Nutrition math needs a correction")
+            correctionReasons.append(FoodTrustReason(
+                "Nutrition checks found a value to fix",
+                kind: .correction
+            ))
         } else if !findings.isEmpty {
             score -= 8
-            reasons.append("One nutrition detail deserves a quick look")
+            cautionReasons.append(FoodTrustReason(
+                "One nutrition detail deserves a quick look",
+                kind: .caution
+            ))
+        }
+
+        // Excellent is reserved for current, independently corroborated database nutrition.
+        if verifiedSources.isEmpty {
+            score = min(score, 89)
+        }
+        if isEstimated || sourceKey == "community_barcode" {
+            score = min(score, 74)
+        }
+        if !hasComparableServing || !findings.isEmpty {
+            score = min(score, 89)
         }
 
         let clampedScore = min(max(score, 0), 99)
-        return evaluation(score: clampedScore, reasons: Array(reasons.uniqued().prefix(4)))
+        let orderedReasons = (correctionReasons + cautionReasons + evidenceReasons).uniqued()
+        return evaluation(
+            score: clampedScore,
+            reasonDetails: Array(orderedReasons.prefix(5)),
+            requiresCorrection: requiresCorrection,
+            isEstimated: isEstimated,
+            isReviewedEstimate: isEstimated && wasReviewed,
+            isReviewed: wasReviewed,
+            hasComparableServing: hasComparableServing
+        )
     }
 
-    private static func baseScore(for descriptor: FoodSourceDescriptor, metadata: FoodSourceMetadata?) -> Int {
-        if metadata?.crossVerifiedBy?.isEmpty == false { return 88 }
-
-        switch descriptor.sourceKey {
+    private static func baseScore(for sourceKey: String) -> Int {
+        switch sourceKey {
         case "usda": return 86
         case "fatsecret": return 74
         case "open_food_facts": return 68
-        case "custom_barcode", "manual", "planned", "recent": return 82
-        case "community_barcode": return 78
+        case "custom_barcode": return 82
+        case "manual": return 68
+        case "planned", "recent": return 82
+        case "community_barcode": return 68
+        case "chain_builder": return 66
         case "ai_estimate": return 58
         default: return 55
         }
     }
 
-    private static func baseReasons(for descriptor: FoodSourceDescriptor, metadata: FoodSourceMetadata?) -> [String] {
-        switch descriptor.sourceKey {
+    private static func baseReasons(
+        for sourceKey: String,
+        descriptor: FoodSourceDescriptor,
+        metadata: FoodSourceMetadata?
+    ) -> [String] {
+        switch sourceKey {
         case "usda":
             return ["USDA sourced nutrition"]
         case "fatsecret":
@@ -121,7 +206,7 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
         case "custom_barcode":
             return ["Saved from your own food library"]
         case "community_barcode":
-            return ["Shared correction passed sanity checks"]
+            return ["One shared correction passed basic checks"]
         case "manual":
             return ["User-entered food"]
         case "planned":
@@ -130,48 +215,156 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
             return ["Reused from your own history"]
         case "ai_estimate":
             return ["Maia estimate"]
+        case "chain_builder":
+            return ["Restaurant catalog estimate"]
         default:
-            return [metadata?.sourceName ?? descriptor.title]
+            let sourceName = metadata?.sourceName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return [sourceName?.isEmpty == false ? sourceName! : descriptor.title]
         }
     }
 
-    private static func evaluation(score: Int, reasons: [String]) -> FoodTrustEvaluation {
+    private static func trustedSourceKey(
+        descriptor: FoodSourceDescriptor,
+        metadata: FoodSourceMetadata?
+    ) -> String {
+        guard let metadata else { return descriptor.sourceKey }
+        return FoodSourceClassifier.descriptor(for: metadata).sourceKey
+    }
+
+    private static func evaluation(
+        score: Int,
+        reasonDetails: [FoodTrustReason],
+        requiresCorrection: Bool,
+        isEstimated: Bool,
+        isReviewedEstimate: Bool,
+        isReviewed: Bool,
+        hasComparableServing: Bool
+    ) -> FoodTrustEvaluation {
         switch score {
         case 90...:
             return FoodTrustEvaluation(
                 score: score,
                 level: .excellent,
                 label: "Excellent trust",
-                summary: "This entry is very safe to use as-is.",
-                reasons: reasons
+                summary: "Independent databases agree on calories and macros, with no nutrition warnings found.",
+                reasonDetails: reasonDetails,
+                requiresCorrection: false
             )
         case 75..<90:
             return FoodTrustEvaluation(
                 score: score,
                 level: .strong,
                 label: "Strong trust",
-                summary: "This entry looks reliable, with normal serving review still worthwhile.",
-                reasons: reasons
+                summary: "The source and nutrition checks look reliable. Confirm the serving you ate.",
+                reasonDetails: reasonDetails,
+                requiresCorrection: false
             )
         case 55..<75:
+            let label: String
+            if isReviewedEstimate {
+                label = "Reviewed estimate"
+            } else if isEstimated {
+                label = "Review estimate"
+            } else if isReviewed {
+                label = "Reviewed entry"
+            } else {
+                label = hasComparableServing ? "Review entry" : "Review serving"
+            }
+            let summary: String
+            if isReviewedEstimate {
+                summary = hasComparableServing
+                    ? "This remains an estimate, but you reviewed its serving or nutrition. A package or database match is still stronger."
+                    : "You reviewed this estimate, but its serving weight is still unavailable for an independent comparison."
+            } else if isEstimated {
+                summary = "This is an estimate. Review the serving and nutrition before relying on it."
+            } else if isReviewed {
+                summary = hasComparableServing
+                    ? "You reviewed this entry. It is still supported by a single source rather than an independent match."
+                    : "You reviewed this entry, but its serving weight is still unavailable for an independent comparison."
+            } else {
+                summary = "This entry is usable, but one or more trust checks deserve a look."
+            }
+
+            let action: String?
+            if isReviewedEstimate {
+                action = hasComparableServing ? nil : "Improve estimate"
+            } else if isReviewed {
+                action = hasComparableServing ? nil : "Improve entry"
+            } else {
+                action = isEstimated ? "Review estimate" : "Review food"
+            }
             return FoodTrustEvaluation(
                 score: score,
                 level: .review,
-                label: "Review serving",
-                summary: "Good enough to log, but check the serving or label if precision matters.",
-                reasons: reasons,
-                action: "Check serving"
+                label: label,
+                summary: summary,
+                reasonDetails: reasonDetails,
+                action: action,
+                requiresCorrection: false
             )
         default:
+            if !requiresCorrection {
+                let label: String
+                if isReviewedEstimate {
+                    label = "Reviewed estimate"
+                } else if isEstimated {
+                    label = "Review estimate"
+                } else if isReviewed {
+                    label = "Reviewed entry"
+                } else {
+                    label = "Low confidence"
+                }
+
+                let summary: String
+                if isReviewedEstimate {
+                    summary = "You reviewed this estimate, but its serving weight is still unavailable for an independent comparison."
+                } else if isEstimated {
+                    summary = "This estimate needs your review before it should guide your totals."
+                } else if isReviewed {
+                    summary = "You reviewed this entry, but the available source or serving evidence remains limited."
+                } else {
+                    summary = "The available evidence is limited. Review the serving and nutrition before logging."
+                }
+                return FoodTrustEvaluation(
+                    score: score,
+                    level: .low,
+                    label: label,
+                    summary: summary,
+                    reasonDetails: reasonDetails,
+                    action: isReviewedEstimate
+                        ? "Improve estimate"
+                        : (isReviewed ? "Improve entry" : (isEstimated ? "Review estimate" : "Review food")),
+                    requiresCorrection: false
+                )
+            }
             return FoodTrustEvaluation(
                 score: score,
                 level: .low,
                 label: "Needs correction",
-                summary: "Fix this entry before you rely on it for daily totals.",
-                reasons: reasons,
-                action: "Fix data"
+                summary: "Review the highlighted nutrition values before using this entry in your totals.",
+                reasonDetails: reasonDetails,
+                action: "Fix data",
+                requiresCorrection: true
             )
         }
+    }
+
+    private init(
+        score: Int,
+        level: Level,
+        label: String,
+        summary: String,
+        reasonDetails: [FoodTrustReason],
+        action: String? = nil,
+        requiresCorrection: Bool
+    ) {
+        self.score = score
+        self.level = level
+        self.label = label
+        self.summary = summary
+        self.reasonDetails = reasonDetails
+        self.action = action
+        self.requiresCorrection = requiresCorrection
     }
 }
 
@@ -403,7 +596,7 @@ public enum FoodSourceClassifier {
                 sourceKey: "manual",
                 title: "Custom Entry",
                 detail: "Entered or saved by you.",
-                confidence: "User Verified",
+                confidence: "Personal Entry",
                 systemImage: "person.crop.circle.badge.checkmark"
             )
         }
@@ -423,7 +616,7 @@ public enum FoodSourceClassifier {
             return trustedDatabaseDescriptor(
                 sourceKey: "usda",
                 title: "USDA",
-                detail: reviewAwareDetail(
+                detail: sourceDetail(
                     metadata,
                     defaultDetail: "Matched from USDA FoodData Central."
                 ),
@@ -435,7 +628,7 @@ public enum FoodSourceClassifier {
             return trustedDatabaseDescriptor(
                 sourceKey: "fatsecret",
                 title: "Food Database",
-                detail: reviewAwareDetail(
+                detail: sourceDetail(
                     metadata,
                     defaultDetail: "Matched from a packaged-food database."
                 ),
@@ -447,7 +640,7 @@ public enum FoodSourceClassifier {
             return trustedDatabaseDescriptor(
                 sourceKey: "open_food_facts",
                 title: "Open Food Facts",
-                detail: reviewAwareDetail(
+                detail: sourceDetail(
                     metadata,
                     defaultDetail: "Matched from a public packaged-food database."
                 ),
@@ -463,11 +656,11 @@ public enum FoodSourceClassifier {
                 return FoodSourceDescriptor(
                     sourceKey: "community_barcode",
                     title: "Community Match",
-                    detail: reviewAwareDetail(
+                    detail: sourceDetail(
                         metadata,
-                        defaultDetail: "Matched from a fix shared by another MyFitPlate user."
+                        defaultDetail: "A correction shared by another user passed basic nutrition checks. Confirm it against the package."
                     ),
-                    confidence: "Community Verified",
+                    confidence: "Community Submitted",
                     systemImage: "person.2.fill"
                 )
             }
@@ -476,7 +669,7 @@ public enum FoodSourceClassifier {
                 return FoodSourceDescriptor(
                     sourceKey: "custom_barcode",
                     title: "My Foods Match",
-                    detail: reviewAwareDetail(
+                    detail: sourceDetail(
                         metadata,
                         defaultDetail: "Matched from a food you saved for this barcode."
                     ),
@@ -488,7 +681,7 @@ public enum FoodSourceClassifier {
             return FoodSourceDescriptor(
                 sourceKey: "manual",
                 title: "Custom Entry",
-                detail: "Entered or saved by you.",
+                detail: sourceDetail(metadata, defaultDetail: "Entered or saved by you."),
                 confidence: confidenceText(for: metadata),
                 systemImage: "person.crop.circle.badge.checkmark"
             )
@@ -497,7 +690,7 @@ public enum FoodSourceClassifier {
             return FoodSourceDescriptor(
                 sourceKey: "chain_builder",
                 title: "Chain Builder",
-                detail: reviewAwareDetail(
+                detail: sourceDetail(
                     metadata,
                     defaultDetail: "Built from the MyFitPlate chain catalog. Review portions before logging."
                 ),
@@ -510,9 +703,15 @@ public enum FoodSourceClassifier {
             return FoodSourceDescriptor(
                 sourceKey: "planned",
                 title: "Planned Food",
-                detail: "Built from your recipes or meal plan.",
+                detail: sourceDetail(
+                    metadata,
+                    defaultDetail: metadata.confidence == .estimated
+                        ? "Estimated for your meal plan. Review portions before logging."
+                        : "Built from your recipes or meal plan."
+                ),
                 confidence: confidenceText(for: metadata),
-                systemImage: "list.clipboard.fill"
+                systemImage: "list.clipboard.fill",
+                isEstimated: metadata.confidence == .estimated
             )
 
         case .recent:
@@ -579,42 +778,35 @@ public enum FoodSourceClassifier {
         return FoodSourceDescriptor(
             sourceKey: "ai_estimate",
             title: title,
-            detail: reviewAwareDetail(metadata, defaultDetail: detail),
+            detail: sourceDetail(metadata, defaultDetail: detail),
             confidence: confidenceText(for: metadata),
             systemImage: "sparkles",
             isEstimated: true
         )
     }
 
-    private static func reviewAwareDetail(_ metadata: FoodSourceMetadata, defaultDetail: String) -> String {
-        var detail = defaultDetail
-        if let confirmedBy = metadata.crossVerifiedBy, !confirmedBy.isEmpty {
-            detail += " Confirmed by \(confirmedBy.joined(separator: " and "))."
-        }
-        switch metadata.reviewStatus {
-        case .userEdited:
-            return "\(detail) Edited by you."
-        case .userConfirmed:
-            return "\(detail) Reviewed by you."
-        case .notRequired, .unreviewed:
-            return detail
-        }
+    private static func sourceDetail(
+        _: FoodSourceMetadata,
+        defaultDetail: String
+    ) -> String {
+        defaultDetail
     }
 
     private static func confidenceText(for metadata: FoodSourceMetadata) -> String {
         switch metadata.reviewStatus {
         case .userEdited:
-            return "User Edited"
-        case .userConfirmed:
-            return metadata.confidence == .estimated ? "User Reviewed" : "User Verified"
-        case .notRequired, .unreviewed:
+            return "Edited by You"
+        case .userConfirmed, .notRequired, .unreviewed:
             break
         }
 
         // Two independent databases agreeing beats either database's solo confidence.
-        if metadata.crossVerifiedBy?.isEmpty == false,
-           metadata.confidence == .verified || metadata.confidence == .databaseMatch {
+        if metadata.hasIndependentCrossVerification {
             return "Cross-Verified"
+        }
+
+        if metadata.reviewStatus == .userConfirmed {
+            return metadata.confidence == .estimated ? "Reviewed by You" : "Serving Reviewed"
         }
 
         switch metadata.confidence {
@@ -625,7 +817,7 @@ public enum FoodSourceClassifier {
         case .estimated, .needsReview:
             return "Needs Review"
         case .userVerified:
-            return "User Verified"
+            return "Personal Entry"
         }
     }
 }
@@ -664,6 +856,7 @@ public extension FoodItem {
         metadata.sourceID = id
         metadata.matchedFoodID = metadata.matchedFoodID ?? originalItem?.id ?? id
         metadata.barcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
+        metadata.crossVerifiedBy = nil
 
         if metadata.reviewStatus == .userEdited {
             metadata.originalEstimate = metadata.originalEstimate ?? originalSnapshot
@@ -701,8 +894,15 @@ public extension FoodItem {
         )
     }
 
-    func markedUserConfirmed(sourceType fallbackSourceType: FoodSourceType? = nil) -> FoodItem {
-        withReviewStatus(.userConfirmed, fallbackSourceType: fallbackSourceType)
+    func markedUserConfirmed(
+        sourceType fallbackSourceType: FoodSourceType? = nil,
+        originalItem: FoodItem? = nil
+    ) -> FoodItem {
+        withReviewStatus(
+            .userConfirmed,
+            fallbackSourceType: fallbackSourceType,
+            originalItem: originalItem
+        )
     }
 
     func markedUserEdited(sourceType fallbackSourceType: FoodSourceType? = nil) -> FoodItem {
@@ -736,6 +936,14 @@ public extension FoodItem {
             metadata.sourceType = fallbackSourceType
         }
         metadata.reviewStatus = reviewStatus
+        if metadata.crossVerifiedBy?.isEmpty == false {
+            let preservesEvidence = originalItem.map {
+                FoodSourceAgreement.preservesAgreementEvidence(self, $0)
+            } ?? false
+            if !preservesEvidence && (reviewStatus == .userEdited || originalItem != nil) {
+                metadata.crossVerifiedBy = nil
+            }
+        }
         if reviewStatus == .userEdited {
             metadata.originalEstimate = metadata.originalEstimate ?? originalItem?.nutritionSnapshot
             metadata.userCorrection = nutritionSnapshot
@@ -805,7 +1013,8 @@ public struct BarcodeLookupOutcome: Equatable, Sendable {
             "matched_length": matchedLength,
             "candidate_count": candidateCount,
             "used_related_barcode": usedRelatedBarcode,
-            "cross_verified_count": crossVerifiedCount
+            "cross_verified_count": crossVerifiedCount,
+            "trust_model_version": FoodTrustEvaluation.modelVersion
         ]
         if let trustScore {
             params["trust_score"] = trustScore
@@ -835,7 +1044,7 @@ public struct BarcodeLookupOutcome: Equatable, Sendable {
             matchedLength: lookupResult.matchedBarcode.count,
             candidateCount: lookupResult.candidateCount,
             usedRelatedBarcode: lookupResult.usedRelatedBarcode,
-            crossVerifiedCount: lookupResult.item.sourceMetadata?.crossVerifiedBy?.count ?? 0,
+            crossVerifiedCount: lookupResult.item.sourceMetadata?.validatedCrossVerifiedBy.count ?? 0,
             trustScore: evaluation.score,
             trustLevel: evaluation.level.rawValue
         )
@@ -870,7 +1079,8 @@ public struct BarcodeRecoveryOutcome: Equatable, Sendable {
         var params: [String: Any] = [
             "action": action,
             "scanned_length": scannedLength,
-            "candidate_count": candidateCount
+            "candidate_count": candidateCount,
+            "trust_model_version": FoodTrustEvaluation.modelVersion
         ]
         if let trustScore {
             params["trust_score"] = trustScore
@@ -916,33 +1126,60 @@ public struct BarcodeRecoveryOutcome: Equatable, Sendable {
 }
 
 public enum BarcodeCorrectionRules {
+    private static let supportedGTINLengths = [8, 12, 13, 14]
+
     public static func normalizedBarcode(_ barcode: String) -> String {
         let trimmed = barcode.trimmingCharacters(in: .whitespacesAndNewlines)
-        let digits = trimmed.filter(\.isNumber)
-        return digits.isEmpty ? trimmed : String(digits)
+        let digits = trimmed.compactMap(\.wholeNumberValue).map(String.init).joined()
+        return digits.isEmpty ? trimmed : digits
+    }
+
+    /// Validates the GS1 modulo-10 check digit for GTIN-8, GTIN-12, GTIN-13, and GTIN-14.
+    public static func isValidGTIN(_ barcode: String) -> Bool {
+        let normalized = normalizedBarcode(barcode)
+        guard supportedGTINLengths.contains(normalized.count),
+              normalized.allSatisfy(\.isNumber),
+              let checkDigit = normalized.last?.wholeNumberValue else {
+            return false
+        }
+
+        let payload = normalized.dropLast().reversed()
+        let weightedSum = payload.enumerated().reduce(into: 0) { sum, pair in
+            guard let digit = pair.element.wholeNumberValue else { return }
+            sum += digit * (pair.offset.isMultiple(of: 2) ? 3 : 1)
+        }
+        return (10 - weightedSum % 10) % 10 == checkDigit
     }
 
     public static func lookupCandidates(for barcode: String) -> [String] {
         let normalized = normalizedBarcode(barcode)
         guard !normalized.isEmpty else { return [] }
         guard normalized.allSatisfy(\.isNumber) else { return [normalized] }
+        guard isValidGTIN(normalized) else { return [normalized] }
 
         var candidates = [normalized]
+        let canonical = String(repeating: "0", count: 14 - normalized.count) + normalized
+        let alternateLengths: [Int]
         switch normalized.count {
+        case 8:
+            alternateLengths = [12, 13, 14]
         case 12:
-            candidates.append("0\(normalized)")
+            alternateLengths = [13, 14, 8]
         case 13:
-            if normalized.hasPrefix("0") {
-                candidates.append(String(normalized.dropFirst()))
-            }
+            alternateLengths = [12, 14, 8]
         case 14:
-            candidates.append(String(normalized.suffix(13)))
-            candidates.append(String(normalized.suffix(12)))
-            if normalized.hasPrefix("0") {
-                candidates.append(String(normalized.dropFirst()))
-            }
+            alternateLengths = [13, 12, 8]
         default:
-            break
+            return candidates
+        }
+
+        for length in alternateLengths {
+            let prefixCount = canonical.count - length
+            guard canonical.prefix(prefixCount).allSatisfy({ $0 == "0" }) else { continue }
+            let candidate = String(canonical.suffix(length))
+            if isValidGTIN(candidate) {
+                candidates.append(candidate)
+            }
         }
         return candidates.uniqued()
     }
@@ -1025,6 +1262,12 @@ public struct CustomFoodBarcodeCorrectionStore: BarcodeCorrectionStoreProtocol {
 }
 
 public final class BarcodeFoodLookupService {
+    private struct ProviderMatches {
+        let fatSecret: FoodItem?
+        let usda: FoodItem?
+        let openFoodFacts: FoodItem?
+    }
+
     private let fatSecretService: FatSecretFoodAPIService
     private let usdaService: USDAFoodAPIService
     private let openFoodFactsService: OpenFoodFactsAPIService
@@ -1057,22 +1300,13 @@ public final class BarcodeFoodLookupService {
             )
         }
 
-        // Community pool: another user's sanity-checked fix for this barcode. Checked after
-        // the user's own corrections (yours always win) and before external databases.
+        // Query all established providers concurrently for each exact/zero-padded-equivalent
+        // GTIN. This avoids exhausting every FatSecret variant before accepting an exact USDA
+        // or Open Food Facts hit, while preserving provider preference for the same identifier.
         for candidate in barcodeCandidates {
-            if let item = await lookupCommunityCorrection(candidate) {
-                return BarcodeFoodLookupResult(
-                    item: item,
-                    source: "community_barcode",
-                    scannedBarcode: trimmedBarcode,
-                    matchedBarcode: candidate,
-                    candidateCount: barcodeCandidates.count
-                )
-            }
-        }
+            let matches = await providerMatches(for: candidate)
 
-        for candidate in barcodeCandidates {
-            if let item = await lookupFatSecret(candidate) {
+            if let item = matches.fatSecret {
                 let primary = databaseSourcedItem(
                     item,
                     sourceType: .fatSecret,
@@ -1080,17 +1314,18 @@ public final class BarcodeFoodLookupService {
                     scannedBarcode: trimmedBarcode,
                     matchedBarcode: candidate
                 )
-                // Ask the remaining chain sources concurrently; whoever agrees earns the
-                // "Cross-Verified" badge. A miss or disagreement just means no badge.
-                async let usdaCandidate = usdaService.lookupBarcode(candidate)
-                async let offCandidate = lookupOpenFoodFacts(candidate)
-                let confirmedBy = FoodSourceAgreement.agreeingSourceNames(
-                    primary: primary,
-                    candidates: [
-                        ("USDA", await usdaCandidate),
-                        ("Open Food Facts", await offCandidate)
-                    ]
-                )
+                let confirmedBy: [String]
+                if BarcodeCorrectionRules.isValidGTIN(candidate) {
+                    confirmedBy = FoodSourceAgreement.agreeingSourceNames(
+                        primary: primary,
+                        candidates: [
+                            ("USDA", matches.usda),
+                            ("Open Food Facts", matches.openFoodFacts)
+                        ]
+                    )
+                } else {
+                    confirmedBy = []
+                }
                 return BarcodeFoodLookupResult(
                     item: primary.withCrossVerification(confirmedBy),
                     source: "barcode_result",
@@ -1099,10 +1334,8 @@ public final class BarcodeFoodLookupService {
                     candidateCount: barcodeCandidates.count
                 )
             }
-        }
 
-        for candidate in barcodeCandidates {
-            if let item = await usdaService.lookupBarcode(candidate) {
+            if let item = matches.usda {
                 let primary = databaseSourcedItem(
                     item,
                     sourceType: .usda,
@@ -1110,10 +1343,15 @@ public final class BarcodeFoodLookupService {
                     scannedBarcode: trimmedBarcode,
                     matchedBarcode: candidate
                 )
-                let confirmedBy = FoodSourceAgreement.agreeingSourceNames(
-                    primary: primary,
-                    candidates: [("Open Food Facts", await lookupOpenFoodFacts(candidate))]
-                )
+                let confirmedBy: [String]
+                if BarcodeCorrectionRules.isValidGTIN(candidate) {
+                    confirmedBy = FoodSourceAgreement.agreeingSourceNames(
+                        primary: primary,
+                        candidates: [("Open Food Facts", matches.openFoodFacts)]
+                    )
+                } else {
+                    confirmedBy = []
+                }
                 return BarcodeFoodLookupResult(
                     item: primary.withCrossVerification(confirmedBy),
                     source: "usda_barcode",
@@ -1122,10 +1360,8 @@ public final class BarcodeFoodLookupService {
                     candidateCount: barcodeCandidates.count
                 )
             }
-        }
 
-        for candidate in barcodeCandidates {
-            if let item = await lookupOpenFoodFacts(candidate) {
+            if let item = matches.openFoodFacts {
                 return BarcodeFoodLookupResult(
                     item: databaseSourcedItem(
                         item,
@@ -1142,7 +1378,32 @@ public final class BarcodeFoodLookupService {
             }
         }
 
+        // A single community submission is useful recovery evidence, but it is not stronger
+        // than an established food database. Keep it as the final fallback after external misses.
+        for candidate in barcodeCandidates {
+            if let item = await lookupCommunityCorrection(candidate) {
+                return BarcodeFoodLookupResult(
+                    item: item,
+                    source: "community_barcode",
+                    scannedBarcode: trimmedBarcode,
+                    matchedBarcode: candidate,
+                    candidateCount: barcodeCandidates.count
+                )
+            }
+        }
+
         return nil
+    }
+
+    private func providerMatches(for barcode: String) async -> ProviderMatches {
+        async let fatSecret = lookupFatSecret(barcode)
+        async let usda = usdaService.lookupBarcode(barcode)
+        async let openFoodFacts = lookupOpenFoodFacts(barcode)
+        return await ProviderMatches(
+            fatSecret: fatSecret,
+            usda: usda,
+            openFoodFacts: openFoodFacts
+        )
     }
 
     private func databaseSourcedItem(
@@ -1159,6 +1420,10 @@ public final class BarcodeFoodLookupService {
             barcode: scannedBarcode,
             matchedFoodID: item.id
         )
+        if item.sourceMetadata?.sourceType == sourceType,
+           let sourceConfidence = item.sourceMetadata?.confidence {
+            metadata.confidence = sourceConfidence
+        }
         if scannedBarcode != matchedBarcode {
             metadata.notes = "Matched using related barcode \(matchedBarcode)."
         }
@@ -1188,7 +1453,16 @@ public final class BarcodeFoodLookupService {
     private func lookupOpenFoodFacts(_ barcode: String) async -> FoodItem? {
         await withCheckedContinuation { continuation in
             openFoodFactsService.fetchFoodItem(barcode: barcode) { result in
-                continuation.resume(returning: try? result.get())
+                guard let item = try? result.get() else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let returnedBarcode = BarcodeCorrectionRules.normalizedBarcode(
+                    item.sourceMetadata?.barcode ?? item.id.replacingOccurrences(of: "off_", with: "")
+                )
+                let isMatchingProduct = BarcodeCorrectionRules.lookupCandidates(for: barcode)
+                    .contains(returnedBarcode)
+                continuation.resume(returning: isMatchingProduct ? item : nil)
             }
         }
     }

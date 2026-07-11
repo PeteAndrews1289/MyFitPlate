@@ -47,6 +47,26 @@ final class CommunityBarcodeRulesTests: XCTestCase {
         )
     }
 
+    func testNonStandardBarcodeBlocksGlobalContribution() {
+        let decision = CommunityBarcodeRules.contributionDecision(
+            cleanFood(),
+            barcode: "12345",
+            flagEnabled: true
+        )
+        XCTAssertFalse(decision.isEligible)
+        XCTAssertEqual(decision.reason, "invalid_barcode")
+    }
+
+    func testInvalidGTINCheckDigitBlocksGlobalContribution() {
+        let decision = CommunityBarcodeRules.contributionDecision(
+            cleanFood(),
+            barcode: "012345678901",
+            flagEnabled: true
+        )
+        XCTAssertFalse(decision.isEligible)
+        XCTAssertEqual(decision.reason, "invalid_barcode")
+    }
+
     func testSanitySuspiciousFoodNeverPools() {
         // Macros with zero calories - the sanity checker flags it, so it must not spread.
         var bad = cleanFood()
@@ -98,6 +118,46 @@ final class CommunityBarcodeRulesTests: XCTestCase {
         )
     }
 
+    func testMissingServingWeightAndInvalidFiberBlockContribution() {
+        var missingWeight = cleanFood()
+        missingWeight.servingWeight = 1
+        XCTAssertEqual(
+            CommunityBarcodeRules.contributionDecision(
+                missingWeight,
+                barcode: "0123456789012",
+                flagEnabled: true
+            ).reason,
+            "serving_weight_missing"
+        )
+
+        var invalidFiber = cleanFood()
+        invalidFiber.fiber = .nan
+        XCTAssertEqual(
+            CommunityBarcodeRules.contributionDecision(
+                invalidFiber,
+                barcode: "0123456789012",
+                flagEnabled: true
+            ).reason,
+            "fiber_out_of_range"
+        )
+    }
+
+    func testInformationalNutritionFindingDoesNotEnterCommunityPool() {
+        var reviewFood = cleanFood()
+        reviewFood.calories = 0
+        reviewFood.protein = 0
+        reviewFood.carbs = 20
+        reviewFood.fats = 0
+
+        let decision = CommunityBarcodeRules.contributionDecision(
+            reviewFood,
+            barcode: "0123456789012",
+            flagEnabled: true
+        )
+        XCTAssertFalse(decision.isEligible)
+        XCTAssertEqual(decision.reason, "nutrition_needs_review")
+    }
+
     // MARK: - Community item builder
 
     func testCommunityFoodItemCarriesCommunityIdentity() {
@@ -115,6 +175,8 @@ final class CommunityBarcodeRulesTests: XCTestCase {
 
         XCTAssertEqual(item.id, "community_0123456789012")
         XCTAssertEqual(item.sourceMetadata?.barcode, "0123456789012")
+        XCTAssertEqual(item.sourceMetadata?.confidence, .needsReview)
+        XCTAssertEqual(item.sourceMetadata?.reviewStatus, .unreviewed)
         XCTAssertTrue(CommunityBarcodeRules.isCommunityMatch(item.sourceMetadata))
     }
 
@@ -135,6 +197,6 @@ final class CommunityBarcodeRulesTests: XCTestCase {
         let descriptor = FoodSourceClassifier.descriptor(for: item.sourceMetadata!)
         XCTAssertEqual(descriptor.sourceKey, "community_barcode")
         XCTAssertEqual(descriptor.title, "Community Match")
-        XCTAssertEqual(descriptor.confidence, "Community Verified")
+        XCTAssertEqual(descriptor.confidence, "Community Submitted")
     }
 }

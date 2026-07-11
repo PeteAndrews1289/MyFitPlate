@@ -89,7 +89,7 @@ final class FoodSourceTrustTests: XCTestCase {
         let editedItem = unreviewedItem.markedUserEdited(sourceType: .aiImage)
 
         XCTAssertEqual(editedItem.sourceMetadata?.reviewStatus, .userEdited)
-        XCTAssertEqual(FoodSourceClassifier.descriptor(for: editedItem.sourceMetadata!).confidence, "User Edited")
+        XCTAssertEqual(FoodSourceClassifier.descriptor(for: editedItem.sourceMetadata!).confidence, "Edited by You")
     }
 
     func testEditedAIEstimateStoresCorrectionSnapshot() {
@@ -215,19 +215,39 @@ final class FoodSourceTrustTests: XCTestCase {
     func testBarcodeLookupCandidatesBridgeUPCAAndEAN13() {
         XCTAssertEqual(
             BarcodeCorrectionRules.lookupCandidates(for: "012345678905"),
-            ["012345678905", "0012345678905"]
+            ["012345678905", "0012345678905", "00012345678905"]
         )
         XCTAssertEqual(
             BarcodeCorrectionRules.lookupCandidates(for: "0012345678905"),
-            ["0012345678905", "012345678905"]
+            ["0012345678905", "012345678905", "00012345678905"]
         )
     }
 
-    func testBarcodeLookupCandidatesHandleGTIN14Fallbacks() {
+    func testBarcodeLookupCandidatesOnlyBridgeZeroPaddedGTIN14() {
         XCTAssertEqual(
-            BarcodeCorrectionRules.lookupCandidates(for: "10012345678905"),
-            ["10012345678905", "0012345678905", "012345678905"]
+            BarcodeCorrectionRules.lookupCandidates(for: "00012345678905"),
+            ["00012345678905", "0012345678905", "012345678905"]
         )
+        XCTAssertEqual(
+            BarcodeCorrectionRules.lookupCandidates(for: "10012345678902"),
+            ["10012345678902"],
+            "A non-zero GTIN-14 indicator identifies a packaging level, not a zero-padded retail code."
+        )
+    }
+
+    func testGTINValidationRejectsBadCheckDigits() {
+        XCTAssertTrue(BarcodeCorrectionRules.isValidGTIN("012345678905"))
+        XCTAssertTrue(BarcodeCorrectionRules.isValidGTIN("0012345678905"))
+        XCTAssertFalse(BarcodeCorrectionRules.isValidGTIN("012345678901"))
+        XCTAssertFalse(BarcodeCorrectionRules.isValidGTIN("12345"))
+    }
+
+    func testBarcodeNormalizationProducesASCIIWithoutDroppingLeadingZeros() {
+        XCTAssertEqual(
+            BarcodeCorrectionRules.normalizedBarcode(" ٠١٢-٣٤٥ ٦٧٨٩٠٥ "),
+            "012345678905"
+        )
+        XCTAssertTrue(BarcodeCorrectionRules.isValidGTIN(" ٠١٢-٣٤٥ ٦٧٨٩٠٥ "))
     }
 
     func testBarcodeCorrectionsMatchRelatedVariants() {
@@ -268,7 +288,263 @@ final class FoodSourceTrustTests: XCTestCase {
 
         XCTAssertEqual(evaluation.level, .excellent)
         XCTAssertEqual(evaluation.label, "Excellent trust")
-        XCTAssertTrue(evaluation.reasons.contains("Confirmed by another database"))
+        XCTAssertTrue(evaluation.reasons.contains("Calories and macros matched another database"))
+        XCTAssertGreaterThanOrEqual(evaluation.score, 90)
+        XCTAssertFalse(evaluation.requiresCorrection)
+    }
+
+    func testTrustModelSourceMatrixStaysConservativeAndDeterministic() {
+        func item(metadata: FoodSourceMetadata?) -> FoodItem {
+            FoodItem(
+                name: "Chicken Breast",
+                calories: 165,
+                protein: 31,
+                carbs: 0,
+                fats: 3.6,
+                servingWeight: 100,
+                sourceMetadata: metadata
+            )
+        }
+
+        let cases: [(String, FoodItem, Int, FoodTrustEvaluation.Level)] = [
+            (
+                "USDA",
+                item(metadata: .database(.usda, sourceName: "USDA FoodData Central", sourceID: "1")),
+                86,
+                .strong
+            ),
+            (
+                "FatSecret",
+                item(metadata: .database(.fatSecret, sourceName: "FatSecret", sourceID: "2")),
+                74,
+                .review
+            ),
+            (
+                "Open Food Facts",
+                item(metadata: .database(.openFoodFacts, sourceName: "Open Food Facts", sourceID: "3")),
+                68,
+                .review
+            ),
+            (
+                "Manual",
+                item(metadata: .userEntered(sourceName: "My Foods")),
+                74,
+                .review
+            ),
+            (
+                "Private barcode",
+                item(metadata: FoodSourceMetadata(
+                    sourceType: .custom,
+                    confidence: .userVerified,
+                    reviewStatus: .userConfirmed,
+                    sourceName: "My Foods",
+                    barcode: "012345678905"
+                )),
+                88,
+                .strong
+            ),
+            (
+                "Chain estimate",
+                item(metadata: .aiEstimate(.chainBuilder, sourceName: "Chain Builder")),
+                50,
+                .low
+            ),
+            (
+                "AI estimate",
+                item(metadata: .aiEstimate(.aiImage, sourceName: "Maia Vision")),
+                42,
+                .low
+            ),
+            (
+                "Unknown",
+                item(metadata: FoodSourceMetadata(
+                    sourceType: .unknown,
+                    confidence: .needsReview,
+                    reviewStatus: .unreviewed
+                )),
+                55,
+                .review
+            )
+        ]
+
+        for (name, food, expectedScore, expectedLevel) in cases {
+            let descriptor = FoodSourceClassifier.descriptor(
+                for: "test",
+                foodID: food.id,
+                metadata: food.sourceMetadata
+            )
+            let evaluation = FoodTrustEvaluation.evaluate(
+                item: food,
+                descriptor: descriptor,
+                metadata: food.sourceMetadata
+            )
+            XCTAssertEqual(evaluation.score, expectedScore, name)
+            XCTAssertEqual(evaluation.level, expectedLevel, name)
+        }
+    }
+
+    func testExcellentTrustRequiresIndependentDatabaseAgreement() {
+        let item = FoodItem(
+            name: "Chicken Breast",
+            calories: 165,
+            protein: 31,
+            carbs: 0,
+            fats: 3.6,
+            servingWeight: 100
+        ).withDatabaseSource(.usda, sourceName: "USDA FoodData Central")
+        let descriptor = FoodSourceClassifier.descriptor(for: item.sourceMetadata!)
+
+        let evaluation = FoodTrustEvaluation.evaluate(
+            item: item,
+            descriptor: descriptor,
+            metadata: item.sourceMetadata
+        )
+
+        XCTAssertEqual(evaluation.level, .strong)
+        XCTAssertLessThanOrEqual(evaluation.score, 89)
+    }
+
+    func testManualFoodCannotForgeExcellentTrustWithCrossVerificationStrings() {
+        var metadata = FoodSourceMetadata.userEntered(sourceName: "My Foods")
+        metadata.crossVerifiedBy = ["USDA", "Open Food Facts"]
+        let item = FoodItem(
+            name: "My Oats",
+            calories: 200,
+            protein: 10,
+            carbs: 32,
+            fats: 4,
+            servingWeight: 100,
+            sourceMetadata: metadata
+        )
+        let descriptor = FoodSourceClassifier.descriptor(for: metadata)
+
+        let evaluation = FoodTrustEvaluation.evaluate(item: item, descriptor: descriptor, metadata: metadata)
+
+        XCTAssertEqual(evaluation.level, .review)
+        XCTAssertEqual(evaluation.label, "Reviewed entry")
+        XCTAssertLessThanOrEqual(evaluation.score, 74)
+        XCTAssertFalse(evaluation.reasons.contains("Calories and macros matched another database"))
+    }
+
+    func testReviewedManualEntryDoesNotBecomeStrongWithoutIndependentEvidence() {
+        let item = FoodItem(
+            name: "My Oats",
+            calories: 200,
+            protein: 10,
+            carbs: 32,
+            fats: 4,
+            servingWeight: 100,
+            sourceMetadata: .userEntered(sourceName: "My Foods")
+        )
+        let descriptor = FoodSourceClassifier.descriptor(for: item.sourceMetadata!)
+
+        let evaluation = FoodTrustEvaluation.evaluate(
+            item: item,
+            descriptor: descriptor,
+            metadata: item.sourceMetadata
+        )
+
+        XCTAssertEqual(evaluation.level, .review)
+        XCTAssertEqual(evaluation.label, "Reviewed entry")
+        XCTAssertNil(evaluation.action)
+        XCTAssertEqual(evaluation.score, 74)
+    }
+
+    func testSelfReferentialDatabaseVerificationIsIgnored() {
+        var metadata = FoodSourceMetadata.database(.usda, sourceName: "USDA FoodData Central", sourceID: "1")
+        metadata.crossVerifiedBy = ["USDA"]
+        let item = FoodItem(
+            name: "Apple",
+            calories: 52,
+            protein: 0.3,
+            carbs: 14,
+            fats: 0.2,
+            servingWeight: 100,
+            sourceMetadata: metadata
+        )
+
+        let evaluation = FoodTrustEvaluation.evaluate(
+            item: item,
+            descriptor: FoodSourceClassifier.descriptor(for: metadata),
+            metadata: metadata
+        )
+
+        XCTAssertEqual(evaluation.level, .strong)
+        XCTAssertTrue(metadata.validatedCrossVerifiedBy.isEmpty)
+    }
+
+    func testUnreviewedEstimateIsLowConfidenceButNotBrokenData() {
+        let item = FoodItem(
+            name: "Estimated Snack",
+            calories: 165,
+            protein: 10,
+            carbs: 20,
+            fats: 5,
+            servingWeight: 100
+        ).withAIEstimateSource(.aiImage, sourceName: "Maia Vision")
+        let descriptor = FoodSourceClassifier.descriptor(for: item.sourceMetadata!)
+
+        let evaluation = FoodTrustEvaluation.evaluate(
+            item: item,
+            descriptor: descriptor,
+            metadata: item.sourceMetadata
+        )
+
+        XCTAssertEqual(evaluation.level, .low)
+        XCTAssertEqual(evaluation.label, "Review estimate")
+        XCTAssertEqual(evaluation.action, "Review estimate")
+        XCTAssertFalse(evaluation.requiresCorrection)
+    }
+
+    func testReviewedEstimateAcknowledgesCompletedReviewWithoutClaimingVerification() {
+        let item = FoodItem(
+            name: "Estimated Snack",
+            calories: 165,
+            protein: 10,
+            carbs: 20,
+            fats: 5,
+            servingWeight: 100
+        )
+            .withAIEstimateSource(.aiImage, sourceName: "Maia Vision")
+            .markedUserEdited(sourceType: .aiImage)
+        let descriptor = FoodSourceClassifier.descriptor(for: item.sourceMetadata!)
+
+        let evaluation = FoodTrustEvaluation.evaluate(
+            item: item,
+            descriptor: descriptor,
+            metadata: item.sourceMetadata
+        )
+
+        XCTAssertEqual(evaluation.level, .review)
+        XCTAssertEqual(evaluation.label, "Reviewed estimate")
+        XCTAssertNil(evaluation.action)
+        XCTAssertLessThanOrEqual(evaluation.score, 74)
+        XCTAssertFalse(evaluation.requiresCorrection)
+    }
+
+    func testReviewedEstimateWithUnknownWeightOffersSpecificImprovement() {
+        let item = FoodItem(
+            name: "Estimated Bowl",
+            calories: 420,
+            protein: 25,
+            carbs: 45,
+            fats: 16,
+            servingWeight: 0
+        )
+            .withAIEstimateSource(.aiMenu, sourceName: "Maia Menu")
+            .markedUserConfirmed(sourceType: .aiMenu)
+        let descriptor = FoodSourceClassifier.descriptor(for: item.sourceMetadata!)
+
+        let evaluation = FoodTrustEvaluation.evaluate(
+            item: item,
+            descriptor: descriptor,
+            metadata: item.sourceMetadata
+        )
+
+        XCTAssertEqual(evaluation.level, .low)
+        XCTAssertEqual(evaluation.label, "Reviewed estimate")
+        XCTAssertEqual(evaluation.action, "Improve estimate")
+        XCTAssertFalse(evaluation.requiresCorrection)
     }
 
     func testFoodTrustEvaluationDropsSuspiciousDataToCorrectionState() {
@@ -287,7 +563,164 @@ final class FoodSourceTrustTests: XCTestCase {
 
         XCTAssertEqual(evaluation.level, .low)
         XCTAssertEqual(evaluation.action, "Fix data")
-        XCTAssertTrue(evaluation.reasons.contains("Nutrition math needs a correction"))
+        XCTAssertTrue(evaluation.requiresCorrection)
+        XCTAssertEqual(evaluation.reasonDetails.first?.kind, .correction)
+        XCTAssertTrue(evaluation.reasons.contains("Nutrition checks found a value to fix"))
+    }
+
+    func testCommunityMatchStaysInReviewTier() {
+        let item = CommunityBarcodeRules.communityFoodItem(
+            name: "Protein Bar",
+            calories: 210,
+            protein: 20,
+            carbs: 22,
+            fats: 7,
+            fiber: 3,
+            servingSize: "1 bar",
+            servingWeight: 60,
+            barcode: "0123456789012"
+        )
+        let descriptor = FoodSourceClassifier.descriptor(for: item.sourceMetadata!)
+
+        let evaluation = FoodTrustEvaluation.evaluate(
+            item: item,
+            descriptor: descriptor,
+            metadata: item.sourceMetadata
+        )
+
+        XCTAssertEqual(evaluation.level, .review)
+        XCTAssertLessThanOrEqual(evaluation.score, 74)
+        XCTAssertFalse(evaluation.requiresCorrection)
+    }
+
+    func testSavingAsCustomFoodClearsDatabaseAgreementEvidence() {
+        var metadata = FoodSourceMetadata.database(.fatSecret, sourceName: "FatSecret", sourceID: "123")
+        metadata.crossVerifiedBy = ["USDA"]
+        let original = FoodItem(
+            name: "Cereal",
+            calories: 180,
+            protein: 5,
+            carbs: 36,
+            fats: 2,
+            servingWeight: 55,
+            sourceMetadata: metadata
+        )
+
+        let saved = original.savedAsCustomFood(originalItem: original)
+
+        XCTAssertNil(saved.sourceMetadata?.crossVerifiedBy)
+        XCTAssertFalse(saved.sourceMetadata?.hasIndependentCrossVerification == true)
+    }
+
+    func testNutritionEditClearsAgreementEvidenceEvenWhenDatabasesWouldStillTolerateIt() {
+        var metadata = FoodSourceMetadata.database(.fatSecret, sourceName: "FatSecret", sourceID: "123")
+        metadata.crossVerifiedBy = ["USDA"]
+        let original = FoodItem(
+            id: "123",
+            name: "Cereal",
+            calories: 200,
+            protein: 10,
+            carbs: 20,
+            fats: 8,
+            servingWeight: 100,
+            sourceMetadata: metadata
+        )
+        let edited = FoodItem(
+            id: original.id,
+            name: original.name,
+            calories: 220,
+            protein: 11,
+            carbs: 22,
+            fats: 8.5,
+            servingWeight: 100,
+            sourceMetadata: metadata
+        ).markedUserEdited(originalItem: original)
+
+        XCTAssertNil(edited.sourceMetadata?.crossVerifiedBy)
+        XCTAssertFalse(edited.sourceMetadata?.hasIndependentCrossVerification == true)
+    }
+
+    func testServingRescaleKeepsAgreementEvidence() {
+        var metadata = FoodSourceMetadata.database(.fatSecret, sourceName: "FatSecret", sourceID: "123")
+        metadata.crossVerifiedBy = ["USDA"]
+        let original = FoodItem(
+            id: "123",
+            name: "Cereal",
+            calories: 200,
+            protein: 10,
+            carbs: 20,
+            fats: 8,
+            servingWeight: 100,
+            sourceMetadata: metadata
+        )
+        let scaled = FoodItem(
+            id: original.id,
+            name: original.name,
+            calories: 60,
+            protein: 3,
+            carbs: 6,
+            fats: 2.4,
+            servingWeight: 30,
+            sourceMetadata: metadata
+        ).markedUserEdited(originalItem: original)
+
+        XCTAssertEqual(scaled.sourceMetadata?.validatedCrossVerifiedBy, ["USDA"])
+    }
+
+    func testMaterialServingSelectionClearsAgreementEvidenceWhenConfirmed() {
+        var metadata = FoodSourceMetadata.database(.fatSecret, sourceName: "FatSecret", sourceID: "123")
+        metadata.crossVerifiedBy = ["USDA"]
+        let original = FoodItem(
+            id: "123",
+            name: "Cereal",
+            calories: 200,
+            protein: 10,
+            carbs: 20,
+            fats: 8,
+            servingWeight: 100,
+            sourceMetadata: metadata
+        )
+        let differentServing = FoodItem(
+            id: original.id,
+            name: original.name,
+            calories: 250,
+            protein: 10,
+            carbs: 20,
+            fats: 8,
+            servingWeight: 100,
+            sourceMetadata: metadata
+        ).markedUserConfirmed(originalItem: original)
+
+        XCTAssertNil(differentServing.sourceMetadata?.crossVerifiedBy)
+        XCTAssertEqual(differentServing.sourceMetadata?.reviewStatus, .userConfirmed)
+    }
+
+    func testProportionalServingSelectionKeepsAgreementEvidenceWhenConfirmed() {
+        var metadata = FoodSourceMetadata.database(.fatSecret, sourceName: "FatSecret", sourceID: "123")
+        metadata.crossVerifiedBy = ["USDA"]
+        let original = FoodItem(
+            id: "123",
+            name: "Cereal",
+            calories: 200,
+            protein: 10,
+            carbs: 20,
+            fats: 8,
+            servingWeight: 100,
+            sourceMetadata: metadata
+        )
+        let scaledServing = FoodItem(
+            id: original.id,
+            name: original.name,
+            calories: 60,
+            protein: 3,
+            carbs: 6,
+            fats: 2.4,
+            servingWeight: 30,
+            sourceMetadata: metadata
+        ).markedUserConfirmed(originalItem: original)
+
+        XCTAssertEqual(scaledServing.sourceMetadata?.validatedCrossVerifiedBy, ["USDA"])
+        XCTAssertEqual(scaledServing.sourceMetadata?.reviewStatus, .userConfirmed)
     }
 
     func testBarcodeLookupOutcomeSuccessIsPrivacySafeAndTrustAware() {
@@ -309,7 +742,7 @@ final class FoodSourceTrustTests: XCTestCase {
             source: "barcode_result",
             scannedBarcode: "012345678905",
             matchedBarcode: "0012345678905",
-            candidateCount: 2
+            candidateCount: 3
         )
 
         let outcome = BarcodeLookupOutcome.success(lookup)
@@ -320,9 +753,10 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(params["source"] as? String, "barcode_result")
         XCTAssertEqual(params["scanned_length"] as? Int, 12)
         XCTAssertEqual(params["matched_length"] as? Int, 13)
-        XCTAssertEqual(params["candidate_count"] as? Int, 2)
+        XCTAssertEqual(params["candidate_count"] as? Int, 3)
         XCTAssertEqual(params["cross_verified_count"] as? Int, 1)
         XCTAssertEqual(params["trust_level"] as? String, FoodTrustEvaluation.Level.excellent.rawValue)
+        XCTAssertEqual(params["trust_model_version"] as? Int, FoodTrustEvaluation.modelVersion)
         XCTAssertNil(params["barcode"], "Do not log the raw product barcode.")
     }
 
@@ -333,7 +767,7 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(outcome.result, "miss")
         XCTAssertEqual(params["source"] as? String, "none")
         XCTAssertEqual(params["scanned_length"] as? Int, 12)
-        XCTAssertEqual(params["candidate_count"] as? Int, 2)
+        XCTAssertEqual(params["candidate_count"] as? Int, 3)
         XCTAssertNil(params["trust_score"])
         XCTAssertNil(params["barcode"], "Miss telemetry should still avoid raw barcode values.")
     }
@@ -344,7 +778,7 @@ final class FoodSourceTrustTests: XCTestCase {
 
         XCTAssertEqual(outcome.action, "create_food")
         XCTAssertEqual(params["scanned_length"] as? Int, 12)
-        XCTAssertEqual(params["candidate_count"] as? Int, 2)
+        XCTAssertEqual(params["candidate_count"] as? Int, 3)
         XCTAssertNil(params["barcode"], "Recovery telemetry should avoid raw barcode values.")
         XCTAssertNil(params["trust_score"])
     }
@@ -373,7 +807,8 @@ final class FoodSourceTrustTests: XCTestCase {
 
         XCTAssertEqual(params["action"] as? String, "manual_food_created")
         XCTAssertEqual(params["scanned_length"] as? Int, 12)
-        XCTAssertEqual(params["trust_level"] as? String, FoodTrustEvaluation.Level.excellent.rawValue)
+        XCTAssertEqual(params["trust_level"] as? String, FoodTrustEvaluation.Level.strong.rawValue)
+        XCTAssertEqual(params["trust_model_version"] as? Int, FoodTrustEvaluation.modelVersion)
         XCTAssertNotNil(params["trust_score"])
         XCTAssertNil(params["barcode"], "Created-food telemetry should avoid raw barcode values.")
     }

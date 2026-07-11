@@ -105,17 +105,23 @@ public class FatSecretFoodAPIService {
         }
     }
 
-    private var barcodeCache = Set<String>()
+    private let barcodeLookupLock = NSLock()
+    private var barcodeLookupCompletions: [String: [(Result<FoodItem, Error>) -> Void]] = [:]
     
     public func fetchFoodByBarcode(barcode: String, completion: @escaping (Result<FoodItem, Error>) -> Void) {
-        if barcodeCache.contains(barcode) { return }
-        barcodeCache.insert(barcode)
+        barcodeLookupLock.lock()
+        if barcodeLookupCompletions[barcode] != nil {
+            barcodeLookupCompletions[barcode]?.append(completion)
+            barcodeLookupLock.unlock()
+            return
+        }
+        barcodeLookupCompletions[barcode] = [completion]
+        barcodeLookupLock.unlock()
 
         callProxy(path: "barcode", params: ["barcode": barcode]) { result in
-            self.barcodeCache.remove(barcode)
             switch result {
             case .failure(let error):
-                completion(.failure(error))
+                self.finishBarcodeLookup(barcode: barcode, result: .failure(error))
             case .success(let data):
                 do {
                     let decodedResponse = try JSONDecoder().decode([String: [String: String]].self, from: data)
@@ -123,19 +129,29 @@ public class FatSecretFoodAPIService {
                         self.fetchFoodDetails(foodId: foodId) { detailsResult in
                             switch detailsResult {
                             case .success(let details):
-                                completion(.success(details.foodInfo))
+                                self.finishBarcodeLookup(barcode: barcode, result: .success(details.foodInfo))
                             case .failure(let detailError):
-                                completion(.failure(detailError))
+                                self.finishBarcodeLookup(barcode: barcode, result: .failure(detailError))
                             }
                         }
                     } else {
-                        completion(.failure(APIError.apiError("No food item found for this barcode.")))
+                        self.finishBarcodeLookup(
+                            barcode: barcode,
+                            result: .failure(APIError.apiError("No food item found for this barcode."))
+                        )
                     }
                 } catch {
-                    completion(.failure(APIError.decodingError(error)))
+                    self.finishBarcodeLookup(barcode: barcode, result: .failure(APIError.decodingError(error)))
                 }
             }
         }
+    }
+
+    private func finishBarcodeLookup(barcode: String, result: Result<FoodItem, Error>) {
+        barcodeLookupLock.lock()
+        let completions = barcodeLookupCompletions.removeValue(forKey: barcode) ?? []
+        barcodeLookupLock.unlock()
+        completions.forEach { $0(result) }
     }
     
     public func fetchFoodDetails(foodId: String, completion: @escaping (Result<(foodInfo: FoodItem, availableServings: [ServingSizeOption]), Error>) -> Void) {
@@ -202,7 +218,8 @@ public class FatSecretFoodAPIService {
                     polyunsaturatedFat: baseServing.parsedNutrient(.polyunsaturatedFat),
                     monounsaturatedFat: baseServing.parsedNutrient(.monounsaturatedFat),
                     fiber: baseServing.parsedNutrient(.fiber),
-                    servingSize: baseServing.displayDescription, servingWeight: baseServing.parsedServingWeightGrams ?? 100.0,
+                    servingSize: baseServing.displayDescription,
+                    servingWeight: baseServing.parsedServingWeightGrams ?? 1.0,
                     timestamp: nil,
                     calcium: baseServing.parsedNutrient(.calcium) > 0 ? baseServing.parsedNutrient(.calcium) : nil,
                     iron: baseServing.parsedNutrient(.iron) > 0 ? baseServing.parsedNutrient(.iron) : nil,

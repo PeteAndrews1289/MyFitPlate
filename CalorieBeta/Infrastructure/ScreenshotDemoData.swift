@@ -168,7 +168,7 @@ enum ScreenshotDemoData {
         case "reports": appState.selectedTab = 4
         default: appState.selectedTab = 0
         }
-        appState.isDarkModeEnabled = false
+        appState.isDarkModeEnabled = ProcessInfo.processInfo.arguments.contains("-screenshot-dark-mode")
         appState.isUserLoggedIn = true
     }
 
