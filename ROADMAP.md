@@ -15,6 +15,7 @@ Current objective: move from "impressive broad feature set" to "obvious reason t
 - [x] **Maia Adaptive Coaching**: Daily strategy cards linking sleep, recovery, training, and nutrition adjustments.
 - [x] **HealthKit Test Seams**: Protocol-abstracted seam (`HealthStoreScheduling`) with deep unit coverage across health and running services (package line coverage 84%).
 - [x] **2.2 trust and privacy hardening**: explicit per-account AI data consent with optional Apple Health context, server-owned account deletion, privacy-safe analytics, App Check client support, serialized daily-log writes, and corrected USDA/Open Food Facts routing and serving math.
+- [x] **2.2 activation and organic growth foundation**: elapsed onboarding-to-first-food/workout telemetry, a nutrition-plus-training loop milestone, a conservative StoreKit review request after sustained use, App Store-linked result sharing, and a structured feedback path in Settings.
 
 ---
 
@@ -43,11 +44,12 @@ The next several sprints are ordered to make the product competitive before expa
 ### Sprint 0 — Baseline, Positioning, and Release Readiness
 Goal: establish the competitive scoreboard and make the product story sharper before building more.
 
-- [ ] **Define the public promise**: "The food log you can trust, built for people who train." Use this across onboarding, App Store copy, screenshots, and Maia entry points.
-- [ ] **Create a competitive KPI dashboard**: track first-food-log completion, time to first log, barcode hit/miss/recovery, AI estimate review/correction, MFP import starts/completions, D1/D7 return, weekly active loggers, and LLM cost per active user.
-- [ ] **Refresh App Store story**: recapture screenshots around switcher import, Trust Cards, fast logging, Maia recovery/meal action cards, and training-to-nutrition loops. Avoid generic "whole day" framing unless the visible screen proves it.
-- [ ] **Fix screenshot-visible polish**: resolve clipped workout controls, ensure no App Store shot has cropped labels, and keep Trust/Importer shots above generic dashboards.
-- [ ] **Release gate**: automated Core/app/UI/Functions checks are green locally; remaining gates are the real-device checklist, production Firebase Functions deployment, App Check console setup, public legal-doc push, App Store privacy-label reconciliation, screenshot recapture, and a signed archive validation.
+- [x] **Define the public promise**: "The food log you can trust, built for people who train." The onboarding, Maia entry state, and final App Store gallery now consistently lead with trusted nutrition built for training.
+- [ ] **Create a competitive KPI dashboard**: track first-food-log completion, time to first log, barcode hit/miss/recovery, AI estimate review/correction, MFP import starts/completions, D1/D7 return, weekly active loggers, and LLM cost per active user. The app now emits elapsed onboarding-to-first-food/workout and nutrition-plus-training loop events; the external dashboard, retention cohorts, and cost joins remain open.
+- [x] **Refresh App Store story**: created an eight-shot deterministic gallery covering Home, Trust, fast repeat/search, the 25-chain meal builder, Train, Maia action coaching, Meal Plan, and Reports. The first three images carry the positioning and conversion story.
+- [x] **Fix screenshot-visible polish**: corrected clipped Train targets and Reports chart labels, rebuilt the builder's bottom tray, centered a labeled Quick Log action above five equal-width destinations, made the expanded action list reachable on compact phones, and visually checked both required phone-size galleries.
+- [x] **Add a release feedback and referral loop**: Settings now provides a prefilled privacy-safe feedback email and direct App Store sharing; recap, achievement, run-story, and workout-summary shares point back to the live listing; review requests are limited to fresh workout completions after three distinct sessions across at least three days, once per version with a 120-day cooldown.
+- [ ] **Release gate**: automated code checks are green locally; remaining gates are the real-device checklist, production Firebase Functions deployment, App Check console setup, public legal-doc push, App Store privacy-label reconciliation, build-number increment, and a signed archive validation/upload.
 
 Success signal: a new user can understand why MyFitPlate exists in 10 seconds, and the team has baseline numbers for the conversion funnel.
 
@@ -135,4 +137,4 @@ Success signal: users can name a MyFitPlate feature they cannot get from MyFitne
 - [ ] Every sprint must include user-facing copy review, privacy review for new data flows, and a rollback/feature-flag plan for risky launches.
 
 ---
-_Living document — Single Point of Truth. Last updated: 2026-07-09._
+_Living document — Single Point of Truth. Last updated: 2026-07-10._

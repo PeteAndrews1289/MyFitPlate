@@ -13,6 +13,8 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
     public var updateLogSuccess: Bool = true
     public var mockFetchLogResult: Result<DailyLog, Error>?
     public var mockFetchDailyHistoryResult: Result<[DailyLog], Error>?
+    public var mockLogsByDay: [DailyLog] = []
+    public var filtersHistoryByRequestedRange = false
     public var mockRecommendedFoods: [FoodItem] = []
     
     public func updateDailyLog(userID: String, log: DailyLog, completion: @escaping (Bool) -> Void) {
@@ -28,6 +30,8 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
     public func fetchLogInternal(userID: String, date: Date, completion: @escaping (Result<DailyLog, Error>) -> Void) {
         if let result = mockFetchLogResult {
             completion(result)
+        } else if let log = mockLogsByDay.first(where: { Calendar.current.isDate($0.date, inSameDayAs: date) }) {
+            completion(.success(log))
         } else {
             let emptyLog = DailyLog(id: "test", date: date, meals: [])
             completion(.success(emptyLog))
@@ -36,6 +40,8 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
     public func addLogSnapshotListener(userID: String, date: Date, onChange: @escaping (Result<DailyLog, Error>) -> Void) -> Any { 
         if let result = mockFetchLogResult {
             onChange(result)
+        } else if let log = mockLogsByDay.first(where: { Calendar.current.isDate($0.date, inSameDayAs: date) }) {
+            onChange(.success(log))
         } else {
             let emptyLog = DailyLog(id: "test", date: date, meals: [])
             onChange(.success(emptyLog))
@@ -45,7 +51,15 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
     public func removeLogSnapshotListener(_ handle: Any) {}
     public func fetchDailyHistory(userID: String, startDate: Date?, endDate: Date?) async throws -> [DailyLog] { 
         if let mock = mockFetchDailyHistoryResult {
-            return try mock.get()
+            let logs = try mock.get()
+            guard filtersHistoryByRequestedRange else { return logs }
+            let calendar = Calendar.current
+            let start = startDate.map { calendar.startOfDay(for: $0) }
+            let end = endDate.flatMap { calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: $0)) }
+            return logs.filter { log in
+                let day = calendar.startOfDay(for: log.date)
+                return start.map { day >= $0 } ?? true && end.map { day < $0 } ?? true
+            }
         }
         return [] 
     }
@@ -53,13 +67,14 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
         completion(.success(mockRecommendedFoods))
     }
     public var mockFetchMealPlanResult: MealPlanDay?
+    public var mockMealPlansByDateString: [String: MealPlanDay] = [:]
     public var mockFetchGroceryListResult: [GroceryListItem] = []
     public var savedMealPlans: [MealPlanDay] = []
     public var savedGroceryLists: [GroceryListItem] = []
     public var batchSavedMealPlans: [MealPlanDay] = []
     
     public func fetchMealPlan(userID: String, dateString: String) async throws -> MealPlanDay? { 
-        return mockFetchMealPlanResult 
+        return mockMealPlansByDateString[dateString] ?? mockFetchMealPlanResult
     }
     public func saveMealPlan(userID: String, plan: MealPlanDay) async throws {
         savedMealPlans.append(plan)

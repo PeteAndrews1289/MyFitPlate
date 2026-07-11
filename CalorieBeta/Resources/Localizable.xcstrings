@@ -466,6 +466,16 @@
         }
       }
     },
+    "%lld %@ selected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld %2$@ selected"
+          }
+        }
+      }
+    },
     "%lld cal" : {
 
     },
@@ -510,7 +520,7 @@
     "%lld ingredients" : {
 
     },
-    "%lld items selected" : {
+    "%lld items" : {
 
     },
     "%lld kcal • %lldg P • $%@" : {
@@ -949,6 +959,9 @@
     "Add anything you need outside the generated meal plan." : {
 
     },
+    "Add Apple Health context" : {
+
+    },
     "Add Day / Routine" : {
 
     },
@@ -1048,6 +1061,9 @@
     "Age" : {
 
     },
+    "AI data sharing" : {
+
+    },
     "AI estimates. Double-check before logging." : {
 
     },
@@ -1057,13 +1073,13 @@
     "AI Journal" : {
 
     },
+    "AI processing" : {
+
+    },
     "AI Program Generator" : {
 
     },
     "AI recipe generator" : {
-
-    },
-    "AI scanner that ranks menu dishes by Protein-to-Dollar and Macro Value adjusted for local dining costs." : {
 
     },
     "All Menu Items Ranked by Protein / Dollar" : {
@@ -1073,6 +1089,9 @@
 
     },
     "All set for this list." : {
+
+    },
+    "Allow AI features" : {
 
     },
     "Allow screen to sleep" : {
@@ -1109,6 +1128,9 @@
 
     },
     "Analyzing your performance..." : {
+
+    },
+    "Apple Health context included" : {
 
     },
     "Apply All" : {
@@ -1236,6 +1258,9 @@
 
     },
     "Break-even progress" : {
+
+    },
+    "Bring steps, activity, sleep, and recovery into your dashboard." : {
 
     },
     "Bring your diary and weight history over. Days you log here stay untouched." : {
@@ -1441,6 +1466,9 @@
     "Clear list" : {
 
     },
+    "Clear Maia chat" : {
+
+    },
     "Clear Maia chat?" : {
 
     },
@@ -1519,6 +1547,9 @@
     "Confirmed" : {
 
     },
+    "Connect" : {
+
+    },
     "Connect Apple Health" : {
 
     },
@@ -1547,6 +1578,9 @@
 
     },
     "Couldn't delete account" : {
+
+    },
+    "Create a Routine" : {
 
     },
     "Create account" : {
@@ -1686,7 +1720,13 @@
     "Deleting account" : {
 
     },
+    "Demo data only. Prices and nutrition are fictional examples, and logging is disabled." : {
+
+    },
     "Demo Menu" : {
+
+    },
+    "Demo only" : {
 
     },
     "Describe Meal" : {
@@ -1872,6 +1912,9 @@
       }
     },
     "Estimated calories" : {
+
+    },
+    "Estimated catalog • updated %@. Brand menus change, so review the meal before logging." : {
 
     },
     "Everything visible is checked off" : {
@@ -2207,6 +2250,9 @@
     "Importing Recipe..." : {
 
     },
+    "Include Apple Health data" : {
+
+    },
     "Includes grocery list generation" : {
 
     },
@@ -2439,9 +2485,6 @@
     "Log to meal:" : {
 
     },
-    "Log Top Pick" : {
-
-    },
     "Log Water" : {
 
     },
@@ -2503,9 +2546,6 @@
 
     },
     "Maia insights" : {
-
-    },
-    "Maia is analyzing your HealthKit data" : {
 
     },
     "Maia is reading the week" : {
@@ -2680,6 +2720,9 @@
     "MyFitPlate User" : {
 
     },
+    "MyFitPlate uses OpenAI through a secured Firebase service to power Maia, photo and menu analysis, meal planning, and workout insights." : {
+
+    },
     "MyFitPlate: Weekly insights" : {
 
     },
@@ -2842,6 +2885,9 @@
     "Nutrition" : {
 
     },
+    "Nutrition built for people who train." : {
+
+    },
     "Nutrition data looks off" : {
 
     },
@@ -2852,9 +2898,6 @@
 
     },
     "Nutrition Tip" : {
-
-    },
-    "Nutrition, sleep, and recovery in one read." : {
 
     },
     "Nutrition, workouts, hydration, sleep, and journal notes are being checked for useful patterns." : {
@@ -2896,7 +2939,13 @@
     "Opens logging options" : {
 
     },
+    "Opens Settings so you can review Apple Health access" : {
+
+    },
     "Opens the nutrition editor for this food." : {
+
+    },
+    "Optional Health context" : {
 
     },
     "Overdue: %@ — give these a session soon." : {
@@ -3143,6 +3192,9 @@
     "Range" : {
 
     },
+    "Ranks dishes using prices visibly printed on the menu. Nutrition remains an AI estimate and should be reviewed." : {
+
+    },
     "Rapid Scan OFF" : {
 
     },
@@ -3153,6 +3205,9 @@
 
     },
     "Reactivate Shoe" : {
+
+    },
+    "Read the privacy policy" : {
 
     },
     "Reading the menu and matching your macros" : {
@@ -3321,6 +3376,15 @@
     "Retry" : {
 
     },
+    "Review" : {
+
+    },
+    "Review & Log Top Pick" : {
+
+    },
+    "Review access" : {
+
+    },
     "Review food trust" : {
 
     },
@@ -3376,6 +3440,9 @@
 
     },
     "Save" : {
+
+    },
+    "Save AI preferences" : {
 
     },
     "Save changes" : {
@@ -3666,6 +3733,9 @@
     "shown" : {
 
     },
+    "Shows Apple's Health access request" : {
+
+    },
     "Shows which plates to load for this weight." : {
 
     },
@@ -3685,9 +3755,6 @@
 
     },
     "Skip to Here" : {
-
-    },
-    "Skip tour" : {
 
     },
     "Sleep Analysis" : {
@@ -4069,6 +4136,9 @@
     "Turn audio coach on" : {
 
     },
+    "Turn off AI data sharing" : {
+
+    },
     "Type" : {
 
     },
@@ -4217,22 +4287,22 @@
     "Weight trend" : {
 
     },
-    "Weight trend (21 days)" : {
-
-    },
     "Wellness Debrief" : {
 
     },
     "Wellness Path" : {
 
     },
-    "Wellness Score" : {
-
-    },
     "What does the buffet cost?" : {
 
     },
     "What I'm seeing in your recent nutrition, sleep, and activity." : {
+
+    },
+    "When enabled, Maia may also receive relevant steps, active energy, sleep summaries, and recovery signals. Apple Health data is never used for advertising." : {
+
+    },
+    "When you use an AI feature, MyFitPlate may send the text or image you submit plus the nutrition goals, food logs, journal entries, cycle information, pantry items, or workout details needed for that request. Your email and username are not included in AI prompts." : {
 
     },
     "Why is this better?" : {
@@ -4263,6 +4333,9 @@
 
     },
     "Workout Complete" : {
+
+    },
+    "Workout history" : {
 
     },
     "Workout History" : {
@@ -4329,6 +4402,9 @@
 
     },
     "You" : {
+
+    },
+    "You can change this choice here at any time. Turning AI data sharing off blocks future AI requests until you allow it again." : {
 
     },
     "You finished this block. Keep it for history or build the next phase from what worked." : {

@@ -17,6 +17,12 @@ final class DietTrackingUITests: XCTestCase {
         XCTAssertTrue(quickLogButton.waitForExistence(timeout: 5), "Quick log button should be visible")
         let quickLogHittable = expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: quickLogButton)
         XCTAssertEqual(XCTWaiter.wait(for: [quickLogHittable], timeout: 5), .completed)
+        XCTAssertEqual(
+            quickLogButton.frame.midX,
+            app.frame.midX,
+            accuracy: 4,
+            "Quick log should remain centered when navigation tabs change"
+        )
 
         quickLogButton.tap()
         
@@ -29,5 +35,12 @@ final class DietTrackingUITests: XCTestCase {
 
         let logCameraBtn = app.buttons["Log with camera"]
         XCTAssertTrue(logCameraBtn.waitForExistence(timeout: 2), "Expanded Quick Log options should appear")
+
+        let runningButton = app.buttons["Running"]
+        XCTAssertTrue(runningButton.waitForExistence(timeout: 2), "The final specialty action should be present")
+        for _ in 0..<3 where !runningButton.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(runningButton.isHittable, "Every expanded Quick Log action should be reachable on compact screens")
     }
 }

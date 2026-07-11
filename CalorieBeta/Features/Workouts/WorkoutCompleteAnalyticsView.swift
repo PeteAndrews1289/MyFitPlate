@@ -2,9 +2,11 @@ import MyFitPlateCore
 
 import SwiftUI
 import Charts
+import StoreKit
 
 struct WorkoutCompleteAnalyticsView: View {
     @Environment(\.dismiss) var dismiss
+    @Environment(\.requestReview) private var requestReview
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var insightsService: InsightsService
@@ -29,9 +31,11 @@ struct WorkoutCompleteAnalyticsView: View {
     @State private var isSavingWorkoutEdit = false
     @State private var recoveryMealSuggestion: MealSuggestion?
     @State private var didLogRecoveryHandoffViewed = false
+    private let isFreshCompletion: Bool
 
-    init(log: WorkoutSessionLog) {
+    init(log: WorkoutSessionLog, isFreshCompletion: Bool = false) {
         self._log = State(initialValue: log)
+        self.isFreshCompletion = isFreshCompletion
     }
 
     private var displayedAnalytics: WorkoutAnalytics {
@@ -218,9 +222,12 @@ struct WorkoutCompleteAnalyticsView: View {
                         .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .padding(.horizontal)
+                .simultaneousGesture(TapGesture().onEnded {
+                    DIContainer.shared.analyticsManager?.logEvent("workout_summary_share_opened", parameters: nil)
+                })
 
                 Button("Done") {
-                    dismiss()
+                    finishSummary()
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .padding(.horizontal)
@@ -346,6 +353,35 @@ struct WorkoutCompleteAnalyticsView: View {
 
             self.isLoading = false
         }
+    }
+
+    private func finishSummary() {
+        let shouldRequestReview = shouldRequestAppReview()
+        dismiss()
+
+        guard shouldRequestReview else { return }
+        DIContainer.shared.analyticsManager?.logEvent("app_review_prompt_requested", parameters: [
+            "moment": "completed_session"
+        ])
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            requestReview()
+        }
+    }
+
+    private func shouldRequestAppReview() -> Bool {
+        guard isFreshCompletion,
+              !ScreenshotDemoMode.isEnabled,
+              !ProcessInfo.processInfo.arguments.contains("-ui-testing"),
+              let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String else {
+            return false
+        }
+
+        let sessionID = log.id ?? "\(log.routineID):\(log.date.timeIntervalSinceReferenceDate)"
+        return AppReviewPromptCoordinator.registerCompletedSession(
+            id: sessionID,
+            appVersion: appVersion
+        )
     }
 
     @MainActor
@@ -652,7 +688,8 @@ struct WorkoutCompleteAnalyticsView: View {
     private func generateShareText(analytics: WorkoutAnalytics) -> String {
         let prCount = analytics.personalRecords.count
         let prText = prCount > 0 ? "Hit \(prCount) new PRs!" : "Great session!"
-        return "Just finished a workout with MyFitPlate: \(Int(analytics.totalVolume)) lbs total volume. \(prText)"
+        let summary = "Just finished a workout with MyFitPlate: \(Int(analytics.totalVolume)) lbs total volume. \(prText)"
+        return MyFitPlateLinks.shareMessage(summary)
     }
 
     private func formatPercent(_ value: Double) -> String {

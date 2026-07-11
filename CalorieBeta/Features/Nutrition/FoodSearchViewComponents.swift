@@ -219,14 +219,16 @@ struct FoodCard: View {
                             .appFont(size: 13, weight: .medium)
                             .foregroundColor(.orange)
 
+                        Spacer(minLength: 0)
+
                         FoodTrustMiniBadge(food: food, source: source)
                     }
                     .lineLimit(1)
                 }
             }
             .padding(14)
-            .frame(width: 146, height: 150)
-            .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .frame(width: 168, height: 164)
+            .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
     }

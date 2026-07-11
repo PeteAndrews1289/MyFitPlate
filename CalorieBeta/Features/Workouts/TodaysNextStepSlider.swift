@@ -98,7 +98,7 @@ struct TodaysNextStepSlider: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 318)
+            .frame(height: 348)
 
             positionBar
         }
@@ -111,7 +111,7 @@ struct TodaysNextStepSlider: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Today's Best Next Step")
                     .appFont(size: 12, weight: .bold)
@@ -121,7 +121,8 @@ struct TodaysNextStepSlider: View {
                 Text(program.name)
                     .appFont(size: 21, weight: .bold)
                     .foregroundColor(.textPrimary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 // DESIGN.md rule 3: progress in words a stranger understands.
                 Text("Day \(min(currentIndex + 1, totalSlots)) of \(totalSlots)")
@@ -173,8 +174,9 @@ struct TodaysNextStepSlider: View {
             }
 
             HStack(spacing: 10) {
-                Text(ExerciseEmojiMapper.getEmoji(for: routine?.exercises.first?.name ?? routine?.name ?? "💪"))
-                    .font(.title2)
+                Image(systemName: "figure.strengthtraining.traditional")
+                    .appFont(size: 18, weight: .semibold)
+                    .foregroundColor(.brandPrimary)
                     .frame(width: 44, height: 44)
                     .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
@@ -182,7 +184,7 @@ struct TodaysNextStepSlider: View {
                     Text(routine?.name ?? "Rest / Unscheduled")
                         .appFont(size: 20, weight: .bold)
                         .foregroundColor(.textPrimary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                     if let routine {
                         Text("\(routine.exercises.count) exercises")
                             .appFont(size: 12)
@@ -195,20 +197,23 @@ struct TodaysNextStepSlider: View {
             if let routine {
                 VStack(spacing: 6) {
                     ForEach(Array(routine.exercises.prefix(3))) { exercise in
-                        HStack(spacing: 8) {
-                            Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                                .font(.footnote)
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "dumbbell.fill")
+                                .appFont(size: 10, weight: .semibold)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
                                 .frame(width: 26, height: 26)
                                 .background(Color(UIColor.tertiarySystemFill), in: Circle())
                             Text(exercise.name)
                                 .appFont(size: 13, weight: .semibold)
                                 .foregroundColor(.textPrimary)
-                                .lineLimit(1)
+                                .lineLimit(2)
+                                .layoutPriority(1)
                             Spacer()
                             Text("\(max(exercise.sets.count, exercise.targetSets))×\(exercise.sets.first?.target ?? exercise.targetReps)")
                                 .appFont(size: 11, weight: .semibold)
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                                 .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
                         }
                     }
                     if routine.exercises.count > 3 {

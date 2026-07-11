@@ -1,28 +1,34 @@
 import SwiftUI
 
-struct AnimatedActionButton: View {
+struct QuickLogActionButton: View {
     let isActive: Bool
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            Image(systemName: "plus")
-                .appFont(size: 26, weight: .bold)
-                .foregroundColor(.white)
-                .rotationEffect(Angle(degrees: isActive ? 45 : 0))
-                .frame(width: 62, height: 62)
-                .background(
-                    Circle()
-                        .fill(LinearGradient.brandGradient)
-                        .shadow(color: Color.brandPrimary.opacity(0.5), radius: 16, x: 0, y: 8)
-                )
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(0.4), lineWidth: 1.5)
-                )
-                .clipShape(Circle())
-                .scaleEffect(isActive ? 0.95 : 1.0)
-                .animation(.interpolatingSpring(stiffness: 250, damping: 15), value: isActive)
+            HStack(spacing: 8) {
+                Image(systemName: "plus")
+                    .appFont(size: 19, weight: .bold)
+                    .rotationEffect(Angle(degrees: isActive ? 45 : 0))
+
+                Text("Quick log")
+                    .appFont(size: 15, weight: .bold)
+                    .lineLimit(1)
+            }
+            .foregroundColor(.white)
+            .frame(width: 122, height: 44)
+            .background(
+                Capsule()
+                    .fill(LinearGradient.brandGradient)
+                    .shadow(color: Color.brandPrimary.opacity(0.42), radius: 14, x: 0, y: 7)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.4), lineWidth: 1.5)
+            )
+            .contentShape(Capsule())
+            .scaleEffect(isActive ? 0.96 : 1.0)
+            .animation(.interpolatingSpring(stiffness: 250, damping: 15), value: isActive)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Quick log")
@@ -59,9 +65,9 @@ struct CustomTabBar: View {
                         )
                 )
                 .shadow(color: Color.black.opacity(0.12), radius: 20, x: 0, y: 10)
-                .padding(.horizontal, 12)
-                .frame(height: 76)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 10)
+                .frame(height: 72)
+                .padding(.bottom, 4)
 
             HStack(alignment: .bottom, spacing: 0) {
                 ForEach(0..<tabs.count, id: \.self) { index in
@@ -97,18 +103,24 @@ struct CustomTabBar: View {
                     .frame(maxWidth: .infinity)
                     .accessibilityIdentifier("tab_\(item.name.lowercased().replacingOccurrences(of: " ", with: "_"))")
                 }
-            }.frame(height: 60).padding(.bottom, 24).padding(.horizontal, 16)
-
-            HStack {
-                Spacer()
-                AnimatedActionButton(isActive: showingAddOptions, action: centerButtonAction)
-                    .accessibilityIdentifier("quick_log_button")
             }
-            .padding(.trailing, 18)
-            .padding(.bottom, 90)
+            .frame(height: 54)
+            .padding(.bottom, 13)
+            .padding(.horizontal, 12)
+
+            QuickLogActionButton(isActive: showingAddOptions, action: centerButtonAction)
+                .accessibilityIdentifier("quick_log_button")
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 62)
+                .opacity(showingAddOptions ? 0 : 1)
+                .scaleEffect(showingAddOptions ? 0.82 : 1)
+                .allowsHitTesting(!showingAddOptions)
+                .accessibilityHidden(showingAddOptions)
         }
         // The lifted control stays inside this layout region so its visible and tappable
         // frames are identical and touches cannot fall through to Home content.
-        .frame(height: 152)
+        .frame(maxWidth: .infinity)
+        .frame(height: 128)
+        .animation(.easeOut(duration: 0.16), value: showingAddOptions)
     }
 }

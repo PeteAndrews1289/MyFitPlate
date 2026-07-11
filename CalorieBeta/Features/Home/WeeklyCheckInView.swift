@@ -420,16 +420,27 @@ import Charts
 
 struct TrendDashboardView: View {
     var weightHistory: [(id: String, date: Date, weight: Double)]
+    var dateRange: ClosedRange<Date>?
+    var title: String
+
+    init(
+        weightHistory: [(id: String, date: Date, weight: Double)],
+        dateRange: ClosedRange<Date>? = nil,
+        title: String = "Weight trend (21 days)"
+    ) {
+        self.weightHistory = weightHistory
+        self.dateRange = dateRange
+        self.title = title
+    }
     
     private var chartData: [(date: Date, weight: Double)] {
-        // Filter to last 21 days
-        let cutoff = Calendar.current.date(byAdding: .day, value: -21, to: Date()) ?? Date()
-        let recent = weightHistory.filter { $0.date >= cutoff }.sorted { $0.date < $1.date }
-        
-        // Ensure we have data
-        if recent.isEmpty {
-            return weightHistory.suffix(7).map { (date: $0.date, weight: $0.weight) }
-        }
+        let range = dateRange ?? {
+            let calendar = Calendar.current
+            let end = Date()
+            let start = calendar.date(byAdding: .day, value: -20, to: calendar.startOfDay(for: end)) ?? end
+            return start...end
+        }()
+        let recent = weightHistory.filter { range.contains($0.date) }.sorted { $0.date < $1.date }
         return recent.map { (date: $0.date, weight: $0.weight) }
     }
 
@@ -455,7 +466,7 @@ struct TrendDashboardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Weight trend (21 days)")
+            Text(title)
                 .appFont(size: 18, weight: .bold)
                 .foregroundColor(.textPrimary)
             
@@ -515,6 +526,7 @@ struct TrendDashboardView: View {
                     }
                 }
                 .chartYScale(domain: yAxisDomain)
+                .chartXScale(range: .plotDimension(padding: 18))
                 .chartXAxis {
                     AxisMarks(preset: .aligned, values: .automatic(desiredCount: 4)) { value in
                         if let date = value.as(Date.self) {

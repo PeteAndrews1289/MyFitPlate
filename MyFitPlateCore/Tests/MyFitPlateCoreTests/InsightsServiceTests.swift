@@ -21,7 +21,7 @@ final class InsightsServiceTests: XCTestCase {
         mockAnalytics = MockAnalyticsManager()
         mockAuth = MockAuthService()
         mockAuth.currentUserID = "testUser123"
-        AIDataConsentStore.shared.revoke(for: "testUser123")
+        AIDataConsentStore.shared.grant(for: "testUser123", includesHealthData: false)
         
         DIContainer.shared.nutritionRepository = mockRepo
         DIContainer.shared.aiService = mockAI
@@ -97,6 +97,22 @@ final class InsightsServiceTests: XCTestCase {
         
         XCTAssertFalse(service.currentInsights.isEmpty)
         XCTAssertEqual(service.currentInsights.first?.title, "Protein Check")
+    }
+
+    func testGenerateAndFetchInsightsUsesLocalAnalysisWithoutAIConsent() async {
+        AIDataConsentStore.shared.revoke(for: "testUser123")
+        mockRepo.mockFetchDailyHistoryResult = .success([
+            DailyLog(id: "1", date: Date(), meals: []),
+            DailyLog(id: "2", date: Date().addingTimeInterval(-86_400), meals: []),
+            DailyLog(id: "3", date: Date().addingTimeInterval(-172_800), meals: [])
+        ])
+        mockAI.mockResult = .success(#"{"insights":[{"title":"Remote","message":"Called","category":"nutritionGeneral"}]}"#)
+
+        service.generateAndFetchInsights(forLastDays: 7)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertFalse(service.currentInsights.isEmpty)
+        XCTAssertTrue(mockAI.lastMessages.isEmpty, "Passive insights must not contact AI before consent.")
     }
     
     // MARK: - Operator Actions
@@ -238,6 +254,7 @@ final class InsightsServiceTests: XCTestCase {
     }
 
     func testSmartNotificationOmitsHealthSignalsWithoutHealthSharingConsent() async throws {
+        AIDataConsentStore.shared.grant(for: "testUser123", includesHealthData: false)
         mockAI.mockResult = .success(#"{"title":"Plan","body":"Keep going."}"#)
         let context = InsightsService.NotificationContext(
             gender: "Unspecified",
@@ -258,6 +275,27 @@ final class InsightsServiceTests: XCTestCase {
         XCTAssertFalse(prompt.contains("Wellness Score is low (13)"))
         XCTAssertFalse(prompt.contains("sleep score is low (17)"))
         XCTAssertFalse(prompt.contains("12345 steps"))
+    }
+
+    func testSmartNotificationDoesNotContactAIWithoutConsent() async {
+        AIDataConsentStore.shared.revoke(for: "testUser123")
+        let context = InsightsService.NotificationContext(
+            gender: "Unspecified",
+            phase: nil,
+            wellnessScore: nil,
+            sleepScore: nil,
+            caloriesRemaining: 500,
+            proteinRemaining: 30,
+            daysSinceLastWorkout: 2,
+            lastWorkoutName: nil,
+            stepsToday: 0,
+            activeEnergyToday: 0
+        )
+
+        let notification = await service.generateSmartNotification(context: context)
+
+        XCTAssertNil(notification)
+        XCTAssertTrue(mockAI.lastMessages.isEmpty)
     }
 
     func testSmartNotificationIncludesHealthSignalsWhenHealthSharingIsAllowed() async throws {

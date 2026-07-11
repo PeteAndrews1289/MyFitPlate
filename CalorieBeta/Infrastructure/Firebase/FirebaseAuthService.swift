@@ -23,7 +23,7 @@ final class FirebaseAuthService: AuthServiceProtocol {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<AuthUserSession, Error>) in
             Auth.auth().signIn(withEmail: email, password: password) { result, error in
                 if let error {
-                    continuation.resume(throwing: error)
+                    continuation.resume(throwing: Self.userFacingError(for: error))
                     return
                 }
 
@@ -41,7 +41,7 @@ final class FirebaseAuthService: AuthServiceProtocol {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<AuthUserSession, Error>) in
             Auth.auth().createUser(withEmail: email, password: password) { result, error in
                 if let error {
-                    continuation.resume(throwing: error)
+                    continuation.resume(throwing: Self.userFacingError(for: error))
                     return
                 }
 
@@ -59,7 +59,7 @@ final class FirebaseAuthService: AuthServiceProtocol {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             Auth.auth().sendPasswordReset(withEmail: email) { error in
                 if let error {
-                    continuation.resume(throwing: error)
+                    continuation.resume(throwing: Self.userFacingError(for: error))
                 } else {
                     continuation.resume()
                 }
@@ -75,7 +75,7 @@ final class FirebaseAuthService: AuthServiceProtocol {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             user.reauthenticate(with: credential) { _, error in
                 if let error {
-                    continuation.resume(throwing: error)
+                    continuation.resume(throwing: Self.userFacingError(for: error))
                 } else {
                     continuation.resume()
                 }
@@ -89,7 +89,7 @@ final class FirebaseAuthService: AuthServiceProtocol {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             user.delete { error in
                 if let error {
-                    continuation.resume(throwing: error)
+                    continuation.resume(throwing: Self.userFacingError(for: error))
                 } else {
                     continuation.resume()
                 }
@@ -98,6 +98,41 @@ final class FirebaseAuthService: AuthServiceProtocol {
     }
     
     func signOut() throws {
-        try Auth.auth().signOut()
+        do {
+            try Auth.auth().signOut()
+        } catch {
+            throw Self.userFacingError(for: error)
+        }
+    }
+
+    static func userFacingError(for error: Error) -> AuthServiceError {
+        let nsError = error as NSError
+        guard nsError.domain == AuthErrorDomain,
+              let code = AuthErrorCode(rawValue: nsError.code) else {
+            return .unknown
+        }
+
+        switch code {
+        case .invalidCredential, .wrongPassword, .userNotFound, .userMismatch:
+            return .invalidCredentials
+        case .invalidEmail, .missingEmail, .invalidRecipientEmail:
+            return .invalidEmail
+        case .userDisabled:
+            return .accountDisabled
+        case .emailAlreadyInUse, .accountExistsWithDifferentCredential:
+            return .emailAlreadyInUse
+        case .weakPassword:
+            return .weakPassword
+        case .tooManyRequests:
+            return .tooManyAttempts
+        case .networkError, .webNetworkRequestFailed:
+            return .networkUnavailable
+        case .keychainError:
+            return .secureStorageUnavailable
+        case .operationNotAllowed, .appNotAuthorized, .invalidAPIKey, .internalError:
+            return .serviceUnavailable
+        default:
+            return .unknown
+        }
     }
 }

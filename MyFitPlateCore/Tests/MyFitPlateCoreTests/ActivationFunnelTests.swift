@@ -39,4 +39,31 @@ final class ActivationFunnelTests: XCTestCase {
             [ActivationFunnel.onboardingCompleted, ActivationFunnel.firstWorkoutCompleted]
         )
     }
+
+    func testFirstValueEventsIncludeElapsedTimeFromOnboarding() throws {
+        let start = Date(timeIntervalSince1970: 1_000)
+        ActivationFunnel.logOnce(ActivationFunnel.onboardingCompleted, now: start, userDefaults: defaults)
+        ActivationFunnel.logOnce(
+            ActivationFunnel.firstFoodLogged,
+            now: start.addingTimeInterval(95),
+            userDefaults: defaults
+        )
+
+        let event = try XCTUnwrap(
+            mockAnalytics.loggedEvents.first { $0.name == ActivationFunnel.firstFoodLogged }
+        )
+        XCTAssertEqual(event.parameters?["elapsed_seconds"] as? Int, 95)
+    }
+
+    func testNutritionTrainingLoopFiresOnceAfterBothMilestones() {
+        ActivationFunnel.logOnce(ActivationFunnel.firstWorkoutCompleted, userDefaults: defaults)
+        ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged, userDefaults: defaults)
+        ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged, userDefaults: defaults)
+        ActivationFunnel.logOnce(ActivationFunnel.firstWorkoutCompleted, userDefaults: defaults)
+
+        let loopEvents = mockAnalytics.loggedEvents.filter {
+            $0.name == ActivationFunnel.nutritionTrainingLoopCompleted
+        }
+        XCTAssertEqual(loopEvents.count, 1)
+    }
 }

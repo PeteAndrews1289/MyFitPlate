@@ -24,6 +24,34 @@ struct ReportsView: View {
         viewModel.wellnessScore != nil
     }
 
+    private var selectedTrendRange: ClosedRange<Date> {
+        let calendar = Calendar.current
+        let start: Date
+        let requestedEnd: Date
+
+        switch selectedTimeframe {
+        case .week:
+            requestedEnd = Date()
+            start = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: requestedEnd)) ?? requestedEnd
+        case .month:
+            requestedEnd = Date()
+            start = calendar.date(byAdding: .day, value: -29, to: calendar.startOfDay(for: requestedEnd)) ?? requestedEnd
+        case .custom:
+            start = calendar.startOfDay(for: customStartDate)
+            requestedEnd = customEndDate
+        }
+
+        let endOfRequestedDay = calendar.date(
+            byAdding: DateComponents(day: 1, second: -1),
+            to: calendar.startOfDay(for: requestedEnd)
+        ) ?? requestedEnd
+        return start...max(start, endOfRequestedDay)
+    }
+
+    private var selectedTrendTitle: String {
+        "Weight trend (\(selectedTimeframe.rawValue.lowercased()))"
+    }
+
     private func fetchDataForCurrentSelection() {
         if selectedTimeframe == .custom {
             if customEndDate < customStartDate {
@@ -52,7 +80,11 @@ struct ReportsView: View {
                 // the headline trend is the hero, directly under it.
                 timeframeSelectorAndPickers
 
-                TrendDashboardView(weightHistory: goalSettings.weightHistory)
+                TrendDashboardView(
+                    weightHistory: goalSettings.weightHistory,
+                    dateRange: selectedTrendRange,
+                    title: selectedTrendTitle
+                )
                     .featureSpotlight(isActive: isActive("reports-trend"))
 
                 ReportsOverviewCard(
@@ -64,7 +96,7 @@ struct ReportsView: View {
                     workoutReport: viewModel.weeklyWorkoutReport,
                     sleepReport: viewModel.enhancedSleepReport,
                     onOpenInsights: {
-                        insightsService.generateAndFetchInsights(forLastDays: 7)
+                        insightsService.generateAndFetchInsights(forLastDays: 7, requestConsentIfNeeded: true)
                         showingDetailedInsights = true
                     }
                 )

@@ -16,7 +16,7 @@ struct WellnessScore {
     let sleepScore: Int?
     
     // The score for physical recovery (RHR, HRV).
-    let recoveryScore: Int
+    let recoveryScore: Int?
     
     // A user-facing message based on the overall score (e.g., "Primed for a great day!").
     let summary: String
@@ -25,7 +25,38 @@ struct WellnessScore {
     let color: Color
 
     /// A static "zero" state for when no data is available to display.
-    static let zero = WellnessScore(overallScore: 0, nutritionScore: 0, sleepScore: nil, recoveryScore: 0, summary: "Log your day to see your score.", color: .gray)
+    static let zero = WellnessScore(overallScore: 0, nutritionScore: 0, sleepScore: nil, recoveryScore: nil, summary: "Log meals or connect Apple Health to build your score.", color: .gray)
+
+    var availableComponentCount: Int {
+        [nutritionScore > 0, sleepScore != nil, recoveryScore != nil].filter { $0 }.count
+    }
+
+    var isNutritionOnly: Bool {
+        nutritionScore > 0 && sleepScore == nil && recoveryScore == nil
+    }
+
+    var displayTitle: String {
+        isNutritionOnly ? "Nutrition Score" : "Wellness Score"
+    }
+
+    var displayMetricLabel: String {
+        isNutritionOnly ? "nutrition score" : "wellness score"
+    }
+
+    var scopeDescription: String {
+        switch availableComponentCount {
+        case 0:
+            return "Nutrition, sleep, and recovery will appear as data becomes available."
+        case 1 where isNutritionOnly:
+            return "Based on yesterday's nutrition. Connect Apple Health to add sleep and recovery."
+        case 1:
+            return "Based on the available Apple Health signal. Log nutrition to add more context."
+        case 2:
+            return "Based on two available signals; missing data is not estimated."
+        default:
+            return "Nutrition, sleep, and recovery in one read."
+        }
+    }
 }
 
 // MARK: - Wellness Score Service
@@ -55,7 +86,7 @@ class WellnessScoreService {
         let currentMealScore = mealScore ?? .noScore
         let nutritionScore = currentMealScore.overallScore
 
-        let sleepScore = lastNightSleepScore
+        let sleepScore = lastNightSleepScore.flatMap { $0 > 0 ? $0 : nil }
 
         // 3. Recovery Score (30% weight)
         // This score is calculated internally based on RHR and HRV.
@@ -74,7 +105,7 @@ class WellnessScoreService {
             availableWeight += 0.30
         }
 
-        if restingHeartRate != nil || hrv != nil {
+        if let recoveryScore {
             weightedTotal += Double(recoveryScore) * 0.30
             availableWeight += 0.30
         }
@@ -82,7 +113,12 @@ class WellnessScoreService {
         let overallScore = availableWeight > 0 ? Int((weightedTotal / availableWeight).rounded()) : 0
 
         // Get the appropriate summary text and color for the final score.
-        let (summary, color) = getSummaryAndColor(for: overallScore)
+        let (summary, color) = getSummaryAndColor(
+            for: overallScore,
+            hasNutrition: nutritionScore > 0,
+            hasSleep: sleepScore != nil,
+            hasRecovery: recoveryScore != nil
+        )
 
         // Return the complete WellnessScore object.
         return WellnessScore(
@@ -97,48 +133,77 @@ class WellnessScoreService {
 
     /// Internal function to calculate a 0-100 recovery score.
     /// It gives 50 points for RHR and 50 points for HRV.
-    private func calculateRecoveryScore(restingHeartRate: Double?, hrv: Double?) -> Int {
-        var score = 0
+    private func calculateRecoveryScore(restingHeartRate: Double?, hrv: Double?) -> Int? {
+        var componentScores: [Int] = []
 
         // RHR Score (Max 50 points)
         // A lower RHR is better, so it gets more points.
         if let rhr = restingHeartRate {
             switch rhr {
-            case ..<50: score += 50
-            case 50..<55: score += 45
-            case 55..<60: score += 40
-            case 60..<65: score += 35
-            case 65..<70: score += 30
-            case 70..<75: score += 25
-            case 75..<80: score += 20
-            default: score += 10
+            case ..<50: componentScores.append(100)
+            case 50..<55: componentScores.append(90)
+            case 55..<60: componentScores.append(80)
+            case 60..<65: componentScores.append(70)
+            case 65..<70: componentScores.append(60)
+            case 70..<75: componentScores.append(50)
+            case 75..<80: componentScores.append(40)
+            default: componentScores.append(20)
             }
-        } else { score += 25 } // Give an average score (25/50) if no RHR data is available.
+        }
 
         // HRV Score (Max 50 points)
         // A higher HRV is better, so it gets more points.
         if let hrv = hrv {
             switch hrv {
-            case 70...: score += 50
-            case 50..<70: score += 40
-            case 30..<50: score += 30
-            case 20..<30: score += 20
-            default: score += 10
+            case 70...: componentScores.append(100)
+            case 50..<70: componentScores.append(80)
+            case 30..<50: componentScores.append(60)
+            case 20..<30: componentScores.append(40)
+            default: componentScores.append(20)
             }
-        } else { score += 25 } // Give an average score (25/50) if no HRV data is available.
+        }
 
-        // Ensure the total score doesn't exceed 100.
-        return min(100, score)
+        guard !componentScores.isEmpty else { return nil }
+        return Int((Double(componentScores.reduce(0, +)) / Double(componentScores.count)).rounded())
     }
 
     /// Returns a user-facing summary and a color based on the overall score.
-    private func getSummaryAndColor(for score: Int) -> (String, Color) {
+    private func getSummaryAndColor(
+        for score: Int,
+        hasNutrition: Bool,
+        hasSleep: Bool,
+        hasRecovery: Bool
+    ) -> (String, Color) {
+        let availableCount = [hasNutrition, hasSleep, hasRecovery].filter { $0 }.count
+        guard availableCount > 0 else {
+            return ("Log meals or connect Apple Health to build your score.", .gray)
+        }
+
+        let color: Color
         switch score {
-        case 90...: return ("Primed for a great day!", .accentPositive)
-        case 80..<90: return ("Feeling strong and ready.", .green)
-        case 70..<80: return ("Solid foundation for today.", .yellow)
-        case 60..<70: return ("A good day to focus on recovery.", .orange)
-        default: return ("Prioritize rest and nutrition.", .red)
+        case 90...: color = .accentPositive
+        case 80..<90: color = .green
+        case 70..<80: color = .yellow
+        case 60..<70: color = .orange
+        default: color = .red
+        }
+
+        if availableCount == 1 {
+            if hasNutrition {
+                return (score >= 80 ? "Yesterday's nutrition was on track." : "Yesterday's nutrition has room to improve.", color)
+            }
+            if hasSleep {
+                return (score >= 80 ? "Your latest sleep looks restorative." : "Your latest sleep suggests taking it easier.", color)
+            }
+            return (score >= 80 ? "Your available recovery signal looks strong." : "Your available recovery signal suggests caution.", color)
+        }
+
+        switch score {
+        case 90...: return ("Primed for a great day!", color)
+        case 80..<90: return ("Feeling strong and ready.", color)
+        case 70..<80: return ("Solid foundation for today.", color)
+        case 60..<70: return ("A good day to focus on recovery.", color)
+        default: return ("Prioritize rest and nutrition.", color)
         }
     }
 }

@@ -454,7 +454,9 @@ struct HomeView: View {
         fetchLogForSelectedDate()
         refreshStreakHistory()
         if isToday {
-            healthKitViewModel.checkAuthorizationStatus()
+            if !ScreenshotDemoMode.isEnabled {
+                healthKitViewModel.checkAuthorizationStatus()
+            }
             cycleService.fetchAIInsight()
             refreshRunRecoveryPrompt()
 
@@ -483,6 +485,8 @@ struct HomeView: View {
     /// Starts the Home tour for any spotlights not yet seen. Called on appear and when the
     /// user taps "Replay feature tour" in Settings (which clears the seen flags first).
     private func startSpotlightTourIfNeeded() {
+        guard !ScreenshotDemoMode.isEnabled,
+              !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
         let needed = spotlightOrder.filter { !spotlightManager.isShown(id: $0) }
         guard !needed.isEmpty else { return }
         self.tourSpotlightIDs = needed

@@ -2,6 +2,7 @@ import SwiftUI
 import MyFitPlateCore
 
 struct SettingsSupportSection: View {
+    @Environment(\.openURL) private var openURL
     @Binding var showingHealthDisclaimer: Bool
     @Binding var showingResetTourConfirmation: Bool
     @Binding var showingAIDataConsent: Bool
@@ -44,9 +45,27 @@ struct SettingsSupportSection: View {
 
                 Divider().padding(.leading, 50)
 
-                Link(destination: URL(string: "mailto:peteandrews1289@gmail.com")!) {
-                    SettingsLabel(icon: "envelope.fill", title: "Email support", subtitle: "Get help with your account or app data.", color: .green)
+                Button {
+                    openFeedbackEmail()
+                } label: {
+                    SettingsLabel(icon: "bubble.left.and.bubble.right.fill", title: "Feedback & support", subtitle: "Tell us what worked or where you got stuck.", color: .green)
                 }
+                .padding(16)
+
+                Divider().padding(.leading, 50)
+
+                ShareLink(
+                    item: MyFitPlateLinks.appStoreURL,
+                    subject: Text("MyFitPlate"),
+                    message: Text("Nutrition built for people who train.")
+                ) {
+                    SettingsLabel(icon: "square.and.arrow.up", title: "Share MyFitPlate", subtitle: "Send the App Store link to someone who trains.", color: .blue)
+                }
+                .simultaneousGesture(TapGesture().onEnded {
+                    DIContainer.shared.analyticsManager?.logEvent("app_store_share_opened", parameters: [
+                        "source": "settings"
+                    ])
+                })
                 .padding(16)
 
                 Divider().padding(.leading, 50)
@@ -87,6 +106,37 @@ struct SettingsSupportSection: View {
                 }
             }
         }
+    }
+
+    private func openFeedbackEmail() {
+        guard let url = feedbackEmailURL else { return }
+        DIContainer.shared.analyticsManager?.logEvent("feedback_email_opened", parameters: [
+            "source": "settings"
+        ])
+        openURL(url)
+    }
+
+    private var feedbackEmailURL: URL? {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Unknown"
+        let systemVersion = ProcessInfo.processInfo.operatingSystemVersionString
+        let body = """
+        What were you trying to do?
+
+
+        What worked well or where did you get stuck?
+
+
+        App version: \(version) (\(build))
+        System: \(systemVersion)
+        """
+
+        var components = URLComponents(string: "mailto:peteandrews1289@gmail.com")
+        components?.queryItems = [
+            URLQueryItem(name: "subject", value: "MyFitPlate feedback"),
+            URLQueryItem(name: "body", value: body)
+        ]
+        return components?.url
     }
 }
 

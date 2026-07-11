@@ -3,11 +3,28 @@ import HealthKit
 
 struct HealthActivityCard: View {
     @EnvironmentObject var healthViewModel: HealthKitViewModel
+    @AppStorage("hasRequestedAppleHealthAccess") private var hasRequestedAppleHealthAccess = false
 
     // Default goal, could be customizable later
     private let stepGoal: Double = 10000
 
     var body: some View {
+        Group {
+            if healthViewModel.hasSyncedHealthData {
+                connectedContent
+            } else {
+                connectContent
+            }
+        }
+        .asCard()
+        .onAppear {
+            if healthViewModel.isAuthorized {
+                healthViewModel.fetchTodayPassiveData()
+            }
+        }
+    }
+
+    private var connectedContent: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
@@ -70,11 +87,51 @@ struct HealthActivityCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .asCard()
-        .onAppear {
-            if !healthViewModel.isAuthorized {
-                healthViewModel.requestAuthorization()
-            } else {
+    }
+
+    private var connectContent: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "heart.text.square.fill")
+                .appFont(size: 20, weight: .bold)
+                .foregroundColor(.red)
+                .frame(width: 46, height: 46)
+                .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Add Apple Health context")
+                    .appFont(size: 15, weight: .bold)
+                    .foregroundColor(.textPrimary)
+
+                Text("Bring steps, activity, sleep, and recovery into your dashboard.")
+                    .appFont(size: 12)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 4)
+
+            Button(hasRequestedAppleHealthAccess ? "Review access" : "Connect") {
+                if hasRequestedAppleHealthAccess,
+                   let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsURL)
+                } else {
+                    hasRequestedAppleHealthAccess = true
+                    healthViewModel.authError = nil
+                    healthViewModel.requestAuthorization()
+                }
+            }
+            .appFont(size: 12, weight: .bold)
+            .buttonStyle(.bordered)
+            .tint(.brandPrimary)
+            .accessibilityHint(
+                hasRequestedAppleHealthAccess
+                    ? "Opens Settings so you can review Apple Health access"
+                    : "Shows Apple's Health access request"
+            )
+        }
+        .accessibilityElement(children: .contain)
+        .onChange(of: healthViewModel.isAuthorized) { _, isAuthorized in
+            if isAuthorized {
                 healthViewModel.fetchTodayPassiveData()
             }
         }

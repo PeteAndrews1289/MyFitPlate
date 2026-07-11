@@ -13,7 +13,7 @@ struct WellnessScoreCardView: View {
             VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Wellness Score")
+                    Text(wellnessScore.displayTitle)
                         .appFont(size: 12, weight: .bold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .textCase(.uppercase)
@@ -23,7 +23,7 @@ struct WellnessScoreCardView: View {
                         .foregroundColor(.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Nutrition, sleep, and recovery in one read.")
+                    Text(wellnessScore.scopeDescription)
                         .appFont(size: 13)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }

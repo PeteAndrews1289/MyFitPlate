@@ -221,12 +221,14 @@ struct WorkoutRoutinesView: View {
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
             .navigationTitle("Train")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(destination: WorkoutHistoryView()) {
                         Image(systemName: "clock.arrow.circlepath")
                             .foregroundColor(.brandPrimary)
                     }
+                    .accessibilityLabel("Workout history")
                 }
             }
             .alert("Delete Current Program?", isPresented: $showingDeleteCurrentProgramAlert) {

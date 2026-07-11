@@ -79,14 +79,23 @@ public class CycleTrackingService: ObservableObject {
         self.lastPeriodStartDate = UserDefaults.standard.object(forKey: "lastPeriodStartDate") as? Date
     }
 
-    public func fetchAIInsight() {
+    public func fetchAIInsight(requestConsentIfNeeded: Bool = false) {
         guard let currentPhase = cycleDay?.phase, let goalSettings = goalSettings else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID,
+              AIDataConsentStore.shared.hasCurrentConsent(for: userID) else {
+            aiInsight = nil
+            isLoadingInsight = false
+            if requestConsentIfNeeded {
+                NotificationCenter.default.post(name: .aiDataConsentRequired, object: nil)
+            }
+            return
+        }
         let currentCycleDayNum = cycleDay?.cycleDayNumber ?? 1
         let goalString = goalSettings.goal
         isLoadingInsight = true
         
         Task {
-            let recentLogsResult = await dailyLogService?.fetchDailyHistory(for: DIContainer.shared.authService.currentUserID ?? "", startDate: Calendar.current.date(byAdding: .day, value: -3, to: Date()), endDate: Date())
+            let recentLogsResult = await dailyLogService?.fetchDailyHistory(for: userID, startDate: Calendar.current.date(byAdding: .day, value: -3, to: Date()), endDate: Date())
             var logs: [DailyLog] = []
             if let recentLogs = recentLogsResult, case .success(let fetchedLogs) = recentLogs {
                 logs = fetchedLogs

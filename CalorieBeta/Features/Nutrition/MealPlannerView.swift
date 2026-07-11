@@ -346,6 +346,7 @@ struct MealPlannerView: View {
         prefetchVisibleWeekIfNeeded()
         refreshWeekOverview()
 
+        guard !ScreenshotDemoMode.isEnabled else { return }
         let needed = spotlightOrder.filter { !spotlightManager.isShown(id: $0) }
         if !needed.isEmpty {
             self.tourSpotlightIDs = needed

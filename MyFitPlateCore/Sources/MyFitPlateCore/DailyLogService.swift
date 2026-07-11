@@ -455,6 +455,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     EcosystemSyncManager.shared.syncNutritionToHealthKit(item: item)
                     self.recentFoodStore.addRecentFood(for: userID, foodItem: item, source: result.sourceUsed)
                 }
+                ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
                 let message = nonEmptyGroups.count == 1
                     ? "\(nonEmptyGroups[0].mealName) logged!"
                     : "Planned day logged!"

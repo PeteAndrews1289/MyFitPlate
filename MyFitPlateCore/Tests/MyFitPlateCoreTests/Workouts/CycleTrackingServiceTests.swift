@@ -11,9 +11,11 @@ final class CycleTrackingServiceTests: XCTestCase {
         originalLastPeriodStartDate = UserDefaults.standard.object(forKey: "lastPeriodStartDate") as? Date
         UserDefaults.standard.removeObject(forKey: "cycleSettings")
         UserDefaults.standard.removeObject(forKey: "lastPeriodStartDate")
+        AIDataConsentStore.shared.grant(for: "mock_user", includesHealthData: false)
     }
 
     override func tearDownWithError() throws {
+        AIDataConsentStore.shared.revoke(for: "mock_user")
         if let originalCycleSettingsData {
             UserDefaults.standard.set(originalCycleSettingsData, forKey: "cycleSettings")
         } else {
