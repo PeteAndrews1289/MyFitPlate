@@ -83,7 +83,7 @@ struct HomeView: View {
             text: "Your calories and macros for the day, front and center. Swipe left or right to move between the Summary, Hydration, and Micronutrient views."
         ),
         "quickActions": (
-            title: "Quick actions",
+            title: "Quick Actions",
             text: "Your most-used tools in one tap: start a workout, open Maia's plan, repeat yesterday's meals, scan a menu, log weight, or track a fast."
         ),
         "menuScanner": (

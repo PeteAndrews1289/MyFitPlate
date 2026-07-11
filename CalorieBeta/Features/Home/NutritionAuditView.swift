@@ -13,7 +13,7 @@ struct NutritionAuditLaunchButton: View {
                     .background(Color.orange.opacity(0.12), in: Circle())
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Review food trust")
+                    Text("Review Food Trust")
                         .appFont(size: 13, weight: .bold)
                         .foregroundColor(.textPrimary)
 

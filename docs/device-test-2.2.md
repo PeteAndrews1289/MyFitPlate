@@ -35,7 +35,7 @@ light mode, WiFi" fixes itself. "The buffet thing looked wrong" costs us a windo
 - [ ] Train quick action switches to the Train tab (doesn't push a duplicate screen)
 
 ## 3. Quick-log menu (5 min)
-- [ ] The centered Quick Log pill opens the menu and stays visually independent from the five evenly spaced tabs; Search food is the single green hero row
+- [ ] The compact centered Quick Log action opens the menu and stays visually independent from the five evenly spaced tabs; only its outlined plus carries the green emphasis, and Search food is the single green hero row
 - [ ] Three primary rows present first: Search food, Scan barcode, Describe your meal
 - [ ] More options reveals: Log with camera, Log exercise, Log recipe or meal, **Beat the buffet**, **Running**
 - [ ] On a compact phone, the expanded list scrolls and the final Running action remains reachable
@@ -137,7 +137,7 @@ Indoors today:
 - [ ] Dark mode sweep: Home, AYCE live, run detail, trust card, coaching, MFP import — no washed-out cards
 - [ ] Dynamic Type XL spot check: Home + AYCE tiles + player don't clip
 - [ ] Sign out / sign in → data returns; custom calorie goal SURVIVES (the reset-bug fix)
-- [ ] Five bottom tabs are visible, evenly spaced, and usable (Home, Maia, Train, Meal Plan, Reports); the centered Quick Log pill does not cover tab labels or tappable content
+- [ ] Five bottom tabs are visible, evenly spaced, and usable (Home, Maia, Train, Meal Plan, Reports); their label baselines stay aligned, and the centered Quick Log action does not cover labels or tappable content
 - [ ] Optional review-prompt check: on a fresh local install, complete three distinct workouts over at least three days and tap Done on the third summary. The app should request a review only then; Apple may still choose not to display the system prompt
 
 ## 14. Production services (owner check before archive)

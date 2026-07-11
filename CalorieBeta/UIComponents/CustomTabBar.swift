@@ -6,32 +6,37 @@ struct QuickLogActionButton: View {
     
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: 7) {
                 Image(systemName: "plus")
-                    .appFont(size: 19, weight: .bold)
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(.brandPrimary)
                     .rotationEffect(Angle(degrees: isActive ? 45 : 0))
+                    .frame(width: 24, height: 24)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.brandPrimary, lineWidth: 1.6)
+                    )
 
-                Text("Quick log")
-                    .appFont(size: 15, weight: .bold)
+                Text("Quick Log")
+                    .appFont(size: 14, weight: .semibold)
+                    .foregroundColor(.textPrimary)
                     .lineLimit(1)
             }
-            .foregroundColor(.white)
-            .frame(width: 122, height: 44)
-            .background(
-                Capsule()
-                    .fill(LinearGradient.brandGradient)
-                    .shadow(color: Color.brandPrimary.opacity(0.42), radius: 14, x: 0, y: 7)
-            )
+            .frame(width: 108, height: 44)
+            .background(.regularMaterial, in: Capsule())
             .overlay(
                 Capsule()
-                    .stroke(Color.white.opacity(0.4), lineWidth: 1.5)
+                    .stroke(Color(UIColor.separator).opacity(0.28), lineWidth: 1)
             )
+            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
             .contentShape(Capsule())
             .scaleEffect(isActive ? 0.96 : 1.0)
             .animation(.interpolatingSpring(stiffness: 250, damping: 15), value: isActive)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Quick log")
+        .frame(width: 108, height: 44)
+        .contentShape(Capsule())
+        .accessibilityLabel("Quick Log")
         .accessibilityHint("Opens logging options")
     }
 }
@@ -111,7 +116,7 @@ struct CustomTabBar: View {
             QuickLogActionButton(isActive: showingAddOptions, action: centerButtonAction)
                 .accessibilityIdentifier("quick_log_button")
                 .frame(maxWidth: .infinity)
-                .padding(.bottom, 62)
+                .padding(.bottom, 64)
                 .opacity(showingAddOptions ? 0 : 1)
                 .scaleEffect(showingAddOptions ? 0.82 : 1)
                 .allowsHitTesting(!showingAddOptions)

@@ -141,7 +141,7 @@ struct MainTabView: View {
 
                         HStack(alignment: .top, spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Quick log")
+                                Text("Quick Log")
                                     .foregroundColor(.textPrimary)
                                     .appFont(size: 24, weight: .bold)
 
