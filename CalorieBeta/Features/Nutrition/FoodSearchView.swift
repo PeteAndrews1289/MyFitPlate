@@ -1,6 +1,11 @@
 import SwiftUI
 import MyFitPlateCore
 
+enum FoodSearchInitialPresentation {
+    case none
+    case chainBuilder
+}
+
 struct FoodSearchView: View {
     @Binding var dailyLog: DailyLog?
     var onFoodItemLogged: (() -> Void)?
@@ -46,7 +51,8 @@ struct FoodSearchView: View {
         dailyLog: Binding<DailyLog?>,
         onFoodItemLogged: (() -> Void)? = nil,
         onFoodItemSelected: ((FoodItem) -> Void)? = nil,
-        searchContext: String
+        searchContext: String,
+        initialPresentation: FoodSearchInitialPresentation = .none
     ) {
         _dailyLog = dailyLog
         self.onFoodItemLogged = onFoodItemLogged
@@ -60,12 +66,15 @@ struct FoodSearchView: View {
                 selectedMeal: ScreenshotDemoMode.isEnabled ? "Dinner" : nil
             )
         )
-        _showingChainBuilder = State(initialValue: screenshotScreen == "builder")
+        _showingChainBuilder = State(
+            initialValue: initialPresentation == .chainBuilder || screenshotScreen == "builder"
+        )
         _selectedFoodItem = State(
             initialValue: screenshotScreen == "trust" ? ScreenshotDemoData.trustDemoFood : nil
         )
         #else
         _viewModel = StateObject(wrappedValue: FoodSearchViewModel())
+        _showingChainBuilder = State(initialValue: initialPresentation == .chainBuilder)
         #endif
     }
 

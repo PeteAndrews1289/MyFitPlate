@@ -138,4 +138,34 @@ final class MyFitPlateUITests: XCTestCase {
             "Done should return to Home"
         )
     }
+
+    @MainActor
+    func testCustomProductPageDeepLinksOpenExactDestinations() throws {
+        let app = XCUIApplication()
+        let destinations = [
+            ("myfitplate://food-search", "Log food"),
+            ("myfitplate://trust", "Trust Hub"),
+            ("myfitplate://builder", "Fast Food"),
+            ("myfitplate://runs", "Running"),
+            ("myfitplate://meal-plan", "Meal plan")
+        ]
+
+        for (url, title) in destinations {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-deep-link-url",
+                url
+            ]
+            app.launch()
+
+            let navigationTitle = app.navigationBars[title]
+            let visibleTitle = app.staticTexts[title]
+            XCTAssertTrue(
+                navigationTitle.waitForExistence(timeout: 8) || visibleTitle.waitForExistence(timeout: 3),
+                "\(url) should open \(title), not a neighboring tab"
+            )
+        }
+    }
 }

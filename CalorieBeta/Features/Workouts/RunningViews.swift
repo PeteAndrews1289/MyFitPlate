@@ -13,8 +13,18 @@ final class RunHistoryViewModel: ObservableObject {
     @Published var isLoading = true
 
     private let importer = RunImportService()
+    private let fixtureRuns: [Run]?
+
+    init(fixtureRuns: [Run]? = nil) {
+        self.fixtureRuns = fixtureRuns
+        if let fixtureRuns {
+            runs = fixtureRuns
+            isLoading = false
+        }
+    }
 
     func load() {
+        guard fixtureRuns == nil else { return }
         HealthKitManager.shared.requestAuthorization { [weak self] _, _ in
             guard let self else { return }
             let since = Calendar.current.date(byAdding: .day, value: -180, to: Date()) ?? Date()
@@ -40,13 +50,22 @@ final class RunHistoryViewModel: ObservableObject {
 }
 
 struct RunHistoryView: View {
-    @StateObject private var viewModel = RunHistoryViewModel()
+    @StateObject private var viewModel: RunHistoryViewModel
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @State private var showingRecorder = false
     @State private var showingRunStartSheet = false
     @State private var activeRunPlan: RunWorkoutPlan?
     @State private var showingGearManager = false
     @State private var showingTreadmillEntry = false
+
+    init() {
+        #if DEBUG
+        let fixtureRuns = ScreenshotDemoMode.isEnabled ? ScreenshotDemoData.runningDemoRuns : nil
+        _viewModel = StateObject(wrappedValue: RunHistoryViewModel(fixtureRuns: fixtureRuns))
+        #else
+        _viewModel = StateObject(wrappedValue: RunHistoryViewModel())
+        #endif
+    }
 
     var body: some View {
         ScrollView {

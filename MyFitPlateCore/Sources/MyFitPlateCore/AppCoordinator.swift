@@ -3,7 +3,8 @@ import SwiftUI
 @MainActor
 public class AppCoordinator: ObservableObject {
     public static let shared = AppCoordinator()
-    @Published public var currentRoute: Route = .home
+    @Published public private(set) var currentRoute: Route = .home
+    @Published public private(set) var pendingRoute: Route?
     
     public init() {}
     
@@ -17,34 +18,45 @@ public class AppCoordinator: ObservableObject {
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
             .first { !$0.isEmpty }
 
-        switch routeName {
-        case "home", nil:
-            navigate(to: .home, appState: appState)
-        case "nutrition", "meal-planner", "mealplanner", "meals":
-            navigate(to: .nutrition, appState: appState)
-        case "workouts", "workout":
-            navigate(to: .workouts, appState: appState)
-        case "profile":
-            navigate(to: .profile, appState: appState)
-        case "settings":
-            navigate(to: .settings, appState: appState)
-        case "community":
-            navigate(to: .community, appState: appState)
-        default:
-            navigate(to: .home, appState: appState)
-        }
+        let route = route(for: routeName)
+        currentRoute = route
+        pendingRoute = route
+        appState.selectedTab = route.selectedTab
     }
 
-    private func navigate(to route: Route, appState: AppState) {
-        currentRoute = route
+    public func takePendingRoute() -> Route? {
+        defer { pendingRoute = nil }
+        return pendingRoute
+    }
 
-        switch route {
-        case .home, .profile, .settings, .community:
-            appState.selectedTab = 0
-        case .nutrition:
-            appState.selectedTab = 3
-        case .workouts:
-            appState.selectedTab = 2
+    private func route(for routeName: String?) -> Route {
+        switch routeName {
+        case "home", nil:
+            return .home
+        case "maia", "coach", "coaching":
+            return .maia
+        case "nutrition", "meal-plan", "meal-planner", "mealplanner", "meals":
+            return .nutrition
+        case "workouts", "workout", "train", "training":
+            return .workouts
+        case "reports", "progress":
+            return .reports
+        case "food-search", "foodsearch", "food", "log-food":
+            return .foodSearch
+        case "trust", "trust-score", "food-trust":
+            return .trust
+        case "builder", "fast-food-builder", "restaurant-builder":
+            return .builder
+        case "runs", "running", "run-history":
+            return .runs
+        case "profile":
+            return .profile
+        case "settings":
+            return .settings
+        case "community":
+            return .community
+        default:
+            return .home
         }
     }
 }

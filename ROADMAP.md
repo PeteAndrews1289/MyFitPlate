@@ -20,8 +20,9 @@ Current objective: move from "impressive broad feature set" to "obvious reason t
 
 ---
 
-## 🚀 Version 2.3 — Running Superpowers & Friction Killers (Completed)
-Focusing on running gear management, immediate post-run recovery nutrition, and effortless daily logging.
+## ✅ Shipped in Version 2.2 — Running Superpowers & Friction Killers
+These items originally carried a 2.3 label while they were being built, but all shipped
+inside the much larger 2.2 release. They remain here as release history, not future scope.
 
 ### Running Engine & Recovery
 - [x] **Shoe Mileage Tracker (Core Engine)**: Added `RunningShoe` struct, `shoeID` tagging on runs, and `RunningShoeStore` for local gear persistence and wear calculations.
@@ -39,7 +40,152 @@ Focusing on running gear management, immediate post-run recovery nutrition, and 
 
 ---
 
-## 🧭 Competitive Sprint Plan
+## 🎯 Version 2.3 — The Daily Training Loop (Planned)
+
+**Release thesis:** 2.2 established the moat: food data that shows its work, connected to
+real training. Version 2.3 should turn that advantage into a repeatable habit by helping a
+user decide what to eat before training, what to do after it, and whether the plan is
+working. This is a retention release, not another inventory of unrelated features.
+
+**Public promise:** "Know what to eat before and after training without losing sight of
+your daily targets."
+
+**Scope rule:** reserve roughly 25% of the release for 2.2 launch feedback, defects, and
+accessibility/device findings. New work must improve the food -> train -> recover -> review
+loop, remove logging friction, or make the Trust advantage easier to discover.
+
+### Must Ship — 2.2 Signal and Release Health
+
+- [ ] **Competitive KPI dashboard**: join App Store acquisition with Firebase activation
+  events for first-food completion, time to first log, barcode recovery, import completion,
+  Trust review/correction, first workout, nutrition-plus-training loop completion, D1/D7
+  return, weekly active loggers, and AI cost per active user.
+- [ ] **Launch-health operating view**: monitor crash-free users, operation-tagged non-fatals,
+  auth/account deletion, serialized diary write failures, provider latency/misses, AI decode
+  failures, and App Check rejection rates. Every red metric needs an owner and rollback path.
+- [ ] **Structured feedback triage**: keep one severity-ranked list for review feedback,
+  support messages, device-only defects, and repeated friction. Do not redesign a flow from
+  one opinion unless it reveals a clear usability or correctness fault.
+- [ ] **Known device closures**: validate guided intervals on real GPS, Watch-imported runs
+  with heart-rate series, phone-only runs without HR, workout supersets/rest behavior, and
+  RPE/RIR/set-type editing on hardware.
+- [ ] **Organic acquisition follow-through**: submit the 2.2 featuring nomination, publish
+  Trust/Strength/Weight/Dining custom product pages after 2.2 approval, and add exact app
+  routes plus deterministic screenshot fixtures for Food Search, Trust, Fast Food Builder,
+  Runs, and Meal Plan. Started: 2.3 now queues exact routes through login/onboarding and has
+  deterministic CPP aliases plus a HealthKit-free Running history fixture; publication and
+  signed-in/signed-out device checks remain.
+
+### Must Ship — Training Fuel Planner v1
+
+- [ ] **Deterministic pre-session plan**: use the next planned lift/run, expected duration and
+  effort, time until training, today's logged intake, and remaining calorie/macro budget to
+  propose a bounded pre-workout and post-workout allocation. Never silently raise the user's
+  chosen daily target or infer a "refeed" from overage.
+- [ ] **User control and honest uncertainty**: let the user change session time, duration,
+  intensity, and whether they want food before or after. Explain the inputs and keep AI meal
+  ideas separate from the deterministic fuel budget.
+- [ ] **Actionable handoff**: route each plan to trusted food search, saved/recent meals,
+  Fill Macros, Meal Plan, or Fast Food Builder with the intended carb/protein budget attached.
+- [ ] **Post-session reconciliation**: reuse the existing recovery handoff, subtract what was
+  actually logged, expire stale recommendations, and switch to neutral review when the day is
+  already over target.
+- [ ] **Rules and safety coverage**: test hard leg days, easy sessions, long runs, short runs,
+  late-night training, fasting, missing schedule data, tiny remaining budgets, over-target
+  days, and stale workouts. Keep language in the fitness-coaching lane, not medical advice.
+
+### Must Ship — Training and Fuel Report
+
+- [ ] **One weekly story**: replace scattered training statistics with a clear report that
+  answers: What did I train? How consistently did I fuel it? What changed?
+- [ ] **Running summary**: unify weekly mileage, route/pace records, HR zones and time in zone,
+  shoe wear, interval plan-vs-actual results, and recovery-fuel follow-through.
+- [ ] **Strength summary**: show working-set volume, PRs, session frequency, effort trend, and
+  protein/calorie consistency on hard training days without counting warmups as progress.
+- [ ] **Outcome context**: place smoothed weight trend, nutrition adherence, and Trust review
+  rate beside training. Avoid inventing one composite performance score without evidence.
+- [ ] **Share/export foundation**: produce a privacy-reviewed weekly summary suitable for the
+  user, a coach, or a clinician; PDF polish is a stretch goal, clean structured CSV is not.
+
+### Should Ship — Next Action Beyond the Phone App
+
+- [ ] **Widget: next move**: extend shared widget data beyond totals so one clear action can be
+  shown: pre-workout fuel, recovery meal, protein catch-up, Trust review, or steady day. Keep
+  interactive water logging and add a direct route into the relevant app screen.
+- [ ] **Watch quick actions**: retain the existing daily glance, water, and weight tools; add a
+  narrowly scoped recent-meal repeat and recovery-plan review with an offline-safe queued
+  result. Do not attempt full database food search on the Watch in this release.
+- [ ] **Notifications that earn permission**: opt-in controls for pre-session fuel, post-session
+  recovery, and one evening catch-up reminder; include quiet hours, per-type toggles, strict
+  frequency caps, and outcome telemetry. No generic engagement nags.
+- [ ] **Exact deep links**: add and test `food-search`, `trust`, `builder`, `runs`, and
+  `meal-plan` routes, including signed-out behavior, so custom product pages never open to an
+  unrelated tab. Started: the coordinator parses and queues every route, the stable app shell
+  presents the exact destination after blockers clear, and Core plus UI regression tests are
+  green. Keep the 2.2 custom pages link-free until this 2.3 binary is approved.
+
+### Internal 2.3 Work — Trust Calibration and Community Safety
+
+- [ ] **Trust calibration report**: compare score band/provider/evidence with later edits,
+  correction findings, saved-correction reuse, and abandonment. Reweight only after real
+  outcomes show a consistent error, never to make scores look higher.
+- [ ] **Private contribution model**: move community barcode submissions under private
+  per-user ownership and keep public reads away from contributor identifiers.
+- [ ] **Server-owned aggregate**: build contributor thresholds, agreement/conflict handling,
+  provenance snapshots, and aggregate-only published records in Functions.
+- [ ] **Moderation and rollback**: add abuse limits, quarantine, provider health metrics,
+  operator rollback, and a kill switch before internal percentage rollout.
+- [ ] **Internal soak only**: `feature_communityBarcodeCorrections` remains `false` publicly.
+  Public community corrections are explicitly not a 2.3 release requirement.
+
+### Explicit Non-Goals for 2.3
+
+- Public community barcode data before the server aggregate and moderation gates pass.
+- Social feeds, public challenges, or friend graphs.
+- A broad Maia/chat rewrite, new AI surfaces without a structured user action, or autonomous
+  changes to calories/macros.
+- iPad redesign, Android expansion, a new food provider, or a new subscription system.
+- More running workout types before real-device interval behavior is validated.
+
+### Provisional Success Measures
+
+Set final targets after 7–14 days of clean 2.2 data; compare against MyFitPlate's baseline,
+not an invented industry benchmark.
+
+- Median first food log remains under 60 seconds and completion improves from the 2.2 cohort.
+- Weekly `nutrition_training_loop_completed` rate improves by at least 20% relative.
+- D7 retention improves by at least 15% relative without higher notification opt-out.
+- Training-active users repeatedly act on the fuel plan; views without action are treated as
+  a product failure signal, not engagement.
+- Lower Trust bands predict more later corrections than higher bands; if they do not, the
+  scoring model needs calibration before broader claims.
+- Crash-free use, AI cost per active user, and provider recovery remain within agreed launch
+  guardrails.
+
+### Immediate Build Queue
+
+1. Add exact deep-link routes and custom-product-page screenshot fixtures.
+2. Audit activation/Trust/training events and define the external KPI dashboard contract.
+3. Build the deterministic fuel-plan model and adversarial Core test matrix.
+4. Add the Home planner/review flow and connect it to existing logging destinations.
+5. Build the unified Training and Fuel report from existing running, lifting, and nutrition
+   engines before adding new data collection.
+6. Extend widget shared data, then deliver the narrow Watch and notification slices.
+7. Develop the community aggregate behind a server-only flag; do not couple it to 2.3 launch.
+
+### Ownership and Dependencies
+
+**Codex can execute independently:** architecture, deterministic engines, tests, app UI,
+widgets, Watch code, deep links, screenshot fixtures, analytics contracts, Functions/rules
+implementation, accessibility sweeps, docs, and CI verification.
+
+**Peter is required for:** real-user feedback and priority calls, physical iPhone/Watch/GPS
+validation, App Store Connect publishing, production dashboard/console access where login is
+required, notification-policy approval, and any decision to expose community-contributed data.
+
+---
+
+## 🧭 Long-Term Competitive Backlog
 The next several sprints are ordered to make the product competitive before expanding the surface area further. The first three sprints are conversion and retention work; the later sprints deepen the moat.
 
 ### Sprint 0 — Baseline, Positioning, and Release Readiness

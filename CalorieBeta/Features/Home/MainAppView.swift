@@ -299,6 +299,7 @@ struct CalorieBetaApp: App {
 }
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var appCoordinator: AppCoordinator
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var insightsService: InsightsService
@@ -316,6 +317,9 @@ struct ContentView: View {
     @State private var shouldShowFirstSessionChoice = false
     @State private var shouldShowFirstSessionMFPImport = false
     @State private var shouldShowFirstSessionFoodSearch = false
+    @State private var isTransitioningFirstSessionChoice = false
+    @State private var presentedDeepLinkRoute: Route?
+    @State private var didQueueUITestDeepLink = false
     @AppStorage("useMetricBodyUnits") private var useMetricBodyUnits: Bool = Locale.current.measurementSystem != .us
     @AppStorage("firstSessionChoicePending") private var firstSessionChoicePending = false
     @AppStorage("firstSessionChoiceCompleted") private var firstSessionChoiceCompleted = false
@@ -336,14 +340,26 @@ struct ContentView: View {
             NotificationBanner(banner: $bannerService.currentBanner)
         }
         .onAppear {
+            #if DEBUG
+            queueUITestDeepLinkIfNeeded()
+            #endif
             checkUserStatusAndFirstLogin()
             sendNutritionToWatchIfNeeded()
+            processPendingDeepLinkIfReady()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             handleAppDidBecomeActive()
         }
         .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
             handleLoginStateChange(isLoggedIn: isLoggedIn)
+        }
+        .onChange(of: appCoordinator.pendingRoute) { _, _ in
+            processPendingDeepLinkIfReady()
+        }
+        .onChange(of: deferredDeepLinkIsBlocked) { _, isBlocked in
+            if !isBlocked {
+                processPendingDeepLinkIfReady()
+            }
         }
         .onChange(of: dailyLogService.currentDailyLog) {
             sendNutritionToWatchIfNeeded()
@@ -382,10 +398,83 @@ struct ContentView: View {
                 searchContext: "first_session_log"
             )
         }
+        .sheet(item: $presentedDeepLinkRoute, onDismiss: processPendingDeepLinkIfReady) { route in
+            deepLinkedContent(for: route)
+        }
         .onOpenURL { url in
-            AppCoordinator.shared.handle(url: url, appState: appState)
+            appCoordinator.handle(url: url, appState: appState)
         }
     }
+
+    private var deferredDeepLinkIsBlocked: Bool {
+        !appState.isUserLoggedIn ||
+            isLoadingUserState ||
+            shouldShowOnboardingSurvey ||
+            shouldShowFeatureTour ||
+            shouldShowFirstSessionChoice ||
+            shouldShowFirstSessionMFPImport ||
+            shouldShowFirstSessionFoodSearch ||
+            (firstSessionChoicePending && !firstSessionChoiceCompleted) ||
+            isTransitioningFirstSessionChoice ||
+            presentedDeepLinkRoute != nil
+    }
+
+    private func processPendingDeepLinkIfReady() {
+        guard !deferredDeepLinkIsBlocked,
+              let route = appCoordinator.takePendingRoute() else { return }
+
+        appState.selectedTab = route.selectedTab
+        DIContainer.shared.analyticsManager?.logEvent("deep_link_opened", parameters: [
+            "route": route.rawValue
+        ])
+
+        switch route {
+        case .foodSearch, .trust, .builder, .runs:
+            presentedDeepLinkRoute = route
+        case .home, .maia, .profile, .settings, .nutrition, .workouts, .reports, .community:
+            break
+        }
+    }
+
+    @ViewBuilder
+    private func deepLinkedContent(for route: Route) -> some View {
+        switch route {
+        case .foodSearch:
+            FoodSearchView(
+                dailyLog: $dailyLogService.currentDailyLog,
+                onFoodItemLogged: { presentedDeepLinkRoute = nil },
+                searchContext: "deep_link_food_search"
+            )
+        case .trust:
+            DeepLinkedTrustView()
+        case .builder:
+            FoodSearchView(
+                dailyLog: $dailyLogService.currentDailyLog,
+                onFoodItemLogged: { presentedDeepLinkRoute = nil },
+                searchContext: "deep_link_builder",
+                initialPresentation: .chainBuilder
+            )
+        case .runs:
+            DeepLinkedRunHistoryView()
+        case .home, .maia, .profile, .settings, .nutrition, .workouts, .reports, .community:
+            EmptyView()
+        }
+    }
+
+    #if DEBUG
+    private func queueUITestDeepLinkIfNeeded() {
+        guard !didQueueUITestDeepLink else { return }
+        didQueueUITestDeepLink = true
+
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-ui-testing"),
+              let flagIndex = arguments.firstIndex(of: "-deep-link-url"),
+              arguments.indices.contains(flagIndex + 1),
+              let url = URL(string: arguments[flagIndex + 1]) else { return }
+        appCoordinator.handle(url: url, appState: appState)
+    }
+    #endif
+
     private func scheduleBackgroundNudge() {
         // Gather Data
         let log = dailyLogService.currentDailyLog
@@ -620,6 +709,7 @@ struct ContentView: View {
     private func handleFirstSessionChoice(_ choice: FirstSessionChoice) {
         firstSessionChoicePending = false
         firstSessionChoiceCompleted = true
+        isTransitioningFirstSessionChoice = true
         DIContainer.shared.analyticsManager?.logEvent("first_session_choice_selected", parameters: [
             "choice": choice.rawValue
         ])
@@ -635,6 +725,39 @@ struct ContentView: View {
             case .explore:
                 shouldShowFeatureTour = true
             }
+            isTransitioningFirstSessionChoice = false
+        }
+    }
+}
+
+private struct DeepLinkedTrustView: View {
+    @EnvironmentObject private var dailyLogService: DailyLogService
+
+    var body: some View {
+        NavigationStack {
+            NutritionAuditView(
+                dailyLog: dailyLogService.currentDailyLog ?? DailyLog(
+                    date: dailyLogService.activelyViewedDate,
+                    meals: []
+                ),
+                dailyLogBinding: $dailyLogService.currentDailyLog,
+                date: dailyLogService.activelyViewedDate
+            )
+        }
+    }
+}
+
+private struct DeepLinkedRunHistoryView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            RunHistoryView()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { dismiss() }
+                    }
+                }
         }
     }
 }
