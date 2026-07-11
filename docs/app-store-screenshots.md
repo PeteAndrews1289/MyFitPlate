@@ -67,6 +67,10 @@ alpha channel before composition. Do not replace these fixtures with a personal
 account: deterministic data makes the gallery reproducible and avoids accidentally
 publishing private health or nutrition history.
 
+Screenshot mode pins Food Search and Fast Food Builder to Dinner so their story does
+not change with the capture time. This override is Debug-only; ordinary app launches
+still choose the default meal from the current time.
+
 ## Composition pipeline
 
 The compositor requires Python and Pillow. The Codex bundled Python runtime includes

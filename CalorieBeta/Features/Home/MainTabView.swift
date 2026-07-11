@@ -104,6 +104,7 @@ struct MainTabView: View {
                         }
                     }
                 )
+                .zIndex(showingAddOptions ? 0 : 1)
 
                 if showingAddOptions {
                     Color.black.opacity(0.34)

@@ -332,29 +332,29 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             mainContent
-                .onAppear {
-                    checkUserStatusAndFirstLogin()
-                    sendNutritionToWatchIfNeeded()
-                }
-                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-                    handleAppDidBecomeActive()
-                }
-                .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
-                    handleLoginStateChange(isLoggedIn: isLoggedIn)
-                }
-                .onChange(of: dailyLogService.currentDailyLog) {
-                    sendNutritionToWatchIfNeeded()
-                }
-                .onChange(of: connectivityManager.pendingWatchWaterOunces) { _, pending in
-                    if pending > 0 { drainPendingWatchWater() }
-                }
-                .onChange(of: scenePhase) { _, newPhase in
-                    if newPhase == .background && appState.isUserLoggedIn {
-                        scheduleBackgroundNudge()
-                    }
-                }
             
             NotificationBanner(banner: $bannerService.currentBanner)
+        }
+        .onAppear {
+            checkUserStatusAndFirstLogin()
+            sendNutritionToWatchIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            handleAppDidBecomeActive()
+        }
+        .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
+            handleLoginStateChange(isLoggedIn: isLoggedIn)
+        }
+        .onChange(of: dailyLogService.currentDailyLog) {
+            sendNutritionToWatchIfNeeded()
+        }
+        .onChange(of: connectivityManager.pendingWatchWaterOunces) { _, pending in
+            if pending > 0 { drainPendingWatchWater() }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background && appState.isUserLoggedIn {
+                scheduleBackgroundNudge()
+            }
         }
         .withGlobalToast()
         .sheet(isPresented: $shouldShowFeatureTour) {
