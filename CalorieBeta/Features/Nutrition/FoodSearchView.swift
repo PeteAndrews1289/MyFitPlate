@@ -137,7 +137,6 @@ struct FoodSearchView: View {
                             DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                             Task { @MainActor in
                                 if let result = await barcodeLookupService.lookup(barcode) {
-                                    DIContainer.shared.analyticsManager.barcodeLookupOutcome(.success(result))
                                     self.isSearchingAfterScan = false
                                     self.pendingManualBarcode = nil
                                     self.scannedFoodSource = result.source
@@ -145,7 +144,6 @@ struct FoodSearchView: View {
                                     showBarcodeResultFeedback(result)
                                     return
                                 }
-                                DIContainer.shared.analyticsManager.barcodeLookupOutcome(.miss(barcode: barcode))
                                 self.isSearchingAfterScan = false
                                 self.presentBarcodeRecovery(
                                     message: "No match found in FatSecret, USDA, or Open Food Facts.",

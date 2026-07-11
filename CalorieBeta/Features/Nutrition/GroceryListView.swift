@@ -109,7 +109,6 @@ struct GroceryListView: View {
                     DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                     Task { @MainActor in
                         if let result = await barcodeLookupService.lookup(barcode) {
-                            DIContainer.shared.analyticsManager.barcodeLookupOutcome(.success(result))
                             isFetchingItemName = false
                             pendingMissedBarcode = nil
                             showBarcodeResultFeedback(result)
@@ -117,7 +116,6 @@ struct GroceryListView: View {
                             saveList()
                             return
                         }
-                        DIContainer.shared.analyticsManager.barcodeLookupOutcome(.miss(barcode: barcode))
                         isFetchingItemName = false
                         fetchError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Add it manually and MyFitPlate will remember it next time.")
                     }

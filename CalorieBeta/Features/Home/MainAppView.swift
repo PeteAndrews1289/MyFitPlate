@@ -336,8 +336,10 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             mainContent
-            
-            NotificationBanner(banner: $bannerService.currentBanner)
+
+            if bannerService.currentBanner != nil {
+                NotificationBanner(banner: $bannerService.currentBanner)
+            }
         }
         .onAppear {
             #if DEBUG
@@ -424,8 +426,8 @@ struct ContentView: View {
               let route = appCoordinator.takePendingRoute() else { return }
 
         appState.selectedTab = route.selectedTab
-        DIContainer.shared.analyticsManager?.logEvent("deep_link_opened", parameters: [
-            "route": route.rawValue
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.deepLinkOpened.rawValue, parameters: [
+            "destination": route.rawValue
         ])
 
         switch route {

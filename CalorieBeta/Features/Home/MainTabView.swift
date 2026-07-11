@@ -20,6 +20,7 @@ struct MainTabView: View {
     @State private var showSettings = false
     @State private var showingAddOptions = false
     @State private var showingAllQuickLogActions = false
+    @State private var quickLogBackdropIsInteractive = false
 
     @State private var showingFoodSearch = false
     @State private var showingBarcodeScanner = false
@@ -102,12 +103,10 @@ struct MainTabView: View {
                     selectedIndex: $appState.selectedTab,
                     showingAddOptions: $showingAddOptions,
                     centerButtonAction: {
+                        guard !showingAddOptions else { return }
                         HapticsService.shared.playImpact(style: .light)
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                            showingAddOptions.toggle()
-                            if !showingAddOptions {
-                                showingAllQuickLogActions = false
-                            }
+                            showingAddOptions = true
                         }
                     }
                 )
@@ -123,6 +122,7 @@ struct MainTabView: View {
                                 showingAllQuickLogActions = false
                             }
                         }
+                        .allowsHitTesting(quickLogBackdropIsInteractive)
                         .zIndex(1)
 
                     let quickLogPanelContent = VStack(alignment: .leading, spacing: 16) {
@@ -254,6 +254,15 @@ struct MainTabView: View {
                 }
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
+            .onChange(of: showingAddOptions) { _, isShowing in
+                quickLogBackdropIsInteractive = false
+                guard isShowing else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    if showingAddOptions {
+                        quickLogBackdropIsInteractive = true
+                    }
+                }
+            }
             .sheet(isPresented: $showSettings) { NavigationStack { SettingsView(showSettings: $showSettings) } }
             .sheet(isPresented: $showingAIDataConsent) {
                 AIDataConsentSheet()
@@ -298,7 +307,6 @@ struct MainTabView: View {
                     DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                     Task { @MainActor in
                         if let result = await barcodeLookupService.lookup(barcode) {
-                            DIContainer.shared.analyticsManager.barcodeLookupOutcome(.success(result))
                             self.isSearchingAfterScan = false
                             self.pendingManualBarcode = nil
                             self.scannedFoodSource = result.source
@@ -306,7 +314,6 @@ struct MainTabView: View {
                             showBarcodeResultFeedback(result)
                             return
                         }
-                        DIContainer.shared.analyticsManager.barcodeLookupOutcome(.miss(barcode: barcode))
                         self.isSearchingAfterScan = false
                         self.presentBarcodeRecovery(
                             message: "No match found in FatSecret, USDA, or Open Food Facts.",

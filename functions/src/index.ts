@@ -56,6 +56,50 @@ async function enforceDailyLimit(uid: string, collection: string, limit: number)
   }
 }
 
+interface AIUsageResult {
+  model: string;
+  durationMs: number;
+  succeeded: boolean;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
+/// Stores aggregate billing inputs without prompts, responses, or analytics identifiers.
+/// Pricing is deliberately not hardcoded because provider rates can change independently
+/// of an app release; the dashboard applies the current invoice rate to these token totals.
+async function recordAIUsageResult(uid: string, result: AIUsageResult): Promise<void> {
+  const day = new Date().toISOString().slice(0, 10);
+  const ref = db.collection("aiUsage").doc(`${uid}_${day}`);
+  const safeCount = (value: number | undefined): number =>
+    Math.max(0, Math.round(typeof value === "number" && Number.isFinite(value) ? value : 0));
+
+  const data: Record<string, unknown> = {
+    uid,
+    day,
+    usageSchema: 1,
+    successfulCount: FieldValue.increment(result.succeeded ? 1 : 0),
+    failedCount: FieldValue.increment(result.succeeded ? 0 : 1),
+    inputTokens: FieldValue.increment(safeCount(result.inputTokens)),
+    outputTokens: FieldValue.increment(safeCount(result.outputTokens)),
+    totalTokens: FieldValue.increment(safeCount(result.totalTokens)),
+    totalLatencyMs: FieldValue.increment(safeCount(result.durationMs)),
+    lastLatencyMs: safeCount(result.durationMs),
+    lastModel: result.model,
+    lastOutcome: result.succeeded ? "success" : "failure",
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  try {
+    await ref.set(data, { merge: true });
+  } catch (error) {
+    // Telemetry must never turn a successful model response into a user-visible failure.
+    logger.warn("Could not persist aggregate AI usage telemetry", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+  }
+}
+
 /// Validates the chat payload shape without rejecting legitimate vision messages, whose
 /// `content` is an array of text / image_url parts rather than a plain string.
 function validateMessages(messages: unknown): void {
@@ -138,6 +182,7 @@ export const generateAIResponse = onCall(
         ? { type: "json_object" as const }
         : undefined;
 
+    const requestStartedAt = Date.now();
     try {
       const openai = new OpenAI({ apiKey: openAIKey.value() });
 
@@ -153,11 +198,31 @@ export const generateAIResponse = onCall(
 
       const completion = await openai.chat.completions.create(params);
 
+      await recordAIUsageResult(uid, {
+        model: safeModel,
+        durationMs: Date.now() - requestStartedAt,
+        succeeded: true,
+        inputTokens: completion.usage?.prompt_tokens,
+        outputTokens: completion.usage?.completion_tokens,
+        totalTokens: completion.usage?.total_tokens,
+      });
+
       return {
         content: completion.choices[0]?.message?.content || "",
       };
     } catch (error: any) {
-      logger.error("Error calling OpenAI:", error);
+      const durationMs = Date.now() - requestStartedAt;
+      await recordAIUsageResult(uid, {
+        model: safeModel,
+        durationMs,
+        succeeded: false,
+      });
+      logger.error("OpenAI request failed", {
+        model: safeModel,
+        durationMs,
+        errorType: error instanceof Error ? error.name : "unknown",
+        status: typeof error?.status === "number" ? error.status : undefined,
+      });
       throw new HttpsError(
         "internal",
         "An error occurred while generating the AI response."

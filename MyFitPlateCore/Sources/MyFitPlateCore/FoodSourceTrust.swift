@@ -993,7 +993,7 @@ public struct BarcodeFoodLookupResult: Sendable {
 }
 
 public struct BarcodeLookupOutcome: Equatable, Sendable {
-    public static let eventName = "barcode_lookup_outcome"
+    public static let eventName = ProductAnalytics.Event.barcodeLookupOutcome.rawValue
 
     public let result: String
     public let source: String
@@ -1004,6 +1004,8 @@ public struct BarcodeLookupOutcome: Equatable, Sendable {
     public let crossVerifiedCount: Int
     public let trustScore: Int?
     public let trustLevel: String?
+    public let durationMilliseconds: Int
+    public let durationBucket: String
 
     public var analyticsParameters: [String: Any] {
         var params: [String: Any] = [
@@ -1014,7 +1016,9 @@ public struct BarcodeLookupOutcome: Equatable, Sendable {
             "candidate_count": candidateCount,
             "used_related_barcode": usedRelatedBarcode,
             "cross_verified_count": crossVerifiedCount,
-            "trust_model_version": FoodTrustEvaluation.modelVersion
+            "trust_model_version": FoodTrustEvaluation.modelVersion,
+            "duration_ms": durationMilliseconds,
+            "duration_bucket": durationBucket
         ]
         if let trustScore {
             params["trust_score"] = trustScore
@@ -1025,7 +1029,10 @@ public struct BarcodeLookupOutcome: Equatable, Sendable {
         return params
     }
 
-    public static func success(_ lookupResult: BarcodeFoodLookupResult) -> BarcodeLookupOutcome {
+    public static func success(
+        _ lookupResult: BarcodeFoodLookupResult,
+        durationMilliseconds: Int = 0
+    ) -> BarcodeLookupOutcome {
         let descriptor = FoodSourceClassifier.descriptor(
             for: lookupResult.source,
             foodID: lookupResult.item.id,
@@ -1046,11 +1053,13 @@ public struct BarcodeLookupOutcome: Equatable, Sendable {
             usedRelatedBarcode: lookupResult.usedRelatedBarcode,
             crossVerifiedCount: lookupResult.item.sourceMetadata?.validatedCrossVerifiedBy.count ?? 0,
             trustScore: evaluation.score,
-            trustLevel: evaluation.level.rawValue
+            trustLevel: evaluation.level.rawValue,
+            durationMilliseconds: max(durationMilliseconds, 0),
+            durationBucket: ProductAnalytics.durationBucket(milliseconds: durationMilliseconds)
         )
     }
 
-    public static func miss(barcode: String) -> BarcodeLookupOutcome {
+    public static func miss(barcode: String, durationMilliseconds: Int = 0) -> BarcodeLookupOutcome {
         let normalized = BarcodeCorrectionRules.normalizedBarcode(barcode)
         return BarcodeLookupOutcome(
             result: "miss",
@@ -1061,13 +1070,15 @@ public struct BarcodeLookupOutcome: Equatable, Sendable {
             usedRelatedBarcode: false,
             crossVerifiedCount: 0,
             trustScore: nil,
-            trustLevel: nil
+            trustLevel: nil,
+            durationMilliseconds: max(durationMilliseconds, 0),
+            durationBucket: ProductAnalytics.durationBucket(milliseconds: durationMilliseconds)
         )
     }
 }
 
 public struct BarcodeRecoveryOutcome: Equatable, Sendable {
-    public static let eventName = "barcode_miss_recovery"
+    public static let eventName = ProductAnalytics.Event.barcodeMissRecovery.rawValue
 
     public let action: String
     public let scannedLength: Int
@@ -1286,6 +1297,23 @@ public final class BarcodeFoodLookupService {
     }
 
     public func lookup(_ barcode: String) async -> BarcodeFoodLookupResult? {
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        let result = await lookupResult(barcode)
+        let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
+        let durationMilliseconds = max(0, Int((elapsed * 1_000).rounded()))
+        let outcome = result.map {
+            BarcodeLookupOutcome.success($0, durationMilliseconds: durationMilliseconds)
+        } ?? BarcodeLookupOutcome.miss(
+            barcode: barcode,
+            durationMilliseconds: durationMilliseconds
+        )
+        await MainActor.run {
+            DIContainer.shared.analyticsManager?.barcodeLookupOutcome(outcome)
+        }
+        return result
+    }
+
+    private func lookupResult(_ barcode: String) async -> BarcodeFoodLookupResult? {
         let trimmedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode)
         guard !trimmedBarcode.isEmpty else { return nil }
         let barcodeCandidates = BarcodeCorrectionRules.lookupCandidates(for: trimmedBarcode)

@@ -102,7 +102,7 @@ public class InsightsService: ObservableObject {
             // This decode failing silently is exactly how the feature shipped dead —
             // leave a non-fatal trail with the reason.
             AppLog.ai.error("Meal suggestion decode failed: \(error.localizedDescription, privacy: .public)")
-            DIContainer.shared.crashManager?.record(error: error, additionalUserInfo: ["operation": "decode_meal_suggestion"])
+            AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_meal_suggestion")
             self.isGeneratingSuggestion = false
             return nil
         }
@@ -241,6 +241,7 @@ public class InsightsService: ObservableObject {
             let decoded = try JSONDecoder().decode(NotificationResponse.self, from: data)
             return (decoded.title, decoded.body)
         } catch {
+            AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_smart_notification")
             return nil
         }
     }
@@ -275,6 +276,7 @@ public class InsightsService: ObservableObject {
             return (title: decoded.title, body: decoded.body)
         } catch {
             AppLog.ai.error("Failed to decode daily briefing: \(error.localizedDescription, privacy: .public)")
+            AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_daily_briefing")
             return nil
         }
     }
@@ -305,6 +307,11 @@ public class InsightsService: ObservableObject {
             return insightsResponse["insights"] ?? []
         } catch {
             AppLog.ai.error("Failed to decode generated insights: \(error.localizedDescription, privacy: .public)")
+            AIResponseTelemetry.recordDecodeFailure(
+                error,
+                operation: "decode_generated_insights",
+                willRetry: retryCount > 0
+            )
             if retryCount > 0 {
                 AppLog.ai.info("Retrying insights generation.")
                 return await generateAIInsights(for: logs, sleepSamples: sleepSamples, goals: goals, retryCount: retryCount - 1)
@@ -437,7 +444,8 @@ public class InsightsService: ObservableObject {
             let decoded = try JSONDecoder().decode(MaiaOperatorResponse.self, from: data)
             return decoded
         } catch {
-            AppLog.ai.error("Failed to decode operator response: \\(error.localizedDescription, privacy: .public)")
+            AppLog.ai.error("Failed to decode operator response: \(error.localizedDescription, privacy: .public)")
+            AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_operator_response")
             return nil
         }
     }

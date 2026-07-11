@@ -182,11 +182,19 @@ struct SettingsView: View {
         reauthPassword = ""
 
         isDeletingAccount = true
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.accountDeletionStarted.rawValue,
+            parameters: nil
+        )
         Task {
             do {
                 let outcome = try await accountDeletionService.deleteCurrentAccount(password: password)
                 await MainActor.run {
                     isDeletingAccount = false
+                    DIContainer.shared.analyticsManager?.logEvent(
+                        ProductAnalytics.Event.accountDeletionCompleted.rawValue,
+                        parameters: nil
+                    )
                     clearLocalAccountData(userID: outcome.userID)
                     appState.isUserLoggedIn = false
                     showSettings = false
@@ -195,6 +203,12 @@ struct SettingsView: View {
                 await MainActor.run {
                     isDeletingAccount = false
                     deleteErrorMessage = error.localizedDescription
+                    DIContainer.shared.analyticsManager?.logEvent(
+                        ProductAnalytics.Event.accountDeletionFailed.rawValue,
+                        parameters: [
+                            "reason": (error as? AccountDeletionError)?.analyticsReason ?? "unknown"
+                        ]
+                    )
                 }
             }
         }

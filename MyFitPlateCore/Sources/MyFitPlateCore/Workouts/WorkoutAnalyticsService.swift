@@ -295,6 +295,7 @@ public class WorkoutAnalyticsService: ObservableObject {
                 return Array(response.insights.prefix(3))
             } catch {
                 AppLog.workouts.error("Failed to decode session workout insights: \(error.localizedDescription, privacy: .public)")
+                AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_session_training_insights")
                 return []
             }
         case .failure(let error):
@@ -346,6 +347,7 @@ public class WorkoutAnalyticsService: ObservableObject {
                 return response.insights
             } catch {
                 AppLog.workouts.error("Failed to decode workout insights: \(error.localizedDescription, privacy: .public)")
+                AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_training_insights")
                 return [WorkoutAnalysisInsight(title: "Analysis Error", message: "Could not process AI response.", category: "Mindset")]
             }
         case .failure(let error):

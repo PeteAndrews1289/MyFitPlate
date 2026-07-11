@@ -1,4 +1,13 @@
 import Foundation
+
+private enum DailyLogMutationFailure: LocalizedError {
+    case persistenceRejected
+
+    var errorDescription: String? {
+        "The nutrition repository rejected a serialized daily-log write."
+    }
+}
+
 @MainActor
 public class DailyLogService: ObservableObject, DailyLogServicing {
     @Published public var currentDailyLog: DailyLog?
@@ -53,6 +62,23 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
             AppLog.data.info("Adjusted estimated food calories from \(foodItem.calories, privacy: .public) to \(normalizedItem.calories, privacy: .public) for source \(source, privacy: .public).")
         }
         return normalizedItem
+    }
+
+    private func recordFoodLoggingSuccess(source: String) {
+        ProductEngagementTelemetry.recordFoodLoggingDay(source: source)
+        ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
+    }
+
+    private func recordDailyLogMutationFailure(_ error: Error, stage: String) {
+        guard let crashManager = DIContainer.shared.crashManager else { return }
+        ReleaseHealth.recordNonFatal(
+            error,
+            area: .nutrition,
+            operation: "daily_log_mutation",
+            metadata: ["stage": stage],
+            crashManager: crashManager,
+            analyticsManager: DIContainer.shared.analyticsManager
+        )
     }
 
     public func repeatFoods(from sourceDate: Date, to targetDate: Date, for userID: String) {
@@ -163,7 +189,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     "calories": itemToAdd.calories
                 ])
 
-                    ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
+                    self.recordFoodLoggingSuccess(source: "manual_add")
                     self.bannerService?.showBanner(title: "Success", message: "\(foodItem.name) logged to \(mealType)!")
                     self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
                     self.rescheduleDailyReminder()
@@ -249,6 +275,10 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     }
                     onSuccess(value, log)
                 } else {
+                    self.recordDailyLogMutationFailure(
+                        DailyLogMutationFailure.persistenceRejected,
+                        stage: "persist"
+                    )
                     self.bannerService?.showBanner(
                         title: "Error",
                         message: failureMessage,
@@ -259,6 +289,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                 completion?(success)
             } catch {
                 AppLog.data.error("Daily log mutation failed: \(error.localizedDescription, privacy: .public)")
+                self.recordDailyLogMutationFailure(error, stage: "prepare")
                 self.bannerService?.showBanner(
                     title: "Error",
                     message: failureMessage,
@@ -385,7 +416,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     "meal_type": mealName,
                     "calories": itemToAdd.calories
                 ])
-                ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
+                self.recordFoodLoggingSuccess(source: source)
                 self.bannerService?.showBanner(title: "Success", message: "\(itemToAdd.name) logged!")
                 self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
                 self.rescheduleDailyReminder()
@@ -455,7 +486,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     EcosystemSyncManager.shared.syncNutritionToHealthKit(item: item)
                     self.recentFoodStore.addRecentFood(for: userID, foodItem: item, source: result.sourceUsed)
                 }
-                ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
+                self.recordFoodLoggingSuccess(source: result.sourceUsed)
                 let message = nonEmptyGroups.count == 1
                     ? "\(nonEmptyGroups[0].mealName) logged!"
                     : "Planned day logged!"

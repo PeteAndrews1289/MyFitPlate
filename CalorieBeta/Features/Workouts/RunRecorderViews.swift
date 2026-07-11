@@ -178,6 +178,7 @@ final class RunRecorderViewModel: ObservableObject {
         endLiveActivity()
         audioCoach.stop()
         guard let run = session.finish() else { return }
+        ActivationFunnel.recordTrainingCompletion(.recordedRun)
         stage = .saving
 
         store.save(run: run, locations: rawLocations, weightLbs: weightLbs) { [weak self] savedID in

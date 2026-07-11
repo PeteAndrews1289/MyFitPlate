@@ -123,8 +123,12 @@ public class AITextLogService {
             let foodItems = parseAIResponse(aiResponse)
             return .success(foodItems)
         } catch let error as AITextLogError {
+            if case .parsingError = error {
+                AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_text_food_log")
+            }
             return .failure(error)
         } catch {
+            AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_text_food_log")
             return .failure(.parsingError(error.localizedDescription))
         }
     }

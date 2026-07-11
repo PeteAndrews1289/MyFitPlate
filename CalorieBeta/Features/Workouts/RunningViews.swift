@@ -499,6 +499,7 @@ private struct TreadmillRunEntrySheet: View {
             return
         }
 
+        ActivationFunnel.recordTrainingCompletion(.treadmillRun)
         isSaving = true
         RunRecorderStore().save(run: run, locations: [], weightLbs: goalSettings.weight) { savedID in
             if let savedID {

@@ -56,13 +56,26 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 
 ### Must Ship — 2.2 Signal and Release Health
 
-- [ ] **Competitive KPI dashboard**: join App Store acquisition with Firebase activation
-  events for first-food completion, time to first log, barcode recovery, import completion,
-  Trust review/correction, first workout, nutrition-plus-training loop completion, D1/D7
-  return, weekly active loggers, and AI cost per active user.
-- [ ] **Launch-health operating view**: monitor crash-free users, operation-tagged non-fatals,
-  auth/account deletion, serialized diary write failures, provider latency/misses, AI decode
-  failures, and App Check rejection rates. Every red metric needs an owner and rollback path.
+- [x] **KPI contract and instrumentation foundation**: audited activation, Trust, logging,
+  import, training, acquisition, reliability, and AI-cost signals; added schema-versioned
+  analytics, one daily active-logger event, running-aware activation, exact deep-link
+  destinations, barcode outcome latency, private server token totals, and the canonical
+  metric definitions in `docs/analytics-dashboard-2.3.md`.
+- [ ] **Competitive KPI dashboard rollout**: configure the Firebase/App Store operating view
+  from the tracked contract, then join acquisition with first-food completion, time to first
+  log, barcode recovery, import completion, Trust review/correction, first training,
+  nutrition-plus-training loop completion, D1/D7 return, weekly active loggers, and aggregate
+  AI cost per active user. Peter owns console access; final thresholds wait for clean traffic.
+- [x] **Launch-health instrumentation foundation**: operation-tagged serialized diary failures,
+  AI decode failures, account-deletion outcomes, end-to-end barcode latency/misses, build and
+  startup context, and private AI request outcome/token/latency counters are implemented with
+  privacy regression coverage.
+- [ ] **Launch-health operating view rollout**: configure crash-free comparisons, non-fatal
+  operation alerts, callable/provider trends, AI cost, and App Check validity by production
+  build. Every red metric needs an owner and rollback path; enforcement waits for clean data.
+- [x] **Quick Log first-interaction hardening**: opening is idempotent, the dismissal backdrop
+  cannot consume the opening touch, idle notification UI is not mounted over Home, direct
+  Simulator clicks open on the first attempt, and the complete UI suite is green.
 - [ ] **Structured feedback triage**: keep one severity-ranked list for review feedback,
   support messages, device-only defects, and repeated friction. Do not redesign a flow from
   one opinion unless it reveals a clear usability or correctness fault.
@@ -118,11 +131,10 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 - [ ] **Notifications that earn permission**: opt-in controls for pre-session fuel, post-session
   recovery, and one evening catch-up reminder; include quiet hours, per-type toggles, strict
   frequency caps, and outcome telemetry. No generic engagement nags.
-- [ ] **Exact deep links**: add and test `food-search`, `trust`, `builder`, `runs`, and
-  `meal-plan` routes, including signed-out behavior, so custom product pages never open to an
-  unrelated tab. Started: the coordinator parses and queues every route, the stable app shell
-  presents the exact destination after blockers clear, and Core plus UI regression tests are
-  green. Keep the 2.2 custom pages link-free until this 2.3 binary is approved.
+- [x] **Exact deep links**: `food-search`, `trust`, `builder`, `runs`, and `meal-plan` parse,
+  queue through signed-out/onboarding blockers, and present their exact destinations from the
+  stable app shell. Core and cold-launch UI regression tests are green. Keep the 2.2 custom
+  pages link-free until this 2.3 binary is approved.
 
 ### Internal 2.3 Work — Trust Calibration and Community Safety
 
@@ -164,14 +176,15 @@ not an invented industry benchmark.
 
 ### Immediate Build Queue
 
-1. Add exact deep-link routes and custom-product-page screenshot fixtures.
-2. Audit activation/Trust/training events and define the external KPI dashboard contract.
-3. Build the deterministic fuel-plan model and adversarial Core test matrix.
-4. Add the Home planner/review flow and connect it to existing logging destinations.
-5. Build the unified Training and Fuel report from existing running, lifting, and nutrition
+1. [x] Add exact deep-link routes and custom-product-page screenshot fixtures.
+2. [x] Audit activation/Trust/training events, close the release-health gaps, and define the
+   external KPI dashboard contract.
+3. [ ] Build the deterministic fuel-plan model and adversarial Core test matrix.
+4. [ ] Add the Home planner/review flow and connect it to existing logging destinations.
+5. [ ] Build the unified Training and Fuel report from existing running, lifting, and nutrition
    engines before adding new data collection.
-6. Extend widget shared data, then deliver the narrow Watch and notification slices.
-7. Develop the community aggregate behind a server-only flag; do not couple it to 2.3 launch.
+6. [ ] Extend widget shared data, then deliver the narrow Watch and notification slices.
+7. [ ] Develop the community aggregate behind a server-only flag; do not couple it to 2.3 launch.
 
 ### Ownership and Dependencies
 

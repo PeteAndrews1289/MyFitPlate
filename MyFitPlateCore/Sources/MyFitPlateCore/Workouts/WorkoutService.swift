@@ -373,7 +373,8 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
             case .apiError(let message):
                 return .failure(.apiError(message))
             case .decodingError(let error):
-                reportFailure(error, operation: "decode_ai_workout_response")
+                AppLog.workouts.error("AI workout decode failed: \(error.localizedDescription, privacy: .public)")
+                AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_ai_workout_response")
                 return .failure(.decodingError(error))
             }
         case .failure(let error):

@@ -106,4 +106,21 @@ final class AccountDeletionServiceTests: XCTestCase {
         XCTAssertEqual(AccountDeletionError.dataDeletionFailed(URLError(.timedOut)).errorDescription, "We couldn't delete your data. Please check your connection and try again.")
         XCTAssertEqual(AccountDeletionError.authDeletionFailed(URLError(.timedOut)).errorDescription, "Your data was removed, but the login couldn't be deleted. Please sign out, sign back in, and delete again.")
     }
+
+    func testAccountDeletionAnalyticsReasonsAreStableAndDoNotExposeErrors() {
+        XCTAssertEqual(AccountDeletionError.emptyPassword.analyticsReason, "empty_password")
+        XCTAssertEqual(AccountDeletionError.missingCurrentUser.analyticsReason, "missing_user")
+        XCTAssertEqual(
+            AccountDeletionError.reauthenticationFailed(URLError(.badURL)).analyticsReason,
+            "reauthentication"
+        )
+        XCTAssertEqual(
+            AccountDeletionError.dataDeletionFailed(URLError(.timedOut)).analyticsReason,
+            "server_data_deletion"
+        )
+        XCTAssertEqual(
+            AccountDeletionError.authDeletionFailed(URLError(.timedOut)).analyticsReason,
+            "authentication_deletion"
+        )
+    }
 }
