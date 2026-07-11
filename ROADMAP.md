@@ -134,16 +134,23 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 
 ### Must Ship — Training and Fuel Report
 
-- [ ] **One weekly story**: replace scattered training statistics with a clear report that
-  answers: What did I train? How consistently did I fuel it? What changed?
-- [ ] **Running summary**: unify weekly mileage, route/pace records, HR zones and time in zone,
-  shoe wear, interval plan-vs-actual results, and recovery-fuel follow-through.
-- [ ] **Strength summary**: show working-set volume, PRs, session frequency, effort trend, and
-  protein/calorie consistency on hard training days without counting warmups as progress.
-- [ ] **Outcome context**: place smoothed weight trend, nutrition adherence, and Trust review
-  rate beside training. Avoid inventing one composite performance score without evidence.
-- [ ] **Share/export foundation**: produce a privacy-reviewed weekly summary suitable for the
-  user, a coach, or a clinician; PDF polish is a stretch goal, clean structured CSV is not.
+- [x] **One weekly story**: Home and Reports now open one deterministic seven-day report answering
+  what the user trained, how consistently it was fueled, and what changed. Sparse data stays
+  explicit, source read failures do not masquerade as an empty week, and every rate shows its
+  eligible denominator.
+- [x] **Running summary**: weekly/prior mileage, distance-weighted pace, running and comparable-
+  distance records, confirmed outdoor routes, real HR-series time in zone, guided step results,
+  shoe wear, and timestamped recovery follow-through now share one surface. An open recovery
+  window remains pending instead of being scored as a miss.
+- [x] **Strength summary**: session frequency, working-set count/volume, prior-history PRs,
+  working-set RPE trend, demanding days, and demanding-day calorie/protein consistency are
+  reported with warmups excluded.
+- [x] **Outcome context**: EMA-smoothed weight trend, nutrition adherence, training-day diary
+  coverage, and Trust review rate sit beside training without an invented composite score.
+  Invalid nutrition or HR values fail closed as unavailable instead of becoming false zeros.
+- [x] **Share/export foundation**: one share menu produces a rendered summary image and a clean,
+  aggregate CSV that excludes account IDs, food/routine names, routes/coordinates, and raw HR
+  samples. Polished PDF export remains a stretch goal rather than a 2.3 requirement.
 
 ### Should Ship — Next Action Beyond the Phone App
 
@@ -206,7 +213,7 @@ not an invented industry benchmark.
    external KPI dashboard contract.
 3. [x] Build the deterministic fuel-plan model and adversarial Core test matrix.
 4. [x] Add the Home planner/review flow and connect it to existing logging destinations.
-5. [ ] Build the unified Training and Fuel report from existing running, lifting, and nutrition
+5. [x] Build the unified Training and Fuel report from existing running, lifting, and nutrition
    engines before adding new data collection.
 6. [ ] Extend widget shared data, then deliver the narrow Watch and notification slices.
 7. [ ] Develop the community aggregate behind a server-only flag; do not couple it to 2.3 launch.

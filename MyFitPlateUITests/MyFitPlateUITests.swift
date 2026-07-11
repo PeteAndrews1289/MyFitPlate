@@ -140,6 +140,83 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testWeeklyTrainingFuelReportRendersPopulatedAndScrollable() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "weekly-report"
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            app.staticTexts["Training & Fuel"].waitForExistence(timeout: 10),
+            "The unified weekly report should open directly in screenshot mode"
+        )
+        XCTAssertTrue(
+            app.staticTexts["weekly_report_headline"].waitForExistence(timeout: 10),
+            "The report should finish its deterministic data load"
+        )
+        XCTAssertTrue(app.otherElements["weekly_report_strength"].exists)
+
+        let topScreenshot = XCTAttachment(screenshot: app.screenshot())
+        topScreenshot.name = "Unified Training and Fuel report - top"
+        topScreenshot.lifetime = .keepAlways
+        add(topScreenshot)
+
+        let fueling = app.otherElements["weekly_report_fueling"]
+        for _ in 0..<6 where !fueling.exists || !fueling.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(fueling.waitForExistence(timeout: 5), "Fueling denominators should be reachable")
+
+        let middleScreenshot = XCTAttachment(screenshot: app.screenshot())
+        middleScreenshot.name = "Unified Training and Fuel report - running and fueling"
+        middleScreenshot.lifetime = .keepAlways
+        add(middleScreenshot)
+
+        let share = app.descendants(matching: .any)["weekly_report_share"]
+        for _ in 0..<8 where !share.exists || !share.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(app.otherElements["weekly_report_context"].exists, "Outcome context should be reachable")
+        XCTAssertTrue(share.waitForExistence(timeout: 5), "The privacy-reviewed share menu should be reachable")
+
+        let bottomScreenshot = XCTAttachment(screenshot: app.screenshot())
+        bottomScreenshot.name = "Unified Training and Fuel report - context and share"
+        bottomScreenshot.lifetime = .keepAlways
+        add(bottomScreenshot)
+    }
+
+    @MainActor
+    func testWeeklyTrainingFuelReportSupportsLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "weekly-report",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let headline = app.staticTexts["weekly_report_headline"]
+        XCTAssertTrue(headline.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Done"].isHittable)
+        XCTAssertLessThanOrEqual(headline.frame.maxX, app.frame.maxX + 1)
+        XCTAssertGreaterThanOrEqual(headline.frame.minX, app.frame.minX - 1)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Unified Training and Fuel report - accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testCustomProductPageDeepLinksOpenExactDestinations() throws {
         let app = XCUIApplication()
         let destinations = [

@@ -192,6 +192,16 @@
         }
       }
     },
+    "%@ at %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ at %2$@"
+          }
+        }
+      }
+    },
     "%@ cal" : {
 
     },
@@ -1048,6 +1058,12 @@
     "Adjusted for how hard you trained each muscle and your recent sleep." : {
 
     },
+    "After" : {
+
+    },
+    "After Training" : {
+
+    },
     "Age" : {
 
     },
@@ -1138,6 +1154,9 @@
     "Ask Maia anything" : {
 
     },
+    "Ask Maia for an Idea" : {
+
+    },
     "Assistant tone" : {
 
     },
@@ -1157,6 +1176,9 @@
 
     },
     "Auto-Rest Timer" : {
+
+    },
+    "Available After Training" : {
 
     },
     "Available Equipment" : {
@@ -1233,6 +1255,12 @@
 
     },
     "Bedtime Consistency" : {
+
+    },
+    "Before" : {
+
+    },
+    "Before Training" : {
 
     },
     "Beta Feature: Results may not be 100% accurate." : {
@@ -1408,10 +1436,16 @@
     "Choose a slot, then add a recipe to this day's plan. You can still regenerate meals around it later." : {
 
     },
+    "Choose at least one window to create a fuel target." : {
+
+    },
     "Choose different files" : {
 
     },
     "Choose files" : {
+
+    },
+    "Choose Food" : {
 
     },
     "Choose from Library" : {
@@ -1469,6 +1503,9 @@
 
     },
     "Clear timer" : {
+
+    },
+    "Clear training fuel target" : {
 
     },
     "Clear workout history search" : {
@@ -1529,6 +1566,9 @@
 
     },
     "Confirm password" : {
+
+    },
+    "Confirm whether the session was completed or skipped before recovery guidance appears." : {
 
     },
     "Confirm your password" : {
@@ -1785,10 +1825,16 @@
     "Duration" : {
 
     },
+    "Duration could not be derived from this plan. Review it below." : {
+
+    },
     "Duration in minutes, set %lld" : {
 
     },
     "Duration in seconds, set %lld" : {
+
+    },
+    "Duration, effort, and focus are editable estimates." : {
 
     },
     "Duration: %@" : {
@@ -1807,6 +1853,9 @@
 
     },
     "Each scanned product logs as its own entry. Tap to edit a serving, or swipe to remove one." : {
+
+    },
+    "Easy" : {
 
     },
     "Edit" : {
@@ -1837,6 +1886,9 @@
 
     },
     "Edit Workout" : {
+
+    },
+    "Effort" : {
 
     },
     "Effort metric" : {
@@ -1934,6 +1986,9 @@
     "Fast Food" : {
 
     },
+    "Fast Food Builder" : {
+
+    },
     "Fastest: %@" : {
 
     },
@@ -2018,6 +2073,9 @@
     "Fix this data" : {
 
     },
+    "Food logged elsewhere used the remaining daily budget, so this target was paused." : {
+
+    },
     "Food name" : {
 
     },
@@ -2034,6 +2092,9 @@
 
     },
     "Fueled & Tracked with MyFitPlate" : {
+
+    },
+    "Full Body" : {
 
     },
     "Gear Tagged" : {
@@ -2149,6 +2210,9 @@
 
     },
     "Groups" : {
+
+    },
+    "Hard" : {
 
     },
     "Headline trend" : {
@@ -2517,6 +2581,9 @@
     "Loop Best" : {
 
     },
+    "Lower Body" : {
+
+    },
     "Macro" : {
 
     },
@@ -2595,6 +2662,9 @@
     "Mark %@ incomplete" : {
 
     },
+    "Mark complete" : {
+
+    },
     "Max Level!" : {
 
     },
@@ -2665,7 +2735,13 @@
     "min" : {
 
     },
+    "Mixed" : {
+
+    },
     "Model Name (e.g. Pegasus 40, Clifton 9)" : {
+
+    },
+    "Moderate" : {
 
     },
     "More options" : {
@@ -2857,6 +2933,9 @@
     "Not now" : {
 
     },
+    "Not Sure" : {
+
+    },
     "Nothing logged on this day" : {
 
     },
@@ -2911,6 +2990,9 @@
     "Open grocery list" : {
 
     },
+    "Open Meal Plan" : {
+
+    },
     "Open profile" : {
 
     },
@@ -2933,6 +3015,9 @@
 
     },
     "Opens the nutrition editor for this food." : {
+
+    },
+    "Opens today's training fuel planner." : {
 
     },
     "Optional Health context" : {
@@ -3014,6 +3099,9 @@
 
     },
     "Plan" : {
+
+    },
+    "Plan Training Fuel" : {
 
     },
     "plans" : {
@@ -3252,6 +3340,15 @@
     "Recovery meal" : {
 
     },
+    "Recovery will appear after today's diary finishes loading." : {
+
+    },
+    "Recovery will be calculated after completion so it uses the correct day's remaining goals." : {
+
+    },
+    "Recovery will be calculated after completion using the next day's live goals and diary." : {
+
+    },
     "Recovery: %lld sec" : {
 
     },
@@ -3295,6 +3392,9 @@
 
     },
     "Remove one %@" : {
+
+    },
+    "Remove Plan" : {
 
     },
     "Remove this meal?" : {
@@ -3396,6 +3496,9 @@
     "Review today" : {
 
     },
+    "Review Training Fuel" : {
+
+    },
     "Review your true TDEE and metabolism trend." : {
 
     },
@@ -3423,6 +3526,9 @@
     "RPE" : {
 
     },
+    "Run" : {
+
+    },
     "Run complete" : {
 
     },
@@ -3447,6 +3553,9 @@
     "Save Height" : {
 
     },
+    "Save plan" : {
+
+    },
     "Save Program" : {
 
     },
@@ -3466,6 +3575,9 @@
 
     },
     "Saved" : {
+
+    },
+    "Saved fuel plan for %@" : {
 
     },
     "Saved meals ready to log or reuse." : {
@@ -3544,6 +3656,9 @@
 
     },
     "score" : {
+
+    },
+    "Search and Recent Foods" : {
 
     },
     "Search any exercise" : {
@@ -3744,6 +3859,15 @@
     "Skip" : {
 
     },
+    "Skip session" : {
+
+    },
+    "Skip Session" : {
+
+    },
+    "Skip this session?" : {
+
+    },
     "Skip to Here" : {
 
     },
@@ -3832,6 +3956,9 @@
     "Start run" : {
 
     },
+    "Start Time" : {
+
+    },
     "Start timer" : {
 
     },
@@ -3862,6 +3989,9 @@
 
     },
     "Steps" : {
+
+    },
+    "Strength" : {
 
     },
     "Suggest another" : {
@@ -3958,6 +4088,9 @@
         }
       }
     },
+    "Targets stay inside today's calorie, protein, and carbohydrate goals. Fat is not prescribed, and Maia ideas remain optional suggestions." : {
+
+    },
     "Tell Maia what you want to make, including portions, ingredients, cuisine, and macro goals if you have them." : {
 
     },
@@ -3968,6 +4101,9 @@
 
     },
     "The fastest ways to capture food and activity." : {
+
+    },
+    "The saved fuel targets will be closed without changing your food log." : {
 
     },
     "The weekly rhythm is preserved, and the first workout is aligned to your chosen start date." : {
@@ -4009,6 +4145,12 @@
     "This run is under 50 meters. Discard it?" : {
 
     },
+    "This session was skipped. No fuel target remains active." : {
+
+    },
+    "This session window has passed. Update or remove the plan." : {
+
+    },
     "This week" : {
 
     },
@@ -4048,6 +4190,15 @@
     "Today's Best Next Step" : {
 
     },
+    "Today's calorie target has been reached. Review the day instead of adding fuel." : {
+
+    },
+    "Today's diary contains a value that cannot be verified. Fix the log before using this plan." : {
+
+    },
+    "Today's nutrition targets cannot be verified. Update them before using this plan." : {
+
+    },
     "Today's weight" : {
 
     },
@@ -4084,6 +4235,12 @@
     "Training Focus" : {
 
     },
+    "Training focus, %@" : {
+
+    },
+    "Training Fuel" : {
+
+    },
     "Training Hub" : {
 
     },
@@ -4091,6 +4248,9 @@
 
     },
     "Training Program" : {
+
+    },
+    "Training type" : {
 
     },
     "Training volume and most frequent activity." : {
@@ -4153,10 +4313,16 @@
     "Update Exercise" : {
 
     },
+    "Update plan" : {
+
+    },
     "Update Schedule" : {
 
     },
     "Update this item's details." : {
+
+    },
+    "Upper Body" : {
 
     },
     "URL" : {
@@ -4304,6 +4470,9 @@
     "Why this target" : {
 
     },
+    "Window Passed" : {
+
+    },
     "Work goal" : {
 
     },
@@ -4344,6 +4513,9 @@
 
     },
     "Workout Summary" : {
+
+    },
+    "Workout, %@" : {
 
     },
     "Workouts" : {

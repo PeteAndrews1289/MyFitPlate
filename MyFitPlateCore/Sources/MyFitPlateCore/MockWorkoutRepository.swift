@@ -5,6 +5,7 @@ public final class MockWorkoutRepository: WorkoutRepositoryProtocol, @unchecked 
     public var mockFetchSessionLogResult: Result<WorkoutSessionLog, Error>?
     public var mockFetchSessionLogsResult: [WorkoutSessionLog] = []
     public var mockFetchRecentSessionLogsResult: [WorkoutSessionLog] = []
+    public var fetchRecentSessionLogsError: Error?
     public var mockSaveProgramResult: WorkoutProgram?
     public var savedRoutines: [WorkoutRoutine] = []
     public var savedSessionLogs: [WorkoutSessionLog] = []
@@ -24,7 +25,10 @@ public final class MockWorkoutRepository: WorkoutRepositoryProtocol, @unchecked 
         fatalError("No mock result set")
     }
     public func fetchSessionLogs(userID: String, routineIDs: [String]) async throws -> [WorkoutSessionLog] { return mockFetchSessionLogsResult }
-    public func fetchRecentSessionLogs(userID: String, sinceDays: Int) async throws -> [WorkoutSessionLog] { return mockFetchRecentSessionLogsResult }
+    public func fetchRecentSessionLogs(userID: String, sinceDays: Int) async throws -> [WorkoutSessionLog] {
+        if let fetchRecentSessionLogsError { throw fetchRecentSessionLogsError }
+        return mockFetchRecentSessionLogsResult
+    }
     public var onProgramsSnapshotListenerAdded: ((String, @escaping (Result<[WorkoutProgram], Error>) -> Void) -> Void)?
     public func addProgramsSnapshotListener(userID: String, onUpdate: @escaping (Result<[WorkoutProgram], Error>) -> Void) -> Any {
         onProgramsSnapshotListenerAdded?(userID, onUpdate)

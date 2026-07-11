@@ -35,6 +35,7 @@ struct MainTabView: View {
 
     @State private var showingAYCESession = false
     @State private var showingRunHistory = false
+    @State private var showingWeeklyReport = false
     
     @State private var scannedFoodItem: FoodItem?
     @State private var scannedFoodSource: String = "barcode_result"
@@ -72,6 +73,7 @@ struct MainTabView: View {
             initialValue: ["food-search", "builder", "trust"].contains(screenshotScreen)
         )
         _showingRunHistory = State(initialValue: screenshotScreen == "runs")
+        _showingWeeklyReport = State(initialValue: screenshotScreen == "weekly-report")
         #endif
     }
 
@@ -264,6 +266,9 @@ struct MainTabView: View {
                 }
             }
             .sheet(isPresented: $showSettings) { NavigationStack { SettingsView(showSettings: $showSettings) } }
+            .sheet(isPresented: $showingWeeklyReport) {
+                WeeklyRecapView()
+            }
             .sheet(isPresented: $showingAIDataConsent) {
                 AIDataConsentSheet()
             }

@@ -1306,14 +1306,14 @@ struct HomeView: View {
                     .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Your week")
+                    Text("Training & Fuel")
                         .appFont(size: 16, weight: .bold)
                         .foregroundColor(.textPrimary)
-                    Text("Calories, workouts, and records from the last 7 days")
+                    Text("Training, recovery, nutrition, and change from the last 7 days")
                         .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
