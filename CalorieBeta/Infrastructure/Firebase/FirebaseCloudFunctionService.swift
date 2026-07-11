@@ -17,7 +17,11 @@ final class FirebaseCloudFunctionService: CloudFunctionServiceProtocol, @uncheck
 
     func callFunction(_ name: String, with data: [String: Any]) async throws -> Any? {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any?, Error>) in
-            Functions.functions().httpsCallable(name).call(data) { result, error in
+            let callable = Functions.functions().httpsCallable(name)
+            if name == "fatSecretProxy" {
+                callable.timeoutInterval = 8
+            }
+            callable.call(data) { result, error in
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else {

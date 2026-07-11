@@ -153,6 +153,9 @@ final class MealPlanAIGeneratorTests: XCTestCase {
         XCTAssertEqual(carbs, 240, accuracy: 0.001)
         XCTAssertEqual(fats, 80, accuracy: 0.001)
         XCTAssertEqual(firstDay.meals[1].ingredients, ["Salmon", "Quinoa", "Salmon", "Mediterranean seasoning"])
+        XCTAssertTrue(firstDay.meals.allSatisfy { $0.foodItem?.sourceMetadata?.confidence == .estimated })
+        XCTAssertTrue(firstDay.meals.allSatisfy { $0.foodItem?.sourceMetadata?.reviewStatus == .unreviewed })
+        XCTAssertTrue(firstDay.meals.allSatisfy { $0.foodItem?.sourceMetadata?.originalEstimate != nil })
     }
 
     private func mealJSON(type: String, name: String) -> String {

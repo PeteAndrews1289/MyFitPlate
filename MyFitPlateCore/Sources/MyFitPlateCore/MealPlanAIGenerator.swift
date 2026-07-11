@@ -280,7 +280,31 @@ public struct MealPlanAIGenerator {
     }
 
     private func localMeal(type: String, name: String, calories: Double, protein: Double, carbs: Double, fats: Double, ingredients: [String], instructions: String) -> PlannedMeal {
-        let foodItem = FoodItem(id: UUID().uuidString, name: name, calories: calories, protein: protein, carbs: carbs, fats: fats, servingSize: "1 serving", servingWeight: 0, sourceMetadata: FoodSourceMetadata(sourceType: .mealPlan, confidence: .userVerified, reviewStatus: .notRequired, sourceName: "Meal Plan"))
+        let snapshot = FoodNutritionSnapshot(
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fats: fats,
+            servingSize: "1 serving",
+            servingWeight: 0
+        )
+        let foodItem = FoodItem(
+            id: UUID().uuidString,
+            name: name,
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fats: fats,
+            servingSize: "1 serving",
+            servingWeight: 0,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .mealPlan,
+                confidence: .estimated,
+                reviewStatus: .unreviewed,
+                sourceName: "Meal Plan Estimate",
+                originalEstimate: snapshot
+            )
+        )
         return PlannedMeal(id: UUID().uuidString, mealType: type, foodItem: foodItem, ingredients: ingredients, instructions: instructions)
     }
 

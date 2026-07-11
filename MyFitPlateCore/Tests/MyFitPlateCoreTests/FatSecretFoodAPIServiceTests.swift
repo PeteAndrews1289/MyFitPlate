@@ -278,6 +278,50 @@ final class FatSecretFoodAPIServiceTests: XCTestCase {
         
         wait(for: [expectation], timeout: 1.0)
     }
+
+    @MainActor
+    func testConcurrentBarcodeRequestsBothCompleteFromOneLookup() {
+        let mockCloud = MockCloudFunctionService()
+        DIContainer.shared.cloudFunctionService = mockCloud
+
+        var callCount = 0
+        mockCloud.onCall = { params in
+            callCount += 1
+            if params["path"] as? String == "barcode" {
+                Thread.sleep(forTimeInterval: 0.05)
+                return .success(["food_id": ["value": "456"]])
+            }
+            return .success([
+                "food": [
+                    "food_id": "456",
+                    "food_name": "Banana",
+                    "servings": [
+                        "serving": [["calories": "89"]]
+                    ]
+                ]
+            ])
+        }
+
+        let service = FatSecretFoodAPIService()
+        let completions = expectation(description: "Both barcode callers complete")
+        completions.expectedFulfillmentCount = 2
+
+        for _ in 0..<2 {
+            service.fetchFoodByBarcode(barcode: "012345678905") { result in
+                guard case .success(let item) = result else {
+                    XCTFail("Expected a shared successful lookup")
+                    completions.fulfill()
+                    return
+                }
+                XCTAssertEqual(item.id, "456")
+                XCTAssertEqual(item.servingWeight, 1, "Unknown weight must remain unknown")
+                completions.fulfill()
+            }
+        }
+
+        wait(for: [completions], timeout: 1.0)
+        XCTAssertEqual(callCount, 2, "One barcode call and one detail call should serve both callers")
+    }
     
     func testParsedServingWeightGramsVariousUnits() throws {
         let json = """

@@ -1,9 +1,8 @@
 import Foundation
 
-/// Cross-database agreement for barcode lookups. When two independent databases report the
-/// same nutrition for a barcode, the entry is far more trustworthy than either alone — the
-/// badge this powers ("Cross-Verified") is cheap for us and structurally hard for
-/// single-database competitors to copy.
+/// Cross-database agreement for barcode lookups. The Cross-Verified state requires two
+/// recognized databases to return the same checksum-valid product identifier and comparable
+/// calories, protein, carbohydrate, and fat after serving-weight normalization.
 public enum FoodSourceAgreement {
 
     /// Databases report different serving sizes for the same product, so agreement is
@@ -13,8 +12,10 @@ public enum FoodSourceAgreement {
 
     /// Calories agree within max(20 kcal, 12%) per 100g; each macro within max(2.5g, 20%).
     public static func agrees(_ a: FoodItem, _ b: FoodItem) -> Bool {
-        guard a.servingWeight >= minimumComparableServingWeight,
-              b.servingWeight >= minimumComparableServingWeight else { return false }
+        guard hasComparableNutrition(a),
+              hasComparableNutrition(b),
+              !FoodDataSanity.isSuspicious(a),
+              !FoodDataSanity.isSuspicious(b) else { return false }
 
         func per100g(_ value: Double, weight: Double) -> Double {
             value / weight * 100
@@ -32,16 +33,85 @@ public enum FoodSourceAgreement {
         return macroPairs.allSatisfy { withinTolerance($0.0, $0.1, absolute: 2.5, relative: 0.20) }
     }
 
+    /// A much tighter comparison used only when deciding whether a user edit can retain
+    /// previously earned agreement evidence. It allows serving rescaling and label rounding,
+    /// but not a fresh nutrition correction that was never checked against the second source.
+    public static func preservesAgreementEvidence(_ current: FoodItem, _ original: FoodItem) -> Bool {
+        guard hasComparableNutrition(current),
+              hasComparableNutrition(original),
+              !FoodDataSanity.isSuspicious(current),
+              !FoodDataSanity.isSuspicious(original) else {
+            return false
+        }
+
+        func per100g(_ value: Double, weight: Double) -> Double {
+            value / weight * 100
+        }
+
+        let caloriePair = (
+            per100g(current.calories, weight: current.servingWeight),
+            per100g(original.calories, weight: original.servingWeight)
+        )
+        guard withinTolerance(caloriePair.0, caloriePair.1, absolute: 2, relative: 0.02) else {
+            return false
+        }
+
+        let macroPairs = [
+            (current.protein, original.protein),
+            (current.carbs, original.carbs),
+            (current.fats, original.fats)
+        ].map { pair in
+            (
+                per100g(pair.0, weight: current.servingWeight),
+                per100g(pair.1, weight: original.servingWeight)
+            )
+        }
+        return macroPairs.allSatisfy {
+            withinTolerance($0.0, $0.1, absolute: 0.25, relative: 0.03)
+        }
+    }
+
     /// Names of the candidate sources whose entries agree with the primary hit.
     /// Pure so the tolerance/normalization behavior is unit-testable without the network.
     public static func agreeingSourceNames(
         primary: FoodItem,
         candidates: [(sourceName: String, item: FoodItem?)]
     ) -> [String] {
-        candidates.compactMap { candidate in
+        let agreeingNames: [String] = candidates.compactMap { candidate -> String? in
             guard let item = candidate.item, agrees(primary, item) else { return nil }
             return candidate.sourceName
         }
+        return canonicalizedSourceNames(
+            agreeingNames,
+            excluding: sourceIdentity(for: primary.sourceMetadata?.sourceType)
+        )
+    }
+
+    /// Only recognized, independent database names can become durable verification evidence.
+    /// This intentionally ignores arbitrary strings and cross-check metadata attached to custom,
+    /// planned, community, or estimated foods.
+    public static func validatedSourceNames(
+        _ sourceNames: [String],
+        for metadata: FoodSourceMetadata?
+    ) -> [String] {
+        guard let metadata else { return [] }
+        switch metadata.sourceType {
+        case .usda, .fatSecret, .openFoodFacts:
+            break
+        default:
+            return []
+        }
+        switch metadata.confidence {
+        case .verified, .databaseMatch:
+            break
+        case .estimated, .needsReview, .userVerified:
+            return []
+        }
+
+        return canonicalizedSourceNames(
+            sourceNames,
+            excluding: sourceIdentity(for: metadata.sourceType)
+        )
     }
 
     private static func withinTolerance(
@@ -56,14 +126,84 @@ public enum FoodSourceAgreement {
         guard denominator > 0 else { return true }
         return delta / denominator <= relative
     }
+
+    private static func hasComparableNutrition(_ item: FoodItem) -> Bool {
+        let values = [item.calories, item.protein, item.carbs, item.fats, item.servingWeight]
+        return item.servingWeight >= minimumComparableServingWeight &&
+            values.allSatisfy { $0.isFinite && $0 >= 0 }
+    }
+
+    private static func canonicalizedSourceNames(
+        _ sourceNames: [String],
+        excluding primaryIdentity: String?
+    ) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+
+        for sourceName in sourceNames {
+            guard let source = canonicalSource(for: sourceName),
+                  source.identity != primaryIdentity,
+                  seen.insert(source.identity).inserted else {
+                continue
+            }
+            result.append(source.displayName)
+            if result.count == 2 { break }
+        }
+        return result
+    }
+
+    private static func canonicalSource(for sourceName: String) -> (identity: String, displayName: String)? {
+        let normalized = sourceName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: " ")
+
+        if normalized == "usda" || normalized == "usda fooddata central" || normalized == "fooddata central" {
+            return ("usda", "USDA")
+        }
+        if normalized == "fatsecret" || normalized == "fat secret" {
+            return ("fatsecret", "FatSecret")
+        }
+        if normalized == "open food facts" {
+            return ("open_food_facts", "Open Food Facts")
+        }
+        return nil
+    }
+
+    private static func sourceIdentity(for sourceType: FoodSourceType?) -> String? {
+        switch sourceType {
+        case .usda:
+            return "usda"
+        case .fatSecret:
+            return "fatsecret"
+        case .openFoodFacts:
+            return "open_food_facts"
+        default:
+            return nil
+        }
+    }
+}
+
+public extension FoodSourceMetadata {
+    var validatedCrossVerifiedBy: [String] {
+        FoodSourceAgreement.validatedSourceNames(crossVerifiedBy ?? [], for: self)
+    }
+
+    var hasIndependentCrossVerification: Bool {
+        !validatedCrossVerifiedBy.isEmpty
+    }
 }
 
 public extension FoodItem {
     /// Attaches the list of independent databases that confirmed this entry's nutrition.
-    /// No-op when nothing agreed, so callers can apply it unconditionally.
+    /// Clears stale or invalid evidence when nothing independently agreed.
     func withCrossVerification(_ agreeingSourceNames: [String]) -> FoodItem {
-        guard !agreeingSourceNames.isEmpty, var metadata = sourceMetadata else { return self }
-        metadata.crossVerifiedBy = agreeingSourceNames
+        guard var metadata = sourceMetadata else { return self }
+        let validatedNames = FoodSourceAgreement.validatedSourceNames(
+            agreeingSourceNames,
+            for: metadata
+        )
+        metadata.crossVerifiedBy = validatedNames.isEmpty ? nil : validatedNames
         return withSourceMetadata(metadata)
     }
 }

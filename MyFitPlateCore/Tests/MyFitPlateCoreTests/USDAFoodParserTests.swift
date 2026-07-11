@@ -94,6 +94,53 @@ final class USDAFoodParserTests: XCTestCase {
         XCTAssertEqual(try USDAFoodParser.foodItems(from: data(two)).count, 2)
     }
 
+    func testBarcodeMatchRequiresReturnedGTINRatherThanFirstSearchResult() throws {
+        let json = """
+        {"foods": [
+          {"fdcId": 1, "description": "Wrong Search Result", "gtinUpc": "9999999999994", "foodNutrients": []},
+          {"fdcId": 2, "description": "Exact Product", "dataType": "Branded", "gtinUpc": "0012345678905",
+           "foodNutrients": [{"nutrientNumber": "208", "value": 210}]}
+        ]}
+        """
+
+        let item = try XCTUnwrap(USDAFoodParser.foodItem(
+            matchingBarcode: "012345678905",
+            from: data(json)
+        ))
+
+        XCTAssertEqual(item.id, "usda_2")
+        XCTAssertEqual(item.sourceMetadata?.barcode, "0012345678905")
+        XCTAssertEqual(item.sourceMetadata?.confidence, .databaseMatch)
+    }
+
+    func testAnalyticalUSDADataRetainsVerifiedConfidence() throws {
+        let json = """
+        {"foods": [{
+          "fdcId": 3,
+          "description": "Apple, raw",
+          "dataType": "Foundation",
+          "foodNutrients": [{"nutrientNumber": "208", "value": 52}]
+        }]}
+        """
+
+        let item = try XCTUnwrap(try USDAFoodParser.foodItems(from: data(json)).first)
+        XCTAssertEqual(item.sourceMetadata?.confidence, .verified)
+    }
+
+    func testBarcodeMatchRejectsSearchResultsWithoutMatchingGTIN() throws {
+        let json = """
+        {"foods": [
+          {"fdcId": 1, "description": "No GTIN", "foodNutrients": []},
+          {"fdcId": 2, "description": "Different Product", "gtinUpc": "9999999999994", "foodNutrients": []}
+        ]}
+        """
+
+        XCTAssertNil(try USDAFoodParser.foodItem(
+            matchingBarcode: "012345678905",
+            from: data(json)
+        ))
+    }
+
     func testMalformedJSONThrows() {
         XCTAssertThrowsError(try USDAFoodParser.foodItems(from: data("not json")))
     }

@@ -81,7 +81,7 @@ struct NutritionAuditView: View {
     }
 
     private var mismatchItemCount: Int {
-        auditItems.filter { $0.consistencyStatus.hasMeaningfulMismatch }.count
+        auditItems.filter(\.hasCalorieMathFinding).count
     }
 
     var body: some View {
@@ -103,8 +103,8 @@ struct NutritionAuditView: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     DiaryMetricPill(title: "Foods", value: "\(totalFoods)", subtitle: "logged", icon: "fork.knife", color: .brandPrimary)
                     DiaryMetricPill(title: "Review", value: "\(needsReviewItems.count)", subtitle: "items", icon: "exclamationmark.triangle.fill", color: .orange)
-                    DiaryMetricPill(title: "Verified", value: "\(crossVerifiedItems.count)", subtitle: "foods", icon: "checkmark.seal.fill", color: .accentPositive)
-                    DiaryMetricPill(title: "Fixed", value: "\(userReviewedItems.count)", subtitle: "by you", icon: "person.crop.circle.badge.checkmark", color: .accentProtein)
+                    DiaryMetricPill(title: "Cross-Checked", value: "\(crossVerifiedItems.count)", subtitle: "foods", icon: "checkmark.seal.fill", color: .accentPositiveText)
+                    DiaryMetricPill(title: "Reviewed", value: "\(userReviewedItems.count)", subtitle: "by you", icon: "person.crop.circle.badge.checkmark", color: .accentProtein)
                 }
 
                 if totalFoods == 0 {
@@ -121,10 +121,10 @@ struct NutritionAuditView: View {
 
                     auditSection(
                         title: "Cross-verified",
-                        subtitle: "Foods backed by more than one source.",
+                        subtitle: "Calories and macros matched across independent databases.",
                         items: crossVerifiedItems,
                         emptyMessage: "No cross-verified foods logged today.",
-                        tint: .accentPositive,
+                        tint: .accentPositiveText,
                         icon: "checkmark.seal.fill"
                     )
 
@@ -154,6 +154,7 @@ struct NutritionAuditView: View {
     private func logTrustHubViewed() {
         DIContainer.shared.analyticsManager?.logEvent("trust_hub_viewed", parameters: [
             "total_foods": totalFoods,
+            "trust_model_version": FoodTrustEvaluation.modelVersion,
             "needs_review_count": needsReviewItems.count,
             "cross_verified_count": crossVerifiedItems.count,
             "user_reviewed_count": userReviewedItems.count,
@@ -288,7 +289,7 @@ private struct NutritionAuditEmptyState: View {
         VStack(spacing: 10) {
             Image(systemName: "checkmark.seal.fill")
                 .appFont(size: 28, weight: .bold)
-                .foregroundColor(.accentPositive)
+                .foregroundColor(.accentPositiveText)
                 .frame(width: 54, height: 54)
                 .background(Color.accentPositive.opacity(0.12), in: Circle())
 
@@ -313,6 +314,7 @@ private struct NutritionAuditItem: Identifiable {
     let descriptor: FoodSourceDescriptor
     let evaluation: FoodTrustEvaluation
     let consistencyStatus: NutritionCalorieConsistency.Status
+    let sanityFindings: [FoodDataSanity.Finding]
 
     var id: String { food.id }
 
@@ -330,17 +332,17 @@ private struct NutritionAuditItem: Identifiable {
             metadata: food.sourceMetadata
         )
         self.consistencyStatus = food.calorieConsistencyStatus
+        self.sanityFindings = FoodDataSanity.findings(for: food)
     }
 
     var needsReview: Bool {
-        consistencyStatus.hasMeaningfulMismatch ||
         evaluation.level == .review ||
         evaluation.level == .low ||
-        FoodDataSanity.isSuspicious(food)
+        !sanityFindings.isEmpty
     }
 
     var isCrossVerified: Bool {
-        food.sourceMetadata?.crossVerifiedBy?.isEmpty == false
+        food.sourceMetadata?.hasIndependentCrossVerification == true
     }
 
     var isUserReviewed: Bool {
@@ -358,15 +360,19 @@ private struct NutritionAuditItem: Identifiable {
 
     var reviewPriority: Double {
         let levelScore: Double
-        switch evaluation.level {
-        case .low:
-            levelScore = 4
-        case .review:
-            levelScore = 3
-        case .strong:
-            levelScore = 2
-        case .excellent:
-            levelScore = 1
+        if evaluation.requiresCorrection {
+            levelScore = 5
+        } else {
+            switch evaluation.level {
+            case .low:
+                levelScore = 4
+            case .review:
+                levelScore = 3
+            case .strong:
+                levelScore = 2
+            case .excellent:
+                levelScore = 1
+            }
         }
         return levelScore * 1_000 + consistencyStatus.mismatchAmount
     }
@@ -374,21 +380,31 @@ private struct NutritionAuditItem: Identifiable {
     var tint: Color {
         switch evaluation.level {
         case .excellent, .strong:
-            return .accentPositive
+            return .accentPositiveText
         case .review:
             return .orange
         case .low:
-            return .red
+            return evaluation.requiresCorrection ? .red : .orange
+        }
+    }
+
+    var hasCalorieMathFinding: Bool {
+        sanityFindings.contains {
+            $0.id == "macros_without_calories" ||
+            $0.id == "calories_undercount" ||
+            $0.id == "calories_below_macro_estimate" ||
+            $0.id == "calories_exceed_macros"
         }
     }
 
     var statusLine: String {
-        if consistencyStatus.hasMeaningfulMismatch {
-            return "Logged \(Int(consistencyStatus.loggedCalories.rounded())) cal, macros imply \(Int(consistencyStatus.macroDerivedCalories.rounded())) cal"
+        if let finding = sanityFindings.first {
+            return finding.message
         }
 
-        if isCrossVerified, let sources = food.sourceMetadata?.crossVerifiedBy, !sources.isEmpty {
-            return "Cross-verified by \(sources.prefix(2).joined(separator: ", "))"
+        let sources = food.sourceMetadata?.validatedCrossVerifiedBy ?? []
+        if !sources.isEmpty {
+            return "Calories and macros matched \(sources.prefix(2).joined(separator: ", "))"
         }
 
         switch food.sourceMetadata?.reviewStatus {

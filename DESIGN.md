@@ -36,6 +36,8 @@ than ~3 green elements survive, the screen fails.
 
 Semantic accents stay semantic: `accentProtein` blue = protein, orange = warnings/AI,
 red = destructive, `accentPositive` = success. Never decorate with them.
+`accentPositiveText` is the accessibility-contrast foreground variant of that same success
+hue, not an additional palette role; use it for small positive text/icons on light surfaces.
 
 ### 2a. The palette (closed — decided 2026-07-05)
 

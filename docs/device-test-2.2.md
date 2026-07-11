@@ -47,9 +47,15 @@ light mode, WiFi" fixes itself. "The buffet thing looked wrong" costs us a windo
 - [ ] Search a common food → result has FULL micros (potassium, B vitamins) — the ingestion fix
 - [ ] Saved/recent foods rank above generic results
 - [ ] Quick-log a search result → logged calories MATCH the previewed calories
-- [ ] Open any food detail → **trust card v2**: score, reasons, action button when warranted
-- [ ] Find/AI-create a suspicious entry → "This data looks off" + Fix This Data flow; your fix persists
-- [ ] Scan a common barcode → hit; note the toast if it matched My Foods or a related barcode
+- [ ] Open a cross-verified food detail → Trust Score is 90-99 and the card separately shows Source, Verification (`Calories + macros`), Your Review, and Nutrition Check without repeating the same evidence below the rows
+- [ ] Open a clean single-source USDA/FatSecret/Open Food Facts item → it does not claim Excellent or Cross-Verified; USDA Branded barcode data reads as a database match rather than analytical verification
+- [ ] Create a manual food with a real serving weight → after review it reads `Reviewed entry`, stays below Strong without independent evidence, and does not keep asking for the same completed review
+- [ ] Camera- or Maia-create an estimate → it is orange, not red; after editing/review it reads `Reviewed estimate`, remains capped below Strong, and no longer presents an endless `Review estimate` action
+- [ ] Create an item with zero calories plus meaningful protein/fat → `Needs correction` is red, the specific warning is first, and Fix Data persists the correction
+- [ ] Create a high-fiber/sugar-alcohol-style item whose standard 4/4/9 math differs → it receives an orange informational review, not a false broken-data warning
+- [ ] With VoiceOver on, traverse the Trust card → score reads `N out of 99`, each fact row is understandable, and Fix/Review remains a separately tappable button
+- [ ] Scan a common checksum-valid barcode → hit; note the toast if it matched My Foods or a zero-padded UPC/EAN/GTIN equivalent
+- [ ] Confirm `feature_communityBarcodeCorrections` remains false in Remote Config for 2.2; no single community submission should be presented as verification
 - [ ] Scan something obscure → miss alert: Create food / Use camera / OK all work
 - [ ] Fast Food Builder → search chains, build a Chipotle/Starbucks order, Review meal opens Food Detail with a Chain Builder / Needs Review trust card, then logs normally
 - [ ] Builder brand chips remain readable for both bright brands (yellow/orange) and dark brands; the catalog version/estimated-review note is visible

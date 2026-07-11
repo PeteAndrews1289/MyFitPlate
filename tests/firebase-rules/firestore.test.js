@@ -5,6 +5,18 @@ const path = require('path');
 
 let testEnv;
 
+const validBarcodeData = (createdBy = 'alice') => ({
+    name: 'Protein Bar',
+    calories: 210,
+    protein: 20,
+    carbs: 22,
+    fats: 7,
+    fiber: 3,
+    servingSize: '1 bar (60g)',
+    servingWeight: 60,
+    createdBy,
+});
+
 describe('MyFitPlate Firestore Rules', () => {
 
     before(async () => {
@@ -102,6 +114,53 @@ describe('MyFitPlate Firestore Rules', () => {
             const alice = testEnv.authenticatedContext('alice');
             const ref = alice.firestore().collection('groups').doc('group1');
             await assertFails(ref.set({ creatorID: 'bob', name: 'Bob Group' }));
+        });
+    });
+
+    // MARK: - Community Barcode Corrections
+    describe('Barcode Collection', () => {
+        it('should allow a signed-in user to create a complete validated GTIN entry', async () => {
+            const alice = testEnv.authenticatedContext('alice');
+            const ref = alice.firestore().collection('barcodes').doc('0123456789012');
+            await assertSucceeds(ref.set(validBarcodeData()));
+        });
+
+        it('should reject malformed barcode ids and incomplete serving evidence', async () => {
+            const alice = testEnv.authenticatedContext('alice');
+            const malformed = alice.firestore().collection('barcodes').doc('12345');
+            await assertFails(malformed.set(validBarcodeData()));
+
+            const incomplete = alice.firestore().collection('barcodes').doc('0123456789012');
+            const data = validBarcodeData();
+            delete data.servingWeight;
+            await assertFails(incomplete.set(data));
+        });
+
+        it('should reject forged ownership and unknown fields', async () => {
+            const alice = testEnv.authenticatedContext('alice');
+            const forged = alice.firestore().collection('barcodes').doc('0123456789012');
+            await assertFails(forged.set(validBarcodeData('bob')));
+            await assertFails(forged.set({ ...validBarcodeData(), moderationBypass: true }));
+        });
+
+        it('should allow only the original contributor to update an entry', async () => {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('barcodes').doc('0123456789012').set(validBarcodeData());
+            });
+
+            const aliceRef = testEnv.authenticatedContext('alice')
+                .firestore().collection('barcodes').doc('0123456789012');
+            const bobRef = testEnv.authenticatedContext('bob')
+                .firestore().collection('barcodes').doc('0123456789012');
+
+            await assertSucceeds(aliceRef.set({ ...validBarcodeData(), calories: 220 }));
+            await assertFails(bobRef.set(validBarcodeData('bob')));
+        });
+
+        it('should deny unauthenticated reads', async () => {
+            const ref = testEnv.unauthenticatedContext()
+                .firestore().collection('barcodes').doc('0123456789012');
+            await assertFails(ref.get());
         });
     });
     

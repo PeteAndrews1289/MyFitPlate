@@ -62,6 +62,30 @@ final class FoodSourceAgreementTests: XCTestCase {
         XCTAssertTrue(FoodSourceAgreement.agrees(a, b))
     }
 
+    func testAgreementEvidenceSurvivesPureServingRescale() {
+        let per100 = food(calories: 380, protein: 8, carbs: 70, fats: 6, servingWeight: 100)
+        let per30 = food(calories: 114, protein: 2.4, carbs: 21, fats: 1.8, servingWeight: 30)
+        XCTAssertTrue(FoodSourceAgreement.preservesAgreementEvidence(per30, per100))
+    }
+
+    func testAgreementEvidenceDoesNotSurviveBroadToleranceNutritionEdit() {
+        let original = food(calories: 200, protein: 10, carbs: 20, fats: 8, servingWeight: 100)
+        let edited = food(calories: 220, protein: 11, carbs: 22, fats: 8.5, servingWeight: 100)
+
+        XCTAssertTrue(FoodSourceAgreement.agrees(original, edited))
+        XCTAssertFalse(FoodSourceAgreement.preservesAgreementEvidence(edited, original))
+    }
+
+    func testNonFiniteOrNegativeNutritionNeverAgrees() {
+        let valid = food(calories: 200, protein: 10, carbs: 20, fats: 8, servingWeight: 100)
+        let nonFinite = food(calories: .nan, protein: 10, carbs: 20, fats: 8, servingWeight: 100)
+        let negative = food(calories: 200, protein: -10, carbs: 20, fats: 8, servingWeight: 100)
+
+        XCTAssertFalse(FoodSourceAgreement.agrees(valid, nonFinite))
+        XCTAssertFalse(FoodSourceAgreement.agrees(nonFinite, nonFinite))
+        XCTAssertFalse(FoodSourceAgreement.agrees(valid, negative))
+    }
+
     // MARK: - agreeingSourceNames
 
     func testAgreeingSourceNamesFiltersMissesAndDisagreements() {
@@ -87,6 +111,32 @@ final class FoodSourceAgreementTests: XCTestCase {
             .withDatabaseSource(.fatSecret, sourceName: "FatSecret", barcode: "0123456789")
         let verified = item.withCrossVerification(["USDA"])
         XCTAssertEqual(verified.sourceMetadata?.crossVerifiedBy, ["USDA"])
+    }
+
+    func testCrossVerificationRejectsSelfReferencesDuplicatesAndUnknownSources() {
+        let item = food(calories: 380, protein: 8, carbs: 70, fats: 6, servingWeight: 100)
+            .withDatabaseSource(.fatSecret, sourceName: "FatSecret")
+
+        let verified = item.withCrossVerification([
+            " FatSecret ", "USDA FoodData Central", "usda", "", "Some Blog",
+            "Not USDA", "Open_Food_Facts"
+        ])
+
+        XCTAssertEqual(verified.sourceMetadata?.crossVerifiedBy, ["USDA", "Open Food Facts"])
+        XCTAssertEqual(verified.sourceMetadata?.validatedCrossVerifiedBy, ["USDA", "Open Food Facts"])
+    }
+
+    func testCustomFoodCannotClaimIndependentCrossVerification() {
+        var metadata = FoodSourceMetadata.userEntered(sourceName: "My Foods")
+        metadata.sourceType = .custom
+        metadata.crossVerifiedBy = ["USDA"]
+
+        XCTAssertTrue(metadata.validatedCrossVerifiedBy.isEmpty)
+
+        let item = food(calories: 200, protein: 10, carbs: 20, fats: 8, servingWeight: 100)
+            .withSourceMetadata(metadata)
+            .withCrossVerification(["USDA"])
+        XCTAssertNil(item.sourceMetadata?.crossVerifiedBy)
     }
 
     func testWithCrossVerificationIsNoOpWhenEmptyOrNoMetadata() {
@@ -118,13 +168,13 @@ final class FoodSourceAgreementTests: XCTestCase {
 
     // MARK: - Descriptor surfacing
 
-    func testDescriptorShowsCrossVerifiedConfidenceAndDetail() {
+    func testDescriptorShowsCrossVerifiedConfidenceWithoutRepeatingEvidenceInDetail() {
         var metadata = FoodSourceMetadata.database(.fatSecret, sourceName: "FatSecret", sourceID: "123")
         metadata.crossVerifiedBy = ["USDA"]
 
         let descriptor = FoodSourceClassifier.descriptor(for: metadata)
         XCTAssertEqual(descriptor.confidence, "Cross-Verified")
-        XCTAssertTrue(descriptor.detail.contains("Confirmed by USDA."))
+        XCTAssertEqual(descriptor.detail, "Matched from a packaged-food database.")
     }
 
     func testUserEditedBeatsCrossVerifiedInConfidenceText() {
@@ -133,6 +183,6 @@ final class FoodSourceAgreementTests: XCTestCase {
         metadata.reviewStatus = .userEdited
 
         let descriptor = FoodSourceClassifier.descriptor(for: metadata)
-        XCTAssertEqual(descriptor.confidence, "User Edited")
+        XCTAssertEqual(descriptor.confidence, "Edited by You")
     }
 }
