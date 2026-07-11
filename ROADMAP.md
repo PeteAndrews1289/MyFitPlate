@@ -79,6 +79,11 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 - [ ] **Structured feedback triage**: keep one severity-ranked list for review feedback,
   support messages, device-only defects, and repeated friction. Do not redesign a flow from
   one opinion unless it reveals a clear usability or correctness fault.
+- [x] **Trust correction-loop feedback closure**: label-photo replacement no longer carries
+  stale saturated fat, optional nutrients, or serving weight from an older combined/barcode
+  item. Label parsing now captures the printed serving description and gram weight. Both food
+  editors expose clearly labeled Total fat and Saturated fat fields, block contradictory saves,
+  and overwrite an existing My Foods barcode correction instead of creating a duplicate.
 - [ ] **Known device closures**: validate guided intervals on real GPS, Watch-imported runs
   with heart-rate series, phone-only runs without HR, workout supersets/rest behavior, and
   RPE/RIR/set-type editing on hardware.

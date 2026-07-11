@@ -543,8 +543,8 @@ struct FoodDetailView: View {
     private func handleScannedNutrition(_ data: NutritionLabelData) {
         self.foodName = data.foodName
         let scannedServing = ServingSizeOption(
-            description: "Scanned from label",
-            servingWeightGrams: nil,
+            description: data.servingDescription ?? "Scanned from label",
+            servingWeightGrams: data.servingWeightGrams,
             calories: data.calories,
             protein: data.protein,
             carbs: data.carbs,
@@ -664,7 +664,11 @@ struct FoodDetailView: View {
         )
         
         let rawItemToSave = FoodItem(
-            id: UUID().uuidString,
+            id: customFoodForAction?.id ?? (
+                initialFoodItem.sourceMetadata?.sourceType == .custom
+                    ? initialFoodItem.id
+                    : UUID().uuidString
+            ),
             name: foodName,
             calories: finalNutrients.calories, protein: finalNutrients.protein, carbs: finalNutrients.carbs, fats: finalNutrients.fats,
             saturatedFat: finalNutrients.saturatedFat, polyunsaturatedFat: finalNutrients.polyunsaturatedFat, monounsaturatedFat: finalNutrients.monounsaturatedFat,

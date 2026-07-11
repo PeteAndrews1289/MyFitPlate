@@ -139,6 +139,21 @@ final class FoodDataSanityTests: XCTestCase {
         XCTAssertTrue(findingIDs(item).contains("saturated_fat_exceeds_total"))
     }
 
+    func testSaturatedFatValidationMatchesLabelRoundingTolerance() {
+        XCTAssertTrue(FoodDataSanity.saturatedFatFitsWithinTotalFat(
+            saturatedFat: 3.5,
+            totalFat: 3
+        ))
+        XCTAssertFalse(FoodDataSanity.saturatedFatFitsWithinTotalFat(
+            saturatedFat: 8,
+            totalFat: 3
+        ))
+        XCTAssertTrue(FoodDataSanity.saturatedFatFitsWithinTotalFat(
+            saturatedFat: nil,
+            totalFat: 3
+        ))
+    }
+
     // MARK: - Unit-slip rules
 
     func testSodiumGramVsMilligramSlipIsWarning() {

@@ -121,6 +121,34 @@ final class FoodItemCodableTests: XCTestCase {
     }
 }
 
+// MARK: - Nutrition label parsing
+
+final class NutritionLabelDataParsingTests: XCTestCase {
+    func testServingIdentityAndOptionalNutrientsDecodeFromLabelResponse() throws {
+        let json = """
+        {
+          "foodName": "Cinnamon bun flavored",
+          "servingDescription": "2 cookies (29 g)",
+          "servingWeightGrams": 29,
+          "calories": 150,
+          "protein": 0,
+          "carbs": 21,
+          "fats": 7,
+          "saturatedFat": 3
+        }
+        """
+
+        let decoded = try JSONDecoder().decode(NutritionLabelData.self, from: Data(json.utf8))
+
+        XCTAssertEqual(decoded.servingDescription, "2 cookies (29 g)")
+        XCTAssertEqual(decoded.servingWeightGrams ?? 0, 29, accuracy: 0.001)
+        XCTAssertEqual(decoded.fats, 7, accuracy: 0.001)
+        XCTAssertEqual(decoded.saturatedFat ?? 0, 3, accuracy: 0.001)
+        XCTAssertNil(decoded.fiber)
+        XCTAssertNil(decoded.sodium)
+    }
+}
+
 // MARK: - FatSecret response parsing
 
 final class FatSecretParsingTests: XCTestCase {

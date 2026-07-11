@@ -21,6 +21,7 @@ struct AddFoodView: View {
     @State private var proteinText: String
     @State private var carbsText: String
     @State private var fatsText: String
+    @State private var saturatedFatText: String
     @State private var fiberText: String
     @State private var servingSizeText: String
     @State private var servingWeightText: String
@@ -58,6 +59,7 @@ struct AddFoodView: View {
         self._proteinText = State(initialValue: Self.fieldText(for: initialFoodItem.protein))
         self._carbsText = State(initialValue: Self.fieldText(for: initialFoodItem.carbs))
         self._fatsText = State(initialValue: Self.fieldText(for: initialFoodItem.fats))
+        self._saturatedFatText = State(initialValue: Self.fieldText(for: initialFoodItem.saturatedFat))
         self._fiberText = State(initialValue: Self.fieldText(for: initialFoodItem.fiber))
         self._servingSizeText = State(initialValue: initialFoodItem.servingSize.isEmpty ? "1 serving" : initialFoodItem.servingSize)
         self._servingWeightText = State(initialValue: Self.fieldText(for: initialFoodItem.servingWeight))
@@ -99,54 +101,54 @@ struct AddFoodView: View {
     private var logButtonEnabled: Bool {
         guard !trimmedFoodName.isEmpty else { return false }
         guard let quantityValue = Double(quantity), quantityValue > 0 else { return false }
-        return Double(caloriesText) != nil || Double(proteinText) != nil || Double(carbsText) != nil || Double(fatsText) != nil
+        let numericFields = [
+            caloriesText, proteinText, carbsText, fatsText,
+            saturatedFatText, fiberText, servingWeightText
+        ]
+        guard numericFields.allSatisfy({ text in
+            text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || doubleValue(text) != nil
+        }) else {
+            return false
+        }
+        let hasCoreNutrition = [caloriesText, proteinText, carbsText, fatsText]
+            .contains { doubleValue($0) != nil }
+        return hasCoreNutrition && saturatedFatValidationMessage == nil
     }
 
     private func doubleValue(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        return Double(trimmed)
+        guard let value = Double(trimmed), value.isFinite, value >= 0 else { return nil }
+        return value
+    }
+
+    private var saturatedFatValidationMessage: String? {
+        guard let saturatedFat = doubleValue(saturatedFatText) else { return nil }
+        let totalFat = doubleValue(fatsText) ?? selectedServingOption?.fats ?? initialFoodItem.fats
+        guard !FoodDataSanity.saturatedFatFitsWithinTotalFat(
+            saturatedFat: saturatedFat,
+            totalFat: totalFat
+        ) else {
+            return nil
+        }
+        return "Saturated fat cannot be greater than total fat."
     }
 
     private var editableBaseServingOption: ServingSizeOption {
-        let fallback = selectedServingOption
-        let servingDescription = servingSizeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? (fallback?.description ?? "1 serving")
-            : servingSizeText.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        return ServingSizeOption(
-            description: servingDescription,
-            servingWeightGrams: doubleValue(servingWeightText) ?? fallback?.servingWeightGrams ?? (initialFoodItem.servingWeight > 0 ? initialFoodItem.servingWeight : nil),
-            calories: doubleValue(caloriesText) ?? fallback?.calories ?? initialFoodItem.calories,
-            protein: doubleValue(proteinText) ?? fallback?.protein ?? initialFoodItem.protein,
-            carbs: doubleValue(carbsText) ?? fallback?.carbs ?? initialFoodItem.carbs,
-            fats: doubleValue(fatsText) ?? fallback?.fats ?? initialFoodItem.fats,
-            saturatedFat: fallback?.saturatedFat ?? initialFoodItem.saturatedFat,
-            polyunsaturatedFat: fallback?.polyunsaturatedFat ?? initialFoodItem.polyunsaturatedFat,
-            monounsaturatedFat: fallback?.monounsaturatedFat ?? initialFoodItem.monounsaturatedFat,
-            fiber: doubleValue(fiberText) ?? fallback?.fiber ?? initialFoodItem.fiber,
-            calcium: fallback?.calcium ?? initialFoodItem.calcium,
-            iron: fallback?.iron ?? initialFoodItem.iron,
-            potassium: fallback?.potassium ?? initialFoodItem.potassium,
-            sodium: fallback?.sodium ?? initialFoodItem.sodium,
-            vitaminA: fallback?.vitaminA ?? initialFoodItem.vitaminA,
-            vitaminC: fallback?.vitaminC ?? initialFoodItem.vitaminC,
-            vitaminD: fallback?.vitaminD ?? initialFoodItem.vitaminD,
-            vitaminB12: fallback?.vitaminB12 ?? initialFoodItem.vitaminB12,
-            folate: fallback?.folate ?? initialFoodItem.folate,
-            magnesium: fallback?.magnesium ?? initialFoodItem.magnesium,
-            phosphorus: fallback?.phosphorus ?? initialFoodItem.phosphorus,
-            zinc: fallback?.zinc ?? initialFoodItem.zinc,
-            copper: fallback?.copper ?? initialFoodItem.copper,
-            manganese: fallback?.manganese ?? initialFoodItem.manganese,
-            selenium: fallback?.selenium ?? initialFoodItem.selenium,
-            vitaminB1: fallback?.vitaminB1 ?? initialFoodItem.vitaminB1,
-            vitaminB2: fallback?.vitaminB2 ?? initialFoodItem.vitaminB2,
-            vitaminB3: fallback?.vitaminB3 ?? initialFoodItem.vitaminB3,
-            vitaminB5: fallback?.vitaminB5 ?? initialFoodItem.vitaminB5,
-            vitaminB6: fallback?.vitaminB6 ?? initialFoodItem.vitaminB6,
-            vitaminE: fallback?.vitaminE ?? initialFoodItem.vitaminE,
-            vitaminK: fallback?.vitaminK ?? initialFoodItem.vitaminK
+        let trimmedDescription = servingSizeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ServingNutritionCalculator.editableServing(
+            from: initialFoodItem,
+            selectedServing: selectedServingOption,
+            edits: ServingNutritionEdits(
+                description: trimmedDescription.isEmpty ? nil : trimmedDescription,
+                servingWeightGrams: doubleValue(servingWeightText),
+                calories: doubleValue(caloriesText),
+                protein: doubleValue(proteinText),
+                carbs: doubleValue(carbsText),
+                fats: doubleValue(fatsText),
+                visibleSaturatedFat: doubleValue(saturatedFatText),
+                visibleFiber: doubleValue(fiberText)
+            )
         )
     }
 
@@ -395,6 +397,23 @@ struct AddFoodView: View {
                 .foregroundColor(.textPrimary)
 
             ManualFoodTextInput(
+                title: "Saturated fat",
+                placeholder: "optional",
+                text: $saturatedFatText,
+                keyboardType: .decimalPad,
+                icon: "drop.fill",
+                color: .accentFats,
+                unit: "g"
+            )
+
+            if let saturatedFatValidationMessage {
+                Label(saturatedFatValidationMessage, systemImage: "exclamationmark.circle.fill")
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ManualFoodTextInput(
                 title: "Fiber",
                 placeholder: "optional",
                 text: $fiberText,
@@ -473,6 +492,7 @@ struct AddFoodView: View {
         proteinText = Self.fieldText(for: selectedServingOption.protein)
         carbsText = Self.fieldText(for: selectedServingOption.carbs)
         fatsText = Self.fieldText(for: selectedServingOption.fats)
+        saturatedFatText = Self.fieldText(for: selectedServingOption.saturatedFat)
         fiberText = Self.fieldText(for: selectedServingOption.fiber)
     }
 
@@ -534,7 +554,7 @@ struct AddFoodView: View {
     private func handleScannedNutrition(_ data: NutritionLabelData) {
         hasScannedNutritionLabel = true
         self.foodName = data.foodName
-        let scanned = ServingSizeOption(description: "Scanned label", servingWeightGrams: nil, calories: data.calories, protein: data.protein, carbs: data.carbs, fats: data.fats, saturatedFat: data.saturatedFat, polyunsaturatedFat: data.polyunsaturatedFat, monounsaturatedFat: data.monounsaturatedFat, fiber: data.fiber, calcium: data.calcium, iron: data.iron, potassium: data.potassium, sodium: data.sodium, vitaminA: data.vitaminA, vitaminC: data.vitaminC, vitaminD: data.vitaminD, vitaminB12: data.vitaminB12, folate: data.folate, magnesium: data.magnesium, phosphorus: data.phosphorus, zinc: data.zinc, copper: data.copper, manganese: data.manganese, selenium: data.selenium, vitaminB1: data.vitaminB1, vitaminB2: data.vitaminB2, vitaminB3: data.vitaminB3, vitaminB5: data.vitaminB5, vitaminB6: data.vitaminB6, vitaminE: data.vitaminE, vitaminK: data.vitaminK)
+        let scanned = ServingSizeOption(description: data.servingDescription ?? "Scanned label", servingWeightGrams: data.servingWeightGrams, calories: data.calories, protein: data.protein, carbs: data.carbs, fats: data.fats, saturatedFat: data.saturatedFat, polyunsaturatedFat: data.polyunsaturatedFat, monounsaturatedFat: data.monounsaturatedFat, fiber: data.fiber, calcium: data.calcium, iron: data.iron, potassium: data.potassium, sodium: data.sodium, vitaminA: data.vitaminA, vitaminC: data.vitaminC, vitaminD: data.vitaminD, vitaminB12: data.vitaminB12, folate: data.folate, magnesium: data.magnesium, phosphorus: data.phosphorus, zinc: data.zinc, copper: data.copper, manganese: data.manganese, selenium: data.selenium, vitaminB1: data.vitaminB1, vitaminB2: data.vitaminB2, vitaminB3: data.vitaminB3, vitaminB5: data.vitaminB5, vitaminB6: data.vitaminB6, vitaminE: data.vitaminE, vitaminK: data.vitaminK)
         self.availableServings.insert(scanned, at: 0)
         self.selectedServingID = scanned.id
         syncEditableFieldsFromSelectedServing()
@@ -632,7 +652,11 @@ struct AddFoodView: View {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
         let n = adjustedNutrients
         let rawItemToSave = FoodItem(
-            id: customFoodForAction?.id ?? UUID().uuidString,
+            id: customFoodForAction?.id ?? (
+                initialFoodItem.sourceMetadata?.sourceType == .custom
+                    ? initialFoodItem.id
+                    : UUID().uuidString
+            ),
             name: trimmedFoodName,
             calories: n.calories,
             protein: n.protein,
@@ -833,7 +857,7 @@ private struct ManualFoodMacroInputGrid: View {
             ManualFoodTextInput(title: "Calories", placeholder: "0", text: $caloriesText, keyboardType: .decimalPad, icon: "flame.fill", color: .orange, unit: "cal")
             ManualFoodTextInput(title: "Protein", placeholder: "0", text: $proteinText, keyboardType: .decimalPad, icon: "bolt.fill", color: .accentProtein, unit: "g")
             ManualFoodTextInput(title: "Carbs", placeholder: "0", text: $carbsText, keyboardType: .decimalPad, icon: "leaf.fill", color: .accentCarbs, unit: "g")
-            ManualFoodTextInput(title: "Fat", placeholder: "0", text: $fatsText, keyboardType: .decimalPad, icon: "drop.fill", color: .accentFats, unit: "g")
+            ManualFoodTextInput(title: "Total fat", placeholder: "0", text: $fatsText, keyboardType: .decimalPad, icon: "drop.fill", color: .accentFats, unit: "g")
         }
     }
 }

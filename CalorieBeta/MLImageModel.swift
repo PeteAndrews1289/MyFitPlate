@@ -47,6 +47,8 @@ struct ReceiptItemResponse: Codable {
 
 struct NutritionLabelData: Decodable {
     let foodName: String
+    let servingDescription: String?
+    let servingWeightGrams: Double?
     let calories: Double
     let protein: Double
     let carbs: Double
@@ -119,9 +121,12 @@ class MLImageModel {
         let prompt = """
         You are a highly accurate nutrition label parser. Analyze the image of the nutrition label provided.
         Your response MUST be a valid JSON object only.
-        The root object must contain these exact keys: "foodName", "calories", "protein", "carbs", "fats", "saturatedFat", "polyunsaturatedFat", "monounsaturatedFat", "fiber", "calcium", "iron", "potassium", "sodium", "vitaminA", "vitaminC", "vitaminD", "vitaminB12", "folate", "magnesium", "phosphorus", "zinc", "copper", "manganese", "selenium", "vitaminB1", "vitaminB2", "vitaminB3", "vitaminB5", "vitaminB6", "vitaminE", "vitaminK".
+        The root object must contain these exact keys: "foodName", "servingDescription", "servingWeightGrams", "calories", "protein", "carbs", "fats", "saturatedFat", "polyunsaturatedFat", "monounsaturatedFat", "fiber", "calcium", "iron", "potassium", "sodium", "vitaminA", "vitaminC", "vitaminD", "vitaminB12", "folate", "magnesium", "phosphorus", "zinc", "copper", "manganese", "selenium", "vitaminB1", "vitaminB2", "vitaminB3", "vitaminB5", "vitaminB6", "vitaminE", "vitaminK".
         - "foodName" should be the product name if visible, otherwise use a generic name like "Scanned Food".
-        - All nutritional values must be numbers. If a value is not found, it should be 0.
+        - "servingDescription" should copy the complete label serving, such as "2 cookies (29 g)", or be null when it is not visible.
+        - "servingWeightGrams" should be only the serving's gram weight as a number, or null when no gram weight is printed.
+        - Calories, protein, carbs, and fats must be numbers copied from the label.
+        - Optional nutrients must be numbers only when explicitly printed on the label. Use null when an optional nutrient is not shown; do not invent zero.
         """
 
         let messages: [[String: Any]] = [

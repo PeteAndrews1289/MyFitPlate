@@ -385,6 +385,7 @@ struct FoodDetailCorrectionSheet: View {
     @State private var protein: String
     @State private var carbs: String
     @State private var fats: String
+    @State private var saturatedFat: String
     @State private var fiber: String
 
     init(
@@ -403,6 +404,7 @@ struct FoodDetailCorrectionSheet: View {
         self._protein = State(initialValue: Self.requiredText(for: serving.protein))
         self._carbs = State(initialValue: Self.requiredText(for: serving.carbs))
         self._fats = State(initialValue: Self.requiredText(for: serving.fats))
+        self._saturatedFat = State(initialValue: Self.text(for: serving.saturatedFat))
         self._fiber = State(initialValue: Self.text(for: serving.fiber))
     }
 
@@ -420,7 +422,11 @@ struct FoodDetailCorrectionSheet: View {
             doubleValue(calories) != nil &&
             doubleValue(protein) != nil &&
             doubleValue(carbs) != nil &&
-            doubleValue(fats) != nil
+            doubleValue(fats) != nil &&
+            isValidOptionalNumber(servingWeight) &&
+            isValidOptionalNumber(saturatedFat) &&
+            isValidOptionalNumber(fiber) &&
+            saturatedFatValidationMessage == nil
     }
 
     var body: some View {
@@ -505,10 +511,17 @@ struct FoodDetailCorrectionSheet: View {
                 correctionTextField(title: "Calories", text: $calories, unit: "cal", keyboard: .decimalPad)
                 correctionTextField(title: "Protein", text: $protein, unit: "g", keyboard: .decimalPad)
                 correctionTextField(title: "Carbs", text: $carbs, unit: "g", keyboard: .decimalPad)
-                correctionTextField(title: "Fat", text: $fats, unit: "g", keyboard: .decimalPad)
+                correctionTextField(title: "Total fat", text: $fats, unit: "g", keyboard: .decimalPad)
+                correctionTextField(title: "Saturated fat", text: $saturatedFat, unit: "g", keyboard: .decimalPad)
+                correctionTextField(title: "Fiber", text: $fiber, unit: "g", keyboard: .decimalPad)
             }
 
-            correctionTextField(title: "Fiber", text: $fiber, unit: "g", keyboard: .decimalPad)
+            if let saturatedFatValidationMessage {
+                Label(saturatedFatValidationMessage, systemImage: "exclamationmark.circle.fill")
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(16)
         .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -530,10 +543,10 @@ struct FoodDetailCorrectionSheet: View {
             protein: proteinValue,
             carbs: carbsValue,
             fats: fatsValue,
-            saturatedFat: serving.saturatedFat,
+            saturatedFat: doubleValue(saturatedFat),
             polyunsaturatedFat: serving.polyunsaturatedFat,
             monounsaturatedFat: serving.monounsaturatedFat,
-            fiber: doubleValue(fiber) ?? serving.fiber,
+            fiber: doubleValue(fiber),
             calcium: serving.calcium,
             iron: serving.iron,
             potassium: serving.potassium,
@@ -599,8 +612,25 @@ struct FoodDetailCorrectionSheet: View {
     private func doubleValue(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        guard let value = Double(trimmed), value >= 0 else { return nil }
+        guard let value = Double(trimmed), value.isFinite, value >= 0 else { return nil }
         return value
+    }
+
+    private func isValidOptionalNumber(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty || doubleValue(trimmed) != nil
+    }
+
+    private var saturatedFatValidationMessage: String? {
+        guard let saturatedFatValue = doubleValue(saturatedFat),
+              let totalFatValue = doubleValue(fats),
+              !FoodDataSanity.saturatedFatFitsWithinTotalFat(
+                  saturatedFat: saturatedFatValue,
+                  totalFat: totalFatValue
+              ) else {
+            return nil
+        }
+        return "Saturated fat cannot be greater than total fat."
     }
 }
 
