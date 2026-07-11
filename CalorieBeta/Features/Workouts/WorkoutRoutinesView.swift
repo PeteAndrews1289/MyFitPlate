@@ -7,6 +7,7 @@ struct WorkoutRoutinesView: View {
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService
+    @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
 
     @State private var routineToPlay: WorkoutRoutine?
     @State private var showingAIGenerator = false
@@ -52,7 +53,12 @@ struct WorkoutRoutinesView: View {
                                 completedLogsByIndex: viewModel.completedLogsByIndex(for: program),
                                 onStart: { routine in self.routineToPlay = routine },
                                 onSkipTo: { target in
-                                    Task { await workoutService.skipToIndex(target, in: program) }
+                                    Task {
+                                        if let updated = await workoutService.skipToIndex(target, in: program),
+                                           updated.currentProgressIndex != program.currentProgressIndex {
+                                            recordTrainingFuelSkip(for: program)
+                                        }
+                                    }
                                 },
                                 onReview: { log in self.reviewLog = log }
                             )
@@ -275,6 +281,7 @@ struct WorkoutRoutinesView: View {
                 .environmentObject(dailyLogService)
                 .environmentObject(workoutService)
                 .environmentObject(achievementService)
+                .environmentObject(trainingFuelPlanStore)
             }
             .sheet(isPresented: $showingAIGenerator) {
                 AIWorkoutGeneratorView()
@@ -306,6 +313,25 @@ struct WorkoutRoutinesView: View {
             }
         }
         }
+    }
+
+    private func recordTrainingFuelSkip(for program: WorkoutProgram) {
+        let index = program.currentProgressIndex ?? 0
+        guard !program.routines.isEmpty else { return }
+        let routine = program.routines[index % program.routines.count]
+        let today = dailyLogService.currentDailyLog.flatMap { log in
+            Calendar.current.isDateInToday(log.date) ? log : nil
+        }
+        guard trainingFuelPlanStore.recordProgramSkip(
+            programID: program.id,
+            routineID: routine.id,
+            today: today,
+            for: DIContainer.shared.authService.currentUserID
+        ) else { return }
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.trainingFuelSessionOutcome.rawValue,
+            parameters: ["outcome": "skipped", "source": "program_skip"]
+        )
     }
 
     @ViewBuilder

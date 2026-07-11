@@ -113,22 +113,24 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   Foods, Fast Food Builder, Meal Plan, or a target-specific Maia idea. The generic whole-day
   Fill My Macros prompt is suppressed while a confirmed plan exists so the two budgets cannot
   compete.
-- [ ] **Post-session reconciliation**: started. Confirmed plans are account/day scoped, subtract
-  food logged after confirmation, separate before/after by timestamp, cap every next action to
-  the live daily goals and diary, open actions only inside their intended phase, expire the
-  pre-session window and stale plans, and become neutral for over-target or invalid data. Food
-  logged during the workout consumes the daily budget without being mislabeled as recovery.
-  Still required: reconcile against an explicitly completed or skipped workout and handle a
-  legitimate post-midnight recovery target against the next day.
-- [x] **Rules and safety coverage (Core)**: 22 adversarial tests cover hard leg days, easy
+- [x] **Post-session reconciliation**: confirmed plans are account scoped, subtract food logged
+  after confirmation, separate before/after by timestamp, cap every next action to the live
+  daily goals and diary, and become neutral for over-target or invalid data. Recovery now opens
+  only after an explicit completion from the strength player, exact selected run, treadmill run,
+  or manual confirmation; program/manual skips close every target. Unconfirmed elapsed sessions
+  wait for an outcome instead of inferring recovery. Food logged during training consumes the
+  budget without being mislabeled, and sessions that legitimately finish after midnight create
+  a fresh recovery allocation from the next day's real diary and goals before any target appears.
+- [x] **Rules and safety coverage (Core)**: 23 adversarial tests cover hard leg days, easy
   sessions, long/short runs, late-night training, fasting, missing/defaulted inputs, historical
   diary state, tiny or exhausted budgets, over-target days, stale/tomorrow workouts, invalid
   values, extreme finite corruption, and explicit pre/post choices. A 1,344-combination grid
   also enforces the calorie, macro, phase, and minimum-action invariants. Language remains
-  general fitness coaching. Twenty integration tests now cover active-program/run adapters,
-  editable drafts, account isolation, diary attribution, live-budget recapping, stale storage,
-  phase timing, same-plan edits, and fail-closed reconciliation. AI meal ideas also pass a local
-  finite-value, nutrition-consistency, and live-budget gate before they can be shown.
+  general fitness coaching. Twenty-nine integration tests now cover active-program/run adapters,
+  exact routine and run-plan identity, explicit completion/skipping, actual finish time,
+  account isolation, diary attribution, live-budget recapping, stale storage, phase timing,
+  overnight recovery, same-plan edits, and fail-closed reconciliation. AI meal ideas also pass
+  a local finite-value, nutrition-consistency, and live-budget gate before they can be shown.
 
 ### Must Ship — Training and Fuel Report
 

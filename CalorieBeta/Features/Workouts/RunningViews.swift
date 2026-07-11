@@ -400,6 +400,8 @@ private struct RunWorkoutPickerSheet: View {
 private struct TreadmillRunEntrySheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var goalSettings: GoalSettings
+    @EnvironmentObject private var dailyLogService: DailyLogService
+    @EnvironmentObject private var trainingFuelPlanStore: TrainingFuelPlanStore
     let metric: Bool
     let onSaved: () -> Void
 
@@ -507,6 +509,27 @@ private struct TreadmillRunEntrySheet: View {
                 shoeStore.tagRun(runID: savedID, withShoeID: shoeStore.defaultShoe()?.id)
             } else {
                 ToastManager.shared.showToast(message: "Saved locally, but Health sync failed.")
+            }
+            let today = dailyLogService.currentDailyLog.flatMap { log in
+                Calendar.current.isDate(log.date, inSameDayAs: run.endDate) ? log : nil
+            }
+            if trainingFuelPlanStore.recordRunCompletion(
+                run,
+                selectedPlanID: nil,
+                source: .treadmillRun,
+                today: today,
+                goals: TodayFuelPlanGoals(
+                    calories: goalSettings.calories ?? 0,
+                    protein: goalSettings.protein,
+                    carbs: goalSettings.carbs,
+                    fats: goalSettings.fats
+                ),
+                for: DIContainer.shared.authService.currentUserID
+            ) {
+                DIContainer.shared.analyticsManager?.logEvent(
+                    ProductAnalytics.Event.trainingFuelSessionOutcome.rawValue,
+                    parameters: ["outcome": "completed", "source": "treadmill_run"]
+                )
             }
             HapticManager.instance.notification(.success)
             ToastManager.shared.showToast(message: "Treadmill run saved.")

@@ -86,6 +86,7 @@ public struct TrainingFuelAllocation: Codable, Equatable, Sendable {
 public struct TrainingFuelPlannerPlan: Codable, Equatable, Sendable {
     public enum Status: String, Codable, Equatable, Sendable {
         case ready
+        case deferredRecovery = "deferred_recovery"
         case needsSessionTime = "needs_session_time"
         case noFuelRequested = "no_fuel_requested"
         case outsideToday = "outside_today"
@@ -247,8 +248,15 @@ public enum TrainingFuelPlannerRules {
         let remainingCalories = Int(floor(rawRemainingCalories))
         let remainingProtein = Int(floor(max(0, proteinGoal - proteinLogged)))
         let remainingCarbs = Int(floor(max(0, carbGoal - carbsLogged)))
+        let deferredPostSession: Bool = {
+            guard preference.wantsPostSessionFuel,
+                  let scheduledAt = session.scheduledAt,
+                  calendar.isDate(scheduledAt, inSameDayAs: now) else { return false }
+            let estimatedEnd = scheduledAt.addingTimeInterval(Double(duration * 60))
+            return !calendar.isDate(estimatedEnd, inSameDayAs: scheduledAt)
+        }()
 
-        guard rawRemainingCalories > 0 else {
+        guard rawRemainingCalories > 0 || deferredPostSession else {
             return plan(
                 status: .overTargetReview,
                 duration: duration,
@@ -322,15 +330,26 @@ public enum TrainingFuelPlannerRules {
             minutesUntilSession = Int(floor(secondsUntilSession / 60))
         }
 
-        let includePreSession = preference.wantsPreSessionFuel
+        let includePreSession = preference.wantsPreSessionFuel && rawRemainingCalories > 0
         var includePostSession = preference.wantsPostSessionFuel
-        let estimatedEnd = scheduledAt.addingTimeInterval(Double(duration * 60))
-        if !calendar.isDate(estimatedEnd, inSameDayAs: scheduledAt) {
+        if deferredPostSession {
             includePostSession = false
             appendUnique(.postSessionFallsNextDay, to: &notes)
         }
 
         if !includePreSession && !includePostSession {
+            if deferredPostSession {
+                return plan(
+                    status: .deferredRecovery,
+                    duration: duration,
+                    intensity: intensity,
+                    minutesUntilSession: minutesUntilSession,
+                    remainingCalories: remainingCalories,
+                    remainingProtein: remainingProtein,
+                    remainingCarbs: remainingCarbs,
+                    notes: notes
+                )
+            }
             return plan(
                 status: .outsideToday,
                 duration: duration,
@@ -344,6 +363,18 @@ public enum TrainingFuelPlannerRules {
         }
 
         guard remainingCalories >= minimumActionCalories else {
+            if deferredPostSession {
+                return plan(
+                    status: .deferredRecovery,
+                    duration: duration,
+                    intensity: intensity,
+                    minutesUntilSession: minutesUntilSession,
+                    remainingCalories: remainingCalories,
+                    remainingProtein: remainingProtein,
+                    remainingCarbs: remainingCarbs,
+                    notes: notes
+                )
+            }
             return plan(
                 status: .insufficientBudget,
                 duration: duration,
@@ -390,6 +421,18 @@ public enum TrainingFuelPlannerRules {
         }
 
         guard !allocations.isEmpty else {
+            if deferredPostSession {
+                return plan(
+                    status: .deferredRecovery,
+                    duration: duration,
+                    intensity: intensity,
+                    minutesUntilSession: minutesUntilSession,
+                    remainingCalories: remainingCalories,
+                    remainingProtein: remainingProtein,
+                    remainingCarbs: remainingCarbs,
+                    notes: notes
+                )
+            }
             return plan(
                 status: .insufficientBudget,
                 duration: duration,

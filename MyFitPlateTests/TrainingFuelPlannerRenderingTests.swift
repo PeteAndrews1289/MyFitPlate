@@ -47,6 +47,8 @@ final class TrainingFuelPlannerRenderingTests: XCTestCase {
             onConfirm: { _, _ in },
             onUseTarget: { _, _, _, _ in },
             onUseSavedTarget: { _, _ in },
+            onMarkComplete: {},
+            onSkip: {},
             onRemove: {}
         )
 
@@ -59,6 +61,79 @@ final class TrainingFuelPlannerRenderingTests: XCTestCase {
             AnyView(sheet.environment(\.sizeCategory, .accessibilityExtraExtraExtraLarge)),
             frame: CGRect(x: 0, y: 0, width: 320, height: 568),
             attachmentName: "Training fuel planner - accessibility"
+        )
+    }
+
+    func testAwaitingOutcomeRendersCompletionAndSkipActions() throws {
+        let now = date(hour: 19)
+        let start = date(hour: 18)
+        let candidate = TrainingFuelSessionAdapter.manualCandidate(kind: .strength)
+        let draft = TrainingFuelPlanDraft(
+            candidate: candidate,
+            scheduledAt: start,
+            durationMinutes: 60,
+            intensity: .hard,
+            strengthFocus: .lowerBody
+        )
+        let plannerPlan = TrainingFuelPlannerPlan(
+            status: .ready,
+            normalizedDurationMinutes: 60,
+            normalizedIntensity: .hard,
+            minutesUntilSession: 240,
+            remainingCalories: 1_200,
+            remainingProteinGrams: 100,
+            remainingCarbGrams: 160,
+            allocations: [
+                TrainingFuelAllocation(
+                    phase: .beforeTraining,
+                    timing: .overTwoHours,
+                    proteinGrams: 10,
+                    carbGrams: 30
+                ),
+                TrainingFuelAllocation(
+                    phase: .afterTraining,
+                    timing: .afterSession,
+                    proteinGrams: 25,
+                    carbGrams: 35
+                )
+            ],
+            notes: []
+        )
+        let goals = TodayFuelPlanGoals(calories: 2_300, protein: 175, carbs: 270, fats: 75)
+        let savedPlan = TrainingFuelConfirmedPlan(
+            draft: draft,
+            plannerPlan: plannerPlan,
+            goals: goals,
+            today: nil,
+            confirmedAt: date(hour: 14)
+        )
+        let progress = TrainingFuelPlanProgressRules.makeProgress(
+            plan: savedPlan,
+            today: nil,
+            goals: goals,
+            now: now
+        )
+        XCTAssertEqual(progress.status, .awaitingOutcome)
+
+        let sheet = TrainingFuelPlannerSheet(
+            candidates: [candidate],
+            savedPlan: savedPlan,
+            savedProgress: progress,
+            today: nil,
+            goals: goals,
+            now: now,
+            onConfirm: { _, _ in },
+            onUseTarget: { _, _, _, _ in },
+            onUseSavedTarget: { _, _ in },
+            onMarkComplete: {},
+            onSkip: {},
+            onRemove: {}
+        )
+
+        try render(
+            AnyView(sheet.environment(\.sizeCategory, .large)),
+            frame: CGRect(x: 0, y: 0, width: 430, height: 932),
+            attachmentName: "Training fuel planner - awaiting outcome"
         )
     }
 

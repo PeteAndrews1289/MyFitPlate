@@ -44,6 +44,7 @@ These events evaluate the 2.3 loop before waiting for D7 retention:
 | Training Fuel Planner opened | `training_fuel_planner_opened`, grouped by `has_saved_plan` and `has_program_suggestion`; treat this as exposure, not success |
 | Training fuel plan confirmed | `training_fuel_plan_saved`, grouped by `training_mode`, `phase_count`, and `confirmation_path` (`save` or `handoff`) |
 | Training fuel destination chosen | `training_fuel_handoff_selected`, grouped by `phase` and `destination` |
+| Training fuel session resolved | `training_fuel_session_outcome`, grouped by `outcome` (`completed` or `skipped`) and privacy-safe `source` |
 | Recovery offer seen | `workout_recovery_handoff_viewed`, grouped by `kind` |
 | Recovery action chosen | `workout_recovery_handoff_tapped`, grouped by `kind` and `action` |
 | Recovery suggestion logged | `workout_recovery_handoff_logged` event count and distinct users |
@@ -117,7 +118,7 @@ same period rather than joining server UIDs to Firebase users.
 Peter must complete the console-side setup after the instrumented build produces data:
 
 1. Register useful custom dimensions: `analytics_schema`, `destination`, `entry_source`,
-   `training_mode`, `result`, `source`, `duration_bucket`, `trust_model_version`,
+   `training_mode`, `result`, `source`, `outcome`, `duration_bucket`, `trust_model_version`,
    `trust_level`, `action`, `phase`, `confirmation_path`, `area`, `operation`, and deletion
    `reason`.
 2. Register numeric metrics where Firebase requires it: `elapsed_seconds`, `duration_ms`,

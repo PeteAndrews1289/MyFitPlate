@@ -332,10 +332,13 @@ final class RunRecorderViewModel: ObservableObject {
 
 struct RunRecorderView: View {
     @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject var dailyLogService: DailyLogService
+    @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
     @Environment(\.dismiss) private var dismiss
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @StateObject private var viewModel: RunRecorderViewModel
     @State private var showingDiscardAlert = false
+    @State private var reconciledTrainingFuelRunID: String?
 
     init(plan: RunWorkoutPlan? = nil) {
         let metric = UserDefaults.standard.object(forKey: "useMetricBodyUnits") as? Bool
@@ -369,6 +372,7 @@ struct RunRecorderView: View {
                         workoutPlanName: viewModel.workoutPlan?.name,
                         workoutResult: viewModel.finishedWorkoutResult
                     ) { dismiss() }
+                    .onAppear { reconcileTrainingFuel(for: run) }
                 }
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
@@ -387,6 +391,30 @@ struct RunRecorderView: View {
             }
         }
         .interactiveDismissDisabled(viewModel.stage == .running || viewModel.stage == .paused)
+    }
+
+    private func reconcileTrainingFuel(for run: Run) {
+        guard reconciledTrainingFuelRunID != run.id else { return }
+        reconciledTrainingFuelRunID = run.id
+        let today = dailyLogService.currentDailyLog.flatMap { log in
+            Calendar.current.isDate(log.date, inSameDayAs: run.endDate) ? log : nil
+        }
+        guard trainingFuelPlanStore.recordRunCompletion(
+            run,
+            selectedPlanID: viewModel.workoutPlan?.id,
+            today: today,
+            goals: TodayFuelPlanGoals(
+                calories: goalSettings.calories ?? 0,
+                protein: goalSettings.protein,
+                carbs: goalSettings.carbs,
+                fats: goalSettings.fats
+            ),
+            for: DIContainer.shared.authService.currentUserID
+        ) else { return }
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.trainingFuelSessionOutcome.rawValue,
+            parameters: ["outcome": "completed", "source": "recorded_run"]
+        )
     }
 
     private var permissionView: some View {

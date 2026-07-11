@@ -17,6 +17,7 @@ struct HomeView: View {
     @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var workoutService: WorkoutService
+    @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
     @Environment(\.colorScheme) var colorScheme
 
     @Binding var navigateToProfile: Bool
@@ -62,7 +63,6 @@ struct HomeView: View {
     @State private var pendingTrainingFuelDestination: TrainingFuelDestination?
     @State private var selectedTrainingFuelTarget: TrainingFuelTarget?
     @State private var showingMFPImport = false
-    @StateObject private var trainingFuelPlanStore = TrainingFuelPlanStore()
     @StateObject private var runPlanStore = RunWorkoutPlanStore()
     @AppStorage("mfpSwitcherPromptDismissed") private var mfpSwitcherPromptDismissed = false
     @AppStorage("mfpSwitcherPromptSeen") private var mfpSwitcherPromptSeen = false
@@ -432,6 +432,8 @@ struct HomeView: View {
                   onConfirm: confirmTrainingFuelPlan,
                   onUseTarget: useTrainingFuelTarget,
                   onUseSavedTarget: queueTrainingFuelTarget,
+                  onMarkComplete: completeTrainingFuelSession,
+                  onSkip: skipTrainingFuelSession,
                   onRemove: removeTrainingFuelPlan
               )
           }
@@ -458,6 +460,9 @@ struct HomeView: View {
                   .environmentObject(goalSettings)
           }
           .onAppear(perform: onHomeViewAppear)
+          .onChange(of: dailyLogService.currentDailyLog) { _, _ in
+              refreshDeferredTrainingRecoveryIfNeeded()
+          }
           .onChange(of: spotlightManager.replayToken) { _, _ in
               startSpotlightTourIfNeeded()
           }
@@ -868,7 +873,7 @@ struct HomeView: View {
         draft: TrainingFuelPlanDraft,
         plannerPlan: TrainingFuelPlannerPlan
     ) {
-        guard plannerPlan.status == .ready else { return }
+        guard plannerPlan.status == .ready || plannerPlan.status == .deferredRecovery else { return }
         let confirmed = TrainingFuelConfirmedPlan(
             draft: draft,
             plannerPlan: plannerPlan,
@@ -970,6 +975,43 @@ struct HomeView: View {
         pendingTrainingFuelDestination = nil
         HapticManager.instance.feedback(.light)
         showingTrainingFuelPlanner = false
+    }
+
+    private func completeTrainingFuelSession() {
+        guard trainingFuelPlanStore.markCurrentPlanCompleted(
+            today: currentLogForSelectedDate,
+            goals: trainingFuelGoals,
+            for: DIContainer.shared.authService.currentUserID
+        ) else { return }
+        recordTrainingFuelOutcome("completed", source: "manual_confirmation")
+        HapticManager.instance.notification(.success)
+    }
+
+    private func skipTrainingFuelSession() {
+        guard trainingFuelPlanStore.markCurrentPlanSkipped(
+            today: currentLogForSelectedDate,
+            for: DIContainer.shared.authService.currentUserID
+        ) else { return }
+        recordTrainingFuelOutcome("skipped", source: "manual_confirmation")
+        HapticManager.instance.feedback(.light)
+    }
+
+    private func recordTrainingFuelOutcome(_ outcome: String, source: String) {
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.trainingFuelSessionOutcome.rawValue,
+            parameters: ["outcome": outcome, "source": source]
+        )
+    }
+
+    private func refreshDeferredTrainingRecoveryIfNeeded() {
+        guard isToday,
+              let today = currentLogForSelectedDate,
+              let userID = DIContainer.shared.authService.currentUserID else { return }
+        trainingFuelPlanStore.refreshDeferredRecovery(
+            today: today,
+            goals: trainingFuelGoals,
+            for: userID
+        )
     }
 
     private var todayFuelPlan: TodayFuelPlan {
@@ -1352,6 +1394,7 @@ struct HomeView: View {
 
             dailyLogService.fetchLog(for: userID, date: selectedDate) { [self] _ in
                 self.goalSettings.recalculateAllGoals()
+                self.refreshDeferredTrainingRecoveryIfNeeded()
                 if self.isToday {
                     self.insightsService.generateDailySmartInsight()
                 }

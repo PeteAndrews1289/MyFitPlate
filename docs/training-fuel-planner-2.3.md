@@ -80,11 +80,13 @@ energy and protein needs remains more important than minute-level timing.
 - `over_target_review`: the day is at or over target; no compensatory fuel is created.
 - `needs_session_time`: no time was supplied, so the engine does not invent one.
 - `stale_session`: the planned start is more than 15 minutes in the past.
-- `outside_today`: the session is not today, or a post-only choice would occur after midnight.
+- `outside_today`: the session is not today, or no selected phase can be acted on today.
 - `insufficient_budget`: the remaining calorie/macro budget cannot form an actionable target.
 - `invalid_diary_data`: today's diary contains an unusable nutrition value, so its remaining
   budget cannot be verified and no allocation is made.
 - `no_fuel_requested`: the user disabled both phases.
+- `deferred_recovery`: a legitimate post-midnight recovery intent is safely saved without
+  borrowing from the current day; no same-day recovery allocation is exposed.
 - `ready`: at least one bounded allocation is available.
 
 Missing duration defaults to 45 minutes and missing intensity defaults to moderate, with
@@ -104,8 +106,9 @@ position stands on [nutrient timing](https://pubmed.ncbi.nlm.nih.gov/28919842/) 
 individual context and total daily intake; they do not validate this app's exact formulas.
 Personalized performance or clinical nutrition belongs with a qualified sports dietitian.
 
-If a session ends after midnight, its post-session allocation is not charged against today's
-budget. The future reconciliation layer must use the next day's real log instead.
+If a session ends after midnight, its post-session allocation is not charged against the prior
+day's budget. The saved plan carries only the recovery intent until completion; Core then builds
+a fresh post-session allocation from the completion day's real log and current goals.
 
 ## Application integration and reconciliation
 
@@ -127,11 +130,15 @@ The application layer now:
    diary-delta fallback for older untimestamped foods. In-session food consumes daily budget but
    is not mislabeled as pre-session or recovery intake. Every remaining action is re-capped to
    the current daily calorie, protein, and carb goals before it is shown;
-6. closes the pre-session action when training begins, opens the recovery action only after the
-   estimated end, expires the plan two hours later, and returns neutral states when the daily
-   target is reached, the remaining budget is used elsewhere, or diary/goal values cannot be
-   verified;
-7. preserves the original diary baseline when the same plan's time, duration, effort, or
+6. closes the pre-session action when training begins and waits for an explicit session outcome
+   after the estimated end. Completion comes automatically from an exact active-program routine,
+   an exact selected run plan, or a treadmill/manual run match; users can also confirm manual or
+   Watch-driven sessions. Program and manual skips close every target without changing the diary;
+7. opens recovery from the actual finish time only after completion, expires it two hours later,
+   and returns neutral states when the daily target is reached, the remaining budget is used
+   elsewhere, or diary/goal values cannot be verified. A finish after midnight creates a new
+   post-session allocation and baseline from that next day's live diary and goals;
+8. preserves the original diary baseline when the same plan's time, duration, effort, or
    preferences are edited. Choosing a different workout creates a new plan identity and baseline.
 
 Target-specific Maia ideas are suggestions only. The response is locally rejected unless all
@@ -139,15 +146,16 @@ nutrition values are finite and nonnegative, it remains inside the live calorie/
 reported calories reconcile with its macros within a narrow rounding tolerance. Prompt
 instructions alone are never treated as budget enforcement.
 
-The remaining v1 reconciliation boundary is explicit workout state. Until the workout player
-or run recorder confirms completion or skipping, `in_session` and `recovery` are inferred from
-the reviewed schedule. Post-midnight recovery also remains excluded because it must be
-recomputed against the next day's real diary rather than carried over from today's budget.
+Imported Watch or third-party HealthKit runs do not expose the selected MyFitPlate run-plan
+identity, so v1 does not guess that match. Their saved plan remains `awaiting_outcome` until the
+user marks it complete or skipped. This preserves an honest boundary without withholding the
+next-day recovery workflow.
 
 Regression coverage lives in
 `MyFitPlateCore/Tests/MyFitPlateCoreTests/TrainingFuelPlannerRulesTests.swift` and
-`TrainingFuelPlannerIntegrationTests.swift`. The 22 focused rules tests include a deterministic
+`TrainingFuelPlannerIntegrationTests.swift`. The 23 focused rules tests include a deterministic
 1,344-combination matrix spanning session kind, duration, intensity, diary budget, and every
 pre/post preference while enforcing all output invariants. The integration suite covers
-strength/run adaptation, editable drafts, account/day persistence, timestamp and legacy-delta
-reconciliation, live-budget caps, invalid diaries, and unreadable saved data.
+strength/run adaptation, editable drafts, account persistence, exact session identity,
+completion and skip state, actual-end reconciliation, timestamp and legacy-delta attribution,
+overnight recovery, live-budget caps, invalid diaries, expiry, and unreadable saved data.

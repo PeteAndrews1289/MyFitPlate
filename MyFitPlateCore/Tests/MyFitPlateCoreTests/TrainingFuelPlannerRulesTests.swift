@@ -234,7 +234,7 @@ final class TrainingFuelPlannerRulesTests: XCTestCase {
         XCTAssertTrue(plan.staysInsideDailyTargets)
     }
 
-    func testPostOnlyLateNightPreferenceReturnsNoSameDayAllocation() {
+    func testPostOnlyLateNightPreferenceSavesDeferredRecoveryWithoutTodaysBudget() {
         let lateStart = DateComponents(
             calendar: calendar,
             year: 2026,
@@ -255,7 +255,46 @@ final class TrainingFuelPlannerRulesTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertEqual(plan.status, .outsideToday)
+        XCTAssertEqual(plan.status, .deferredRecovery)
+        XCTAssertTrue(plan.allocations.isEmpty)
+        XCTAssertTrue(plan.notes.contains(.postSessionFallsNextDay))
+    }
+
+    func testDeferredRecoveryIntentCanBeSavedAfterTodaysBudgetIsExhausted() {
+        let lateStart = DateComponents(
+            calendar: calendar,
+            year: 2026,
+            month: 7,
+            day: 7,
+            hour: 23,
+            minute: 45
+        ).date!
+        let exhaustedLog = DailyLog(
+            date: now,
+            meals: [Meal(name: "Dinner", foodItems: [
+                FoodItem(name: "Dinner", calories: 2_200, protein: 100, carbs: 200)
+            ])]
+        )
+
+        let plan = TrainingFuelPlannerRules.makePlan(
+            session: TrainingFuelSession(
+                kind: .strength,
+                scheduledAt: lateStart,
+                expectedDurationMinutes: 60,
+                intensity: .hard,
+                strengthFocus: .lowerBody
+            ),
+            today: exhaustedLog,
+            goals: goals,
+            preference: TrainingFuelPreference(
+                wantsPreSessionFuel: false,
+                wantsPostSessionFuel: true
+            ),
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(plan.status, .deferredRecovery)
         XCTAssertTrue(plan.allocations.isEmpty)
         XCTAssertTrue(plan.notes.contains(.postSessionFallsNextDay))
     }

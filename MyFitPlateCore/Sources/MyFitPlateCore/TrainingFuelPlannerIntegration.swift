@@ -20,6 +20,7 @@ public struct TrainingFuelSessionCandidate: Codable, Equatable, Identifiable, Se
     public let id: String
     public let source: Source
     public let sourceID: String?
+    public let sessionReferenceID: String?
     public let title: String
     public let detail: String
     public let kind: TrainingFuelSession.Kind
@@ -33,6 +34,7 @@ public struct TrainingFuelSessionCandidate: Codable, Equatable, Identifiable, Se
         id: String,
         source: Source,
         sourceID: String?,
+        sessionReferenceID: String? = nil,
         title: String,
         detail: String,
         kind: TrainingFuelSession.Kind,
@@ -45,6 +47,7 @@ public struct TrainingFuelSessionCandidate: Codable, Equatable, Identifiable, Se
         self.id = id
         self.source = source
         self.sourceID = sourceID
+        self.sessionReferenceID = sessionReferenceID
         self.title = title
         self.detail = detail
         self.kind = kind
@@ -78,6 +81,7 @@ public enum TrainingFuelSessionAdapter {
             id: "strength:\(program.id ?? program.name):\(routine.id):\(index)",
             source: .activeStrengthProgram,
             sourceID: program.id,
+            sessionReferenceID: routine.id,
             title: routine.name,
             detail: "\(program.name) - Week \(week), Day \(day)",
             kind: .strength,
@@ -107,6 +111,7 @@ public enum TrainingFuelSessionAdapter {
             id: "run:\(plan.id)",
             source: .selectedRunPlan,
             sourceID: plan.id,
+            sessionReferenceID: plan.id,
             title: plan.name,
             detail: plan.subtitle,
             kind: .run,
@@ -219,6 +224,7 @@ public struct TrainingFuelPlanDraft: Codable, Equatable, Identifiable, Sendable 
     public let id: String
     public var source: TrainingFuelSessionCandidate.Source
     public var sourceID: String?
+    public var sessionReferenceID: String?
     public var sessionTitle: String
     public var scheduledAt: Date
     public var durationMinutes: Int
@@ -238,6 +244,7 @@ public struct TrainingFuelPlanDraft: Codable, Equatable, Identifiable, Sendable 
         self.id = id
         self.source = candidate.source
         self.sourceID = candidate.sourceID
+        self.sessionReferenceID = candidate.sessionReferenceID
         self.sessionTitle = candidate.title
         self.scheduledAt = scheduledAt
         self.durationMinutes = durationMinutes ?? candidate.suggestedDurationMinutes ?? 45
@@ -279,6 +286,57 @@ public struct TrainingFuelDiarySnapshot: Codable, Equatable, Sendable {
     }
 }
 
+public struct TrainingFuelSessionOutcome: Codable, Equatable, Sendable {
+    public enum Status: String, Codable, Equatable, Sendable {
+        case completed
+        case skipped
+    }
+
+    public enum Source: String, Codable, Equatable, Sendable {
+        case strengthWorkout = "strength_workout"
+        case recordedRun = "recorded_run"
+        case treadmillRun = "treadmill_run"
+        case programSkip = "program_skip"
+        case manualConfirmation = "manual_confirmation"
+    }
+
+    public let status: Status
+    public let source: Source
+    public let recordedAt: Date
+    public let actualStartAt: Date?
+    public let actualEndAt: Date?
+    public let referenceID: String?
+    public let diaryAtOutcome: TrainingFuelDiarySnapshot
+    public let recoveryPlan: TrainingFuelPlannerPlan?
+    public let recoveryDiaryIsAuthoritative: Bool?
+
+    public init(
+        status: Status,
+        source: Source,
+        recordedAt: Date,
+        actualStartAt: Date? = nil,
+        actualEndAt: Date? = nil,
+        referenceID: String? = nil,
+        diaryAtOutcome: TrainingFuelDiarySnapshot = TrainingFuelDiarySnapshot(log: nil),
+        recoveryPlan: TrainingFuelPlannerPlan? = nil,
+        recoveryDiaryIsAuthoritative: Bool? = nil
+    ) {
+        self.status = status
+        self.source = source
+        self.recordedAt = recordedAt
+        self.actualStartAt = actualStartAt
+        self.actualEndAt = actualEndAt
+        self.referenceID = referenceID
+        self.diaryAtOutcome = diaryAtOutcome
+        self.recoveryPlan = recoveryPlan
+        self.recoveryDiaryIsAuthoritative = recoveryDiaryIsAuthoritative
+    }
+
+    public var hasAuthoritativeRecoveryDiary: Bool {
+        recoveryDiaryIsAuthoritative ?? (recoveryPlan != nil)
+    }
+}
+
 public struct TrainingFuelConfirmedPlan: Codable, Equatable, Identifiable, Sendable {
     public var id: String { draft.id }
     public let draft: TrainingFuelPlanDraft
@@ -286,6 +344,7 @@ public struct TrainingFuelConfirmedPlan: Codable, Equatable, Identifiable, Senda
     public let allocations: [TrainingFuelAllocation]
     public let goalsAtConfirmation: TodayFuelPlanGoals
     public let diaryAtConfirmation: TrainingFuelDiarySnapshot
+    public var outcome: TrainingFuelSessionOutcome?
 
     public init(
         draft: TrainingFuelPlanDraft,
@@ -307,6 +366,62 @@ public struct TrainingFuelConfirmedPlan: Codable, Equatable, Identifiable, Senda
             fats: goals.fats.isFinite && goals.fats >= 0 ? goals.fats : 0
         )
         self.diaryAtConfirmation = matchingPlan?.diaryAtConfirmation ?? diary
+        self.outcome = matchingPlan?.outcome
+    }
+
+    public var estimatedEndAt: Date {
+        draft.scheduledAt.addingTimeInterval(Double(draft.durationMinutes * 60))
+    }
+
+    public func defersPostSession(toNextDay calendar: Calendar = .current) -> Bool {
+        draft.preference.wantsPostSessionFuel &&
+            !calendar.isDate(estimatedEndAt, inSameDayAs: draft.scheduledAt)
+    }
+
+    public func requiresRecoveryDiaryRefresh(
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let outcome,
+              outcome.status == .completed,
+              draft.preference.wantsPostSessionFuel else { return false }
+        let actualEnd = outcome.actualEndAt ?? outcome.recordedAt
+        let needsFreshRecovery = !allocations.contains { $0.phase == .afterTraining } ||
+            !calendar.isDate(actualEnd, inSameDayAs: draft.scheduledAt)
+        return needsFreshRecovery && !outcome.hasAuthoritativeRecoveryDiary
+    }
+}
+
+public enum TrainingFuelDeferredRecoveryRules {
+    public static func makePlan(
+        for confirmedPlan: TrainingFuelConfirmedPlan,
+        today: DailyLog?,
+        goals: TodayFuelPlanGoals,
+        completedAt: Date,
+        calendar: Calendar = .current
+    ) -> TrainingFuelPlannerPlan {
+        let planningAnchor = calendar.date(
+            byAdding: .hour,
+            value: 12,
+            to: calendar.startOfDay(for: completedAt)
+        ) ?? completedAt
+        let session = TrainingFuelSession(
+            kind: confirmedPlan.draft.kind,
+            scheduledAt: planningAnchor,
+            expectedDurationMinutes: confirmedPlan.draft.durationMinutes,
+            intensity: confirmedPlan.draft.intensity,
+            strengthFocus: confirmedPlan.draft.strengthFocus
+        )
+        return TrainingFuelPlannerRules.makePlan(
+            session: session,
+            today: today,
+            goals: goals,
+            preference: TrainingFuelPreference(
+                wantsPreSessionFuel: false,
+                wantsPostSessionFuel: true
+            ),
+            now: planningAnchor,
+            calendar: calendar
+        )
     }
 }
 
@@ -393,8 +508,11 @@ public struct TrainingFuelPlanProgress: Equatable, Sendable {
     public enum Status: String, Equatable, Sendable {
         case upcoming
         case inSession = "in_session"
+        case awaitingOutcome = "awaiting_outcome"
+        case awaitingRecoveryData = "awaiting_recovery_data"
         case recovery
         case complete
+        case skipped
         case stale
         case overTarget = "over_target"
         case invalidDiary = "invalid_diary"
@@ -416,7 +534,8 @@ public struct TrainingFuelPlanProgress: Equatable, Sendable {
             return nil
         case .recovery:
             guard phase == .afterTraining else { return nil }
-        case .complete, .stale, .overTarget, .invalidDiary, .invalidTargets, .budgetUsedElsewhere:
+        case .awaitingOutcome, .awaitingRecoveryData, .complete, .skipped, .stale, .overTarget,
+             .invalidDiary, .invalidTargets, .budgetUsedElsewhere:
             return nil
         }
         guard let progress = phases.first(where: { $0.allocation.phase == phase }),
@@ -436,6 +555,14 @@ public struct TrainingFuelPlanProgress: Equatable, Sendable {
 public enum TrainingFuelPlanProgressRules {
     private static let recoveryWindow: TimeInterval = 2 * 60 * 60
 
+    private struct ReconciliationContext {
+        let allocations: [TrainingFuelAllocation]
+        let baseline: TrainingFuelDiarySnapshot
+        let attributionBeganAt: Date
+        let sessionStart: Date
+        let sessionEnd: Date
+    }
+
     public static func makeProgress(
         plan: TrainingFuelConfirmedPlan,
         today: DailyLog?,
@@ -443,6 +570,25 @@ public enum TrainingFuelPlanProgressRules {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> TrainingFuelPlanProgress {
+        if plan.outcome?.status == .skipped {
+            return TrainingFuelPlanProgress(
+                status: .skipped,
+                phases: inactiveProgress(for: plan.allocations)
+            )
+        }
+
+        if plan.requiresRecoveryDiaryRefresh(calendar: calendar) {
+            let actualEnd = plan.outcome?.actualEndAt ?? plan.outcome?.recordedAt ?? plan.estimatedEndAt
+            if now > actualEnd.addingTimeInterval(recoveryWindow) {
+                return TrainingFuelPlanProgress(status: .stale, phases: [])
+            }
+            return TrainingFuelPlanProgress(
+                status: .awaitingRecoveryData,
+                phases: inactiveProgress(for: [])
+            )
+        }
+
+        let context = reconciliationContext(for: plan)
         let values = [
             today?.totalCalories() ?? 0,
             today?.totalMacros().protein ?? 0,
@@ -451,15 +597,7 @@ public enum TrainingFuelPlanProgressRules {
         guard values.allSatisfy({ $0.isFinite && $0 >= 0 }) else {
             return TrainingFuelPlanProgress(
                 status: .invalidDiary,
-                phases: plan.allocations.map {
-                    TrainingFuelPhaseProgress(
-                        allocation: $0,
-                        loggedProteinGrams: 0,
-                        loggedCarbGrams: 0,
-                        actionableProteinGrams: 0,
-                        actionableCarbGrams: 0
-                    )
-                }
+                phases: inactiveProgress(for: context.allocations)
             )
         }
         let effectiveGoals = goals ?? plan.goalsAtConfirmation
@@ -471,60 +609,191 @@ public enum TrainingFuelPlanProgressRules {
               effectiveGoals.carbs >= 0 else {
             return TrainingFuelPlanProgress(
                 status: .invalidTargets,
-                phases: plan.allocations.map {
-                    TrainingFuelPhaseProgress(
-                        allocation: $0,
-                        loggedProteinGrams: 0,
-                        loggedCarbGrams: 0,
-                        actionableProteinGrams: 0,
-                        actionableCarbGrams: 0
-                    )
-                }
+                phases: inactiveProgress(for: context.allocations)
             )
         }
         let phaseProgress = progressByPhase(
-            plan: plan,
+            context: context,
             today: today,
             goals: effectiveGoals,
             now: now
         )
 
-        guard calendar.isDate(plan.draft.scheduledAt, inSameDayAs: now) else {
+        guard isRelevantDay(plan: plan, now: now, calendar: calendar) else {
             return TrainingFuelPlanProgress(status: .stale, phases: phaseProgress)
         }
-        if phaseProgress.allSatisfy(\.isComplete) {
-            return TrainingFuelPlanProgress(status: .complete, phases: phaseProgress)
-        }
-        let end = plan.draft.scheduledAt.addingTimeInterval(Double(plan.draft.durationMinutes * 60))
-        if now > end.addingTimeInterval(recoveryWindow) {
-            return TrainingFuelPlanProgress(status: .stale, phases: phaseProgress)
-        }
-        if (today?.totalCalories() ?? 0) >= effectiveGoals.calories {
-            return TrainingFuelPlanProgress(status: .overTarget, phases: phaseProgress)
+
+        if plan.outcome?.status == .completed {
+            return completedProgress(
+                plan: plan,
+                context: context,
+                phases: phaseProgress,
+                today: today,
+                goals: effectiveGoals,
+                now: now
+            )
         }
 
-        let hasRelevantUnmetTarget = phaseProgress.contains { phase in
-            guard !phase.isComplete, phase.hasMeaningfulUnloggedTarget else { return false }
-            return phase.allocation.phase == .afterTraining || now < plan.draft.scheduledAt
-        }
-        if hasRelevantUnmetTarget && !phaseProgress.contains(where: \.hasActionableTarget) {
-            return TrainingFuelPlanProgress(status: .budgetUsedElsewhere, phases: phaseProgress)
+        return pendingProgress(
+            context: context,
+            phases: phaseProgress,
+            today: today,
+            goals: effectiveGoals,
+            now: now
+        )
+    }
+
+    private static func reconciliationContext(
+        for plan: TrainingFuelConfirmedPlan
+    ) -> ReconciliationContext {
+        if let outcome = plan.outcome,
+           outcome.status == .completed,
+           let recoveryPlan = outcome.recoveryPlan {
+            let actualEnd = outcome.actualEndAt ?? outcome.recordedAt
+            return ReconciliationContext(
+                allocations: recoveryPlan.allocations,
+                baseline: outcome.diaryAtOutcome,
+                attributionBeganAt: outcome.recordedAt,
+                sessionStart: actualEnd,
+                sessionEnd: actualEnd
+            )
         }
 
-        if now < plan.draft.scheduledAt {
-            return TrainingFuelPlanProgress(status: .upcoming, phases: phaseProgress)
+        let actualEnd = plan.outcome?.actualEndAt ?? plan.estimatedEndAt
+        let actualStart = plan.outcome?.actualStartAt ?? min(plan.draft.scheduledAt, actualEnd)
+        return ReconciliationContext(
+            allocations: plan.allocations,
+            baseline: plan.diaryAtConfirmation,
+            attributionBeganAt: plan.confirmedAt,
+            sessionStart: actualStart,
+            sessionEnd: actualEnd
+        )
+    }
+
+    private static func completedProgress(
+        plan: TrainingFuelConfirmedPlan,
+        context: ReconciliationContext,
+        phases: [TrainingFuelPhaseProgress],
+        today: DailyLog?,
+        goals: TodayFuelPlanGoals,
+        now: Date
+    ) -> TrainingFuelPlanProgress {
+        if now < context.sessionEnd {
+            return TrainingFuelPlanProgress(status: .inSession, phases: phases)
         }
-        if now < end {
-            return TrainingFuelPlanProgress(status: .inSession, phases: phaseProgress)
+        if now > context.sessionEnd.addingTimeInterval(recoveryWindow) {
+            return TrainingFuelPlanProgress(status: .stale, phases: phases)
         }
-        if now <= end.addingTimeInterval(recoveryWindow) {
-            return TrainingFuelPlanProgress(status: .recovery, phases: phaseProgress)
+        guard plan.draft.preference.wantsPostSessionFuel else {
+            return TrainingFuelPlanProgress(status: .complete, phases: phases)
         }
-        return TrainingFuelPlanProgress(status: .stale, phases: phaseProgress)
+
+        if let recoveryStatus = plan.outcome?.recoveryPlan?.status,
+           let blockedStatus = blockedStatus(for: recoveryStatus) {
+            return TrainingFuelPlanProgress(status: blockedStatus, phases: phases)
+        }
+
+        let recoveryPhases = phases.filter { $0.allocation.phase == .afterTraining }
+        guard !recoveryPhases.isEmpty else {
+            return TrainingFuelPlanProgress(status: .budgetUsedElsewhere, phases: phases)
+        }
+        if recoveryPhases.allSatisfy(\.isComplete) {
+            return TrainingFuelPlanProgress(status: .complete, phases: phases)
+        }
+        if (today?.totalCalories() ?? 0) >= goals.calories {
+            return TrainingFuelPlanProgress(status: .overTarget, phases: phases)
+        }
+        if hasUnmetTargetWithoutAction(recoveryPhases) {
+            return TrainingFuelPlanProgress(status: .budgetUsedElsewhere, phases: phases)
+        }
+        return TrainingFuelPlanProgress(status: .recovery, phases: phases)
+    }
+
+    private static func pendingProgress(
+        context: ReconciliationContext,
+        phases: [TrainingFuelPhaseProgress],
+        today: DailyLog?,
+        goals: TodayFuelPlanGoals,
+        now: Date
+    ) -> TrainingFuelPlanProgress {
+        if now < context.sessionStart {
+            let preTraining = phases.filter { $0.allocation.phase == .beforeTraining }
+            if (today?.totalCalories() ?? 0) >= goals.calories {
+                return TrainingFuelPlanProgress(status: .overTarget, phases: phases)
+            }
+            if hasUnmetTargetWithoutAction(preTraining) {
+                return TrainingFuelPlanProgress(status: .budgetUsedElsewhere, phases: phases)
+            }
+            return TrainingFuelPlanProgress(status: .upcoming, phases: phases)
+        }
+        if now < context.sessionEnd {
+            return TrainingFuelPlanProgress(status: .inSession, phases: phases)
+        }
+        if now <= context.sessionEnd.addingTimeInterval(recoveryWindow) {
+            return TrainingFuelPlanProgress(status: .awaitingOutcome, phases: phases)
+        }
+        return TrainingFuelPlanProgress(status: .stale, phases: phases)
+    }
+
+    private static func blockedStatus(
+        for plannerStatus: TrainingFuelPlannerPlan.Status
+    ) -> TrainingFuelPlanProgress.Status? {
+        switch plannerStatus {
+        case .ready:
+            return nil
+        case .deferredRecovery:
+            return .budgetUsedElsewhere
+        case .invalidDiaryData:
+            return .invalidDiary
+        case .invalidCalorieTarget:
+            return .invalidTargets
+        case .overTargetReview:
+            return .overTarget
+        case .insufficientBudget, .outsideToday, .needsSessionTime,
+             .noFuelRequested, .staleSession:
+            return .budgetUsedElsewhere
+        }
+    }
+
+    private static func hasUnmetTargetWithoutAction(
+        _ phases: [TrainingFuelPhaseProgress]
+    ) -> Bool {
+        phases.contains { !$0.isComplete && $0.hasMeaningfulUnloggedTarget } &&
+            !phases.contains(where: \.hasActionableTarget)
+    }
+
+    private static func isRelevantDay(
+        plan: TrainingFuelConfirmedPlan,
+        now: Date,
+        calendar: Calendar
+    ) -> Bool {
+        if calendar.isDate(plan.draft.scheduledAt, inSameDayAs: now) {
+            return true
+        }
+        let end = plan.outcome?.actualEndAt ?? plan.estimatedEndAt
+        guard !calendar.isDate(end, inSameDayAs: plan.draft.scheduledAt) else {
+            return false
+        }
+        return now >= plan.draft.scheduledAt &&
+            now <= end.addingTimeInterval(recoveryWindow)
+    }
+
+    private static func inactiveProgress(
+        for allocations: [TrainingFuelAllocation]
+    ) -> [TrainingFuelPhaseProgress] {
+        allocations.map {
+            TrainingFuelPhaseProgress(
+                allocation: $0,
+                loggedProteinGrams: 0,
+                loggedCarbGrams: 0,
+                actionableProteinGrams: 0,
+                actionableCarbGrams: 0
+            )
+        }
     }
 
     private static func progressByPhase(
-        plan: TrainingFuelConfirmedPlan,
+        context: ReconciliationContext,
         today: DailyLog?,
         goals: TodayFuelPlanGoals,
         now: Date
@@ -534,13 +803,10 @@ public enum TrainingFuelPlanProgressRules {
         var carbsByPhase: [TrainingFuelAllocation.Phase: Double] = [:]
         var timestampedProtein = 0.0
         var timestampedCarbs = 0.0
-        let sessionEnd = plan.draft.scheduledAt.addingTimeInterval(
-            Double(plan.draft.durationMinutes * 60)
-        )
 
         for item in items {
             guard let timestamp = item.timestamp,
-                  timestamp >= plan.confirmedAt else { continue }
+                  timestamp > context.attributionBeganAt else { continue }
             let protein = max(0, item.protein)
             let carbs = max(0, item.carbs)
             timestampedProtein += protein
@@ -548,9 +814,9 @@ public enum TrainingFuelPlanProgressRules {
             guard timestamp <= now else { continue }
 
             let phase: TrainingFuelAllocation.Phase
-            if timestamp < plan.draft.scheduledAt {
+            if timestamp < context.sessionStart {
                 phase = .beforeTraining
-            } else if timestamp >= sessionEnd {
+            } else if timestamp >= context.sessionEnd {
                 phase = .afterTraining
             } else {
                 continue
@@ -562,16 +828,16 @@ public enum TrainingFuelPlanProgressRules {
         let total = TrainingFuelDiarySnapshot(log: today)
         let unassignedProtein = max(
             0,
-            total.proteinGrams - plan.diaryAtConfirmation.proteinGrams - timestampedProtein
+            total.proteinGrams - context.baseline.proteinGrams - timestampedProtein
         )
         let unassignedCarbs = max(
             0,
-            total.carbGrams - plan.diaryAtConfirmation.carbGrams - timestampedCarbs
+            total.carbGrams - context.baseline.carbGrams - timestampedCarbs
         )
         let fallbackPhase: TrainingFuelAllocation.Phase?
-        if now < plan.draft.scheduledAt {
+        if now < context.sessionStart {
             fallbackPhase = .beforeTraining
-        } else if now >= sessionEnd {
+        } else if now >= context.sessionEnd {
             fallbackPhase = .afterTraining
         } else {
             fallbackPhase = nil
@@ -581,7 +847,7 @@ public enum TrainingFuelPlanProgressRules {
             carbsByPhase[fallbackPhase, default: 0] += unassignedCarbs
         }
 
-        let rawProgress = plan.allocations.map { allocation in
+        let rawProgress = context.allocations.map { allocation in
             TrainingFuelPhaseProgress(
                 allocation: allocation,
                 loggedProteinGrams: min(
@@ -594,12 +860,18 @@ public enum TrainingFuelPlanProgressRules {
                 )
             )
         }
-        return cappedProgress(rawProgress, plan: plan, today: today, goals: goals, now: now)
+        return cappedProgress(
+            rawProgress,
+            sessionStart: context.sessionStart,
+            today: today,
+            goals: goals,
+            now: now
+        )
     }
 
     private static func cappedProgress(
         _ progress: [TrainingFuelPhaseProgress],
-        plan: TrainingFuelConfirmedPlan,
+        sessionStart: Date,
         today: DailyLog?,
         goals: TodayFuelPlanGoals,
         now: Date
@@ -613,11 +885,11 @@ public enum TrainingFuelPlanProgressRules {
         let remainingCarbs = max(0, goals.carbs - macros.carbs)
 
         var protein = progress.map { phase -> Double in
-            if phase.allocation.phase == .beforeTraining && now >= plan.draft.scheduledAt { return 0 }
+            if phase.allocation.phase == .beforeTraining && now >= sessionStart { return 0 }
             return Double(max(0, phase.allocation.proteinGrams - phase.loggedProteinGrams))
         }
         var carbs = progress.map { phase -> Double in
-            if phase.allocation.phase == .beforeTraining && now >= plan.draft.scheduledAt { return 0 }
+            if phase.allocation.phase == .beforeTraining && now >= sessionStart { return 0 }
             return Double(max(0, phase.allocation.carbGrams - phase.loggedCarbGrams))
         }
 
@@ -657,6 +929,83 @@ public enum TrainingFuelPlanProgressRules {
     }
 }
 
+public enum TrainingFuelSessionOutcomeRules {
+    private static let matchingTolerance: TimeInterval = 6 * 60 * 60
+
+    public static func matchesStrengthCompletion(
+        plan: TrainingFuelConfirmedPlan,
+        routineID: String,
+        routineName: String,
+        completedAt: Date
+    ) -> Bool {
+        guard plan.outcome == nil, plan.draft.kind == .strength else { return false }
+        switch plan.draft.source {
+        case .activeStrengthProgram:
+            if let reference = plan.draft.sessionReferenceID {
+                guard reference == routineID else { return false }
+            } else {
+                guard normalized(plan.draft.sessionTitle) == normalized(routineName) else { return false }
+            }
+        case .manualStrength:
+            break
+        case .selectedRunPlan, .manualRun:
+            return false
+        }
+        return completionIsNearPlan(plan, start: completedAt, end: completedAt)
+    }
+
+    public static func matchesRunCompletion(
+        plan: TrainingFuelConfirmedPlan,
+        run: Run,
+        selectedPlanID: String?
+    ) -> Bool {
+        guard plan.outcome == nil, plan.draft.kind == .run else { return false }
+        switch plan.draft.source {
+        case .selectedRunPlan:
+            guard let selectedPlanID,
+                  selectedPlanID == (plan.draft.sessionReferenceID ?? plan.draft.sourceID) else {
+                return false
+            }
+        case .manualRun:
+            break
+        case .activeStrengthProgram, .manualStrength:
+            return false
+        }
+        return completionIsNearPlan(plan, start: run.startDate, end: run.endDate)
+    }
+
+    public static func matchesProgramSkip(
+        plan: TrainingFuelConfirmedPlan,
+        programID: String?,
+        routineID: String
+    ) -> Bool {
+        guard plan.outcome == nil,
+              plan.draft.source == .activeStrengthProgram,
+              plan.draft.kind == .strength else { return false }
+        if let sourceID = plan.draft.sourceID {
+            guard sourceID == programID else { return false }
+        }
+        if let referenceID = plan.draft.sessionReferenceID {
+            return referenceID == routineID
+        }
+        return true
+    }
+
+    private static func completionIsNearPlan(
+        _ plan: TrainingFuelConfirmedPlan,
+        start: Date,
+        end: Date
+    ) -> Bool {
+        let earliest = plan.draft.scheduledAt.addingTimeInterval(-matchingTolerance)
+        let latest = plan.estimatedEndAt.addingTimeInterval(matchingTolerance)
+        return end >= earliest && start <= latest
+    }
+
+    private static func normalized(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}
+
 @MainActor
 public final class TrainingFuelPlanStore: ObservableObject {
     @Published public private(set) var confirmedPlan: TrainingFuelConfirmedPlan?
@@ -689,7 +1038,7 @@ public final class TrainingFuelPlanStore: ObservableObject {
             return
         }
 
-        guard calendar.isDate(plan.draft.scheduledAt, inSameDayAs: now) else {
+        guard shouldRetain(plan, at: now, calendar: calendar) else {
             userDefaults.removeObject(forKey: key)
             confirmedPlan = nil
             return
@@ -705,6 +1054,170 @@ public final class TrainingFuelPlanStore: ObservableObject {
         userDefaults.set(data, forKey: key)
     }
 
+    @discardableResult
+    public func recordStrengthCompletion(
+        routineID: String,
+        routineName: String,
+        completedAt: Date,
+        today: DailyLog?,
+        goals: TodayFuelPlanGoals,
+        for userID: String?,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let plan = planForOutcome(userID: userID, at: completedAt, calendar: calendar),
+              TrainingFuelSessionOutcomeRules.matchesStrengthCompletion(
+                plan: plan,
+                routineID: routineID,
+                routineName: routineName,
+                completedAt: completedAt
+              ) else { return false }
+        return recordCompletion(
+            plan: plan,
+            source: .strengthWorkout,
+            referenceID: routineID,
+            actualStartAt: nil,
+            actualEndAt: completedAt,
+            today: today,
+            goals: goals,
+            userID: userID,
+            calendar: calendar
+        )
+    }
+
+    @discardableResult
+    public func recordRunCompletion(
+        _ run: Run,
+        selectedPlanID: String?,
+        source: TrainingFuelSessionOutcome.Source = .recordedRun,
+        today: DailyLog?,
+        goals: TodayFuelPlanGoals,
+        for userID: String?,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let plan = planForOutcome(userID: userID, at: run.endDate, calendar: calendar),
+              TrainingFuelSessionOutcomeRules.matchesRunCompletion(
+                plan: plan,
+                run: run,
+                selectedPlanID: selectedPlanID
+              ) else { return false }
+        return recordCompletion(
+            plan: plan,
+            source: source,
+            referenceID: run.id,
+            actualStartAt: run.startDate,
+            actualEndAt: run.endDate,
+            today: today,
+            goals: goals,
+            userID: userID,
+            calendar: calendar
+        )
+    }
+
+    @discardableResult
+    public func recordProgramSkip(
+        programID: String?,
+        routineID: String,
+        at date: Date = Date(),
+        today: DailyLog?,
+        for userID: String?,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard var plan = planForOutcome(userID: userID, at: date, calendar: calendar),
+              TrainingFuelSessionOutcomeRules.matchesProgramSkip(
+                plan: plan,
+                programID: programID,
+                routineID: routineID
+              ) else { return false }
+        plan.outcome = TrainingFuelSessionOutcome(
+            status: .skipped,
+            source: .programSkip,
+            recordedAt: date,
+            referenceID: routineID,
+            diaryAtOutcome: TrainingFuelDiarySnapshot(log: today)
+        )
+        confirm(plan, for: userID)
+        return true
+    }
+
+    @discardableResult
+    public func markCurrentPlanCompleted(
+        at date: Date = Date(),
+        today: DailyLog?,
+        goals: TodayFuelPlanGoals,
+        for userID: String?,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let plan = planForOutcome(userID: userID, at: date, calendar: calendar),
+              plan.outcome == nil else { return false }
+        return recordCompletion(
+            plan: plan,
+            source: .manualConfirmation,
+            referenceID: plan.draft.sessionReferenceID,
+            actualStartAt: nil,
+            actualEndAt: date,
+            today: today,
+            goals: goals,
+            userID: userID,
+            calendar: calendar
+        )
+    }
+
+    @discardableResult
+    public func markCurrentPlanSkipped(
+        at date: Date = Date(),
+        today: DailyLog?,
+        for userID: String?,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard var plan = planForOutcome(userID: userID, at: date, calendar: calendar),
+              plan.outcome == nil else { return false }
+        plan.outcome = TrainingFuelSessionOutcome(
+            status: .skipped,
+            source: .manualConfirmation,
+            recordedAt: date,
+            referenceID: plan.draft.sessionReferenceID,
+            diaryAtOutcome: TrainingFuelDiarySnapshot(log: today)
+        )
+        confirm(plan, for: userID)
+        return true
+    }
+
+    @discardableResult
+    public func refreshDeferredRecovery(
+        today: DailyLog,
+        goals: TodayFuelPlanGoals,
+        at date: Date = Date(),
+        for userID: String?,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard var plan = planForOutcome(userID: userID, at: date, calendar: calendar),
+              plan.requiresRecoveryDiaryRefresh(calendar: calendar),
+              let outcome = plan.outcome,
+              calendar.isDate(today.date, inSameDayAs: outcome.actualEndAt ?? outcome.recordedAt) else {
+            return false
+        }
+        let recoveryPlan = TrainingFuelDeferredRecoveryRules.makePlan(
+            for: plan,
+            today: today,
+            goals: goals,
+            completedAt: outcome.actualEndAt ?? outcome.recordedAt,
+            calendar: calendar
+        )
+        plan.outcome = TrainingFuelSessionOutcome(
+            status: outcome.status,
+            source: outcome.source,
+            recordedAt: outcome.recordedAt,
+            actualStartAt: outcome.actualStartAt,
+            actualEndAt: outcome.actualEndAt,
+            referenceID: outcome.referenceID,
+            diaryAtOutcome: TrainingFuelDiarySnapshot(log: today),
+            recoveryPlan: recoveryPlan,
+            recoveryDiaryIsAuthoritative: true
+        )
+        confirm(plan, for: userID)
+        return true
+    }
+
     public func clear(for userID: String? = nil) {
         let resolvedUserID = userID ?? currentUserID
         if let key = storageKey(for: resolvedUserID) {
@@ -717,5 +1230,70 @@ public final class TrainingFuelPlanStore: ObservableObject {
         guard let userID = userID?.trimmingCharacters(in: .whitespacesAndNewlines),
               !userID.isEmpty else { return nil }
         return keyPrefix + userID
+    }
+
+    private func planForOutcome(
+        userID: String?,
+        at date: Date,
+        calendar: Calendar
+    ) -> TrainingFuelConfirmedPlan? {
+        load(for: userID, now: date, calendar: calendar)
+        return confirmedPlan
+    }
+
+    private func recordCompletion(
+        plan: TrainingFuelConfirmedPlan,
+        source: TrainingFuelSessionOutcome.Source,
+        referenceID: String?,
+        actualStartAt: Date?,
+        actualEndAt: Date,
+        today: DailyLog?,
+        goals: TodayFuelPlanGoals,
+        userID: String?,
+        calendar: Calendar
+    ) -> Bool {
+        var updated = plan
+        let needsFreshRecoveryPlan = plan.draft.preference.wantsPostSessionFuel &&
+            (
+                plan.allocations.contains(where: { $0.phase == .afterTraining }) == false ||
+                !calendar.isDate(actualEndAt, inSameDayAs: plan.draft.scheduledAt)
+            )
+        let hasMatchingDiary = today.map {
+            calendar.isDate($0.date, inSameDayAs: actualEndAt)
+        } ?? false
+        let recoveryPlan = needsFreshRecoveryPlan && hasMatchingDiary
+            ? TrainingFuelDeferredRecoveryRules.makePlan(
+                for: plan,
+                today: today,
+                goals: goals,
+                completedAt: actualEndAt,
+                calendar: calendar
+            )
+            : nil
+        updated.outcome = TrainingFuelSessionOutcome(
+            status: .completed,
+            source: source,
+            recordedAt: actualEndAt,
+            actualStartAt: actualStartAt,
+            actualEndAt: actualEndAt,
+            referenceID: referenceID,
+            diaryAtOutcome: TrainingFuelDiarySnapshot(log: hasMatchingDiary ? today : nil),
+            recoveryPlan: recoveryPlan,
+            recoveryDiaryIsAuthoritative: needsFreshRecoveryPlan ? hasMatchingDiary : true
+        )
+        confirm(updated, for: userID)
+        return true
+    }
+
+    private func shouldRetain(
+        _ plan: TrainingFuelConfirmedPlan,
+        at now: Date,
+        calendar: Calendar
+    ) -> Bool {
+        if calendar.isDate(plan.draft.scheduledAt, inSameDayAs: now) {
+            return true
+        }
+        let end = plan.outcome?.actualEndAt ?? plan.estimatedEndAt
+        return now >= plan.draft.scheduledAt && now <= end.addingTimeInterval(2 * 60 * 60)
     }
 }

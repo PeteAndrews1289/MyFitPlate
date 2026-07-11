@@ -103,6 +103,7 @@ struct CalorieBetaApp: App {
     @StateObject var adaptiveGoalService: AdaptiveGoalService
     @StateObject var pantryService: PantryService
     @StateObject var workoutService: WorkoutService
+    @StateObject var trainingFuelPlanStore: TrainingFuelPlanStore
     
     @StateObject var connectivityManager = WatchConnectivityManager()
 
@@ -229,6 +230,7 @@ struct CalorieBetaApp: App {
         let adaptiveSvc = AdaptiveGoalService()
         let pantrySvc = PantryService()
         let workoutSvc = WorkoutService()
+        let fuelPlanStore = TrainingFuelPlanStore()
 
         _dailyLogService = StateObject(wrappedValue: logService)
         _goalSettings = StateObject(wrappedValue: goalsSvc)
@@ -245,6 +247,7 @@ struct CalorieBetaApp: App {
         _adaptiveGoalService = StateObject(wrappedValue: adaptiveSvc)
         _pantryService = StateObject(wrappedValue: pantrySvc)
         _workoutService = StateObject(wrappedValue: workoutSvc)
+        _trainingFuelPlanStore = StateObject(wrappedValue: fuelPlanStore)
         
         logService.goalSettings = goalsSvc
         goalsSvc.adaptiveGoalService = adaptiveSvc
@@ -296,6 +299,7 @@ struct CalorieBetaApp: App {
                 .environmentObject(adaptiveGoalService)
                 .environmentObject(pantryService)
                 .environmentObject(workoutService)
+                .environmentObject(trainingFuelPlanStore)
                 .environmentObject(AppCoordinator.shared)
                 .preferredColorScheme(appState.isDarkModeEnabled ? .dark : .light)
         }
@@ -313,6 +317,7 @@ struct ContentView: View {
     @EnvironmentObject var cycleService: CycleTrackingService
     @EnvironmentObject var pantryService: PantryService
     @EnvironmentObject var spotlightManager: SpotlightManager
+    @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
     @Environment(\.scenePhase) var scenePhase
 
     @State private var isLoadingUserState = true
@@ -350,6 +355,7 @@ struct ContentView: View {
             queueUITestDeepLinkIfNeeded()
             #endif
             checkUserStatusAndFirstLogin()
+            trainingFuelPlanStore.load(for: currentUserID)
             sendNutritionToWatchIfNeeded()
             processPendingDeepLinkIfReady()
         }
@@ -357,6 +363,7 @@ struct ContentView: View {
             handleAppDidBecomeActive()
         }
         .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
+            trainingFuelPlanStore.load(for: isLoggedIn ? currentUserID : nil)
             handleLoginStateChange(isLoggedIn: isLoggedIn)
         }
         .onChange(of: appCoordinator.pendingRoute) { _, _ in

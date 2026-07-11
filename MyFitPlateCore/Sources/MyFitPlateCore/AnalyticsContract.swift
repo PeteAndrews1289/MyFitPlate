@@ -30,6 +30,7 @@ public enum ProductAnalytics {
         case trainingFuelPlannerOpened = "training_fuel_planner_opened"
         case trainingFuelPlanSaved = "training_fuel_plan_saved"
         case trainingFuelHandoffSelected = "training_fuel_handoff_selected"
+        case trainingFuelSessionOutcome = "training_fuel_session_outcome"
         case accountDeletionStarted = "account_deletion_started"
         case accountDeletionCompleted = "account_deletion_completed"
         case accountDeletionFailed = "account_deletion_failed"

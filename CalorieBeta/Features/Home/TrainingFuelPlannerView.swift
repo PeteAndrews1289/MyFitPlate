@@ -53,7 +53,9 @@ struct TrainingFuelPlannerCard: View {
                         ForEach(progress.phases) { phase in
                             HStack(spacing: 8) {
                                 Image(systemName: phase.isComplete ? "checkmark.circle.fill" : "circle.dashed")
-                                    .foregroundColor(phase.isComplete ? .accentPositive : .brandPrimary)
+                                    .foregroundColor(
+                                        phase.isComplete ? .accentPositive : Color(UIColor.secondaryLabel)
+                                    )
 
                                 Text(phase.allocation.phase == .beforeTraining ? "Before" : "After")
                                     .appFont(size: 12, weight: .bold)
@@ -75,9 +77,12 @@ struct TrainingFuelPlannerCard: View {
             }
             .padding(15)
             .frame(maxWidth: 520, alignment: .leading)
-            .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 12))
+            .background(
+                Color(UIColor.secondarySystemBackground),
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(iconColor.opacity(0.16), lineWidth: 1)
             )
         }
@@ -112,6 +117,8 @@ struct TrainingFuelPlannerCard: View {
         switch progress?.status {
         case .complete:
             return .accentPositive
+        case .skipped:
+            return Color(UIColor.secondaryLabel)
         case .stale, .overTarget, .invalidDiary, .invalidTargets, .budgetUsedElsewhere:
             return .orange
         default:
@@ -124,6 +131,9 @@ struct TrainingFuelPlannerCard: View {
         status: TrainingFuelPlanProgress.Status
     ) -> String {
         switch status {
+        case .awaitingOutcome: return "Confirm session outcome"
+        case .awaitingRecoveryData: return "Preparing recovery"
+        case .skipped: return "Session skipped"
         case .stale: return "Plan expired"
         case .overTarget: return "Daily target reached"
         case .invalidDiary: return "Unavailable"
@@ -152,8 +162,11 @@ struct TrainingFuelPlannerCard: View {
         switch status {
         case .upcoming: return "Upcoming"
         case .inSession: return "Training now"
+        case .awaitingOutcome: return "Confirm completion"
+        case .awaitingRecoveryData: return "Preparing recovery"
         case .recovery: return "Recovery"
         case .complete: return "Targets logged"
+        case .skipped: return "Session skipped"
         case .stale: return "Review expired plan"
         case .overTarget: return "Daily target reached"
         case .invalidDiary: return "Check today's log"
@@ -178,6 +191,8 @@ struct TrainingFuelPlannerSheet: View {
         TrainingFuelDestination
     ) -> Void
     let onUseSavedTarget: (TrainingFuelTarget, TrainingFuelDestination) -> Void
+    let onMarkComplete: () -> Void
+    let onSkip: () -> Void
     let onRemove: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -192,6 +207,7 @@ struct TrainingFuelPlannerSheet: View {
     @State private var strengthFocus: TrainingFuelSession.StrengthFocus
     @State private var wantsBefore: Bool
     @State private var wantsAfter: Bool
+    @State private var showingSkipConfirmation = false
 
     init(
         candidates: [TrainingFuelSessionCandidate],
@@ -208,6 +224,8 @@ struct TrainingFuelPlannerSheet: View {
             TrainingFuelDestination
         ) -> Void,
         onUseSavedTarget: @escaping (TrainingFuelTarget, TrainingFuelDestination) -> Void,
+        onMarkComplete: @escaping () -> Void,
+        onSkip: @escaping () -> Void,
         onRemove: @escaping () -> Void
     ) {
         self.candidates = candidates
@@ -219,6 +237,8 @@ struct TrainingFuelPlannerSheet: View {
         self.onConfirm = onConfirm
         self.onUseTarget = onUseTarget
         self.onUseSavedTarget = onUseSavedTarget
+        self.onMarkComplete = onMarkComplete
+        self.onSkip = onSkip
         self.onRemove = onRemove
 
         let fallback = candidates.first ?? TrainingFuelSessionAdapter.manualCandidate(kind: .strength)
@@ -249,10 +269,14 @@ struct TrainingFuelPlannerSheet: View {
                         savedPlanSection(plan: savedPlan, progress: savedProgress)
                     }
 
-                    sessionSection
-                    timingSection
-                    preferenceSection
-                    previewSection
+                    if savedPlan?.outcome == nil {
+                        sessionSection
+                        timingSection
+                        preferenceSection
+                        previewSection
+                    } else {
+                        closedPlanActions
+                    }
 
                     Text("Targets stay inside today's calorie, protein, and carbohydrate goals. Fat is not prescribed, and Maia ideas remain optional suggestions.")
                         .appFont(size: 11, weight: .medium)
@@ -268,6 +292,16 @@ struct TrainingFuelPlannerSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .confirmationDialog(
+                "Skip this session?",
+                isPresented: $showingSkipConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Skip Session", role: .destructive) { onSkip() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("The saved fuel targets will be closed without changing your food log.")
             }
         }
     }
@@ -411,15 +445,29 @@ struct TrainingFuelPlannerSheet: View {
             Toggle(isOn: $wantsBefore) {
                 Label("Before Training", systemImage: "bolt.fill")
             }
+            .tint(.accentProtein)
             Toggle(isOn: $wantsAfter) {
                 Label("After Training", systemImage: "arrow.clockwise.heart.fill")
             }
+            .tint(.accentProtein)
 
             if !wantsBefore && !wantsAfter {
                 Text("Choose at least one window to create a fuel target.")
                     .appFont(size: 11, weight: .semibold)
                     .foregroundColor(.orange)
             }
+        }
+    }
+
+    private var closedPlanActions: some View {
+        plannerSection(title: "Plan Options") {
+            Button(role: .destructive) {
+                onRemove()
+            } label: {
+                Label("Remove Plan", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
         }
     }
 
@@ -447,11 +495,11 @@ struct TrainingFuelPlannerSheet: View {
                 Image(systemName: "chevron.up.chevron.down")
                     .appFont(size: 12, weight: .bold)
             }
-            .foregroundColor(.brandPrimary)
+            .foregroundColor(.textPrimary)
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+            .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
         }
         .dynamicTypeSize(.small ... .accessibility1)
         .accessibilityLabel("Workout, \(currentCandidate.title)")
@@ -494,11 +542,11 @@ struct TrainingFuelPlannerSheet: View {
                 Image(systemName: "chevron.up.chevron.down")
                     .appFont(size: 11, weight: .bold)
             }
-            .foregroundColor(.brandPrimary)
+            .foregroundColor(.textPrimary)
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+            .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
         }
         .dynamicTypeSize(.small ... .accessibility1)
         .accessibilityLabel("Training focus, \(strengthFocusTitle)")
@@ -507,7 +555,17 @@ struct TrainingFuelPlannerSheet: View {
     @ViewBuilder
     private var previewSection: some View {
         plannerSection(title: "Today's Allocation") {
-            if preview.status == .ready {
+            if preview.status == .ready || preview.status == .deferredRecovery {
+                if preview.allocations.isEmpty,
+                   preview.notes.contains(.postSessionFallsNextDay) {
+                    Label(
+                        "Recovery will be calculated after completion using the next day's live goals and diary.",
+                        systemImage: "moon.stars.fill"
+                    )
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+
                 ForEach(preview.allocations, id: \.phase) { allocation in
                     allocationRow(
                         allocation: allocation,
@@ -525,16 +583,28 @@ struct TrainingFuelPlannerSheet: View {
                     }
                 }
 
-                Button {
-                    onConfirm(draft, preview)
-                } label: {
-                    Label(savedPlan == nil ? "Save Plan" : "Update Plan", systemImage: "checkmark.circle.fill")
-                        .appFont(size: 15, weight: .bold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                if savedPlan == nil {
+                    Button {
+                        onConfirm(draft, preview)
+                    } label: {
+                        Label("Save plan", systemImage: "checkmark.circle.fill")
+                            .appFont(size: 15, weight: .bold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.brandPrimary)
+                } else {
+                    Button {
+                        onConfirm(draft, preview)
+                    } label: {
+                        Label("Update plan", systemImage: "arrow.triangle.2.circlepath")
+                            .appFont(size: 15, weight: .bold)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.brandPrimary)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.brandPrimary)
             } else {
                 plannerStatusView(preview.status)
             }
@@ -568,33 +638,65 @@ struct TrainingFuelPlannerSheet: View {
                 Spacer()
             }
 
-            ForEach(progress.phases) { phase in
-                if isActionable(progress.status, phase: phase.allocation.phase),
-                   let target = progress.target(for: phase.allocation.phase, plan: plan) {
-                    allocationRow(allocation: phase.allocation, target: target) { target, destination in
-                        onUseSavedTarget(target, destination)
-                    }
-                } else {
-                    HStack {
-                        Label(
-                            phase.allocation.phase == .beforeTraining ? "Before Training" : "After Training",
-                            systemImage: phase.isComplete ? "checkmark.circle.fill" : "pause.circle.fill"
+            if progress.status != .awaitingOutcome {
+                ForEach(progress.phases) { phase in
+                    if isActionable(progress.status, phase: phase.allocation.phase),
+                       let target = progress.target(for: phase.allocation.phase, plan: plan) {
+                        allocationRow(allocation: phase.allocation, target: target) { target, destination in
+                            onUseSavedTarget(target, destination)
+                        }
+                    } else {
+                        HStack {
+                            Label(
+                                phase.allocation.phase == .beforeTraining ? "Before Training" : "After Training",
+                                systemImage: phase.isComplete ? "checkmark.circle.fill" : "pause.circle.fill"
+                            )
+                            .appFont(size: 13, weight: .bold)
+                            .foregroundColor(inactivePhaseColor(phase, status: progress.status))
+                            Spacer()
+                            Text(inactivePhaseTitle(phase, status: progress.status))
+                                .appFont(size: 12, weight: .semibold)
+                                .foregroundColor(Color(UIColor.secondaryLabel))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                        }
+                        .padding(10)
+                        .background(
+                            inactivePhaseColor(phase, status: progress.status).opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: 8)
                         )
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(inactivePhaseColor(phase, status: progress.status))
-                        Spacer()
-                        Text(inactivePhaseTitle(phase, status: progress.status))
-                            .appFont(size: 12, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
                     }
-                    .padding(10)
-                    .background(
-                        inactivePhaseColor(phase, status: progress.status).opacity(0.08),
-                        in: RoundedRectangle(cornerRadius: 8)
-                    )
                 }
+            }
+
+            if plan.defersPostSession(), plan.outcome == nil {
+                Label(
+                    "Recovery will be calculated after completion so it uses the correct day's remaining goals.",
+                    systemImage: "moon.stars.fill"
+                )
+                .appFont(size: 12, weight: .semibold)
+                .foregroundColor(Color(UIColor.secondaryLabel))
+            }
+
+            if canRecordOutcome(for: plan, status: progress.status) {
+                Button(action: onMarkComplete) {
+                    Label("Mark complete", systemImage: "checkmark.circle.fill")
+                        .appFont(size: 14, weight: .bold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.accentPositive)
+
+                Button {
+                    showingSkipConfirmation = true
+                } label: {
+                    Label("Skip session", systemImage: "forward.end.fill")
+                        .appFont(size: 14, weight: .bold)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(Color(UIColor.secondaryLabel))
             }
 
             if progress.status == .overTarget {
@@ -617,6 +719,18 @@ struct TrainingFuelPlannerSheet: View {
                 Label("Today's nutrition targets cannot be verified. Update them before using this plan.", systemImage: "target")
                     .appFont(size: 12, weight: .semibold)
                     .foregroundColor(.orange)
+            } else if progress.status == .awaitingOutcome {
+                Label("Confirm whether the session was completed or skipped before recovery guidance appears.", systemImage: "checkmark.circle")
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(.accentSignal)
+            } else if progress.status == .awaitingRecoveryData {
+                Label("Recovery will appear after today's diary finishes loading.", systemImage: "arrow.clockwise")
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+            } else if progress.status == .skipped {
+                Label("This session was skipped. No fuel target remains active.", systemImage: "forward.end.fill")
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
     }
@@ -640,7 +754,7 @@ struct TrainingFuelPlannerSheet: View {
                 Spacer()
                 Text("\(target.calories) cal")
                     .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.textPrimary)
             }
 
             HStack(spacing: 8) {
@@ -667,9 +781,9 @@ struct TrainingFuelPlannerSheet: View {
                         .appFont(size: 13, weight: .bold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                        .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
                 }
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.textPrimary)
             } else {
                 Label(
                     allocation.phase == .afterTraining ? "Available After Training" : "Window Passed",
@@ -683,7 +797,10 @@ struct TrainingFuelPlannerSheet: View {
             }
         }
         .padding(11)
-        .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+        .background(
+            Color(UIColor.secondarySystemBackground),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
     }
 
     private func targetMetric(_ title: String, value: String, color: Color) -> some View {
@@ -727,9 +844,12 @@ struct TrainingFuelPlannerSheet: View {
                 .foregroundColor(.textPrimary)
             content()
         }
-        .padding(14)
+        .padding(.horizontal, 2)
+        .padding(.bottom, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
     }
 
     private var dayStart: Date {
@@ -743,6 +863,7 @@ struct TrainingFuelPlannerSheet: View {
             id: "saved:\(draft.id)",
             source: draft.source,
             sourceID: draft.sourceID,
+            sessionReferenceID: draft.sessionReferenceID,
             title: draft.sessionTitle,
             detail: "Current saved plan",
             kind: draft.kind,
@@ -797,8 +918,11 @@ struct TrainingFuelPlannerSheet: View {
         switch status {
         case .upcoming: return "Upcoming"
         case .inSession: return "Training now"
+        case .awaitingOutcome: return "Awaiting completion"
+        case .awaitingRecoveryData: return "Preparing recovery"
         case .recovery: return "Recovery"
         case .complete: return "Targets logged"
+        case .skipped: return "Skipped"
         case .stale: return "Expired"
         case .overTarget: return "Daily target reached"
         case .invalidDiary: return "Diary needs review"
@@ -823,6 +947,20 @@ struct TrainingFuelPlannerSheet: View {
         }
     }
 
+    private func canRecordOutcome(
+        for plan: TrainingFuelConfirmedPlan,
+        status: TrainingFuelPlanProgress.Status
+    ) -> Bool {
+        guard plan.outcome == nil else { return false }
+        switch status {
+        case .upcoming, .inSession, .awaitingOutcome, .overTarget,
+             .invalidDiary, .invalidTargets, .budgetUsedElsewhere:
+            return true
+        case .awaitingRecoveryData, .recovery, .complete, .skipped, .stale:
+            return false
+        }
+    }
+
     private func inactivePhaseTitle(
         _ phase: TrainingFuelPhaseProgress,
         status: TrainingFuelPlanProgress.Status
@@ -833,8 +971,14 @@ struct TrainingFuelPlannerSheet: View {
             return phase.allocation.phase == .afterTraining ? "Available Later" : "No Further Action"
         case .inSession:
             return phase.allocation.phase == .afterTraining ? "Available After" : "Window Passed"
+        case .awaitingOutcome:
+            return "Confirm Session"
+        case .awaitingRecoveryData:
+            return "Loading Diary"
         case .recovery:
             return phase.allocation.phase == .beforeTraining ? "Window Passed" : "No Further Action"
+        case .skipped:
+            return "Session Skipped"
         case .stale:
             return "Plan Expired"
         case .overTarget:
@@ -856,10 +1000,12 @@ struct TrainingFuelPlannerSheet: View {
     ) -> Color {
         if phase.isComplete { return .accentPositive }
         switch status {
+        case .skipped:
+            return Color(UIColor.secondaryLabel)
         case .stale, .overTarget, .invalidDiary, .invalidTargets, .budgetUsedElsewhere:
             return .orange
         default:
-            return .brandPrimary
+            return Color(UIColor.secondaryLabel)
         }
     }
 
@@ -879,6 +1025,13 @@ struct TrainingFuelPlannerSheet: View {
         _ status: TrainingFuelPlannerPlan.Status
     ) -> (title: String, detail: String, icon: String, color: Color) {
         switch status {
+        case .deferredRecovery:
+            return (
+                "Recovery Saved for Tomorrow",
+                "The target will be calculated from tomorrow's live diary after completion.",
+                "moon.stars.fill",
+                .accentSignal
+            )
         case .needsSessionTime:
             return ("Choose a Start Time", "The planner will not invent one.", "clock", .orange)
         case .noFuelRequested:

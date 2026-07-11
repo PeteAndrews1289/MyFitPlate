@@ -31,6 +31,8 @@ final class AnalyticsContractTests: XCTestCase {
             "training_mode": "strength",
             "phase_count": 2,
             "confirmation_path": "handoff",
+            "outcome": "completed",
+            "source": "recorded_run",
             "phase": "before_training",
             "destination": "food_search",
             "target_protein": 25,
@@ -40,6 +42,8 @@ final class AnalyticsContractTests: XCTestCase {
         XCTAssertEqual(parameters["training_mode"] as? String, "strength")
         XCTAssertEqual(parameters["phase_count"] as? Int, 2)
         XCTAssertEqual(parameters["confirmation_path"] as? String, "handoff")
+        XCTAssertEqual(parameters["outcome"] as? String, "completed")
+        XCTAssertEqual(parameters["source"] as? String, "recorded_run")
         XCTAssertEqual(parameters["phase"] as? String, "before_training")
         XCTAssertEqual(parameters["destination"] as? String, "food_search")
         XCTAssertNil(parameters["target_protein"])
