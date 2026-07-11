@@ -55,14 +55,39 @@ struct SettingsAccountSection: View {
                 Text("Calorie goal method")
                     .appFont(size: 15, weight: .semibold)
                     .foregroundColor(.textPrimary)
-                
-                Picker("Calorie goal method", selection: $goalSettings.calorieGoalMethod) {
-                    ForEach(CalorieGoalMethod.allCases) { method in Text(method.rawValue).tag(method) }
+
+                Menu {
+                    ForEach(CalorieGoalMethod.allCases) { method in
+                        Button {
+                            selectCalorieGoalMethod(method)
+                        } label: {
+                            if goalSettings.calorieGoalMethod == method {
+                                Label(method.rawValue, systemImage: "checkmark")
+                            } else {
+                                Text(method.rawValue)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        Text(goalSettings.calorieGoalMethod.rawValue)
+                            .appFont(size: 15, weight: .semibold)
+                            .foregroundColor(.textPrimary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Spacer(minLength: 8)
+
+                        Image(systemName: "chevron.up.chevron.down")
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                .pickerStyle(.segmented)
-                .onChange(of: goalSettings.calorieGoalMethod) { _, _ in
-                    if let userID = DIContainer.shared.authService.currentUserID { goalSettings.saveUserGoals(userID: userID) }
-                }
+                .accessibilityLabel("Calorie goal method")
+                .accessibilityValue(goalSettings.calorieGoalMethod.rawValue)
             }
             .padding(16)
 
@@ -108,6 +133,14 @@ struct SettingsAccountSection: View {
             MFPImportView()
                 .environmentObject(dailyLogService)
                 .environmentObject(goalSettings)
+        }
+    }
+
+    private func selectCalorieGoalMethod(_ method: CalorieGoalMethod) {
+        guard goalSettings.calorieGoalMethod != method else { return }
+        goalSettings.calorieGoalMethod = method
+        if let userID = DIContainer.shared.authService.currentUserID {
+            goalSettings.saveUserGoals(userID: userID)
         }
     }
 

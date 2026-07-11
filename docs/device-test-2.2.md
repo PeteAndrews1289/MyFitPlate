@@ -35,9 +35,10 @@ light mode, WiFi" fixes itself. "The buffet thing looked wrong" costs us a windo
 - [ ] Train quick action switches to the Train tab (doesn't push a duplicate screen)
 
 ## 3. Quick-log menu (5 min)
-- [ ] Tab-bar + opens the menu; Search food is the single green hero row
+- [ ] The centered Quick Log pill opens the menu and stays visually independent from the five evenly spaced tabs; Search food is the single green hero row
 - [ ] Three primary rows present first: Search food, Scan barcode, Describe your meal
 - [ ] More options reveals: Log with camera, Log exercise, Log recipe or meal, **Beat the buffet**, **Running**
+- [ ] On a compact phone, the expanded list scrolls and the final Running action remains reachable
 - [ ] Each row opens the right surface and the menu dismisses; Fewer options collapses the menu cleanly
 
 ## 4. Food logging & trust (20 min)
@@ -113,6 +114,9 @@ Indoors today:
 - [ ] Allow AI without Apple Health -> Maia works, but steps/sleep/recovery are excluded from AI context; enable the separate Health toggle and confirm the Health context indicator appears
 - [ ] Reopen Settings -> AI data sharing, change the Health toggle, then turn AI sharing off; the next AI action must ask again
 - [ ] Privacy policy, Terms, and Support links open publicly without requiring a GitHub login
+- [ ] Calorie goal method shows the full selected label; change it from the menu, close Settings, reopen, and confirm the choice persists
+- [ ] Feedback & support opens a new email with the feedback questions plus app/build and iOS version; confirm it contains no account, food, workout, or Health data
+- [ ] Share MyFitPlate opens the system share sheet and includes the live App Store listing (`id6740922831`)
 - [ ] CSV export → both files share/open with sane contents (no "Optional(0)")
 - [ ] Reminders: change time → survives logging food (the 20:00 overwrite fix)
 - [ ] Metric toggle → weight surfaces AND watch flip units
@@ -133,7 +137,8 @@ Indoors today:
 - [ ] Dark mode sweep: Home, AYCE live, run detail, trust card, coaching, MFP import — no washed-out cards
 - [ ] Dynamic Type XL spot check: Home + AYCE tiles + player don't clip
 - [ ] Sign out / sign in → data returns; custom calorie goal SURVIVES (the reset-bug fix)
-- [ ] Five bottom tabs are visible and usable (Home, Maia, Train, Meal Plan, Reports); the floating Quick Log button does not cover tab labels or tappable content
+- [ ] Five bottom tabs are visible, evenly spaced, and usable (Home, Maia, Train, Meal Plan, Reports); the centered Quick Log pill does not cover tab labels or tappable content
+- [ ] Optional review-prompt check: on a fresh local install, complete three distinct workouts over at least three days and tap Done on the third summary. The app should request a review only then; Apple may still choose not to display the system prompt
 
 ## 14. Production services (owner check before archive)
 - [ ] Add a real `USDA_API_KEY` to ignored `secrets.xcconfig`; USDA results are intentionally disabled when it is absent

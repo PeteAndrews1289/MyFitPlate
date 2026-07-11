@@ -129,6 +129,8 @@ struct WeeklyRecapView: View {
                         if let shareImage {
                             ShareLink(
                                 item: shareImage,
+                                subject: Text("My week with MyFitPlate"),
+                                message: Text(MyFitPlateLinks.shareMessage("My nutrition and training recap from this week.")),
                                 preview: SharePreview("My week with MyFitPlate", image: shareImage)
                             ) {
                                 Label("Share your week", systemImage: "square.and.arrow.up")

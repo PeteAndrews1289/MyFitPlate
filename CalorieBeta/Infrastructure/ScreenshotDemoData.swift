@@ -1,0 +1,487 @@
+import Foundation
+import MyFitPlateCore
+
+enum ScreenshotDemoMode {
+    static var isEnabled: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("-ui-testing") && arguments.contains("-screenshot-mode")
+        #else
+        return false
+        #endif
+    }
+}
+
+#if DEBUG
+@MainActor
+enum ScreenshotDemoData {
+    static let userID = "mock_user"
+    static let programID = "screenshot_demo_program"
+
+    private struct HistoryTemplate {
+        let title: String
+        let calories: Double
+        let protein: Double
+        let carbs: Double
+        let fats: Double
+        let fiber: Double
+        let workoutName: String?
+    }
+
+    private static let calendar = Calendar.current
+    private static var today: Date { calendar.startOfDay(for: Date()) }
+
+    static var requestedScreen: String {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard ScreenshotDemoMode.isEnabled else { return "home" }
+
+        if let inline = arguments.first(where: { $0.hasPrefix("-screenshot-screen=") }) {
+            return String(inline.dropFirst("-screenshot-screen=".count)).lowercased()
+        }
+        if let flagIndex = arguments.firstIndex(of: "-screenshot-screen"),
+           arguments.indices.contains(flagIndex + 1) {
+            return arguments[flagIndex + 1].lowercased()
+        }
+        return "home"
+    }
+
+    static var trustDemoFood: FoodItem {
+        discoveryFoods()[0]
+    }
+
+    static func prepareUserDefaults() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "cached_user_goals_\(userID)")
+        defaults.removeObject(forKey: "chatHistory_\(userID)")
+        defaults.removeObject(forKey: "mealPlanCache")
+        defaults.set(programID, forKey: "activeWorkoutProgramID")
+        defaults.set(false, forKey: "activeWorkoutProgramCleared")
+        defaults.set(false, forKey: "useMetricBodyUnits")
+        defaults.set(false, forKey: "hasRequestedAppleHealthAccess")
+        defaults.set(true, forKey: "firstSessionChoiceCompleted")
+        defaults.set(false, forKey: "firstSessionChoicePending")
+        AIDataConsentStore.shared.revoke(for: userID)
+    }
+
+    static func configureRepositories(
+        nutrition: MockNutritionRepository,
+        workout: MockWorkoutRepository,
+        settings: MockSettingsRepository
+    ) {
+        let logs = nutritionHistory()
+        nutrition.mockLogsByDay = logs
+        nutrition.mockFetchDailyHistoryResult = .success(logs)
+        nutrition.filtersHistoryByRequestedRange = true
+
+        let foods = discoveryFoods()
+        nutrition.mockRecommendedFoods = Array(foods.prefix(5))
+        nutrition.recentFoodsToReturn = Array(foods.prefix(6))
+        nutrition.customFoodsToReturn = [
+            trustedFood(
+                id: "demo-custom-oats",
+                name: "Power Protein Oats",
+                calories: 445,
+                protein: 34,
+                carbs: 55,
+                fats: 11,
+                fiber: 9,
+                servingSize: "1 bowl",
+                sourceType: .custom,
+                sourceName: "My Foods"
+            ).markedUserConfirmed(sourceType: .custom),
+            trustedFood(
+                id: "demo-custom-shake",
+                name: "Post-Workout Shake",
+                calories: 310,
+                protein: 42,
+                carbs: 29,
+                fats: 4,
+                fiber: 4,
+                servingSize: "20 fl oz",
+                sourceType: .custom,
+                sourceName: "My Foods"
+            ).markedUserConfirmed(sourceType: .custom)
+        ]
+
+        nutrition.mockPantrySnapshotResult = .success([
+            PantryItem(name: "Chicken breast", quantity: 2.5, unit: "lb", category: "Protein"),
+            PantryItem(name: "Greek yogurt", quantity: 4, unit: "cups", category: "Dairy"),
+            PantryItem(name: "Jasmine rice", quantity: 3, unit: "cups", category: "Grains"),
+            PantryItem(name: "Spinach", quantity: 1, unit: "bag", category: "Produce"),
+            PantryItem(name: "Blueberries", quantity: 2, unit: "cups", category: "Produce")
+        ])
+
+        let plans = mealPlans()
+        nutrition.mockMealPlansByDateString = Dictionary(
+            uniqueKeysWithValues: plans.map { (dateString($0.date), $0) }
+        )
+        nutrition.mockFetchGroceryListResult = [
+            GroceryListItem(name: "Salmon fillets", quantity: 4, unit: "fillets", category: "Protein", source: "Meal plan"),
+            GroceryListItem(name: "Chicken breast", quantity: 3, unit: "lb", category: "Protein", source: "Meal plan"),
+            GroceryListItem(name: "Greek yogurt", quantity: 2, unit: "tubs", category: "Dairy", source: "Meal plan"),
+            GroceryListItem(name: "Jasmine rice", quantity: 2, unit: "lb", category: "Grains", source: "Meal plan"),
+            GroceryListItem(name: "Mixed vegetables", quantity: 3, unit: "bags", category: "Produce", source: "Meal plan")
+        ]
+
+        let program = strengthProgram()
+        let sessionLogs = workoutLogs(for: program)
+        workout.onProgramsSnapshotListenerAdded = { _, update in
+            update(.success([program]))
+        }
+        workout.onRoutinesSnapshotListenerAdded = { _, update in
+            update(.success(program.routines))
+        }
+        workout.mockFetchSessionLogsResult = sessionLogs
+        workout.mockFetchRecentSessionLogsResult = sessionLogs
+        workout.mockFetchHistoryResult = sessionLogs
+        workout.mockFetchSessionLogResult = sessionLogs.first.map(Result.success)
+        workout.mockSaveProgramResult = program
+
+        settings.mockFetchUserGoalsResult = goalPayload()
+        settings.mockWeightHistory = weightHistory()
+    }
+
+    static func configureServices(
+        goalSettings: GoalSettings,
+        dailyLogService: DailyLogService,
+        healthKitViewModel: HealthKitViewModel,
+        appState: AppState
+    ) {
+        applyGoals(to: goalSettings)
+        goalSettings.weightHistory = weightHistory()
+        dailyLogService.activelyViewedDate = today
+        dailyLogService.publishCurrentDailyLog(nutritionHistory()[0])
+
+        healthKitViewModel.isAuthorized = false
+        healthKitViewModel.lastSyncedAt = Date().addingTimeInterval(-8 * 60)
+        healthKitViewModel.todaySteps = 7_420
+        healthKitViewModel.todayActiveEnergy = 486
+        healthKitViewModel.weeklySteps = [8_340, 6_920, 9_810, 7_540, 11_260, 5_980, 7_420]
+        healthKitViewModel.weeklyActiveEnergy = [510, 430, 615, 472, 688, 390, 486]
+        healthKitViewModel.weeklyRestingHeartRate = [61, 60, 60, 59, 60, 62, 60]
+        healthKitViewModel.weeklyHRV = [48, 52, 55, 51, 58, 46, 54]
+
+        switch requestedScreen {
+        case "maia": appState.selectedTab = 1
+        case "train": appState.selectedTab = 2
+        case "meal-plan": appState.selectedTab = 3
+        case "reports": appState.selectedTab = 4
+        default: appState.selectedTab = 0
+        }
+        appState.isDarkModeEnabled = false
+        appState.isUserLoggedIn = true
+    }
+
+    private static func applyGoals(to goals: GoalSettings) {
+        goals.calorieGoalMethod = .custom
+        goals.calories = 2_100
+        goals.proteinPercentage = 30.4762
+        goals.carbsPercentage = 43.8095
+        goals.fatsPercentage = 25.7143
+        goals.protein = 160
+        goals.carbs = 230
+        goals.fats = 60
+        goals.weight = 181.2
+        goals.height = 180.3
+        goals.age = 34
+        goals.gender = "Male"
+        goals.activityLevel = 1.375
+        goals.goal = "Lose Weight"
+        goals.targetWeight = 175
+        goals.waterGoal = 96
+        goals.trainingIntent = "Build Strength"
+        goals.reminderStyle = "Gentle"
+        goals.maiaTone = "Balanced"
+        goals.cookingStyle = "Macro-Focused Prep"
+        goals.suggestionProteins = ["Chicken", "Salmon", "Greek Yogurt"]
+        goals.suggestionCuisines = ["Mediterranean", "Mexican", "Asian"]
+        goals.suggestionCarbs = ["Rice", "Oats", "Potatoes"]
+        goals.suggestionVeggies = ["Spinach", "Broccoli", "Bell Peppers"]
+    }
+
+    private static func goalPayload() -> [String: Any] {
+        [
+            "weight": 181.2,
+            "height": 180.3,
+            "age": 34,
+            "gender": "Male",
+            "isFirstLogin": false,
+            "calorieGoalMethod": CalorieGoalMethod.custom.rawValue,
+            "activityLevel": 1.375,
+            "goal": "Lose Weight",
+            "goals": [
+                "calories": 2_100.0,
+                "protein": 160.0,
+                "carbs": 230.0,
+                "fats": 60.0,
+                "proteinPercentage": 30.4762,
+                "carbsPercentage": 43.8095,
+                "fatsPercentage": 25.7143,
+                "activityLevel": 1.375,
+                "goal": "Lose Weight",
+                "targetWeight": 175.0,
+                "waterGoal": 96.0,
+                "trainingIntent": "Build Strength",
+                "reminderStyle": "Gentle",
+                "maiaTone": "Balanced",
+                "cookingStyle": "Macro-Focused Prep",
+                "suggestionProteins": ["Chicken", "Salmon", "Greek Yogurt"],
+                "suggestionCuisines": ["Mediterranean", "Mexican", "Asian"],
+                "suggestionCarbs": ["Rice", "Oats", "Potatoes"],
+                "suggestionVeggies": ["Spinach", "Broccoli", "Bell Peppers"]
+            ]
+        ]
+    }
+
+    private static func nutritionHistory() -> [DailyLog] {
+        let todayFoods = [
+            trustedFood(id: "today-parfait", name: "Greek Yogurt Parfait", calories: 410, protein: 36, carbs: 55, fats: 10, fiber: 8, servingSize: "1 bowl"),
+            trustedFood(id: "today-bowl", name: "Grilled Chicken Power Bowl", calories: 620, protein: 55, carbs: 74, fats: 17, fiber: 10, servingSize: "1 bowl"),
+            trustedFood(id: "today-snack", name: "Apple & Almond Butter", calories: 280, protein: 7, carbs: 36, fats: 14, fiber: 7, servingSize: "1 plate")
+        ]
+        let todayLog = DailyLog(
+            id: "demo-log-0",
+            date: today,
+            meals: [
+                Meal(name: "Breakfast", foodItems: [todayFoods[0]]),
+                Meal(name: "Lunch", foodItems: [todayFoods[1]]),
+                Meal(name: "Snack", foodItems: [todayFoods[2]])
+            ],
+            waterTracker: WaterTracker(totalOunces: 72, goalOunces: 96, date: today),
+            exercises: [LoggedExercise(name: "Upper Body Strength", durationMinutes: 52, caloriesBurned: 320, date: today.addingTimeInterval(12 * 60 * 60), source: "routine")]
+        )
+
+        let yesterday = day(offset: -1)
+        let yesterdayLog = DailyLog(
+            id: "demo-log-1",
+            date: yesterday,
+            meals: [
+                Meal(name: "Breakfast", foodItems: [trustedFood(id: "yesterday-oats", name: "Protein Overnight Oats", calories: 430, protein: 30, carbs: 58, fats: 11, fiber: 10, servingSize: "1 jar")]),
+                Meal(name: "Lunch", foodItems: [trustedFood(id: "yesterday-wrap", name: "Turkey Avocado Wrap", calories: 520, protein: 42, carbs: 52, fats: 19, fiber: 8, servingSize: "1 wrap")]),
+                Meal(name: "Dinner", foodItems: [trustedFood(id: "yesterday-salmon", name: "Salmon Rice Bowl", calories: 690, protein: 48, carbs: 72, fats: 28, fiber: 7, servingSize: "1 bowl")]),
+                Meal(name: "Snack", foodItems: [trustedFood(id: "yesterday-cottage", name: "Cottage Cheese & Pineapple", calories: 220, protein: 24, carbs: 26, fats: 4, fiber: 2, servingSize: "1 bowl")])
+            ],
+            waterTracker: WaterTracker(totalOunces: 94, goalOunces: 96, date: yesterday),
+            exercises: [LoggedExercise(name: "Lower Body Strength", durationMinutes: 58, caloriesBurned: 365, date: yesterday.addingTimeInterval(18 * 60 * 60), source: "routine")]
+        )
+
+        let templates = [
+            HistoryTemplate(title: "Mediterranean Day", calories: 2_025, protein: 154, carbs: 224, fats: 71, fiber: 31, workoutName: nil),
+            HistoryTemplate(title: "Taco Bowl Day", calories: 1_980, protein: 149, carbs: 218, fats: 70, fiber: 29, workoutName: "Easy Run"),
+            HistoryTemplate(title: "High-Protein Prep", calories: 2_110, protein: 163, carbs: 228, fats: 76, fiber: 34, workoutName: "Upper Body Strength"),
+            HistoryTemplate(title: "Sushi & Stir-Fry", calories: 2_060, protein: 151, carbs: 236, fats: 69, fiber: 28, workoutName: nil),
+            HistoryTemplate(title: "Comfort Food Balance", calories: 1_945, protein: 146, carbs: 211, fats: 71, fiber: 30, workoutName: "Lower Body Strength")
+        ]
+
+        let olderLogs = templates.enumerated().map { index, template in
+            historyLog(
+                offset: -(index + 2),
+                title: template.title,
+                calories: template.calories,
+                protein: template.protein,
+                carbs: template.carbs,
+                fats: template.fats,
+                fiber: template.fiber,
+                workoutName: template.workoutName
+            )
+        }
+        return [todayLog, yesterdayLog] + olderLogs
+    }
+
+    private static func historyLog(
+        offset: Int,
+        title: String,
+        calories: Double,
+        protein: Double,
+        carbs: Double,
+        fats: Double,
+        fiber: Double,
+        workoutName: String?
+    ) -> DailyLog {
+        let date = day(offset: offset)
+        let calorieShares = [0.28, 0.34, 0.38]
+        let names = ["\(title) Breakfast", "\(title) Lunch", "\(title) Dinner"]
+        let mealNames = ["Breakfast", "Lunch", "Dinner"]
+        let foods = calorieShares.enumerated().map { index, share in
+            trustedFood(
+                id: "demo-\(-offset)-\(index)",
+                name: names[index],
+                calories: calories * share,
+                protein: protein * share,
+                carbs: carbs * share,
+                fats: fats * share,
+                fiber: fiber * share,
+                servingSize: "1 serving"
+            )
+        }
+        let exercise = workoutName.map {
+            [LoggedExercise(name: $0, durationMinutes: 45, caloriesBurned: 290, date: date.addingTimeInterval(18 * 60 * 60), source: $0.contains("Run") ? "HealthKit" : "routine")]
+        }
+        return DailyLog(
+            id: "demo-log-\(-offset)",
+            date: date,
+            meals: zip(mealNames, foods).map { Meal(name: $0.0, foodItems: [$0.1]) },
+            waterTracker: WaterTracker(totalOunces: 80 + Double((-offset * 3) % 16), goalOunces: 96, date: date),
+            exercises: exercise
+        )
+    }
+
+    private static func discoveryFoods() -> [FoodItem] {
+        [
+            trustedFood(id: "search-chicken", name: "Chicken Breast, Grilled", calories: 187, protein: 35, carbs: 0, fats: 4, fiber: 0, servingSize: "4 oz", servingWeight: 113, sourceType: .usda, sourceName: "USDA FoodData Central"),
+            trustedFood(id: "search-yogurt", name: "Greek Yogurt, Nonfat", calories: 130, protein: 23, carbs: 9, fats: 0, fiber: 0, servingSize: "1 cup", sourceType: .usda, sourceName: "USDA FoodData Central"),
+            trustedFood(id: "search-rice", name: "Jasmine Rice, Cooked", calories: 205, protein: 4, carbs: 45, fats: 0.4, fiber: 1, servingSize: "1 cup", sourceType: .fatSecret, sourceName: "FatSecret"),
+            trustedFood(id: "search-salmon", name: "Atlantic Salmon, Baked", calories: 233, protein: 25, carbs: 0, fats: 14, fiber: 0, servingSize: "4 oz", sourceType: .usda, sourceName: "USDA FoodData Central"),
+            trustedFood(id: "search-banana", name: "Banana", calories: 105, protein: 1.3, carbs: 27, fats: 0.4, fiber: 3.1, servingSize: "1 medium", sourceType: .usda, sourceName: "USDA FoodData Central"),
+            trustedFood(id: "search-tortilla", name: "Whole Wheat Tortilla", calories: 130, protein: 4, carbs: 22, fats: 3.5, fiber: 4, servingSize: "1 tortilla", sourceType: .openFoodFacts, sourceName: "Open Food Facts")
+        ]
+    }
+
+    private static func trustedFood(
+        id: String,
+        name: String,
+        calories: Double,
+        protein: Double,
+        carbs: Double,
+        fats: Double,
+        fiber: Double,
+        servingSize: String,
+        servingWeight: Double = 250,
+        sourceType: FoodSourceType = .usda,
+        sourceName: String = "USDA FoodData Central"
+    ) -> FoodItem {
+        FoodItem(
+            id: id,
+            name: name,
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fats: fats,
+            saturatedFat: fats * 0.28,
+            polyunsaturatedFat: fats * 0.20,
+            monounsaturatedFat: fats * 0.42,
+            fiber: fiber,
+            servingSize: servingSize,
+            servingWeight: servingWeight,
+            calcium: calories * 0.32,
+            iron: calories * 0.006,
+            potassium: calories * 1.8,
+            sodium: calories * 0.72,
+            vitaminA: calories * 0.5,
+            vitaminC: calories * 0.04,
+            magnesium: calories * 0.18
+        )
+        .withDatabaseSource(sourceType, sourceName: sourceName, sourceID: id)
+        .withCrossVerification(sourceType == .usda ? ["FatSecret"] : ["USDA FoodData Central"])
+    }
+
+    private static func mealPlans() -> [MealPlanDay] {
+        let mealNames: [[String]] = [
+            ["Berry Protein Oats", "Chicken Pesto Grain Bowl", "Miso Salmon with Rice"],
+            ["Veggie Egg Scramble", "Turkey Avocado Wrap", "Beef & Broccoli Stir-Fry"],
+            ["Greek Yogurt Crunch Bowl", "Mediterranean Chicken Pita", "Shrimp Taco Bowl"],
+            ["Banana Protein Pancakes", "Sesame Tuna Rice Bowl", "Herb Chicken & Potatoes"],
+            ["Overnight Oats", "Salmon Harvest Salad", "Turkey Meatballs & Pasta"],
+            ["Breakfast Burrito Bowl", "Chicken Caesar Wrap", "Teriyaki Beef Bowl"],
+            ["Cottage Cheese Toast", "Greek Chicken Bowl", "Lemon Garlic Salmon"]
+        ]
+
+        return mealNames.enumerated().map { dayIndex, names in
+            let date = day(offset: dayIndex)
+            let calories = [475.0, 610.0, 720.0]
+            let protein = [35.0, 48.0, 52.0]
+            return MealPlanDay(
+                id: dateString(date),
+                date: date,
+                meals: names.enumerated().map { mealIndex, name in
+                    let item = trustedFood(
+                        id: "plan-\(dayIndex)-\(mealIndex)",
+                        name: name,
+                        calories: calories[mealIndex],
+                        protein: protein[mealIndex],
+                        carbs: [55, 68, 76][mealIndex],
+                        fats: [14, 19, 25][mealIndex],
+                        fiber: [8, 10, 9][mealIndex],
+                        servingSize: "1 serving",
+                        sourceType: .mealPlan,
+                        sourceName: "MyFitPlate Meal Plan"
+                    )
+                    return PlannedMeal(
+                        id: "planned-\(dayIndex)-\(mealIndex)",
+                        mealType: ["Breakfast", "Lunch", "Dinner"][mealIndex],
+                        foodItem: item,
+                        ingredients: ["Lean protein", "Whole grain", "Seasonal produce"],
+                        instructions: "Prepare, season to taste, and serve warm."
+                    )
+                }
+            )
+        }
+    }
+
+    private static func strengthProgram() -> WorkoutProgram {
+        var program = WorkoutRules.generatePreBuiltPrograms().first {
+            $0.id == "prebuilt_dumbbell_hypertrophy_4_day"
+        } ?? WorkoutProgram(userID: userID, name: "Dumbbell Strength & Hypertrophy")
+        program.id = programID
+        program.userID = userID
+        program.name = "Dumbbell Strength & Hypertrophy"
+        program.dateCreated = day(offset: -21)
+        program.startDate = day(offset: -14)
+        program.currentProgressIndex = 5
+        program.routines.forEach { $0.userID = userID }
+        return program
+    }
+
+    private static func workoutLogs(for program: WorkoutProgram) -> [WorkoutSessionLog] {
+        guard !program.routines.isEmpty else { return [] }
+        return (0..<5).map { index in
+            let routine = program.routines[index % program.routines.count]
+            let date = day(offset: -12 + index * 2).addingTimeInterval(18 * 60 * 60)
+            let completed = routine.exercises.map { exercise in
+                CompletedExercise(
+                    exerciseName: exercise.name,
+                    exercise: exercise,
+                    sets: (0..<max(3, exercise.targetSets)).map { setIndex in
+                        CompletedSet(
+                            reps: max(6, 12 - setIndex),
+                            weight: 30 + Double(index * 2 + setIndex * 5),
+                            setType: .normal,
+                            effort: SetEffort(scale: .rpe, value: 7.5 + Double(setIndex) * 0.5)
+                        )
+                    }
+                )
+            }
+            return WorkoutSessionLog(
+                id: "demo-session-\(index)",
+                date: date,
+                routineID: routine.id,
+                completedExercises: completed
+            )
+        }
+    }
+
+    private static func weightHistory() -> [(id: String, date: Date, weight: Double)] {
+        (0..<30).map { index in
+            let progress = Double(index) / 29
+            let oscillation = sin(Double(index) * 0.85) * 0.22
+            return (
+                id: "demo-weight-\(index)",
+                date: day(offset: index - 29),
+                weight: 184.2 - 3.0 * progress + oscillation
+            )
+        }
+    }
+
+    private static func day(offset: Int) -> Date {
+        calendar.date(byAdding: .day, value: offset, to: today) ?? today
+    }
+
+    private static func dateString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+}
+#endif

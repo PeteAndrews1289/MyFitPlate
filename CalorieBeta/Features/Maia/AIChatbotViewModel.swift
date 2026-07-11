@@ -24,16 +24,14 @@ class AIChatbotViewModel: ObservableObject {
             dailyLogService?.fetchLog(for: userID, date: dailyLogService?.activelyViewedDate ?? Date()) { _ in }
         }
         if chatMessages.isEmpty {
-            let welcomeMessage = "Hello! I’m Maia, your personal nutrition assistant. How can I assist you right now?"
-            let initialMessage = ChatMessage(id: UUID(), text: welcomeMessage, isUser: false)
+            let initialMessage = ChatMessage(id: UUID(), text: welcomeMessage(), isUser: false)
             chatMessages.append(initialMessage)
         }
     }
     
     func clearChat() {
         chatMessages.removeAll()
-        let welcomeMessage = "Fresh chat ready. What would you like help with?"
-        chatMessages.append(ChatMessage(id: UUID(), text: welcomeMessage, isUser: false))
+        chatMessages.append(ChatMessage(id: UUID(), text: welcomeMessage(), isUser: false))
         saveMessages()
     }
     
@@ -82,6 +80,27 @@ class AIChatbotViewModel: ObservableObject {
 
     var waterGoal: Double {
         relevantDailyLog?.waterTracker?.goalOunces ?? goalSettings?.waterGoal ?? 100
+    }
+
+    private var canShareHealthDataWithAI: Bool {
+        guard let userID = DIContainer.shared.authService.currentUserID,
+              healthKitViewModel?.hasSyncedHealthData == true else { return false }
+        return AIDataConsentStore.shared.allowsHealthData(for: userID)
+    }
+
+    private func welcomeMessage() -> String {
+        guard relevantDailyLog != nil else {
+            return "I can turn your remaining nutrition and training into a practical next step. What would help most today?"
+        }
+
+        let calories = Int(remainingCalories.rounded()).formatted()
+        let protein = Int(remainingProtein.rounded()).formatted()
+
+        if remainingProtein >= 10 {
+            return "You have \(calories) calories and \(protein)g protein left today. Want me to turn that into a practical meal?"
+        }
+
+        return "You have \(calories) calories left today. Ask me for a meal idea or a quick read on what you've logged."
     }
 
     private var todayFoodItems: [FoodItem] {
@@ -172,7 +191,7 @@ class AIChatbotViewModel: ObservableObject {
             """)
         }
 
-        if contract.allows(.healthKit), healthKitViewModel?.isAuthorized == true {
+        if contract.allows(.healthKit), canShareHealthDataWithAI {
             sections.append("""
             Passive Health Data (For Coaching Context Only):
             - Steps Today: \(Int(hkSteps))
@@ -198,9 +217,7 @@ class AIChatbotViewModel: ObservableObject {
     func sendMessage(contextContract: MaiaContextContract? = nil) {
         let trimmedMessage = userMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedMessage.isEmpty else { return }
-        let userID = DIContainer.shared.authService.currentUserID ?? ""
-        let mayShareHealthData = healthKitViewModel?.isAuthorized == true
-            && AIDataConsentStore.shared.allowsHealthData(for: userID)
+        let mayShareHealthData = canShareHealthDataWithAI
         let effectiveContract = (contextContract ?? .generalChat(includeHealthKit: mayShareHealthData))
             .respectingHealthDataConsent(mayShareHealthData)
 
@@ -323,7 +340,7 @@ class AIChatbotViewModel: ObservableObject {
         messagesForAPI.append(["role": "user", "content": message])
 
         Task { @MainActor in
-            let result = await AIService.shared.performRequest(
+            let result = await DIContainer.shared.aiService.performRequest(
                 messages: messagesForAPI,
                 model: "gpt-4o-mini",
                 maxTokens: 1000,

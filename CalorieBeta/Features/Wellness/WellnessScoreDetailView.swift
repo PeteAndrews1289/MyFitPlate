@@ -104,7 +104,7 @@ struct WellnessScoreDetailView: View {
                                 detailRow(
                                     title: "Recovery Score",
                                     score: wellnessScore.recoveryScore,
-                                    description: "Reflects your body's readiness based on Resting Heart Rate and HRV.",
+                                    description: wellnessScore.recoveryScore == nil ? "Recovery data is not available yet. Review Apple Health access." : "Reflects your body's readiness based on available Resting Heart Rate and HRV data.",
                                     color: .purple,
                                     icon: "heart.fill"
                                 )
@@ -191,7 +191,7 @@ struct WellnessScoreDetailView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(color.opacity(0.14))
                     Capsule().fill(color)
-                        .frame(width: max(9, geo.size.width * CGFloat(min(Double(score ?? 0) / 100.0, 1.0))))
+                        .frame(width: score == nil ? 0 : max(9, geo.size.width * CGFloat(min(Double(score ?? 0) / 100.0, 1.0))))
                 }
             }
             .frame(height: 9)

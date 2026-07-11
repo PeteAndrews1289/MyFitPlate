@@ -81,7 +81,7 @@ struct CoachingDashboardView: View {
                             "adaptive_coach_refresh_tapped",
                             parameters: nil
                         )
-                        insightsService.generateAndFetchInsights()
+                        insightsService.generateAndFetchInsights(requestConsentIfNeeded: true)
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }

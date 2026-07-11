@@ -42,6 +42,26 @@ struct FoodSearchView: View {
     private let barcodeLookupService = BarcodeFoodLookupService()
     private let imageModel = MLImageModel()
 
+    init(
+        dailyLog: Binding<DailyLog?>,
+        onFoodItemLogged: (() -> Void)? = nil,
+        onFoodItemSelected: ((FoodItem) -> Void)? = nil,
+        searchContext: String
+    ) {
+        _dailyLog = dailyLog
+        self.onFoodItemLogged = onFoodItemLogged
+        self.onFoodItemSelected = onFoodItemSelected
+        self.searchContext = searchContext
+
+        #if DEBUG
+        let screenshotScreen = ScreenshotDemoData.requestedScreen
+        _showingChainBuilder = State(initialValue: screenshotScreen == "builder")
+        _selectedFoodItem = State(
+            initialValue: screenshotScreen == "trust" ? ScreenshotDemoData.trustDemoFood : nil
+        )
+        #endif
+    }
+
     var body: some View {
         NavigationView {
             ZStack {

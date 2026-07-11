@@ -34,6 +34,12 @@ struct AIChatbotView: View {
         dailyLogService.currentDailyLog?.calorieConsistencyStatus().hasMeaningfulMismatch == true
     }
 
+    private var canIncludeHealthContext: Bool {
+        guard let userID = DIContainer.shared.authService.currentUserID,
+              healthKitViewModel.hasSyncedHealthData else { return false }
+        return AIDataConsentStore.shared.allowsHealthData(for: userID)
+    }
+
     private var proteinOrRecoveryPrompt: String {
         if viewModel.workoutCount > 0 {
             return "Build a post-workout meal for today. Keep it close to my remaining calories and protein, explain the macro target, and return a loggable meal card if you suggest one."
@@ -75,7 +81,7 @@ struct AIChatbotView: View {
                 .padding(.horizontal)
                 .padding(.top, 10)
 
-                if healthKitViewModel.isAuthorized {
+                if canIncludeHealthContext {
                     MaiaHealthKitContextIndicator(
                         steps: healthKitViewModel.todaySteps,
                         activeEnergy: healthKitViewModel.todayActiveEnergy,
@@ -108,7 +114,7 @@ struct AIChatbotView: View {
                         waterRemaining: max(0, viewModel.waterGoal - viewModel.waterOunces),
                         hasWorkoutToday: viewModel.workoutCount > 0,
                         hasNutritionMismatch: hasNutritionMismatch,
-                        healthKitEnabled: healthKitViewModel.isAuthorized,
+                        healthKitEnabled: canIncludeHealthContext,
                         pantryCount: pantryService.pantryItems.count,
                         isGeneratingMeal: insightsService.isGeneratingSuggestion,
                         onFillMacros: generateMealSuggestionFromActionBoard,
@@ -121,7 +127,7 @@ struct AIChatbotView: View {
                         onTrustOrToday: {
                             let contract = hasNutritionMismatch
                                 ? MaiaContextContract.trustAudit
-                                : MaiaContextContract.dailyRead(includeHealthKit: healthKitViewModel.isAuthorized)
+                                : MaiaContextContract.dailyRead(includeHealthKit: canIncludeHealthContext)
                             sendActionPrompt(trustOrTodayPrompt, contract: contract)
                         },
                         onHydrate: {
@@ -194,13 +200,15 @@ struct AIChatbotView: View {
         .navigationTitle("Maia")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    viewModel.showingClearChatConfirmation = true
-                } label: {
-                    Image(systemName: "trash")
+            if viewModel.chatMessages.count > 1 {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        viewModel.showingClearChatConfirmation = true
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .accessibilityLabel("Clear Maia chat")
                 }
-                .disabled(viewModel.chatMessages.count <= 1)
             }
 
             ToolbarItemGroup(placement: .keyboard) {

@@ -30,6 +30,24 @@ RAW = HERE / "raw"
 OUTPUT = HERE / "output"
 
 
+def sf_rounded(size: int, weight: str) -> ImageFont.FreeTypeFont:
+    """Load the requested SF Rounded variable-font weight."""
+    font = ImageFont.truetype(FONT_PATH, size)
+    try:
+        font.set_variation_by_name(weight)
+    except OSError:
+        pass
+    return font
+
+
+def flattened_capture(source: Path) -> Image.Image:
+    """Composite simulator alpha against the app's light background."""
+    capture = Image.open(source).convert("RGBA")
+    opaque = Image.new("RGBA", capture.size, (255, 255, 255, 255))
+    opaque.alpha_composite(capture)
+    return opaque
+
+
 def rounded_screenshot(capture: Image.Image, width: int, radius: int) -> Image.Image:
     """Scale a capture to `width`, round its corners, add a hairline border."""
     ratio = width / capture.width
@@ -57,8 +75,8 @@ def compose(shot: dict, size: tuple[int, int]) -> Image.Image | None:
     canvas = Image.new("RGBA", size, BRAND_BG + (255,))
     draw = ImageDraw.Draw(canvas)
 
-    headline_font = ImageFont.truetype(FONT_PATH, int(width * 0.062))
-    subline_font = ImageFont.truetype(FONT_PATH, int(width * 0.030))
+    headline_font = sf_rounded(int(width * 0.062), "Bold")
+    subline_font = sf_rounded(int(width * 0.030), "Medium")
 
     margin = int(width * 0.075)
     y = int(height * 0.045)
@@ -71,7 +89,7 @@ def compose(shot: dict, size: tuple[int, int]) -> Image.Image | None:
     draw.text((margin, y), shot["subline"], font=subline_font, fill=SUBLINE_COLOR)
     y += int(subline_font.size * 1.5) + int(height * 0.028)
 
-    capture = Image.open(source).convert("RGBA")
+    capture = flattened_capture(source)
     shot_width = int(width * 0.80)
     framed = rounded_screenshot(capture, shot_width, radius=int(width * 0.055))
     canvas.paste(framed, ((width - shot_width) // 2, y), framed)

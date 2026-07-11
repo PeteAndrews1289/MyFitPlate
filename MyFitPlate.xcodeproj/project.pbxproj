@@ -80,6 +80,7 @@
 		4E046507FB9FE22F9234F8D2 /* AIWorkoutGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E6023B20616D001326784A2 /* AIWorkoutGeneratorView.swift */; };
 		4E5AB455A0A4DCC9CC0DC62B /* MetabolismDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B343B954FFB3AD1F5B228096 /* MetabolismDashboardView.swift */; };
 		4EA60D07AB960E2C9D514CC3 /* AYCESessionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78FD5BE2828BB51ADA9159E /* AYCESessionViews.swift */; };
+		5091BDF1CEC212FDE51031B7 /* SpotlightTourScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF3A6CA74E6FFA34BDA1F2CB /* SpotlightTourScaffold.swift */; };
 		51760A8BEF53C9B7B3A405BD /* CaloricCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D4A8B19674D4F6C103913C /* CaloricCalculatorView.swift */; };
 		544269FEB74BBB6C47F7497D /* FoodSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA5B2E12B72BCB3BC0388DE5 /* FoodSearchViewModel.swift */; };
 		54A0EB2DFBEE5393B10D675D /* GlobalImports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54E45C44C964310D562B526C /* GlobalImports.swift */; };
@@ -93,7 +94,6 @@
 		5B1F531DDD59042C77847EA3 /* WeeklyCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82BA675162481E5C7BBA4B97 /* WeeklyCheckInView.swift */; };
 		5B2D7B5BF4012BFBE6047915 /* CircularWeightDisplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EC4E441627CF64C71DEE10 /* CircularWeightDisplayView.swift */; };
 		5D2A65DB394C14A2479A6492 /* FoodSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BCA06C54344DFE69715093 /* FoodSearchView.swift */; };
-		8B1C2D3E4F5A6B7C8D9E0A13 /* ChainMealBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B1C2D3E4F5A6B7C8D9E0A14 /* ChainMealBuilderView.swift */; };
 		5D83A18AB5012EBC7FABE6B7 /* ProgramListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 058FC8B017AE7CF8B2AF44E2 /* ProgramListView.swift */; };
 		5DB7BE161EF64ED7FD208198 /* FirebaseRemoteConfig in Frameworks */ = {isa = PBXBuildFile; productRef = 9688BC4017F8B2E029447BD9 /* FirebaseRemoteConfig */; };
 		5F62A22E5FCB90E1071A803B /* FastingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07D05B9D4E2F4BED3CB41B21 /* FastingManager.swift */; };
@@ -115,13 +115,12 @@
 		7AA3D63CE091661BF52E3EFA /* MealPrepCookingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C770EE86E1078A94B97C0CFD /* MealPrepCookingView.swift */; };
 		7DEC34867501020E43F69E42 /* MyFitPlateCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC927C22FF199C400C46AA9 /* MyFitPlateCore */; };
 		80DA09F113E6A36D392A8CDB /* FastingActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE041AFEC985C10C2CF5FC0 /* FastingActivityAttributes.swift */; };
-		C1E1EB1A2828BB51ADA9159E /* AYCEActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E1EB2A2828BB51ADA9159E /* AYCEActivityAttributes.swift */; };
 		84940528533254B02ECEFE50 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F95DB8CA120BD855D269D6AE /* HomeView.swift */; };
 		86F0657DA978258A501E0A40 /* TodaysNextStepSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD119618968F9048E17B17C7 /* TodaysNextStepSlider.swift */; };
 		8720F9E3E64CC49887058432 /* CalorieLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77286C447570F82A8CE062EB /* CalorieLogView.swift */; };
 		8979696A6E9EA1AD8BF54366 /* CustomTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4455D80012C3486B38C2DD /* CustomTabBar.swift */; };
 		8A3179F255C6DBD8EC0F894C /* FastingActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE041AFEC985C10C2CF5FC0 /* FastingActivityAttributes.swift */; };
-		C1E1EB3A2828BB51ADA9159E /* AYCEActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E1EB2A2828BB51ADA9159E /* AYCEActivityAttributes.swift */; };
+		8B1C2D3E4F5A6B7C8D9E0A13 /* ChainMealBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B1C2D3E4F5A6B7C8D9E0A14 /* ChainMealBuilderView.swift */; };
 		8B2834452AB723BE4F45DA8F /* FeatureTourView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716F97A803CF1639AA991FE9 /* FeatureTourView.swift */; };
 		8BA755148CFCD9D4E9E6B4B6 /* SetHeightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F5898E5EF5725E4313005C /* SetHeightView.swift */; };
 		8BE72AE7F708AD258D59E107 /* NutritionProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE351D14298ADBED2FB4DF2 /* NutritionProgressView.swift */; };
@@ -169,14 +168,15 @@
 		B7440DCDCAC34F97E2C2DD00 /* CommentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66E89359E923BDBAC9113E24 /* CommentsView.swift */; };
 		B7D5A10E3187705A56E86F33 /* RunActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E177692C65003E9F6183CFE9 /* RunActivityAttributes.swift */; };
 		B7EDC9C78C346CE20CF160D9 /* SpotlightTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D91CB07B29AF48775EC6D44 /* SpotlightTextView.swift */; };
-		BB55EE146BB637F3EC1B2CEF /* SpotlightTourOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1F5B229026F1A5C431DEB6 /* SpotlightTourOverlay.swift */; };
-		5091BDF1CEC212FDE51031B7 /* SpotlightTourScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF3A6CA74E6FFA34BDA1F2CB /* SpotlightTourScaffold.swift */; };
 		B9A82E1779C8E04297FE1E8F /* ChallengesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19668B4582E36E32D2E8F45 /* ChallengesView.swift */; };
 		BA444BB02E987A88DE390A92 /* ExerciseHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E4CCCD18AD29D24D2D3212E /* ExerciseHistoryView.swift */; };
 		BA72D2F1F142AE54DA0ADE38 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 40A958A848E62C2C71292CA8 /* Localizable.xcstrings */; };
 		BB353BD4E6A7CFDC34095208 /* SettingsPreferencesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B066B44563BD41796195AA9 /* SettingsPreferencesSection.swift */; };
+		BB55EE146BB637F3EC1B2CEF /* SpotlightTourOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1F5B229026F1A5C431DEB6 /* SpotlightTourOverlay.swift */; };
 		BF285DAE3EB6B114ACF5A38C /* AIJournalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDC55C94648C85CB5676711E /* AIJournalSheet.swift */; };
 		BFD25BC2A13355FD5902AD3D /* RunRecorderViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68B692A056390AEEEA41E13C /* RunRecorderViews.swift */; };
+		C1E1EB1A2828BB51ADA9159E /* AYCEActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E1EB2A2828BB51ADA9159E /* AYCEActivityAttributes.swift */; };
+		C1E1EB3A2828BB51ADA9159E /* AYCEActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E1EB2A2828BB51ADA9159E /* AYCEActivityAttributes.swift */; };
 		C1E1EBF12828BB51ADA9159E /* RestaurantValueRadarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E1EB112828BB51ADA9159E /* RestaurantValueRadarView.swift */; };
 		C1E1EBFA2828BB51ADA9159E /* CelebrationOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E1EB142828BB51ADA9159E /* CelebrationOverlayView.swift */; };
 		C1E1EBFB2828BB51ADA9159E /* RunStoryPosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E1EB152828BB51ADA9159E /* RunStoryPosterView.swift */; };
@@ -193,6 +193,7 @@
 		D71D6F7AEBFEBF07A3FEA822 /* WorkoutInsightListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51BAE1366F527542235F3820 /* WorkoutInsightListView.swift */; };
 		D8A32FF8776CE795E1F51912 /* HealthTrackingCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AC170DB70E226978987A0E6 /* HealthTrackingCards.swift */; };
 		D9576C06B0AC007F1276EC05 /* RecipeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADEE61D45127905D95702FA5 /* RecipeDetailView.swift */; };
+		D9E8F7A6B5C4031223344556 /* ScreenshotDemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F8A7B6C5D4031223344556 /* ScreenshotDemoData.swift */; };
 		DC82EF8ED3498946C8A3B936 /* AddExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1258275B90A9A5D1C9D31FF8 /* AddExerciseView.swift */; };
 		DE2AD91146AB04CA9EE80377 /* MainAppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A411836458D36A8BCD415382 /* MainAppView.swift */; };
 		DE8E3341500B3DEAF77D60D5 /* FirestoreWorkoutRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF398EB57BC77214BB39E4D /* FirestoreWorkoutRepository.swift */; };
@@ -395,14 +396,13 @@
 		7CBFBC5442DFB2BEB233AE2D /* CycleTrackingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CycleTrackingView.swift; sourceTree = "<group>"; };
 		7CC190EEE53A5F355CAED792 /* PostRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PostRowView.swift; sourceTree = "<group>"; };
 		7D91CB07B29AF48775EC6D44 /* SpotlightTextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotlightTextView.swift; sourceTree = "<group>"; };
-		DC1F5B229026F1A5C431DEB6 /* SpotlightTourOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotlightTourOverlay.swift; sourceTree = "<group>"; };
-		CF3A6CA74E6FFA34BDA1F2CB /* SpotlightTourScaffold.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotlightTourScaffold.swift; sourceTree = "<group>"; };
 		7E1848CAF90E79615BE2E987 /* ImageProcessingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageProcessingView.swift; sourceTree = "<group>"; };
 		7F1A21D7F1890DA3618B9092 /* AIChatbotView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIChatbotView.swift; sourceTree = "<group>"; };
 		82BA675162481E5C7BBA4B97 /* WeeklyCheckInView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyCheckInView.swift; sourceTree = "<group>"; };
 		87986B23D4D38936461F52E9 /* AIChatbotViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIChatbotViewModel.swift; sourceTree = "<group>"; };
 		8AC170DB70E226978987A0E6 /* HealthTrackingCards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthTrackingCards.swift; sourceTree = "<group>"; };
 		8AFFFDC419292213E5D03F64 /* SuggestionPreferencesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionPreferencesView.swift; sourceTree = "<group>"; };
+		8B1C2D3E4F5A6B7C8D9E0A14 /* ChainMealBuilderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChainMealBuilderView.swift; sourceTree = "<group>"; };
 		8BCBCE38CABDFEBB2CA35817 /* WellnessScoreDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WellnessScoreDetailView.swift; sourceTree = "<group>"; };
 		8C3D6FE2DB2CDBBE8C570100 /* FastingTrackerCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FastingTrackerCard.swift; sourceTree = "<group>"; };
 		8EDEA95DE328C2B0E10148F3 /* NotificationBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationBanner.swift; sourceTree = "<group>"; };
@@ -413,7 +413,6 @@
 		938C64A067981FDB86164AF5 /* LiveActivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiveActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		994ACE6FC910CC9668464A21 /* AITextLogView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AITextLogView.swift; sourceTree = "<group>"; };
 		99BCA06C54344DFE69715093 /* FoodSearchView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FoodSearchView.swift; sourceTree = "<group>"; };
-		8B1C2D3E4F5A6B7C8D9E0A14 /* ChainMealBuilderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChainMealBuilderView.swift; sourceTree = "<group>"; };
 		9A0D3096513C51AD152B50BA /* WorkoutReport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutReport.swift; sourceTree = "<group>"; };
 		9A85896DAB83742D73007634 /* PDFShareView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFShareView.swift; sourceTree = "<group>"; };
 		9AF2591EF97FD3B4F9DFFB2B /* AnalyticsManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnalyticsManager.swift; sourceTree = "<group>"; };
@@ -439,7 +438,6 @@
 		B81FFF8BA78071452D26AF37 /* CalorieTrackingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalorieTrackingView.swift; sourceTree = "<group>"; };
 		B88F215D87080B3E4B3C2510 /* AddFoodView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddFoodView.swift; sourceTree = "<group>"; };
 		BAE041AFEC985C10C2CF5FC0 /* FastingActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FastingActivityAttributes.swift; sourceTree = "<group>"; };
-		C1E1EB2A2828BB51ADA9159E /* AYCEActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AYCEActivityAttributes.swift; sourceTree = "<group>"; };
 		BBC931BD6D999867A76E46B9 /* ExerciseCardViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExerciseCardViews.swift; sourceTree = "<group>"; };
 		BD119618968F9048E17B17C7 /* TodaysNextStepSlider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TodaysNextStepSlider.swift; sourceTree = "<group>"; };
 		BD20FDE6271D839339976660 /* FoodLogView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FoodLogView.swift; sourceTree = "<group>"; };
@@ -449,6 +447,7 @@
 		C1E1EB112828BB51ADA9159E /* RestaurantValueRadarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RestaurantValueRadarView.swift; sourceTree = "<group>"; };
 		C1E1EB142828BB51ADA9159E /* CelebrationOverlayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CelebrationOverlayView.swift; sourceTree = "<group>"; };
 		C1E1EB152828BB51ADA9159E /* RunStoryPosterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RunStoryPosterView.swift; sourceTree = "<group>"; };
+		C1E1EB2A2828BB51ADA9159E /* AYCEActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AYCEActivityAttributes.swift; sourceTree = "<group>"; };
 		C3B9DE39C974D30FB610AFA1 /* AITextResultsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AITextResultsView.swift; sourceTree = "<group>"; };
 		C3C494D5D934AACED9EB49D4 /* FoodDetailComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FoodDetailComponents.swift; sourceTree = "<group>"; };
 		C3FE48CE509F662265955223 /* ManualGroceryItemSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ManualGroceryItemSheet.swift; sourceTree = "<group>"; };
@@ -462,12 +461,14 @@
 		CDA457C550D63DB3676291C3 /* AIMenuSelectionView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIMenuSelectionView.swift; sourceTree = "<group>"; };
 		CEB2249C4E46F695E632A88F /* MFPImportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MFPImportView.swift; sourceTree = "<group>"; };
 		CEC2D8304CEC81747A4503D5 /* WaterTrackingCardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WaterTrackingCardView.swift; sourceTree = "<group>"; };
+		CF3A6CA74E6FFA34BDA1F2CB /* SpotlightTourScaffold.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotlightTourScaffold.swift; sourceTree = "<group>"; };
 		D39AF289495C94FBEAFC0B83 /* MuscleRecoveryMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MuscleRecoveryMapView.swift; sourceTree = "<group>"; };
 		D3D4A8B19674D4F6C103913C /* CaloricCalculatorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CaloricCalculatorView.swift; sourceTree = "<group>"; };
 		D6EE6ABC3516827EE9310BDA /* WorkoutAnalyticsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutAnalyticsView.swift; sourceTree = "<group>"; };
 		D6F5898E5EF5725E4313005C /* SetHeightView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SetHeightView.swift; sourceTree = "<group>"; };
 		D78FD5BE2828BB51ADA9159E /* AYCESessionViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AYCESessionViews.swift; sourceTree = "<group>"; };
 		DB5FB8BB155CAF0221A81004 /* Spotlight.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Spotlight.swift; sourceTree = "<group>"; };
+		DC1F5B229026F1A5C431DEB6 /* SpotlightTourOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotlightTourOverlay.swift; sourceTree = "<group>"; };
 		DDBF64359556D6DA0B848C78 /* GroceryListRows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GroceryListRows.swift; sourceTree = "<group>"; };
 		DDC55C94648C85CB5676711E /* AIJournalSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIJournalSheet.swift; sourceTree = "<group>"; };
 		E0AC00A5C0C81C9E0D5DCD43 /* RoutineEditorComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RoutineEditorComponents.swift; sourceTree = "<group>"; };
@@ -477,6 +478,7 @@
 		E512584F4E59DF851A405406 /* ChatBoxShape.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatBoxShape.swift; sourceTree = "<group>"; };
 		E7659EAD2E7A263BBC681565 /* MyFitPlateWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MyFitPlateWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E821ADF0C6D2385596276242 /* GrocerySummaryCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GrocerySummaryCard.swift; sourceTree = "<group>"; };
+		E9F8A7B6C5D4031223344556 /* ScreenshotDemoData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScreenshotDemoData.swift; sourceTree = "<group>"; };
 		EE8F70EFA7CD53F3CA61B33C /* WorkoutSessionHeaders.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutSessionHeaders.swift; sourceTree = "<group>"; };
 		F10000000000000000000001 /* HomeQuickActionsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeQuickActionsView.swift; sourceTree = "<group>"; };
 		F10000000000000000000002 /* HomeWeightTrackingCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeWeightTrackingCard.swift; sourceTree = "<group>"; };
@@ -594,6 +596,7 @@
 		1538F0B2B872E7484E43A0BE /* Infrastructure */ = {
 			isa = PBXGroup;
 			children = (
+				E9F8A7B6C5D4031223344556 /* ScreenshotDemoData.swift */,
 				AB89032256F069A8F985E3E1 /* Firebase */,
 			);
 			path = Infrastructure;
@@ -1411,6 +1414,7 @@
 				3845E1D7B22D49226780B6E4 /* PDFShareView.swift in Sources */,
 				9E72528672FD4636311C2A65 /* DetailedInsightsView.swift in Sources */,
 				55D2C254D70122DE0ECAC156 /* SuggestionPreferencesView.swift in Sources */,
+				D9E8F7A6B5C4031223344556 /* ScreenshotDemoData.swift in Sources */,
 				DE2AD91146AB04CA9EE80377 /* MainAppView.swift in Sources */,
 				9B789140A83C3CFC871CD982 /* MainTabView.swift in Sources */,
 				84940528533254B02ECEFE50 /* HomeView.swift in Sources */,
@@ -1707,7 +1711,6 @@
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "MyFitPlate reads workouts, activity, sleep, heart rate, and body measurements from Apple Health to build fitness, recovery, and wellness insights.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "MyFitPlate saves nutrition, hydration, workouts, and body measurements to Apple Health when you enable those features.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "To allow you to select images of food for recognition, MyFitPlate needs access to your photo library.";
-				INFOPLIST_KEY_USDA_API_KEY = "$(USDA_API_KEY)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -1723,6 +1726,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_USDA_API_KEY = "$(USDA_API_KEY)";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
@@ -1735,8 +1739,8 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "ENABLE_APP_CHECK $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -1760,7 +1764,6 @@
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "MyFitPlate reads workouts, activity, sleep, heart rate, and body measurements from Apple Health to build fitness, recovery, and wellness insights.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "MyFitPlate saves nutrition, hydration, workouts, and body measurements to Apple Health when you enable those features.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "To allow you to select images of food for recognition, MyFitPlate needs access to your photo library.";
-				INFOPLIST_KEY_USDA_API_KEY = "$(USDA_API_KEY)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -1776,6 +1779,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_USDA_API_KEY = "$(USDA_API_KEY)";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
@@ -1788,8 +1792,8 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "ENABLE_APP_CHECK $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};

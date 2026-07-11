@@ -35,7 +35,7 @@ struct ReportsOverviewCard: View {
 
     private var headline: (value: String, label: String, color: Color) {
         if let wellnessScore {
-            return ("\(wellnessScore.overallScore)", "wellness score", wellnessScore.color)
+            return ("\(wellnessScore.overallScore)", wellnessScore.displayMetricLabel, wellnessScore.color)
         }
 
         if let summary, summary.daysLogged > 0 {
@@ -124,9 +124,9 @@ struct ReportsOverviewCard: View {
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 ReportMetricTile(
-                    title: "Wellness",
+                    title: wellnessScore?.isNutritionOnly == true ? "Nutrition" : "Wellness",
                     value: wellnessScore.map { "\($0.overallScore)" } ?? "--",
-                    subtitle: "overall score",
+                    subtitle: wellnessScore?.isNutritionOnly == true ? "yesterday" : "overall score",
                     icon: "heart.fill",
                     color: wellnessScore?.color ?? Color(UIColor.secondaryLabel)
                 )

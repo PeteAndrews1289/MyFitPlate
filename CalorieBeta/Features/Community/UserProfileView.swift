@@ -334,7 +334,7 @@ struct AchievementCardView: View {
                      Spacer()
 
                      ShareLink(
-                        item: "I just unlocked the '\(definition.title)' achievement on MyFitPlate! 🏆",
+                        item: MyFitPlateLinks.appStoreURL,
                         subject: Text("Achievement Unlocked!"),
                         message: Text("I just unlocked the '\(definition.title)' achievement on MyFitPlate! 🏆")
                      ) {

@@ -129,8 +129,15 @@ public class InsightsService: ObservableObject {
         )
     }
 
-    public func generateAndFetchInsights(forLastDays days: Int = 7) {
+    public func generateAndFetchInsights(
+        forLastDays days: Int = 7,
+        requestConsentIfNeeded: Bool = false
+    ) {
         guard !isLoadingInsights else { return }
+
+        if requestConsentIfNeeded && !hasCurrentAIConsent {
+            NotificationCenter.default.post(name: .aiDataConsentRequired, object: nil)
+        }
 
         if let lastFetch = lastWeeklyInsightFetch, !currentInsights.isEmpty, Calendar.current.isDateInToday(lastFetch) {
             return
@@ -174,9 +181,23 @@ public class InsightsService: ObservableObject {
                     return
                 }
 
-                let aiInsights = await self.generateAIInsights(for: logs, sleepSamples: sleepData, goals: self.goalSettings, retryCount: 1)
+                let aiInsights: [UserInsight]
+                if self.hasCurrentAIConsent {
+                    aiInsights = await self.generateAIInsights(
+                        for: logs,
+                        sleepSamples: sleepData,
+                        goals: self.goalSettings,
+                        retryCount: 1
+                    )
+                } else {
+                    aiInsights = self.generateLocalInsights(
+                        from: logs,
+                        sleepSamples: sleepData,
+                        goals: self.goalSettings
+                    )
+                }
 
-                self.handleInsightsResult(insights: aiInsights, error: aiInsights.isEmpty ? "Could not generate AI insights at this time." : nil)
+                self.handleInsightsResult(insights: aiInsights, error: aiInsights.isEmpty ? "Could not generate insights at this time." : nil)
 
             case .failure(let error):
                 await self.handleInsightsError(message: "Could not analyze data: \(error.localizedDescription)")
@@ -186,6 +207,8 @@ public class InsightsService: ObservableObject {
 
     // MARK: - Smart Notification Logic (Fixed "700k Days" Bug)
     public func generateSmartNotification(context: NotificationContext) async -> (title: String, body: String)? {
+        guard hasCurrentAIConsent else { return nil }
+
         let hour = Calendar.current.component(.hour, from: Date())
         let mayShareHealthData = allowsHealthDataInAIRequests
         let plan = InsightsRules.notificationPlan(
@@ -311,6 +334,11 @@ public class InsightsService: ObservableObject {
     private var allowsHealthDataInAIRequests: Bool {
         guard let userID = DIContainer.shared.authService.currentUserID else { return false }
         return AIDataConsentStore.shared.allowsHealthData(for: userID)
+    }
+
+    private var hasCurrentAIConsent: Bool {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return false }
+        return AIDataConsentStore.shared.hasCurrentConsent(for: userID)
     }
 
     private func createAIPrompt(logs: [DailyLog], sleepSamples: [HKCategorySample], goals: GoalSettings) -> String {

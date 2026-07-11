@@ -53,13 +53,25 @@ public class HealthKitViewModel: ObservableObject {
     /// never be trusted on its own to mean "connected."
     @Published public var lastSyncedAt: Date?
 
+    /// Read authorization is intentionally opaque on iOS. A successful, non-empty read is the
+    /// only state the UI should describe as connected.
+    public var hasSyncedHealthData: Bool {
+        lastSyncedAt != nil
+    }
+
     private weak var dailyLogService: DailyLogService?
     public weak var goalSettings: GoalSettings?
 
-    public func setup(dailyLogService: DailyLogService, goalSettings: GoalSettings? = nil) {
+    public func setup(
+        dailyLogService: DailyLogService,
+        goalSettings: GoalSettings? = nil,
+        checkAuthorization: Bool = true
+    ) {
         self.dailyLogService = dailyLogService
         self.goalSettings = goalSettings
-        checkAuthorizationStatus()
+        if checkAuthorization {
+            checkAuthorizationStatus()
+        }
     }
 
     public func requestAuthorization() {
@@ -168,6 +180,7 @@ public class HealthKitViewModel: ObservableObject {
         manager.fetchTodayActiveEnergy { [weak self] activeEnergy in
             DispatchQueue.main.async {
                 self?.todayActiveEnergy = activeEnergy
+                if activeEnergy > 0 { self?.lastSyncedAt = Date() }
             }
         }
     }
@@ -190,6 +203,7 @@ public class HealthKitViewModel: ObservableObject {
             }
             let loggedExercises = workouts.map { self.mapHKWorkoutToLoggedExercise($0) }
             self.workouts = loggedExercises
+            if !loggedExercises.isEmpty { self.lastSyncedAt = Date() }
             self.syncWorkoutsWithFirestore(loggedExercises)
         }
     }
@@ -212,6 +226,7 @@ public class HealthKitViewModel: ObservableObject {
             }
             self.sleepSamples = samples
             self.sleepSummary = self.makeSleepSummary(from: samples)
+            if !samples.isEmpty { self.lastSyncedAt = Date() }
             AppLog.health.info("Fetched \(samples.count, privacy: .public) HealthKit sleep samples across \(self.sleepSummary.nightCount, privacy: .public) nights.")
         }
     }
@@ -236,6 +251,7 @@ public class HealthKitViewModel: ObservableObject {
             let unit = HKUnit.secondUnit(with: .milli)
             let values = samples.map { $0.quantity.doubleValue(for: unit) }
             self.hrvAverage = values.reduce(0, +) / Double(values.count)
+            self.lastSyncedAt = Date()
             AppLog.health.info("Fetched \(samples.count, privacy: .public) HealthKit HRV samples with avg \(self.hrvAverage ?? 0, privacy: .public) ms.")
         }
     }

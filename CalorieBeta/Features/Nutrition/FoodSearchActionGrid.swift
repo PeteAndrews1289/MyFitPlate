@@ -75,13 +75,15 @@ struct YesterdayLogActions: View {
                 .foregroundColor(Color(UIColor.secondaryLabel))
 
             HStack(spacing: 10) {
-                yesterdayButton(
-                    title: selectedMeal,
-                    detail: detailText(count: mealItemCount, calories: mealCalories),
-                    icon: "clock.arrow.circlepath",
-                    isEnabled: mealItemCount > 0,
-                    action: onLogMeal
-                )
+                if mealItemCount > 0 {
+                    yesterdayButton(
+                        title: selectedMeal,
+                        detail: detailText(count: mealItemCount, calories: mealCalories),
+                        icon: "clock.arrow.circlepath",
+                        isEnabled: true,
+                        action: onLogMeal
+                    )
+                }
 
                 yesterdayButton(
                     title: "Full day",

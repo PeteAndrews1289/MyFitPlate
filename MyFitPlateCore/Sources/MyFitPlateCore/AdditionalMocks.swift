@@ -178,6 +178,7 @@ public final class MockAchievementRepository: AchievementRepositoryProtocol {
 public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecked Sendable {
     public init() {}
     public var mockFetchUserGoalsResult: [String: Any]?
+    public var mockWeightHistory: [(id: String, date: Date, weight: Double)] = []
     public var savedUserGoals: [String: Any]?
     public func fetchUserGoals(userID: String, completion: @escaping ([String: Any]?) -> Void) { completion(mockFetchUserGoalsResult) }
     
@@ -188,11 +189,11 @@ public final class MockSettingsRepository: SettingsRepositoryProtocol, @unchecke
         onSave?()
     }
     public func weightHistoryPublisher(userID: String) -> AnyPublisher<[(id: String, date: Date, weight: Double)], Error> {
-        return Just([]).setFailureType(to: Error.self).eraseToAnyPublisher()
+        return Just(mockWeightHistory).setFailureType(to: Error.self).eraseToAnyPublisher()
     }
     public func saveWeightEntry(userID: String, weight: Double, date: Date) async throws {}
     public func deleteWeightEntry(userID: String, entryID: String) async throws {}
-    public func fetchWeightHistory(userID: String) async throws -> [(id: String, date: Date, weight: Double)] { return [] }
+    public func fetchWeightHistory(userID: String) async throws -> [(id: String, date: Date, weight: Double)] { return mockWeightHistory }
     public func updateUserAsOnboarded(userID: String) async throws {}
     public func createInitialUserData(userID: String, email: String, username: String) async throws {}
 }

@@ -304,7 +304,7 @@ struct WorkoutPlayerView: View {
             dismiss()
         }) {
             if let log = completedSessionLog {
-                WorkoutCompleteAnalyticsView(log: log)
+                WorkoutCompleteAnalyticsView(log: log, isFreshCompletion: true)
             } else {
                 Text("Error loading analytics")
             }

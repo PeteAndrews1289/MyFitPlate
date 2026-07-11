@@ -803,10 +803,10 @@ struct MaiaBriefingCard: View {
             )
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                MaiaBriefingMetric(title: "Calories left", value: "\(Int(calories.rounded()))", color: .orange)
-                MaiaBriefingMetric(title: "Protein left", value: "\(Int(protein.rounded()))g", color: .accentProtein)
-                MaiaBriefingMetric(title: "Carbs left", value: "\(Int(carbs.rounded()))g", color: .accentCarbs)
-                MaiaBriefingMetric(title: "Fats left", value: "\(Int(fats.rounded()))g", color: .accentFats)
+                MaiaBriefingMetric(title: "Calories left", value: Int(calories.rounded()).formatted(), color: .orange)
+                MaiaBriefingMetric(title: "Protein left", value: "\(Int(protein.rounded()).formatted())g", color: .accentProtein)
+                MaiaBriefingMetric(title: "Carbs left", value: "\(Int(carbs.rounded()).formatted())g", color: .accentCarbs)
+                MaiaBriefingMetric(title: "Fats left", value: "\(Int(fats.rounded()).formatted())g", color: .accentFats)
             }
         }
         .asCard()
@@ -894,7 +894,7 @@ struct MaiaHealthKitContextIndicator: View {
         HStack(spacing: 8) {
             Image(systemName: "applewatch")
                 .foregroundColor(.brandPrimary)
-            Text("Maia is analyzing your HealthKit data")
+            Text("Apple Health context included")
                 .appFont(size: 12, weight: .semibold)
                 .foregroundColor(.secondary)
             Spacer()
@@ -903,13 +903,13 @@ struct MaiaHealthKitContextIndicator: View {
                 if steps > 0 {
                     HStack(spacing: 4) {
                         Image(systemName: "figure.walk")
-                        Text("\(Int(steps))")
+                        Text(Int(steps.rounded()).formatted())
                     }
                 }
                 if activeEnergy > 0 {
                     HStack(spacing: 4) {
                         Image(systemName: "flame.fill")
-                        Text("\(Int(activeEnergy))")
+                        Text(Int(activeEnergy.rounded()).formatted())
                     }
                 }
                 if sleepHours > 0 {

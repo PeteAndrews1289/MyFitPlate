@@ -24,7 +24,7 @@ struct HomeDashboardHeader: View {
                 isToday: isToday,
                 dateTitle: selectedDateFormattedString,
                 onOpenInsights: {
-                    insightsService.generateAndFetchInsights(forLastDays: 7)
+                    insightsService.generateAndFetchInsights(forLastDays: 7, requestConsentIfNeeded: true)
                     showingDetailedInsights = true
                 }
             )

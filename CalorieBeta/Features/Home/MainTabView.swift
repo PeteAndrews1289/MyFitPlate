@@ -54,6 +54,21 @@ struct MainTabView: View {
         Color.backgroundSecondary
     }
 
+    private var suppressesSpotlightTours: Bool {
+        ScreenshotDemoMode.isEnabled || ProcessInfo.processInfo.arguments.contains("-ui-testing")
+    }
+
+    init() {
+        #if DEBUG
+        let screenshotScreen = ScreenshotDemoData.requestedScreen
+        _showSettings = State(initialValue: screenshotScreen == "settings")
+        _showingAddOptions = State(initialValue: screenshotScreen == "quick-log")
+        _showingFoodSearch = State(
+            initialValue: ["food-search", "builder", "trust"].contains(screenshotScreen)
+        )
+        #endif
+    }
+
     var body: some View {
         ZStack {
             ZStack(alignment: .bottom) {
@@ -74,7 +89,7 @@ struct MainTabView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.bottom, 176)
+                .padding(.bottom, 112)
 
                 CustomTabBar(
                     selectedIndex: $appState.selectedTab,
@@ -102,7 +117,7 @@ struct MainTabView: View {
                         }
                         .zIndex(1)
 
-                    VStack(alignment: .leading, spacing: 16) {
+                    let quickLogPanelContent = VStack(alignment: .leading, spacing: 16) {
                         // DESIGN.md rule 2: one hero (search, the primary path, in brand green);
                         // the other rows are neutral — no per-row rainbow tints.
                         let primaryButtons: [(title: String, subtitle: String, icon: String, isPrimary: Bool, action: () -> Void)] = [
@@ -193,6 +208,20 @@ struct MainTabView: View {
                     .padding(.horizontal, 18)
                     .padding(.top, 10)
                     .padding(.bottom, 18)
+                    .frame(maxWidth: .infinity)
+
+                    Group {
+                        if showingAllQuickLogActions {
+                            ScrollView(.vertical) {
+                                quickLogPanelContent
+                            }
+                            .scrollIndicators(.hidden)
+                            .scrollBounceBehavior(.basedOnSize)
+                            .frame(maxHeight: 800)
+                        } else {
+                            quickLogPanelContent
+                        }
+                    }
                     .frame(maxWidth: 520)
                     .background(containerBackground.opacity(0.92), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -202,7 +231,7 @@ struct MainTabView: View {
                     )
                     .shadow(color: Color.black.opacity(0.18), radius: 24, x: 0, y: 16)
                     .padding(.horizontal, 18)
-                    .padding(.bottom, 104)
+                    .padding(.bottom, 92)
                     .zIndex(2)
                     .featureSpotlight(isActive: showingSpotlightTour)
                 }
@@ -324,7 +353,9 @@ struct MainTabView: View {
                 Text(scanError.1)
             }
             .onChange(of: showingAddOptions) { _, newValue in
-                if newValue && !spotlightManager.isShown(id: "action-menu") {
+                if newValue &&
+                    !suppressesSpotlightTours &&
+                    !spotlightManager.isShown(id: "action-menu") {
                     withAnimation {
                         showingSpotlightTour = true
                     }

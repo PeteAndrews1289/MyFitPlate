@@ -14,6 +14,38 @@ public struct ChainMealBuilderView: View {
     public init(initialMeal: String = "Lunch", onLogMeal: @escaping (FoodItem, String) -> Void) {
         self._selectedMeal = State(initialValue: initialMeal)
         self.onLogMeal = onLogMeal
+
+        #if DEBUG
+        if ScreenshotDemoData.requestedScreen == "builder",
+           let chipotle = ChainRestaurantCatalog.allChains.first(where: { $0.id == "chipotle" }) {
+            let showcaseNames = [
+                "Cilantro-Lime White Rice",
+                "Black Beans",
+                "Adobo Chicken",
+                "Fajita Veggies",
+                "Fresh Tomato Salsa (Pico)",
+                "Monterey Jack Cheese"
+            ]
+            let ingredients = chipotle.categories
+                .flatMap(\.ingredients)
+                .filter { showcaseNames.contains($0.name) }
+            let showcaseSelections = Dictionary(
+                uniqueKeysWithValues: ingredients.map { ingredient in
+                    (
+                        ingredient.id,
+                        ChainSelectionItem(
+                            id: ingredient.id,
+                            ingredient: ingredient,
+                            portion: .regular,
+                            count: 1
+                        )
+                    )
+                }
+            )
+            _selectedChain = State(initialValue: chipotle)
+            _selections = State(initialValue: showcaseSelections)
+        }
+        #endif
     }
 
     private var filteredChains: [ChainRestaurant] {
@@ -50,9 +82,13 @@ public struct ChainMealBuilderView: View {
         nutritionTotals.fat
     }
 
+    private var selectedItemCount: Int {
+        selections.values.reduce(0) { $0 + $1.count }
+    }
+
     public var body: some View {
         NavigationView {
-            ZStack(alignment: .bottom) {
+            ZStack {
                 Color.backgroundPrimary.ignoresSafeArea()
 
                 ScrollView {
@@ -66,13 +102,13 @@ public struct ChainMealBuilderView: View {
                         ForEach(selectedChain.categories) { category in
                             categorySection(for: category)
                         }
-
-                        Spacer().frame(height: 110)
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
+                    .padding(.bottom, 16)
                 }
-
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 stickyBottomBar
             }
             .navigationTitle("Fast Food")
@@ -203,8 +239,8 @@ public struct ChainMealBuilderView: View {
 
             Spacer()
 
-            Text("\(selectedChain.ingredientCount)")
-                .appFont(size: 17, weight: .heavy)
+            Text("\(selectedChain.ingredientCount) items")
+                .appFont(size: 13, weight: .heavy)
                 .foregroundColor(brandColor)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
@@ -429,14 +465,14 @@ public struct ChainMealBuilderView: View {
 
     // MARK: - Sticky Bottom Bar
     private var stickyBottomBar: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(Int(totalCalories.rounded())) cal")
                         .appFont(size: 20, weight: .heavy)
                         .foregroundColor(.textPrimary)
 
-                    Text("\(selections.count) items selected")
+                    Text("\(selectedItemCount) \(selectedItemCount == 1 ? "item" : "items") selected")
                         .appFont(size: 12, weight: .medium)
                         .foregroundColor(.secondary)
                 }
@@ -460,7 +496,7 @@ public struct ChainMealBuilderView: View {
                 .appFont(size: 16, weight: .bold)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .padding(.vertical, 12)
                 .background(
                     selections.isEmpty
                     ? Color.gray.opacity(0.5)
@@ -470,11 +506,14 @@ public struct ChainMealBuilderView: View {
             }
             .disabled(selections.isEmpty)
         }
-        .padding(16)
-        .background(
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
+        .background {
             Color.backgroundSecondary
                 .shadow(color: .black.opacity(0.15), radius: 10, y: -4)
-        )
+                .ignoresSafeArea(edges: .bottom)
+        }
     }
 
     private func macroBadge(label: String, grams: Double, color: Color) -> some View {

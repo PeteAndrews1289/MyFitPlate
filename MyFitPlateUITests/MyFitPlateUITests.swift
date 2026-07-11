@@ -60,4 +60,38 @@ final class MyFitPlateUITests: XCTestCase {
             .firstMatch
         XCTAssertTrue(firstResult.waitForExistence(timeout: 5), "Search results should populate")
     }
+
+    @MainActor
+    func testSettingsFeedbackAndShareRowsAreReachable() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "settings"
+        ]
+        app.launch()
+
+        let feedbackRow = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Feedback & support"))
+            .firstMatch
+        let shareRow = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Share MyFitPlate"))
+            .firstMatch
+
+        for _ in 0..<8 where !feedbackRow.isHittable || !shareRow.isHittable {
+            app.swipeUp()
+        }
+
+        XCTAssertTrue(feedbackRow.waitForExistence(timeout: 5), "Feedback row should be reachable in Settings")
+        XCTAssertTrue(shareRow.waitForExistence(timeout: 5), "App Store sharing row should be reachable in Settings")
+        XCTAssertTrue(feedbackRow.isHittable, "Feedback row should be visible and tappable")
+        XCTAssertTrue(shareRow.isHittable, "App Store sharing row should be visible and tappable")
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Settings feedback and sharing"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
 }

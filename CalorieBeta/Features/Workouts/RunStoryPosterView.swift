@@ -19,7 +19,12 @@ struct RunStoryPosterView: View {
                     .frame(maxHeight: 520)
 
                 if let renderedImage {
-                    ShareLink(item: renderedImage, preview: SharePreview("MyFitPlate Run Story", image: renderedImage)) {
+                    ShareLink(
+                        item: renderedImage,
+                        subject: Text("MyFitPlate Run Story"),
+                        message: Text(MyFitPlateLinks.shareMessage("My latest run, fueled and tracked with MyFitPlate.")),
+                        preview: SharePreview("MyFitPlate Run Story", image: renderedImage)
+                    ) {
                         Label("Share Story to Instagram / Messages", systemImage: "square.and.arrow.up")
                             .appFont(size: 16, weight: .bold)
                             .foregroundColor(.white)
@@ -27,6 +32,9 @@ struct RunStoryPosterView: View {
                             .padding(.vertical, 14)
                             .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
+                    .simultaneousGesture(TapGesture().onEnded {
+                        DIContainer.shared.analyticsManager?.logEvent("run_story_share_opened", parameters: nil)
+                    })
                     .padding(.horizontal)
                 } else {
                     ProgressView("Preparing Story Image...")

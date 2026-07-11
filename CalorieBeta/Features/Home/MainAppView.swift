@@ -107,6 +107,9 @@ struct CalorieBetaApp: App {
 
     init() {
         let launchStartedAt = Date()
+        let launchArguments = ProcessInfo.processInfo.arguments
+        let isUITesting = launchArguments.contains("-ui-testing")
+        let isScreenshotMode = ScreenshotDemoMode.isEnabled
 
         #if ENABLE_APP_CHECK
         #if DEBUG
@@ -137,7 +140,6 @@ struct CalorieBetaApp: App {
         )
         #endif
 
-        let isUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")
         #if DEBUG
         let isDebugBuild = true
         #else
@@ -148,14 +150,27 @@ struct CalorieBetaApp: App {
             let mockAuth = MockAuthService()
             let mockDb = MockDatabaseService()
             let mockCloud = MockCloudFunctionService()
+            let mockNutrition = MockNutritionRepository()
+            let mockWorkout = MockWorkoutRepository()
+            let mockSettings = MockSettingsRepository()
+            #if DEBUG
+            if isScreenshotMode {
+                ScreenshotDemoData.prepareUserDefaults()
+                ScreenshotDemoData.configureRepositories(
+                    nutrition: mockNutrition,
+                    workout: mockWorkout,
+                    settings: mockSettings
+                )
+            }
+            #endif
             DIContainer.shared.configure(
                 authService: mockAuth,
                 databaseService: mockDb,
-                nutritionRepository: MockNutritionRepository(),
-                workoutRepository: MockWorkoutRepository(),
+                nutritionRepository: mockNutrition,
+                workoutRepository: mockWorkout,
                 groupRepository: MockGroupRepository(),
                 achievementRepository: MockAchievementRepository(),
-                settingsRepository: MockSettingsRepository(),
+                settingsRepository: mockSettings,
                 reportsRepository: MockReportsRepository(),
                 postRepository: MockPostRepository(),
                 cloudFunctionService: mockCloud,
@@ -211,6 +226,7 @@ struct CalorieBetaApp: App {
         let spotlightMgr = SpotlightManager()
         let cycleSvc = CycleTrackingService()
         let adaptiveSvc = AdaptiveGoalService()
+        let pantrySvc = PantryService()
 
         _dailyLogService = StateObject(wrappedValue: logService)
         _goalSettings = StateObject(wrappedValue: goalsSvc)
@@ -225,15 +241,30 @@ struct CalorieBetaApp: App {
         _spotlightManager = StateObject(wrappedValue: spotlightMgr)
         _cycleService = StateObject(wrappedValue: cycleSvc)
         _adaptiveGoalService = StateObject(wrappedValue: adaptiveSvc)
-        _pantryService = StateObject(wrappedValue: PantryService())
+        _pantryService = StateObject(wrappedValue: pantrySvc)
         
         logService.goalSettings = goalsSvc
         goalsSvc.adaptiveGoalService = adaptiveSvc
         logService.bannerService = bannerSvc
         logService.achievementService = achieveService
         achieveService.setupDependencies(dailyLogService: logService, goalSettings: goalsSvc, bannerService: bannerSvc)
-        hkViewModel.setup(dailyLogService: logService, goalSettings: goalsSvc)
+        hkViewModel.setup(
+            dailyLogService: logService,
+            goalSettings: goalsSvc,
+            checkAuthorization: !isScreenshotMode
+        )
         cycleSvc.setupDependencies(goalSettings: goalsSvc, dailyLogService: logService)
+
+        #if DEBUG
+        if isScreenshotMode {
+            ScreenshotDemoData.configureServices(
+                goalSettings: goalsSvc,
+                dailyLogService: logService,
+                healthKitViewModel: hkViewModel,
+                appState: applicationState
+            )
+        }
+        #endif
         
         NotificationManager.shared.clearNotificationBadge()
         ReleaseHealth.recordStartupCompleted(
@@ -292,6 +323,10 @@ struct ContentView: View {
 
     private var currentUserID: String? {
         DIContainer.shared.authService.currentUserID
+    }
+
+    private var isScreenshotMode: Bool {
+        ScreenshotDemoMode.isEnabled
     }
 
     var body: some View {
@@ -429,7 +464,9 @@ struct ContentView: View {
 
     private func handleAppDidBecomeActive() {
         if appState.isUserLoggedIn && !shouldShowOnboardingSurvey {
-            healthKitViewModel.checkAuthorizationStatus()
+            if !isScreenshotMode {
+                healthKitViewModel.checkAuthorizationStatus()
+            }
             sendNutritionToWatchIfNeeded()
             drainPendingWidgetWater()
             drainPendingWatchWater()
@@ -497,6 +534,9 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 self.shouldShowOnboardingSurvey = false
                 self.isLoadingUserState = false
+                if self.isScreenshotMode {
+                    self.loadMainUserData()
+                }
             }
             return
         }
@@ -546,7 +586,9 @@ struct ContentView: View {
             NotificationManager.shared.scheduleDailyLogReminderIfAuthorized()
         }
         
-        healthKitViewModel.checkAuthorizationStatus()
+        if !isScreenshotMode {
+            healthKitViewModel.checkAuthorizationStatus()
+        }
     }
 
     private func presentFirstSessionChoiceIfNeeded() {
