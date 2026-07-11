@@ -341,16 +341,6 @@
         }
       }
     },
-    "%@. %@. %@. %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@. %2$@. %3$@. %4$@"
-          }
-        }
-      }
-    },
     "%@. %@. %@. %@ grams of protein, %@ ounces of water. %@" : {
       "localizations" : {
         "en" : {
@@ -592,6 +582,16 @@
         }
       }
     },
+    "%lld out of 99, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld out of 99, %2$@"
+          }
+        }
+      }
+    },
     "%lld planned %@." : {
       "localizations" : {
         "en" : {
@@ -721,16 +721,6 @@
     },
     "%lld%% complete" : {
 
-    },
-    "%lld×%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld×%2$@"
-          }
-        }
-      }
     },
     "%lldg" : {
 
@@ -3174,13 +3164,13 @@
     "Quantity (%@):" : {
 
     },
-    "Quick actions" : {
+    "Quick Actions" : {
 
     },
     "Quick add macros" : {
 
     },
-    "Quick log" : {
+    "Quick Log" : {
 
     },
     "Quick log %@" : {
@@ -3385,7 +3375,7 @@
     "Review access" : {
 
     },
-    "Review food trust" : {
+    "Review Food Trust" : {
 
     },
     "Review Health access" : {
@@ -4116,6 +4106,9 @@
 
     },
     "Trust Hub" : {
+
+    },
+    "Trust Score" : {
 
     },
     "Try a different search or filter. The catalog is built to grow as more training paths are added." : {
