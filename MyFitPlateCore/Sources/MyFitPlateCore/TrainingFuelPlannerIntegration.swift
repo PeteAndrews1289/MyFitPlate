@@ -589,10 +589,11 @@ public enum TrainingFuelPlanProgressRules {
         }
 
         let context = reconciliationContext(for: plan)
-        let values = [
+        let loggedMacros = today?.totalMacros() ?? (protein: 0, fats: 0, carbs: 0)
+        let values: [Double] = [
             today?.totalCalories() ?? 0,
-            today?.totalMacros().protein ?? 0,
-            today?.totalMacros().carbs ?? 0
+            loggedMacros.protein,
+            loggedMacros.carbs
         ]
         guard values.allSatisfy({ $0.isFinite && $0 >= 0 }) else {
             return TrainingFuelPlanProgress(
