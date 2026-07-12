@@ -9,6 +9,9 @@ Updated for 2.3 development on July 11, 2026.
 - AI requests go through authenticated Firebase callable Functions to OpenAI. The client never contains the OpenAI secret.
 - FatSecret requests go through an authenticated Firebase callable proxy. USDA and Open Food Facts are direct HTTPS lookup sources; USDA is disabled without a dedicated configured key.
 - Firebase Analytics and Crashlytics receive app/reliability context without the Firebase Auth UID. Health, nutrition, body, and workout values are removed from analytics event parameters.
+- Trust calibration uses only source/band/evidence categories, coarse changed-field groups, and
+  stable outcomes. The central sanitizer also rejects raw identity and free-form content keys
+  such as barcode, food/account ID, email, prompt, query, and message.
 
 ## Controls Implemented
 

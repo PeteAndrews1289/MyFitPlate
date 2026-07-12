@@ -31,6 +31,8 @@ struct FoodDetailView: View {
 
     @State private var showingImagePicker = false
     @State private var showingCorrectionEditor = false
+    @State private var correctionEditorDidSubmit = false
+    @State private var correctionCalibrationContext: FoodTrustCalibrationContext?
     @State private var hasLoggedSuspiciousData = false
     @State private var hasLoggedTrustCardView = false
     @State private var isProcessingLabel = false
@@ -171,39 +173,54 @@ struct FoodDetailView: View {
         )
     }
 
-    /// Trust telemetry: which correction affordances get used, per source. Over time this
-    /// says empirically which database is dirtiest and can weight search ranking.
-    private func logCorrectionAction(_ action: String) {
-        DIContainer.shared.analyticsManager?.logEvent("food_correction_action", parameters: [
-            "action": action,
-            "source": sourceDescriptor.sourceKey
-        ])
+    private var trustCalibrationContext: FoodTrustCalibrationContext {
+        FoodTrustCalibrationContext(
+            item: sanityCheckItem,
+            descriptor: sourceDescriptor,
+            metadata: trustMetadata
+        )
+    }
+
+    /// Trust telemetry links source/evidence categories to coarse correction outcomes so model
+    /// weights can be calibrated from persisted behavior rather than impressions.
+    private func logCorrectionAction(
+        _ action: String,
+        correctionScope: String? = nil,
+        resultingItem: FoodItem? = nil,
+        context: FoodTrustCalibrationContext? = nil
+    ) {
+        let context = context ?? correctionCalibrationContext ?? trustCalibrationContext
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.correctionAction.rawValue,
+            parameters: context.analyticsParameters(
+                action: action,
+                correctionScope: correctionScope,
+                resultingItem: resultingItem
+            )
+        )
     }
 
     private func logTrustAction(_ action: String) {
-        DIContainer.shared.analyticsManager?.logEvent("food_trust_action", parameters: [
-            "action": action,
-            "source": sourceDescriptor.sourceKey,
-            "trust_score": trustEvaluation.score,
-            "trust_level": trustEvaluation.level.rawValue,
-            "trust_model_version": FoodTrustEvaluation.modelVersion,
-            "requires_correction": trustEvaluation.requiresCorrection
-        ])
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.trustAction.rawValue,
+            parameters: trustCalibrationContext.analyticsParameters(action: action)
+        )
     }
 
     private func logTrustCardViewedIfNeeded() {
         guard !hasLoggedTrustCardView else { return }
         hasLoggedTrustCardView = true
-        DIContainer.shared.analyticsManager?.logEvent("food_trust_card_viewed", parameters: [
-            "source": sourceDescriptor.sourceKey,
-            "trust_score": trustEvaluation.score,
-            "trust_level": trustEvaluation.level.rawValue,
-            "trust_model_version": FoodTrustEvaluation.modelVersion,
-            "requires_correction": trustEvaluation.requiresCorrection,
-            "cross_verified": trustMetadata?.hasIndependentCrossVerification == true,
-            "review_status": trustMetadata?.reviewStatus.rawValue ?? "none",
-            "sanity_findings": FoodDataSanity.telemetryKinds(for: sanityCheckItem)
-        ])
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.trustCardViewed.rawValue,
+            parameters: trustCalibrationContext.analyticsParameters()
+        )
+    }
+
+    private func openCorrectionEditor(action: String) {
+        correctionEditorDidSubmit = false
+        correctionCalibrationContext = trustCalibrationContext
+        logCorrectionAction(action, context: correctionCalibrationContext)
+        showingCorrectionEditor = true
     }
 
     private func logSuspiciousDataIfNeeded() {
@@ -252,10 +269,10 @@ struct FoodDetailView: View {
                             evaluation: trustEvaluation,
                             metadata: trustMetadata,
                             findings: sanityFindings,
-                            onAction: trustEvaluation.action.map { actionTitle in
+                            onAction: trustEvaluation.action.map { _ in
                                 {
-                                    logTrustAction(actionTitle)
-                                    showingCorrectionEditor = true
+                                    logTrustAction("correction_opened")
+                                    openCorrectionEditor(action: "trust_fix_opened")
                                 }
                             }
                         )
@@ -264,8 +281,7 @@ struct FoodDetailView: View {
                         if shouldShowBarcodeCorrectionCard {
                             FoodDetailBarcodeCorrectionCard(
                                 fixAction: {
-                                    logCorrectionAction("fix_opened")
-                                    showingCorrectionEditor = true
+                                    openCorrectionEditor(action: "fix_opened")
                                 },
                                 rememberAction: {
                                     logCorrectionAction("remember")
@@ -278,8 +294,7 @@ struct FoodDetailView: View {
                             FoodDataSanityCard(
                                 findings: sanityFindings,
                                 fixAction: {
-                                    logCorrectionAction("sanity_fix_opened")
-                                    showingCorrectionEditor = true
+                                    openCorrectionEditor(action: "sanity_fix_opened")
                                 }
                             )
                             .onAppear(perform: logSuspiciousDataIfNeeded)
@@ -290,8 +305,7 @@ struct FoodDetailView: View {
                         // be the easiest to correct.
                         if sourceDescriptor.isEstimated {
                             FoodDetailAIRefineCard(refineAction: {
-                                logCorrectionAction("refine_opened")
-                                showingCorrectionEditor = true
+                                openCorrectionEditor(action: "refine_opened")
                             })
                         }
 
@@ -374,7 +388,16 @@ struct FoodDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingCorrectionEditor) {
+        .sheet(isPresented: $showingCorrectionEditor, onDismiss: {
+            if !correctionEditorDidSubmit {
+                logCorrectionAction(
+                    "correction_abandoned",
+                    context: correctionCalibrationContext
+                )
+            }
+            correctionEditorDidSubmit = false
+            correctionCalibrationContext = nil
+        }) {
             FoodDetailCorrectionSheet(
                 foodName: foodName,
                 serving: correctionBaseServing,
@@ -656,8 +679,23 @@ struct FoodDetailView: View {
         saveCustomFood(foodName: foodName, serving: serving, quantityValue: quantityValue)
     }
 
-    private func saveCustomFood(foodName: String, serving: ServingSizeOption, quantityValue: Double) {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+    private func saveCustomFood(
+        foodName: String,
+        serving: ServingSizeOption,
+        quantityValue: Double,
+        correctionScope: String? = nil,
+        calibrationContext: FoodTrustCalibrationContext? = nil
+    ) {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            if let correctionScope {
+                logCorrectionAction(
+                    "correction_save_failed",
+                    correctionScope: correctionScope,
+                    context: calibrationContext
+                )
+            }
+            return
+        }
         let finalNutrients = ServingNutritionCalculator.adjustedNutrition(
             base: serving,
             quantityValue: quantityValue
@@ -705,6 +743,14 @@ struct FoodDetailView: View {
                 } else {
                     bannerService.showBanner(title: "Error", message: "Could not save custom food.", iconName: "xmark.circle.fill", iconColor: .red)
                 }
+                if let correctionScope {
+                    self.logCorrectionAction(
+                        success ? "correction_saved" : "correction_save_failed",
+                        correctionScope: correctionScope,
+                        resultingItem: success ? itemToSave : nil,
+                        context: calibrationContext
+                    )
+                }
             }
         }
     }
@@ -728,12 +774,31 @@ struct FoodDetailView: View {
     }
 
     private func applyFoodCorrectionAndRemember(foodName correctedName: String, serving correctedServing: ServingSizeOption) {
-        logCorrectionAction("correction_saved")
+        let originalServing = correctionBaseServing
+        let correctionScope = FoodCorrectionTelemetry.scope(
+            originalName: foodName,
+            originalServing: originalServing,
+            correctedName: correctedName,
+            correctedServing: correctedServing
+        )
+        let calibrationContext = correctionCalibrationContext ?? trustCalibrationContext
+        correctionEditorDidSubmit = true
+        logCorrectionAction(
+            "correction_submitted",
+            correctionScope: correctionScope,
+            context: calibrationContext
+        )
         foodName = correctedName
         availableServings.insert(correctedServing, at: 0)
         selectedServingID = correctedServing.id
         quantity = "1"
-        saveCustomFood(foodName: correctedName, serving: correctedServing, quantityValue: 1)
+        saveCustomFood(
+            foodName: correctedName,
+            serving: correctedServing,
+            quantityValue: 1,
+            correctionScope: correctionScope,
+            calibrationContext: calibrationContext
+        )
     }
     
     private func unsaveCustomFood() {

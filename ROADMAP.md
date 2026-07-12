@@ -181,7 +181,11 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 
 - [ ] **Trust calibration report**: compare score band/provider/evidence with later edits,
   correction findings, saved-correction reuse, and abandonment. Reweight only after real
-  outcomes show a consistent error, never to make scores look higher.
+  outcomes show a consistent error, never to make scores look higher. Instrumentation and the
+  reproducible report contract are ready in analytics schema 2.3.2: correction opens,
+  abandonment, submission, persistence success/failure, coarse changed fields, resulting sanity,
+  and cohort-level saved-barcode reuse are measurable without food/account identifiers. The item
+  stays open until at least 14 days of adequately sized production cohorts exist.
 - [x] **Private contribution model**: submissions now use an authenticated App Check callable,
   live under private per-user ownership, expose no contributor IDs in published data, and have a
   backup-first migration from the denied legacy pool.

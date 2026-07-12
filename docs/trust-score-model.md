@@ -189,7 +189,10 @@ Automated coverage includes:
 Post-release calibration should compare score/source/model version against correction opens,
 saved edits, barcode recovery, and repeated-use outcomes. Raise or lower weights only from a
 documented cohort analysis, and increment `FoodTrustEvaluation.modelVersion` whenever score
-semantics change.
+semantics change. Analytics schema 2.3.2 now distinguishes correction abandonment, submission,
+persistence success/failure, coarse changed fields, resulting sanity, and cohort-level saved
+barcode reuse. The privacy boundary, BigQuery templates, sample thresholds, and decision rules
+are in `docs/trust-calibration-2.3.md`.
 
 ## Primary references
 

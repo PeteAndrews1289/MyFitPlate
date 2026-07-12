@@ -756,7 +756,7 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(params["candidate_count"] as? Int, 3)
         XCTAssertEqual(params["cross_verified_count"] as? Int, 1)
         XCTAssertEqual(params["trust_level"] as? String, FoodTrustEvaluation.Level.excellent.rawValue)
-        XCTAssertEqual(params["trust_model_version"] as? Int, FoodTrustEvaluation.modelVersion)
+        XCTAssertEqual(params["trust_model_version"] as? String, String(FoodTrustEvaluation.modelVersion))
         XCTAssertEqual(params["duration_ms"] as? Int, 1_840)
         XCTAssertEqual(params["duration_bucket"] as? String, "1s_to_2s")
         XCTAssertNil(params["barcode"], "Do not log the raw product barcode.")
@@ -815,7 +815,7 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(params["action"] as? String, "manual_food_created")
         XCTAssertEqual(params["scanned_length"] as? Int, 12)
         XCTAssertEqual(params["trust_level"] as? String, FoodTrustEvaluation.Level.strong.rawValue)
-        XCTAssertEqual(params["trust_model_version"] as? Int, FoodTrustEvaluation.modelVersion)
+        XCTAssertEqual(params["trust_model_version"] as? String, String(FoodTrustEvaluation.modelVersion))
         XCTAssertNotNil(params["trust_score"])
         XCTAssertNil(params["barcode"], "Created-food telemetry should avoid raw barcode values.")
     }

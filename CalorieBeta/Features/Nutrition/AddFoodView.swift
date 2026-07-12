@@ -613,15 +613,26 @@ struct AddFoodView: View {
         if hasScannedNutritionLabel {
             correction.sourceMetadata?.notes = "Created from a scanned nutrition label after a barcode lookup miss."
         }
-        DIContainer.shared.analyticsManager.barcodeMissRecovery(.manualFoodCreated(correction))
-        DIContainer.shared.analyticsManager?.logEvent("barcode_label_correction_saved", parameters: [
-            "barcode_length": correctionBarcode.count,
-            "used_label_scan": hasScannedNutritionLabel,
-            "community_flag_enabled": communityCorrectionSharingEnabled
-        ])
         dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: correction) { success in
-            if success {
-                contributeToCommunityPoolIfEligible(correction)
+            Task { @MainActor in
+                let parameters: [String: Any] = [
+                    "barcode_length": correctionBarcode.count,
+                    "used_label_scan": hasScannedNutritionLabel,
+                    "community_flag_enabled": communityCorrectionSharingEnabled
+                ]
+                if success {
+                    DIContainer.shared.analyticsManager.barcodeMissRecovery(.manualFoodCreated(correction))
+                    DIContainer.shared.analyticsManager?.logEvent(
+                        "barcode_label_correction_saved",
+                        parameters: parameters
+                    )
+                    contributeToCommunityPoolIfEligible(correction)
+                } else {
+                    DIContainer.shared.analyticsManager?.logEvent(
+                        "barcode_label_correction_save_failed",
+                        parameters: parameters
+                    )
+                }
             }
         }
     }

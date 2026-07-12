@@ -7,7 +7,7 @@ before production data is used to make product decisions.
 ## Operating rules
 
 - Compare MyFitPlate with its own clean 2.2 baseline. Do not invent an industry target.
-- Segment by app version and `analytics_schema`. Version 2.3 emits schema `2.3.1`.
+- Segment by app version and `analytics_schema`. The current 2.3 contract emits schema `2.3.2`.
 - Use distinct users unless a metric explicitly says events or attempts.
 - Treat an event as evidence of the named behavior only. A screen view is not a success.
 - Keep App Store acquisition totals separate from Firebase product behavior, then compare
@@ -27,7 +27,7 @@ before production data is used to make product decisions.
 | Was first value fast? | Time to first food | Median and 75th percentile of `first_food_logged.elapsed_seconds`; exclude events without elapsed time from latency percentiles, but retain them in completion counts. |
 | Does switching history work? | Import completion | Distinct `mfp_import_completed` users divided by distinct `mfp_import_started` users. Review `days`, `entries`, and `conflicts_skipped` only as operational counts. |
 | Does barcode friction recover? | Barcode hit and recovery | Attempt count and distinct users for `barcode_lookup_outcome`, grouped by `result`, winning `source`, and `duration_bucket`; recovery actions come from `barcode_miss_recovery.action`. |
-| Is Trust used, not merely shown? | Trust action rate | Distinct users with `food_trust_action` or `food_correction_action` divided by distinct users with `food_trust_card_viewed`. Segment by `trust_model_version`, `trust_level`, source, and correction requirement. |
+| Is Trust used, not merely shown? | Trust action and correction outcome | Distinct users with `food_trust_action` or a persisted `food_correction_action` divided by distinct users with `food_trust_card_viewed`. Segment by model/band, source, evidence class, correction requirement, abandonment, coarse correction scope, and resulting sanity. The exact calibration report is `docs/trust-calibration-2.3.md`. |
 | Did training become part of the loop? | First training completion | Distinct `first_workout_completed` users divided by onboarding completions, grouped by `training_mode`. Strength, recorded runs, and treadmill runs qualify; imported historical runs do not. |
 | Did nutrition and training connect? | Loop completion | Distinct `nutrition_training_loop_completed` users divided by onboarding completions. This one-shot event requires both a successful food write and an in-app training completion. |
 | Is logging becoming habitual? | Weekly active loggers | Distinct users with `logging_day_active` in a rolling seven-day window. The app emits at most one event per app instance and local day. |
@@ -123,10 +123,12 @@ Peter must complete the console-side setup after the instrumented build produces
 
 1. Register useful custom dimensions: `analytics_schema`, `destination`, `entry_source`,
    `training_mode`, `result`, `source`, `outcome`, `duration_bucket`, `trust_model_version`,
-   `trust_level`, `action`, `phase`, `confirmation_path`, `notification_type`, `area`, `operation`, and deletion
-   `reason`.
+   `trust_level`, `action`, `evidence_class`, `serving_evidence`, `sanity_profile`,
+   `correction_scope`, `resulting_sanity`, `resulting_review_status`, `phase`,
+   `confirmation_path`, `notification_type`, `area`, `operation`, and deletion `reason`.
 2. Register numeric metrics where Firebase requires it: `elapsed_seconds`, `duration_ms`,
-   `trust_score`, `item_count`, and operational import counts.
+   `trust_score`, `cross_verified_count`, `sanity_finding_count`,
+   `resulting_sanity_finding_count`, `item_count`, and operational import counts.
 3. Mark `first_food_logged`, `first_workout_completed`,
    `nutrition_training_loop_completed`, and `mfp_import_completed` as key events.
 4. Build one Activation exploration and one Launch Health exploration from the definitions

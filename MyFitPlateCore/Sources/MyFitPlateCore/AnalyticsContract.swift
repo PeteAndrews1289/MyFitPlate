@@ -4,7 +4,7 @@ import Foundation
 /// release-health dashboards. Values describe product behavior only; nutrition,
 /// body, workout-detail, location, and account identifiers remain excluded.
 public enum ProductAnalytics {
-    public static let schemaVersion = "2.3.1"
+    public static let schemaVersion = "2.3.2"
 
     public enum Event: String, CaseIterable, Sendable {
         case appSessionStarted = "app_session_started"

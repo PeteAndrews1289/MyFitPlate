@@ -154,7 +154,7 @@ struct NutritionAuditView: View {
     private func logTrustHubViewed() {
         DIContainer.shared.analyticsManager?.logEvent("trust_hub_viewed", parameters: [
             "total_foods": totalFoods,
-            "trust_model_version": FoodTrustEvaluation.modelVersion,
+            "trust_model_version": String(FoodTrustEvaluation.modelVersion),
             "needs_review_count": needsReviewItems.count,
             "cross_verified_count": crossVerifiedItems.count,
             "user_reviewed_count": userReviewedItems.count,

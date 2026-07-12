@@ -1016,7 +1016,7 @@ public struct BarcodeLookupOutcome: Equatable, Sendable {
             "candidate_count": candidateCount,
             "used_related_barcode": usedRelatedBarcode,
             "cross_verified_count": crossVerifiedCount,
-            "trust_model_version": FoodTrustEvaluation.modelVersion,
+            "trust_model_version": String(FoodTrustEvaluation.modelVersion),
             "duration_ms": durationMilliseconds,
             "duration_bucket": durationBucket
         ]
@@ -1091,7 +1091,7 @@ public struct BarcodeRecoveryOutcome: Equatable, Sendable {
             "action": action,
             "scanned_length": scannedLength,
             "candidate_count": candidateCount,
-            "trust_model_version": FoodTrustEvaluation.modelVersion
+            "trust_model_version": String(FoodTrustEvaluation.modelVersion)
         ]
         if let trustScore {
             params["trust_score"] = trustScore
