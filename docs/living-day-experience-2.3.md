@@ -247,7 +247,7 @@ network access. It should expose explicit unavailable and approximate states.
 ### Must ship
 
 - [ ] Living Day visual tokens and reusable path primitives.
-- [ ] `LivingDaySnapshot` deterministic Core model and adversarial test matrix.
+- [x] `LivingDaySnapshot` deterministic Core model and initial adversarial test matrix.
 - [ ] Fuel Path read-only Home experience with exact navigation.
 - [ ] Quick Log insertion and training-to-recovery transitions.
 - [ ] Trust Receipt on Food Detail.
@@ -369,7 +369,7 @@ Experience guardrails:
 1. [ ] Lock the Living Day information hierarchy with deterministic 2.2 fixtures.
 2. [ ] Build and compare the three Fuel Path prototypes.
 3. [ ] Add the 2.3 visual token layer without changing operational screens.
-4. [ ] Implement and test `LivingDaySnapshot`.
+4. [x] Implement and test `LivingDaySnapshot`.
 5. [ ] Ship read-only Fuel Path behind `feature_livingDayHome`.
 6. [ ] Connect exact navigation and Quick Log insertion.
 7. [ ] Build Trust Receipt.

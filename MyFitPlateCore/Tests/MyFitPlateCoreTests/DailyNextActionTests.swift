@@ -86,6 +86,30 @@ final class DailyNextActionTests: XCTestCase {
         XCTAssertEqual(action.deepLink, "myfitplate://trust")
     }
 
+    func testNutritionContradictionRoutesToTrustReview() {
+        let invalidFood = FoodItem(
+            name: "Broken label",
+            calories: 150,
+            protein: 2,
+            carbs: 20,
+            fats: 4,
+            saturatedFat: 12,
+            sourceMetadata: .database(.openFoodFacts, sourceName: "Open Food Facts", sourceID: "bad")
+        )
+        let log = DailyLog(date: date(hour: 16), meals: [Meal(name: "Snack", foodItems: [invalidFood])])
+
+        let action = DailyNextActionRules.makeAction(
+            plan: nil,
+            today: log,
+            goals: goals,
+            now: date(hour: 16),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(action.kind, .trustReview)
+        XCTAssertEqual(action.detail, "1 entry needs your review")
+    }
+
     func testMeaningfulProteinGapRoutesToFoodSearch() {
         let food = FoodItem(name: "Meal", calories: 1_400, protein: 75)
         let log = DailyLog(date: date(hour: 18), meals: [Meal(name: "Dinner", foodItems: [food])])

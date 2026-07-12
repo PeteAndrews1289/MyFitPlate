@@ -64,11 +64,15 @@ public enum DailyNextActionRules {
 
         let reviewCount = today?.meals
             .flatMap(\.foodItems)
-            .compactMap(\.sourceMetadata)
-            .filter {
-                $0.reviewStatus != .notRequired &&
-                    $0.reviewStatus != .userConfirmed &&
-                    $0.reviewStatus != .userEdited
+            .filter { food in
+                let reviewStatus = food.sourceMetadata?.reviewStatus
+                let sourceNeedsReview = reviewStatus != nil &&
+                    reviewStatus != .notRequired &&
+                    reviewStatus != .userConfirmed &&
+                    reviewStatus != .userEdited
+                let nutritionNeedsCorrection = FoodDataSanity.findings(for: food)
+                    .contains { $0.severity == .warning }
+                return sourceNeedsReview || nutritionNeedsCorrection
             }
             .count ?? 0
         if reviewCount > 0 {

@@ -312,9 +312,13 @@ Full experience, state, accessibility, rollout, and technical contract:
 - [ ] **Create the 2.3 experience system:** add restrained path, evidence, chart, motion, spacing,
   stroke, and color primitives. Keep operational screens quiet; remove pale-card and nested-card
   treatment first from Home, Food Detail/Trust, and the weekly report.
-- [ ] **Build `LivingDaySnapshot`:** assemble an immutable, finite-value checked, account-scoped
+- [x] **Build `LivingDaySnapshot`:** assemble an immutable, finite-value checked, account-scoped
   presentation model from the existing diary, goals, Trust, workouts, runs, fuel plan, meal plan,
-  next action, and sync state. No node-level repository fetches and no new backend store.
+  next action, and sync state. No node-level repository fetches and no new backend store. The Core
+  builder now covers logged and planned meals, approximate legacy timing, generic activity/run
+  adapters, exact Training Fuel windows, consumed/planned/remaining budgets, Trust evidence,
+  freshness, path bounds, and the current-time marker. Invalid values fail closed, and warning-level
+  nutrition contradictions now outrank routine macro catch-up in the shared next-action rules.
 - [ ] **Ship read-only Fuel Path behind `feature_livingDayHome`:** support logged/planned meal
   nodes, workout/run nodes, current-time state, approximate timing, unavailable data, over-target,
   offline, and empty-day states with exact navigation into existing workflows.
@@ -367,7 +371,8 @@ Full experience, state, accessibility, rollout, and technical contract:
 
 1. [ ] Lock the information hierarchy and build the three deterministic visual prototypes.
 2. [ ] Select one direction on real devices and add the 2.3 visual token/primitives layer.
-3. [ ] Implement `LivingDaySnapshot`, adversarial Core tests, and the developer fixture gallery.
+3. [ ] Add the developer fixture gallery; the `LivingDaySnapshot` model and initial adversarial
+   Core matrix are complete.
 4. [ ] Integrate read-only Fuel Path behind the feature flag with the 2.2 Home as fallback.
 5. [ ] Connect exact navigation, Quick Log insertion, and training/recovery transitions.
 6. [ ] Ship Trust Receipt and persistence-backed evidence-state updates.
