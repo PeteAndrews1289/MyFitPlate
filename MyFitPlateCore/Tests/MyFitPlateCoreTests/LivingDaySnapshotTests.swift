@@ -88,6 +88,8 @@ final class LivingDaySnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.budget.calories.planned, 540)
         XCTAssertEqual(snapshot.budget.calories.remaining, 530)
         XCTAssertEqual(snapshot.budget.protein.remaining, 29)
+        XCTAssertEqual(snapshot.nextAction.proteinGrams, 29)
+        XCTAssertEqual(snapshot.nextAction.detail, "29 g protein left today")
         XCTAssertEqual(snapshot.currentTime, day.addingTimeInterval(17 * 60 * 60))
         XCTAssertTrue(snapshot.events.allSatisfy { snapshot.pathWindow.position(for: $0.startDate) >= 0 })
     }
@@ -190,5 +192,130 @@ final class LivingDaySnapshotTests: XCTestCase {
 
         XCTAssertEqual(snapshot.pathWindow.start, day.addingTimeInterval(4 * 60 * 60))
         XCTAssertLessThanOrEqual(snapshot.pathWindow.end, day.addingTimeInterval(86_400))
+    }
+
+    func testLoggedPlannedFoodIsNotCountedOrShownTwice() {
+        var food = FoodItem(
+            id: "planned-dinner",
+            name: "Salmon dinner",
+            calories: 540,
+            protein: 45,
+            carbs: 48,
+            fats: 19,
+            servingSize: "1 plate",
+            servingWeight: 390
+        )
+        let planned = PlannedMeal(mealType: "Dinner", foodItem: food)
+        food.timestamp = day.addingTimeInterval(18.5 * 60 * 60)
+        let log = DailyLog(date: day, meals: [Meal(name: "Dinner", foodItems: [food])])
+
+        let snapshot = LivingDaySnapshotBuilder.make(
+            date: day,
+            now: day.addingTimeInterval(20 * 60 * 60),
+            dailyLog: log,
+            goals: goals,
+            plannedMeals: [planned],
+            calendar: calendar
+        )
+
+        XCTAssertEqual(snapshot.events.map(\.kind), [.meal])
+        XCTAssertEqual(snapshot.budget.calories.consumed, 540)
+        XCTAssertEqual(snapshot.budget.calories.planned, 0)
+    }
+
+    func testLoggingOneRepeatedPlannedFoodKeepsTheOtherPlannedOccurrence() {
+        var food = FoodItem(
+            id: "repeat-meal",
+            name: "Chicken bowl",
+            calories: 500,
+            protein: 40,
+            carbs: 55,
+            fats: 14
+        )
+        let plannedLunch = PlannedMeal(mealType: "Lunch", foodItem: food)
+        let plannedDinner = PlannedMeal(mealType: "Dinner", foodItem: food)
+        food.timestamp = day.addingTimeInterval(12 * 60 * 60)
+        let log = DailyLog(date: day, meals: [Meal(name: "Lunch", foodItems: [food])])
+
+        let snapshot = LivingDaySnapshotBuilder.make(
+            date: day,
+            now: day.addingTimeInterval(14 * 60 * 60),
+            dailyLog: log,
+            goals: goals,
+            plannedMeals: [plannedLunch, plannedDinner],
+            calendar: calendar
+        )
+
+        XCTAssertEqual(snapshot.events.map(\.kind), [.meal, .plannedMeal])
+        XCTAssertEqual(snapshot.events.last?.title, "Chicken bowl")
+        XCTAssertEqual(snapshot.budget.calories.consumed, 500)
+        XCTAssertEqual(snapshot.budget.calories.planned, 500)
+    }
+
+    func testLoggedExerciseUsesSourceTimeSemanticsAndClassifiesActivity() {
+        let healthWalk = LoggedExercise(
+            id: "walk",
+            name: "Outdoor Walk",
+            durationMinutes: 45,
+            caloriesBurned: 210,
+            date: day.addingTimeInterval(9 * 60 * 60),
+            source: "HealthKit"
+        )
+        let manualLift = LoggedExercise(
+            id: "lift",
+            name: "Upper Body Strength",
+            durationMinutes: 60,
+            caloriesBurned: 300,
+            date: day.addingTimeInterval(19 * 60 * 60),
+            source: "routine"
+        )
+
+        let walk = LivingDayActivityInput(exercise: healthWalk)
+        let lift = LivingDayActivityInput(exercise: manualLift)
+
+        XCTAssertEqual(walk.kind, .walk)
+        XCTAssertEqual(walk.destination, .runs)
+        XCTAssertEqual(walk.startDate, healthWalk.date)
+        XCTAssertEqual(walk.endDate, healthWalk.date.addingTimeInterval(45 * 60))
+        XCTAssertEqual(lift.kind, .strength)
+        XCTAssertEqual(lift.destination, .workouts)
+        XCTAssertEqual(lift.startDate, manualLift.date.addingTimeInterval(-60 * 60))
+        XCTAssertEqual(lift.endDate, manualLift.date)
+        XCTAssertEqual(lift.detail, "60 min · 300 active cal")
+    }
+
+    func testPlannedMealsCanCloseProteinGapWithoutContradictoryAction() {
+        let loggedFood = FoodItem(
+            id: "breakfast",
+            name: "Breakfast",
+            calories: 700,
+            protein: 50,
+            carbs: 80,
+            fats: 20,
+            timestamp: day.addingTimeInterval(8 * 60 * 60)
+        )
+        let plannedFood = FoodItem(
+            id: "dinner",
+            name: "Dinner",
+            calories: 650,
+            protein: 115,
+            carbs: 55,
+            fats: 20
+        )
+        let log = DailyLog(date: day, meals: [Meal(name: "Breakfast", foodItems: [loggedFood])])
+
+        let snapshot = LivingDaySnapshotBuilder.make(
+            date: day,
+            now: day.addingTimeInterval(14 * 60 * 60),
+            dailyLog: log,
+            goals: goals,
+            plannedMeals: [PlannedMeal(mealType: "Dinner", foodItem: plannedFood)],
+            calendar: calendar
+        )
+
+        XCTAssertEqual(snapshot.budget.protein.remaining, -5)
+        XCTAssertEqual(snapshot.nextAction.kind, .steadyDay)
+        XCTAssertEqual(snapshot.nextAction.title, "Your Plan Covers Protein")
+        XCTAssertEqual(snapshot.nextAction.deepLink, "myfitplate://meal-plan")
     }
 }

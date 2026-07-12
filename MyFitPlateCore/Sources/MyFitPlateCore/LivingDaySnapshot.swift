@@ -298,6 +298,54 @@ public struct LivingDayActivityInput: Equatable, Sendable {
     }
 }
 
+public extension LivingDayActivityInput {
+    init(exercise: LoggedExercise) {
+        let normalizedName = exercise.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = normalizedName.isEmpty ? "Activity" : normalizedName
+        let kind = Self.kind(for: title)
+        let durationMinutes = max(0, exercise.durationMinutes ?? 0)
+        let duration = TimeInterval(durationMinutes * 60)
+        let isHealthKit = exercise.source.localizedCaseInsensitiveContains("healthkit")
+        let startDate = isHealthKit ? exercise.date : exercise.date.addingTimeInterval(-duration)
+        let endDate = duration > 0 ? startDate.addingTimeInterval(duration) : nil
+
+        self.init(
+            id: exercise.id,
+            kind: kind,
+            title: title,
+            detail: Self.detail(
+                durationMinutes: exercise.durationMinutes,
+                calories: exercise.caloriesBurned
+            ),
+            startDate: startDate,
+            endDate: endDate,
+            state: .completed,
+            timing: .exact,
+            destination: kind == .run || kind == .walk ? .runs : .workouts
+        )
+    }
+
+    private static func kind(for name: String) -> LivingDaySnapshot.EventKind {
+        let value = name.lowercased()
+        if value.contains("run") || value.contains("jog") { return .run }
+        if value.contains("walk") || value.contains("hike") { return .walk }
+        let strengthTerms = ["strength", "lift", "weight", "resistance", "barbell", "dumbbell"]
+        if strengthTerms.contains(where: value.contains) { return .strength }
+        return .activity
+    }
+
+    private static func detail(durationMinutes: Int?, calories: Double) -> String {
+        var parts: [String] = []
+        if let durationMinutes, durationMinutes > 0 {
+            parts.append("\(durationMinutes) min")
+        }
+        if calories.isFinite, calories > 0 {
+            parts.append("\(Int(calories.rounded())) active cal")
+        }
+        return parts.isEmpty ? "Completed activity" : parts.joined(separator: " · ")
+    }
+}
+
 public enum LivingDaySnapshotBuilder {
     public static func make(
         date: Date,
@@ -319,11 +367,27 @@ public enum LivingDaySnapshotBuilder {
         let mealEvents = (log?.meals ?? []).enumerated().map { index, meal in
             event(for: meal, index: index, dayStart: dayStart, dayEnd: dayEnd, calendar: calendar)
         }
-        let plannedEvents = plannedMeals.enumerated().map { index, meal in
+        var loggedPlanMatches = Dictionary(
+            grouping: (log?.meals ?? []).flatMap { meal in
+                meal.foodItems.map { planMatchKey(mealName: meal.name, foodID: $0.id) }
+            },
+            by: { $0 }
+        ).mapValues(\.count)
+        let remainingPlannedMeals = plannedMeals.filter { plannedMeal in
+            guard let foodID = plannedMeal.foodItem?.id else { return true }
+            let key = planMatchKey(mealName: plannedMeal.mealType, foodID: foodID)
+            guard let count = loggedPlanMatches[key], count > 0 else { return true }
+            loggedPlanMatches[key] = count - 1
+            return false
+        }
+        let plannedEvents = remainingPlannedMeals.enumerated().map { index, meal in
             event(for: meal, index: index, dayStart: dayStart, calendar: calendar)
         }
         let activityEvents = activities
-            .filter { calendar.isDate($0.startDate, inSameDayAs: dayStart) }
+            .filter { activity in
+                calendar.isDate(activity.startDate, inSameDayAs: dayStart) ||
+                    activity.endDate.map { calendar.isDate($0, inSameDayAs: dayStart) } == true
+            }
             .map { LivingDaySnapshot.Event($0) }
 
         let progress = trainingPlan.map {
@@ -353,16 +417,22 @@ public enum LivingDaySnapshotBuilder {
             )
         }
 
-        let events = mealEvents + plannedEvents + activityEvents + [trainingPlanEvent].compactMap { $0 }
+        let uniqueTrainingEvent = trainingPlanEvent.flatMap { candidate in
+            activityEvents.contains(where: { representsSameSession($0, candidate) }) ? nil : candidate
+        }
+        let events = mealEvents + plannedEvents + activityEvents + [uniqueTrainingEvent].compactMap { $0 }
         let consumed = nutrition(for: log)
-        let planned = nutrition(for: plannedMeals)
+        let planned = nutrition(for: remainingPlannedMeals)
         let budget = makeBudget(consumed: consumed, planned: planned, goals: goals)
-        let nextAction = DailyNextActionRules.makeAction(
-            plan: trainingPlan,
-            today: log,
-            goals: goals,
-            now: now,
-            calendar: calendar
+        let nextAction = reconcile(
+            action: DailyNextActionRules.makeAction(
+                plan: trainingPlan,
+                today: log,
+                goals: goals,
+                now: now,
+                calendar: calendar
+            ),
+            with: budget
         )
         let currentTime = calendar.isDate(now, inSameDayAs: dayStart) ? now : nil
         let pathWindow = makePathWindow(
@@ -435,6 +505,42 @@ public enum LivingDaySnapshotBuilder {
             protein: .init(kind: .protein, consumed: consumed.protein, planned: planned.protein, target: goals.protein),
             carbs: .init(kind: .carbs, consumed: consumed.carbs, planned: planned.carbs, target: goals.carbs),
             fats: .init(kind: .fats, consumed: consumed.fats, planned: planned.fats, target: goals.fats)
+        )
+    }
+
+    private static func reconcile(
+        action: DailyNextAction,
+        with budget: LivingDaySnapshot.Budget
+    ) -> DailyNextAction {
+        guard action.kind == .proteinCatchUp,
+              let caloriesRemaining = budget.calories.remaining,
+              let proteinRemaining = budget.protein.remaining else { return action }
+
+        if caloriesRemaining < Double(DailyNextActionRules.proteinCatchUpMinimumCalories) {
+            return DailyNextAction(
+                kind: .steadyDay,
+                title: "Review Today's Plan",
+                detail: "Planned meals use today's calorie budget",
+                deepLink: "myfitplate://meal-plan"
+            )
+        }
+
+        let adjustedProtein = Int(ceil(max(0, proteinRemaining)))
+        if adjustedProtein < DailyNextActionRules.proteinCatchUpMinimumGrams {
+            return DailyNextAction(
+                kind: .steadyDay,
+                title: "Your Plan Covers Protein",
+                detail: "No extra protein needed right now",
+                deepLink: "myfitplate://meal-plan"
+            )
+        }
+
+        return DailyNextAction(
+            kind: .proteinCatchUp,
+            title: action.title,
+            detail: "\(adjustedProtein) g protein left today",
+            deepLink: action.deepLink,
+            proteinGrams: adjustedProtein
         )
     }
 
@@ -629,6 +735,23 @@ public enum LivingDaySnapshotBuilder {
         case .invalidDiary, .invalidTargets: return "Data unavailable"
         case .budgetUsedElsewhere: return "Daily budget used elsewhere"
         }
+    }
+
+    private static func representsSameSession(
+        _ first: LivingDaySnapshot.Event,
+        _ second: LivingDaySnapshot.Event
+    ) -> Bool {
+        guard first.kind == second.kind else { return false }
+        let buffer: TimeInterval = 15 * 60
+        let firstEnd = first.endDate ?? first.startDate
+        let secondEnd = second.endDate ?? second.startDate
+        return first.startDate <= secondEnd.addingTimeInterval(buffer) &&
+            second.startDate <= firstEnd.addingTimeInterval(buffer)
+    }
+
+    private static func planMatchKey(mealName: String, foodID: String) -> String {
+        let normalizedMeal = mealName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return "\(normalizedMeal):\(foodID)"
     }
 
     private static func makePathWindow(

@@ -246,15 +246,16 @@ network access. It should expose explicit unavailable and approximate states.
 
 ### Must ship
 
-- [ ] Living Day visual tokens and reusable path primitives.
+- [x] Living Day visual tokens and reusable Home path primitives.
 - [x] `LivingDaySnapshot` deterministic Core model and initial adversarial test matrix.
-- [ ] Fuel Path read-only Home experience with exact navigation.
+- [x] Fuel Path read-only Home experience with exact navigation.
 - [ ] Quick Log insertion and training-to-recovery transitions.
 - [ ] Trust Receipt on Food Detail.
 - [ ] My Foods Library with safe edit/delete/barcode management.
 - [ ] Week in Motion opening report sequence.
 - [ ] VoiceOver, Dynamic Type, Reduce Motion, contrast, dark mode, and compact-device closure.
-- [ ] Feature flag, old-Home fallback, deterministic screenshots, analytics, and rollback runbook.
+- [x] Default-off feature flag, old-Home fallback, Home analytics, deterministic screenshots, and
+  immediate rollback path. Production cohort rollout remains gated on physical-device validation.
 - [ ] Two reserved slots for the largest repeated 2.2 friction or correctness findings.
 
 ### Should ship
@@ -290,7 +291,7 @@ network access. It should expose explicit unavailable and approximate states.
 - Record the submitted 2.2 baseline and collect launch feedback.
 - Prototype three renderings from the same deterministic snapshot: compressed horizontal rail,
   vertical living timeline, and plate-clock overview.
-- Default direction is the horizontal/vertical hybrid Fuel Path described above.
+- The selected production direction is the vertical living timeline.
 - Select the rendering by five-second comprehension, exact-action discoverability, compact-phone
   fit, and accessibility behavior, not visual novelty alone.
 
@@ -300,11 +301,12 @@ semantic fallback.
 Implementation checkpoint (2026-07-12): all three directions render from the same immutable
 fixture in a Debug/screenshot-only gallery. Launch with `-ui-testing -screenshot-mode` and one of
 `-screenshot-screen living-day-rail`, `living-day-timeline`, or `living-day-clock`. The vertical
-timeline is the engineering recommendation because it keeps event order, exact/approximate timing,
+timeline is the production direction because it keeps event order, exact/approximate timing,
 Trust evidence, the current-time break, future training, and the current action visible together.
 The clock is the strongest secondary summary; the rail is the densest but gives adjacent future
 events the least room. Standard light, dark, and accessibility-extra-extra-extra-large Simulator
-captures are clean. Peter still selects the production direction after hands-on review.
+captures are clean. Physical-device comprehension and motion remain rollout checks, not a design-
+selection blocker.
 
 ### Phase 1: experience system and snapshot
 
@@ -323,6 +325,19 @@ sizes; snapshot invariants fail closed.
 - Add first-use orientation through progressive disclosure, not a feature-tour wall of text.
 
 Exit gate: no regression in time to Quick Log, Home task completion, startup, or diary freshness.
+
+Implementation checkpoint (2026-07-12): the vertical timeline now replaces only the Today
+dashboard when `feature_livingDayHome` is enabled. The flag defaults off, refreshes once per Home
+session, and leaves historical dates and the existing 2.2 Home untouched. Its snapshot is assembled
+from the account-scoped diary, goals, meal plan, logged exercise, and confirmed Training Fuel plan.
+Logged/planned food and activity overlaps are reconciled before rendering so the projected budget,
+timeline, and deterministic action cannot contradict one another. The collapsed path shows the two
+events nearest now and expands explicitly; Quick Actions remain in the first standard-size viewport.
+Exact nodes and actions route into the existing diary, Nutrition Audit, Meal Plan, Training Fuel,
+workout, run, walk, and food-search workflows. Light, dark, accessibility-extra-extra-extra-large,
+and exact-fallback Simulator captures pass. VoiceOver labels, Dynamic Type layouts, Reduce Motion,
+analytics, stale/limited status, and shape-based event states are included. Physical-device checks
+and controlled Remote Config rollout remain open.
 
 ### Phase 3: action transitions and Trust
 
@@ -378,10 +393,11 @@ Experience guardrails:
 1. [x] Lock the Living Day information hierarchy with deterministic 2.2 fixtures.
 2. [x] Build and compare the three Fuel Path prototypes; retain Peter's on-device selection as the
    final direction gate.
-3. [ ] Add the 2.3 visual token layer without changing operational screens.
+3. [ ] Carry the completed Home visual token layer into Trust Receipt and Week in Motion without
+   changing operational screens.
 4. [x] Implement and test `LivingDaySnapshot`.
-5. [ ] Ship read-only Fuel Path behind `feature_livingDayHome`.
-6. [ ] Connect exact navigation and Quick Log insertion.
+5. [x] Ship read-only Fuel Path behind default-off `feature_livingDayHome` with exact 2.2 fallback.
+6. [ ] Add Quick Log insertion; exact read-only navigation is complete.
 7. [ ] Build Trust Receipt.
 8. [ ] Build My Foods Library.
 9. [ ] Add Week in Motion, sharing, and the selected widget slice.

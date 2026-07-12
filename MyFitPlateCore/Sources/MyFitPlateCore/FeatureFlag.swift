@@ -7,6 +7,7 @@ public enum FeatureFlag: String, CaseIterable {
     case menuScanner
     case receiptScanner
     case communityBarcodeCorrections
+    case livingDayHome
 
     /// Value used when neither a local override nor a remote value is present.
     /// New/gated features stay dark until deliberately enabled. Already-shipped, higher-risk
@@ -20,6 +21,8 @@ public enum FeatureFlag: String, CaseIterable {
         case .receiptScanner: return true
         // Dark until the extended barcodes rules are deployed and the pool has soaked.
         case .communityBarcodeCorrections: return false
+        // 2.3 Home experience stays behind Remote Config while the existing Home remains available.
+        case .livingDayHome: return false
         }
     }
 

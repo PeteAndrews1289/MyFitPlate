@@ -63,6 +63,10 @@ struct HomeView: View {
     @State private var pendingTrainingFuelDestination: TrainingFuelDestination?
     @State private var selectedTrainingFuelTarget: TrainingFuelTarget?
     @State private var showingMFPImport = false
+    @State private var livingDayMealPlan: MealPlanDay?
+    @State private var livingDayMealPlanUserID: String?
+    @State private var didRefreshLivingDayFlag = false
+    @State private var livingDayFlagRevision = 0
     @StateObject private var runPlanStore = RunWorkoutPlanStore()
     @AppStorage("mfpSwitcherPromptDismissed") private var mfpSwitcherPromptDismissed = false
     @AppStorage("mfpSwitcherPromptSeen") private var mfpSwitcherPromptSeen = false
@@ -75,6 +79,15 @@ struct HomeView: View {
 
     private var isMenuScannerEnabled: Bool {
         DIContainer.shared.featureFlagService?.isFeatureEnabled(.menuScanner) ?? FeatureFlag.menuScanner.defaultValue
+    }
+
+    private var isLivingDayHomeEnabled: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-living-day-home") { return true }
+        #endif
+        _ = livingDayFlagRevision
+        return DIContainer.shared.featureFlagService?.isFeatureEnabled(.livingDayHome)
+            ?? FeatureFlag.livingDayHome.defaultValue
     }
 
     private var spotlightOrder: [String] {
@@ -146,20 +159,33 @@ struct HomeView: View {
                                     .padding(.horizontal)
                             }
 
-                            // DESIGN.md rule 1: the rings are Home's hero and always render —
-                            // before anything is logged they show a zeroed day, which invites
-                            // the first log instead of hiding the screen's whole answer.
-                            HomeDashboardHeader(
-                                dailyLog: currentLogForSelectedDate ?? DailyLog(date: selectedDate, meals: []),
-                                isToday: isToday,
-                                selectedDateFormattedString: selectedDateFormattedString,
-                                weeklyInsight: weeklyInsight,
-                                isHeaderSpotlightActive: isSpotlightActive(for: "dashboardHeader"),
-                                showingDetailedInsights: $showingDetailedInsights,
-                                onReviewFoodTrust: {
-                                    showingNutritionAudit = true
+                            Group {
+                                if isLivingDayHomeEnabled, isToday {
+                                    LivingDayHomeExperience(
+                                        snapshot: livingDaySnapshot,
+                                        onEventSelected: { event in
+                                            handleLivingDayEvent(event, scrollProxy: proxy)
+                                        },
+                                        onActionSelected: { action in
+                                            handleLivingDayAction(action, scrollProxy: proxy)
+                                        }
+                                    )
+                                } else {
+                                    // The existing dashboard remains the default and the fallback
+                                    // while Living Day soaks behind Remote Config.
+                                    HomeDashboardHeader(
+                                        dailyLog: currentLogForSelectedDate ?? DailyLog(date: selectedDate, meals: []),
+                                        isToday: isToday,
+                                        selectedDateFormattedString: selectedDateFormattedString,
+                                        weeklyInsight: weeklyInsight,
+                                        isHeaderSpotlightActive: isSpotlightActive(for: "dashboardHeader"),
+                                        showingDetailedInsights: $showingDetailedInsights,
+                                        onReviewFoodTrust: {
+                                            showingNutritionAudit = true
+                                        }
+                                    )
                                 }
-                            )
+                            }
                                 .padding(.horizontal)
                                 .id("dashboardHeader")
 
@@ -262,9 +288,12 @@ struct HomeView: View {
                             dailyLogService.loadSmartSuggestions(for: userId)
                             workoutService.fetchRoutinesAndPrograms()
                             trainingFuelPlanStore.load(for: userId)
+                            refreshLivingDayMealPlan()
                         } else {
                             dailyLogService.smartSuggestions = []
                             trainingFuelPlanStore.load(for: nil)
+                            livingDayMealPlan = nil
+                            livingDayMealPlanUserID = nil
                         }
                     }
                     .onChange(of: currentSpotlightIndex) { _, newIndex in
@@ -463,6 +492,9 @@ struct HomeView: View {
           .onChange(of: dailyLogService.currentDailyLog) { _, _ in
               refreshDeferredTrainingRecoveryIfNeeded()
           }
+          .onChange(of: selectedDate) { _, _ in
+              refreshLivingDayMealPlan()
+          }
           .onChange(of: spotlightManager.replayToken) { _, _ in
               startSpotlightTourIfNeeded()
           }
@@ -537,6 +569,8 @@ struct HomeView: View {
         workoutService.fetchRoutinesAndPrograms()
         trainingFuelPlanStore.load(for: DIContainer.shared.authService.currentUserID)
         fetchLogForSelectedDate()
+        refreshLivingDayFeatureFlagIfNeeded()
+        refreshLivingDayMealPlan()
         refreshStreakHistory()
         if isToday {
             if !ScreenshotDemoMode.isEnabled {
@@ -846,6 +880,137 @@ struct HomeView: View {
             carbs: goalSettings.carbs,
             fats: goalSettings.fats
         )
+    }
+
+    private var livingDaySnapshot: LivingDaySnapshot {
+        let currentUserID = DIContainer.shared.authService.currentUserID
+        let plannedMeals: [PlannedMeal]
+        if livingDayMealPlanUserID == currentUserID,
+           let plan = livingDayMealPlan,
+           Calendar.current.isDate(plan.date, inSameDayAs: selectedDate) {
+            plannedMeals = plan.meals
+        } else {
+            plannedMeals = []
+        }
+
+        let activities = (currentLogForSelectedDate?.exercises ?? []).map {
+            LivingDayActivityInput(exercise: $0)
+        }
+
+        return LivingDaySnapshotBuilder.make(
+            date: selectedDate,
+            dailyLog: currentLogForSelectedDate,
+            goals: trainingFuelGoals,
+            plannedMeals: plannedMeals,
+            activities: activities,
+            trainingPlan: trainingFuelPlanStore.confirmedPlan,
+            freshness: .current(updatedAt: nil)
+        )
+    }
+
+    private func refreshLivingDayMealPlan() {
+        guard isLivingDayHomeEnabled,
+              isToday,
+              let userID = DIContainer.shared.authService.currentUserID else {
+            livingDayMealPlan = nil
+            livingDayMealPlanUserID = nil
+            return
+        }
+
+        let requestedDate = selectedDate
+        livingDayMealPlan = mealPlannerService.cachedPlan(for: requestedDate, userID: userID)
+        livingDayMealPlanUserID = userID
+
+        Task { @MainActor in
+            let plan = await mealPlannerService.fetchPlan(for: requestedDate, userID: userID)
+            guard DIContainer.shared.authService.currentUserID == userID,
+                  Calendar.current.isDate(selectedDate, inSameDayAs: requestedDate) else { return }
+            livingDayMealPlan = plan
+            livingDayMealPlanUserID = userID
+        }
+    }
+
+    private func refreshLivingDayFeatureFlagIfNeeded() {
+        guard !didRefreshLivingDayFlag,
+              let featureFlagService = DIContainer.shared.featureFlagService else { return }
+        didRefreshLivingDayFlag = true
+
+        Task { @MainActor in
+            await featureFlagService.refresh()
+            livingDayFlagRevision += 1
+            refreshLivingDayMealPlan()
+        }
+    }
+
+    private func handleLivingDayEvent(
+        _ event: LivingDaySnapshot.Event,
+        scrollProxy: ScrollViewProxy
+    ) {
+        HapticManager.instance.feedback(.light)
+        DIContainer.shared.analyticsManager?.logEvent("living_day_event_opened", parameters: [
+            "kind": event.kind.rawValue,
+            "state": event.state.rawValue,
+            "evidence": event.evidence.rawValue
+        ])
+
+        let needsTrustReview = event.evidence == .correction || event.evidence == .review
+        if event.kind == .meal,
+           needsTrustReview,
+           currentLogForSelectedDate != nil {
+            showingNutritionAudit = true
+            return
+        }
+
+        switch event.destination {
+        case .diary:
+            withAnimation(.easeInOut(duration: 0.2)) {
+                scrollProxy.scrollTo("dailyLog", anchor: .top)
+            }
+        case .mealPlan:
+            appState.selectedTab = 3
+        case .workouts:
+            appState.selectedTab = 2
+        case .runs:
+            openLivingDayRoute("myfitplate://runs")
+        case .trainingFuel:
+            showingTrainingFuelPlanner = true
+        case .none:
+            break
+        }
+    }
+
+    private func handleLivingDayAction(
+        _ action: DailyNextAction,
+        scrollProxy: ScrollViewProxy
+    ) {
+        HapticManager.instance.feedback(.light)
+        DIContainer.shared.analyticsManager?.logEvent("living_day_action_opened", parameters: [
+            "kind": action.kind.rawValue
+        ])
+
+        switch action.kind {
+        case .preWorkoutFuel, .recoveryMeal:
+            showingTrainingFuelPlanner = true
+        case .proteinCatchUp:
+            openLivingDayRoute(action.deepLink)
+        case .trustReview:
+            if currentLogForSelectedDate != nil {
+                showingNutritionAudit = true
+            }
+        case .steadyDay:
+            if action.deepLink.contains("meal-plan") {
+                appState.selectedTab = 3
+            } else {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    scrollProxy.scrollTo("dailyLog", anchor: .top)
+                }
+            }
+        }
+    }
+
+    private func openLivingDayRoute(_ deepLink: String) {
+        guard let url = URL(string: deepLink) else { return }
+        AppCoordinator.shared.handle(url: url, appState: appState)
     }
 
     private var trainingFuelCandidates: [TrainingFuelSessionCandidate] {

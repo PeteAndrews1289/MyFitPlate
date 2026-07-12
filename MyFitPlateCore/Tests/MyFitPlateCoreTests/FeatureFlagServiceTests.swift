@@ -18,6 +18,7 @@ final class FeatureFlagServiceTests: XCTestCase {
         XCTAssertEqual(service.isFeatureEnabled(.premiumFeatures), FeatureFlag.premiumFeatures.defaultValue)
         XCTAssertTrue(service.isFeatureEnabled(.menuScanner))
         XCTAssertTrue(service.isFeatureEnabled(.receiptScanner))
+        XCTAssertFalse(service.isFeatureEnabled(.livingDayHome))
     }
 
     func testRemoteValueOverridesDefault() {
@@ -61,5 +62,6 @@ final class FeatureFlagServiceTests: XCTestCase {
         XCTAssertEqual(FeatureFlag.newMealPlanner.remoteConfigKey, "feature_newMealPlanner")
         XCTAssertEqual(FeatureFlag.menuScanner.remoteConfigKey, "feature_menuScanner")
         XCTAssertEqual(FeatureFlag.receiptScanner.remoteConfigKey, "feature_receiptScanner")
+        XCTAssertEqual(FeatureFlag.livingDayHome.remoteConfigKey, "feature_livingDayHome")
     }
 }

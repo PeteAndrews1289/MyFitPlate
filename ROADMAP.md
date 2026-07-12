@@ -306,17 +306,20 @@ Full experience, state, accessibility, rollout, and technical contract:
 
 ### Must Ship - Product Identity
 
-- [ ] **Choose the Fuel Path rendering:** prototype a compressed horizontal rail, vertical living
+- [x] **Choose the Fuel Path rendering:** prototype a compressed horizontal rail, vertical living
   timeline, and plate-clock overview from the same deterministic fixtures. Select by five-second
   comprehension, compact-phone fit, exact-action discovery, and accessibility rather than novelty.
-  All three now run in the Debug screenshot gallery with the same immutable snapshot. The current
-  engineering recommendation is the vertical timeline: it is the only direction that exposes
+  All three run in the Debug screenshot gallery with the same immutable snapshot. The vertical
+  timeline is now the production direction: it is the only direction that exposes
   chronology, Trust evidence, the current-time break, future training, and the exact action in one
-  scan. The clock is a strong secondary summary; the rail is compact but compresses adjacent future
-  events. Peter's hands-on selection remains the gate.
+  scan. The clock remains a strong secondary-summary candidate; the rail is compact but compresses
+  adjacent future events. The production Home implementation remains default-off until physical-
+  device comprehension and motion checks pass.
 - [ ] **Create the 2.3 experience system:** add restrained path, evidence, chart, motion, spacing,
   stroke, and color primitives. Keep operational screens quiet; remove pale-card and nested-card
-  treatment first from Home, Food Detail/Trust, and the weekly report.
+  treatment first from Home, Food Detail/Trust, and the weekly report. The reusable Home timeline,
+  evidence, state-shape, budget, and action primitives are complete; Trust Receipt and Week in
+  Motion still need to carry the system into their own surfaces.
 - [x] **Build `LivingDaySnapshot`:** assemble an immutable, finite-value checked, account-scoped
   presentation model from the existing diary, goals, Trust, workouts, runs, fuel plan, meal plan,
   next action, and sync state. No node-level repository fetches and no new backend store. The Core
@@ -324,9 +327,12 @@ Full experience, state, accessibility, rollout, and technical contract:
   adapters, exact Training Fuel windows, consumed/planned/remaining budgets, Trust evidence,
   freshness, path bounds, and the current-time marker. Invalid values fail closed, and warning-level
   nutrition contradictions now outrank routine macro catch-up in the shared next-action rules.
-- [ ] **Ship read-only Fuel Path behind `feature_livingDayHome`:** support logged/planned meal
+- [x] **Ship read-only Fuel Path behind `feature_livingDayHome`:** support logged/planned meal
   nodes, workout/run nodes, current-time state, approximate timing, unavailable data, over-target,
-  offline, and empty-day states with exact navigation into existing workflows.
+  offline, and empty-day states with exact navigation into existing workflows. The flag defaults
+  off, refreshes once per Home session, applies only to Today, and preserves the 2.2 dashboard as
+  the exact fallback. The first viewport shows the two events nearest now, one reconciled action,
+  and an explicit Show All expansion without displacing Quick Actions.
 - [ ] **Connect meaningful transitions:** Quick Log insertion, planned-to-completed state, saved
   Trust correction, and training-to-recovery handoff use short explanatory motion and haptics.
   Reduce Motion receives equivalent fades and content updates; motion never delays a write.
@@ -374,13 +380,15 @@ Full experience, state, accessibility, rollout, and technical contract:
 
 ### Phased Build Queue
 
-1. [ ] Select the primary direction on device; the information hierarchy and all three deterministic
-   visual prototypes are complete.
-2. [ ] Select one direction on real devices and add the 2.3 visual token/primitives layer.
+1. [x] Select the vertical timeline as the production direction after comparing all three
+   deterministic prototypes; retain physical-device validation as a rollout gate.
+2. [ ] Carry the selected visual token/primitives layer beyond the completed Home slice into Trust
+   Receipt and Week in Motion.
 3. [x] Implement `LivingDaySnapshot`, the initial adversarial Core matrix, and the Debug-only
    developer fixture gallery.
-4. [ ] Integrate read-only Fuel Path behind the feature flag with the 2.2 Home as fallback.
-5. [ ] Connect exact navigation, Quick Log insertion, and training/recovery transitions.
+4. [x] Integrate read-only Fuel Path behind the feature flag with the 2.2 Home as fallback.
+5. [ ] Add Quick Log insertion and training/recovery transitions; exact node and action navigation
+   is complete in the read-only Home slice.
 6. [ ] Ship Trust Receipt and persistence-backed evidence-state updates.
 7. [ ] Ship My Foods Library and prove destructive actions cannot alter history.
 8. [ ] Add Week in Motion, then the selected sharing and widget slices.
