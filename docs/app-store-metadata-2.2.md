@@ -112,7 +112,7 @@ so they do not require another binary.
 
 ## Custom product page deep-link boundary
 
-Replacement version 2.2 build 2 adds exact queued routes for the following destinations:
+Replacement version 2.2 build 3 adds exact queued routes for the following destinations:
 
 | Destination | URL |
 |-------------|-----|

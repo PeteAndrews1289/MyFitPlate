@@ -20,6 +20,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>MyFitPlate uses Apple Health workout and activity data to keep training, recovery, and nutrition context synchronized between Apple Watch and iPhone.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>MyFitPlate saves workouts and activity you record to Apple Health so they stay synchronized between Apple Watch, iPhone, and your other health apps.</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

@@ -1,7 +1,9 @@
 # Replacement Version 2.2 Release Closure
 
-The first uploaded 2.2 build was withdrawn before publication. This checklist now closes the
-integrated replacement 2.2 candidate, which must use build 2 or later. This filename retains
+The first uploaded 2.2 build was withdrawn before publication. Build 2 was rejected during
+App Store processing because the embedded Watch app lacked `NSHealthShareUsageDescription` and
+`NSHealthUpdateUsageDescription`. This checklist now closes the integrated replacement 2.2
+candidate, which must use build 3 or later. This filename retains
 the internal 2.3 milestone label so existing roadmap links and evidence remain stable. The
 older 2.2 checklist is release history; do not rerun all of it unless a touched shared surface
 regresses.
@@ -19,9 +21,11 @@ The following must be green on the release commit:
 Latest pre-closure evidence on 2026-07-12: Core 1,022/1,022 with 85.24% line coverage,
 app 83/83, UI 15/15, Functions 11/11 with zero production dependency vulnerabilities,
 strict lint/catalog/diff/plist/project checks, localization JSON validation, and the unsigned
-generic physical-iOS Release build passed. The Release product is version 2.2 build 2 across
-phone, widget, Live Activity, and Watch; it embeds the companion with the correct identifiers
-and arm64_32 plus arm64 architectures. The main privacy manifest parses. App result:
+generic physical-iOS Release build passed. A post-rejection generic physical-iOS Release build
+also passed on 2026-07-12. The current product is version 2.2 build 3 across phone, widget,
+Live Activity, and Watch; it embeds the companion with the correct identifiers, both required
+HealthKit purpose strings, and arm64_32 plus arm64 architectures. Xcode's Watch/store and
+embedded-binary validation passed. The main privacy manifest parses. App result:
 `.codex_xcode/TestResults-2.2b2-app-final.xcresult`. UI result:
 `.codex_xcode/TestResults-2.2b2-ui-final.xcresult`.
 
@@ -45,6 +49,9 @@ the current Release product embeds and syncs the companion correctly.
 - [ ] Complete one real guided interval run. Confirm step transitions, spoken/haptic cues, pause/resume, target text, GPS distance, final step review, Live Activity, and Health save.
 - [ ] Open one Watch-imported run with heart-rate samples and confirm real time-in-zone appears without duplicate distance/calories.
 - [ ] Open or record one phone-only run without heart-rate data and confirm HR cards remain unavailable rather than showing zero.
+- [ ] Reopen a route after a long stop or weak-GPS interval and confirm displayed split times
+  reconcile with the workout duration without a misleading Negative Split badge. Build 3 changes
+  historical route replay only; live pace still caps long signal gaps.
 - [x] Run adjacent supersets through both exercises and confirm rest behavior does not break pairing.
 - [x] Edit warmup/drop/failure set types plus RPE/RIR, finish, reopen history, and confirm values persist while warmups stay out of volume/PR totals.
 
@@ -102,7 +109,7 @@ Record findings in `docs/feedback-triage-2.3.md`.
   `docs/security-privacy-review.md`. The published 13-type summary has linked account/run data,
   unlinked diagnostics plus Device ID, and no tracking.
 - [x] Keep the app, widget, Live Activity, and Watch targets on marketing version 2.2 and set
-  their build number to 2. The withdrawn build 1 cannot be reused.
+  their build number to 3. Builds 1 and 2 cannot be reused.
 - [ ] Create a signed Archive, run Validate App, inspect the archive for the Watch companion and privacy manifests, then upload.
 - [ ] Complete the replacement 2.2 metadata, screenshots, review notes, phased-release choice,
   and exact custom-product-page links after binary approval.
