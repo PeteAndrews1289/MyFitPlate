@@ -96,6 +96,8 @@ struct AIChatbotView: View {
                 chatMessages: $viewModel.chatMessages,
                 onLogRecipe: { viewModel.logRecipe(recipeText: $0) },
                 onSpeak: ttsManager.speak,
+                onStopSpeaking: ttsManager.stopSpeaking,
+                currentSpokenText: ttsManager.currentSpokenText,
                 onAction: { viewModel.handleMaiaAction($0) },
                 showAlert: $viewModel.showAlert,
                 alertMessage: $viewModel.alertMessage
@@ -234,6 +236,7 @@ struct AIChatbotView: View {
             viewModel.setupView()
         }
         .onDisappear {
+            ttsManager.stopSpeaking()
             viewModel.saveMessages()
         }
         .onReceive(appState.$pendingChatPrompt) { prompt in

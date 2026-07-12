@@ -16,6 +16,7 @@ struct SettingsPreferencesSection: View {
     @Binding var eveningProteinTimeBinding: Date
 
     @AppStorage("liftingEffortMetric") private var liftingEffortMetric: String = "rpe"
+    @StateObject private var ttsManager = TTSManager.shared
 
     var body: some View {
         VStack(spacing: 24) {
@@ -204,10 +205,68 @@ struct SettingsPreferencesSection: View {
                         guard let userID = DIContainer.shared.authService.currentUserID else { return }
                         goalSettings.saveUserGoals(userID: userID)
                     }
+
+                    Divider()
+
+                    SettingsLabel(
+                        icon: "waveform",
+                        title: "Spoken voice",
+                        subtitle: spokenVoiceSubtitle,
+                        color: .blue
+                    )
+
+                    if !ttsManager.availableVoices.isEmpty {
+                        Picker(
+                            "Spoken voice",
+                            selection: Binding(
+                                get: { ttsManager.selectedVoiceIdentifier },
+                                set: { ttsManager.selectVoice(identifier: $0) }
+                            )
+                        ) {
+                            ForEach(ttsManager.availableVoices) { voice in
+                                Text("\(voice.name) (\(voice.quality.label))")
+                                    .tag(voice.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Button {
+                            if ttsManager.isSpeaking {
+                                ttsManager.stopSpeaking()
+                            } else {
+                                ttsManager.previewSelectedVoice()
+                            }
+                        } label: {
+                            Label(
+                                ttsManager.isSpeaking ? "Stop Preview" : "Preview Voice",
+                                systemImage: ttsManager.isSpeaking ? "stop.fill" : "speaker.wave.2.fill"
+                            )
+                            .appFont(size: 14, weight: .semibold)
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.brandPrimary)
+                    }
                 }
                 .padding(16)
             }
         }
+        .onAppear {
+            ttsManager.refreshAvailableVoices()
+        }
+        .onDisappear {
+            ttsManager.stopSpeaking()
+        }
+    }
+
+    private var spokenVoiceSubtitle: String {
+        guard let voice = ttsManager.selectedVoiceOption else {
+            return "Uses the best English voice available on this iPhone."
+        }
+        if ttsManager.hasNaturalQualityVoice {
+            return "\(voice.name) is a downloaded \(voice.quality.label.lowercased()) voice."
+        }
+        return "\(voice.name) is a standard system voice. Enhanced and Premium voices sound more natural."
     }
 
     private var trainingFuelRemindersEnabled: Bool {

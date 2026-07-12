@@ -8,7 +8,7 @@ Current objective: move from "impressive broad feature set" to "obvious reason t
 
 ---
 
-## 🏁 Shipped Foundation (Versions 2.0 – 2.2)
+## 🏁 Published Foundation and 2.2 Release Candidate
 - [x] **AYCE Challenge & Scoreboard**: 6-cuisine buffet tracker, sushi roll library (48 items), live value vs. price game, haptic kitchen wins, and persistent lifetime scoreboard ("kitchens defeated").
 - [x] **Apple Health & Running Engine**: Bidirectional workout sync, GPS route mapping, false-start filtering (<100m/<2min), and parallel-watch calorie double-count protection.
 - [x] **High-Trust Nutrition Logging**: GS1 barcode fallback, multi-database cross-verification (USDA, FatSecret, OpenFoodFacts), and 0–99 Trust Cards.
@@ -20,9 +20,9 @@ Current objective: move from "impressive broad feature set" to "obvious reason t
 
 ---
 
-## ✅ Shipped in Version 2.2 — Running Superpowers & Friction Killers
-These items originally carried a 2.3 label while they were being built, but all shipped
-inside the much larger 2.2 release. They remain here as release history, not future scope.
+## ✅ Included in Replacement Version 2.2 — Running Superpowers & Friction Killers
+These items originally carried a 2.3 label while they were being built, but now ship
+inside the larger replacement 2.2 candidate. They are complete release scope, not future work.
 
 ### Running Engine & Recovery
 - [x] **Shoe Mileage Tracker (Core Engine)**: Added `RunningShoe` struct, `shoeID` tagging on runs, and `RunningShoeStore` for local gear persistence and wear calculations.
@@ -40,17 +40,23 @@ inside the much larger 2.2 release. They remain here as release history, not fut
 
 ---
 
-## 🎯 Version 2.3 — The Daily Training Loop (In Progress)
+## 🎯 Replacement Version 2.2 — The Daily Training Loop (Release Candidate)
 
-**Release thesis:** 2.2 established the moat: food data that shows its work, connected to
-real training. Version 2.3 should turn that advantage into a repeatable habit by helping a
-user decide what to eat before training, what to do after it, and whether the plan is
-working. This is a retention release, not another inventory of unrelated features.
+**Release numbering:** the first 2.2 build was withdrawn before publication. The integrated
+release remains public version 2.2 and must use build 2 or later. Historical `2.3` document
+filenames and analytics schema `2.3.2` stay unchanged so links, dashboards, and event cohorts
+remain traceable; they do not describe the App Store version.
+
+**Release thesis:** the original 2.2 candidate established the moat: food data that shows its
+work, connected to real training. This replacement should turn that advantage into a
+repeatable habit by helping a user decide what to eat before training, what to do after it,
+and whether the plan is working. This is a retention release, not another inventory of
+unrelated features.
 
 **Public promise:** "Know what to eat before and after training without losing sight of
 your daily targets."
 
-**Scope rule:** reserve roughly 25% of the release for 2.2 launch feedback, defects, and
+**Scope rule:** reserve roughly 25% of the release for candidate feedback, defects, and
 accessibility/device findings. New work must improve the food -> train -> recover -> review
 loop, remove logging friction, or make the Trust advantage easier to discover.
 
@@ -76,6 +82,13 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 - [x] **Quick Log first-interaction hardening**: opening is idempotent, the dismissal backdrop
   cannot consume the opening touch, idle notification UI is not mounted over Home, direct
   Simulator clicks open on the first attempt, and the complete UI suite is green.
+- [x] **Maia conversation and read-aloud polish**: Maia now answers first, avoids canned praise
+  and dashboard recitation, interprets Balanced/Coach/Analyst as concrete writing styles, and
+  keeps action JSON out of speech. Read Aloud ranks regular US English voices deterministically,
+  prefers downloaded Premium or Enhanced voices, uses the voice's native pitch/rate, expands
+  nutrition shorthand, manages audio in a separate system session, and adds a device-local
+  voice picker with preview. Core and focused UI regressions are green; subjective device
+  acceptance remains in `docs/device-test-2.3.md`.
 - [x] **Structured feedback triage**: `docs/feedback-triage-2.3.md` is the single
   severity-ranked ledger for review feedback, support messages, device-only defects, and
   repeated friction. It separates code complete from device validated, names closure evidence,
@@ -105,13 +118,14 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   GPS, one Watch-imported run with heart-rate series, and one phone-only run without HR. Watch
   sync/offline replay, workout supersets/rest, RPE/RIR/set types, widgets, notification routing,
   accessibility, appearance, and real connectivity recovery are physically closed. The concise
-  remaining sequence and release-stop conditions are in `docs/device-test-2.3.md`.
+  remaining sequence and release-stop conditions are in `docs/device-test-2.3.md`; Maia's
+  new voice/tone acceptance is tracked there as a separate P2 polish check.
 - [ ] **Organic acquisition follow-through**: submit the 2.2 featuring nomination, publish
   Trust/Strength/Weight/Dining custom product pages after 2.2 approval, and add exact app
   routes plus deterministic screenshot fixtures for Food Search, Trust, Fast Food Builder,
-  Runs, and Meal Plan. Started: 2.3 now queues exact routes through login/onboarding and has
-  deterministic CPP aliases plus a HealthKit-free Running history fixture; publication and
-  signed-in/signed-out device checks remain.
+  Runs, and Meal Plan. The replacement candidate now queues exact routes through login and
+  onboarding, and has deterministic CPP aliases plus a HealthKit-free Running history fixture;
+  publication and signed-in/signed-out device checks remain.
 
 ### Must Ship — Training Fuel Planner v1
 
@@ -169,7 +183,7 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   Invalid nutrition or HR values fail closed as unavailable instead of becoming false zeros.
 - [x] **Share/export foundation**: one share menu produces a rendered summary image and a clean,
   aggregate CSV that excludes account IDs, food/routine names, routes/coordinates, and raw HR
-  samples. Polished PDF export remains a stretch goal rather than a 2.3 requirement.
+  samples. Polished PDF export remains a stretch goal rather than a replacement 2.2 requirement.
 
 ### Should Ship — Next Action Beyond the Phone App
 
@@ -192,9 +206,9 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   `training-fuel` parse,
   queue through signed-out/onboarding blockers, and present their exact destinations from the
   stable app shell. Core and cold-launch UI regression tests are green. Keep the 2.2 custom
-  pages link-free until this 2.3 binary is approved.
+  pages link-free until the replacement 2.2 binary is approved.
 
-### Internal 2.3 Work — Trust Calibration and Community Safety
+### Internal Work — Trust Calibration and Community Safety
 
 - [ ] **Trust calibration report**: compare score band/provider/evidence with later edits,
   correction findings, saved-correction reuse, and abandonment. Reweight only after real
@@ -213,9 +227,9 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   counters, quarantine/release, strict Rules, and a global kill switch now fail closed. Killing or
   disabling aggregation also deletes materialized results so stale consensus cannot reappear.
 - [ ] **Internal soak only**: `feature_communityBarcodeCorrections` remains `false` publicly.
-  Public community corrections are explicitly not a 2.3 release requirement.
+  Public community corrections are explicitly not a replacement 2.2 release requirement.
 
-### Explicit Non-Goals for 2.3
+### Explicit Non-Goals for Replacement 2.2
 
 - Public community barcode data before the server aggregate and moderation gates pass.
 - Social feeds, public challenges, or friend graphs.
@@ -249,12 +263,14 @@ not an invented industry benchmark.
 5. [x] Build the unified Training and Fuel report from existing running, lifting, and nutrition
    engines before adding new data collection.
 6. [x] Extend widget shared data, then deliver the narrow Watch and notification slices.
-7. [x] Develop the community aggregate behind a server-only flag; do not couple it to 2.3 launch.
+7. [x] Develop the community aggregate behind a server-only flag; do not couple it to the 2.2 launch.
 8. [x] Close the Watch companion packaging/sync defect surfaced by physical-device testing.
 9. [x] Make micronutrient ingestion, recipe retention, and report coverage honest end to end.
 10. [x] Close local release-readiness gaps: resilient food-search recovery, accessibility-size
     Home copy, Node 22 Functions CI, an enforced 80% Core coverage floor, current branch checks,
     and one feedback/device closure ledger.
+11. [x] Make Maia's prose and on-device Read Aloud path more natural without adding a paid
+    speech provider, new data sharing, or a backend deployment.
 
 ### Ownership and Dependencies
 
@@ -279,14 +295,15 @@ Goal: establish the competitive scoreboard and make the product story sharper be
 - [x] **Refresh App Store story**: created an eight-shot deterministic gallery covering Home, Trust, fast repeat/search, the 25-chain meal builder, Train, Maia action coaching, Meal Plan, and Reports. The first three images carry the positioning and conversion story.
 - [x] **Fix screenshot-visible polish**: corrected clipped Train targets and Reports chart labels, rebuilt the builder's bottom tray, centered a compact outlined Quick Log action above five equal-width destinations, made the expanded action list reachable on compact phones, and visually checked both required phone-size galleries. A final accessibility-size sweep also corrected clipping in Trust details, Food Search, Fast Food Builder, Train, Maia, Meal Plan, and Quick Log, and hardened Trust Hub presentation against asynchronous Home refreshes.
 - [x] **Add a release feedback and referral loop**: Settings now provides a prefilled privacy-safe feedback email and direct App Store sharing; recap, achievement, run-story, and workout-summary shares point back to the live listing; review requests are limited to fresh workout completions after three distinct sessions across at least three days, once per version with a 120-day cooldown.
-- [ ] **Release gate**: Core 1,016/1,016 with 85.24% coverage, app 83/83, UI 14/14,
+- [ ] **Release gate**: Core 1,022/1,022 with 85.24% coverage, app 83/83, UI 15/15,
   Functions 11/11 with zero production dependency vulnerabilities, strict lint/catalog/diff
-  checks, and the unsigned physical-iOS Release build are green locally. CI now matches the
-  Functions Node 22 runtime and requires the 80% Core floor; the checked branch ruleset includes
-  app UI and Functions checks. Peter deployed the then-current production Functions on
-  2026-07-11. Remaining owner gates are the physical checklist, production/branch-console
-  reconciliation, App Check, public legal links, privacy labels, version/build increment, and a
-  signed archive validation/upload in `docs/device-test-2.3.md`.
+  checks, and the unsigned physical-iOS Release build are green locally. The product is version
+  2.2 build 2 across phone, widget, Live Activity, and Watch; the embedded Watch binary has
+  arm64_32 plus arm64. CI now matches the Functions Node 22 runtime and requires the 80% Core
+  floor; the checked branch ruleset includes app UI and Functions checks. Peter deployed the
+  then-current production Functions on 2026-07-11. Remaining owner gates are the physical
+  checklist, production/branch-console reconciliation, App Check, public legal links, privacy
+  labels, and a signed archive validation/upload in `docs/device-test-2.3.md`.
 
 Success signal: a new user can understand why MyFitPlate exists in 10 seconds, and the team has baseline numbers for the conversion funnel.
 
@@ -353,7 +370,7 @@ Goal: make the Apple ecosystem experience feel first-class and repeatable.
 
 - [x] **Apple Watch standalone quick logging**: water, weight, a two-step recent-meal repeat,
   and compact training/recovery review are complete with offline-safe delivery. Workout
-  start/finish remains a later Watch expansion and is not required for 2.3. Installation,
+  start/finish remains a later Watch expansion and is not required for replacement 2.2. Installation,
   paired-device context, account clearing, and offline exactly-once replay are physically
   validated.
 - [x] **Widget and Live Activity refinement**: every widget family now answers "what should I do
@@ -365,7 +382,7 @@ Goal: make the Apple ecosystem experience feel first-class and repeatable.
   telemetry. The generic AI engagement nudge is retired.
 - [x] **Reports and export polish**: the unified report exports a privacy-safe rendered image
   and aggregate CSV for a selected seven-day period. Polished PDF output and arbitrary date
-  ranges remain later work rather than 2.3 requirements.
+  ranges remain later work rather than replacement 2.2 requirements.
 - [x] **Accessibility/device pass**: the complete deterministic UI suite and a light/dark
   accessibility-XXXL matrix are green; Home support copy grows rather than truncates and Food
   Search has visible retry/manual recovery during provider outages. Peter physically validated

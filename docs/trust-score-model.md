@@ -130,7 +130,8 @@ This distinction follows FDA labeling guidance, which permits energy factors oth
 
 ## Community barcode status
 
-`feature_communityBarcodeCorrections` remains `false` by default. The 2.3 pipeline now stores
+`feature_communityBarcodeCorrections` remains `false` by default. The internal 2.3 pipeline,
+shipping dormant in replacement 2.2, stores
 one private contribution per user/barcode through an authenticated App Check callable. A
 server-owned aggregate publishes only after at least three distinct contributors and at least
 two-thirds agreement. Published records contain no contributor identifiers; strict Rules permit

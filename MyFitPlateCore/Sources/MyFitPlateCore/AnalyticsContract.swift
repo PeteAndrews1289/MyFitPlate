@@ -1,7 +1,8 @@
 import Foundation
 
-/// Stable event names and dimensions used by the 2.3 acquisition, activation, and
-/// release-health dashboards. Values describe product behavior only; nutrition,
+/// Stable event names and dimensions used by the replacement 2.2 acquisition and
+/// release-health dashboards. The schema keeps its internal 2.3 label. Values describe
+/// product behavior only; nutrition,
 /// body, workout-detail, location, and account identifiers remain excluded.
 public enum ProductAnalytics {
     public static let schemaVersion = "2.3.2"

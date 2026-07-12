@@ -63,7 +63,7 @@ Use the following screen and file pairs:
 | `reports` | `8.png` |
 | `quick-log` | `alternate-quick-log.png` |
 | `settings` | UI-verification target only; not in the primary gallery |
-| `runs` | 2.3 deterministic Running history fixture |
+| `runs` | Replacement 2.2 deterministic Running history fixture |
 
 Custom-product-page aliases resolve to the same deterministic destinations:
 

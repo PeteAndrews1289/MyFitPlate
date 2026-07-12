@@ -509,7 +509,7 @@ export const fatSecretProxy = onCall(
 
 // Community submissions are private server-owned documents. The callable is dormant unless the
 // private Firestore config explicitly accepts contributions, and App Check is mandatory because
-// no pre-2.3 client needs this endpoint.
+// no published client before replacement 2.2 build 2 needs this endpoint.
 export const submitCommunityBarcodeContribution = onCall(
   { enforceAppCheck: true },
   async (request) => {

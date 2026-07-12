@@ -1,5 +1,8 @@
 # Cross-Device Next Action 2.3 Contract
 
+The title and filename retain the internal milestone label; this contract ships in replacement
+public version 2.2.
+
 This document defines the compact action shared by the app, widgets, Watch, and local
 notifications. These surfaces may make an existing plan easier to act on; they must not invent
 food, training completion, recovery, or a new calorie target.

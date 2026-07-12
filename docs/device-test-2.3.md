@@ -1,7 +1,10 @@
-# Version 2.3 Release Closure
+# Replacement Version 2.2 Release Closure
 
-This checklist contains only the remaining evidence for 2.3. The older 2.2 checklist is
-release history; do not rerun all of it unless a touched shared surface regresses.
+The first uploaded 2.2 build was withdrawn before publication. This checklist now closes the
+integrated replacement 2.2 candidate, which must use build 2 or later. This filename retains
+the internal 2.3 milestone label so existing roadmap links and evidence remain stable. The
+older 2.2 checklist is release history; do not rerun all of it unless a touched shared surface
+regresses.
 
 ## Automated baseline
 
@@ -13,13 +16,14 @@ The following must be green on the release commit:
 - Unsigned generic physical-iOS Release build with the companion Watch app embedded.
 - Functions tests/build/audit, Firestore Rules emulator tests, and migration-runner tests when those folders changed.
 
-Latest pre-closure evidence on 2026-07-12: Core 1,016/1,016 with 85.24% line coverage,
-app 83/83, UI 14/14, Functions 11/11 with zero production dependency vulnerabilities,
-strict lint/catalog/diff checks, and the unsigned generic physical-iOS Release build passed.
-The Release product embeds the Watch companion with the correct phone/Watch/companion
-identifiers and arm64_32 plus arm64 architectures. App result:
-`.codex_xcode/Logs/Test/Test-MyFitPlate-2026.07.12_01-58-05--0400.xcresult`. UI result:
-`.codex_xcode/Logs/Test/Test-MyFitPlate-2026.07.12_01-59-25--0400.xcresult`.
+Latest pre-closure evidence on 2026-07-12: Core 1,022/1,022 with 85.24% line coverage,
+app 83/83, UI 15/15, Functions 11/11 with zero production dependency vulnerabilities,
+strict lint/catalog/diff/plist/project checks, localization JSON validation, and the unsigned
+generic physical-iOS Release build passed. The Release product is version 2.2 build 2 across
+phone, widget, Live Activity, and Watch; it embeds the companion with the correct identifiers
+and arm64_32 plus arm64 architectures. The main privacy manifest parses. App result:
+`.codex_xcode/TestResults-2.2b2-app-final.xcresult`. UI result:
+`.codex_xcode/TestResults-2.2b2-ui-final.xcresult`.
 
 ## Peter: physical release blockers
 
@@ -32,8 +36,8 @@ identifiers and arm64_32 plus arm64 architectures. App result:
 - [x] Add/tap each widget family after an app-group refresh and confirm its exact destination.
 - [x] Enable one training-fuel reminder, receive it from the Lock Screen, and confirm the tap opens Training Fuel rather than a neighboring tab.
 
-Peter physically validated all four Watch checks against the current 2.3 foundation on
-2026-07-12. The missing-Watch-product defect remains specific to the archived 2.2 build 1;
+Peter physically validated all four Watch checks against the replacement 2.2 candidate on
+2026-07-12. The missing-Watch-product defect remains specific to the withdrawn 2.2 build 1;
 the current Release product embeds and syncs the companion correctly.
 
 ### Running and strength
@@ -58,21 +62,43 @@ running sensor/data paths above remain open in this section.
 Peter physically validated the widget, notification, accessibility, appearance, and real
 connectivity recovery checks on 2026-07-12.
 
+### Maia voice and conversation
+
+- [ ] In Settings > Maia, preview the default spoken voice and at least one alternate if the
+  phone has more than one regular US English voice. Confirm Stop Preview works and other audio
+  resumes afterward.
+- [ ] If the phone offers only Standard voices, download an Enhanced or Premium English voice
+  in the iPhone's Accessibility speech settings, reopen MyFitPlate Settings, and confirm it is
+  available to select and preview. This is optional quality polish, not a release blocker.
+- [ ] Ask one practical nutrition question in Balanced, Coach, and Analyst modes. Confirm Maia
+  answers first, avoids canned praise or dashboard recitation, and each tone remains useful
+  rather than theatrical.
+- [ ] Read aloud a response that contains an action card. Confirm Maia reads only the visible
+  response, expands common nutrition units naturally, never narrates the hidden JSON, and
+  changes the active control to Stop Reading.
+
+An audio crash, hidden-payload narration, or failure to restore other audio blocks release.
+Preference between otherwise functional system voices is polish feedback, not a release stop.
+
 Any data loss, account deletion failure, incorrect diary day, duplicate Watch write,
 privacy-sensitive telemetry, crash, or unreachable primary action is release-blocking.
 Record findings in `docs/feedback-triage-2.3.md`.
 
 ## Peter: console and App Store gates
 
-- [ ] Verify production Functions, Rules, and indexes match the intended release commit. No backend redeploy is required for Watch/micronutrient or search-recovery UI changes alone.
+- [ ] Verify production Functions, Rules, and indexes match the intended release commit. No
+  backend redeploy is required for Watch, micronutrient, search-recovery, Maia prompt, or
+  on-device Maia voice changes alone.
 - [ ] Apply or reconcile `.github/rulesets/main-branch-protection.json` in GitHub so Unit tests, UI smoke tests, Firebase Functions, Firebase Rules, and Data migrations are required on `main`.
 - [ ] Register App Attest for the production app, verify App Check validity metrics, and do not enable enforcement until valid production traffic is clean.
 - [ ] Configure the KPI and launch-health views from `docs/analytics-dashboard-2.3.md`; assign an owner and rollback response to each red metric.
 - [ ] Confirm Privacy Policy, Terms, and Support URLs are publicly reachable from a signed-in and signed-out browser.
 - [ ] Reconcile App Store privacy answers with `docs/data-safety.md` and `docs/security-privacy-review.md`.
-- [ ] Set the app and companion targets to marketing version 2.3 and choose a build number not already used in App Store Connect.
+- [x] Keep the app, widget, Live Activity, and Watch targets on marketing version 2.2 and set
+  their build number to 2. The withdrawn build 1 cannot be reused.
 - [ ] Create a signed Archive, run Validate App, inspect the archive for the Watch companion and privacy manifests, then upload.
-- [ ] Complete the 2.3 metadata, screenshots, review notes, phased-release choice, and exact custom-product-page links after binary approval.
+- [ ] Complete the replacement 2.2 metadata, screenshots, review notes, phased-release choice,
+  and exact custom-product-page links after binary approval.
 
 ## Post-release observation
 

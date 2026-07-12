@@ -1,7 +1,8 @@
-# Trust Calibration Report Contract 2.3
+# Trust Calibration Report Contract for Replacement 2.2
 
 This is the reproducible analysis plan for Trust model calibration. Instrumentation is ready in
-analytics schema `2.3.2`; the report itself remains open until enough real 2.3 behavior exists.
+internal analytics schema `2.3.2`; the report itself remains open until enough real
+replacement 2.2 behavior exists. The filename retains the internal milestone label.
 The goal is to learn whether lower Trust bands predict later corrections, not to make scores look
 higher.
 

@@ -186,6 +186,35 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testMaiaVoiceControlsAreReachableAndFit() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "settings"
+        ]
+        app.launch()
+
+        let spokenVoice = app.staticTexts["Spoken voice"]
+        let previewVoice = app.buttons["Preview Voice"]
+        for _ in 0..<8 where !spokenVoice.isHittable || !previewVoice.isHittable {
+            app.swipeUp()
+        }
+
+        XCTAssertTrue(spokenVoice.waitForExistence(timeout: 5))
+        XCTAssertTrue(previewVoice.waitForExistence(timeout: 5))
+        XCTAssertTrue(previewVoice.isHittable)
+        XCTAssertLessThanOrEqual(previewVoice.frame.maxX, app.frame.maxX + 1)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Maia voice controls"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testHomeTrustHubHasNavigationAndInteractiveRows() throws {
         let app = XCUIApplication()
         app.terminate()

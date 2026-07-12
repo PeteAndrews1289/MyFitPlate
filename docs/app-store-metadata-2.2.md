@@ -112,7 +112,7 @@ so they do not require another binary.
 
 ## Custom product page deep-link boundary
 
-Version 2.3 adds exact queued routes for the following destinations:
+Replacement version 2.2 build 2 adds exact queued routes for the following destinations:
 
 | Destination | URL |
 |-------------|-----|
@@ -122,14 +122,16 @@ Version 2.3 adds exact queued routes for the following destinations:
 | Running | `myfitplate://runs` |
 | Meal Plan | `myfitplate://meal-plan` |
 
-Do not attach these exact routes to a live custom product page while 2.2 is the current
-binary. The 2.2 app recognizes only the older broad tab routes and would fall back to Home
-for several of these URLs. Custom pages may publish with screenshots, promotional text,
-and approved keyword assignments now; add the exact deep links only after 2.3 is approved.
+Do not attach these exact routes to a live custom product page until replacement 2.2 is
+approved. The currently published app recognizes only the older broad tab routes and would
+fall back to Home for several of these URLs. Custom pages may publish with screenshots,
+promotional text, and approved keyword assignments now; add the exact deep links only after
+replacement 2.2 is live.
 
-The 2.3 coordinator queues the latest requested route while login, onboarding, or a first-
-session sheet is active, then opens it from the stable app shell. Every route must still be
-tested from Notes while signed in and signed out before it is added in App Store Connect.
+The replacement 2.2 coordinator queues the latest requested route while login, onboarding,
+or a first-session sheet is active, then opens it from the stable app shell. Every route must
+still be tested from Notes while signed in and signed out before it is added in App Store
+Connect.
 
 ## Launch-week routine
 

@@ -1,13 +1,15 @@
-# Version 2.3 Analytics and Launch-Health Contract
+# Replacement Version 2.2 Analytics and Launch-Health Contract
 
-This document is the source of truth for the 2.3 acquisition, activation, retention,
-Trust, training, reliability, and AI-cost dashboards. It defines what each number means
+This document is the source of truth for the replacement 2.2 acquisition, activation,
+retention, Trust, training, reliability, and AI-cost dashboards. Its filename and schema
+retain the internal 2.3 milestone label for stable cohorts. It defines what each number means
 before production data is used to make product decisions.
 
 ## Operating rules
 
-- Compare MyFitPlate with its own clean 2.2 baseline. Do not invent an industry target.
-- Segment by app version and `analytics_schema`. The current 2.3 contract emits schema `2.3.2`.
+- Compare MyFitPlate with its previous stable production baseline. Exclude the withdrawn 2.2
+  build 1 from launch comparisons. Do not invent an industry target.
+- Segment by app version and `analytics_schema`. Replacement 2.2 emits internal schema `2.3.2`.
 - Use distinct users unless a metric explicitly says events or attempts.
 - Treat an event as evidence of the named behavior only. A screen view is not a success.
 - Keep App Store acquisition totals separate from Firebase product behavior, then compare
@@ -35,7 +37,7 @@ before production data is used to make product decisions.
 
 ## Training and fuel leading indicators
 
-These events evaluate the 2.3 loop before waiting for D7 retention:
+These events evaluate the replacement 2.2 loop before waiting for D7 retention:
 
 | Behavior | Events and dimensions |
 |---|---|
@@ -64,7 +66,8 @@ what happens after launch.
 
 Use `deep_link_opened.destination` as a routing integrity check for Food Search, Trust,
 Fast Food Builder, Running, Meal Plan, and Training Fuel. The old parameter name `route` is intentionally
-blocked because it could also mean a GPS route; 2.3 uses the privacy-safe `destination` key.
+blocked because it could also mean a GPS route; the current contract uses the privacy-safe
+`destination` key.
 
 For each weekly custom-page cohort, report:
 
@@ -74,8 +77,8 @@ For each weekly custom-page cohort, report:
 4. First-food, first-training, and loop completion for the same release week/version.
 5. D1 and D7 return once the cohort has matured.
 
-Do not attach the exact destination links to live pages until the 2.3 binary is approved and
-the five URLs pass signed-in and signed-out physical-device testing.
+Do not attach the exact destination links to live pages until the replacement 2.2 binary is
+approved and the five URLs pass signed-in and signed-out physical-device testing.
 
 ## Launch-health operating view
 

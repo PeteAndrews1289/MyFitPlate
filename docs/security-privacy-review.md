@@ -1,6 +1,7 @@
 # Security and Privacy Review
 
-Updated for 2.3 development on July 11, 2026.
+Updated for the replacement 2.2 release candidate on July 12, 2026. Internal 2.3 contract
+filenames and analytics schema remain unchanged for traceability.
 
 ## Data Flow Summary
 
@@ -49,7 +50,7 @@ Updated for 2.3 development on July 11, 2026.
 ## Release Owner Actions
 
 1. Commit and push the current privacy policy, terms, and support pages so the in-app URLs resolve to the reviewed versions.
-2. For the 2.3 community pipeline, deploy Functions first and then Firestore Rules/indexes. Keep
+2. For the dormant community pipeline, deploy Functions first and then Firestore Rules/indexes. Keep
    community barcode Remote Config disabled and follow the backup-first rollout in
    `docs/community-barcode-consensus-2.3.md`.
 3. Test account deletion and private-contribution withdrawal with throwaway accounts.
@@ -65,7 +66,7 @@ Updated for 2.3 development on July 11, 2026.
 - Firebase Functions changes do not affect production until deployed.
 - Authentication, App Check, and rate limits do not eliminate coordinated multi-account abuse.
   Community results therefore remain a conservative Review-band fallback pending internal soak;
-  public rollout and broad reaggregation remain open gates rather than 2.3 release requirements.
+  public rollout and broad reaggregation remain open gates rather than replacement 2.2 release requirements.
 - The Functions runtime is moved to Node.js 22. Future runtime lifecycle notices must be handled
   before deprecation rather than during an emergency release.
 - Real-device HealthKit, route recording, background execution, Watch sync, signed archive, and deletion behavior cannot be fully proven by simulator tests.

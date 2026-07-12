@@ -1,5 +1,8 @@
 # Micronutrient Data Contract - Version 2.3
 
+The title and filename retain the internal milestone label; this contract ships in replacement
+public version 2.2.
+
 ## Product rule
 
 MyFitPlate must never present an unavailable micronutrient as measured zero.

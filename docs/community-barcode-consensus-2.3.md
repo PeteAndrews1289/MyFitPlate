@@ -1,5 +1,9 @@
 # Community Barcode Consensus 2.3
 
+The title and filename retain the internal milestone label. The private, disabled-by-default
+pipeline is present in replacement public version 2.2, but public community results are not a
+release requirement.
+
 This document is the implementation and rollout contract for MyFitPlate's community barcode
 fallback. The private pipeline is built for internal 2.3 evaluation. Public rollout remains a
 separate decision and `feature_communityBarcodeCorrections` stays off by default.

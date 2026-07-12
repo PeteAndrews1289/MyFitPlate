@@ -1,7 +1,8 @@
-# Version 2.3 Feedback Triage
+# Replacement Version 2.2 Feedback Triage
 
 This is the single severity-ranked ledger for review feedback, support messages,
-device-only defects, and repeated friction during the 2.3 cycle. Add an item here before
+device-only defects, and repeated friction during the replacement 2.2 cycle. The filename
+retains its internal 2.3 milestone label for stable references. Add an item here before
 starting a redesign or a release fix. Do not treat one preference as a trend unless it
 also exposes a correctness, accessibility, or workflow failure.
 
@@ -25,8 +26,9 @@ Code complete without required hardware validation is `Ready for device`, not `C
 | FB-2302 | P1 | Three running sensor/data paths still need physical validation | Ready for device | Peter: complete one guided GPS interval, inspect one Watch-imported run with HR, and inspect or record one phone-only run without HR using `docs/device-test-2.3.md`. |
 | FB-2303 | P1 | Release console gates cannot be proven from source | Owner action | Peter: reconcile App Check, privacy labels, public legal links, production Functions, version/build, signed archive, and upload using `docs/device-test-2.3.md`. |
 | FB-2304 | P2 | KPI and launch-health views need real production traffic | Waiting for data | Peter configures Firebase/App Store views; Codex analyzes only clean versioned cohorts after 7-14 days. Trust reweighting requires the separate minimums in `docs/trust-calibration-2.3.md`. |
-| FB-2305 | P2 | Community barcode aggregate has not completed an internal abuse/rollback soak | Intentionally gated | Keep `feature_communityBarcodeCorrections=false`. Use disposable accounts and the runbook in `docs/community-barcode-consensus-2.3.md`; this is not a 2.3 public-release requirement. |
-| FB-2306 | P2 | Exact custom-product-page routes cannot be published until the 2.3 binary is approved | App Store follow-up | Peter publishes the prepared Trust, Strength, Weight, Dining, Running, and Meal Plan pages after approval. |
+| FB-2305 | P2 | Community barcode aggregate has not completed an internal abuse/rollback soak | Intentionally gated | Keep `feature_communityBarcodeCorrections=false`. Use disposable accounts and the runbook in `docs/community-barcode-consensus-2.3.md`; this is not a replacement 2.2 public-release requirement. |
+| FB-2306 | P2 | Exact custom-product-page routes cannot be published until the replacement 2.2 binary is approved | App Store follow-up | Peter publishes the prepared Trust, Strength, Weight, Dining, Running, and Meal Plan pages after approval. |
+| FB-2309 | P2 | Maia's read-aloud voice and prose sounded robotic | Ready for device | Maia now ranks regular downloaded voices deterministically, uses neutral prosody, strips hidden action payloads and markdown from speech, exposes voice selection/preview, and has explicit natural-conversation rules. Peter completes the three Maia checks in `docs/device-test-2.3.md`. |
 
 ## Closed feedback
 

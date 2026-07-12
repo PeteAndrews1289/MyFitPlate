@@ -1,8 +1,10 @@
 # Training Fuel Planner 2.3 Core Contract
 
-This document defines the deterministic Core engine and application contract powering the 2.3
-Training Fuel Planner. The engine divides part of the user's existing daily calorie, protein, and carb
-targets around one planned strength session or run. It never changes those targets.
+The title and filename retain the internal milestone label; this contract ships in replacement
+public version 2.2. This document defines the deterministic Core engine and application contract
+powering the Training Fuel Planner. The engine divides part of the user's existing daily calorie,
+protein, and carb targets around one planned strength session or run. It never changes those
+targets.
 
 The allocations are transparent product heuristics for general fitness coaching. They are
 not medical advice, a diagnosis, or an individualized sports-nutrition prescription.
