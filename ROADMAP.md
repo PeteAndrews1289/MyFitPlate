@@ -101,12 +101,11 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   previews, and recipes retain/scale the full panel. Daily and historical reports distinguish
   unavailable data from reported zero and show their food/day coverage instead of false 0% intake.
   The durable provider/unit/presentation contract is `docs/micronutrient-data-2.3.md`.
-- [ ] **Known device closures**: validate guided intervals on real GPS, Watch-imported runs
-  with heart-rate series, phone-only runs without HR, workout supersets/rest behavior, and
-  RPE/RIR/set-type editing on hardware. Also validate widget tap-through after an app-group
-  refresh and deliver one opt-in training-fuel notification through its exact app destination.
-  Watch companion sync and phone-unreachable replay are physically closed. The concise remaining
-  sequence and release-stop conditions are centralized in `docs/device-test-2.3.md`.
+- [ ] **Known device closures**: only three running paths remain: one guided interval on real
+  GPS, one Watch-imported run with heart-rate series, and one phone-only run without HR. Watch
+  sync/offline replay, workout supersets/rest, RPE/RIR/set types, widgets, notification routing,
+  accessibility, appearance, and real connectivity recovery are physically closed. The concise
+  remaining sequence and release-stop conditions are in `docs/device-test-2.3.md`.
 - [ ] **Organic acquisition follow-through**: submit the 2.2 featuring nomination, publish
   Trust/Strength/Weight/Dining custom product pages after 2.2 approval, and add exact app
   routes plus deterministic screenshot fixtures for Food Search, Trust, Fast Food Builder,
@@ -367,11 +366,11 @@ Goal: make the Apple ecosystem experience feel first-class and repeatable.
 - [x] **Reports and export polish**: the unified report exports a privacy-safe rendered image
   and aggregate CSV for a selected seven-day period. Polished PDF output and arbitrary date
   ranges remain later work rather than 2.3 requirements.
-- [ ] **Accessibility/device pass**: the complete deterministic UI suite and a light/dark
-  accessibility-XXXL matrix are green; Home support copy now grows rather than truncates and
-  Food Search has visible retry/manual recovery during provider outages. Physical VoiceOver,
-  Increase Contrast, compact-device, connectivity, widget, Watch, and GPS checks remain in
-  `docs/device-test-2.3.md`.
+- [x] **Accessibility/device pass**: the complete deterministic UI suite and a light/dark
+  accessibility-XXXL matrix are green; Home support copy grows rather than truncates and Food
+  Search has visible retry/manual recovery during provider outages. Peter physically validated
+  VoiceOver, largest text, dark mode, Increase Contrast, widgets, notification routing, Watch,
+  and offline/online recovery. Running sensor validation remains a separate Known device closure.
 
 Success signal: users can interact with the app without opening the phone every time, and weekly retention has a clear habit loop.
 

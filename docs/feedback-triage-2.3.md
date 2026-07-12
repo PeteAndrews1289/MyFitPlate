@@ -22,12 +22,11 @@ Code complete without required hardware validation is `Ready for device`, not `C
 
 | ID | Severity | Feedback or risk | State | Owner and next evidence |
 | --- | --- | --- | --- | --- |
-| FB-2302 | P1 | Guided intervals and advanced strength controls still need real sensor/input validation | Ready for device | Peter: complete the GPS, imported-HR, phone-without-HR, superset/rest, RPE/RIR, and set-type checks in `docs/device-test-2.3.md`. |
+| FB-2302 | P1 | Three running sensor/data paths still need physical validation | Ready for device | Peter: complete one guided GPS interval, inspect one Watch-imported run with HR, and inspect or record one phone-only run without HR using `docs/device-test-2.3.md`. |
 | FB-2303 | P1 | Release console gates cannot be proven from source | Owner action | Peter: reconcile App Check, privacy labels, public legal links, production Functions, version/build, signed archive, and upload using `docs/device-test-2.3.md`. |
 | FB-2304 | P2 | KPI and launch-health views need real production traffic | Waiting for data | Peter configures Firebase/App Store views; Codex analyzes only clean versioned cohorts after 7-14 days. Trust reweighting requires the separate minimums in `docs/trust-calibration-2.3.md`. |
 | FB-2305 | P2 | Community barcode aggregate has not completed an internal abuse/rollback soak | Intentionally gated | Keep `feature_communityBarcodeCorrections=false`. Use disposable accounts and the runbook in `docs/community-barcode-consensus-2.3.md`; this is not a 2.3 public-release requirement. |
 | FB-2306 | P2 | Exact custom-product-page routes cannot be published until the 2.3 binary is approved | App Store follow-up | Peter publishes the prepared Trust, Strength, Weight, Dining, Running, and Meal Plan pages after approval. |
-| FB-2307 | P2 | Simulator accessibility coverage does not replace physical VoiceOver and device-size checks | Ready for device | Peter: complete VoiceOver, largest text, dark mode, compact-device, widget, and low-connectivity checks. Local UI automation and the light/dark XXXL fixture matrix are green. |
 
 ## Closed feedback
 
@@ -39,6 +38,8 @@ Code complete without required hardware validation is `Ready for device`, not `C
 | FB-2294 | The Watch target built but did not arrive with the phone app | The Watch product is embedded in the phone bundle, companion identities are corrected, and the context handshake retries activation/reachability/state changes. Physical replacement is tracked separately as FB-2301. |
 | FB-2295 | A food database outage left search at a dead end | Search now keeps local history available, uses nontechnical failure copy, and offers Try again plus Create food. A deterministic UI regression test covers the recovery state. |
 | FB-2301 | Watch app said to open the phone but never received context | The companion is embedded, the activation/reachability handshake recovers, and Peter physically validated initial context, current values, offline exactly-once water/meal replay, reconnect, and account-scoped clearing on 2026-07-12. |
+| FB-2307 | Simulator accessibility coverage did not replace physical VoiceOver and device-size checks | Peter physically validated VoiceOver, largest text, dark mode, Increase Contrast, widget destinations, notification routing, and real offline/online Food Search recovery on 2026-07-12. |
+| FB-2308 | Supersets/rest and advanced set effort/type persistence required hardware input | Peter physically validated adjacent supersets, rest behavior, warmup/drop/failure types, RPE/RIR persistence, and warmup exclusion from analytics on 2026-07-12. |
 
 ## Intake template
 

@@ -29,8 +29,8 @@ identifiers and arm64_32 plus arm64 architectures. App result:
 - [x] Open the phone app, then Watch. Confirm calories, macros, water, weight units, next action, and last-sync state populate without a stale `Open the phone app to sync` loop.
 - [x] Put the phone out of reach. Queue water and one recent-meal repeat on Watch, reconnect, and confirm exactly one write on the intended day.
 - [x] Sign out on the phone and confirm account-scoped Watch context clears.
-- [ ] Add/tap each widget family after an app-group refresh and confirm its exact destination.
-- [ ] Enable one training-fuel reminder, receive it from the Lock Screen, and confirm the tap opens Training Fuel rather than a neighboring tab.
+- [x] Add/tap each widget family after an app-group refresh and confirm its exact destination.
+- [x] Enable one training-fuel reminder, receive it from the Lock Screen, and confirm the tap opens Training Fuel rather than a neighboring tab.
 
 Peter physically validated all four Watch checks against the current 2.3 foundation on
 2026-07-12. The missing-Watch-product defect remains specific to the archived 2.2 build 1;
@@ -41,16 +41,22 @@ the current Release product embeds and syncs the companion correctly.
 - [ ] Complete one real guided interval run. Confirm step transitions, spoken/haptic cues, pause/resume, target text, GPS distance, final step review, Live Activity, and Health save.
 - [ ] Open one Watch-imported run with heart-rate samples and confirm real time-in-zone appears without duplicate distance/calories.
 - [ ] Open or record one phone-only run without heart-rate data and confirm HR cards remain unavailable rather than showing zero.
-- [ ] Run adjacent supersets through both exercises and confirm rest behavior does not break pairing.
-- [ ] Edit warmup/drop/failure set types plus RPE/RIR, finish, reopen history, and confirm values persist while warmups stay out of volume/PR totals.
+- [x] Run adjacent supersets through both exercises and confirm rest behavior does not break pairing.
+- [x] Edit warmup/drop/failure set types plus RPE/RIR, finish, reopen history, and confirm values persist while warmups stay out of volume/PR totals.
+
+Peter physically validated the two advanced strength checks on 2026-07-12. Only the three
+running sensor/data paths above remain open in this section.
 
 ### Accessibility and resilience
 
-- [ ] With VoiceOver, traverse Home, Quick Log, Food Search, Trust, Training Fuel, Train, and Reports. Icon-only controls must have useful names and decorative emoji must not be announced.
-- [ ] At the largest accessibility text size, confirm controls remain reachable on the smallest supported phone. Pay special attention to Home support cards, Quick Log, Trust facts/actions, Fast Food Builder's bottom tray, Train Start/Skip, and report sharing.
-- [ ] Repeat a glance through dark mode and Increase Contrast.
-- [ ] Disable Wi-Fi/cellular during Food Search. Saved/recent foods must remain usable; remote failure must show Try again and Create food without a raw networking error.
-- [ ] Restore connectivity, tap Try again, and confirm results recover without relaunching.
+- [x] With VoiceOver, traverse Home, Quick Log, Food Search, Trust, Training Fuel, Train, and Reports. Icon-only controls must have useful names and decorative emoji must not be announced.
+- [x] At the largest accessibility text size, confirm controls remain reachable on the smallest supported phone. Pay special attention to Home support cards, Quick Log, Trust facts/actions, Fast Food Builder's bottom tray, Train Start/Skip, and report sharing.
+- [x] Repeat a glance through dark mode and Increase Contrast.
+- [x] Disable Wi-Fi/cellular during Food Search. Saved/recent foods must remain usable; remote failure must show Try again and Create food without a raw networking error.
+- [x] Restore connectivity, tap Try again, and confirm results recover without relaunching.
+
+Peter physically validated the widget, notification, accessibility, appearance, and real
+connectivity recovery checks on 2026-07-12.
 
 Any data loss, account deletion failure, incorrect diary day, duplicate Watch write,
 privacy-sensitive telemetry, crash, or unreachable primary action is release-blocking.
