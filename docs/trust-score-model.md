@@ -130,23 +130,25 @@ This distinction follows FDA labeling guidance, which permits energy factors oth
 
 ## Community barcode status
 
-`feature_communityBarcodeCorrections` must remain `false` for 2.2. Client and Firestore
-validation now reject malformed GTINs, missing serving evidence, unknown fields, non-finite
-nutrition, and any sanity finding. Community lookup also occurs only after established
-databases miss.
+`feature_communityBarcodeCorrections` remains `false` by default. The 2.3 pipeline now stores
+one private contribution per user/barcode through an authenticated App Check callable. A
+server-owned aggregate publishes only after at least three distinct contributors and at least
+two-thirds agreement. Published records contain no contributor identifiers; strict Rules permit
+known-document reads only when private operator config allows them, while listing and every
+client write remain denied.
 
-That is not enough for a public rollout. The current collection stores one contributor-owned
-document per barcode; it has no consensus, moderation, conflict resolution, or server-owned
-aggregate, and its ownership field is readable by signed-in users. Before enabling it:
+The server validates checksum-correct GTINs, exact fields, finite ranges, serving evidence, and
+nutrition sanity before accepting a submission. It resolves consensus deterministically, uses
+median nutrition, checks the combined median again, withholds conflict/over-volume results,
+records aggregate-only health metrics, and supports per-barcode quarantine plus a global kill
+switch that invalidates materialized results. The app independently revalidates the model,
+barcode, counts, ratio, schema, fields, timestamp, and nutrition before use.
 
-1. Store private contributions per user.
-2. Build a server-owned aggregate with contributor thresholds and conflict handling.
-3. Publish only aggregate nutrition without contributor identifiers.
-4. Add moderation, rollback, abuse limits, and provider-level health metrics.
-5. Soak the feature internally behind Remote Config before any percentage rollout.
-
-Until then, community data is correctly labeled `Community Submitted`, capped at Review,
-and treated as final fallback recovery rather than verification.
+Community consensus is labeled `Community Consensus`, remains capped at Review, and is treated as
+final-fallback recovery rather than independent database verification. Public rollout is still
+blocked on internal soak, observed abuse/cost behavior, a bounded administrative reaggregation
+job, and explicit owner approval. The full contract and rollout order are in
+`docs/community-barcode-consensus-2.3.md`.
 
 ## UI and accessibility contract
 

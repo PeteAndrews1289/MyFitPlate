@@ -206,7 +206,7 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
         case "custom_barcode":
             return ["Saved from your own food library"]
         case "community_barcode":
-            return ["One shared correction passed basic checks"]
+            return ["At least three private corrections reached consensus"]
         case "manual":
             return ["User-entered food"]
         case "planned":
@@ -658,9 +658,9 @@ public enum FoodSourceClassifier {
                     title: "Community Match",
                     detail: sourceDetail(
                         metadata,
-                        defaultDetail: "A correction shared by another user passed basic nutrition checks. Confirm it against the package."
+                        defaultDetail: "At least three private corrections agreed on this nutrition. Confirm it against the package."
                     ),
-                    confidence: "Community Submitted",
+                    confidence: "Community Consensus",
                     systemImage: "person.2.fill"
                 )
             }

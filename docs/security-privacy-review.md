@@ -1,6 +1,6 @@
 # Security and Privacy Review
 
-Updated for the 2.2 App Store release candidate on July 11, 2026.
+Updated for 2.3 development on July 11, 2026.
 
 ## Data Flow Summary
 
@@ -33,14 +33,23 @@ Updated for the 2.2 App Store release candidate on July 11, 2026.
 - Diary mutations are serialized per user/day to prevent overlapping writes from losing food, water, exercise, or deletion changes.
 - Malformed remote daily logs now surface an error instead of becoming an empty writable replacement.
 - Open Food Facts requires an identifying User-Agent and only joins text results after explicit Search submission.
-- Client barcode contributions and reads require a checksum-valid GTIN, complete serving/macronutrient evidence, and clean nutrition sanity checks. Firestore rules separately enforce numeric GTIN shape, allowlisted fields, ranges, and authenticated ownership. Reads are revalidated before use, established databases take priority, and community results are capped at Review.
-- `feature_communityBarcodeCorrections` remains off. The current one-owner-per-barcode collection is not a privacy-safe consensus system and must not be enabled until private contributions feed a server-owned aggregate that publishes no contributor identifiers.
+- Community barcode submissions require authentication, App Check, a checksum-valid GTIN,
+  exact bounded fields, serving evidence, and clean nutrition sanity checks. They are stored under
+  private per-user paths without UID fields and are rate limited to 20 accepted requests per
+  account/day. Clients cannot create or update those documents directly.
+- Only a server-owned 3+ contributor, at least two-thirds consensus can be published. Published
+  records omit contributor identifiers, deny collection listing and client writes, pass strict
+  Rules and app-side validation, and remain capped at Review behind
+  `feature_communityBarcodeCorrections=false`. Private quarantine, aggregate health counters, a
+  250-document rebuild ceiling, and a kill switch provide fail-closed rollback.
 
 ## Release Owner Actions
 
 1. Commit and push the current privacy policy, terms, and support pages so the in-app URLs resolve to the reviewed versions.
-2. Deploy the updated Firestore rules with `firebase deploy --only firestore:rules`; keep community barcode Remote Config disabled.
-3. Deploy any still-pending Firebase Functions and test account deletion with a throwaway account.
+2. For the 2.3 community pipeline, deploy Functions first and then Firestore Rules/indexes. Keep
+   community barcode Remote Config disabled and follow the backup-first rollout in
+   `docs/community-barcode-consensus-2.3.md`.
+3. Test account deletion and private-contribution withdrawal with throwaway accounts.
 4. Register App Attest and development debug tokens in Firebase App Check; review metrics before enabling callable enforcement.
 5. Add the USDA FoodData Central key to ignored `secrets.xcconfig` for the archive.
 6. Reconcile App Store Connect privacy answers with `PrivacyInfo.xcprivacy` and the public policy.
@@ -51,5 +60,9 @@ Updated for the 2.2 App Store release candidate on July 11, 2026.
 - Nutrition databases, AI estimates, menu scans, GPS, wearables, and calorie formulas remain inherently fallible; review labeling and device testing are required.
 - App Check does not protect production callables until server enforcement is enabled.
 - Firebase Functions changes do not affect production until deployed.
-- The disabled community barcode design still exposes a stable contributor UID to signed-in readers if enabled as-is and has no consensus/moderation layer; this is a launch blocker for that feature, not for 2.2 while its flag stays off.
+- Authentication, App Check, and rate limits do not eliminate coordinated multi-account abuse.
+  Community results therefore remain a conservative Review-band fallback pending internal soak;
+  public rollout and broad reaggregation remain open gates rather than 2.3 release requirements.
+- The Functions runtime is moved to Node.js 22. Future runtime lifecycle notices must be handled
+  before deprecation rather than during an emergency release.
 - Real-device HealthKit, route recording, background execution, Watch sync, signed archive, and deletion behavior cannot be fully proven by simulator tests.

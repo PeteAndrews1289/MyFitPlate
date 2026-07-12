@@ -13,11 +13,12 @@ npm run migrate:dry            # preview against the emulator
 npm run migrate:emulator       # apply against the emulator
 ```
 
-Production runs require a backup first and explicit flags:
+Production previews and runs require a backup first and explicit flags:
 
 ```bash
 ../../scripts/firestore-backup.sh
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json
+node migrate.js --prod --dry-run --yes-i-took-a-backup
 node migrate.js --prod --yes-i-took-a-backup
 ```
 

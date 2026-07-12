@@ -90,6 +90,7 @@ the five URLs pass signed-in and signed-out physical-device testing.
 | AI request success and latency | Server `aiUsage` documents and Functions logs | Day, model, outcome, latency | Investigate failure-rate or latency changes before increasing AI exposure. |
 | App Check validity | Firebase App Check metrics | Function, app version | Do not enable enforcement until valid 2.2+ traffic is consistently accepted and rollback is ready. |
 | Account deletion | Analytics + Functions logs | Started, completed, failed reason | Any server-data deletion failure is release-critical; never report success before server and Auth deletion finish. |
+| Community consensus health | Private `communityBarcodeMetrics` + Functions logs | Accepted submissions, published/insufficient/conflict/quarantined/disabled aggregate events | Keep public flag off through soak; investigate conflict, rejection, volume-limit, cost, or App Check anomalies before increasing exposure. |
 
 The launch view should show the current build beside the previous production build. Red means
 an owner is actively investigating; it must never mean merely "a number moved."

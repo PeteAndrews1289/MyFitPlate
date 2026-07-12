@@ -182,12 +182,15 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 - [ ] **Trust calibration report**: compare score band/provider/evidence with later edits,
   correction findings, saved-correction reuse, and abandonment. Reweight only after real
   outcomes show a consistent error, never to make scores look higher.
-- [ ] **Private contribution model**: move community barcode submissions under private
-  per-user ownership and keep public reads away from contributor identifiers.
-- [ ] **Server-owned aggregate**: build contributor thresholds, agreement/conflict handling,
-  provenance snapshots, and aggregate-only published records in Functions.
-- [ ] **Moderation and rollback**: add abuse limits, quarantine, provider health metrics,
-  operator rollback, and a kill switch before internal percentage rollout.
+- [x] **Private contribution model**: submissions now use an authenticated App Check callable,
+  live under private per-user ownership, expose no contributor IDs in published data, and have a
+  backup-first migration from the denied legacy pool.
+- [x] **Server-owned aggregate**: Functions now require 3+ distinct contributors and at least
+  two-thirds agreement, resolve conflicts deterministically, recheck the median output, retain
+  private provenance snapshots, and publish aggregate-only records.
+- [x] **Moderation and rollback**: per-user and per-barcode work limits, private aggregate health
+  counters, quarantine/release, strict Rules, and a global kill switch now fail closed. Killing or
+  disabling aggregation also deletes materialized results so stale consensus cannot reappear.
 - [ ] **Internal soak only**: `feature_communityBarcodeCorrections` remains `false` publicly.
   Public community corrections are explicitly not a 2.3 release requirement.
 
@@ -225,7 +228,7 @@ not an invented industry benchmark.
 5. [x] Build the unified Training and Fuel report from existing running, lifting, and nutrition
    engines before adding new data collection.
 6. [x] Extend widget shared data, then deliver the narrow Watch and notification slices.
-7. [ ] Develop the community aggregate behind a server-only flag; do not couple it to 2.3 launch.
+7. [x] Develop the community aggregate behind a server-only flag; do not couple it to 2.3 launch.
 
 ### Ownership and Dependencies
 

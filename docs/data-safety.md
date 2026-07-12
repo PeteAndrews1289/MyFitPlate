@@ -110,13 +110,15 @@ npm run migrate:emulator    # apply against the emulator
 # 2. Against production — ONLY after a backup:
 scripts/firestore-backup.sh
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-node migrate.js --prod --dry-run                 # preview prod changes
+node migrate.js --prod --dry-run --yes-i-took-a-backup  # preview prod changes
 node migrate.js --prod --yes-i-took-a-backup     # apply
 ```
 
 The runner **refuses** to touch production without both a service-account key and the
-`--yes-i-took-a-backup` flag. It stops on the first failing migration and never records a
-partial apply — so a failure leaves a clean, restorable state.
+`--yes-i-took-a-backup` flag. It stops on the first failing migration and records a migration
+only after its `up` function completes. A migration may still have applied some idempotent writes
+before an error, so every `up` must remain safe to rerun and the pre-migration backup remains the
+authoritative rollback.
 
 ---
 

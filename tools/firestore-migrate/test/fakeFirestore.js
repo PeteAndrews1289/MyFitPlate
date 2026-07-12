@@ -71,6 +71,10 @@ class FakeDocRef {
     }
     docs[this.id] = { ...docs[this.id], ...data };
   }
+
+  async delete() {
+    delete this.db._docs(this.path)[this.id];
+  }
 }
 
 class FakeDocSnap {

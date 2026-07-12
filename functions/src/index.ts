@@ -1,10 +1,20 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import OpenAI from "openai";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import {
+  COMMUNITY_BARCODE_MODEL_VERSION,
+  CommunityBarcodeAggregationResult,
+  CommunityBarcodeContribution,
+  buildCommunityBarcodeAggregate,
+  isValidGTIN,
+  normalizeBarcode,
+  parseCommunityBarcodeContribution,
+} from "./communityBarcode";
 
 initializeApp();
 const db = getFirestore();
@@ -27,9 +37,27 @@ const MAX_CONTENT_CHARS = 50000; // generous: long prompts include the daily con
 const MAX_CONTENT_PARTS = 12; // vision messages send a few text / image_url parts
 const DAILY_CALL_LIMIT = 300; // AI calls, per user, per UTC day
 const FATSECRET_DAILY_LIMIT = 600; // food lookups are cheap + frequent, but still bounded
+const COMMUNITY_BARCODE_DAILY_LIMIT = 20;
+const COMMUNITY_BARCODE_MAX_CONTRIBUTIONS = 250;
 const ALLOWED_ROLES = new Set(["system", "user", "assistant"]);
 const ALLOWED_FATSECRET_PARAMS = new Set(["query", "barcode", "food_id", "page", "max_results"]);
 const MAX_PARAM_LENGTH = 200;
+
+interface CommunityBarcodeConfig {
+  acceptContributions: boolean;
+  aggregationEnabled: boolean;
+  killSwitch: boolean;
+  minimumContributors: number;
+  minimumAgreementRatio: number;
+}
+
+type CommunityBarcodeMetric =
+  | "contributionsAccepted"
+  | "aggregatePublished"
+  | "aggregateInsufficient"
+  | "aggregateConflict"
+  | "aggregateQuarantined"
+  | "aggregateDisabled";
 
 /// Atomic per-user, per-day counter. Throws resource-exhausted when the limit is hit.
 async function enforceDailyLimit(uid: string, collection: string, limit: number): Promise<void> {
@@ -132,6 +160,200 @@ function validateMessages(messages: unknown): void {
     } else {
       throw new HttpsError("invalid-argument", "Message content must be text or content parts.");
     }
+  }
+}
+
+async function loadCommunityBarcodeConfig(): Promise<CommunityBarcodeConfig> {
+  const snapshot = await db.collection("internalConfig").doc("communityBarcodeAggregation").get();
+  const data = snapshot.data() ?? {};
+  const configuredMinimum = finiteNumber(data.minimumContributors) ?? 3;
+  const configuredRatio = finiteNumber(data.minimumAgreementRatio) ?? (2 / 3);
+  return {
+    acceptContributions: data.acceptContributions === true,
+    aggregationEnabled: data.aggregationEnabled === true,
+    killSwitch: data.killSwitch === true,
+    minimumContributors: Math.min(Math.max(Math.floor(configuredMinimum), 3), 20),
+    minimumAgreementRatio: Math.min(Math.max(configuredRatio, 2 / 3), 1),
+  };
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+async function recordCommunityBarcodeMetric(metric: CommunityBarcodeMetric): Promise<void> {
+  const day = new Date().toISOString().slice(0, 10);
+  try {
+    await db.collection("communityBarcodeMetrics").doc(day).set({
+      schemaVersion: 1,
+      [metric]: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  } catch (error) {
+    logger.warn("Could not persist community barcode metric", {
+      metric,
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+  }
+}
+
+function contributionPayload(data: FirebaseFirestore.DocumentData): Record<string, unknown> {
+  return {
+    barcode: data.barcode,
+    name: data.name,
+    calories: data.calories,
+    protein: data.protein,
+    carbs: data.carbs,
+    fats: data.fats,
+    ...(data.fiber === undefined ? {} : { fiber: data.fiber }),
+    servingSize: data.servingSize,
+    servingWeight: data.servingWeight,
+  };
+}
+
+async function rebuildCommunityBarcodeAggregate(
+  rawBarcode: string,
+  eventDate: Date
+): Promise<void> {
+  const barcode = normalizeBarcode(rawBarcode);
+  if (!isValidGTIN(barcode)) {
+    return;
+  }
+
+  const [config, quarantineSnapshot] = await Promise.all([
+    loadCommunityBarcodeConfig(),
+    db.collection("communityBarcodeQuarantine").doc(barcode).get(),
+  ]);
+  const isQuarantined = quarantineSnapshot.data()?.blocked === true;
+  let evaluation: CommunityBarcodeAggregationResult | undefined;
+  let forcedStatus: "disabled" | "quarantined" | undefined;
+
+  if (config.killSwitch || !config.aggregationEnabled) {
+    forcedStatus = "disabled";
+  } else if (isQuarantined) {
+    forcedStatus = "quarantined";
+  } else {
+    const snapshot = await db.collectionGroup("barcodeContributions")
+      .where("barcode", "==", barcode)
+      .limit(COMMUNITY_BARCODE_MAX_CONTRIBUTIONS + 1)
+      .get();
+    if (snapshot.size > COMMUNITY_BARCODE_MAX_CONTRIBUTIONS) {
+      evaluation = {
+        status: "conflict",
+        contributorCount: snapshot.size,
+        agreementCount: 0,
+        rejectedCount: 0,
+        reason: "contribution_volume_limit",
+      };
+    }
+    const contributions: CommunityBarcodeContribution[] = [];
+    let rejectedDocumentCount = 0;
+    for (const document of evaluation === undefined ? snapshot.docs : []) {
+      const contributorKey = document.ref.parent.parent?.id ?? "";
+      const parsed = parseCommunityBarcodeContribution(
+        contributionPayload(document.data()),
+        contributorKey
+      );
+      if (parsed.ok) {
+        contributions.push(parsed.contribution);
+      } else {
+        rejectedDocumentCount += 1;
+      }
+    }
+    if (evaluation === undefined) {
+      evaluation = buildCommunityBarcodeAggregate(
+        contributions,
+        config.minimumContributors,
+        config.minimumAgreementRatio
+      );
+    }
+    if (rejectedDocumentCount > 0) {
+      evaluation = {
+        ...evaluation,
+        rejectedCount: evaluation.rejectedCount + rejectedDocumentCount,
+      };
+    }
+  }
+
+  const aggregateRef = db.collection("communityBarcodeAggregates").doc(barcode);
+  const reviewRef = db.collection("communityBarcodeReviews").doc(barcode);
+  const eventTimestamp = Timestamp.fromDate(eventDate);
+  const applied = await db.runTransaction(async (transaction) => {
+    const reviewSnapshot = await transaction.get(reviewRef);
+    const lastEventAt = reviewSnapshot.data()?.lastEventAt;
+    if (lastEventAt instanceof Timestamp && lastEventAt.toMillis() > eventTimestamp.toMillis()) {
+      return false;
+    }
+    const aggregateSnapshot = await transaction.get(aggregateRef);
+    const revision = (finiteNumber(aggregateSnapshot.data()?.revision) ?? 0) + 1;
+
+    if (forcedStatus !== undefined) {
+      transaction.delete(aggregateRef);
+      transaction.set(reviewRef, {
+        schemaVersion: 1,
+        modelVersion: COMMUNITY_BARCODE_MODEL_VERSION,
+        barcode,
+        status: forcedStatus,
+        contributorCount: 0,
+        agreementCount: 0,
+        rejectedCount: 0,
+        lastEventAt: eventTimestamp,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return true;
+    }
+
+    if (evaluation?.status === "published") {
+      transaction.set(aggregateRef, {
+        ...evaluation.aggregate,
+        revision,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      transaction.set(reviewRef, {
+        schemaVersion: 1,
+        modelVersion: COMMUNITY_BARCODE_MODEL_VERSION,
+        barcode,
+        status: "published",
+        contributorCount: evaluation.aggregate.contributorCount,
+        agreementCount: evaluation.aggregate.agreementCount,
+        conflictCount: evaluation.aggregate.conflictCount,
+        rejectedCount: evaluation.rejectedCount,
+        lastAggregate: evaluation.aggregate,
+        lastEventAt: eventTimestamp,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return true;
+    }
+
+    transaction.delete(aggregateRef);
+    transaction.set(reviewRef, {
+      schemaVersion: 1,
+      modelVersion: COMMUNITY_BARCODE_MODEL_VERSION,
+      barcode,
+      status: evaluation?.status ?? "insufficient",
+      contributorCount: evaluation?.contributorCount ?? 0,
+      agreementCount: evaluation?.agreementCount ?? 0,
+      rejectedCount: evaluation?.rejectedCount ?? 0,
+      reason: evaluation?.reason ?? "no_eligible_contributions",
+      lastEventAt: eventTimestamp,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return true;
+  });
+
+  if (!applied) {
+    return;
+  }
+  if (forcedStatus === "quarantined") {
+    await recordCommunityBarcodeMetric("aggregateQuarantined");
+  } else if (forcedStatus === "disabled") {
+    await recordCommunityBarcodeMetric("aggregateDisabled");
+  } else if (evaluation?.status === "published") {
+    await recordCommunityBarcodeMetric("aggregatePublished");
+  } else if (evaluation?.status === "conflict") {
+    await recordCommunityBarcodeMetric("aggregateConflict");
+  } else {
+    await recordCommunityBarcodeMetric("aggregateInsufficient");
   }
 }
 
@@ -285,6 +507,110 @@ export const fatSecretProxy = onCall(
   }
 );
 
+// Community submissions are private server-owned documents. The callable is dormant unless the
+// private Firestore config explicitly accepts contributions, and App Check is mandatory because
+// no pre-2.3 client needs this endpoint.
+export const submitCommunityBarcodeContribution = onCall(
+  { enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+
+    const config = await loadCommunityBarcodeConfig();
+    if (config.killSwitch || !config.acceptContributions) {
+      throw new HttpsError("failed-precondition", "Community corrections are not accepting submissions.");
+    }
+
+    const parsed = parseCommunityBarcodeContribution(request.data, request.auth.uid);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", `Contribution rejected: ${parsed.reason}.`);
+    }
+
+    await enforceDailyLimit(
+      request.auth.uid,
+      "communityBarcodeUsage",
+      COMMUNITY_BARCODE_DAILY_LIMIT
+    );
+    const contribution = parsed.contribution;
+    const privateRef = db.collection("users")
+      .doc(request.auth.uid)
+      .collection("barcodeContributions")
+      .doc(contribution.barcode);
+    await privateRef.set({
+      schemaVersion: 1,
+      barcode: contribution.barcode,
+      name: contribution.name,
+      calories: contribution.calories,
+      protein: contribution.protein,
+      carbs: contribution.carbs,
+      fats: contribution.fats,
+      ...(contribution.fiber === undefined ? {} : { fiber: contribution.fiber }),
+      servingSize: contribution.servingSize,
+      servingWeight: contribution.servingWeight,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await recordCommunityBarcodeMetric("contributionsAccepted");
+    return { accepted: true };
+  }
+);
+
+// Every private contribution update/delete rebuilds the one aggregate for that barcode. Event
+// timestamps make an older delayed trigger unable to overwrite a newer result.
+export const aggregateCommunityBarcodeContribution = onDocumentWritten(
+  "users/{userId}/barcodeContributions/{barcode}",
+  async (event) => {
+    await rebuildCommunityBarcodeAggregate(
+      event.params.barcode,
+      safeEventDate(event.time)
+    );
+  }
+);
+
+// An operator can quarantine or release a barcode from the Firebase console. A blocked document
+// immediately deletes the published aggregate; removing the block recomputes from private data.
+export const moderateCommunityBarcodeAggregate = onDocumentWritten(
+  "communityBarcodeQuarantine/{barcode}",
+  async (event) => {
+    await rebuildCommunityBarcodeAggregate(
+      event.params.barcode,
+      safeEventDate(event.time)
+    );
+  }
+);
+
+// Rules deny reads as soon as the operator disables aggregation or raises the kill switch.
+// Removing the materialized documents as well prevents stale consensus from reappearing if the
+// feature is later re-enabled. Rebuilding is deliberately explicit through fresh contributions
+// or the migration/runbook rather than automatic after an emergency rollback.
+export const invalidateCommunityBarcodeAggregates = onDocumentWritten(
+  "internalConfig/communityBarcodeAggregation",
+  async (event) => {
+    const config = event.data?.after.data();
+    const shouldInvalidate = config === undefined ||
+      config.killSwitch === true ||
+      config.aggregationEnabled !== true;
+    if (!shouldInvalidate) {
+      return;
+    }
+
+    await db.recursiveDelete(db.collection("communityBarcodeAggregates"));
+    await recordCommunityBarcodeMetric("aggregateDisabled");
+    logger.warn("Community barcode aggregates invalidated by private operator config", {
+      reason: config === undefined
+        ? "config_deleted"
+        : config.killSwitch === true
+          ? "kill_switch"
+          : "aggregation_disabled",
+    });
+  }
+);
+
+function safeEventDate(value: string | undefined): Date {
+  const date = value === undefined ? new Date() : new Date(value);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+
 // Server-owned account deletion. Uses the Admin SDK to remove everything tied to the user —
 // including backend-only metadata (the aiUsage / fatSecretUsage counters) the client can't reach
 // under the security rules — so deletion matches the privacy policy's "all associated data."
@@ -328,7 +654,7 @@ export const deleteUserData = onCall(async (request) => {
   await db.recursiveDelete(db.collection("users").doc(uid));
 
   // Delete the per-user usage counters stored in top-level collections.
-  for (const collection of ["aiUsage", "fatSecretUsage"]) {
+  for (const collection of ["aiUsage", "fatSecretUsage", "communityBarcodeUsage"]) {
     const snapshot = await db.collection(collection).where("uid", "==", uid).get();
     if (snapshot.empty) {
       continue;

@@ -2,14 +2,13 @@ import Foundation
 import FirebaseFirestore
 import MyFitPlateCore
 
-/// Firestore-backed community barcode-correction pool. One document per normalized barcode
-/// in the top-level `barcodes` collection; writes are schema-validated by security rules
-/// (see firestore.rules `validBarcodeWrite`). Reads/writes are best-effort: any failure
-/// just means the lookup chain falls through to the external databases.
+/// Reads only server-owned, identifier-free consensus documents. Contributions go through an
+/// authenticated App Check callable into a private per-user path; the client cannot write the
+/// aggregate or private submission collections directly.
 final class FirestoreCommunityBarcodeStore: CommunityBarcodeStoreProtocol, @unchecked Sendable {
 
-    private var barcodesCollection: CollectionReference {
-        Firestore.firestore().collection("barcodes")
+    private var aggregatesCollection: CollectionReference {
+        Firestore.firestore().collection("communityBarcodeAggregates")
     }
 
     func communityFood(for barcode: String) async -> FoodItem? {
@@ -17,8 +16,20 @@ final class FirestoreCommunityBarcodeStore: CommunityBarcodeStoreProtocol, @unch
         guard !normalized.isEmpty else { return nil }
 
         do {
-            let document = try await barcodesCollection.document(normalized).getDocument()
+            let document = try await aggregatesCollection.document(normalized).getDocument()
             guard let data = document.data(),
+                  Set(data.keys).isSubset(of: Self.allowedAggregateFields),
+                  let schemaVersion = intValue(data["schemaVersion"]),
+                  let modelVersion = data["modelVersion"] as? String,
+                  let status = data["status"] as? String,
+                  let publishedBarcode = data["barcode"] as? String,
+                  let contributorCount = intValue(data["contributorCount"]),
+                  let agreementCount = intValue(data["agreementCount"]),
+                  let conflictCount = intValue(data["conflictCount"]),
+                  let agreementRatio = doubleValue(data["agreementRatio"]),
+                  let revision = intValue(data["revision"]),
+                  revision >= 1,
+                  data["updatedAt"] is Timestamp,
                   let name = data["name"] as? String,
                   let calories = doubleValue(data["calories"]),
                   let protein = doubleValue(data["protein"]),
@@ -28,6 +39,21 @@ final class FirestoreCommunityBarcodeStore: CommunityBarcodeStoreProtocol, @unch
                   let servingWeight = doubleValue(data["servingWeight"]) else {
                 return nil
             }
+
+            let aggregateDecision = CommunityBarcodeRules.aggregateDecision(
+                CommunityBarcodeAggregateEvidence(
+                    schemaVersion: schemaVersion,
+                    modelVersion: modelVersion,
+                    status: status,
+                    barcode: publishedBarcode,
+                    contributorCount: contributorCount,
+                    agreementCount: agreementCount,
+                    conflictCount: conflictCount,
+                    agreementRatio: agreementRatio
+                ),
+                expectedBarcode: normalized
+            )
+            guard aggregateDecision.isEligible else { return nil }
 
             let item = CommunityBarcodeRules.communityFoodItem(
                 name: name,
@@ -60,28 +86,31 @@ final class FirestoreCommunityBarcodeStore: CommunityBarcodeStoreProtocol, @unch
             flagEnabled: true
         )
         guard decision.isEligible else { return }
-        let createdBy = await MainActor.run { DIContainer.shared.authService?.currentUserID }
-        guard let createdBy else { return }
 
-        var fields: [String: Any] = [
+        var payload: [String: Any] = [
+            "barcode": normalized,
             "name": item.name.trimmingCharacters(in: .whitespacesAndNewlines),
             "calories": item.calories,
             "protein": item.protein,
             "carbs": item.carbs,
             "fats": item.fats,
             "servingSize": item.servingSize,
-            "servingWeight": item.servingWeight,
-            "createdBy": createdBy,
-            "updatedAt": FieldValue.serverTimestamp()
+            "servingWeight": item.servingWeight
         ]
         if let fiber = item.fiber {
-            fields["fiber"] = fiber
+            payload["fiber"] = fiber
         }
 
         do {
-            try await barcodesCollection.document(normalized).setData(fields)
+            let cloudFunctions: CloudFunctionServiceProtocol? = await MainActor.run {
+                DIContainer.shared.cloudFunctionService
+            }
+            guard let cloudFunctions else { return }
+            _ = try await cloudFunctions.callFunction(
+                "submitCommunityBarcodeContribution",
+                with: payload
+            )
         } catch {
-            // Expected for docs another user created (rules allow creator-only updates).
             AppLog.data.error("Community barcode contribution failed: \(error.localizedDescription, privacy: .public)")
         }
     }
@@ -90,4 +119,20 @@ final class FirestoreCommunityBarcodeStore: CommunityBarcodeStoreProtocol, @unch
         guard !(value is Bool) else { return nil }
         return (value as? NSNumber)?.doubleValue
     }
+
+    private func intValue(_ value: Any?) -> Int? {
+        guard !(value is Bool), let number = value as? NSNumber else { return nil }
+        let double = number.doubleValue
+        guard double.isFinite, double.rounded() == double, double >= 0, double <= 1_000_000 else {
+            return nil
+        }
+        return Int(double)
+    }
+
+    private static let allowedAggregateFields: Set<String> = [
+        "schemaVersion", "modelVersion", "status", "barcode", "name", "calories",
+        "protein", "carbs", "fats", "fiber", "servingSize", "servingWeight",
+        "contributorCount", "agreementCount", "conflictCount", "agreementRatio",
+        "revision", "updatedAt"
+    ]
 }

@@ -1,11 +1,16 @@
-const { assert, expect } = require('chai');
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
 const fs = require('fs');
 const path = require('path');
 
 let testEnv;
 
-const validBarcodeData = (createdBy = 'alice') => ({
+const barcode = '0123456789012';
+
+const validAggregateData = () => ({
+    schemaVersion: 1,
+    modelVersion: 'community_consensus_v1',
+    status: 'published',
+    barcode,
     name: 'Protein Bar',
     calories: 210,
     protein: 20,
@@ -14,7 +19,26 @@ const validBarcodeData = (createdBy = 'alice') => ({
     fiber: 3,
     servingSize: '1 bar (60g)',
     servingWeight: 60,
-    createdBy,
+    contributorCount: 3,
+    agreementCount: 3,
+    conflictCount: 0,
+    agreementRatio: 1,
+    revision: 1,
+    updatedAt: new Date(),
+});
+
+const privateContributionData = () => ({
+    schemaVersion: 1,
+    barcode,
+    name: 'Protein Bar',
+    calories: 210,
+    protein: 20,
+    carbs: 22,
+    fats: 7,
+    fiber: 3,
+    servingSize: '1 bar (60g)',
+    servingWeight: 60,
+    updatedAt: new Date(),
 });
 
 describe('MyFitPlate Firestore Rules', () => {
@@ -118,48 +142,150 @@ describe('MyFitPlate Firestore Rules', () => {
     });
 
     // MARK: - Community Barcode Corrections
-    describe('Barcode Collection', () => {
-        it('should allow a signed-in user to create a complete validated GTIN entry', async () => {
-            const alice = testEnv.authenticatedContext('alice');
-            const ref = alice.firestore().collection('barcodes').doc('0123456789012');
-            await assertSucceeds(ref.set(validBarcodeData()));
+    describe('Community Barcode Corrections', () => {
+        it('should permanently deny the legacy contributor-owned pool', async () => {
+            const ref = testEnv.authenticatedContext('alice')
+                .firestore().collection('barcodes').doc(barcode);
+            await assertFails(ref.get());
+            await assertFails(ref.set({ createdBy: 'alice' }));
         });
 
-        it('should reject malformed barcode ids and incomplete serving evidence', async () => {
-            const alice = testEnv.authenticatedContext('alice');
-            const malformed = alice.firestore().collection('barcodes').doc('12345');
-            await assertFails(malformed.set(validBarcodeData()));
-
-            const incomplete = alice.firestore().collection('barcodes').doc('0123456789012');
-            const data = validBarcodeData();
-            delete data.servingWeight;
-            await assertFails(incomplete.set(data));
+        it('should force private contribution creation and updates through Admin callables', async () => {
+            const ref = testEnv.authenticatedContext('alice')
+                .firestore().collection('users').doc('alice')
+                .collection('barcodeContributions').doc(barcode);
+            await assertFails(ref.set(privateContributionData()));
+            await assertFails(ref.update({ calories: 220 }));
         });
 
-        it('should reject forged ownership and unknown fields', async () => {
-            const alice = testEnv.authenticatedContext('alice');
-            const forged = alice.firestore().collection('barcodes').doc('0123456789012');
-            await assertFails(forged.set(validBarcodeData('bob')));
-            await assertFails(forged.set({ ...validBarcodeData(), moderationBypass: true }));
-        });
-
-        it('should allow only the original contributor to update an entry', async () => {
+        it('should let an owner read or withdraw only their own private contribution', async () => {
             await testEnv.withSecurityRulesDisabled(async (context) => {
-                await context.firestore().collection('barcodes').doc('0123456789012').set(validBarcodeData());
+                await context.firestore().collection('users').doc('alice')
+                    .collection('barcodeContributions').doc(barcode)
+                    .set(privateContributionData());
             });
 
             const aliceRef = testEnv.authenticatedContext('alice')
-                .firestore().collection('barcodes').doc('0123456789012');
+                .firestore().collection('users').doc('alice')
+                .collection('barcodeContributions').doc(barcode);
             const bobRef = testEnv.authenticatedContext('bob')
-                .firestore().collection('barcodes').doc('0123456789012');
-
-            await assertSucceeds(aliceRef.set({ ...validBarcodeData(), calories: 220 }));
-            await assertFails(bobRef.set(validBarcodeData('bob')));
+                .firestore().collection('users').doc('alice')
+                .collection('barcodeContributions').doc(barcode);
+            await assertSucceeds(aliceRef.get());
+            await assertFails(bobRef.get());
+            await assertSucceeds(aliceRef.delete());
         });
 
-        it('should deny unauthenticated reads', async () => {
+        it('should allow a known validated aggregate only when the private config enables reads', async () => {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('internalConfig')
+                    .doc('communityBarcodeAggregation')
+                    .set({ publicReadsEnabled: true, aggregationEnabled: true, killSwitch: false });
+                await context.firestore().collection('communityBarcodeAggregates')
+                    .doc(barcode).set(validAggregateData());
+            });
+
+            const ref = testEnv.authenticatedContext('alice')
+                .firestore().collection('communityBarcodeAggregates').doc(barcode);
+            await assertSucceeds(ref.get());
+        });
+
+        it('should deny aggregate reads when config is missing, disabled, or killed', async () => {
+            const alice = testEnv.authenticatedContext('alice');
+            const ref = alice.firestore().collection('communityBarcodeAggregates').doc(barcode);
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('communityBarcodeAggregates')
+                    .doc(barcode).set(validAggregateData());
+            });
+            await assertFails(ref.get());
+
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('internalConfig')
+                    .doc('communityBarcodeAggregation')
+                    .set({ publicReadsEnabled: true, aggregationEnabled: true, killSwitch: true });
+            });
+            await assertFails(ref.get());
+        });
+
+        it('should reject under-threshold or identifier-bearing aggregate documents', async () => {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('internalConfig')
+                    .doc('communityBarcodeAggregation')
+                    .set({ publicReadsEnabled: true, aggregationEnabled: true, killSwitch: false });
+                await context.firestore().collection('communityBarcodeAggregates')
+                    .doc(barcode).set({
+                        ...validAggregateData(),
+                        contributorCount: 2,
+                        agreementCount: 2,
+                        createdBy: 'private-user',
+                    });
+            });
+
+            const ref = testEnv.authenticatedContext('alice')
+                .firestore().collection('communityBarcodeAggregates').doc(barcode);
+            await assertFails(ref.get());
+        });
+
+        it('should reject an aggregate whose published ratio disagrees with its counts', async () => {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('internalConfig')
+                    .doc('communityBarcodeAggregation')
+                    .set({ publicReadsEnabled: true, aggregationEnabled: true, killSwitch: false });
+                await context.firestore().collection('communityBarcodeAggregates')
+                    .doc(barcode).set({ ...validAggregateData(), agreementRatio: 0.9 });
+            });
+
+            const ref = testEnv.authenticatedContext('alice')
+                .firestore().collection('communityBarcodeAggregates').doc(barcode);
+            await assertFails(ref.get());
+        });
+
+        it('should validate rounded ratios even with a large contributor set', async () => {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('internalConfig')
+                    .doc('communityBarcodeAggregation')
+                    .set({ publicReadsEnabled: true, aggregationEnabled: true, killSwitch: false });
+                await context.firestore().collection('communityBarcodeAggregates')
+                    .doc(barcode).set({
+                        ...validAggregateData(),
+                        contributorCount: 101,
+                        agreementCount: 70,
+                        conflictCount: 31,
+                        agreementRatio: 0.693,
+                    });
+            });
+
+            const ref = testEnv.authenticatedContext('alice')
+                .firestore().collection('communityBarcodeAggregates').doc(barcode);
+            await assertSucceeds(ref.get());
+        });
+
+        it('should forbid aggregate listing and every client write', async () => {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('internalConfig')
+                    .doc('communityBarcodeAggregation')
+                    .set({ publicReadsEnabled: true, aggregationEnabled: true, killSwitch: false });
+                await context.firestore().collection('communityBarcodeAggregates')
+                    .doc(barcode).set(validAggregateData());
+            });
+
+            const collection = testEnv.authenticatedContext('alice')
+                .firestore().collection('communityBarcodeAggregates');
+            await assertFails(collection.get());
+            await assertFails(collection.doc(barcode).set(validAggregateData()));
+            await assertFails(collection.doc(barcode).delete());
+        });
+
+        it('should deny unauthenticated aggregate reads', async () => {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await context.firestore().collection('internalConfig')
+                    .doc('communityBarcodeAggregation')
+                    .set({ publicReadsEnabled: true, aggregationEnabled: true, killSwitch: false });
+                await context.firestore().collection('communityBarcodeAggregates')
+                    .doc(barcode).set(validAggregateData());
+            });
             const ref = testEnv.unauthenticatedContext()
-                .firestore().collection('barcodes').doc('0123456789012');
+                .firestore().collection('communityBarcodeAggregates').doc(barcode);
             await assertFails(ref.get());
         });
     });
