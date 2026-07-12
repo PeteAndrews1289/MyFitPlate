@@ -90,7 +90,9 @@ Record findings in `docs/feedback-triage-2.3.md`.
   backend redeploy is required for Watch, micronutrient, search-recovery, Maia prompt, or
   on-device Maia voice changes alone.
 - [ ] Apply or reconcile `.github/rulesets/main-branch-protection.json` in GitHub so Unit tests, UI smoke tests, Firebase Functions, Firebase Rules, and Data migrations are required on `main`.
-- [ ] Register App Attest for the production app, verify App Check validity metrics, and do not enable enforcement until valid production traffic is clean.
+- [ ] Register App Attest for the production app. The Release client and production entitlement
+  are present; verify App Check validity metrics and do not enable enforcement until valid
+  production traffic is clean.
 - [ ] Configure the KPI and launch-health views from `docs/analytics-dashboard-2.3.md`; assign an owner and rollback response to each red metric.
 - [ ] Confirm Privacy Policy, Terms, and Support URLs are publicly reachable from a signed-in and signed-out browser.
 - [ ] Reconcile App Store privacy answers with `docs/data-safety.md` and `docs/security-privacy-review.md`.

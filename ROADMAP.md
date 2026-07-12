@@ -15,7 +15,7 @@ Current objective: move from "impressive broad feature set" to "obvious reason t
 - [x] **Trust Score model v2 hardening**: independently validated source evidence, checksum-valid GTIN matching, exact USDA barcode identity, honest reviewed-estimate states, finite-value and nutrition-plausibility guards, model-versioned analytics, and a documented scoring contract in `docs/trust-score-model.md`.
 - [x] **Maia Adaptive Coaching**: Daily strategy cards linking sleep, recovery, training, and nutrition adjustments.
 - [x] **HealthKit Test Seams**: Protocol-abstracted seam (`HealthStoreScheduling`) with deep unit coverage across health and running services (package line coverage 84%).
-- [x] **2.2 trust and privacy hardening**: explicit per-account AI data consent with optional Apple Health context, server-owned account deletion, privacy-safe analytics, App Check client support, serialized daily-log writes, and corrected USDA/Open Food Facts routing and serving math.
+- [x] **2.2 trust and privacy hardening**: explicit per-account AI data consent with optional Apple Health context, server-owned account deletion, privacy-safe analytics, production App Attest client support and entitlement, serialized daily-log writes, and corrected USDA/Open Food Facts routing and serving math.
 - [x] **2.2 activation and organic growth foundation**: elapsed onboarding-to-first-food/workout telemetry, a nutrition-plus-training loop milestone, a conservative StoreKit review request after sustained use, App Store-linked result sharing, and a structured feedback path in Settings.
 
 ---
