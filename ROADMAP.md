@@ -44,8 +44,9 @@ inside the larger replacement 2.2 candidate. They are complete release scope, no
 
 ## 🎯 Replacement Version 2.2 — The Daily Training Loop (Release Candidate)
 
-**Release numbering:** the first 2.2 build was withdrawn before publication. The integrated
-release remains public version 2.2 and must use build 2 or later. Historical `2.3` document
+**Release numbering:** the first 2.2 build was withdrawn before publication, and build 2 was
+rejected during App Store processing because the embedded Watch plist lacked HealthKit purpose
+strings. The integrated release remains public version 2.2 and must use build 3 or later. Historical `2.3` document
 filenames and analytics schema `2.3.2` stay unchanged so links, dashboards, and event cohorts
 remain traceable; they do not describe the App Store version.
 
@@ -79,7 +80,7 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   privacy regression coverage.
 - [x] **Launch-health operating view rollout**: the version/schema-aware operational exploration
   and Crashlytics email/velocity alerts are configured. Callable/provider trends, AI cost, and
-  App Check validity are reviewed against build 2 after upload; every red metric still needs an
+  App Check validity are reviewed against build 3 after upload; every red metric still needs an
   owner and rollback path, and enforcement waits for clean production data.
 - [x] **Quick Log first-interaction hardening**: opening is idempotent, the dismissal backdrop
   cannot consume the opening touch, idle notification UI is not mounted over Home, direct
@@ -403,8 +404,9 @@ Goal: establish the competitive scoreboard and make the product story sharper be
 - [ ] **Release gate**: Core 1,022/1,022 with 85.24% coverage, app 83/83, UI 15/15,
   Functions 11/11 with zero production dependency vulnerabilities, strict lint/catalog/diff
   checks, and the unsigned physical-iOS Release build are green locally. The product is version
-  2.2 build 2 across phone, widget, Live Activity, and Watch; the embedded Watch binary has
-  arm64_32 plus arm64. CI now matches the Functions Node 22 runtime and requires the 80% Core
+  2.2 build 3 across phone, widget, Live Activity, and Watch. The embedded Watch plist contains
+  both HealthKit purpose strings and its binary has arm64_32 plus arm64. CI now matches the
+  Functions Node 22 runtime and requires the 80% Core
   floor; the checked branch ruleset includes app UI and Functions checks. Peter deployed the
   then-current production Functions on 2026-07-11. Remaining owner gates are the physical
   checklist, production/branch-console reconciliation, App Check, public legal links, privacy
