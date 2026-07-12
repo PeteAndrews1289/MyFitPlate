@@ -281,6 +281,10 @@ private struct RecipeNutrientDetailsCard: View {
         VStack(alignment: .leading, spacing: 12) {
             DisclosureGroup {
                 VStack(spacing: 8) {
+                    Text("\(nutrition.reportedVitaminMineralCount) of \(MicronutrientKey.vitaminAndMineralKeys.count) vitamins and minerals reported. Missing values are unknown, not zero.")
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     nutrientRow(label: "Saturated fat", value: nutrition.saturatedFat)
                     nutrientRow(label: "Polyunsaturated fat", value: nutrition.polyunsaturatedFat)
                     nutrientRow(label: "Monounsaturated fat", value: nutrition.monounsaturatedFat)
@@ -294,6 +298,19 @@ private struct RecipeNutrientDetailsCard: View {
                     nutrientRow(label: "Vitamin D", value: nutrition.vitaminD, unit: "mcg")
                     nutrientRow(label: "Vitamin B12", value: nutrition.vitaminB12, unit: "mcg")
                     nutrientRow(label: "Folate", value: nutrition.folate, unit: "mcg")
+                    nutrientRow(label: "Magnesium", value: nutrition.magnesium, unit: "mg")
+                    nutrientRow(label: "Phosphorus", value: nutrition.phosphorus, unit: "mg")
+                    nutrientRow(label: "Zinc", value: nutrition.zinc, unit: "mg")
+                    nutrientRow(label: "Copper", value: nutrition.copper, unit: "mcg")
+                    nutrientRow(label: "Manganese", value: nutrition.manganese, unit: "mg")
+                    nutrientRow(label: "Selenium", value: nutrition.selenium, unit: "mcg")
+                    nutrientRow(label: "Vitamin B1", value: nutrition.vitaminB1, unit: "mg")
+                    nutrientRow(label: "Vitamin B2", value: nutrition.vitaminB2, unit: "mg")
+                    nutrientRow(label: "Vitamin B3", value: nutrition.vitaminB3, unit: "mg")
+                    nutrientRow(label: "Vitamin B5", value: nutrition.vitaminB5, unit: "mg")
+                    nutrientRow(label: "Vitamin B6", value: nutrition.vitaminB6, unit: "mg")
+                    nutrientRow(label: "Vitamin E", value: nutrition.vitaminE, unit: "mg")
+                    nutrientRow(label: "Vitamin K", value: nutrition.vitaminK, unit: "mcg")
                 }
                 .padding(.top, 8)
             } label: {
@@ -306,7 +323,7 @@ private struct RecipeNutrientDetailsCard: View {
     }
 
     @ViewBuilder private func nutrientRow(label: String, value: Double?, unit: String = "g") -> some View {
-        if let value, value > 0 {
+        if let value, value.isFinite, value >= 0 {
             HStack {
                 Text(label)
                     .appFont(size: 14, weight: .medium)

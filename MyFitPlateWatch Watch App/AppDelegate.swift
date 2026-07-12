@@ -35,6 +35,7 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
     @Published var recentMeal: WatchMealSnapshot?
     @Published var repeatMealStatus: String?
     @Published var repeatMealQueued = false
+    @Published private(set) var lastSyncDate: Date?
 
     private var accountScope: String?
     
@@ -49,10 +50,24 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if activationState == .activated {
             watchConnectivityLog.debug("Watch session activated.")
-            if let receivedContext = session.receivedApplicationContext as [String: Any]? {
+            let receivedContext = session.receivedApplicationContext
+            if !receivedContext.isEmpty {
                 watchConnectivityLog.debug("Processing received context on activation.")
                 update(with: receivedContext)
             }
+            requestSyncIfPossible(session)
+        }
+    }
+
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        if session.isReachable {
+            requestSyncIfPossible(session)
+        }
+    }
+
+    func sessionCompanionAppInstalledDidChange(_ session: WCSession) {
+        if session.isCompanionAppInstalled {
+            requestSyncIfPossible(session)
         }
     }
 
@@ -83,6 +98,9 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
             self.sleepHours = context["sleepHours"] as? Double ?? self.sleepHours
             self.usesMetric = context["usesMetric"] as? Bool ?? self.usesMetric
             self.accountScope = context[WatchQuickActionPayload.accountScope] as? String
+            if let timestamp = context[WatchQuickActionPayload.generatedAt] as? TimeInterval {
+                self.lastSyncDate = Date(timeIntervalSince1970: timestamp)
+            }
             self.nextAction = Self.decode(
                 DailyNextAction.self,
                 from: context[WatchQuickActionPayload.nextAction]
@@ -94,6 +112,19 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
             self.repeatMealStatus = nil
             self.repeatMealQueued = false
         }
+    }
+
+    private func requestSyncIfPossible(_ session: WCSession = .default) {
+        guard session.activationState == .activated, session.isReachable else { return }
+        session.sendMessage(
+            [WatchQuickActionPayload.syncRequest: true],
+            replyHandler: nil,
+            errorHandler: { error in
+                watchConnectivityLog.error(
+                    "Watch sync request failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        )
     }
 
     /// Logs water optimistically on the watch and queues it for the phone. transferUserInfo
@@ -150,6 +181,7 @@ class AppDelegate: NSObject, WKApplicationDelegate, WCSessionDelegate, Observabl
         repeatMealStatus = nil
         repeatMealQueued = false
         accountScope = nil
+        lastSyncDate = nil
     }
 
     private static func decode<Value: Decodable>(_ type: Value.Type, from value: Any?) -> Value? {

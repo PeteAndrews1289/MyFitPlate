@@ -1354,8 +1354,12 @@ public final class BarcodeFoodLookupService {
                 } else {
                     confirmedBy = []
                 }
+                let enriched = FoodMicronutrientEnrichment.enrichExactProduct(
+                    primary: primary,
+                    with: [matches.usda, matches.openFoodFacts]
+                )
                 return BarcodeFoodLookupResult(
-                    item: primary.withCrossVerification(confirmedBy),
+                    item: enriched.withCrossVerification(confirmedBy),
                     source: "barcode_result",
                     scannedBarcode: trimmedBarcode,
                     matchedBarcode: candidate,
@@ -1380,8 +1384,12 @@ public final class BarcodeFoodLookupService {
                 } else {
                     confirmedBy = []
                 }
+                let enriched = FoodMicronutrientEnrichment.enrichExactProduct(
+                    primary: primary,
+                    with: [matches.openFoodFacts]
+                )
                 return BarcodeFoodLookupResult(
-                    item: primary.withCrossVerification(confirmedBy),
+                    item: enriched.withCrossVerification(confirmedBy),
                     source: "usda_barcode",
                     scannedBarcode: trimmedBarcode,
                     matchedBarcode: candidate,

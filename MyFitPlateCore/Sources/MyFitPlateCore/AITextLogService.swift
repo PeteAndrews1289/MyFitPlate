@@ -54,7 +54,7 @@ enum AITextLogParser {
         3.  **JSON Response**: Your response MUST be a valid JSON object only. Do not include any other text.
         4.  **Root Object**: The root object must have a single key "foods" which is an array of JSON objects.
         5.  **Food Object Keys**: Each food object must contain these exact keys: "itemName", "servingSize", "calories", "protein", "carbs", "fats", "fiber", "calcium", "iron", "potassium", "sodium", "vitaminA", "vitaminC", "vitaminD", "vitaminB12", "folate".
-        6.  **Numeric Values**: All nutritional values must be numbers. If a micronutrient is not applicable or is unknown, its value should be 0.
+        6.  **Unknown Nutrients**: Use null for any micronutrient that is not stated or cannot be estimated responsibly. Use 0 only when the food truly contains none.
         7.  **Medical Disclaimer**: Note that generated nutritional values are AI estimates and should not be considered medical advice.
 
         Example for a specific user input "6 oz salmon, 1 cup of rice":

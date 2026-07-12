@@ -84,11 +84,26 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   item. Label parsing now captures the printed serving description and gram weight. Both food
   editors expose clearly labeled Total fat and Saturated fat fields, block contradictory saves,
   and overwrite an existing My Foods barcode correction instead of creating a duplicate.
+- [x] **Watch companion delivery and sync recovery**: the Watch product is now embedded in the
+  iPhone bundle instead of merely building beside it. The phone retains the latest account-scoped
+  context until WatchConnectivity is activated, paired, and installed; activation, reachability,
+  Watch-state changes, and an explicit Watch sync request all replay it. The embedded generic-iOS
+  product and companion identifiers are verified; replacement of the stale hardware install and
+  real paired-device sync remain in Known device closures.
+- [x] **Micronutrient integrity and coverage closure**: USDA now uses Vitamin A RAE and converts
+  copper to the app's established unit, FNDDS prepared foods join text search, Open Food Facts
+  maps all 22 supported vitamins/minerals with correct per-serving conversions, and FatSecret no
+  longer turns absent detail fields into zero. Agreeing exact-barcode records can fill only a
+  primary record's missing nutrients, richer exact-name search records can replace sparse
+  previews, and recipes retain/scale the full panel. Daily and historical reports distinguish
+  unavailable data from reported zero and show their food/day coverage instead of false 0% intake.
+  The durable provider/unit/presentation contract is `docs/micronutrient-data-2.3.md`.
 - [ ] **Known device closures**: validate guided intervals on real GPS, Watch-imported runs
   with heart-rate series, phone-only runs without HR, workout supersets/rest behavior, and
   RPE/RIR/set-type editing on hardware. Also validate widget tap-through after an app-group
-  refresh, paired-Watch context/recent-meal replay while the phone is unreachable, and one
-  opt-in training-fuel notification from delivery through its exact app destination.
+  refresh, install the newly embedded Watch companion and validate initial context sync plus
+  recent-meal replay while the phone is unreachable, and deliver one opt-in training-fuel
+  notification through its exact app destination.
 - [ ] **Organic acquisition follow-through**: submit the 2.2 featuring nomination, publish
   Trust/Strength/Weight/Dining custom product pages after 2.2 approval, and add exact app
   routes plus deterministic screenshot fixtures for Food Search, Trust, Fast Food Builder,
@@ -233,6 +248,8 @@ not an invented industry benchmark.
    engines before adding new data collection.
 6. [x] Extend widget shared data, then deliver the narrow Watch and notification slices.
 7. [x] Develop the community aggregate behind a server-only flag; do not couple it to 2.3 launch.
+8. [x] Close the Watch companion packaging/sync defect surfaced by physical-device testing.
+9. [x] Make micronutrient ingestion, recipe retention, and report coverage honest end to end.
 
 ### Ownership and Dependencies
 

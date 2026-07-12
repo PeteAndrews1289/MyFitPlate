@@ -45,6 +45,10 @@ public struct WatchMealRepeatRequest: Codable, Equatable, Sendable {
 }
 
 public enum WatchQuickActionPayload {
+    public static let schemaVersion = "watch_context_v2"
+    public static let schema = "watchContextSchema"
+    public static let generatedAt = "watchContextGeneratedAt"
+    public static let syncRequest = "requestWatchContextSync"
     public static let accountScope = "accountScope"
     public static let nextAction = "nextActionData"
     public static let recentMeal = "recentMealData"

@@ -522,6 +522,10 @@ struct FoodDetailView: View {
 
             DisclosureGroup("Vitamins and minerals") {
                 VStack(spacing: 8) {
+                    Text("\(nutrients.reportedVitaminMineralCount) of \(MicronutrientKey.vitaminAndMineralKeys.count) vitamins and minerals reported. Missing values are unknown, not zero.")
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     nutrientRow(label: "Calcium", value: nutrients.calcium, unit: "mg", specifier: "%.0f")
                     nutrientRow(label: "Iron", value: nutrients.iron, unit: "mg", specifier: "%.1f")
                     nutrientRow(label: "Potassium", value: nutrients.potassium, unit: "mg", specifier: "%.0f")
@@ -982,7 +986,7 @@ struct FoodDetailView: View {
     }
 
     @ViewBuilder private func nutrientRow(label: String, value: Double?, unit: String, specifier: String = "%.1f") -> some View {
-        if let unwrappedValue = value, unwrappedValue > 0.001 || (specifier == "%.0f" && unwrappedValue >= 0.5) {
+        if let unwrappedValue = value, unwrappedValue.isFinite, unwrappedValue >= 0 {
             HStack { Text(label).appFont(size: 15); Spacer(); Text("\(unwrappedValue, specifier: specifier) \(unit)").appFont(size: 15).foregroundColor(Color(UIColor.secondaryLabel)) }
         } else {
             EmptyView()

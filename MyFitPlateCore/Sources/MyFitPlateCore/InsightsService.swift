@@ -427,8 +427,13 @@ public class InsightsService: ObservableObject {
         let dailyNutritionSummary = logs.map { log -> String in
             let day = dateFormatter.string(from: log.date)
             let macros = log.totalMacros()
-            let micros = log.totalMicronutrients()
-            return "- \(day): Cals: \(Int(log.totalCalories())), P: \(Int(macros.protein))g, C: \(Int(macros.carbs))g, F: \(Int(macros.fats))g, Fiber: \(Int(micros.fiber))g, Sodium: \(Int(micros.sodium))mg"
+            let fiber = log.micronutrientCoverage(for: .fiber).hasReportedData
+                ? "\(Int(log.totalMicronutrient(.fiber)))g"
+                : "not reported"
+            let sodium = log.micronutrientCoverage(for: .sodium).hasReportedData
+                ? "\(Int(log.totalMicronutrient(.sodium)))mg"
+                : "not reported"
+            return "- \(day): Cals: \(Int(log.totalCalories())), P: \(Int(macros.protein))g, C: \(Int(macros.carbs))g, F: \(Int(macros.fats))g, Fiber: \(fiber), Sodium: \(sodium)"
         }.joined(separator: "\n")
 
         let dailyWorkoutSummary = logs.compactMap { log -> String? in

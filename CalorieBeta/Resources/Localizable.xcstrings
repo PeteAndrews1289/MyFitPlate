@@ -446,16 +446,6 @@
         }
       }
     },
-    "%lld %@ an all-time best this week." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld %2$@ an all-time best this week."
-          }
-        }
-      }
-    },
     "%lld %@ logged" : {
       "localizations" : {
         "en" : {
@@ -601,6 +591,9 @@
           }
         }
       }
+    },
+    "%lld percent" : {
+
     },
     "%lld planned %@." : {
       "localizations" : {
@@ -1037,9 +1030,6 @@
     "Added: %@" : {
 
     },
-    "Adding up your week" : {
-
-    },
     "Adding…" : {
 
     },
@@ -1065,6 +1055,9 @@
 
     },
     "Age" : {
+
+    },
+    "Aggregate weekly data from MyFitPlate. Routes, food names, account details, and raw heart-rate samples are not included." : {
 
     },
     "AI data sharing" : {
@@ -1260,6 +1253,9 @@
     "Before" : {
 
     },
+    "Before training" : {
+
+    },
     "Before Training" : {
 
     },
@@ -1303,6 +1299,9 @@
 
     },
     "Building your estimate" : {
+
+    },
+    "Building your weekly story" : {
 
     },
     "Bulk ingredients" : {
@@ -1376,9 +1375,6 @@
     "Calories Burned" : {
 
     },
-    "Calories, workouts, and records from the last 7 days" : {
-
-    },
     "Camera, exercise, recipes, buffet, and running" : {
 
     },
@@ -1413,6 +1409,9 @@
 
     },
     "Check back later" : {
+
+    },
+    "Checking training, nutrition, recovery, and comparable history." : {
 
     },
     "Chef Maia is analyzing" : {
@@ -1959,6 +1958,12 @@
     "Estimated catalog • updated %@. Brand menus change, so review the meal before logging." : {
 
     },
+    "Evening protein catch-up" : {
+
+    },
+    "Evening reminder" : {
+
+    },
     "Everything visible is checked off" : {
 
     },
@@ -2224,9 +2229,6 @@
     "Heart-rate zones" : {
 
     },
-    "Here's what the week added up to." : {
-
-    },
     "Hide done" : {
 
     },
@@ -2474,9 +2476,6 @@
 
     },
     "Log a food and this hub will show source quality, cross-checks, and anything that needs review." : {
-
-    },
-    "Log a meal or a workout and next week's recap fills up." : {
 
     },
     "Log a meal to see your daily split." : {
@@ -2768,7 +2767,10 @@
     "My recipes" : {
 
     },
-    "My week with MyFitPlate" : {
+    "My weekly Training & Fuel data" : {
+
+    },
+    "My weekly Training & Fuel report" : {
 
     },
     "MyFitPlate" : {
@@ -3267,6 +3269,9 @@
     "Quick select" : {
 
     },
+    "Quiet hours" : {
+
+    },
     "Range" : {
 
     },
@@ -3338,6 +3343,9 @@
 
     },
     "Recovery meal" : {
+
+    },
+    "Recovery target" : {
 
     },
     "Recovery will appear after today's diary finishes loading." : {
@@ -3419,6 +3427,9 @@
 
     },
     "Report generated on: %@" : {
+
+    },
+    "Report unavailable" : {
 
     },
     "Reports" : {
@@ -3787,7 +3798,13 @@
     "Settings" : {
 
     },
+    "Share data as CSV" : {
+
+    },
     "Share list" : {
+
+    },
+    "Share report" : {
 
     },
     "Share Run Story" : {
@@ -3799,7 +3816,7 @@
     "Share Summary" : {
 
     },
-    "Share your week" : {
+    "Share summary image" : {
 
     },
     "Shoe Details" : {
@@ -3809,6 +3826,9 @@
 
     },
     "Shoe Performance Leaderboard" : {
+
+    },
+    "Shoe wear" : {
 
     },
     "Shopping run" : {
@@ -3994,6 +4014,9 @@
     "Strength" : {
 
     },
+    "Strength, running, recovery, nutrition, and change from the last 7 days" : {
+
+    },
     "Suggest another" : {
 
     },
@@ -4175,6 +4198,9 @@
     "Title" : {
 
     },
+    "to" : {
+
+    },
     "To failure" : {
 
     },
@@ -4220,10 +4246,13 @@
     "Track your gear mileage and get alerted when it's time for a replacement." : {
 
     },
-    "Tracked with MyFitPlate" : {
+    "Train" : {
 
     },
-    "Train" : {
+    "Training & Fuel" : {
+
+    },
+    "Training & Fuel report" : {
 
     },
     "Training Calendar" : {
@@ -4254,6 +4283,9 @@
 
     },
     "Training volume and most frequent activity." : {
+
+    },
+    "Training, recovery, nutrition, and change from the last 7 days" : {
 
     },
     "Transcribing your meal..." : {
@@ -4644,14 +4676,21 @@
     "Your true TDEE" : {
 
     },
-    "Your week" : {
-
-    },
     "Your workout is already saved. Trends and coaching notes will appear when ready." : {
 
     },
     "Z%lld" : {
 
+    },
+    "Zone %lld, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Zone %1$lld, %2$@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -22,14 +22,7 @@ struct RecipeLoggingView: View {
     }
 
     private var totalNutrition: Nutrition {
-        ingredients.reduce(Nutrition.zero) { partialResult, item in
-            return Nutrition(
-                calories: partialResult.calories + item.calories,
-                protein: partialResult.protein + item.protein,
-                carbs: partialResult.carbs + item.carbs,
-                fats: partialResult.fats + item.fats
-            )
-        }
+        ingredients.isEmpty ? recipe.nutrition : Nutrition.total(for: ingredients)
     }
 
     var body: some View {
@@ -98,16 +91,14 @@ struct RecipeLoggingView: View {
     }
 
     private func updateQuantity(for item: FoodItem, newQuantity: Double) {
-        guard let index = ingredients.firstIndex(where: { $0.id == item.id }) else { return }
-        
-        let oldQuantity = ingredients[index].quantityValue ?? 1.0
-        let ratio = newQuantity / oldQuantity
-        
-        ingredients[index].quantityValue = newQuantity
-        ingredients[index].calories *= ratio
-        ingredients[index].protein *= ratio
-        ingredients[index].carbs *= ratio
-        ingredients[index].fats *= ratio
+        guard let index = ingredients.firstIndex(where: { $0.id == item.id }),
+              let adjusted = RecipeIngredientQuantityRules.adjustedIngredient(
+                  ingredients[index],
+                  newQuantity: newQuantity
+              ) else {
+            return
+        }
+        ingredients[index] = adjusted
     }
 
     private func deleteIngredient(_ item: FoodItem) {
@@ -126,6 +117,10 @@ struct RecipeLoggingView: View {
             protein: totalNutrition.protein,
             carbs: totalNutrition.carbs,
             fats: totalNutrition.fats,
+            saturatedFat: totalNutrition.saturatedFat,
+            polyunsaturatedFat: totalNutrition.polyunsaturatedFat,
+            monounsaturatedFat: totalNutrition.monounsaturatedFat,
+            fiber: totalNutrition.fiber,
             servingSize: "1 recipe",
             servingWeight: 0,
             timestamp: Date(),
@@ -135,7 +130,29 @@ struct RecipeLoggingView: View {
                 reviewStatus: .notRequired,
                 sourceName: "Recipe",
                 sourceID: recipe.id
-            )
+            ),
+            calcium: totalNutrition.calcium,
+            iron: totalNutrition.iron,
+            potassium: totalNutrition.potassium,
+            sodium: totalNutrition.sodium,
+            vitaminA: totalNutrition.vitaminA,
+            vitaminC: totalNutrition.vitaminC,
+            vitaminD: totalNutrition.vitaminD,
+            vitaminB12: totalNutrition.vitaminB12,
+            folate: totalNutrition.folate,
+            magnesium: totalNutrition.magnesium,
+            phosphorus: totalNutrition.phosphorus,
+            zinc: totalNutrition.zinc,
+            copper: totalNutrition.copper,
+            manganese: totalNutrition.manganese,
+            selenium: totalNutrition.selenium,
+            vitaminB1: totalNutrition.vitaminB1,
+            vitaminB2: totalNutrition.vitaminB2,
+            vitaminB3: totalNutrition.vitaminB3,
+            vitaminB5: totalNutrition.vitaminB5,
+            vitaminB6: totalNutrition.vitaminB6,
+            vitaminE: totalNutrition.vitaminE,
+            vitaminK: totalNutrition.vitaminK
         )
 
         dailyLogService.addFoodToLog(for: userID, date: self.date, mealName: selectedMeal, foodItem: loggedItem, source: "recipe")

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4B5BEE242E1EE5A500EF366C /* MyFitPlateWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = E7659EAD2E7A263BBC681565 /* MyFitPlateWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		02FA4AF952FDA646780FFC99 /* HealthActivityCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 474393F656E359C15028DD41 /* HealthActivityCard.swift */; };
 		035E97655B630DBAC9C29290 /* FirestoreDatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB95651294D4A7D538913023 /* FirestoreDatabaseService.swift */; };
 		086975417A5AC78E43FCB812 /* PostRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CC190EEE53A5F355CAED792 /* PostRowView.swift */; };
@@ -278,6 +279,7 @@
 			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
 			dstSubfolderSpec = 16;
 			files = (
+				4B5BEE242E1EE5A500EF366C /* MyFitPlateWatch Watch App.app in Embed Watch Content */,
 			);
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;

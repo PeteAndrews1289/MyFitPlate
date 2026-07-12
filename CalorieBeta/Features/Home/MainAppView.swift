@@ -53,6 +53,9 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate 
 class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var isReachable: Bool = false
     @Published private(set) var isActivated: Bool = false
+    @Published private(set) var isPaired: Bool = false
+    @Published private(set) var isWatchAppInstalled: Bool = false
+    @Published private(set) var syncRequestRevision: Int = 0
 
     /// Water logged on the watch, waiting to be written to the daily log. Mirrors the
     /// widget's pending-water pattern: accumulate here, drain exactly once on the main actor.
@@ -62,6 +65,7 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     private let accountScopeStore = WatchAccountScopeStore()
     private let mealRepeatInbox = WatchMealRepeatInbox()
     private var pendingWatchWaterByScope: [String: Double] = [:]
+    private var latestNutritionContext: [String: Any]?
     private var shouldClearWatchAccount = UserDefaults.standard.bool(forKey: "watchAccountClearPending") {
         didSet {
             UserDefaults.standard.set(shouldClearWatchAccount, forKey: "watchAccountClearPending")
@@ -81,8 +85,12 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         DispatchQueue.main.async {
             self.isReachable = session.isReachable
             self.isActivated = activationState == .activated
+            self.isPaired = session.isPaired
+            self.isWatchAppInstalled = session.isWatchAppInstalled
             if self.isActivated && self.shouldClearWatchAccount {
                 self.sendClearWatchContext()
+            } else if self.isActivated {
+                self.sendLatestContextIfPossible()
             }
         }
     }
@@ -93,6 +101,28 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     func sessionReachabilityDidChange(_ session: WCSession) {
         DispatchQueue.main.async {
             self.isReachable = session.isReachable
+            if session.isReachable {
+                self.sendLatestContextIfPossible()
+            }
+        }
+    }
+
+    func sessionWatchStateDidChange(_ session: WCSession) {
+        DispatchQueue.main.async {
+            self.isPaired = session.isPaired
+            self.isWatchAppInstalled = session.isWatchAppInstalled
+            if session.isPaired && session.isWatchAppInstalled {
+                self.sendLatestContextIfPossible()
+                self.syncRequestRevision &+= 1
+            }
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        guard message[WatchQuickActionPayload.syncRequest] as? Bool == true else { return }
+        DispatchQueue.main.async {
+            self.sendLatestContextIfPossible()
+            self.syncRequestRevision &+= 1
         }
     }
 
@@ -144,11 +174,10 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         recentMeal: WatchMealSnapshot?
     ) {
         guard WCSession.isSupported() else { return }
-        let session = WCSession.default
-        guard session.activationState == .activated else { return }
-        guard session.isPaired && session.isWatchAppInstalled else { return }
-        
+
         var context: [String: Any] = [
+            WatchQuickActionPayload.schema: WatchQuickActionPayload.schemaVersion,
+            WatchQuickActionPayload.generatedAt: Date().timeIntervalSince1970,
             "goalCal": goalCal, "userCal": userCal,
             "userProt": userProt, "totalProt": totalProt,
             "userCarb": userCarb, "totalCarb": totalCarb,
@@ -166,7 +195,23 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
         if let recentMeal, let mealData = try? JSONEncoder().encode(recentMeal) {
             context[WatchQuickActionPayload.recentMeal] = mealData
         }
-        
+
+        latestNutritionContext = context
+        sendLatestContextIfPossible()
+    }
+
+    private func sendLatestContextIfPossible() {
+        guard let context = latestNutritionContext else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            AppLog.watch.info("Watch context retained until the connectivity session activates.")
+            return
+        }
+        guard session.isPaired && session.isWatchAppInstalled else {
+            AppLog.watch.info("Watch context retained until the paired Watch app is installed.")
+            return
+        }
+
         do {
             try session.updateApplicationContext(context)
             shouldClearWatchAccount = false
@@ -186,10 +231,14 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     private func sendClearWatchContext() {
+        let context: [String: Any] = [
+            WatchQuickActionPayload.schema: WatchQuickActionPayload.schemaVersion,
+            WatchQuickActionPayload.generatedAt: Date().timeIntervalSince1970,
+            WatchQuickActionPayload.clearAccount: true
+        ]
+        latestNutritionContext = context
         do {
-            try WCSession.default.updateApplicationContext([
-                WatchQuickActionPayload.clearAccount: true
-            ])
+            try WCSession.default.updateApplicationContext(context)
             shouldClearWatchAccount = false
         } catch {
             AppLog.watch.error("Failed to clear watch context: \(error.localizedDescription, privacy: .public)")
@@ -521,6 +570,9 @@ struct ContentView: View {
             } else {
                 connectivityManager.clearWatchAccount()
             }
+        }
+        .onChange(of: connectivityManager.syncRequestRevision) { _, _ in
+            sendNutritionToWatchIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: .trainingFuelNotificationPreferencesChanged)) { _ in
             syncTrainingFuelNotificationsIfNeeded()
