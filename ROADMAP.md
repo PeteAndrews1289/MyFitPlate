@@ -4,7 +4,9 @@ A living, definitive roadmap and product vision for MyFitPlate.
 
 Competitive thesis: MyFitPlate should not try to out-database MyFitnessPal, out-micronutrient Cronometer, or out-algorithm MacroFactor head-on. The wedge is **high-trust nutrition logging for people who train**, with Maia turning food, recovery, lifting, running, and real-world dining into one daily loop.
 
-Current objective: move from "impressive broad feature set" to "obvious reason to switch and stay." Every sprint below should reduce daily logging friction, make trust visible, or connect nutrition to training outcomes.
+Current objective: turn the replacement 2.2 feature breadth into one recognizable experience in
+version 2.3. Every sprint should preserve fast logging while making Trust, food timing, training,
+and recovery feel like one daily system rather than separate capable tools.
 
 ---
 
@@ -284,8 +286,111 @@ required, notification-policy approval, and any decision to expose community-con
 
 ---
 
+## Version 2.3 - The Living Day
+
+**Release thesis:** 2.2 proves that MyFitPlate can cover nutrition, Trust, lifting, running,
+recovery, planning, and coaching. Version 2.3 must make that breadth memorable. It should not be
+an app-wide reskin or another configurable card dashboard; it should introduce one ownable visual
+model that explains how the user's food and training fit together.
+
+**Public promise:** **See how food and training fit together, then act on what matters next.**
+
+**Flagship interaction:** **Fuel Path**, an unframed, time-based Home surface that combines logged
+and planned meals, Trust evidence, workouts, Training Fuel windows, recovery, remaining targets,
+and one deterministic next action. It is a visual index over the app's existing engines, not a
+new readiness score or a second source of truth.
+
+Full experience, state, accessibility, rollout, and technical contract:
+[`docs/living-day-experience-2.3.md`](docs/living-day-experience-2.3.md).
+
+### Must Ship - Product Identity
+
+- [ ] **Choose the Fuel Path rendering:** prototype a compressed horizontal rail, vertical living
+  timeline, and plate-clock overview from the same deterministic fixtures. Select by five-second
+  comprehension, compact-phone fit, exact-action discovery, and accessibility rather than novelty.
+- [ ] **Create the 2.3 experience system:** add restrained path, evidence, chart, motion, spacing,
+  stroke, and color primitives. Keep operational screens quiet; remove pale-card and nested-card
+  treatment first from Home, Food Detail/Trust, and the weekly report.
+- [ ] **Build `LivingDaySnapshot`:** assemble an immutable, finite-value checked, account-scoped
+  presentation model from the existing diary, goals, Trust, workouts, runs, fuel plan, meal plan,
+  next action, and sync state. No node-level repository fetches and no new backend store.
+- [ ] **Ship read-only Fuel Path behind `feature_livingDayHome`:** support logged/planned meal
+  nodes, workout/run nodes, current-time state, approximate timing, unavailable data, over-target,
+  offline, and empty-day states with exact navigation into existing workflows.
+- [ ] **Connect meaningful transitions:** Quick Log insertion, planned-to-completed state, saved
+  Trust correction, and training-to-recovery handoff use short explanatory motion and haptics.
+  Reduce Motion receives equivalent fades and content updates; motion never delays a write.
+- [ ] **Build Trust Receipt:** lead Food Detail with a readable source/cross-check/sanity/review
+  trace, place findings beside the values they affect, and make the existing score a summary of
+  evidence rather than the visual starting point.
+- [ ] **Build My Foods Library:** search, sort, filter, edit, delete, merge true duplicates, and
+  inspect/remove barcode associations without mutating historical diary entries.
+- [ ] **Build Week in Motion:** open Reports with a full-width seven-day story covering training
+  rhythm, fuel timing, recovery follow-through, Trust/coverage, and one bounded observation;
+  preserve detailed charts and export below it.
+- [ ] **Close the inclusive-quality matrix:** deterministic screenshots for ordinary, empty,
+  training, recovery, over-target, low-Trust, offline, and accessibility states; complete VoiceOver
+  ordering, Dynamic Type, dark mode, Increase Contrast, Reduce Motion, compact-device, privacy,
+  performance, and rollback checks.
+- [ ] **Reserve two release slots for evidence:** use them only for the largest repeated 2.2
+  correctness or friction findings, not unvalidated feature requests.
+
+### Should Ship - Reach and Cohesion
+
+- [ ] Attach one short Maia annotation to the current deterministic action; Maia may explain or
+  personalize the route, but cannot replace its rules or silently change goals.
+- [ ] Adapt the current Fuel Path segment to medium and large widgets after Home behavior is stable.
+- [ ] Add privacy-safe Living Day and Week in Motion share images with explicit visible-content
+  selection and no account IDs, routes, coordinates, or raw Health samples.
+- [ ] Offer compact and detailed path density after the default hierarchy passes comprehension.
+- [ ] Move CI actions away from deprecated Node 20 runtimes without coupling that maintenance to
+  the experience rollout.
+
+### Conditional on Production Evidence
+
+- [ ] Reweight Trust only after the minimum cohorts and correction outcomes in
+  `docs/trust-calibration-2.3.md` are satisfied.
+- [ ] Publish community barcode consensus only after private abuse, conflict, cost, moderation,
+  kill-switch, and rollback soak passes.
+- [ ] Add new Training Fuel or Watch actions only when 2.2 telemetry shows a repeated unmet need.
+
+### Explicit Non-Goals
+
+- No generic customizable Home cards, food-morality score, recovery/readiness composite, public
+  social feed, ornamental 3D, decorative animation, or broad Maia rewrite.
+- Do not editorialize Food Search, Fast Food Builder, workout execution, or run recording; those
+  repeated workflows should remain fast, dense, and predictable.
+- No new food provider, running mode, iPad redesign, Android app, or subscription system in 2.3.
+
+### Phased Build Queue
+
+1. [ ] Lock the information hierarchy and build the three deterministic visual prototypes.
+2. [ ] Select one direction on real devices and add the 2.3 visual token/primitives layer.
+3. [ ] Implement `LivingDaySnapshot`, adversarial Core tests, and the developer fixture gallery.
+4. [ ] Integrate read-only Fuel Path behind the feature flag with the 2.2 Home as fallback.
+5. [ ] Connect exact navigation, Quick Log insertion, and training/recovery transitions.
+6. [ ] Ship Trust Receipt and persistence-backed evidence-state updates.
+7. [ ] Ship My Foods Library and prove destructive actions cannot alter history.
+8. [ ] Add Week in Motion, then the selected sharing and widget slices.
+9. [ ] Fill the two evidence-reserved slots from real 2.2 feedback.
+10. [ ] Close accessibility, device, privacy, performance, analytics, and rollback gates.
+
+### Success Measures
+
+- More Home sessions produce one meaningful action and more weekly users complete both nutrition
+  and training, without regressing time to a successful food write.
+- More Trust review opens reach a persisted resolution; corrected barcode foods are easy to reuse
+  and manage without duplicate growth.
+- Five-second tests identify what happened, what is planned, and what to do next without color-only
+  meaning or explanatory feature copy.
+- D1/D7 return improves against the clean 2.2 baseline without worse reminder opt-out, crash-free
+  use, diary integrity, startup/scroll performance, AI cost, or support friction.
+
+---
+
 ## 🧭 Long-Term Competitive Backlog
-The next several sprints are ordered to make the product competitive before expanding the surface area further. The first three sprints are conversion and retention work; the later sprints deepen the moat.
+This backlog remains source material after the active 2.3 build queue above. Its earlier sprints
+capture durable conversion and retention work; they do not override The Living Day release order.
 
 ### Sprint 0 — Baseline, Positioning, and Release Readiness
 Goal: establish the competitive scoreboard and make the product story sharper before building more.
