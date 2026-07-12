@@ -3,7 +3,7 @@ import Foundation
 /// Immutable presentation data for the Living Day experience. The app layer gathers account-
 /// scoped repository values once, builds this snapshot, and renders it without per-node reads.
 public struct LivingDaySnapshot: Equatable, Sendable {
-    public enum NutrientKind: String, CaseIterable, Sendable {
+    public enum NutrientKind: String, CaseIterable, Hashable, Sendable {
         case calories
         case protein
         case carbs

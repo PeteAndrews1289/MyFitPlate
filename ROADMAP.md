@@ -309,6 +309,11 @@ Full experience, state, accessibility, rollout, and technical contract:
 - [ ] **Choose the Fuel Path rendering:** prototype a compressed horizontal rail, vertical living
   timeline, and plate-clock overview from the same deterministic fixtures. Select by five-second
   comprehension, compact-phone fit, exact-action discovery, and accessibility rather than novelty.
+  All three now run in the Debug screenshot gallery with the same immutable snapshot. The current
+  engineering recommendation is the vertical timeline: it is the only direction that exposes
+  chronology, Trust evidence, the current-time break, future training, and the exact action in one
+  scan. The clock is a strong secondary summary; the rail is compact but compresses adjacent future
+  events. Peter's hands-on selection remains the gate.
 - [ ] **Create the 2.3 experience system:** add restrained path, evidence, chart, motion, spacing,
   stroke, and color primitives. Keep operational screens quiet; remove pale-card and nested-card
   treatment first from Home, Food Detail/Trust, and the weekly report.
@@ -369,10 +374,11 @@ Full experience, state, accessibility, rollout, and technical contract:
 
 ### Phased Build Queue
 
-1. [ ] Lock the information hierarchy and build the three deterministic visual prototypes.
+1. [ ] Select the primary direction on device; the information hierarchy and all three deterministic
+   visual prototypes are complete.
 2. [ ] Select one direction on real devices and add the 2.3 visual token/primitives layer.
-3. [ ] Add the developer fixture gallery; the `LivingDaySnapshot` model and initial adversarial
-   Core matrix are complete.
+3. [x] Implement `LivingDaySnapshot`, the initial adversarial Core matrix, and the Debug-only
+   developer fixture gallery.
 4. [ ] Integrate read-only Fuel Path behind the feature flag with the 2.2 Home as fallback.
 5. [ ] Connect exact navigation, Quick Log insertion, and training/recovery transitions.
 6. [ ] Ship Trust Receipt and persistence-backed evidence-state updates.

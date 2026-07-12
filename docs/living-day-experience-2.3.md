@@ -1,6 +1,6 @@
 # Version 2.3 Experience Roadmap: The Living Day
 
-Status: proposed build plan after replacement version 2.2 submission
+Status: active implementation on `codex/2.3-living-day`
 
 Working release name: **The Living Day**
 
@@ -297,6 +297,15 @@ network access. It should expose explicit unavailable and approximate states.
 Exit gate: one direction is clearly understandable without explanatory copy and has a complete
 semantic fallback.
 
+Implementation checkpoint (2026-07-12): all three directions render from the same immutable
+fixture in a Debug/screenshot-only gallery. Launch with `-ui-testing -screenshot-mode` and one of
+`-screenshot-screen living-day-rail`, `living-day-timeline`, or `living-day-clock`. The vertical
+timeline is the engineering recommendation because it keeps event order, exact/approximate timing,
+Trust evidence, the current-time break, future training, and the current action visible together.
+The clock is the strongest secondary summary; the rail is the densest but gives adjacent future
+events the least room. Standard light, dark, and accessibility-extra-extra-extra-large Simulator
+captures are clean. Peter still selects the production direction after hands-on review.
+
 ### Phase 1: experience system and snapshot
 
 - Add spacing, shape, stroke, color, chart, and motion tokens.
@@ -366,8 +375,9 @@ Experience guardrails:
 
 ## Build queue
 
-1. [ ] Lock the Living Day information hierarchy with deterministic 2.2 fixtures.
-2. [ ] Build and compare the three Fuel Path prototypes.
+1. [x] Lock the Living Day information hierarchy with deterministic 2.2 fixtures.
+2. [x] Build and compare the three Fuel Path prototypes; retain Peter's on-device selection as the
+   final direction gate.
 3. [ ] Add the 2.3 visual token layer without changing operational screens.
 4. [x] Implement and test `LivingDaySnapshot`.
 5. [ ] Ship read-only Fuel Path behind `feature_livingDayHome`.

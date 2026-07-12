@@ -84,7 +84,7 @@ struct MainTabView: View {
                     Group {
                         switch appState.selectedTab {
                         case 0:
-                            NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }.trackScreen(.homeDashboard)
+                            homeContent
                         case 1:
                             NavigationStack { AIChatbotView(selectedTab: $appState.selectedTab) }.trackScreen(.maiaChat)
                         case 2:
@@ -408,6 +408,31 @@ struct MainTabView: View {
                 ImageProcessingView()
             }
         }
+    }
+
+    @ViewBuilder
+    private var homeContent: some View {
+        #if DEBUG
+        if ScreenshotDemoMode.isEnabled,
+           ScreenshotDemoData.requestedScreen.hasPrefix("living-day") {
+            NavigationStack {
+                LivingDayPrototypeGallery(
+                    initialStyle: .initial(for: ScreenshotDemoData.requestedScreen)
+                )
+            }
+        } else {
+            standardHomeContent
+        }
+        #else
+        standardHomeContent
+        #endif
+    }
+
+    private var standardHomeContent: some View {
+        NavigationStack {
+            HomeView(navigateToProfile: .constant(false), showSettings: $showSettings)
+        }
+        .trackScreen(.homeDashboard)
     }
     
     private func finishTour() {
