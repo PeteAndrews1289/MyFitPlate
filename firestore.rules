@@ -52,11 +52,11 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAny(["joinedAt"]) || request.resource.data.joinedAt is timestamp);
     }
 
-    function validBarcodeMacro(field) {
-      return !request.resource.data.keys().hasAny([field]) ||
-        (request.resource.data[field] is number &&
-          request.resource.data[field] >= 0 &&
-          request.resource.data[field] <= 1000);
+    function validPublishedBarcodeMacro(field) {
+      return !resource.data.keys().hasAny([field]) ||
+        (resource.data[field] is number &&
+          resource.data[field] >= 0 &&
+          resource.data[field] <= 1000);
     }
 
     function validBarcodeId(barcodeId) {
@@ -68,34 +68,67 @@ service cloud.firestore {
           barcodeId.size() == 14);
     }
 
-    function validBarcodeWrite(barcodeId) {
-      return signedIn() &&
-        validBarcodeId(barcodeId) &&
-        request.resource.data.keys().hasOnly(["name", "calories", "protein", "carbs", "fats", "fiber", "servingSize", "servingWeight", "createdBy", "updatedAt"]) &&
-        request.resource.data.keys().hasAll(["name", "calories", "protein", "carbs", "fats", "servingSize", "servingWeight", "createdBy"]) &&
-        request.resource.data.name is string &&
-        request.resource.data.name.size() > 0 &&
-        request.resource.data.name.size() <= 140 &&
-        request.resource.data.calories is number &&
-        request.resource.data.calories >= 0 &&
-        request.resource.data.calories <= 5000 &&
-        validBarcodeMacro("protein") &&
-        validBarcodeMacro("carbs") &&
-        validBarcodeMacro("fats") &&
-        validBarcodeMacro("fiber") &&
-        request.resource.data.servingSize is string &&
-        request.resource.data.servingSize.size() > 0 &&
-        request.resource.data.servingSize.size() <= 80 &&
-        request.resource.data.servingWeight is number &&
-        request.resource.data.servingWeight >= 10 &&
-        request.resource.data.servingWeight <= 5000 &&
-        request.resource.data.createdBy == request.auth.uid &&
-        (!request.resource.data.keys().hasAny(["updatedAt"]) || request.resource.data.updatedAt is timestamp);
+    function communityBarcodeReadsEnabled() {
+      let configPath = /databases/$(database)/documents/internalConfig/communityBarcodeAggregation;
+      return exists(configPath) &&
+        get(configPath).data.publicReadsEnabled == true &&
+        get(configPath).data.aggregationEnabled == true &&
+        get(configPath).data.killSwitch == false;
     }
 
-    function canUpdateBarcode(barcodeId) {
-      return validBarcodeWrite(barcodeId) &&
-        (!resource.data.keys().hasAny(["createdBy"]) || resource.data.createdBy == request.auth.uid);
+    function validPublishedBarcodeAggregate(barcodeId) {
+      return
+        validBarcodeId(barcodeId) &&
+        resource.data.keys().hasOnly([
+          "schemaVersion", "modelVersion", "status", "barcode", "name", "calories",
+          "protein", "carbs", "fats", "fiber", "servingSize", "servingWeight",
+          "contributorCount", "agreementCount", "conflictCount", "agreementRatio",
+          "revision", "updatedAt"
+        ]) &&
+        resource.data.keys().hasAll([
+          "schemaVersion", "modelVersion", "status", "barcode", "name", "calories",
+          "protein", "carbs", "fats", "servingSize", "servingWeight",
+          "contributorCount", "agreementCount", "conflictCount", "agreementRatio",
+          "revision", "updatedAt"
+        ]) &&
+        resource.data.schemaVersion == 1 &&
+        resource.data.modelVersion == "community_consensus_v1" &&
+        resource.data.status == "published" &&
+        resource.data.barcode == barcodeId &&
+        resource.data.name is string &&
+        resource.data.name.size() > 0 &&
+        resource.data.name.size() <= 140 &&
+        resource.data.calories is number &&
+        resource.data.calories >= 0 &&
+        resource.data.calories <= 5000 &&
+        validPublishedBarcodeMacro("protein") &&
+        validPublishedBarcodeMacro("carbs") &&
+        validPublishedBarcodeMacro("fats") &&
+        validPublishedBarcodeMacro("fiber") &&
+        resource.data.servingSize is string &&
+        resource.data.servingSize.size() > 0 &&
+        resource.data.servingSize.size() <= 80 &&
+        resource.data.servingWeight is number &&
+        resource.data.servingWeight >= 10 &&
+        resource.data.servingWeight <= 5000 &&
+        resource.data.contributorCount is int &&
+        resource.data.contributorCount >= 3 &&
+        resource.data.contributorCount <= 250 &&
+        resource.data.agreementCount is int &&
+        resource.data.agreementCount >= 3 &&
+        resource.data.agreementCount <= resource.data.contributorCount &&
+        resource.data.conflictCount is int &&
+        resource.data.conflictCount == resource.data.contributorCount - resource.data.agreementCount &&
+        resource.data.agreementRatio is number &&
+        resource.data.agreementRatio >= 0.667 &&
+        resource.data.agreementRatio <= 1 &&
+        resource.data.agreementRatio * resource.data.contributorCount >=
+          resource.data.agreementCount - (0.001 * resource.data.contributorCount) &&
+        resource.data.agreementRatio * resource.data.contributorCount <=
+          resource.data.agreementCount + (0.001 * resource.data.contributorCount) &&
+        resource.data.revision is int &&
+        resource.data.revision >= 1 &&
+        resource.data.updatedAt is timestamp;
     }
     
     // Default deny
@@ -106,10 +139,18 @@ service cloud.firestore {
     // Users Collection - users can only read/write their own data
     match /users/{userId} {
       allow read, write: if ownsUserDoc(userId);
-      
+
+      // Contributions are private to their owner and written only by the authenticated callable.
+      // Excluding this name from the general wildcard keeps a modified client from bypassing the
+      // server's rate limit, App Check, and validation.
+      match /barcodeContributions/{barcodeId} {
+        allow read, delete: if ownsUserDoc(userId);
+        allow create, update: if false;
+      }
+
       // Allow the user full access to all subcollections under their own document
       match /{subcollection}/{document=**} {
-        allow read, write: if ownsUserDoc(userId);
+        allow read, write: if ownsUserDoc(userId) && subcollection != "barcodeContributions";
       }
     }
     
@@ -141,13 +182,19 @@ service cloud.firestore {
       allow delete: if signedIn() && resourceMembershipIsUser();
     }
     
-    // Barcodes (Global Database)
+    // Legacy one-owner barcode pool. Existing documents remain inaccessible during migration.
     match /barcodes/{barcodeId} {
-      // Signed-in users can read the shared database and contribute validated entries.
-      allow read: if signedIn();
-      allow create: if validBarcodeWrite(barcodeId);
-      allow update: if canUpdateBarcode(barcodeId);
-      allow delete: if false;
+      allow read, write: if false;
+    }
+
+    // Server-owned aggregate. Clients may fetch a known barcode only when the private operator
+    // config allows reads and the document proves a 3+ contributor, >= 2/3 consensus. Listing the
+    // collection and every client write remain forbidden.
+    match /communityBarcodeAggregates/{barcodeId} {
+      allow get: if signedIn() &&
+        communityBarcodeReadsEnabled() &&
+        validPublishedBarcodeAggregate(barcodeId);
+      allow list, create, update, delete: if false;
     }
   }
 }

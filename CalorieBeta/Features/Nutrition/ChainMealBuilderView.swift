@@ -10,10 +10,16 @@ public struct ChainMealBuilderView: View {
     @State private var selections: [String: ChainSelectionItem] = [:]
     @State private var chainSearchText = ""
     @State private var selectedMeal: String
+    let trainingFuelTarget: TrainingFuelTarget?
     let onLogMeal: (FoodItem, String) -> Void
 
-    public init(initialMeal: String = "Lunch", onLogMeal: @escaping (FoodItem, String) -> Void) {
+    public init(
+        initialMeal: String = "Lunch",
+        trainingFuelTarget: TrainingFuelTarget? = nil,
+        onLogMeal: @escaping (FoodItem, String) -> Void
+    ) {
         self._selectedMeal = State(initialValue: initialMeal)
+        self.trainingFuelTarget = trainingFuelTarget
         self.onLogMeal = onLogMeal
 
         #if DEBUG
@@ -101,6 +107,14 @@ public struct ChainMealBuilderView: View {
                         chainSearchBar
                         chainSelectorBar
                         selectedChainHeader
+                        if let trainingFuelTarget {
+                            TrainingFuelTargetContextView(
+                                target: trainingFuelTarget,
+                                currentCalories: totalCalories,
+                                currentProtein: totalProtein,
+                                currentCarbs: totalCarbs
+                            )
+                        }
                         catalogNotice
                         mealSelectorBar
 

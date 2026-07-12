@@ -107,4 +107,35 @@ final class ReleaseHealthTests: XCTestCase {
         XCTAssertEqual(analytics.loggedEvents.first?.name, "nonfatal_error_recorded")
         XCTAssertEqual(analytics.loggedEvents.first?.parameters?["area"] as? String, "database")
     }
+
+    @MainActor
+    func testAIResponseDecodeFailureUsesReleaseHealthWithoutPayloadContent() {
+        let crash = MockCrashManager()
+        let analytics = MockAnalyticsManager()
+        DIContainer.shared.crashManager = crash
+        DIContainer.shared.analyticsManager = analytics
+        let error = DecodingError.dataCorrupted(
+            .init(codingPath: [], debugDescription: "Expected a JSON object")
+        )
+
+        AIResponseTelemetry.recordDecodeFailure(
+            error,
+            operation: "decode_meal_suggestion",
+            willRetry: true
+        )
+
+        XCTAssertEqual(crash.recordedErrors.count, 1)
+        XCTAssertEqual(
+            crash.recordedErrors.first?.userInfo["release_health_area"] as? String,
+            "ai"
+        )
+        XCTAssertEqual(
+            crash.recordedErrors.first?.userInfo["release_health_operation"] as? String,
+            "decode_meal_suggestion"
+        )
+        XCTAssertEqual(crash.recordedErrors.first?.userInfo["will_retry"] as? String, "true")
+        XCTAssertEqual(analytics.loggedEvents.first?.name, ProductAnalytics.Event.nonfatalErrorRecorded.rawValue)
+        XCTAssertNil(crash.recordedErrors.first?.userInfo["response"])
+        XCTAssertNil(crash.recordedErrors.first?.userInfo["prompt"])
+    }
 }

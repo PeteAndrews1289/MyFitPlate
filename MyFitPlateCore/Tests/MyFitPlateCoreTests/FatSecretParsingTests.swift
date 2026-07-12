@@ -45,4 +45,17 @@ final class FatSecretParsingTests: XCTestCase {
         XCTAssertEqual(s.parsedNutrient(.fat), 0, accuracy: 0.001, "N/A reads as 0")
         XCTAssertEqual(s.parsedServingWeightGrams ?? 0, 2 * 28.3495, accuracy: 0.01, "oz converts to grams")
     }
+
+    func testOptionalParsingPreservesReportedZeroAndMissingState() throws {
+        let s = try serving("""
+        {
+          "calories": "100", "vitamin_c": "0", "sodium": "N/A"
+        }
+        """)
+
+        XCTAssertEqual(s.parsedOptionalNutrient(.vitamin_c), 0)
+        XCTAssertNil(s.parsedOptionalNutrient(.sodium))
+        XCTAssertNil(s.parsedOptionalNutrient(.fiber))
+        XCTAssertEqual(s.parsedNutrient(.fiber), 0, "Required macro callers retain their zero fallback")
+    }
 }

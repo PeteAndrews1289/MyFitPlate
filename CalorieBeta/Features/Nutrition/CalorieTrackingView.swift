@@ -125,9 +125,18 @@ struct CalorieTrackingView: View {
                             }
                             ProgressView(value: micro.progressViewValue).tint(micro.name == "Sodium" ? (micro.percentageMet >= 100 ? .red : .orange) : (micro.percentageMet >= 100 ? .accentPositive : .blue)).scaleEffect(x: 1, y: 1.5, anchor: .center)
                             Text("\(micro.averageValue, specifier: micro.unit == "mcg" ? "%.0f" : "%.1f") / \(micro.goalValue, specifier: "%.0f") \(micro.unit)").appFont(size: 10).foregroundColor(Color(UIColor.secondaryLabel)).frame(maxWidth: .infinity, alignment: .leading)
+                            if micro.totalDayCount > 0 {
+                                Text("Reported on \(micro.reportedDayCount) of \(micro.totalDayCount) days")
+                                    .appFont(size: 10)
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                            }
                         }
                     }
                 }
+                Text("Averages exclude days when food sources did not report that nutrient. Missing values are not counted as zero.")
+                    .appFont(size: 11)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .padding(.top, 8)
             } else if !viewModel.isLoading {
                 Text("No micronutrient data available for this period").foregroundColor(Color(UIColor.secondaryLabel)).padding()
             }

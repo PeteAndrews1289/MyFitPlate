@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { runMigrations, discoverMigrations, META_COLLECTION } = require('../migrate');
 const { FakeFirestore } = require('./fakeFirestore');
 const example0001 = require('../migrations/0001_backfill_schema_version');
+const privateBarcodes0002 = require('../migrations/0002_private_barcode_contributions');
 
 const migration = (id, up) => ({ id, name: `test ${id}`, up });
 
@@ -111,4 +112,90 @@ test('example 0001 dry-run reports changes but writes nothing', async () => {
     undefined,
     'dry-run leaves data untouched'
   );
+});
+
+test('0002 moves a valid legacy barcode under its owner and removes createdBy', async () => {
+  const db = new FakeFirestore({
+    barcodes: {
+      '0123456789012': {
+        createdBy: 'alice',
+        name: 'Protein Bar',
+        calories: 210,
+        protein: 20,
+        carbs: 22,
+        fats: 7,
+        fiber: 3,
+        servingSize: '1 bar',
+        servingWeight: 60,
+      },
+    },
+  });
+
+  const changed = await privateBarcodes0002.up(db, { dryRun: false, log: () => {} });
+
+  assert.equal(changed, 1);
+  const legacy = await db.collection('barcodes').doc('0123456789012').get();
+  assert.equal(legacy.exists, false);
+  const privateDoc = await db.collection('users/alice/barcodeContributions')
+    .doc('0123456789012').get();
+  assert.equal(privateDoc.exists, true);
+  assert.equal(privateDoc.data().createdBy, undefined);
+  assert.equal(privateDoc.data().barcode, '0123456789012');
+});
+
+test('0002 dry-run and malformed records never mutate legacy data', async () => {
+  const db = new FakeFirestore({
+    barcodes: {
+      '0123456789012': {
+        createdBy: 'alice',
+        name: 'Protein Bar',
+        calories: 210,
+        protein: 20,
+        carbs: 22,
+        fats: 7,
+        servingSize: '1 bar',
+        servingWeight: 60,
+      },
+      'bad-id': { createdBy: 'bob', name: 'Bad' },
+    },
+  });
+
+  const dryRunChanged = await privateBarcodes0002.up(db, { dryRun: true, log: () => {} });
+  assert.equal(dryRunChanged, 1);
+  assert.equal((await db.collection('barcodes').doc('0123456789012').get()).exists, true);
+  assert.equal((await db.collection('users/alice/barcodeContributions')
+    .doc('0123456789012').get()).exists, false);
+
+  const applied = await privateBarcodes0002.up(db, { dryRun: false, log: () => {} });
+  assert.equal(applied, 1);
+  assert.equal((await db.collection('barcodes').doc('bad-id').get()).exists, true);
+});
+
+test('0002 preserves an existing private correction and remains idempotent', async () => {
+  const db = new FakeFirestore({
+    barcodes: {
+      '0123456789012': {
+        createdBy: 'alice',
+        name: 'Legacy',
+        calories: 210,
+        protein: 20,
+        carbs: 22,
+        fats: 7,
+        servingSize: '1 bar',
+        servingWeight: 60,
+      },
+    },
+    'users/alice/barcodeContributions': {
+      '0123456789012': { name: 'Newer private correction', schemaVersion: 1 },
+    },
+  });
+
+  const changed = await privateBarcodes0002.up(db, { dryRun: false, log: () => {} });
+  assert.equal(changed, 1);
+  const privateDoc = await db.collection('users/alice/barcodeContributions')
+    .doc('0123456789012').get();
+  assert.equal(privateDoc.data().name, 'Newer private correction');
+
+  const again = await privateBarcodes0002.up(db, { dryRun: false, log: () => {} });
+  assert.equal(again, 0);
 });

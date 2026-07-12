@@ -6,7 +6,7 @@ private enum SharedDataKeys {
     static let pendingWater = "pendingWaterOunces"
 }
 
-public struct WidgetData: Codable {
+public struct WidgetData: Codable, Equatable, Sendable {
     public let calories: Double
     public let calorieGoal: Double
     public let protein: Double
@@ -17,9 +17,55 @@ public struct WidgetData: Codable {
     public let fatGoal: Double
     public var lastUpdated: Date? = nil
     public var macroCalorieDelta: Double? = nil
+    public var nextAction: DailyNextAction? = nil
 
-    static var previewData: WidgetData {
-        .init(calories: 1250, calorieGoal: 2400, protein: 110, proteinGoal: 150, carbs: 180, carbsGoal: 250, fats: 25, fatGoal: 70, lastUpdated: Date(), macroCalorieDelta: nil)
+    public init(
+        calories: Double,
+        calorieGoal: Double,
+        protein: Double,
+        proteinGoal: Double,
+        carbs: Double,
+        carbsGoal: Double,
+        fats: Double,
+        fatGoal: Double,
+        lastUpdated: Date? = nil,
+        macroCalorieDelta: Double? = nil,
+        nextAction: DailyNextAction? = nil
+    ) {
+        self.calories = calories
+        self.calorieGoal = calorieGoal
+        self.protein = protein
+        self.proteinGoal = proteinGoal
+        self.carbs = carbs
+        self.carbsGoal = carbsGoal
+        self.fats = fats
+        self.fatGoal = fatGoal
+        self.lastUpdated = lastUpdated
+        self.macroCalorieDelta = macroCalorieDelta
+        self.nextAction = nextAction
+    }
+
+    public static var previewData: WidgetData {
+        .init(
+            calories: 1_250,
+            calorieGoal: 2_400,
+            protein: 110,
+            proteinGoal: 150,
+            carbs: 180,
+            carbsGoal: 250,
+            fats: 25,
+            fatGoal: 70,
+            lastUpdated: Date(),
+            macroCalorieDelta: nil,
+            nextAction: DailyNextAction(
+                kind: .preWorkoutFuel,
+                title: "Fuel before training",
+                detail: "15 g protein + 35 g carbs",
+                deepLink: "myfitplate://training-fuel",
+                proteinGrams: 15,
+                carbGrams: 35
+            )
+        )
     }
 }
 

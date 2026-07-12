@@ -138,6 +138,17 @@ final class WorkoutServiceTests: XCTestCase {
         XCTAssertEqual(logs.first?.id, "log1")
     }
 
+    func testFetchRecentSessionLogsResultPreservesReadFailure() async {
+        mockRepo.fetchRecentSessionLogsError = NSError(domain: "test", code: 19)
+
+        let result = await service.fetchRecentSessionLogsResult(sinceDays: 7)
+
+        guard case .failure = result else {
+            return XCTFail("Reports must be able to distinguish a failed read from an empty history")
+        }
+        XCTAssertEqual(mockCrash.recordedErrors.count, 1)
+    }
+
     func testSetActiveProgram() {
         let program = WorkoutProgram(id: "p1", userID: "user_123", name: "Program 1", dateCreated: Date(), routines: [])
         service.setActiveProgram(program)

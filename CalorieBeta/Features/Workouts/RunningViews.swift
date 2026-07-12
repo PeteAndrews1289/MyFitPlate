@@ -13,8 +13,18 @@ final class RunHistoryViewModel: ObservableObject {
     @Published var isLoading = true
 
     private let importer = RunImportService()
+    private let fixtureRuns: [Run]?
+
+    init(fixtureRuns: [Run]? = nil) {
+        self.fixtureRuns = fixtureRuns
+        if let fixtureRuns {
+            runs = fixtureRuns
+            isLoading = false
+        }
+    }
 
     func load() {
+        guard fixtureRuns == nil else { return }
         HealthKitManager.shared.requestAuthorization { [weak self] _, _ in
             guard let self else { return }
             let since = Calendar.current.date(byAdding: .day, value: -180, to: Date()) ?? Date()
@@ -40,13 +50,22 @@ final class RunHistoryViewModel: ObservableObject {
 }
 
 struct RunHistoryView: View {
-    @StateObject private var viewModel = RunHistoryViewModel()
+    @StateObject private var viewModel: RunHistoryViewModel
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @State private var showingRecorder = false
     @State private var showingRunStartSheet = false
     @State private var activeRunPlan: RunWorkoutPlan?
     @State private var showingGearManager = false
     @State private var showingTreadmillEntry = false
+
+    init() {
+        #if DEBUG
+        let fixtureRuns = ScreenshotDemoMode.isEnabled ? ScreenshotDemoData.runningDemoRuns : nil
+        _viewModel = StateObject(wrappedValue: RunHistoryViewModel(fixtureRuns: fixtureRuns))
+        #else
+        _viewModel = StateObject(wrappedValue: RunHistoryViewModel())
+        #endif
+    }
 
     var body: some View {
         ScrollView {
@@ -381,6 +400,8 @@ private struct RunWorkoutPickerSheet: View {
 private struct TreadmillRunEntrySheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var goalSettings: GoalSettings
+    @EnvironmentObject private var dailyLogService: DailyLogService
+    @EnvironmentObject private var trainingFuelPlanStore: TrainingFuelPlanStore
     let metric: Bool
     let onSaved: () -> Void
 
@@ -480,6 +501,7 @@ private struct TreadmillRunEntrySheet: View {
             return
         }
 
+        ActivationFunnel.recordTrainingCompletion(.treadmillRun)
         isSaving = true
         RunRecorderStore().save(run: run, locations: [], weightLbs: goalSettings.weight) { savedID in
             if let savedID {
@@ -487,6 +509,27 @@ private struct TreadmillRunEntrySheet: View {
                 shoeStore.tagRun(runID: savedID, withShoeID: shoeStore.defaultShoe()?.id)
             } else {
                 ToastManager.shared.showToast(message: "Saved locally, but Health sync failed.")
+            }
+            let today = dailyLogService.currentDailyLog.flatMap { log in
+                Calendar.current.isDate(log.date, inSameDayAs: run.endDate) ? log : nil
+            }
+            if trainingFuelPlanStore.recordRunCompletion(
+                run,
+                selectedPlanID: nil,
+                source: .treadmillRun,
+                today: today,
+                goals: TodayFuelPlanGoals(
+                    calories: goalSettings.calories ?? 0,
+                    protein: goalSettings.protein,
+                    carbs: goalSettings.carbs,
+                    fats: goalSettings.fats
+                ),
+                for: DIContainer.shared.authService.currentUserID
+            ) {
+                DIContainer.shared.analyticsManager?.logEvent(
+                    ProductAnalytics.Event.trainingFuelSessionOutcome.rawValue,
+                    parameters: ["outcome": "completed", "source": "treadmill_run"]
+                )
             }
             HapticManager.instance.notification(.success)
             ToastManager.shared.showToast(message: "Treadmill run saved.")

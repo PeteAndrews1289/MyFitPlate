@@ -125,12 +125,27 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
     /// Fetches completed session logs from the last `days` days (used by the muscle recovery map,
     /// which needs the real per-exercise names rather than the routine summary in the daily log).
     public func fetchRecentSessionLogs(sinceDays days: Int) async -> [WorkoutSessionLog] {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return [] }
+        switch await fetchRecentSessionLogsResult(sinceDays: days) {
+        case .success(let logs):
+            return logs
+        case .failure:
+            return []
+        }
+    }
+
+    /// Result-preserving variant for reports that must distinguish an empty history from a
+    /// failed read instead of quietly presenting a data outage as zero training.
+    public func fetchRecentSessionLogsResult(sinceDays days: Int) async -> Result<[WorkoutSessionLog], Error> {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return .success([]) }
         do {
-            return try await DIContainer.shared.workoutRepository.fetchRecentSessionLogs(userID: userID, sinceDays: days)
+            let logs = try await DIContainer.shared.workoutRepository.fetchRecentSessionLogs(
+                userID: userID,
+                sinceDays: days
+            )
+            return .success(logs)
         } catch {
             reportFailure(error, operation: "fetch_recent_session_logs")
-            return []
+            return .failure(error)
         }
     }
 
@@ -373,7 +388,8 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
             case .apiError(let message):
                 return .failure(.apiError(message))
             case .decodingError(let error):
-                reportFailure(error, operation: "decode_ai_workout_response")
+                AppLog.workouts.error("AI workout decode failed: \(error.localizedDescription, privacy: .public)")
+                AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_ai_workout_response")
                 return .failure(.decodingError(error))
             }
         case .failure(let error):

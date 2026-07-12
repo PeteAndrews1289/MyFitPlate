@@ -90,7 +90,10 @@ public enum ReleaseHealth {
         analyticsManager.setUserProperty(context.appVersion, forName: "app_version")
         analyticsManager.setUserProperty(context.buildNumber, forName: "build_number")
         analyticsManager.setUserProperty(context.buildEnvironment, forName: "build_environment")
-        analyticsManager.logEvent("app_session_started", parameters: context.analyticsParameters)
+        analyticsManager.logEvent(
+            ProductAnalytics.Event.appSessionStarted.rawValue,
+            parameters: context.analyticsParameters
+        )
     }
 
     public static func identifyUser(
@@ -117,7 +120,7 @@ public enum ReleaseHealth {
         crashManager.setCustomValue(bucket, forKey: "startup_duration_bucket")
         crashManager.log("release_health.startup_completed \(milliseconds)ms")
 
-        analyticsManager.logEvent("app_startup_completed", parameters: [
+        analyticsManager.logEvent(ProductAnalytics.Event.appStartupCompleted.rawValue, parameters: [
             "duration_ms": milliseconds,
             "duration_bucket": bucket
         ])
@@ -139,7 +142,7 @@ public enum ReleaseHealth {
         crashManager.record(error: error, additionalUserInfo: userInfo)
         crashManager.log("release_health.nonfatal \(area.rawValue).\(operation)")
 
-        analyticsManager?.logEvent("nonfatal_error_recorded", parameters: [
+        analyticsManager?.logEvent(ProductAnalytics.Event.nonfatalErrorRecorded.rawValue, parameters: [
             "area": area.rawValue,
             "operation": operation
         ])
@@ -175,5 +178,26 @@ public enum ReleaseHealth {
                 result[pair.key] = String(describing: type(of: pair.value))
             }
         }
+    }
+}
+
+/// Shared, privacy-safe reporting for AI responses that reached the app but did not
+/// satisfy a declared JSON contract. Prompt text and returned content are never attached.
+@MainActor
+public enum AIResponseTelemetry {
+    public static func recordDecodeFailure(
+        _ error: Error,
+        operation: String,
+        willRetry: Bool = false
+    ) {
+        guard let crashManager = DIContainer.shared.crashManager else { return }
+        ReleaseHealth.recordNonFatal(
+            error,
+            area: .ai,
+            operation: operation,
+            metadata: ["will_retry": willRetry],
+            crashManager: crashManager,
+            analyticsManager: DIContainer.shared.analyticsManager
+        )
     }
 }

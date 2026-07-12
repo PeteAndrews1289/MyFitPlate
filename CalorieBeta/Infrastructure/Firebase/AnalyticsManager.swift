@@ -15,22 +15,28 @@ public final class FirebaseAnalyticsManager: AnalyticsManagerProtocol {
     // MARK: - Screen views (what users actually open)
 
     public func screenViewed(_ screen: AppScreen) {
-        Analytics.logEvent("screen_viewed", parameters: ["screen_name": screen.rawValue])
+        Analytics.logEvent(
+            "screen_viewed",
+            parameters: ProductAnalytics.firebaseParameters(["screen_name": screen.rawValue])
+        )
     }
 
     // MARK: - Feature / action events
 
     public func log(_ event: AppEvent, _ parameters: [String: Any] = [:]) {
-        Analytics.logEvent(event.rawValue, parameters: AnalyticsPrivacy.sanitizedParameters(parameters))
+        Analytics.logEvent(event.rawValue, parameters: ProductAnalytics.firebaseParameters(parameters))
     }
 
     public func logEvent(_ name: String, parameters: [String: Any]?) {
-        Analytics.logEvent(name, parameters: AnalyticsPrivacy.sanitizedParameters(parameters))
+        Analytics.logEvent(name, parameters: ProductAnalytics.firebaseParameters(parameters))
     }
 
     /// Convenience for the most common pattern: "which AI feature was used."
     public func aiFeatureUsed(_ feature: AIFeature) {
-        Analytics.logEvent(AppEvent.aiFeatureUsed.rawValue, parameters: ["ai_feature": feature.rawValue])
+        Analytics.logEvent(
+            AppEvent.aiFeatureUsed.rawValue,
+            parameters: ProductAnalytics.firebaseParameters(["ai_feature": feature.rawValue])
+        )
     }
 
     // MARK: - User properties (for segmenting the dashboards)
@@ -47,7 +53,10 @@ public final class FirebaseAnalyticsManager: AnalyticsManagerProtocol {
 public extension View {
     func trackScreen(_ screen: AppScreen) -> some View {
         self.onAppear {
-            DIContainer.shared.analyticsManager.logEvent("screen_viewed", parameters: ["screen_name": screen.rawValue])
+            DIContainer.shared.analyticsManager.logEvent(
+                "screen_viewed",
+                parameters: ["screen_name": screen.rawValue]
+            )
         }
     }
 }

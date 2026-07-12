@@ -158,7 +158,7 @@ struct CoachingDashboardView: View {
             "adaptive_coach_primary_action_tapped",
             parameters: [
                 "title": plan.title,
-                "route": action.route.rawValue,
+                "destination": action.route.rawValue,
                 "confidence": plan.confidence
             ]
         )

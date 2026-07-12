@@ -1,6 +1,7 @@
 import WidgetKit
 import AppIntents
 import SwiftUI
+import MyFitPlateCore
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
@@ -51,6 +52,13 @@ struct CalorieWidgetEntryView: View {
         URL(string: "myfitplate://home")!
     }
 
+    private var destinationURL: URL {
+        guard family != .accessoryCircular,
+              let deepLink = entry.data?.nextAction?.deepLink,
+              let url = URL(string: deepLink) else { return homeURL }
+        return url
+    }
+
     private var isAccessory: Bool {
         switch family {
         case .accessoryCircular, .accessoryRectangular, .accessoryInline:
@@ -78,7 +86,7 @@ struct CalorieWidgetEntryView: View {
                 if let data = entry.data { MediumWidgetView(data: data) } else { emptyInvite }
             }
         }
-        .widgetURL(homeURL)
+        .widgetURL(destinationURL)
         .containerBackground(for: .widget) {
             if isAccessory {
                 AccessoryWidgetBackground()
@@ -132,18 +140,34 @@ struct AccessoryRectangularCaloriesView: View {
 
     var body: some View {
         if let data, data.calorieGoal > 0 {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
-                    .font(.headline)
-                    .widgetAccentable()
-                Gauge(value: min(data.calories, data.calorieGoal), in: 0...data.calorieGoal) {
-                    EmptyView()
+            if let action = data.nextAction {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(action.title)
+                        .font(.headline)
+                        .widgetAccentable()
+                        .lineLimit(1)
+                    Text(action.detail)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
-                .gaugeStyle(.accessoryLinearCapacity)
-                .tint(WidgetPalette.brandPrimary)
-                Text("P \(Int(data.protein))g · C \(Int(data.carbs))g · F \(Int(data.fats))g")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
+                        .font(.headline)
+                        .widgetAccentable()
+                    Gauge(value: min(data.calories, data.calorieGoal), in: 0...data.calorieGoal) {
+                        EmptyView()
+                    }
+                    .gaugeStyle(.accessoryLinearCapacity)
+                    .tint(WidgetPalette.brandPrimary)
+                    Text("P \(Int(data.protein))g · C \(Int(data.carbs))g · F \(Int(data.fats))g")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         } else {
             VStack(alignment: .leading, spacing: 2) {
@@ -160,7 +184,9 @@ struct AccessoryInlineCaloriesView: View {
     let data: WidgetData?
 
     var body: some View {
-        if let data, data.calorieGoal > 0 {
+        if let action = data?.nextAction {
+            Text("MyFitPlate: \(action.title)")
+        } else if let data, data.calorieGoal > 0 {
             Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
         } else {
             Text("MyFitPlate — log a meal")
@@ -176,7 +202,7 @@ struct CalorieWidget: Widget {
             CalorieWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Daily Summary")
-        .description("Track your daily calories and macros.")
+        .description("See your daily totals and the next useful action.")
 #if os(watchOS)
         .supportedFamilies([.accessoryRectangular, .accessoryCircular, .accessoryInline])
 #else
@@ -199,44 +225,50 @@ struct MediumWidgetView: View {
     }
 
     var body: some View {
-        HStack(spacing: 20) {
-            VStack {
-                Text("Remaining")
-                    .font(.caption2)
-                Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted())")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(WidgetPalette.brandPrimary)
-                Text("cal")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.leading, 5)
-
-            VStack(alignment: .leading, spacing: 8) {
-                MacroBar(label: "Protein", value: data.protein, goal: data.proteinGoal, color: WidgetPalette.accentProtein)
-                MacroBar(label: "Carbs", value: data.carbs, goal: data.carbsGoal, color: WidgetPalette.accentCarbs)
-                MacroBar(label: "Fats", value: data.fats, goal: data.fatGoal, color: WidgetPalette.accentFats)
-
-                HStack {
-                    if hasMacroWarning {
-                        Label("Check macros", systemImage: "info.circle.fill")
-                            .font(.caption2)
-                            .foregroundColor(WidgetPalette.accentSignal)
-                    }
-
-                    Spacer()
-
-                    Button(intent: LogWaterIntent()) {
-                        Image(systemName: "drop.fill")
-                            .font(.caption)
-                            .foregroundColor(.white)
-                            .padding(6)
-                            .background(WidgetPalette.accentWater)
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
+        VStack(spacing: 9) {
+            HStack(spacing: 20) {
+                VStack {
+                    Text("Remaining")
+                        .font(.caption2)
+                    Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted())")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(WidgetPalette.brandPrimary)
+                    Text("cal")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
+                .padding(.leading, 5)
+
+                VStack(alignment: .leading, spacing: 7) {
+                    MacroBar(label: "Protein", value: data.protein, goal: data.proteinGoal, color: WidgetPalette.accentProtein)
+                    MacroBar(label: "Carbs", value: data.carbs, goal: data.carbsGoal, color: WidgetPalette.accentCarbs)
+                    MacroBar(label: "Fats", value: data.fats, goal: data.fatGoal, color: WidgetPalette.accentFats)
+
+                    HStack {
+                        if hasMacroWarning {
+                            Label("Check macros", systemImage: "info.circle.fill")
+                                .font(.caption2)
+                                .foregroundColor(WidgetPalette.accentSignal)
+                        }
+
+                        Spacer()
+
+                        Button(intent: LogWaterIntent()) {
+                            Image(systemName: "drop.fill")
+                                .font(.caption)
+                                .foregroundColor(.white)
+                                .padding(6)
+                                .background(WidgetPalette.accentWater)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            if let action = data.nextAction {
+                WidgetNextActionRow(action: action, compact: true)
             }
         }
         .padding()
@@ -245,34 +277,100 @@ struct MediumWidgetView: View {
 
 struct SmallWidgetView: View {
     let data: WidgetData
-    private let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
 
     var body: some View {
-        VStack {
-            LazyVGrid(columns: columns, spacing: 8) {
-                MiniProgressBubble(
-                    value: data.calories, goal: data.calorieGoal,
-                    percentage: data.calorieGoal > 0 ? (data.calories / data.calorieGoal) : 0,
-                    label: "Calories", color: WidgetPalette.brandPrimary
-                )
-                MiniProgressBubble(
-                    value: data.protein, goal: data.proteinGoal,
-                    percentage: data.proteinGoal > 0 ? (data.protein / data.proteinGoal) : 0,
-                    label: "Protein", color: WidgetPalette.accentProtein
-                )
-                MiniProgressBubble(
-                    value: data.fats, goal: data.fatGoal,
-                    percentage: data.fatGoal > 0 ? (data.fats / data.fatGoal) : 0,
-                    label: "Fats", color: WidgetPalette.accentFats
-                )
-                MiniProgressBubble(
-                    value: data.carbs, goal: data.carbsGoal,
-                    percentage: data.carbsGoal > 0 ? (data.carbs / data.carbsGoal) : 0,
-                    label: "Carbs", color: WidgetPalette.accentCarbs
-                )
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Calories")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted())")
+                        .font(.system(.title2, design: .rounded, weight: .bold))
+                        .foregroundStyle(WidgetPalette.brandPrimary)
+                        .minimumScaleFactor(0.75)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("Protein")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("\(Int(max(0, data.proteinGoal - data.protein)).formatted()) g")
+                        .font(.system(.headline, design: .rounded, weight: .bold))
+                        .foregroundStyle(WidgetPalette.accentProtein)
+                        .minimumScaleFactor(0.75)
+                        .lineLimit(1)
+                }
+            }
+
+            if let action = data.nextAction {
+                SmallWidgetNextActionRow(action: action)
+            } else {
+                Spacer(minLength: 0)
             }
         }
-        .padding(8)
+        .padding(12)
+    }
+}
+
+private struct SmallWidgetNextActionRow: View {
+    let action: DailyNextAction
+
+    private var title: String {
+        switch action.kind {
+        case .preWorkoutFuel: return "Pre-workout fuel"
+        case .recoveryMeal: return "Recovery fuel"
+        case .proteinCatchUp: return "Protein catch-up"
+        case .trustReview: return "Review food data"
+        case .steadyDay: return "Stay steady"
+        }
+    }
+
+    private var icon: String {
+        switch action.kind {
+        case .preWorkoutFuel: return "bolt.fill"
+        case .recoveryMeal: return "fork.knife"
+        case .proteinCatchUp: return "chart.bar.fill"
+        case .trustReview: return "checkmark.shield.fill"
+        case .steadyDay: return "checkmark.circle.fill"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(WidgetPalette.brandPrimary)
+                .frame(width: 24, height: 24)
+                .background(
+                    WidgetPalette.brandPrimary.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 7)
+                )
+
+            Text(title)
+                .font(.caption.weight(.bold))
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .minimumScaleFactor(0.85)
+
+            Spacer(minLength: 1)
+
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(
+            WidgetPalette.brandPrimary.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 8)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(action.title). \(action.detail)")
+        .accessibilityHint("Opens MyFitPlate")
     }
 }
 
@@ -288,21 +386,25 @@ struct LargeWidgetView: View {
                     percentage: data.calorieGoal > 0 ? (data.calories / data.calorieGoal) : 0,
                     label: "Calories", unit: "cal", color: WidgetPalette.brandPrimary
                 )
+                .frame(height: 112)
                 ProgressBubble(
                     value: data.protein, goal: data.proteinGoal,
                     percentage: data.proteinGoal > 0 ? (data.protein / data.proteinGoal) : 0,
                     label: "Protein", unit: "g", color: WidgetPalette.accentProtein
                 )
+                .frame(height: 112)
                 ProgressBubble(
                     value: data.fats, goal: data.fatGoal,
                     percentage: data.fatGoal > 0 ? (data.fats / data.fatGoal) : 0,
                     label: "Fats", unit: "g", color: WidgetPalette.accentFats
                 )
+                .frame(height: 112)
                 ProgressBubble(
                     value: data.carbs, goal: data.carbsGoal,
                     percentage: data.carbsGoal > 0 ? (data.carbs / data.carbsGoal) : 0,
                     label: "Carbs", unit: "g", color: WidgetPalette.accentCarbs
                 )
+                .frame(height: 112)
             }
 
             if let delta = data.macroCalorieDelta, abs(delta) >= 75 {
@@ -311,32 +413,69 @@ struct LargeWidgetView: View {
                     .foregroundColor(WidgetPalette.accentSignal)
                     .lineLimit(1)
             }
+
+            if let action = data.nextAction {
+                WidgetNextActionRow(action: action)
+            }
         }
         .padding()
     }
 }
 
-struct MiniProgressBubble: View {
-    let value: Double
-    let goal: Double
-    let percentage: Double
-    let label: String
-    let color: Color
+struct WidgetNextActionRow: View {
+    let action: DailyNextAction
+    var compact = false
+
+    private var color: Color {
+        switch action.kind {
+        case .preWorkoutFuel: return WidgetPalette.brandPrimary
+        case .recoveryMeal: return WidgetPalette.accentCarbs
+        case .proteinCatchUp: return WidgetPalette.accentProtein
+        case .trustReview: return WidgetPalette.accentSignal
+        case .steadyDay: return WidgetPalette.brandPrimary
+        }
+    }
+
+    private var icon: String {
+        switch action.kind {
+        case .preWorkoutFuel: return "bolt.fill"
+        case .recoveryMeal: return "fork.knife"
+        case .proteinCatchUp: return "chart.bar.fill"
+        case .trustReview: return "checkmark.shield.fill"
+        case .steadyDay: return "checkmark.circle.fill"
+        }
+    }
 
     var body: some View {
-        VStack(spacing: 3) {
-            ZStack {
-                Circle().stroke(lineWidth: 5).opacity(0.2).foregroundColor(color)
-                Circle().trim(from: 0, to: CGFloat(percentage)).stroke(style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round)).foregroundColor(color).rotationEffect(.degrees(-90))
-                VStack {
-                    Text("\(Int(value).formatted())")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .minimumScaleFactor(0.7)
-                }
+        HStack(spacing: compact ? 7 : 10) {
+            Image(systemName: icon)
+                .font(.system(size: compact ? 12 : 14, weight: .bold))
+                .foregroundStyle(color)
+                .frame(width: compact ? 24 : 30, height: compact ? 24 : 30)
+                .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(action.title)
+                    .font(compact ? .caption.weight(.bold) : .subheadline.weight(.bold))
+                    .lineLimit(1)
+                Text(action.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            Text(label)
-                .font(.system(size: 10, weight: .medium, design: .rounded))
+
+            Spacer(minLength: 3)
+
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
+        .padding(.horizontal, compact ? 8 : 10)
+        .padding(.vertical, compact ? 7 : 9)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens MyFitPlate")
     }
 }
 

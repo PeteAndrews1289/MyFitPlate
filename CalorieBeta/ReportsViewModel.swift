@@ -375,7 +375,11 @@ class ReportsViewModel: ObservableObject {
 
         // Accumulators for totals
         var totCals=0.0, totProt=0.0, totCarb=0.0, totFat=0.0 // Macros
-        var totCa=0.0, totFe=0.0, totK=0.0, totNa=0.0, totVa=0.0, totVc=0.0, totVd=0.0, totFib = 0.0 // Micros + Fiber
+        let reportedMicronutrients: [MicronutrientKey] = [
+            .fiber, .calcium, .iron, .potassium, .sodium, .vitaminA, .vitaminC, .vitaminD
+        ]
+        var micronutrientTotals: [MicronutrientKey: Double] = [:]
+        var micronutrientReportedDays: [MicronutrientKey: Int] = [:]
         var mealCals: [String: Double] = [:] // Calories per meal type
         // Temporary arrays for chart data points
         var tmpCalT=[DateValuePoint](), tmpProtT=[DateValuePoint](), tmpCarbT=[DateValuePoint](), tmpFatT=[DateValuePoint]()
@@ -399,10 +403,13 @@ class ReportsViewModel: ObservableObject {
         if daysWithActualLogEntries > 0 {
              // Iterate through each valid daily log
              for log in validLogs {
-                 let c=log.totalCalories(); let mac=log.totalMacros(); let mic=log.totalMicronutrients()
+                 let c=log.totalCalories(); let mac=log.totalMacros()
                  // Accumulate totals
                  totCals+=c; totProt+=mac.protein; totCarb+=mac.carbs; totFat+=mac.fats
-                 totCa+=mic.calcium; totFe+=mic.iron; totK+=mic.potassium; totNa+=mic.sodium; totVa+=mic.vitaminA; totVc+=mic.vitaminC; totVd+=mic.vitaminD; totFib+=mic.fiber
+                 for nutrient in reportedMicronutrients where log.micronutrientCoverage(for: nutrient).hasReportedData {
+                     micronutrientTotals[nutrient, default: 0] += log.totalMicronutrient(nutrient)
+                     micronutrientReportedDays[nutrient, default: 0] += 1
+                 }
                  // Create data points for trends
                  let date=Calendar.current.startOfDay(for: log.date) // Use start of day for consistency
                  tmpCalT.append(DateValuePoint(date: date, value: c)); tmpProtT.append(DateValuePoint(date: date, value: mac.protein)); tmpCarbT.append(DateValuePoint(date: date, value: mac.carbs)); tmpFatT.append(DateValuePoint(date: date, value: mac.fats))
@@ -417,17 +424,32 @@ class ReportsViewModel: ObservableObject {
              // Set the trend data, sorted by date
              self.calorieTrend=tmpCalT.sorted {$0.date<$1.date}; self.proteinTrend=tmpProtT.sorted {$0.date<$1.date}; self.carbTrend=tmpCarbT.sorted {$0.date<$1.date}; self.fatTrend=tmpFatT.sorted {$0.date<$1.date}
              // Create micronutrient average data points
-             var tmpMicros: [MicroAverageDataPoint] = []
-             tmpMicros.append(MicroAverageDataPoint(name: "Fiber", unit: "g", averageValue: totFib/divisor, goalValue: 25)) // Standard fiber goal
-             tmpMicros.append(MicroAverageDataPoint(name: "Calcium", unit: "mg", averageValue: totCa/divisor, goalValue: goals.calciumGoal ?? 1)) // Use goal or 1 if nil
-             tmpMicros.append(MicroAverageDataPoint(name: "Iron", unit: "mg", averageValue: totFe/divisor, goalValue: goals.ironGoal ?? 1))
-             tmpMicros.append(MicroAverageDataPoint(name: "Potassium", unit: "mg", averageValue: totK/divisor, goalValue: goals.potassiumGoal ?? 1))
-             tmpMicros.append(MicroAverageDataPoint(name: "Sodium", unit: "mg", averageValue: totNa/divisor, goalValue: goals.sodiumGoal ?? 2300)) // Standard sodium goal or user goal
-             tmpMicros.append(MicroAverageDataPoint(name: "Vitamin A", unit: "mcg", averageValue: totVa/divisor, goalValue: goals.vitaminAGoal ?? 1))
-             tmpMicros.append(MicroAverageDataPoint(name: "Vitamin C", unit: "mg", averageValue: totVc/divisor, goalValue: goals.vitaminCGoal ?? 1))
-             tmpMicros.append(MicroAverageDataPoint(name: "Vitamin D", unit: "mcg", averageValue: totVd/divisor, goalValue: goals.vitaminDGoal ?? 1))
-             // Filter out micros with no goal set (goalValue <= 0)
-             self.micronutrientAverages = tmpMicros.filter { $0.goalValue > 0 }
+             let micronutrientGoals: [(MicronutrientKey, Double)] = [
+                 (.fiber, 25),
+                 (.calcium, goals.calciumGoal ?? 1),
+                 (.iron, goals.ironGoal ?? 1),
+                 (.potassium, goals.potassiumGoal ?? 1),
+                 (.sodium, goals.sodiumGoal ?? 2300),
+                 (.vitaminA, goals.vitaminAGoal ?? 1),
+                 (.vitaminC, goals.vitaminCGoal ?? 1),
+                 (.vitaminD, goals.vitaminDGoal ?? 1)
+             ]
+             let nutritionDayCount = validLogs.filter { !$0.meals.flatMap(\.foodItems).isEmpty }.count
+             self.micronutrientAverages = micronutrientGoals.compactMap { nutrient, goal in
+                 guard goal > 0,
+                       let reportedDays = micronutrientReportedDays[nutrient],
+                       reportedDays > 0 else {
+                     return nil
+                 }
+                 return MicroAverageDataPoint(
+                     name: nutrient.displayName,
+                     unit: nutrient.unit,
+                     averageValue: micronutrientTotals[nutrient, default: 0] / Double(reportedDays),
+                     goalValue: goal,
+                     reportedDayCount: reportedDays,
+                     totalDayCount: nutritionDayCount
+                 )
+             }
              // Calculate meal distribution if total calories > 0
              if totCals > 0 { var tmpMealDist: [MealDistributionDataPoint] = []; for (n, c) in mealCals { tmpMealDist.append(MealDistributionDataPoint(mealName: n, totalCalories: c / divisor)) }; self.mealDistributionData = tmpMealDist.sorted { $0.mealName < $1.mealName } } else { self.mealDistributionData = [] } // Clear distribution if no calories logged
              // Generate a simple insight based on the logs

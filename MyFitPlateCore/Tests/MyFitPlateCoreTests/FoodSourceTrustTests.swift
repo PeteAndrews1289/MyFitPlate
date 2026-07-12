@@ -745,7 +745,7 @@ final class FoodSourceTrustTests: XCTestCase {
             candidateCount: 3
         )
 
-        let outcome = BarcodeLookupOutcome.success(lookup)
+        let outcome = BarcodeLookupOutcome.success(lookup, durationMilliseconds: 1_840)
         let params = outcome.analyticsParameters
 
         XCTAssertEqual(outcome.result, "hit")
@@ -756,18 +756,25 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(params["candidate_count"] as? Int, 3)
         XCTAssertEqual(params["cross_verified_count"] as? Int, 1)
         XCTAssertEqual(params["trust_level"] as? String, FoodTrustEvaluation.Level.excellent.rawValue)
-        XCTAssertEqual(params["trust_model_version"] as? Int, FoodTrustEvaluation.modelVersion)
+        XCTAssertEqual(params["trust_model_version"] as? String, String(FoodTrustEvaluation.modelVersion))
+        XCTAssertEqual(params["duration_ms"] as? Int, 1_840)
+        XCTAssertEqual(params["duration_bucket"] as? String, "1s_to_2s")
         XCTAssertNil(params["barcode"], "Do not log the raw product barcode.")
     }
 
     func testBarcodeLookupOutcomeMissLogsOnlyShapeNotRawBarcode() {
-        let outcome = BarcodeLookupOutcome.miss(barcode: "0 12345 67890 5")
+        let outcome = BarcodeLookupOutcome.miss(
+            barcode: "0 12345 67890 5",
+            durationMilliseconds: 6_200
+        )
         let params = outcome.analyticsParameters
 
         XCTAssertEqual(outcome.result, "miss")
         XCTAssertEqual(params["source"] as? String, "none")
         XCTAssertEqual(params["scanned_length"] as? Int, 12)
         XCTAssertEqual(params["candidate_count"] as? Int, 3)
+        XCTAssertEqual(params["duration_ms"] as? Int, 6_200)
+        XCTAssertEqual(params["duration_bucket"] as? String, "over_4s")
         XCTAssertNil(params["trust_score"])
         XCTAssertNil(params["barcode"], "Miss telemetry should still avoid raw barcode values.")
     }
@@ -808,12 +815,15 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(params["action"] as? String, "manual_food_created")
         XCTAssertEqual(params["scanned_length"] as? Int, 12)
         XCTAssertEqual(params["trust_level"] as? String, FoodTrustEvaluation.Level.strong.rawValue)
-        XCTAssertEqual(params["trust_model_version"] as? Int, FoodTrustEvaluation.modelVersion)
+        XCTAssertEqual(params["trust_model_version"] as? String, String(FoodTrustEvaluation.modelVersion))
         XCTAssertNotNil(params["trust_score"])
         XCTAssertNil(params["barcode"], "Created-food telemetry should avoid raw barcode values.")
     }
 
+    @MainActor
     func testBarcodeLookupReturnsSavedCorrectionBeforeExternalSources() async {
+        let analytics = MockAnalyticsManager()
+        DIContainer.shared.analyticsManager = analytics
         let correctedFood = FoodItem(
             id: "corrected",
             name: "Saved Cereal",
@@ -833,6 +843,10 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(result?.source, "custom_barcode")
         XCTAssertEqual(result?.item.id, "corrected")
         XCTAssertEqual(result?.item.sourceMetadata?.sourceType, .custom)
+        let events = analytics.loggedEvents.filter { $0.name == BarcodeLookupOutcome.eventName }
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.parameters?["result"] as? String, "hit")
+        XCTAssertNotNil(events.first?.parameters?["duration_ms"])
     }
 }
 

@@ -2,15 +2,17 @@ import SwiftUI
 
 struct NutritionAuditLaunchButton: View {
     let action: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "checklist")
                     .appFont(size: 13, weight: .bold)
                     .foregroundColor(.orange)
                     .frame(width: 28, height: 28)
                     .background(Color.orange.opacity(0.12), in: Circle())
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Review Food Trust")
@@ -20,19 +22,23 @@ struct NutritionAuditLaunchButton: View {
                     Text("Sources, cross-checks, and items to fix.")
                         .appFont(size: 11, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(1)
                 }
+                .layoutPriority(dynamicTypeSize.isAccessibilitySize ? 1 : 0)
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 Image(systemName: "chevron.right")
                     .appFont(size: 11, weight: .bold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
+                    .padding(.top, 4)
+                    .accessibilityHidden(true)
             }
             .padding(12)
             .background(Color.orange.opacity(0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Review Food Trust. Sources, cross-checks, and items to fix.")
+        .accessibilityHint("Opens the Trust Hub for today's foods.")
     }
 }
 
@@ -154,7 +160,7 @@ struct NutritionAuditView: View {
     private func logTrustHubViewed() {
         DIContainer.shared.analyticsManager?.logEvent("trust_hub_viewed", parameters: [
             "total_foods": totalFoods,
-            "trust_model_version": FoodTrustEvaluation.modelVersion,
+            "trust_model_version": String(FoodTrustEvaluation.modelVersion),
             "needs_review_count": needsReviewItems.count,
             "cross_verified_count": crossVerifiedItems.count,
             "user_reviewed_count": userReviewedItems.count,

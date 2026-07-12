@@ -66,4 +66,27 @@ final class PrivacyGuardrailTests: XCTestCase {
         XCTAssertNil(result?["protein"])
         XCTAssertNil(result?["sleep_score"])
     }
+
+    func testAnalyticsSanitizerDropsIdentityAndFreeformContentKeys() {
+        let result = AnalyticsPrivacy.sanitizedParameters([
+            "action": "correction_saved",
+            "source": "usda",
+            "barcode": "0123456789012",
+            "food_id": "private-food-id",
+            "food_name": "Protein Bar",
+            "uid": "private-user",
+            "email": "private@example.com",
+            "prompt": "private prompt",
+            "query": "private search",
+            "message": "private message"
+        ])
+
+        XCTAssertEqual(result?["action"] as? String, "correction_saved")
+        XCTAssertEqual(result?["source"] as? String, "usda")
+        for key in [
+            "barcode", "food_id", "food_name", "uid", "email", "prompt", "query", "message"
+        ] {
+            XCTAssertNil(result?[key], key)
+        }
+    }
 }

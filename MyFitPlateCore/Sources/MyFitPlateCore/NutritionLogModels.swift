@@ -463,6 +463,38 @@ public struct AdjustedServingNutrition {
     public let servingUnit: String
 }
 
+public struct ServingNutritionEdits: Equatable, Sendable {
+    public let description: String?
+    public let servingWeightGrams: Double?
+    public let calories: Double?
+    public let protein: Double?
+    public let carbs: Double?
+    public let fats: Double?
+    /// Exact optional values visible in the editor. `nil` intentionally clears stale data.
+    public let visibleSaturatedFat: Double?
+    public let visibleFiber: Double?
+
+    public init(
+        description: String?,
+        servingWeightGrams: Double?,
+        calories: Double?,
+        protein: Double?,
+        carbs: Double?,
+        fats: Double?,
+        visibleSaturatedFat: Double?,
+        visibleFiber: Double?
+    ) {
+        self.description = description
+        self.servingWeightGrams = servingWeightGrams
+        self.calories = calories
+        self.protein = protein
+        self.carbs = carbs
+        self.fats = fats
+        self.visibleSaturatedFat = visibleSaturatedFat
+        self.visibleFiber = visibleFiber
+    }
+}
+
 public enum ServingNutritionCalculator {
     public static func parseQuantity(from servingDescription: String) -> (quantity: Double, baseDescription: String) {
         let components = servingDescription.components(separatedBy: " x ")
@@ -510,6 +542,49 @@ public enum ServingNutritionCalculator {
             vitaminB6: item.vitaminB6.map { $0 / quantity },
             vitaminE: item.vitaminE.map { $0 / quantity },
             vitaminK: item.vitaminK.map { $0 / quantity }
+        )
+    }
+
+    public static func editableServing(
+        from initialItem: FoodItem,
+        selectedServing: ServingSizeOption?,
+        edits: ServingNutritionEdits
+    ) -> ServingSizeOption {
+        let base = selectedServing ?? baseServing(from: initialItem)
+
+        return ServingSizeOption(
+            description: normalizedServingDescription(edits.description ?? base.description),
+            servingWeightGrams: edits.servingWeightGrams ?? base.servingWeightGrams,
+            calories: edits.calories ?? base.calories,
+            protein: edits.protein ?? base.protein,
+            carbs: edits.carbs ?? base.carbs,
+            fats: edits.fats ?? base.fats,
+            saturatedFat: edits.visibleSaturatedFat,
+            polyunsaturatedFat: base.polyunsaturatedFat,
+            monounsaturatedFat: base.monounsaturatedFat,
+            fiber: edits.visibleFiber,
+            calcium: base.calcium,
+            iron: base.iron,
+            potassium: base.potassium,
+            sodium: base.sodium,
+            vitaminA: base.vitaminA,
+            vitaminC: base.vitaminC,
+            vitaminD: base.vitaminD,
+            vitaminB12: base.vitaminB12,
+            folate: base.folate,
+            magnesium: base.magnesium,
+            phosphorus: base.phosphorus,
+            zinc: base.zinc,
+            copper: base.copper,
+            manganese: base.manganese,
+            selenium: base.selenium,
+            vitaminB1: base.vitaminB1,
+            vitaminB2: base.vitaminB2,
+            vitaminB3: base.vitaminB3,
+            vitaminB5: base.vitaminB5,
+            vitaminB6: base.vitaminB6,
+            vitaminE: base.vitaminE,
+            vitaminK: base.vitaminK
         )
     }
 

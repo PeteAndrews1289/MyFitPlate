@@ -9,15 +9,18 @@ final class TTSManagerTests: XCTestCase {
         let manager = TTSManager()
         XCTAssertFalse(manager.isSpeaking)
         XCTAssertEqual(manager.mouthShape, "mouth_neutral")
+        XCTAssertNil(manager.currentSpokenText)
     }
     
     func testSpeakAndStop() {
         let manager = TTSManager()
         manager.speak("Hello")
+        XCTAssertEqual(manager.currentSpokenText, "Hello")
         
         manager.stopSpeaking()
         XCTAssertFalse(manager.isSpeaking)
         XCTAssertEqual(manager.mouthShape, "mouth_neutral")
+        XCTAssertNil(manager.currentSpokenText)
     }
     
     func testDelegateDidStartAndFinish() {
@@ -28,6 +31,17 @@ final class TTSManagerTests: XCTestCase {
         XCTAssertTrue(manager.isSpeaking)
         
         manager.speechSynthesizer(AVSpeechSynthesizer(), didFinish: utterance)
+        XCTAssertFalse(manager.isSpeaking)
+        XCTAssertEqual(manager.mouthShape, "mouth_neutral")
+    }
+
+    func testDelegateDidCancelResetsSpeakingState() {
+        let manager = TTSManager()
+        let utterance = AVSpeechUtterance(string: "Test")
+
+        manager.speechSynthesizer(AVSpeechSynthesizer(), didStart: utterance)
+        manager.speechSynthesizer(AVSpeechSynthesizer(), didCancel: utterance)
+
         XCTAssertFalse(manager.isSpeaking)
         XCTAssertEqual(manager.mouthShape, "mouth_neutral")
     }
@@ -58,5 +72,115 @@ final class TTSManagerTests: XCTestCase {
         let utterance3 = AVSpeechUtterance(string: text3)
         manager.speechSynthesizer(AVSpeechSynthesizer(), willSpeakRangeOfSpeechString: NSRange(location: 0, length: 3), utterance: utterance3)
         XCTAssertEqual(manager.mouthShape, "mouth_neutral")
+    }
+
+    func testSpeechFormatterRemovesActionPayloadAndMarkdown() {
+        let source = """
+        ## A simple next step
+        **Greek yogurt** gives you 25g protein and about 220 cal.
+
+        ```json
+        {
+          "type": "meal_suggestion",
+          "mealName": "Greek yogurt"
+        }
+        ```
+        """
+
+        XCTAssertEqual(
+            MaiaSpeechFormatter.spokenText(from: source),
+            "A simple next step. Greek yogurt gives you 25 grams protein and about 220 calories."
+        )
+    }
+
+    func testSpeechFormatterMakesCommonCoachingShorthandSpeakable() {
+        let source = """
+        - Keep HR easy.
+        - Use RPE 6\u{2013}7 for 30 min.
+        - Drink 16 oz & aim for 75%.
+        """
+
+        XCTAssertEqual(
+            MaiaSpeechFormatter.spokenText(from: source),
+            "Keep heart rate easy. Use R P E 6, 7 for 30 min. Drink 16 ounces and aim for 75 percent."
+        )
+    }
+
+    func testSpeechFormatterReturnsEmptyForActionOnlyResponse() {
+        let source = """
+        ```json
+        {
+          "type": "log_water",
+          "amountOunces": 16
+        }
+        ```
+        """
+
+        XCTAssertTrue(MaiaSpeechFormatter.spokenText(from: source).isEmpty)
+    }
+
+    func testVoiceRankingPrefersNaturalFemaleVoiceAndRejectsUnsafeTraits() {
+        let options = [
+            MaiaVoiceOption(
+                id: "novelty",
+                name: "Novelty",
+                language: "en-US",
+                quality: .premium,
+                gender: .female,
+                isNovelty: true
+            ),
+            MaiaVoiceOption(
+                id: "male-premium",
+                name: "Aaron",
+                language: "en-US",
+                quality: .premium,
+                gender: .male
+            ),
+            MaiaVoiceOption(
+                id: "ava-premium",
+                name: "Ava",
+                language: "en-US",
+                quality: .premium,
+                gender: .female
+            ),
+            MaiaVoiceOption(
+                id: "samantha-enhanced",
+                name: "Samantha",
+                language: "en-US",
+                quality: .enhanced,
+                gender: .female
+            ),
+            MaiaVoiceOption(
+                id: "personal",
+                name: "Personal",
+                language: "en-US",
+                quality: .premium,
+                gender: .female,
+                isPersonal: true
+            ),
+            MaiaVoiceOption(
+                id: "australian",
+                name: "Karen",
+                language: "en-AU",
+                quality: .premium,
+                gender: .female
+            )
+        ]
+
+        XCTAssertEqual(
+            TTSManager.rankEligibleVoiceOptions(options).map(\.id),
+            ["ava-premium", "male-premium", "samantha-enhanced"]
+        )
+    }
+
+    func testConversationStyleExplainsEachToneWithoutCannedOpeners() {
+        let balanced = MaiaConversationStyle.promptInstructions(for: "Balanced")
+        let coach = MaiaConversationStyle.promptInstructions(for: "Coach")
+        let analyst = MaiaConversationStyle.promptInstructions(for: "Analyst")
+
+        XCTAssertTrue(balanced.contains("calm, direct"))
+        XCTAssertTrue(coach.contains("never use hype"))
+        XCTAssertTrue(analyst.contains("Lead with the decision"))
+        XCTAssertTrue(balanced.contains("Do not open with canned phrases"))
     }
 }

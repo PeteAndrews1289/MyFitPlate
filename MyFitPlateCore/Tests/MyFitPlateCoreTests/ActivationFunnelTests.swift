@@ -66,4 +66,43 @@ final class ActivationFunnelTests: XCTestCase {
         }
         XCTAssertEqual(loopEvents.count, 1)
     }
+
+    func testTrainingCompletionIncludesRunsAndKeepsFirstMilestoneOneShot() throws {
+        let start = Date(timeIntervalSince1970: 1_000)
+        ActivationFunnel.logOnce(ActivationFunnel.onboardingCompleted, now: start, userDefaults: defaults)
+        ActivationFunnel.logOnce(
+            ActivationFunnel.firstFoodLogged,
+            now: start.addingTimeInterval(30),
+            userDefaults: defaults
+        )
+
+        ActivationFunnel.recordTrainingCompletion(
+            .recordedRun,
+            now: start.addingTimeInterval(120),
+            userDefaults: defaults
+        )
+        ActivationFunnel.recordTrainingCompletion(
+            .treadmillRun,
+            now: start.addingTimeInterval(240),
+            userDefaults: defaults
+        )
+
+        let sessions = mockAnalytics.loggedEvents.filter {
+            $0.name == ProductAnalytics.Event.trainingSessionCompleted.rawValue
+        }
+        let firstTraining = mockAnalytics.loggedEvents.filter {
+            $0.name == ActivationFunnel.firstWorkoutCompleted
+        }
+        let loops = mockAnalytics.loggedEvents.filter {
+            $0.name == ActivationFunnel.nutritionTrainingLoopCompleted
+        }
+
+        XCTAssertEqual(sessions.count, 2)
+        XCTAssertEqual(sessions.first?.parameters?["training_mode"] as? String, "recorded_run")
+        XCTAssertEqual(sessions.last?.parameters?["training_mode"] as? String, "treadmill_run")
+        XCTAssertEqual(firstTraining.count, 1)
+        XCTAssertEqual(firstTraining.first?.parameters?["elapsed_seconds"] as? Int, 120)
+        XCTAssertEqual(firstTraining.first?.parameters?["training_mode"] as? String, "recorded_run")
+        XCTAssertEqual(loops.count, 1)
+    }
 }

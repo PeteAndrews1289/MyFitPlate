@@ -25,9 +25,28 @@ public class EcosystemSyncManager {
     }
     
     /// Syncs the current daily totals to the home screen widgets via UserDefaults App Group
-    public func updateWidgetData(log: DailyLog?, goals: GoalSettings?) {
-        guard let log = log, let goals = goals else { return }
+    public func updateWidgetData(
+        log: DailyLog?,
+        goals: GoalSettings?,
+        trainingFuelPlan: TrainingFuelConfirmedPlan? = nil,
+        now: Date = Date()
+    ) {
+        guard let log = log,
+              let goals = goals,
+              Calendar.current.isDate(log.date, inSameDayAs: now) else { return }
         let consistencyStatus = log.calorieConsistencyStatus()
+        let fuelGoals = TodayFuelPlanGoals(
+            calories: goals.calories ?? 0,
+            protein: goals.protein,
+            carbs: goals.carbs,
+            fats: goals.fats
+        )
+        let nextAction = DailyNextActionRules.makeAction(
+            plan: trainingFuelPlan,
+            today: log,
+            goals: fuelGoals,
+            now: now
+        )
 
         let widgetData = WidgetData(
             calories: log.totalCalories(),
@@ -38,8 +57,9 @@ public class EcosystemSyncManager {
             carbsGoal: goals.carbs,
             fats: log.totalMacros().fats,
             fatGoal: goals.fats,
-            lastUpdated: Date(),
-            macroCalorieDelta: consistencyStatus.hasMeaningfulMismatch ? consistencyStatus.delta : nil
+            lastUpdated: now,
+            macroCalorieDelta: consistencyStatus.hasMeaningfulMismatch ? consistencyStatus.delta : nil,
+            nextAction: nextAction
         )
         
         if SharedDataManager.shared.saveData(widgetData) {

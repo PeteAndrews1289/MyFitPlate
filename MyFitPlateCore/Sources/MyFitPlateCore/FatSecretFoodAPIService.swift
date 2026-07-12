@@ -42,8 +42,21 @@ public struct FatSecretServing: Decodable {
         case servingDescription = "serving_description"; case metricServingAmount = "metric_serving_amount"; case metricServingUnit = "metric_serving_unit"
     }
 
-    private func parseDouble(from string: String?) -> Double { guard let s = string?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty, s.lowercased() != "n/a" else { return 0.0 }; let cleaned = s.replacingOccurrences(of: ",", with: ".").replacingOccurrences(of: "<", with: "").replacingOccurrences(of: ">", with: ""); return Double(cleaned) ?? 0.0 }
-    public func parsedNutrient(_ key: CodingKeys) -> Double {
+    private func parseDouble(from string: String?) -> Double? {
+        guard let value = string?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty,
+              value.lowercased() != "n/a" else {
+            return nil
+        }
+        let cleaned = value
+            .replacingOccurrences(of: ",", with: ".")
+            .replacingOccurrences(of: "<", with: "")
+            .replacingOccurrences(of: ">", with: "")
+        guard let parsed = Double(cleaned), parsed.isFinite, parsed >= 0 else { return nil }
+        return parsed
+    }
+
+    public func parsedOptionalNutrient(_ key: CodingKeys) -> Double? {
         switch key {
         case .calories: return parseDouble(from: calories)
         case .protein: return parseDouble(from: protein)
@@ -75,8 +88,12 @@ public struct FatSecretServing: Decodable {
         case .vitamin_b6: return parseDouble(from: vitamin_b6)
         case .vitamin_e: return parseDouble(from: vitamin_e)
         case .vitamin_k: return parseDouble(from: vitamin_k)
-        default: return 0.0
+        default: return nil
         }
+    }
+
+    public func parsedNutrient(_ key: CodingKeys) -> Double {
+        parsedOptionalNutrient(key) ?? 0
     }
     public var parsedServingWeightGrams: Double? { guard let amountStr = metricServingAmount, let unit = metricServingUnit?.lowercased(), let amount = Double(amountStr), amount > 0 else { return nil }; if unit == "g" { return amount }; if unit == "ml" { return amount }; if unit == "oz" { return amount * 28.3495 }; if unit == "fl oz" { return amount * 29.5735 }; return nil }
     public var displayDescription: String { servingDescription ?? "Serving" }
@@ -177,32 +194,32 @@ public class FatSecretFoodAPIService {
                         protein: serving.parsedNutrient(.protein),
                         carbs: serving.parsedNutrient(.carbohydrate),
                         fats: serving.parsedNutrient(.fat),
-                        saturatedFat: serving.parsedNutrient(.saturatedFat),
-                        polyunsaturatedFat: serving.parsedNutrient(.polyunsaturatedFat),
-                        monounsaturatedFat: serving.parsedNutrient(.monounsaturatedFat),
-                        fiber: serving.parsedNutrient(.fiber),
-                        calcium: serving.parsedNutrient(.calcium) > 0 ? serving.parsedNutrient(.calcium) : nil,
-                        iron: serving.parsedNutrient(.iron) > 0 ? serving.parsedNutrient(.iron) : nil,
-                        potassium: serving.parsedNutrient(.potassium) > 0 ? serving.parsedNutrient(.potassium) : nil,
-                        sodium: serving.parsedNutrient(.sodium) > 0 ? serving.parsedNutrient(.sodium) : nil,
-                        vitaminA: serving.parsedNutrient(.vitamin_a) > 0 ? serving.parsedNutrient(.vitamin_a) : nil,
-                        vitaminC: serving.parsedNutrient(.vitamin_c) > 0 ? serving.parsedNutrient(.vitamin_c) : nil,
-                        vitaminD: serving.parsedNutrient(.vitamin_d) > 0 ? serving.parsedNutrient(.vitamin_d) : nil,
-                        vitaminB12: serving.parsedNutrient(.vitamin_b12) > 0 ? serving.parsedNutrient(.vitamin_b12) : nil,
-                        folate: serving.parsedNutrient(.folate) > 0 ? serving.parsedNutrient(.folate) : nil,
-                        magnesium: serving.parsedNutrient(.magnesium) > 0 ? serving.parsedNutrient(.magnesium) : nil,
-                        phosphorus: serving.parsedNutrient(.phosphorus) > 0 ? serving.parsedNutrient(.phosphorus) : nil,
-                        zinc: serving.parsedNutrient(.zinc) > 0 ? serving.parsedNutrient(.zinc) : nil,
-                        copper: serving.parsedNutrient(.copper) > 0 ? serving.parsedNutrient(.copper) : nil,
-                        manganese: serving.parsedNutrient(.manganese) > 0 ? serving.parsedNutrient(.manganese) : nil,
-                        selenium: serving.parsedNutrient(.selenium) > 0 ? serving.parsedNutrient(.selenium) : nil,
-                        vitaminB1: serving.parsedNutrient(.vitamin_b1) > 0 ? serving.parsedNutrient(.vitamin_b1) : nil,
-                        vitaminB2: serving.parsedNutrient(.vitamin_b2) > 0 ? serving.parsedNutrient(.vitamin_b2) : nil,
-                        vitaminB3: serving.parsedNutrient(.vitamin_b3) > 0 ? serving.parsedNutrient(.vitamin_b3) : nil,
-                        vitaminB5: serving.parsedNutrient(.vitamin_b5) > 0 ? serving.parsedNutrient(.vitamin_b5) : nil,
-                        vitaminB6: serving.parsedNutrient(.vitamin_b6) > 0 ? serving.parsedNutrient(.vitamin_b6) : nil,
-                        vitaminE: serving.parsedNutrient(.vitamin_e) > 0 ? serving.parsedNutrient(.vitamin_e) : nil,
-                        vitaminK: serving.parsedNutrient(.vitamin_k) > 0 ? serving.parsedNutrient(.vitamin_k) : nil
+                        saturatedFat: serving.parsedOptionalNutrient(.saturatedFat),
+                        polyunsaturatedFat: serving.parsedOptionalNutrient(.polyunsaturatedFat),
+                        monounsaturatedFat: serving.parsedOptionalNutrient(.monounsaturatedFat),
+                        fiber: serving.parsedOptionalNutrient(.fiber),
+                        calcium: serving.parsedOptionalNutrient(.calcium),
+                        iron: serving.parsedOptionalNutrient(.iron),
+                        potassium: serving.parsedOptionalNutrient(.potassium),
+                        sodium: serving.parsedOptionalNutrient(.sodium),
+                        vitaminA: serving.parsedOptionalNutrient(.vitamin_a),
+                        vitaminC: serving.parsedOptionalNutrient(.vitamin_c),
+                        vitaminD: serving.parsedOptionalNutrient(.vitamin_d),
+                        vitaminB12: serving.parsedOptionalNutrient(.vitamin_b12),
+                        folate: serving.parsedOptionalNutrient(.folate),
+                        magnesium: serving.parsedOptionalNutrient(.magnesium),
+                        phosphorus: serving.parsedOptionalNutrient(.phosphorus),
+                        zinc: serving.parsedOptionalNutrient(.zinc),
+                        copper: serving.parsedOptionalNutrient(.copper),
+                        manganese: serving.parsedOptionalNutrient(.manganese),
+                        selenium: serving.parsedOptionalNutrient(.selenium),
+                        vitaminB1: serving.parsedOptionalNutrient(.vitamin_b1),
+                        vitaminB2: serving.parsedOptionalNutrient(.vitamin_b2),
+                        vitaminB3: serving.parsedOptionalNutrient(.vitamin_b3),
+                        vitaminB5: serving.parsedOptionalNutrient(.vitamin_b5),
+                        vitaminB6: serving.parsedOptionalNutrient(.vitamin_b6),
+                        vitaminE: serving.parsedOptionalNutrient(.vitamin_e),
+                        vitaminK: serving.parsedOptionalNutrient(.vitamin_k)
                     )
                     availableServings.append(option)
                 }
@@ -214,35 +231,35 @@ public class FatSecretFoodAPIService {
                     id: food.foodID, name: food.brandName.map { "\($0) \(food.foodName)" } ?? food.foodName,
                     calories: baseServing.parsedNutrient(.calories), protein: baseServing.parsedNutrient(.protein),
                     carbs: baseServing.parsedNutrient(.carbohydrate), fats: baseServing.parsedNutrient(.fat),
-                    saturatedFat: baseServing.parsedNutrient(.saturatedFat),
-                    polyunsaturatedFat: baseServing.parsedNutrient(.polyunsaturatedFat),
-                    monounsaturatedFat: baseServing.parsedNutrient(.monounsaturatedFat),
-                    fiber: baseServing.parsedNutrient(.fiber),
+                    saturatedFat: baseServing.parsedOptionalNutrient(.saturatedFat),
+                    polyunsaturatedFat: baseServing.parsedOptionalNutrient(.polyunsaturatedFat),
+                    monounsaturatedFat: baseServing.parsedOptionalNutrient(.monounsaturatedFat),
+                    fiber: baseServing.parsedOptionalNutrient(.fiber),
                     servingSize: baseServing.displayDescription,
                     servingWeight: baseServing.parsedServingWeightGrams ?? 1.0,
                     timestamp: nil,
-                    calcium: baseServing.parsedNutrient(.calcium) > 0 ? baseServing.parsedNutrient(.calcium) : nil,
-                    iron: baseServing.parsedNutrient(.iron) > 0 ? baseServing.parsedNutrient(.iron) : nil,
-                    potassium: baseServing.parsedNutrient(.potassium) > 0 ? baseServing.parsedNutrient(.potassium) : nil,
-                    sodium: baseServing.parsedNutrient(.sodium) > 0 ? baseServing.parsedNutrient(.sodium) : nil,
-                    vitaminA: baseServing.parsedNutrient(.vitamin_a) > 0 ? baseServing.parsedNutrient(.vitamin_a) : nil,
-                    vitaminC: baseServing.parsedNutrient(.vitamin_c) > 0 ? baseServing.parsedNutrient(.vitamin_c) : nil,
-                    vitaminD: baseServing.parsedNutrient(.vitamin_d) > 0 ? baseServing.parsedNutrient(.vitamin_d) : nil,
-                    vitaminB12: baseServing.parsedNutrient(.vitamin_b12) > 0 ? baseServing.parsedNutrient(.vitamin_b12) : nil,
-                    folate: baseServing.parsedNutrient(.folate) > 0 ? baseServing.parsedNutrient(.folate) : nil,
-                    magnesium: baseServing.parsedNutrient(.magnesium) > 0 ? baseServing.parsedNutrient(.magnesium) : nil,
-                    phosphorus: baseServing.parsedNutrient(.phosphorus) > 0 ? baseServing.parsedNutrient(.phosphorus) : nil,
-                    zinc: baseServing.parsedNutrient(.zinc) > 0 ? baseServing.parsedNutrient(.zinc) : nil,
-                    copper: baseServing.parsedNutrient(.copper) > 0 ? baseServing.parsedNutrient(.copper) : nil,
-                    manganese: baseServing.parsedNutrient(.manganese) > 0 ? baseServing.parsedNutrient(.manganese) : nil,
-                    selenium: baseServing.parsedNutrient(.selenium) > 0 ? baseServing.parsedNutrient(.selenium) : nil,
-                    vitaminB1: baseServing.parsedNutrient(.vitamin_b1) > 0 ? baseServing.parsedNutrient(.vitamin_b1) : nil,
-                    vitaminB2: baseServing.parsedNutrient(.vitamin_b2) > 0 ? baseServing.parsedNutrient(.vitamin_b2) : nil,
-                    vitaminB3: baseServing.parsedNutrient(.vitamin_b3) > 0 ? baseServing.parsedNutrient(.vitamin_b3) : nil,
-                    vitaminB5: baseServing.parsedNutrient(.vitamin_b5) > 0 ? baseServing.parsedNutrient(.vitamin_b5) : nil,
-                    vitaminB6: baseServing.parsedNutrient(.vitamin_b6) > 0 ? baseServing.parsedNutrient(.vitamin_b6) : nil,
-                    vitaminE: baseServing.parsedNutrient(.vitamin_e) > 0 ? baseServing.parsedNutrient(.vitamin_e) : nil,
-                    vitaminK: baseServing.parsedNutrient(.vitamin_k) > 0 ? baseServing.parsedNutrient(.vitamin_k) : nil
+                    calcium: baseServing.parsedOptionalNutrient(.calcium),
+                    iron: baseServing.parsedOptionalNutrient(.iron),
+                    potassium: baseServing.parsedOptionalNutrient(.potassium),
+                    sodium: baseServing.parsedOptionalNutrient(.sodium),
+                    vitaminA: baseServing.parsedOptionalNutrient(.vitamin_a),
+                    vitaminC: baseServing.parsedOptionalNutrient(.vitamin_c),
+                    vitaminD: baseServing.parsedOptionalNutrient(.vitamin_d),
+                    vitaminB12: baseServing.parsedOptionalNutrient(.vitamin_b12),
+                    folate: baseServing.parsedOptionalNutrient(.folate),
+                    magnesium: baseServing.parsedOptionalNutrient(.magnesium),
+                    phosphorus: baseServing.parsedOptionalNutrient(.phosphorus),
+                    zinc: baseServing.parsedOptionalNutrient(.zinc),
+                    copper: baseServing.parsedOptionalNutrient(.copper),
+                    manganese: baseServing.parsedOptionalNutrient(.manganese),
+                    selenium: baseServing.parsedOptionalNutrient(.selenium),
+                    vitaminB1: baseServing.parsedOptionalNutrient(.vitamin_b1),
+                    vitaminB2: baseServing.parsedOptionalNutrient(.vitamin_b2),
+                    vitaminB3: baseServing.parsedOptionalNutrient(.vitamin_b3),
+                    vitaminB5: baseServing.parsedOptionalNutrient(.vitamin_b5),
+                    vitaminB6: baseServing.parsedOptionalNutrient(.vitamin_b6),
+                    vitaminE: baseServing.parsedOptionalNutrient(.vitamin_e),
+                    vitaminK: baseServing.parsedOptionalNutrient(.vitamin_k)
                 ).withDatabaseSource(
                     .fatSecret,
                     sourceName: "FatSecret",
@@ -284,7 +301,7 @@ public class FatSecretFoodAPIService {
         return FoodItem(
             id: fatSecretFoodItem.foodID, name: fullName,
             calories: preview.calories, protein: preview.protein, carbs: preview.carbs, fats: preview.fats,
-            saturatedFat: 0, polyunsaturatedFat: 0, monounsaturatedFat: 0, fiber: 0,
+            saturatedFat: nil, polyunsaturatedFat: nil, monounsaturatedFat: nil, fiber: nil,
             servingSize: preview.servingDescription, servingWeight: preview.servingWeightGrams, timestamp: nil,
             calcium: nil, iron: nil, potassium: nil, sodium: nil,
             vitaminA: nil, vitaminC: nil, vitaminD: nil,

@@ -158,10 +158,9 @@ public enum FoodSearchRanking {
 
     // MARK: - Search-source merging + quick-log hydration
 
-    /// Combines branded FatSecret results with USDA whole-food results. FatSecret leads
-    /// (brands, portion-friendly servings); USDA appends entries whose names FatSecret
-    /// doesn't already cover — they carry the full micronutrient spectrum that FatSecret's
-    /// preview strings never have.
+    /// Combines branded FatSecret results with richer USDA/Open Food Facts records. FatSecret
+    /// keeps its ordering and wins equivalent collisions, but an exact-name record that reports
+    /// more detail nutrients replaces a sparse preview instead of hiding useful data.
     public static func mergedSearchResults(
         fatSecret: [FoodItem],
         usda: [FoodItem],
@@ -169,17 +168,31 @@ public enum FoodSearchRanking {
         usdaLimit: Int = 8,
         openFoodFactsLimit: Int = 10
     ) -> [FoodItem] {
-        var existingNames = Set(fatSecret.map { normalized($0.name) })
-        let distinctUSDA = usda
-            .filter { !existingNames.contains(normalized($0.name)) }
-            .prefix(usdaLimit)
-        for food in distinctUSDA {
-            existingNames.insert(normalized(food.name))
+        var merged = fatSecret
+        var indicesByName: [String: Int] = [:]
+        for (index, food) in merged.enumerated() {
+            indicesByName[normalized(food.name)] = index
         }
-        let distinctOFF = openFoodFacts
-            .filter { !existingNames.contains(normalized($0.name)) }
-            .prefix(openFoodFactsLimit)
-        return fatSecret + distinctUSDA + distinctOFF
+
+        func merge(_ foods: [FoodItem], additionLimit: Int) {
+            var additions = 0
+            for food in foods {
+                let name = normalized(food.name)
+                if let existingIndex = indicesByName[name] {
+                    if food.reportedMicronutrientCount > merged[existingIndex].reportedMicronutrientCount {
+                        merged[existingIndex] = food
+                    }
+                } else if additions < additionLimit {
+                    indicesByName[name] = merged.count
+                    merged.append(food)
+                    additions += 1
+                }
+            }
+        }
+
+        merge(usda, additionLimit: usdaLimit)
+        merge(openFoodFacts, additionLimit: openFoodFactsLimit)
+        return merged
     }
 
     /// Builds the item a quick-log should record once food details have been fetched.

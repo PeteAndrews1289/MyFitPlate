@@ -37,27 +37,15 @@ struct CreateRecipeView: View {
     }
     
     private var totalNutrition: Nutrition {
-        ingredients.reduce(Nutrition.zero) { partialResult, item in
-            return Nutrition(
-                calories: partialResult.calories + item.calories,
-                protein: partialResult.protein + item.protein,
-                carbs: partialResult.carbs + item.carbs,
-                fats: partialResult.fats + item.fats,
-                saturatedFat: (partialResult.saturatedFat ?? 0) + (item.saturatedFat ?? 0),
-                polyunsaturatedFat: (partialResult.polyunsaturatedFat ?? 0) + (item.polyunsaturatedFat ?? 0),
-                monounsaturatedFat: (partialResult.monounsaturatedFat ?? 0) + (item.monounsaturatedFat ?? 0),
-                fiber: (partialResult.fiber ?? 0) + (item.fiber ?? 0),
-                calcium: (partialResult.calcium ?? 0) + (item.calcium ?? 0),
-                iron: (partialResult.iron ?? 0) + (item.iron ?? 0),
-                potassium: (partialResult.potassium ?? 0) + (item.potassium ?? 0),
-                sodium: (partialResult.sodium ?? 0) + (item.sodium ?? 0),
-                vitaminA: (partialResult.vitaminA ?? 0) + (item.vitaminA ?? 0),
-                vitaminC: (partialResult.vitaminC ?? 0) + (item.vitaminC ?? 0),
-                vitaminD: (partialResult.vitaminD ?? 0) + (item.vitaminD ?? 0),
-                vitaminB12: (partialResult.vitaminB12 ?? 0) + (item.vitaminB12 ?? 0),
-                folate: (partialResult.folate ?? 0) + (item.folate ?? 0)
-            )
+        if let recipeToEdit,
+           recipeToEdit.detailedIngredients == nil,
+           ingredients.allSatisfy({
+               $0.calories == 0 && $0.protein == 0 && $0.carbs == 0 && $0.fats == 0
+                   && $0.reportedMicronutrientCount == 0
+           }) {
+            return recipeToEdit.nutrition
         }
+        return Nutrition.total(for: ingredients)
     }
 
     var body: some View {

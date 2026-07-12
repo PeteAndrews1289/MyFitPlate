@@ -12,6 +12,7 @@ struct ReportsView: View {
     @State private var customEndDate: Date = Date()
 
     @State private var showingDetailedInsights = false
+    @State private var showingWeeklyReport = false
 
     init(dailyLogService: DailyLogService) {
         _viewModel = StateObject(wrappedValue: ReportsViewModel(dailyLogService: dailyLogService))
@@ -87,6 +88,8 @@ struct ReportsView: View {
                 )
                     .featureSpotlight(isActive: isActive("reports-trend"))
 
+                weeklyTrainingFuelCard
+
                 ReportsOverviewCard(
                     selectedTimeframe: selectedTimeframe,
                     customStartDate: customStartDate,
@@ -105,8 +108,6 @@ struct ReportsView: View {
                 if let insight = insightsService.smartSuggestion {
                     SmartReportInsightCard(insight: insight)
                 }
-
-                RunMileageCard()
 
                 if goalSettings.gender.lowercased() == "female" {
                     CycleTrackingCard()
@@ -150,8 +151,51 @@ struct ReportsView: View {
         .navigationDestination(isPresented: $showingDetailedInsights) {
             DetailedInsightsView(insightsService: insightsService)
         }
+        .sheet(isPresented: $showingWeeklyReport) {
+            WeeklyRecapView()
+        }
         #endif
         }
+    }
+
+    private var weeklyTrainingFuelCard: some View {
+        Button {
+            HapticManager.instance.feedback(.light)
+            showingWeeklyReport = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "figure.mixed.cardio")
+                    .appFont(size: 17, weight: .bold)
+                    .foregroundColor(.brandPrimary)
+                    .frame(width: 40, height: 40)
+                    .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Training & Fuel")
+                        .appFont(size: 16, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    Text("Strength, running, recovery, nutrition, and change from the last 7 days")
+                        .appFont(size: 12)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .appFont(size: 12, weight: .bold)
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
+            }
+            .padding(16)
+            .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("weekly_report_entry")
     }
 
     @ViewBuilder

@@ -107,6 +107,9 @@ public enum OpenFoodFactsParser {
         func preferredOptional(_ perServing: Double?, _ per100g: Double?) -> Double? {
             perServing ?? scaled(per100g)
         }
+        func converted(_ perServing: Double?, _ per100g: Double?, multiplier: Double) -> Double? {
+            preferredOptional(perServing, per100g).map { $0 * multiplier }
+        }
 
         let servingDescription = product.servingSize?.trimmingCharacters(in: .whitespacesAndNewlines)
         let displayServing = servingDescription?.isEmpty == false
@@ -121,19 +124,46 @@ public enum OpenFoodFactsParser {
             carbs: preferred(n.carbohydratesServing, n.carbohydrates100g),
             fats: preferred(n.fatServing, n.fat100g),
             saturatedFat: preferredOptional(n.saturatedFatServing, n.saturatedFat100g),
-            polyunsaturatedFat: scaled(n.polyunsaturatedFat100g),
-            monounsaturatedFat: scaled(n.monounsaturatedFat100g),
+            polyunsaturatedFat: preferredOptional(n.polyunsaturatedFatServing, n.polyunsaturatedFat100g),
+            monounsaturatedFat: preferredOptional(n.monounsaturatedFatServing, n.monounsaturatedFat100g),
             fiber: preferredOptional(n.fiberServing, n.fiber100g),
             servingSize: displayServing,
             servingWeight: servingWeight,
             timestamp: nil,
-            calcium: scaled(n.calcium100g).map { $0 * 1000 },
-            iron: scaled(n.iron100g).map { $0 * 1000 },
-            potassium: scaled(n.potassium100g).map { $0 * 1000 },
-            sodium: preferredOptional(n.sodiumServing, n.sodium100g).map { $0 * 1000 },
-            vitaminA: scaled(n.vitaminA100g),
-            vitaminC: scaled(n.vitaminC100g).map { $0 * 1000 },
-            vitaminD: scaled(n.vitaminD100g)
+            calcium: converted(n.calciumServing, n.calcium100g, multiplier: 1_000),
+            iron: converted(n.ironServing, n.iron100g, multiplier: 1_000),
+            potassium: converted(n.potassiumServing, n.potassium100g, multiplier: 1_000),
+            sodium: converted(n.sodiumServing, n.sodium100g, multiplier: 1_000),
+            vitaminA: converted(n.vitaminAServing, n.vitaminA100g, multiplier: 1_000_000),
+            vitaminC: converted(n.vitaminCServing, n.vitaminC100g, multiplier: 1_000),
+            vitaminD: converted(n.vitaminDServing, n.vitaminD100g, multiplier: 1_000_000),
+            vitaminB12: converted(n.vitaminB12Serving, n.vitaminB12100g, multiplier: 1_000_000),
+            folate: converted(
+                n.vitaminB9Serving ?? n.folatesServing,
+                n.vitaminB9100g ?? n.folates100g,
+                multiplier: 1_000_000
+            ),
+            magnesium: converted(n.magnesiumServing, n.magnesium100g, multiplier: 1_000),
+            phosphorus: converted(n.phosphorusServing, n.phosphorus100g, multiplier: 1_000),
+            zinc: converted(n.zincServing, n.zinc100g, multiplier: 1_000),
+            copper: converted(n.copperServing, n.copper100g, multiplier: 1_000_000),
+            manganese: converted(n.manganeseServing, n.manganese100g, multiplier: 1_000),
+            selenium: converted(n.seleniumServing, n.selenium100g, multiplier: 1_000_000),
+            vitaminB1: converted(n.vitaminB1Serving, n.vitaminB1100g, multiplier: 1_000),
+            vitaminB2: converted(n.vitaminB2Serving, n.vitaminB2100g, multiplier: 1_000),
+            vitaminB3: converted(
+                n.vitaminB3Serving ?? n.vitaminPPServing,
+                n.vitaminB3100g ?? n.vitaminPP100g,
+                multiplier: 1_000
+            ),
+            vitaminB5: converted(
+                n.vitaminB5Serving ?? n.pantothenicAcidServing,
+                n.vitaminB5100g ?? n.pantothenicAcid100g,
+                multiplier: 1_000
+            ),
+            vitaminB6: converted(n.vitaminB6Serving, n.vitaminB6100g, multiplier: 1_000),
+            vitaminE: converted(n.vitaminEServing, n.vitaminE100g, multiplier: 1_000),
+            vitaminK: converted(n.vitaminKServing, n.vitaminK100g, multiplier: 1_000_000)
         ).withDatabaseSource(
             .openFoodFacts,
             sourceName: "Open Food Facts",
@@ -201,13 +231,57 @@ private struct Nutriments: Codable {
     public let sodium100g: Double?
     public let sodiumServing: Double?
     public let potassium100g: Double?
+    public let potassiumServing: Double?
     public let calcium100g: Double?
+    public let calciumServing: Double?
     public let iron100g: Double?
+    public let ironServing: Double?
     public let vitaminA100g: Double?
+    public let vitaminAServing: Double?
     public let vitaminC100g: Double?
+    public let vitaminCServing: Double?
     public let vitaminD100g: Double?
+    public let vitaminDServing: Double?
+    public let vitaminB12100g: Double?
+    public let vitaminB12Serving: Double?
+    public let vitaminB9100g: Double?
+    public let vitaminB9Serving: Double?
+    public let folates100g: Double?
+    public let folatesServing: Double?
+    public let magnesium100g: Double?
+    public let magnesiumServing: Double?
+    public let phosphorus100g: Double?
+    public let phosphorusServing: Double?
+    public let zinc100g: Double?
+    public let zincServing: Double?
+    public let copper100g: Double?
+    public let copperServing: Double?
+    public let manganese100g: Double?
+    public let manganeseServing: Double?
+    public let selenium100g: Double?
+    public let seleniumServing: Double?
+    public let vitaminB1100g: Double?
+    public let vitaminB1Serving: Double?
+    public let vitaminB2100g: Double?
+    public let vitaminB2Serving: Double?
+    public let vitaminB3100g: Double?
+    public let vitaminB3Serving: Double?
+    public let vitaminPP100g: Double?
+    public let vitaminPPServing: Double?
+    public let vitaminB5100g: Double?
+    public let vitaminB5Serving: Double?
+    public let pantothenicAcid100g: Double?
+    public let pantothenicAcidServing: Double?
+    public let vitaminB6100g: Double?
+    public let vitaminB6Serving: Double?
+    public let vitaminE100g: Double?
+    public let vitaminEServing: Double?
+    public let vitaminK100g: Double?
+    public let vitaminKServing: Double?
     public let polyunsaturatedFat100g: Double?
+    public let polyunsaturatedFatServing: Double?
     public let monounsaturatedFat100g: Double?
+    public let monounsaturatedFatServing: Double?
 
     public enum CodingKeys: String, CodingKey {
         case carbohydrates100g = "carbohydrates_100g"
@@ -225,12 +299,56 @@ private struct Nutriments: Codable {
         case sodium100g = "sodium_100g"
         case sodiumServing = "sodium_serving"
         case potassium100g = "potassium_100g"
+        case potassiumServing = "potassium_serving"
         case calcium100g = "calcium_100g"
+        case calciumServing = "calcium_serving"
         case iron100g = "iron_100g"
+        case ironServing = "iron_serving"
         case vitaminA100g = "vitamin-a_100g"
+        case vitaminAServing = "vitamin-a_serving"
         case vitaminC100g = "vitamin-c_100g"
+        case vitaminCServing = "vitamin-c_serving"
         case vitaminD100g = "vitamin-d_100g"
+        case vitaminDServing = "vitamin-d_serving"
+        case vitaminB12100g = "vitamin-b12_100g"
+        case vitaminB12Serving = "vitamin-b12_serving"
+        case vitaminB9100g = "vitamin-b9_100g"
+        case vitaminB9Serving = "vitamin-b9_serving"
+        case folates100g = "folates_100g"
+        case folatesServing = "folates_serving"
+        case magnesium100g = "magnesium_100g"
+        case magnesiumServing = "magnesium_serving"
+        case phosphorus100g = "phosphorus_100g"
+        case phosphorusServing = "phosphorus_serving"
+        case zinc100g = "zinc_100g"
+        case zincServing = "zinc_serving"
+        case copper100g = "copper_100g"
+        case copperServing = "copper_serving"
+        case manganese100g = "manganese_100g"
+        case manganeseServing = "manganese_serving"
+        case selenium100g = "selenium_100g"
+        case seleniumServing = "selenium_serving"
+        case vitaminB1100g = "vitamin-b1_100g"
+        case vitaminB1Serving = "vitamin-b1_serving"
+        case vitaminB2100g = "vitamin-b2_100g"
+        case vitaminB2Serving = "vitamin-b2_serving"
+        case vitaminB3100g = "vitamin-b3_100g"
+        case vitaminB3Serving = "vitamin-b3_serving"
+        case vitaminPP100g = "vitamin-pp_100g"
+        case vitaminPPServing = "vitamin-pp_serving"
+        case vitaminB5100g = "vitamin-b5_100g"
+        case vitaminB5Serving = "vitamin-b5_serving"
+        case pantothenicAcid100g = "pantothenic-acid_100g"
+        case pantothenicAcidServing = "pantothenic-acid_serving"
+        case vitaminB6100g = "vitamin-b6_100g"
+        case vitaminB6Serving = "vitamin-b6_serving"
+        case vitaminE100g = "vitamin-e_100g"
+        case vitaminEServing = "vitamin-e_serving"
+        case vitaminK100g = "vitamin-k_100g"
+        case vitaminKServing = "vitamin-k_serving"
         case polyunsaturatedFat100g = "polyunsaturated-fat_100g"
+        case polyunsaturatedFatServing = "polyunsaturated-fat_serving"
         case monounsaturatedFat100g = "monounsaturated-fat_100g"
+        case monounsaturatedFatServing = "monounsaturated-fat_serving"
     }
 }

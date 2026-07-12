@@ -16,6 +16,8 @@ struct HomeView: View {
     @EnvironmentObject var pantryService: PantryService
     @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var workoutService: WorkoutService
+    @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
     @Environment(\.colorScheme) var colorScheme
 
     @Binding var navigateToProfile: Bool
@@ -38,6 +40,7 @@ struct HomeView: View {
     @State private var weeklyInsight: UserInsight?
 
     @State private var mealSuggestion: MealSuggestion?
+    @State private var mealSuggestionTarget: TrainingFuelTarget?
     @State private var showingSuggestionDetail = false
     @State private var showingSuggestionPreferences = false
 
@@ -54,7 +57,13 @@ struct HomeView: View {
     @State private var showingMenuScanner = false
     @State private var showingWeeklyRecap = false
     @State private var showingRecoveryFuelSearch = false
+    @State private var showingTrainingFuelPlanner = false
+    @State private var showingTrainingFuelSearch = false
+    @State private var showingTrainingFuelBuilder = false
+    @State private var pendingTrainingFuelDestination: TrainingFuelDestination?
+    @State private var selectedTrainingFuelTarget: TrainingFuelTarget?
     @State private var showingMFPImport = false
+    @StateObject private var runPlanStore = RunWorkoutPlanStore()
     @AppStorage("mfpSwitcherPromptDismissed") private var mfpSwitcherPromptDismissed = false
     @AppStorage("mfpSwitcherPromptSeen") private var mfpSwitcherPromptSeen = false
 
@@ -192,7 +201,29 @@ struct HomeView: View {
                                 .padding(.horizontal)
                                 .id("dailyLog")
 
-                            if shouldOfferFillMyMacros, todayFuelPlan.action == .none {
+                            if isToday, (goalSettings.calories ?? 0) > 0 {
+                                TrainingFuelPlannerCard(
+                                    suggestedSession: suggestedTrainingFuelSession,
+                                    savedPlan: trainingFuelPlanStore.confirmedPlan,
+                                    progress: trainingFuelProgress,
+                                    onOpen: {
+                                        HapticManager.instance.feedback(.light)
+                                        DIContainer.shared.analyticsManager?.logEvent(
+                                            ProductAnalytics.Event.trainingFuelPlannerOpened.rawValue,
+                                            parameters: [
+                                                "has_saved_plan": trainingFuelPlanStore.confirmedPlan != nil,
+                                                "has_program_suggestion": suggestedTrainingFuelSession != nil
+                                            ]
+                                        )
+                                        showingTrainingFuelPlanner = true
+                                    }
+                                )
+                                .padding(.horizontal)
+                            }
+
+                            if shouldOfferFillMyMacros,
+                               todayFuelPlan.action == .none,
+                               trainingFuelPlanStore.confirmedPlan == nil {
                                 fillMyMacrosCard
                                     .padding(.horizontal)
                             }
@@ -229,8 +260,11 @@ struct HomeView: View {
                     .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
                         if isLoggedIn, let userId = DIContainer.shared.authService.currentUserID {
                             dailyLogService.loadSmartSuggestions(for: userId)
+                            workoutService.fetchRoutinesAndPrograms()
+                            trainingFuelPlanStore.load(for: userId)
                         } else {
                             dailyLogService.smartSuggestions = []
+                            trainingFuelPlanStore.load(for: nil)
                         }
                     }
                     .onChange(of: currentSpotlightIndex) { _, newIndex in
@@ -317,10 +351,10 @@ struct HomeView: View {
                   MealSuggestionDetailView(
                       suggestion: suggestion,
                       pantryItemNames: pantryService.pantryItems.map(\.name),
-                      remainingCalories: remainingCaloriesToday,
-                      remainingProtein: remainingProteinToday,
-                      remainingCarbs: remainingCarbsToday,
-                      remainingFats: remainingFatsToday,
+                      remainingCalories: mealSuggestionTarget.map { Double($0.calories) } ?? remainingCaloriesToday,
+                      remainingProtein: mealSuggestionTarget.map { Double($0.proteinGrams) } ?? remainingProteinToday,
+                      remainingCarbs: mealSuggestionTarget.map { Double($0.carbGrams) } ?? remainingCarbsToday,
+                      remainingFats: mealSuggestionTarget == nil ? remainingFatsToday : nil,
                       onLog: logMealSuggestion
                   )
               }
@@ -388,12 +422,47 @@ struct HomeView: View {
                   searchContext: "run_recovery"
               )
           }
+          .sheet(isPresented: $showingTrainingFuelPlanner, onDismiss: presentPendingTrainingFuelDestination) {
+              TrainingFuelPlannerSheet(
+                  candidates: trainingFuelCandidates,
+                  savedPlan: trainingFuelPlanStore.confirmedPlan,
+                  savedProgress: trainingFuelProgress,
+                  today: currentLogForSelectedDate,
+                  goals: trainingFuelGoals,
+                  onConfirm: confirmTrainingFuelPlan,
+                  onUseTarget: useTrainingFuelTarget,
+                  onUseSavedTarget: queueTrainingFuelTarget,
+                  onMarkComplete: completeTrainingFuelSession,
+                  onSkip: skipTrainingFuelSession,
+                  onRemove: removeTrainingFuelPlan
+              )
+          }
+          .sheet(isPresented: $showingTrainingFuelSearch) {
+              FoodSearchView(
+                  dailyLog: $dailyLogService.currentDailyLog,
+                  onFoodItemLogged: { showingTrainingFuelSearch = false },
+                  searchContext: "training_fuel",
+                  trainingFuelTarget: selectedTrainingFuelTarget
+              )
+          }
+          .sheet(isPresented: $showingTrainingFuelBuilder) {
+              FoodSearchView(
+                  dailyLog: $dailyLogService.currentDailyLog,
+                  onFoodItemLogged: { showingTrainingFuelBuilder = false },
+                  searchContext: "training_fuel_builder",
+                  initialPresentation: .chainBuilder,
+                  trainingFuelTarget: selectedTrainingFuelTarget
+              )
+          }
           .sheet(isPresented: $showingMFPImport) {
               MFPImportView()
                   .environmentObject(dailyLogService)
                   .environmentObject(goalSettings)
           }
           .onAppear(perform: onHomeViewAppear)
+          .onChange(of: dailyLogService.currentDailyLog) { _, _ in
+              refreshDeferredTrainingRecoveryIfNeeded()
+          }
           .onChange(of: spotlightManager.replayToken) { _, _ in
               startSpotlightTourIfNeeded()
           }
@@ -405,6 +474,17 @@ struct HomeView: View {
                       selectedDate = today
                   }
                   onHomeViewAppear()
+              }
+          }
+          .onReceive(NotificationCenter.default.publisher(for: .openTrainingFuelPlanner)) { _ in
+              if !isToday {
+                  selectedDate = Calendar.current.startOfDay(for: Date())
+                  dailyLogService.activelyViewedDate = selectedDate
+                  fetchLogForSelectedDate {
+                      showingTrainingFuelPlanner = true
+                  }
+              } else {
+                  showingTrainingFuelPlanner = true
               }
           }
           // The "start workout" quick action switches to the Train tab instead of pushing
@@ -454,6 +534,8 @@ struct HomeView: View {
 
     private func onHomeViewAppear() {
         dailyLogService.activelyViewedDate = selectedDate
+        workoutService.fetchRoutinesAndPrograms()
+        trainingFuelPlanStore.load(for: DIContainer.shared.authService.currentUserID)
         fetchLogForSelectedDate()
         refreshStreakHistory()
         if isToday {
@@ -757,6 +839,192 @@ struct HomeView: View {
         max(0, goalSettings.fats - (currentLogForSelectedDate?.totalMacros().fats ?? 0))
     }
 
+    private var trainingFuelGoals: TodayFuelPlanGoals {
+        TodayFuelPlanGoals(
+            calories: goalSettings.calories ?? 0,
+            protein: goalSettings.protein,
+            carbs: goalSettings.carbs,
+            fats: goalSettings.fats
+        )
+    }
+
+    private var trainingFuelCandidates: [TrainingFuelSessionCandidate] {
+        var result: [TrainingFuelSessionCandidate] = []
+        if let activeProgram = workoutService.activeProgram,
+           let candidate = TrainingFuelSessionAdapter.activeStrengthCandidate(from: activeProgram) {
+            result.append(candidate)
+        }
+        result.append(TrainingFuelSessionAdapter.manualCandidate(kind: .strength))
+
+        var seenRunPlanIDs = Set<String>()
+        let runPlans = RunWorkoutPlan.builtinTemplates(metric: useMetric) + runPlanStore.customPlans
+        for plan in runPlans where seenRunPlanIDs.insert(plan.id).inserted {
+            result.append(TrainingFuelSessionAdapter.runCandidate(from: plan))
+        }
+        result.append(TrainingFuelSessionAdapter.manualCandidate(kind: .run))
+        return result
+    }
+
+    private var suggestedTrainingFuelSession: TrainingFuelSessionCandidate? {
+        guard let activeProgram = workoutService.activeProgram else { return nil }
+        return TrainingFuelSessionAdapter.activeStrengthCandidate(from: activeProgram)
+    }
+
+    private var trainingFuelProgress: TrainingFuelPlanProgress? {
+        guard let plan = trainingFuelPlanStore.confirmedPlan else { return nil }
+        return TrainingFuelPlanProgressRules.makeProgress(
+            plan: plan,
+            today: currentLogForSelectedDate,
+            goals: trainingFuelGoals,
+            now: Date()
+        )
+    }
+
+    private func confirmTrainingFuelPlan(
+        draft: TrainingFuelPlanDraft,
+        plannerPlan: TrainingFuelPlannerPlan
+    ) {
+        guard plannerPlan.status == .ready || plannerPlan.status == .deferredRecovery else { return }
+        let confirmed = TrainingFuelConfirmedPlan(
+            draft: draft,
+            plannerPlan: plannerPlan,
+            goals: trainingFuelGoals,
+            today: currentLogForSelectedDate,
+            existingPlan: trainingFuelPlanStore.confirmedPlan
+        )
+        trainingFuelPlanStore.confirm(
+            confirmed,
+            for: DIContainer.shared.authService.currentUserID
+        )
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.trainingFuelPlanSaved.rawValue, parameters: [
+            "training_mode": draft.kind.rawValue,
+            "phase_count": plannerPlan.allocations.count,
+            "confirmation_path": "save"
+        ])
+        HapticManager.instance.feedback(.medium)
+        showingTrainingFuelPlanner = false
+    }
+
+    private func useTrainingFuelTarget(
+        draft: TrainingFuelPlanDraft,
+        plannerPlan: TrainingFuelPlannerPlan,
+        target: TrainingFuelTarget,
+        destination: TrainingFuelDestination
+    ) {
+        guard plannerPlan.status == .ready else { return }
+        let confirmed = TrainingFuelConfirmedPlan(
+            draft: draft,
+            plannerPlan: plannerPlan,
+            goals: trainingFuelGoals,
+            today: currentLogForSelectedDate,
+            existingPlan: trainingFuelPlanStore.confirmedPlan
+        )
+        trainingFuelPlanStore.confirm(
+            confirmed,
+            for: DIContainer.shared.authService.currentUserID
+        )
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.trainingFuelPlanSaved.rawValue, parameters: [
+            "training_mode": draft.kind.rawValue,
+            "phase_count": plannerPlan.allocations.count,
+            "confirmation_path": "handoff"
+        ])
+        queueTrainingFuelTarget(target, destination: destination)
+    }
+
+    private func queueTrainingFuelTarget(
+        _ target: TrainingFuelTarget,
+        destination: TrainingFuelDestination
+    ) {
+        selectedTrainingFuelTarget = target
+        pendingTrainingFuelDestination = destination
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.trainingFuelHandoffSelected.rawValue, parameters: [
+            "destination": destination.rawValue,
+            "phase": target.phase.rawValue
+        ])
+        showingTrainingFuelPlanner = false
+    }
+
+    private func presentPendingTrainingFuelDestination() {
+        guard let destination = pendingTrainingFuelDestination,
+              let target = selectedTrainingFuelTarget else { return }
+        pendingTrainingFuelDestination = nil
+
+        switch destination {
+        case .foodSearch:
+            showingTrainingFuelSearch = true
+        case .fastFoodBuilder:
+            showingTrainingFuelBuilder = true
+        case .maiaIdea:
+            generateTrainingFuelSuggestion(target: target)
+        case .mealPlan:
+            appState.pendingTrainingFuelTarget = target
+            appState.selectedTab = 3
+        }
+    }
+
+    private func generateTrainingFuelSuggestion(target: TrainingFuelTarget) {
+        Task {
+            let suggestion = await insightsService.generateTrainingFuelSuggestion(
+                target: target,
+                pantryItems: pantryService.pantryItems.map(\.name)
+            )
+            if let suggestion {
+                mealSuggestionTarget = target
+                mealSuggestion = suggestion
+                showingSuggestionDetail = true
+            } else {
+                ToastManager.shared.showToast(
+                    message: "Maia couldn't build a training fuel idea right now. Try food search instead."
+                )
+            }
+        }
+    }
+
+    private func removeTrainingFuelPlan() {
+        trainingFuelPlanStore.clear(for: DIContainer.shared.authService.currentUserID)
+        selectedTrainingFuelTarget = nil
+        pendingTrainingFuelDestination = nil
+        HapticManager.instance.feedback(.light)
+        showingTrainingFuelPlanner = false
+    }
+
+    private func completeTrainingFuelSession() {
+        guard trainingFuelPlanStore.markCurrentPlanCompleted(
+            today: currentLogForSelectedDate,
+            goals: trainingFuelGoals,
+            for: DIContainer.shared.authService.currentUserID
+        ) else { return }
+        recordTrainingFuelOutcome("completed", source: "manual_confirmation")
+        HapticManager.instance.notification(.success)
+    }
+
+    private func skipTrainingFuelSession() {
+        guard trainingFuelPlanStore.markCurrentPlanSkipped(
+            today: currentLogForSelectedDate,
+            for: DIContainer.shared.authService.currentUserID
+        ) else { return }
+        recordTrainingFuelOutcome("skipped", source: "manual_confirmation")
+        HapticManager.instance.feedback(.light)
+    }
+
+    private func recordTrainingFuelOutcome(_ outcome: String, source: String) {
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.trainingFuelSessionOutcome.rawValue,
+            parameters: ["outcome": outcome, "source": source]
+        )
+    }
+
+    private func refreshDeferredTrainingRecoveryIfNeeded() {
+        guard isToday,
+              let today = currentLogForSelectedDate,
+              let userID = DIContainer.shared.authService.currentUserID else { return }
+        trainingFuelPlanStore.refreshDeferredRecovery(
+            today: today,
+            goals: trainingFuelGoals,
+            for: userID
+        )
+    }
+
     private var todayFuelPlan: TodayFuelPlan {
         TodayFuelPlanRules.makePlan(
             today: currentLogForSelectedDate,
@@ -773,6 +1041,7 @@ struct HomeView: View {
 
     private var shouldShowTodayFuelPlan: Bool {
         guard isToday, (goalSettings.calories ?? 0) > 0 else { return false }
+        guard trainingFuelPlanStore.confirmedPlan == nil else { return false }
         return todayFuelPlan.kind != .steadyDay || todayHasLoggedFood
     }
 
@@ -976,6 +1245,7 @@ struct HomeView: View {
         }
 
         Task {
+            mealSuggestionTarget = nil
             let pantryNames = pantryService.pantryItems.map(\.name)
             DIContainer.shared.analyticsManager?.logEvent("fill_my_macros_tapped", parameters: [
                 "source": source,
@@ -1047,14 +1317,14 @@ struct HomeView: View {
                     .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Your week")
+                    Text("Training & Fuel")
                         .appFont(size: 16, weight: .bold)
                         .foregroundColor(.textPrimary)
-                    Text("Calories, workouts, and records from the last 7 days")
+                    Text("Training, recovery, nutrition, and change from the last 7 days")
                         .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
@@ -1118,10 +1388,12 @@ struct HomeView: View {
             timestamp: Date()
         )
 
-        dailyLogService.addFoodToCurrentLog(for: userID, foodItem: foodItem, source: "ai_suggestion")
+        let logSource = mealSuggestionTarget == nil ? "ai_suggestion" : "training_fuel_ai_suggestion"
+        dailyLogService.addFoodToCurrentLog(for: userID, foodItem: foodItem, source: logSource)
 
         withAnimation {
             self.mealSuggestion = nil
+            self.mealSuggestionTarget = nil
         }
     }
 
@@ -1133,6 +1405,7 @@ struct HomeView: View {
 
             dailyLogService.fetchLog(for: userID, date: selectedDate) { [self] _ in
                 self.goalSettings.recalculateAllGoals()
+                self.refreshDeferredTrainingRecoveryIfNeeded()
                 if self.isToday {
                     self.insightsService.generateDailySmartInsight()
                 }

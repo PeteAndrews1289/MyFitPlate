@@ -106,14 +106,26 @@ public struct MicroAverageDataPoint: Identifiable {
     public let unit: String
     public let averageValue: Double
     public let goalValue: Double
+    public let reportedDayCount: Int
+    public let totalDayCount: Int
     public var percentageMet: Double { guard goalValue > 0 else { return 0 }; return (averageValue / goalValue) * 100 }
     public var progressViewValue: Double { guard goalValue > 0 else { return 0.0 }; return max(0.0, min(1.0, averageValue / goalValue)) }
+    public var hasPartialCoverage: Bool { reportedDayCount > 0 && reportedDayCount < totalDayCount }
     
-    public init(name: String, unit: String, averageValue: Double, goalValue: Double) {
+    public init(
+        name: String,
+        unit: String,
+        averageValue: Double,
+        goalValue: Double,
+        reportedDayCount: Int = 0,
+        totalDayCount: Int = 0
+    ) {
         self.name = name
         self.unit = unit
         self.averageValue = averageValue
         self.goalValue = goalValue
+        self.reportedDayCount = max(0, reportedDayCount)
+        self.totalDayCount = max(0, totalDayCount)
     }
 }
 

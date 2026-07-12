@@ -8,8 +8,15 @@ struct SettingsPreferencesSection: View {
     @Binding var hydrationRemindersEnabled: Bool
     @Binding var weighInReminderEnabled: Bool
     @Binding var notificationTimeBinding: Date
+    @Binding var preSessionFuelRemindersEnabled: Bool
+    @Binding var recoveryFuelRemindersEnabled: Bool
+    @Binding var eveningProteinRemindersEnabled: Bool
+    @Binding var quietStartBinding: Date
+    @Binding var quietEndBinding: Date
+    @Binding var eveningProteinTimeBinding: Date
 
     @AppStorage("liftingEffortMetric") private var liftingEffortMetric: String = "rpe"
+    @StateObject private var ttsManager = TTSManager.shared
 
     var body: some View {
         VStack(spacing: 24) {
@@ -103,6 +110,62 @@ struct SettingsPreferencesSection: View {
                     .onChange(of: weighInReminderEnabled) { _, enabled in
                         NotificationManager.shared.setWeighInReminder(enabled: enabled)
                     }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        SettingsLabel(
+                            icon: "bolt.fill",
+                            title: "Training & Fuel",
+                            subtitle: "Choose only the moments when a reminder would help.",
+                            color: .orange
+                        )
+
+                        Toggle("Before training", isOn: $preSessionFuelRemindersEnabled)
+                            .onChange(of: preSessionFuelRemindersEnabled) { _, enabled in
+                                trainingFuelPreferenceChanged(requestPermission: enabled)
+                            }
+                        Toggle("Recovery target", isOn: $recoveryFuelRemindersEnabled)
+                            .onChange(of: recoveryFuelRemindersEnabled) { _, enabled in
+                                trainingFuelPreferenceChanged(requestPermission: enabled)
+                            }
+                        Toggle("Evening protein catch-up", isOn: $eveningProteinRemindersEnabled)
+                            .onChange(of: eveningProteinRemindersEnabled) { _, enabled in
+                                trainingFuelPreferenceChanged(requestPermission: enabled)
+                            }
+
+                        if trainingFuelRemindersEnabled {
+                            Divider()
+                            HStack {
+                                Text("Quiet hours")
+                                    .appFont(size: 14, weight: .semibold)
+                                Spacer()
+                                DatePicker("Start", selection: $quietStartBinding, displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                                Text("to")
+                                    .foregroundStyle(.secondary)
+                                DatePicker("End", selection: $quietEndBinding, displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                            }
+                            .onChange(of: quietStartBinding) { _, _ in postTrainingFuelPreferenceChange() }
+                            .onChange(of: quietEndBinding) { _, _ in postTrainingFuelPreferenceChange() }
+
+                            if eveningProteinRemindersEnabled {
+                                HStack {
+                                    Text("Evening reminder")
+                                        .appFont(size: 14, weight: .semibold)
+                                    Spacer()
+                                    DatePicker(
+                                        "Evening reminder",
+                                        selection: $eveningProteinTimeBinding,
+                                        displayedComponents: .hourAndMinute
+                                    )
+                                    .labelsHidden()
+                                }
+                                .onChange(of: eveningProteinTimeBinding) { _, _ in postTrainingFuelPreferenceChange() }
+                            }
+                        }
+                    }
                 }
                 .padding(16)
             }
@@ -142,9 +205,86 @@ struct SettingsPreferencesSection: View {
                         guard let userID = DIContainer.shared.authService.currentUserID else { return }
                         goalSettings.saveUserGoals(userID: userID)
                     }
+
+                    Divider()
+
+                    SettingsLabel(
+                        icon: "waveform",
+                        title: "Spoken voice",
+                        subtitle: spokenVoiceSubtitle,
+                        color: .blue
+                    )
+
+                    if !ttsManager.availableVoices.isEmpty {
+                        Picker(
+                            "Spoken voice",
+                            selection: Binding(
+                                get: { ttsManager.selectedVoiceIdentifier },
+                                set: { ttsManager.selectVoice(identifier: $0) }
+                            )
+                        ) {
+                            ForEach(ttsManager.availableVoices) { voice in
+                                Text("\(voice.name) (\(voice.quality.label))")
+                                    .tag(voice.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Button {
+                            if ttsManager.isSpeaking {
+                                ttsManager.stopSpeaking()
+                            } else {
+                                ttsManager.previewSelectedVoice()
+                            }
+                        } label: {
+                            Label(
+                                ttsManager.isSpeaking ? "Stop Preview" : "Preview Voice",
+                                systemImage: ttsManager.isSpeaking ? "stop.fill" : "speaker.wave.2.fill"
+                            )
+                            .appFont(size: 14, weight: .semibold)
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.brandPrimary)
+                    }
                 }
                 .padding(16)
             }
         }
+        .onAppear {
+            ttsManager.refreshAvailableVoices()
+        }
+        .onDisappear {
+            ttsManager.stopSpeaking()
+        }
+    }
+
+    private var spokenVoiceSubtitle: String {
+        guard let voice = ttsManager.selectedVoiceOption else {
+            return "Uses the best English voice available on this iPhone."
+        }
+        if ttsManager.hasNaturalQualityVoice {
+            return "\(voice.name) is a downloaded \(voice.quality.label.lowercased()) voice."
+        }
+        return "\(voice.name) is a standard system voice. Enhanced and Premium voices sound more natural."
+    }
+
+    private var trainingFuelRemindersEnabled: Bool {
+        preSessionFuelRemindersEnabled || recoveryFuelRemindersEnabled || eveningProteinRemindersEnabled
+    }
+
+    private func trainingFuelPreferenceChanged(requestPermission: Bool) {
+        guard requestPermission else {
+            postTrainingFuelPreferenceChange()
+            return
+        }
+        NotificationManager.shared.requestAuthorization { _ in
+            postTrainingFuelPreferenceChange()
+        }
+    }
+
+    private func postTrainingFuelPreferenceChange() {
+        NotificationManager.shared.cancelTrainingFuelNotifications()
+        NotificationCenter.default.post(name: .trainingFuelNotificationPreferencesChanged, object: nil)
     }
 }

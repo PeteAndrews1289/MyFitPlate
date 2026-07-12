@@ -336,6 +336,91 @@ final class InsightsRulesTests: XCTestCase {
         XCTAssertTrue(prompt.contains("build the meal primarily from these"))
     }
 
+    func testTrainingFuelPromptKeepsDeterministicBudgetSeparateAndFinite() {
+        let target = TrainingFuelTarget(
+            planID: "plan",
+            sessionTitle: "Lower Power",
+            phase: .beforeTraining,
+            proteinGrams: 10,
+            carbGrams: 35
+        )
+        let prompt = InsightsRules.createTrainingFuelSuggestionPrompt(
+            target: target,
+            dailyRemainingCalories: .infinity,
+            dailyRemainingFat: .nan,
+            proteinPrefs: "Greek yogurt",
+            carbPrefs: "Fruit",
+            pantryItems: ["Apple"]
+        )
+
+        XCTAssertTrue(prompt.contains("Calorie ceiling: 0 cal"))
+        XCTAssertTrue(prompt.contains("Protein guide: 10g"))
+        XCTAssertTrue(prompt.contains("Carbohydrate guide: 35g"))
+        XCTAssertTrue(prompt.contains("not permission to increase"))
+        XCTAssertTrue(prompt.contains("Apple"))
+        XCTAssertFalse(prompt.lowercased().contains("infinity"))
+        XCTAssertFalse(prompt.lowercased().contains("nan"))
+    }
+
+    func testTrainingFuelSuggestionMustFitLiveDeterministicBudget() {
+        let target = TrainingFuelTarget(
+            planID: "plan",
+            sessionTitle: "Lower Power",
+            phase: .afterTraining,
+            proteinGrams: 25,
+            carbGrams: 35
+        )
+        let valid = MealSuggestion(
+            title: "Yogurt bowl",
+            calories: 240,
+            mealName: "Yogurt bowl",
+            protein: 25,
+            carbs: 35,
+            fats: 0
+        )
+        let overCalories = MealSuggestion(
+            title: "Large bowl",
+            calories: 360,
+            mealName: "Large bowl",
+            protein: 25,
+            carbs: 35,
+            fats: 13
+        )
+        let inconsistent = MealSuggestion(
+            title: "Impossible bowl",
+            calories: 100,
+            mealName: "Impossible bowl",
+            protein: 25,
+            carbs: 35,
+            fats: 1
+        )
+
+        XCTAssertTrue(InsightsRules.trainingFuelSuggestionFitsBudget(
+            valid,
+            target: target,
+            dailyRemainingCalories: 300,
+            dailyRemainingProtein: 30,
+            dailyRemainingCarbs: 40,
+            dailyRemainingFat: 10
+        ))
+        XCTAssertFalse(InsightsRules.trainingFuelSuggestionFitsBudget(
+            overCalories,
+            target: target,
+            dailyRemainingCalories: 300,
+            dailyRemainingProtein: 30,
+            dailyRemainingCarbs: 40,
+            dailyRemainingFat: 20
+        ))
+        XCTAssertFalse(InsightsRules.trainingFuelSuggestionFitsBudget(
+            inconsistent,
+            target: target,
+            dailyRemainingCalories: 300,
+            dailyRemainingProtein: 30,
+            dailyRemainingCarbs: 40,
+            dailyRemainingFat: 10
+        ))
+    }
+
     func testCreateOperatorPrompt() {
         let prompt = InsightsRules.createOperatorPrompt(message: "Log an apple", context: "User is in maintenance")
         XCTAssertTrue(prompt.contains("Log an apple"))

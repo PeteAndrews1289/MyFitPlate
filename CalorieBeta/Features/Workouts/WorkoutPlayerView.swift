@@ -9,6 +9,7 @@ struct WorkoutPlayerView: View {
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var workoutService: WorkoutService
     @EnvironmentObject var achievementService: AchievementService
+    @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
 
     @State private var routine: WorkoutRoutine
     @StateObject private var restTimer = RestTimer()
@@ -388,7 +389,7 @@ struct WorkoutPlayerView: View {
         totalWorkoutTimer.stop()
         LiveActivityManager.shared.endActivity()
         DIContainer.shared.analyticsManager.log(.workoutCompleted, ["completed_sets": completedSetCount])
-        ActivationFunnel.logOnce(ActivationFunnel.firstWorkoutCompleted)
+        ActivationFunnel.recordTrainingCompletion(.strength)
         self.completedSessionLog = sessionLog
         notifyWorkoutCompleteIfNeeded()
         self.showingAnalyticsSheet = true
@@ -420,6 +421,28 @@ struct WorkoutPlayerView: View {
             routineID: routine.id,
             completedExercises: completedExercisesForLog
         )
+        let today = dailyLogService.currentDailyLog.flatMap { log in
+            Calendar.current.isDate(log.date, inSameDayAs: sessionLog.date) ? log : nil
+        }
+        let matchedFuelPlan = trainingFuelPlanStore.recordStrengthCompletion(
+            routineID: routine.id,
+            routineName: routine.name,
+            completedAt: sessionLog.date,
+            today: today,
+            goals: TodayFuelPlanGoals(
+                calories: goalSettings.calories ?? 0,
+                protein: goalSettings.protein,
+                carbs: goalSettings.carbs,
+                fats: goalSettings.fats
+            ),
+            for: userID
+        )
+        if matchedFuelPlan {
+            DIContainer.shared.analyticsManager?.logEvent(
+                ProductAnalytics.Event.trainingFuelSessionOutcome.rawValue,
+                parameters: ["outcome": "completed", "source": "strength_workout"]
+            )
+        }
         Task {
             await workoutService.saveWorkoutSessionLog(sessionLog)
             achievementService.checkWorkoutCountAchievements(userID: userID)

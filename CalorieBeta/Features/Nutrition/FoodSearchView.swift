@@ -1,11 +1,17 @@
 import SwiftUI
 import MyFitPlateCore
 
+enum FoodSearchInitialPresentation {
+    case none
+    case chainBuilder
+}
+
 struct FoodSearchView: View {
     @Binding var dailyLog: DailyLog?
     var onFoodItemLogged: (() -> Void)?
     var onFoodItemSelected: ((FoodItem) -> Void)?
     var searchContext: String
+    var trainingFuelTarget: TrainingFuelTarget?
 
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -46,12 +52,15 @@ struct FoodSearchView: View {
         dailyLog: Binding<DailyLog?>,
         onFoodItemLogged: (() -> Void)? = nil,
         onFoodItemSelected: ((FoodItem) -> Void)? = nil,
-        searchContext: String
+        searchContext: String,
+        initialPresentation: FoodSearchInitialPresentation = .none,
+        trainingFuelTarget: TrainingFuelTarget? = nil
     ) {
         _dailyLog = dailyLog
         self.onFoodItemLogged = onFoodItemLogged
         self.onFoodItemSelected = onFoodItemSelected
         self.searchContext = searchContext
+        self.trainingFuelTarget = trainingFuelTarget
 
         #if DEBUG
         let screenshotScreen = ScreenshotDemoData.requestedScreen
@@ -60,12 +69,15 @@ struct FoodSearchView: View {
                 selectedMeal: ScreenshotDemoMode.isEnabled ? "Dinner" : nil
             )
         )
-        _showingChainBuilder = State(initialValue: screenshotScreen == "builder")
+        _showingChainBuilder = State(
+            initialValue: initialPresentation == .chainBuilder || screenshotScreen == "builder"
+        )
         _selectedFoodItem = State(
             initialValue: screenshotScreen == "trust" ? ScreenshotDemoData.trustDemoFood : nil
         )
         #else
         _viewModel = StateObject(wrappedValue: FoodSearchViewModel())
+        _showingChainBuilder = State(initialValue: initialPresentation == .chainBuilder)
         #endif
     }
 
@@ -74,6 +86,9 @@ struct FoodSearchView: View {
             ZStack {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
+                        if let trainingFuelTarget {
+                            TrainingFuelTargetContextView(target: trainingFuelTarget)
+                        }
                         mainActionContent
                         searchOrSavedContent
                     }
@@ -128,7 +143,6 @@ struct FoodSearchView: View {
                             DIContainer.shared.analyticsManager.log(.barcodeScanned, [:])
                             Task { @MainActor in
                                 if let result = await barcodeLookupService.lookup(barcode) {
-                                    DIContainer.shared.analyticsManager.barcodeLookupOutcome(.success(result))
                                     self.isSearchingAfterScan = false
                                     self.pendingManualBarcode = nil
                                     self.scannedFoodSource = result.source
@@ -136,7 +150,6 @@ struct FoodSearchView: View {
                                     showBarcodeResultFeedback(result)
                                     return
                                 }
-                                DIContainer.shared.analyticsManager.barcodeLookupOutcome(.miss(barcode: barcode))
                                 self.isSearchingAfterScan = false
                                 self.presentBarcodeRecovery(
                                     message: "No match found in FatSecret, USDA, or Open Food Facts.",
@@ -241,7 +254,10 @@ struct FoodSearchView: View {
                      AIMenuSelectionView(estimatedItems: .constant(wrapper.items))
                 }
                 .sheet(isPresented: $showingChainBuilder) {
-                    ChainMealBuilderView(initialMeal: viewModel.selectedMeal) { mealItem, mealName in
+                    ChainMealBuilderView(
+                        initialMeal: viewModel.selectedMeal,
+                        trainingFuelTarget: trainingFuelTarget
+                    ) { mealItem, mealName in
                         viewModel.selectedMeal = mealName
                         handleSelection(food: mealItem, source: "chain_builder")
                     }
@@ -486,14 +502,20 @@ struct FoodSearchView: View {
         } else if let searchErrorMessage = viewModel.searchErrorMessage, viewModel.searchResults.isEmpty {
             FoodSearchEmptyState(
                 icon: "wifi.exclamationmark",
-                title: "Search could not load",
-                message: searchErrorMessage
+                title: String(localized: "Search could not load"),
+                message: searchErrorMessage,
+                primaryActionTitle: String(localized: "Try again"),
+                primaryAction: { viewModel.submitSearch() },
+                secondaryActionTitle: onFoodItemSelected == nil ? String(localized: "Create food") : nil,
+                secondaryAction: onFoodItemSelected == nil ? { showingAddFoodManually = true } : nil
             )
         } else if viewModel.searchResults.isEmpty && trustedResults.isEmpty {
             FoodSearchEmptyState(
                 icon: "magnifyingglass",
-                title: "No foods found",
-                message: "Try a simpler search like \"chicken breast\", or add it manually."
+                title: String(localized: "No foods found"),
+                message: String(localized: "Try a simpler search like \"chicken breast\", or create the food yourself."),
+                primaryActionTitle: onFoodItemSelected == nil ? String(localized: "Create food") : nil,
+                primaryAction: onFoodItemSelected == nil ? { showingAddFoodManually = true } : nil
             )
         } else if !viewModel.searchResults.isEmpty {
             FoodPickerSection(

@@ -203,19 +203,38 @@ struct ChatBubble: View {
     let message: ChatMessage
     let onLogRecipe: (String) -> Void
     let onSpeak: (String) -> Void
+    let onStopSpeaking: () -> Void
+    let currentSpokenText: String?
     let onAction: (MaiaAction) -> Void
     @Binding var showAlert: Bool
     @Binding var alertMessage: String
     private let canBeLogged: Bool
+    private let spokenText: String
 
-    init(message: ChatMessage, onLogRecipe: @escaping (String) -> Void, onSpeak: @escaping (String) -> Void, onAction: @escaping (MaiaAction) -> Void, showAlert: Binding<Bool>, alertMessage: Binding<String>) {
+    init(
+        message: ChatMessage,
+        onLogRecipe: @escaping (String) -> Void,
+        onSpeak: @escaping (String) -> Void,
+        onStopSpeaking: @escaping () -> Void,
+        currentSpokenText: String?,
+        onAction: @escaping (MaiaAction) -> Void,
+        showAlert: Binding<Bool>,
+        alertMessage: Binding<String>
+    ) {
         self.message = message
         self.onLogRecipe = onLogRecipe
         self.onSpeak = onSpeak
+        self.onStopSpeaking = onStopSpeaking
+        self.currentSpokenText = currentSpokenText
         self.onAction = onAction
         self._showAlert = showAlert
         self._alertMessage = alertMessage
         self.canBeLogged = !message.isUser && message.text.contains("---Nutritional Breakdown---") && message.text.contains("Calories:")
+        self.spokenText = MaiaSpeechFormatter.spokenText(from: message.text)
+    }
+
+    private var isReadingThisResponse: Bool {
+        currentSpokenText == spokenText && !spokenText.isEmpty
     }
 
     private struct ActionPayloadIssue: Identifiable {
@@ -378,13 +397,23 @@ struct ChatBubble: View {
 
             HStack(spacing: 12) {
                 if message.isUser { Spacer() }
-                if !message.isUser {
-                    Button(action: { onSpeak(message.text) }) {
-                        Label("Speak", systemImage: "speaker.wave.2.fill")
-                            .appFont(size: 12, weight: .semibold)
+                if !message.isUser && !spokenText.isEmpty {
+                    Button(action: {
+                        if isReadingThisResponse {
+                            onStopSpeaking()
+                        } else {
+                            onSpeak(spokenText)
+                        }
+                    }) {
+                        Label(
+                            isReadingThisResponse ? "Stop Reading" : "Read Aloud",
+                            systemImage: isReadingThisResponse ? "stop.fill" : "speaker.wave.2.fill"
+                        )
+                        .appFont(size: 12, weight: .semibold)
                     }
                     .foregroundColor(.brandPrimary)
                     .buttonStyle(.plain)
+                    .accessibilityHint("Reads Maia's visible response using the selected voice.")
                 }
                 if canBeLogged {
                     Button(action: { onLogRecipe(message.text) }) {
@@ -721,6 +750,8 @@ struct ChatHistoryListView: View {
     @Binding var chatMessages: [ChatMessage]
     var onLogRecipe: (String) -> Void
     var onSpeak: (String) -> Void
+    var onStopSpeaking: () -> Void
+    var currentSpokenText: String?
     var onAction: (MaiaAction) -> Void
     @Binding var showAlert: Bool
     @Binding var alertMessage: String
@@ -734,6 +765,8 @@ struct ChatHistoryListView: View {
                             message: message,
                             onLogRecipe: onLogRecipe,
                             onSpeak: onSpeak,
+                            onStopSpeaking: onStopSpeaking,
+                            currentSpokenText: currentSpokenText,
                             onAction: onAction,
                             showAlert: $showAlert,
                             alertMessage: $alertMessage

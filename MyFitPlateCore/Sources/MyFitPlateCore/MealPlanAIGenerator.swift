@@ -31,6 +31,11 @@ public struct MealPlanAIGenerator {
             do {
                 return try parseSingleMealFromAIResponse(jsonString)
             } catch {
+                AIResponseTelemetry.recordDecodeFailure(
+                    error,
+                    operation: "decode_regenerated_meal",
+                    willRetry: retryCount > 0
+                )
                 if retryCount > 0 {
                     return await regenerateSingleMeal(for: day, mealToReplace: mealToReplace, goals: goals, preferredFoods: preferredFoods, preferredCuisines: preferredCuisines, preferredSnacks: preferredSnacks, retryCount: retryCount - 1)
                 }
@@ -127,6 +132,11 @@ public struct MealPlanAIGenerator {
                 }
             } catch {
                 AppLog.mealPlanner.error("Failed to parse full-week meal plan: \(error.localizedDescription, privacy: .public)")
+                AIResponseTelemetry.recordDecodeFailure(
+                    error,
+                    operation: "decode_full_week_meal_plan",
+                    willRetry: retryCount > 0
+                )
             }
 
             if retryCount > 0 {
@@ -201,6 +211,11 @@ public struct MealPlanAIGenerator {
                 }
                 return nil
             } catch {
+                AIResponseTelemetry.recordDecodeFailure(
+                    error,
+                    operation: "decode_daily_meal_plan",
+                    willRetry: retryCount > 0
+                )
                 if retryCount > 0 {
                     return await generatePlanForSingleDay(date: date, goals: goals, preferredFoods: preferredFoods, preferredCuisines: preferredCuisines, preferredSnacks: preferredSnacks, mealHistory: mealHistory, retryCount: retryCount - 1)
                 }

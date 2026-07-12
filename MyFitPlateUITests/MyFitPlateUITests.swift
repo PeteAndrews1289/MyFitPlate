@@ -62,6 +62,60 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testFoodSearchFailureOffersRetryAndManualFallback() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-ui-testing-search-failure",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "food-search"
+        ]
+        app.launch()
+
+        let searchField = app.textFields["Search foods, meals, brands"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 8))
+        searchField.tap()
+        searchField.typeText("apple")
+
+        XCTAssertTrue(app.staticTexts["Search could not load"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["We couldn't reach the food databases. Your saved and recent foods still work."].exists)
+        XCTAssertTrue(app.buttons["Try again"].isHittable)
+        XCTAssertTrue(app.buttons["Create food"].isHittable)
+    }
+
+    @MainActor
+    func testHomeDarkAccessibilityTextIsNotClipped() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-dark-mode",
+            "-screenshot-screen",
+            "home",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["quick_log_button"].waitForExistence(timeout: 8))
+        XCTAssertTrue(
+            app.buttons
+                .matching(NSPredicate(format: "label CONTAINS %@", "Review Food Trust"))
+                .firstMatch
+                .isHittable
+        )
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Home - dark accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testSettingsFeedbackAndShareRowsAreReachable() throws {
         let app = XCUIApplication()
         app.terminate()
@@ -91,6 +145,71 @@ final class MyFitPlateUITests: XCTestCase {
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Settings feedback and sharing"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testTrainingFuelNotificationControlsAreReachableAndFit() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "settings",
+            "-trainingFuelPreSessionNotificationsEnabled",
+            "YES",
+            "-trainingFuelEveningNotificationsEnabled",
+            "YES"
+        ]
+        app.launch()
+
+        let beforeTraining = app.switches["Before training"]
+        let recovery = app.switches["Recovery target"]
+        let evening = app.switches["Evening protein catch-up"]
+        for _ in 0..<6 where !beforeTraining.isHittable || !evening.isHittable {
+            app.swipeUp()
+        }
+
+        XCTAssertTrue(beforeTraining.waitForExistence(timeout: 5))
+        XCTAssertTrue(recovery.exists)
+        XCTAssertTrue(evening.exists)
+        XCTAssertTrue(app.staticTexts["Quiet hours"].exists)
+        XCTAssertTrue(app.staticTexts["Evening reminder"].exists)
+        XCTAssertLessThanOrEqual(evening.frame.maxX, app.frame.maxX + 1)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Training fuel notification controls"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testMaiaVoiceControlsAreReachableAndFit() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "settings"
+        ]
+        app.launch()
+
+        let spokenVoice = app.staticTexts["Spoken voice"]
+        let previewVoice = app.buttons["Preview Voice"]
+        for _ in 0..<8 where !spokenVoice.isHittable || !previewVoice.isHittable {
+            app.swipeUp()
+        }
+
+        XCTAssertTrue(spokenVoice.waitForExistence(timeout: 5))
+        XCTAssertTrue(previewVoice.waitForExistence(timeout: 5))
+        XCTAssertTrue(previewVoice.isHittable)
+        XCTAssertLessThanOrEqual(previewVoice.frame.maxX, app.frame.maxX + 1)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Maia voice controls"
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }
@@ -137,5 +256,113 @@ final class MyFitPlateUITests: XCTestCase {
             app.buttons["quick_log_button"].waitForExistence(timeout: 5),
             "Done should return to Home"
         )
+    }
+
+    @MainActor
+    func testWeeklyTrainingFuelReportRendersPopulatedAndScrollable() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "weekly-report"
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            app.staticTexts["Training & Fuel"].waitForExistence(timeout: 10),
+            "The unified weekly report should open directly in screenshot mode"
+        )
+        XCTAssertTrue(
+            app.staticTexts["weekly_report_headline"].waitForExistence(timeout: 10),
+            "The report should finish its deterministic data load"
+        )
+        XCTAssertTrue(app.otherElements["weekly_report_strength"].exists)
+
+        let topScreenshot = XCTAttachment(screenshot: app.screenshot())
+        topScreenshot.name = "Unified Training and Fuel report - top"
+        topScreenshot.lifetime = .keepAlways
+        add(topScreenshot)
+
+        let fueling = app.otherElements["weekly_report_fueling"]
+        for _ in 0..<6 where !fueling.exists || !fueling.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(fueling.waitForExistence(timeout: 5), "Fueling denominators should be reachable")
+
+        let middleScreenshot = XCTAttachment(screenshot: app.screenshot())
+        middleScreenshot.name = "Unified Training and Fuel report - running and fueling"
+        middleScreenshot.lifetime = .keepAlways
+        add(middleScreenshot)
+
+        let share = app.descendants(matching: .any)["weekly_report_share"]
+        for _ in 0..<8 where !share.exists || !share.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(app.otherElements["weekly_report_context"].exists, "Outcome context should be reachable")
+        XCTAssertTrue(share.waitForExistence(timeout: 5), "The privacy-reviewed share menu should be reachable")
+
+        let bottomScreenshot = XCTAttachment(screenshot: app.screenshot())
+        bottomScreenshot.name = "Unified Training and Fuel report - context and share"
+        bottomScreenshot.lifetime = .keepAlways
+        add(bottomScreenshot)
+    }
+
+    @MainActor
+    func testWeeklyTrainingFuelReportSupportsLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "weekly-report",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let headline = app.staticTexts["weekly_report_headline"]
+        XCTAssertTrue(headline.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Done"].isHittable)
+        XCTAssertLessThanOrEqual(headline.frame.maxX, app.frame.maxX + 1)
+        XCTAssertGreaterThanOrEqual(headline.frame.minX, app.frame.minX - 1)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Unified Training and Fuel report - accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testCustomProductPageDeepLinksOpenExactDestinations() throws {
+        let app = XCUIApplication()
+        let destinations = [
+            ("myfitplate://food-search", "Log food"),
+            ("myfitplate://trust", "Trust Hub"),
+            ("myfitplate://builder", "Fast Food"),
+            ("myfitplate://runs", "Running"),
+            ("myfitplate://meal-plan", "Meal plan"),
+            ("myfitplate://training-fuel", "Training Fuel")
+        ]
+
+        for (url, title) in destinations {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-deep-link-url",
+                url
+            ]
+            app.launch()
+
+            let navigationTitle = app.navigationBars[title]
+            let visibleTitle = app.staticTexts[title]
+            XCTAssertTrue(
+                navigationTitle.waitForExistence(timeout: 8) || visibleTitle.waitForExistence(timeout: 3),
+                "\(url) should open \(title), not a neighboring tab"
+            )
+        }
     }
 }

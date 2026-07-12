@@ -28,6 +28,15 @@ enum ScreenshotDemoData {
         let workoutName: String?
     }
 
+    private struct RunTemplate {
+        let id: String
+        let daysAgo: Int
+        let distance: Double
+        let seconds: Double
+        let heartRate: Double
+        let source: Run.Source
+    }
+
     private static let calendar = Calendar.current
     private static var today: Date { calendar.startOfDay(for: Date()) }
 
@@ -36,17 +45,87 @@ enum ScreenshotDemoData {
         guard ScreenshotDemoMode.isEnabled else { return "home" }
 
         if let inline = arguments.first(where: { $0.hasPrefix("-screenshot-screen=") }) {
-            return String(inline.dropFirst("-screenshot-screen=".count)).lowercased()
+            return canonicalScreenName(String(inline.dropFirst("-screenshot-screen=".count)))
         }
         if let flagIndex = arguments.firstIndex(of: "-screenshot-screen"),
            arguments.indices.contains(flagIndex + 1) {
-            return arguments[flagIndex + 1].lowercased()
+            return canonicalScreenName(arguments[flagIndex + 1])
         }
         return "home"
     }
 
+    static func canonicalScreenName(_ name: String) -> String {
+        switch name.lowercased() {
+        case "cpp-trust": return "trust"
+        case "cpp-logging": return "food-search"
+        case "cpp-dining": return "builder"
+        case "cpp-strength": return "train"
+        case "cpp-running": return "runs"
+        case "cpp-weight": return "reports"
+        case "cpp-meal-plan": return "meal-plan"
+        default: return name.lowercased()
+        }
+    }
+
     static var trustDemoFood: FoodItem {
         discoveryFoods()[0]
+    }
+
+    static var runningDemoRuns: [Run] {
+        let runs: [RunTemplate] = [
+            RunTemplate(
+                id: "demo-run-10k",
+                daysAgo: 1,
+                distance: 10_000,
+                seconds: 2_948,
+                heartRate: 157,
+                source: .imported(appName: "Apple Watch")
+            ),
+            RunTemplate(
+                id: "demo-run-5k",
+                daysAgo: 3,
+                distance: 5_000,
+                seconds: 1_414,
+                heartRate: 163,
+                source: .recorded
+            ),
+            RunTemplate(
+                id: "demo-run-easy",
+                daysAgo: 5,
+                distance: 8_050,
+                seconds: 2_736,
+                heartRate: 143,
+                source: .imported(appName: "Garmin Connect")
+            ),
+            RunTemplate(
+                id: "demo-run-long",
+                daysAgo: 9,
+                distance: 16_100,
+                seconds: 5_640,
+                heartRate: 149,
+                source: .imported(appName: "Apple Watch")
+            )
+        ]
+
+        return runs.map { fixture in
+            let startDate = calendar.date(byAdding: .day, value: -fixture.daysAgo, to: today) ?? today
+            return Run(
+                id: fixture.id,
+                source: fixture.source,
+                startDate: startDate.addingTimeInterval(7 * 60 * 60),
+                endDate: startDate.addingTimeInterval((7 * 60 * 60) + fixture.seconds),
+                distanceMeters: fixture.distance,
+                movingSeconds: fixture.seconds,
+                activeCalories: fixture.distance * 0.071,
+                averageHeartRate: fixture.heartRate,
+                splits: ManualRunEntryRules.splits(
+                    distanceMeters: fixture.distance,
+                    movingSeconds: fixture.seconds,
+                    metric: false
+                ),
+                hasRoute: true
+            )
+        }
     }
 
     static func prepareUserDefaults() {
@@ -164,6 +243,7 @@ enum ScreenshotDemoData {
         switch requestedScreen {
         case "maia": appState.selectedTab = 1
         case "train": appState.selectedTab = 2
+        case "runs": appState.selectedTab = 2
         case "meal-plan": appState.selectedTab = 3
         case "reports": appState.selectedTab = 4
         default: appState.selectedTab = 0

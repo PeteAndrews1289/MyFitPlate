@@ -1,9 +1,7 @@
 import Foundation
 
-/// The community correction pool stores sanity-checked barcode submissions in Firestore.
-/// A single submission is recovery data, not independent verification or consensus. The
-/// feature remains off by default until server-owned aggregation and contributor-privacy
-/// work are complete.
+/// Private corrections feed a server-owned aggregate. A single submission is never exposed or
+/// treated as verification; the client only reads an identifier-free consensus document.
 public protocol CommunityBarcodeStoreProtocol: Sendable {
     func communityFood(for barcode: String) async -> FoodItem?
     func contribute(_ item: FoodItem, barcode: String) async
@@ -19,11 +17,46 @@ public struct CommunityBarcodeContributionDecision: Equatable, Sendable {
     }
 }
 
+public struct CommunityBarcodeAggregateEvidence: Equatable, Sendable {
+    public let schemaVersion: Int
+    public let modelVersion: String
+    public let status: String
+    public let barcode: String
+    public let contributorCount: Int
+    public let agreementCount: Int
+    public let conflictCount: Int
+    public let agreementRatio: Double
+
+    public init(
+        schemaVersion: Int,
+        modelVersion: String,
+        status: String,
+        barcode: String,
+        contributorCount: Int,
+        agreementCount: Int,
+        conflictCount: Int,
+        agreementRatio: Double
+    ) {
+        self.schemaVersion = schemaVersion
+        self.modelVersion = modelVersion
+        self.status = status
+        self.barcode = barcode
+        self.contributorCount = contributorCount
+        self.agreementCount = agreementCount
+        self.conflictCount = conflictCount
+        self.agreementRatio = agreementRatio
+    }
+}
+
 public enum CommunityBarcodeRules {
     /// Source name that marks a community-pool match. Deliberately NOT a new
     /// `FoodSourceType` case: community entries ride `.custom`, so metadata stored by this
     /// version still decodes on older app versions.
     public static let sourceName = "MyFitPlate Community"
+    public static let aggregateModelVersion = "community_consensus_v1"
+    public static let minimumAggregateContributors = 3
+    public static let maximumAggregateContributors = 250
+    public static let minimumAggregateAgreementRatio = 2.0 / 3.0
 
     /// Contribution gate. Everything must pass before a correction leaves the device:
     /// the feature flag, a non-empty barcode, shared collection field limits, and the
@@ -121,6 +154,37 @@ public enum CommunityBarcodeRules {
 
     public static func isCommunityMatch(_ metadata: FoodSourceMetadata?) -> Bool {
         metadata?.sourceName == sourceName
+    }
+
+    public static func aggregateDecision(
+        _ evidence: CommunityBarcodeAggregateEvidence,
+        expectedBarcode: String
+    ) -> CommunityBarcodeContributionDecision {
+        guard evidence.schemaVersion == 1,
+              evidence.modelVersion == aggregateModelVersion,
+              evidence.status == "published" else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "invalid_aggregate_model")
+        }
+        let expected = BarcodeCorrectionRules.normalizedBarcode(expectedBarcode)
+        let published = BarcodeCorrectionRules.normalizedBarcode(evidence.barcode)
+        guard BarcodeCorrectionRules.isValidGTIN(expected), published == expected else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "aggregate_barcode_mismatch")
+        }
+        guard evidence.contributorCount >= minimumAggregateContributors,
+              evidence.contributorCount <= maximumAggregateContributors,
+              evidence.agreementCount >= minimumAggregateContributors,
+              evidence.agreementCount <= evidence.contributorCount,
+              evidence.conflictCount == evidence.contributorCount - evidence.agreementCount else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "invalid_aggregate_counts")
+        }
+        let computedRatio = Double(evidence.agreementCount) / Double(evidence.contributorCount)
+        guard evidence.agreementRatio.isFinite,
+              evidence.agreementRatio >= minimumAggregateAgreementRatio,
+              evidence.agreementRatio <= 1,
+              abs(evidence.agreementRatio - computedRatio) <= 0.001 else {
+            return CommunityBarcodeContributionDecision(isEligible: false, reason: "invalid_aggregate_ratio")
+        }
+        return CommunityBarcodeContributionDecision(isEligible: true, reason: "eligible_aggregate")
     }
 
     private static func isSupportedBarcode(_ barcode: String) -> Bool {

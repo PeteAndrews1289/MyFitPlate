@@ -30,6 +30,15 @@ public enum FoodDataSanity {
     private static let minimumKnownServingWeight = 10.0
     private static let minimumCalorieVariance = 20.0
 
+    public static func saturatedFatFitsWithinTotalFat(
+        saturatedFat: Double?,
+        totalFat: Double
+    ) -> Bool {
+        guard let saturatedFat else { return true }
+        let nonnegativeTotal = max(0, totalFat)
+        return saturatedFat <= nonnegativeTotal + max(1, nonnegativeTotal * 0.10)
+    }
+
     public static func findings(for item: FoodItem) -> [Finding] {
         var findings: [Finding] = []
 
@@ -146,8 +155,10 @@ public enum FoodDataSanity {
             }
         }
 
-        if let saturatedFat = item.saturatedFat,
-           saturatedFat > fats + max(1, fats * 0.10) {
+        if !saturatedFatFitsWithinTotalFat(
+            saturatedFat: item.saturatedFat,
+            totalFat: fats
+        ) {
             findings.append(Finding(
                 id: "saturated_fat_exceeds_total",
                 severity: .warning,

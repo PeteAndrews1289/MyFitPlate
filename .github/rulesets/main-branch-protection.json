@@ -36,6 +36,12 @@
             "context": "Unit tests"
           },
           {
+            "context": "UI smoke tests"
+          },
+          {
+            "context": "Firebase Functions"
+          },
+          {
             "context": "Firebase rules"
           },
           {

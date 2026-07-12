@@ -3,6 +3,8 @@ import XCTest
 
 final class CommunityBarcodeRulesTests: XCTestCase {
 
+    private let barcode = "0123456789012"
+
     private func cleanFood(name: String = "Protein Bar") -> FoodItem {
         FoodItem(
             name: name,
@@ -158,6 +160,83 @@ final class CommunityBarcodeRulesTests: XCTestCase {
         XCTAssertEqual(decision.reason, "nutrition_needs_review")
     }
 
+    // MARK: - Server aggregate gate
+
+    func testValidThreeContributorAggregateIsEligible() {
+        let decision = CommunityBarcodeRules.aggregateDecision(
+            aggregateEvidence(),
+            expectedBarcode: barcode
+        )
+
+        XCTAssertTrue(decision.isEligible)
+        XCTAssertEqual(decision.reason, "eligible_aggregate")
+    }
+
+    func testAggregateRequiresKnownModelStatusAndExactGTIN() {
+        XCTAssertEqual(
+            CommunityBarcodeRules.aggregateDecision(
+                aggregateEvidence(modelVersion: "unknown"),
+                expectedBarcode: barcode
+            ).reason,
+            "invalid_aggregate_model"
+        )
+        XCTAssertEqual(
+            CommunityBarcodeRules.aggregateDecision(
+                aggregateEvidence(status: "quarantined"),
+                expectedBarcode: barcode
+            ).reason,
+            "invalid_aggregate_model"
+        )
+        XCTAssertEqual(
+            CommunityBarcodeRules.aggregateDecision(
+                aggregateEvidence(barcode: "00012345600012"),
+                expectedBarcode: barcode
+            ).reason,
+            "aggregate_barcode_mismatch"
+        )
+    }
+
+    func testAggregateRejectsSmallOrInconsistentContributorCounts() {
+        XCTAssertEqual(
+            CommunityBarcodeRules.aggregateDecision(
+                aggregateEvidence(contributorCount: 2, agreementCount: 2, conflictCount: 0, agreementRatio: 1),
+                expectedBarcode: barcode
+            ).reason,
+            "invalid_aggregate_counts"
+        )
+        XCTAssertEqual(
+            CommunityBarcodeRules.aggregateDecision(
+                aggregateEvidence(contributorCount: 4, agreementCount: 3, conflictCount: 0, agreementRatio: 0.75),
+                expectedBarcode: barcode
+            ).reason,
+            "invalid_aggregate_counts"
+        )
+        XCTAssertEqual(
+            CommunityBarcodeRules.aggregateDecision(
+                aggregateEvidence(contributorCount: 251, agreementCount: 251, conflictCount: 0, agreementRatio: 1),
+                expectedBarcode: barcode
+            ).reason,
+            "invalid_aggregate_counts"
+        )
+    }
+
+    func testAggregateRejectsLowOrMathematicallyInconsistentRatio() {
+        XCTAssertEqual(
+            CommunityBarcodeRules.aggregateDecision(
+                aggregateEvidence(contributorCount: 5, agreementCount: 3, conflictCount: 2, agreementRatio: 0.6),
+                expectedBarcode: barcode
+            ).reason,
+            "invalid_aggregate_ratio"
+        )
+        XCTAssertEqual(
+            CommunityBarcodeRules.aggregateDecision(
+                aggregateEvidence(contributorCount: 4, agreementCount: 3, conflictCount: 1, agreementRatio: 0.9),
+                expectedBarcode: barcode
+            ).reason,
+            "invalid_aggregate_ratio"
+        )
+    }
+
     // MARK: - Community item builder
 
     func testCommunityFoodItemCarriesCommunityIdentity() {
@@ -197,6 +276,28 @@ final class CommunityBarcodeRulesTests: XCTestCase {
         let descriptor = FoodSourceClassifier.descriptor(for: item.sourceMetadata!)
         XCTAssertEqual(descriptor.sourceKey, "community_barcode")
         XCTAssertEqual(descriptor.title, "Community Match")
-        XCTAssertEqual(descriptor.confidence, "Community Submitted")
+        XCTAssertEqual(descriptor.confidence, "Community Consensus")
+    }
+
+    private func aggregateEvidence(
+        schemaVersion: Int = 1,
+        modelVersion: String = CommunityBarcodeRules.aggregateModelVersion,
+        status: String = "published",
+        barcode: String = "0123456789012",
+        contributorCount: Int = 3,
+        agreementCount: Int = 3,
+        conflictCount: Int = 0,
+        agreementRatio: Double = 1
+    ) -> CommunityBarcodeAggregateEvidence {
+        CommunityBarcodeAggregateEvidence(
+            schemaVersion: schemaVersion,
+            modelVersion: modelVersion,
+            status: status,
+            barcode: barcode,
+            contributorCount: contributorCount,
+            agreementCount: agreementCount,
+            conflictCount: conflictCount,
+            agreementRatio: agreementRatio
+        )
     }
 }

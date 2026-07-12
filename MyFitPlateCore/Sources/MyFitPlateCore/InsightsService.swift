@@ -102,10 +102,82 @@ public class InsightsService: ObservableObject {
             // This decode failing silently is exactly how the feature shipped dead —
             // leave a non-fatal trail with the reason.
             AppLog.ai.error("Meal suggestion decode failed: \(error.localizedDescription, privacy: .public)")
-            DIContainer.shared.crashManager?.record(error: error, additionalUserInfo: ["operation": "decode_meal_suggestion"])
+            AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_meal_suggestion")
             self.isGeneratingSuggestion = false
             return nil
         }
+    }
+
+    public func generateTrainingFuelSuggestion(
+        target: TrainingFuelTarget,
+        pantryItems: [String] = []
+    ) async -> MealSuggestion? {
+        isGeneratingSuggestion = true
+        defer { isGeneratingSuggestion = false }
+
+        let initialBudget = currentTrainingFuelBudget()
+        guard [
+            initialBudget.calories,
+            initialBudget.protein,
+            initialBudget.carbs,
+            initialBudget.fat
+        ].allSatisfy(\.isFinite),
+              initialBudget.calories >= 60 else { return nil }
+        let prompt = InsightsRules.createTrainingFuelSuggestionPrompt(
+            target: target,
+            dailyRemainingCalories: initialBudget.calories,
+            dailyRemainingFat: initialBudget.fat,
+            proteinPrefs: goalSettings.suggestionProteins.isEmpty
+                ? "any"
+                : goalSettings.suggestionProteins.joined(separator: ", "),
+            carbPrefs: goalSettings.suggestionCarbs.isEmpty
+                ? "any"
+                : goalSettings.suggestionCarbs.joined(separator: ", "),
+            pantryItems: pantryItems
+        )
+        guard let responseString = await fetchAIResponse(prompt: prompt),
+              let jsonData = InsightsRules.extractJSONPayload(responseString).data(using: .utf8) else {
+            return nil
+        }
+
+        do {
+            let suggestion = try JSONDecoder().decode(MealSuggestion.self, from: jsonData)
+            let liveBudget = currentTrainingFuelBudget()
+            guard InsightsRules.trainingFuelSuggestionFitsBudget(
+                suggestion,
+                target: target,
+                dailyRemainingCalories: liveBudget.calories,
+                dailyRemainingProtein: liveBudget.protein,
+                dailyRemainingCarbs: liveBudget.carbs,
+                dailyRemainingFat: liveBudget.fat
+            ) else {
+                AppLog.ai.error("Training fuel suggestion failed deterministic budget validation")
+                return nil
+            }
+            return suggestion
+        } catch {
+            AppLog.ai.error("Training fuel suggestion decode failed: \(error.localizedDescription, privacy: .public)")
+            AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_training_fuel_suggestion")
+            return nil
+        }
+    }
+
+    private func currentTrainingFuelBudget() -> (
+        calories: Double,
+        protein: Double,
+        carbs: Double,
+        fat: Double
+    ) {
+        let macros = dailyLogService.currentDailyLog?.totalMacros() ?? (protein: 0, fats: 0, carbs: 0)
+        return (
+            calories: max(
+                0,
+                (goalSettings.calories ?? 0) - (dailyLogService.currentDailyLog?.totalCalories() ?? 0)
+            ),
+            protein: max(0, goalSettings.protein - macros.protein),
+            carbs: max(0, goalSettings.carbs - macros.carbs),
+            fat: max(0, goalSettings.fats - macros.fats)
+        )
     }
 
     public func generateDailySmartInsight() {
@@ -241,6 +313,7 @@ public class InsightsService: ObservableObject {
             let decoded = try JSONDecoder().decode(NotificationResponse.self, from: data)
             return (decoded.title, decoded.body)
         } catch {
+            AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_smart_notification")
             return nil
         }
     }
@@ -275,6 +348,7 @@ public class InsightsService: ObservableObject {
             return (title: decoded.title, body: decoded.body)
         } catch {
             AppLog.ai.error("Failed to decode daily briefing: \(error.localizedDescription, privacy: .public)")
+            AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_daily_briefing")
             return nil
         }
     }
@@ -305,6 +379,11 @@ public class InsightsService: ObservableObject {
             return insightsResponse["insights"] ?? []
         } catch {
             AppLog.ai.error("Failed to decode generated insights: \(error.localizedDescription, privacy: .public)")
+            AIResponseTelemetry.recordDecodeFailure(
+                error,
+                operation: "decode_generated_insights",
+                willRetry: retryCount > 0
+            )
             if retryCount > 0 {
                 AppLog.ai.info("Retrying insights generation.")
                 return await generateAIInsights(for: logs, sleepSamples: sleepSamples, goals: goals, retryCount: retryCount - 1)
@@ -348,8 +427,13 @@ public class InsightsService: ObservableObject {
         let dailyNutritionSummary = logs.map { log -> String in
             let day = dateFormatter.string(from: log.date)
             let macros = log.totalMacros()
-            let micros = log.totalMicronutrients()
-            return "- \(day): Cals: \(Int(log.totalCalories())), P: \(Int(macros.protein))g, C: \(Int(macros.carbs))g, F: \(Int(macros.fats))g, Fiber: \(Int(micros.fiber))g, Sodium: \(Int(micros.sodium))mg"
+            let fiber = log.micronutrientCoverage(for: .fiber).hasReportedData
+                ? "\(Int(log.totalMicronutrient(.fiber)))g"
+                : "not reported"
+            let sodium = log.micronutrientCoverage(for: .sodium).hasReportedData
+                ? "\(Int(log.totalMicronutrient(.sodium)))mg"
+                : "not reported"
+            return "- \(day): Cals: \(Int(log.totalCalories())), P: \(Int(macros.protein))g, C: \(Int(macros.carbs))g, F: \(Int(macros.fats))g, Fiber: \(fiber), Sodium: \(sodium)"
         }.joined(separator: "\n")
 
         let dailyWorkoutSummary = logs.compactMap { log -> String? in
@@ -437,7 +521,8 @@ public class InsightsService: ObservableObject {
             let decoded = try JSONDecoder().decode(MaiaOperatorResponse.self, from: data)
             return decoded
         } catch {
-            AppLog.ai.error("Failed to decode operator response: \\(error.localizedDescription, privacy: .public)")
+            AppLog.ai.error("Failed to decode operator response: \(error.localizedDescription, privacy: .public)")
+            AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_operator_response")
             return nil
         }
     }

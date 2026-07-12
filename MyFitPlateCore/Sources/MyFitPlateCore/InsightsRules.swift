@@ -283,6 +283,99 @@ public enum InsightsRules {
         """
     }
 
+    public static func createTrainingFuelSuggestionPrompt(
+        target: TrainingFuelTarget,
+        dailyRemainingCalories: Double,
+        dailyRemainingFat: Double,
+        proteinPrefs: String,
+        carbPrefs: String,
+        pantryItems: [String] = []
+    ) -> String {
+        let phase = target.phase == .beforeTraining ? "before training" : "after training"
+        let safeRemainingCalories = dailyRemainingCalories.isFinite
+            ? min(1_000_000, max(0, dailyRemainingCalories))
+            : 0
+        let safeRemainingFat = dailyRemainingFat.isFinite
+            ? min(100_000, max(0, dailyRemainingFat))
+            : 0
+        let calorieCeiling = min(target.calories, Int(safeRemainingCalories.rounded(.down)))
+        let pantrySection = pantryItems.isEmpty ? "" : """
+
+
+        Ingredients the user has on hand. Prefer these when practical:
+        \(pantryItems.prefix(25).joined(separator: ", "))
+        """
+
+        return """
+        You are Maia, a helpful nutrition coach. Suggest one practical food or meal for \(phase).
+
+        A deterministic planner already reserved this portion of the user's existing daily budget:
+        - Calorie ceiling: \(calorieCeiling) cal
+        - Protein guide: \(target.proteinGrams)g
+        - Carbohydrate guide: \(target.carbGrams)g
+        - Fat is not prescribed; keep it modest and within the user's \(Int(safeRemainingFat.rounded(.down)))g remaining daily fat.
+
+        These numbers are a food-selection budget, not permission to increase the user's daily targets.
+        A practical item may trade a little protein or carbohydrate for fat, but it must stay under the calorie ceiling.
+
+        Preferences:
+        - Proteins: \(proteinPrefs)
+        - Carbs: \(carbPrefs)\(pantrySection)
+
+        RULES:
+        1. Return one simple idea that is reasonably close to the protein and carbohydrate guides.
+        2. Do not describe the target as medical advice or a required anabolic window.
+        3. Your response MUST be one valid JSON object with no other text.
+        4. Use these exact keys: "mealName" (string), "calories" (number), "protein" (number), "carbs" (number), "fats" (number), "ingredients" (array of strings), "instructions" (string).
+        """
+    }
+
+    public static func trainingFuelSuggestionFitsBudget(
+        _ suggestion: MealSuggestion,
+        target: TrainingFuelTarget,
+        dailyRemainingCalories: Double,
+        dailyRemainingProtein: Double,
+        dailyRemainingCarbs: Double,
+        dailyRemainingFat: Double
+    ) -> Bool {
+        let remaining = [
+            dailyRemainingCalories,
+            dailyRemainingProtein,
+            dailyRemainingCarbs,
+            dailyRemainingFat
+        ]
+        let nutrition = [
+            suggestion.calories,
+            suggestion.protein,
+            suggestion.carbs,
+            suggestion.fats
+        ]
+        guard remaining.allSatisfy({ $0.isFinite && $0 >= 0 }),
+              nutrition.allSatisfy({ $0.isFinite && $0 >= 0 }),
+              suggestion.calories > 0 else { return false }
+
+        let calorieCeiling = min(Double(target.calories), floor(dailyRemainingCalories))
+        guard calorieCeiling >= 60, suggestion.calories <= calorieCeiling else { return false }
+
+        let proteinFlex = max(5, Double(target.proteinGrams) * 0.2)
+        let carbFlex = max(8, Double(target.carbGrams) * 0.2)
+        let proteinCeiling = min(
+            Double(target.proteinGrams) + proteinFlex,
+            dailyRemainingProtein + 5
+        )
+        let carbCeiling = min(
+            Double(target.carbGrams) + carbFlex,
+            dailyRemainingCarbs + 8
+        )
+        guard suggestion.protein <= proteinCeiling,
+              suggestion.carbs <= carbCeiling,
+              suggestion.fats <= dailyRemainingFat else { return false }
+
+        let macroCalories = suggestion.protein * 4 + suggestion.carbs * 4 + suggestion.fats * 9
+        let mismatchTolerance = max(25, suggestion.calories * 0.15)
+        return abs(macroCalories - suggestion.calories) <= mismatchTolerance
+    }
+
     /// Extracts the JSON object from an AI response that may be wrapped in markdown fences
     /// or stray prose. json_object mode usually prevents this, but the decode path must
     /// not die on a ```json fence.

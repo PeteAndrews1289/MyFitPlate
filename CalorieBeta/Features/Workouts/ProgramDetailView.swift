@@ -12,6 +12,7 @@ struct ProgramDetailView: View {
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService
+    @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
 
     @State private var nextRoutineToPlay: WorkoutRoutine?
     @State private var calendarRoutineToPlay: WorkoutRoutine?
@@ -185,6 +186,9 @@ struct ProgramDetailView: View {
                         onSkipTo: { target in
                             Task {
                                 if let updated = await workoutService.skipToIndex(target, in: program) {
+                                    if updated.currentProgressIndex != program.currentProgressIndex {
+                                        recordTrainingFuelSkip(for: program)
+                                    }
                                     program = updated
                                 }
                             }
@@ -238,6 +242,7 @@ struct ProgramDetailView: View {
             .environmentObject(dailyLogService)
             .environmentObject(workoutService)
             .environmentObject(achievementService)
+            .environmentObject(trainingFuelPlanStore)
         }
         .fullScreenCover(item: $calendarRoutineToPlay) { routine in
             WorkoutPlayerView(routine: routine) {
@@ -247,6 +252,7 @@ struct ProgramDetailView: View {
                 .environmentObject(dailyLogService)
                 .environmentObject(workoutService)
                 .environmentObject(achievementService)
+                .environmentObject(trainingFuelPlanStore)
         }
         .sheet(item: $reviewLog) { log in
             NavigationStack {
@@ -282,6 +288,25 @@ struct ProgramDetailView: View {
             }
             await refreshSessionLogs(for: savedProgram, expectingAtLeast: expectedLogCount)
         }
+    }
+
+    private func recordTrainingFuelSkip(for program: WorkoutProgram) {
+        let index = program.currentProgressIndex ?? 0
+        guard !program.routines.isEmpty else { return }
+        let routine = program.routines[index % program.routines.count]
+        let today = dailyLogService.currentDailyLog.flatMap { log in
+            Calendar.current.isDateInToday(log.date) ? log : nil
+        }
+        guard trainingFuelPlanStore.recordProgramSkip(
+            programID: program.id,
+            routineID: routine.id,
+            today: today,
+            for: DIContainer.shared.authService.currentUserID
+        ) else { return }
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.trainingFuelSessionOutcome.rawValue,
+            parameters: ["outcome": "skipped", "source": "program_skip"]
+        )
     }
 
     private func refreshSessionLogs(for program: WorkoutProgram, expectingAtLeast expectedCount: Int? = nil) async {

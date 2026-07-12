@@ -134,6 +134,23 @@ final class FoodSearchRankingTests: XCTestCase {
         XCTAssertEqual(merged.map(\.id), ["111", "222", "usda_2"], "Name collisions defer to FatSecret; distinct USDA appends")
     }
 
+    func testMergedResultsPreferRicherExactNameCollision() {
+        let fatSecret = [FoodItem(id: "111", name: "Banana Raw", calories: 89)]
+        let usda = [FoodItem(
+            id: "usda_1",
+            name: "Banana Raw",
+            calories: 89,
+            calcium: 5,
+            potassium: 358,
+            vitaminC: 8.7
+        )]
+
+        let merged = FoodSearchRanking.mergedSearchResults(fatSecret: fatSecret, usda: usda)
+
+        XCTAssertEqual(merged.map(\.id), ["usda_1"])
+        XCTAssertEqual(merged.first?.reportedMicronutrientCount, 3)
+    }
+
     func testMergedResultsCapUSDAAdditions() {
         let usda = (0..<20).map { FoodItem(id: "usda_\($0)", name: "Food \($0)", calories: 100) }
         let merged = FoodSearchRanking.mergedSearchResults(fatSecret: [], usda: usda, usdaLimit: 8)

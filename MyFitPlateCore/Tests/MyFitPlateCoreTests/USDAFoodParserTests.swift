@@ -43,8 +43,8 @@ final class USDAFoodParserTests: XCTestCase {
         XCTAssertEqual(item.servingWeight, 50, accuracy: 0.001)
     }
 
-    func testZeroValuedOptionalNutrientBecomesNilAndDefaultServing() throws {
-        // No serving info => 100 g default, scale 1.0; a 0-valued optional nutrient => nil.
+    func testZeroValuedOptionalNutrientRemainsReportedAndUsesDefaultServing() throws {
+        // No serving info => 100 g default, scale 1.0; a reported zero remains distinct from nil.
         let json = """
         {"foods": [{"fdcId": 999, "description": "Plain Thing",
           "foodNutrients": [
@@ -56,7 +56,8 @@ final class USDAFoodParserTests: XCTestCase {
         XCTAssertEqual(item.calories, 100, accuracy: 0.001)
         XCTAssertEqual(item.servingSize, "100 g")
         XCTAssertEqual(item.servingWeight, 100, accuracy: 0.001)
-        XCTAssertNil(item.calcium)  // 0 filtered out
+        XCTAssertNotNil(item.calcium)
+        XCTAssertEqual(item.calcium, 0)
     }
 
     func testServingDescriptionFromSizeWhenNoHouseholdText() throws {

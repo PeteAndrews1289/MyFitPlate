@@ -63,6 +63,24 @@ Use the following screen and file pairs:
 | `reports` | `8.png` |
 | `quick-log` | `alternate-quick-log.png` |
 | `settings` | UI-verification target only; not in the primary gallery |
+| `runs` | Replacement 2.2 deterministic Running history fixture |
+
+Custom-product-page aliases resolve to the same deterministic destinations:
+
+| CPP argument | Destination |
+|--------------|-------------|
+| `cpp-trust` | Trust detail |
+| `cpp-logging` | Food Search |
+| `cpp-dining` | Fast Food Builder |
+| `cpp-strength` | Train |
+| `cpp-running` | Running history with fixture runs |
+| `cpp-weight` | Reports |
+| `cpp-meal-plan` | Meal Plan |
+
+The Running fixture bypasses HealthKit only in Debug screenshot mode. It supplies four
+deterministic runs with splits, route availability, heart-rate summaries, and mixed source
+badges so a custom Running page never captures a permission prompt, loading spinner, empty
+state, or personal workout history.
 
 Wait at least 20 seconds for each destination to settle before capturing. This also
 lets translucent tab-bar layers become fully opaque in the simulator screenshot's
@@ -95,3 +113,7 @@ writes RGB PNG files to `tools/screenshots/output/`.
 Before uploading, visually inspect all 16 outputs at full size and confirm the exact
 pixel dimensions. Upload the 6.9-inch set first; keep the 6.5-inch set available where
 App Store Connect requests it.
+
+Custom product pages can reorder the approved default images immediately. New Running
+screens still need dedicated captions and composition before publication; the raw
+`cpp-running` fixture is a repeatable source, not a finished App Store asset by itself.

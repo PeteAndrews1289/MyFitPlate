@@ -42,7 +42,7 @@ jobs:
           EOF
 
       - name: Run SwiftLint
-        run: swiftlint lint --quiet
+        run: swiftlint lint --strict --quiet
 
       - name: Resolve Swift packages
         run: |
@@ -55,7 +55,7 @@ jobs:
 
       - name: Check Core coverage floor
         env:
-          CORE_COVERAGE_MINIMUM: "70.0"
+          CORE_COVERAGE_MINIMUM: "80.0"
         run: ./scripts/check_core_coverage.sh
 
       - name: Run unit tests
@@ -139,15 +139,15 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: functions/package-lock.json
 
-      - name: Build and audit Functions
+      - name: Test, build, and audit Functions
         working-directory: functions
         run: |
           npm ci
-          npm run build
+          npm test
           npm audit --omit=dev --audit-level=moderate
 
   firebase-rules:

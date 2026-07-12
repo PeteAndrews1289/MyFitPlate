@@ -12,8 +12,8 @@ public class USDAFoodAPIService {
         apiKey = (plistKey?.isEmpty == false && plistKey != "$(USDA_API_KEY)") ? plistKey : nil
     }
 
-    // Text search — Foundation + SR Legacy data types (whole foods, ingredients).
-    // FatSecret covers branded foods, so USDA complements with raw/cooked whole-food data.
+    // Text search — lab/reference foods plus FNDDS prepared-food records.
+    // FatSecret covers branded foods, so USDA complements it with richer nutrient panels.
     public func searchFoods(query: String) async -> [FoodItem] {
         guard let apiKey else { return [] }
         guard var components = URLComponents(string: "\(baseURL)/foods/search") else { return [] }
@@ -21,7 +21,7 @@ public class USDAFoodAPIService {
             URLQueryItem(name: "query", value: query),
             URLQueryItem(name: "api_key", value: apiKey),
             URLQueryItem(name: "pageSize", value: "20"),
-            URLQueryItem(name: "dataType", value: "Foundation,SR Legacy")
+            URLQueryItem(name: "dataType", value: "Foundation,SR Legacy,Survey (FNDDS)")
         ]
         guard let url = components.url else { return [] }
         do {
@@ -62,7 +62,7 @@ public class USDAFoodAPIService {
 }
 
 /// Pure, testable parsing of a USDA FoodData Central search response into `FoodItem`s.
-/// Extracted from the network call so the per-serving scaling, zero-filtering and name/serving
+/// Extracted from the network call so the per-serving scaling, unit conversion and name/serving
 /// cleanup can be unit-tested without hitting the network.
 public enum USDAFoodParser {
     public static func foodItems(from data: Data) throws -> [FoodItem] {
@@ -99,7 +99,10 @@ public enum USDAFoodParser {
         let scale = servingGrams / 100.0
 
         func v(_ num: String) -> Double { (nutrients[num] ?? 0) * scale }
-        func o(_ num: String) -> Double? { nutrients[num].map { $0 * scale }.flatMap { $0 > 0 ? $0 : nil } }
+        func o(_ num: String, multiplier: Double = 1) -> Double? {
+            guard let value = nutrients[num], value.isFinite, value >= 0 else { return nil }
+            return value * scale * multiplier
+        }
 
         let servingDescription: String
         if let hh = food.householdServingFullText, !hh.isEmpty {
@@ -136,7 +139,8 @@ public enum USDAFoodParser {
             iron: o("303"),
             potassium: o("306"),
             sodium: o("307"),
-            vitaminA: o("318"),
+            // FoodItem uses mcg RAE. Nutrient 318 is IU and cannot be relabeled as mcg.
+            vitaminA: o("320"),
             vitaminC: o("401"),
             vitaminD: o("328"),
             vitaminB12: o("418"),
@@ -144,7 +148,8 @@ public enum USDAFoodParser {
             magnesium: o("304"),
             phosphorus: o("305"),
             zinc: o("309"),
-            copper: o("312"),
+            // USDA reports copper in mg; FoodItem's established display/goal unit is mcg.
+            copper: o("312", multiplier: 1_000),
             manganese: o("315"),
             selenium: o("317"),
             vitaminB1: o("404"),

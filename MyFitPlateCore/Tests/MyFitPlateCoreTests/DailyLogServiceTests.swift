@@ -8,12 +8,18 @@ final class DailyLogServiceTests: XCTestCase {
     var mockRepo: MockNutritionRepository!
     var goalSettings: GoalSettings!
     var bannerService: BannerService!
+    var mockCrashManager: MockCrashManager!
+    var mockAnalyticsManager: MockAnalyticsManager!
     
     override func setUp() {
         super.setUp()
         mockRepo = MockNutritionRepository()
         DIContainer.shared.nutritionRepository = mockRepo
         DIContainer.shared.authService = MockAuthService() // Assumes there's a MockAuthService
+        mockCrashManager = MockCrashManager()
+        mockAnalyticsManager = MockAnalyticsManager()
+        DIContainer.shared.crashManager = mockCrashManager
+        DIContainer.shared.analyticsManager = mockAnalyticsManager
         
         service = DailyLogService()
         goalSettings = GoalSettings()
@@ -230,6 +236,42 @@ final class DailyLogServiceTests: XCTestCase {
 
         try? await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertNil(mockRepo.lastUpdatedLog)
+        XCTAssertEqual(
+            mockCrashManager.recordedErrors.first?.userInfo["release_health_operation"] as? String,
+            "daily_log_mutation"
+        )
+        XCTAssertEqual(mockCrashManager.recordedErrors.first?.userInfo["stage"] as? String, "prepare")
+    }
+
+    func testRejectedDailyLogWriteRecordsOperationTaggedNonFatal() async {
+        let date = Calendar.current.startOfDay(for: Date())
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: []))
+        mockRepo.updateLogSuccess = false
+
+        service.addFoodToLog(
+            for: "user",
+            date: date,
+            mealName: "Lunch",
+            foodItem: FoodItem(id: "f1", name: "Apple", calories: 95),
+            source: "quick_log"
+        )
+
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(mockCrashManager.recordedErrors.count, 1)
+        XCTAssertEqual(
+            mockCrashManager.recordedErrors.first?.userInfo["release_health_area"] as? String,
+            "nutrition"
+        )
+        XCTAssertEqual(
+            mockCrashManager.recordedErrors.first?.userInfo["release_health_operation"] as? String,
+            "daily_log_mutation"
+        )
+        XCTAssertEqual(mockCrashManager.recordedErrors.first?.userInfo["stage"] as? String, "persist")
+        XCTAssertEqual(
+            mockAnalyticsManager.loggedEvents.first?.name,
+            ProductAnalytics.Event.nonfatalErrorRecorded.rawValue
+        )
     }
 
     func testUpdateFoodMissingItemSkipsUpdate() async {

@@ -177,19 +177,7 @@ final class NotificationManagerSchedulingTests: XCTestCase {
         XCTAssertTrue(center.addedRequests.isEmpty)
     }
 
-    // MARK: Smart nudge + interval notifications
-
-    func testSmartNudgeReplacesPreviousAndConvertsHoursToSeconds() throws {
-        manager.scheduleSmartNudge(title: "Dinner idea", body: "Fits your macros.", delayHours: 2.5)
-
-        XCTAssertEqual(center.removedIdentifierBatches.first, ["smart_ai_nudge"], "Nudges must not stack")
-        let request = try XCTUnwrap(center.addedRequests.first)
-        XCTAssertEqual(request.identifier, "smart_ai_nudge")
-        XCTAssertEqual(request.content.title, "Dinner idea")
-        let trigger = try XCTUnwrap(request.trigger as? UNTimeIntervalNotificationTrigger)
-        XCTAssertEqual(trigger.timeInterval, 9000, accuracy: 0.01)
-        XCTAssertFalse(trigger.repeats)
-    }
+    // MARK: Interval notifications
 
     func testIntervalNotificationCarriesTypeContent() throws {
         manager.scheduleIntervalNotification(.encouragement, timeInterval: 3600, repeats: false)
@@ -277,6 +265,144 @@ final class NotificationManagerSchedulingTests: XCTestCase {
         manager.clearNotificationBadge()
         XCTAssertEqual(center.badgeCounts, [0])
     }
+
+    func testTrainingFuelSyncSchedulesAtMostTwoAndDoesNotStackOnRefresh() throws {
+        center.status = .authorized
+        let now = utcDate(hour: 8)
+        let preferences = TrainingFuelNotificationPreferences(
+            preSessionEnabled: true,
+            eveningCatchUpEnabled: true
+        )
+        let log = DailyLog(
+            date: now,
+            meals: [Meal(name: "Breakfast", foodItems: [FoodItem(name: "Meal", calories: 500, protein: 20)])]
+        )
+        let plan = notificationPlan(start: utcDate(hour: 12), confirmedAt: now)
+
+        manager.syncTrainingFuelNotifications(
+            preferences: preferences,
+            plan: plan,
+            today: log,
+            goals: notificationGoals,
+            now: now,
+            calendar: utcCalendar
+        )
+
+        XCTAssertEqual(center.addedRequests.count, 2)
+        XCTAssertEqual(Set(center.addedRequests.map(\.identifier)).count, 2)
+        XCTAssertTrue(center.addedRequests.allSatisfy { $0.content.userInfo["deep_link"] != nil })
+
+        manager.syncTrainingFuelNotifications(
+            preferences: preferences,
+            plan: plan,
+            today: log,
+            goals: notificationGoals,
+            now: now,
+            calendar: utcCalendar
+        )
+        XCTAssertEqual(center.addedRequests.count, 2, "An unchanged refresh must not schedule duplicates")
+    }
+
+    func testNewerTrainingFuelSyncWinsWhenAuthorizationCallbacksReturnOutOfOrder() throws {
+        center.status = .authorized
+        center.defersAuthorizationStatus = true
+        let now = utcDate(hour: 8)
+        let preferences = TrainingFuelNotificationPreferences(preSessionEnabled: true)
+
+        manager.syncTrainingFuelNotifications(
+            preferences: preferences,
+            plan: notificationPlan(start: utcDate(hour: 12), confirmedAt: now),
+            today: nil,
+            goals: notificationGoals,
+            now: now,
+            calendar: utcCalendar
+        )
+        manager.syncTrainingFuelNotifications(
+            preferences: preferences,
+            plan: notificationPlan(start: utcDate(hour: 14), confirmedAt: now),
+            today: nil,
+            goals: notificationGoals,
+            now: now,
+            calendar: utcCalendar
+        )
+
+        XCTAssertEqual(center.deferredAuthorizationStatusCount, 2)
+        center.resolveDeferredAuthorizationStatuses(newestFirst: true)
+
+        let request = try XCTUnwrap(center.addedRequests.first)
+        let trigger = try XCTUnwrap(request.trigger as? UNCalendarNotificationTrigger)
+        XCTAssertEqual(center.addedRequests.count, 1)
+        XCTAssertEqual(trigger.dateComponents.hour, 12)
+        XCTAssertEqual(trigger.dateComponents.minute, 45)
+    }
+
+    func testTrainingFuelDisableRemovesEveryTypeAndLegacyNudge() {
+        center.status = .authorized
+        manager.syncTrainingFuelNotifications(
+            preferences: TrainingFuelNotificationPreferences(),
+            plan: nil,
+            today: nil,
+            goals: notificationGoals
+        )
+
+        XCTAssertTrue(center.removedIdentifierBatches.contains(["smart_ai_nudge"]))
+        XCTAssertTrue(center.removedIdentifierBatches.contains(
+            TrainingFuelNotificationCandidate.Kind.allCases.map(\.identifier)
+        ))
+        XCTAssertTrue(center.addedRequests.isEmpty)
+    }
+
+    private var utcCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private var notificationGoals: TodayFuelPlanGoals {
+        TodayFuelPlanGoals(calories: 2_000, protein: 120, carbs: 240, fats: 70)
+    }
+
+    private func utcDate(hour: Int, minute: Int = 0) -> Date {
+        utcCalendar.date(from: DateComponents(
+            year: 2026,
+            month: 7,
+            day: 11,
+            hour: hour,
+            minute: minute
+        ))!
+    }
+
+    private func notificationPlan(start: Date, confirmedAt: Date) -> TrainingFuelConfirmedPlan {
+        let draft = TrainingFuelPlanDraft(
+            candidate: TrainingFuelSessionAdapter.manualCandidate(kind: .strength),
+            scheduledAt: start,
+            durationMinutes: 60,
+            intensity: .hard,
+            strengthFocus: .lowerBody,
+            preference: TrainingFuelPreference()
+        )
+        let plannerPlan = TrainingFuelPlannerPlan(
+            status: .ready,
+            normalizedDurationMinutes: 60,
+            normalizedIntensity: .hard,
+            minutesUntilSession: 180,
+            remainingCalories: 1_200,
+            remainingProteinGrams: 100,
+            remainingCarbGrams: 160,
+            allocations: [
+                TrainingFuelAllocation(phase: .beforeTraining, timing: .thirtyTo120Minutes, proteinGrams: 15, carbGrams: 35),
+                TrainingFuelAllocation(phase: .afterTraining, timing: .afterSession, proteinGrams: 25, carbGrams: 45)
+            ],
+            notes: []
+        )
+        return TrainingFuelConfirmedPlan(
+            draft: draft,
+            plannerPlan: plannerPlan,
+            goals: notificationGoals,
+            today: DailyLog(date: start, meals: []),
+            confirmedAt: confirmedAt
+        )
+    }
 }
 
 // MARK: - Fake center
@@ -287,19 +413,35 @@ private final class FakeNotificationCenter: UserNotificationScheduling, @uncheck
     var status: UNAuthorizationStatus = .notDetermined
     var grantOnRequest = true
     var onAdd: ((UNNotificationRequest) -> Void)?
+    var defersAuthorizationStatus = false
 
     private var _authorizationRequests: [UNAuthorizationOptions] = []
+    private var _authorizationStatusCompletions: [(UNAuthorizationStatus) -> Void] = []
     private var _addedRequests: [UNNotificationRequest] = []
     private var _removedIdentifierBatches: [[String]] = []
     private var _badgeCounts: [Int] = []
 
     var authorizationRequests: [UNAuthorizationOptions] { lock.withLock { _authorizationRequests } }
+    var deferredAuthorizationStatusCount: Int { lock.withLock { _authorizationStatusCompletions.count } }
     var addedRequests: [UNNotificationRequest] { lock.withLock { _addedRequests } }
     var removedIdentifierBatches: [[String]] { lock.withLock { _removedIdentifierBatches } }
     var badgeCounts: [Int] { lock.withLock { _badgeCounts } }
 
     func authorizationStatus(completion: @escaping (UNAuthorizationStatus) -> Void) {
+        if defersAuthorizationStatus {
+            lock.withLock { _authorizationStatusCompletions.append(completion) }
+            return
+        }
         completion(status)
+    }
+
+    func resolveDeferredAuthorizationStatuses(newestFirst: Bool) {
+        let completions = lock.withLock {
+            let callbacks = _authorizationStatusCompletions
+            _authorizationStatusCompletions.removeAll()
+            return newestFirst ? Array(callbacks.reversed()) : callbacks
+        }
+        completions.forEach { $0(status) }
     }
 
     func requestAuthorization(options: UNAuthorizationOptions, completion: @escaping (Bool, Error?) -> Void) {

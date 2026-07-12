@@ -25,6 +25,21 @@ public enum AccountDeletionError: LocalizedError {
             return "Your data was removed, but the login couldn't be deleted. Please sign out, sign back in, and delete again."
         }
     }
+
+    public var analyticsReason: String {
+        switch self {
+        case .missingCurrentUser:
+            return "missing_user"
+        case .emptyPassword:
+            return "empty_password"
+        case .reauthenticationFailed:
+            return "reauthentication"
+        case .dataDeletionFailed:
+            return "server_data_deletion"
+        case .authDeletionFailed:
+            return "authentication_deletion"
+        }
+    }
 }
 
 public protocol AccountDeletionServicing: Sendable {

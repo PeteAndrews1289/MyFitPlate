@@ -289,6 +289,28 @@ struct FoodSearchEmptyState: View {
     let icon: String
     let title: String
     let message: String
+    let primaryActionTitle: String?
+    let primaryAction: (() -> Void)?
+    let secondaryActionTitle: String?
+    let secondaryAction: (() -> Void)?
+
+    init(
+        icon: String,
+        title: String,
+        message: String,
+        primaryActionTitle: String? = nil,
+        primaryAction: (() -> Void)? = nil,
+        secondaryActionTitle: String? = nil,
+        secondaryAction: (() -> Void)? = nil
+    ) {
+        self.icon = icon
+        self.title = title
+        self.message = message
+        self.primaryActionTitle = primaryActionTitle
+        self.primaryAction = primaryAction
+        self.secondaryActionTitle = secondaryActionTitle
+        self.secondaryAction = secondaryAction
+    }
 
     var body: some View {
         VStack(spacing: 11) {
@@ -308,6 +330,25 @@ struct FoodSearchEmptyState: View {
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let primaryActionTitle, let primaryAction {
+                VStack(spacing: 8) {
+                    Button(primaryActionTitle, action: primaryAction)
+                        .appFont(size: 15, weight: .bold)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.brandPrimary)
+                        .controlSize(.large)
+
+                    if let secondaryActionTitle, let secondaryAction {
+                        Button(secondaryActionTitle, action: secondaryAction)
+                            .appFont(size: 14, weight: .bold)
+                            .foregroundColor(.brandPrimary)
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 4)
+                    }
+                }
+                .padding(.top, 4)
             }
         }
         .frame(maxWidth: .infinity)

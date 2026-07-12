@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4B5BEE242E1EE5A500EF366C /* MyFitPlateWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = E7659EAD2E7A263BBC681565 /* MyFitPlateWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		02FA4AF952FDA646780FFC99 /* HealthActivityCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 474393F656E359C15028DD41 /* HealthActivityCard.swift */; };
 		035E97655B630DBAC9C29290 /* FirestoreDatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB95651294D4A7D538913023 /* FirestoreDatabaseService.swift */; };
 		086975417A5AC78E43FCB812 /* PostRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CC190EEE53A5F355CAED792 /* PostRowView.swift */; };
@@ -159,6 +160,8 @@
 		B10000000000000000000006 /* NutritionAuditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000006 /* NutritionAuditView.swift */; };
 		B10000000000000000000007 /* HomeSwipeableRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000007 /* HomeSwipeableRows.swift */; };
 		B10000000000000000000008 /* ShimmerModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000008 /* ShimmerModifier.swift */; };
+		B23000000000000000000001 /* TrainingFuelPlannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000001 /* TrainingFuelPlannerView.swift */; };
+		B23000000000000000000002 /* TrainingFuelTargetContextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000002 /* TrainingFuelTargetContextView.swift */; };
 		B240FB7DB053BE65F6ED7E5B /* ProgramCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25DBAC08245DF730F4A57058 /* ProgramCreatorView.swift */; };
 		B3490F4AF6B8367BA0EE972E /* GroceryListRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDBF64359556D6DA0B848C78 /* GroceryListRows.swift */; };
 		B3766EBB4E84B3A67F2838B1 /* WorkoutPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2781B8ECF8FB8D8FBC67FE8 /* WorkoutPlayerViewModel.swift */; };
@@ -276,6 +279,7 @@
 			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
 			dstSubfolderSpec = 16;
 			files = (
+				4B5BEE242E1EE5A500EF366C /* MyFitPlateWatch Watch App.app in Embed Watch Content */,
 			);
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -489,6 +493,8 @@
 		F10000000000000000000007 /* HomeSwipeableRows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeSwipeableRows.swift; sourceTree = "<group>"; };
 		F10000000000000000000008 /* ShimmerModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShimmerModifier.swift; sourceTree = "<group>"; };
 		F1E2D3C4B5A60718293A4B5C /* ShoeGearManagerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoeGearManagerView.swift; sourceTree = "<group>"; };
+		F23000000000000000000001 /* TrainingFuelPlannerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrainingFuelPlannerView.swift; sourceTree = "<group>"; };
+		F23000000000000000000002 /* TrainingFuelTargetContextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrainingFuelTargetContextView.swift; sourceTree = "<group>"; };
 		F63BD33A24942200DB828B77 /* AISummaryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AISummaryView.swift; sourceTree = "<group>"; };
 		F95DB8CA120BD855D269D6AE /* HomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		F99B0ADD63EACCE1DE4D43C9 /* FirestoreSeeder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreSeeder.swift; sourceTree = "<group>"; };
@@ -768,6 +774,7 @@
 				A411836458D36A8BCD415382 /* MainAppView.swift */,
 				53B7A21F718ECDDA786A5100 /* MainTabView.swift */,
 				F95DB8CA120BD855D269D6AE /* HomeView.swift */,
+				F23000000000000000000001 /* TrainingFuelPlannerView.swift */,
 				F10000000000000000000001 /* HomeQuickActionsView.swift */,
 				F10000000000000000000002 /* HomeWeightTrackingCard.swift */,
 				4BD3DB29E78F7C168EF51C1B /* WeeklyRecapView.swift */,
@@ -848,6 +855,7 @@
 				DC1F5B229026F1A5C431DEB6 /* SpotlightTourOverlay.swift */,
 				CF3A6CA74E6FFA34BDA1F2CB /* SpotlightTourScaffold.swift */,
 				F10000000000000000000008 /* ShimmerModifier.swift */,
+				F23000000000000000000002 /* TrainingFuelTargetContextView.swift */,
 				C87AC13F07BFBD311A555528 /* MaiaAvatarView.swift */,
 				9A85896DAB83742D73007634 /* PDFShareView.swift */,
 				16452663171ACDF10A869684 /* DetailedInsightsView.swift */,
@@ -1418,6 +1426,7 @@
 				DE2AD91146AB04CA9EE80377 /* MainAppView.swift in Sources */,
 				9B789140A83C3CFC871CD982 /* MainTabView.swift in Sources */,
 				84940528533254B02ECEFE50 /* HomeView.swift in Sources */,
+				B23000000000000000000001 /* TrainingFuelPlannerView.swift in Sources */,
 				B10000000000000000000001 /* HomeQuickActionsView.swift in Sources */,
 				B10000000000000000000002 /* HomeWeightTrackingCard.swift in Sources */,
 				9A744407266AED50FC9CFE18 /* WeeklyRecapView.swift in Sources */,
@@ -1427,6 +1436,7 @@
 				B10000000000000000000006 /* NutritionAuditView.swift in Sources */,
 				B10000000000000000000007 /* HomeSwipeableRows.swift in Sources */,
 				B10000000000000000000008 /* ShimmerModifier.swift in Sources */,
+				B23000000000000000000002 /* TrainingFuelTargetContextView.swift in Sources */,
 				74A84ACA5D2B3AEC03641AFE /* CoachingDashboardView.swift in Sources */,
 				5B1F531DDD59042C77847EA3 /* WeeklyCheckInView.swift in Sources */,
 				BF285DAE3EB6B114ACF5A38C /* AIJournalSheet.swift in Sources */,
@@ -1701,7 +1711,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = CalorieBeta/CalorieBeta.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"CalorieBeta/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
@@ -1754,7 +1764,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = CalorieBeta/CalorieBeta.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"CalorieBeta/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
@@ -1806,7 +1816,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = CalorieWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieWidget/Info.plist;
@@ -1836,7 +1846,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = CalorieWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CalorieWidget;
@@ -1865,7 +1875,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_ASSET_PATHS = "\"MyFitPlateWatch Watch App/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
@@ -1895,7 +1905,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "\"MyFitPlateWatch Watch App/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -2021,7 +2031,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LiveActivity/Info.plist;
@@ -2054,7 +2064,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LiveActivity/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = LiveActivity;

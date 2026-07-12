@@ -4,10 +4,10 @@ import Foundation
 /// (onboarding_completed -> first_food_logged -> first_workout_completed) is the clearest
 /// signal of where new users drop off. Each event fires at most once per install.
 public enum ActivationFunnel {
-    public static let onboardingCompleted = "onboarding_completed"
-    public static let firstFoodLogged = "first_food_logged"
-    public static let firstWorkoutCompleted = "first_workout_completed"
-    public static let nutritionTrainingLoopCompleted = "nutrition_training_loop_completed"
+    public static let onboardingCompleted = ProductAnalytics.Event.onboardingCompleted.rawValue
+    public static let firstFoodLogged = ProductAnalytics.Event.firstFoodLogged.rawValue
+    public static let firstWorkoutCompleted = ProductAnalytics.Event.firstWorkoutCompleted.rawValue
+    public static let nutritionTrainingLoopCompleted = ProductAnalytics.Event.nutritionTrainingLoopCompleted.rawValue
 
     private static let onboardingCompletedAtKey = "activation_funnel_onboarding_completed_at"
 
@@ -15,7 +15,8 @@ public enum ActivationFunnel {
     public static func logOnce(
         _ eventName: String,
         now: Date = Date(),
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        parameters: [String: Any] = [:]
     ) {
         let key = "activation_funnel_" + eventName
         if !userDefaults.bool(forKey: key) {
@@ -25,15 +26,54 @@ public enum ActivationFunnel {
             userDefaults.set(true, forKey: key)
             DIContainer.shared.analyticsManager?.logEvent(
                 eventName,
-                parameters: eventName == onboardingCompleted
-                    ? nil
-                    : elapsedParameters(now: now, userDefaults: userDefaults)
+                parameters: eventParameters(
+                    eventName: eventName,
+                    now: now,
+                    userDefaults: userDefaults,
+                    additional: parameters
+                )
             )
         }
 
         if eventName == firstFoodLogged || eventName == firstWorkoutCompleted {
             logNutritionTrainingLoopIfReady(now: now, userDefaults: userDefaults)
         }
+    }
+
+    /// Records every in-app training completion while preserving the existing one-shot
+    /// activation milestone. Imported historical HealthKit workouts intentionally do not
+    /// count as an in-app completion.
+    @MainActor
+    public static func recordTrainingCompletion(
+        _ mode: ProductAnalytics.TrainingMode,
+        now: Date = Date(),
+        userDefaults: UserDefaults = .standard
+    ) {
+        let dimensions: [String: Any] = ["training_mode": mode.rawValue]
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.trainingSessionCompleted.rawValue,
+            parameters: dimensions
+        )
+        logOnce(
+            firstWorkoutCompleted,
+            now: now,
+            userDefaults: userDefaults,
+            parameters: dimensions
+        )
+    }
+
+    private static func eventParameters(
+        eventName: String,
+        now: Date,
+        userDefaults: UserDefaults,
+        additional: [String: Any]
+    ) -> [String: Any]? {
+        var parameters = additional
+        if eventName != onboardingCompleted,
+           let elapsed = elapsedParameters(now: now, userDefaults: userDefaults) {
+            parameters.merge(elapsed) { _, new in new }
+        }
+        return parameters.isEmpty ? nil : parameters
     }
 
     private static func elapsedParameters(

@@ -192,6 +192,16 @@
         }
       }
     },
+    "%@ at %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ at %2$@"
+          }
+        }
+      }
+    },
     "%@ cal" : {
 
     },
@@ -436,16 +446,6 @@
         }
       }
     },
-    "%lld %@ an all-time best this week." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld %2$@ an all-time best this week."
-          }
-        }
-      }
-    },
     "%lld %@ logged" : {
       "localizations" : {
         "en" : {
@@ -572,6 +572,16 @@
         }
       }
     },
+    "%lld of %lld vitamins and minerals reported. Missing values are unknown, not zero." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld vitamins and minerals reported. Missing values are unknown, not zero."
+          }
+        }
+      }
+    },
     "%lld of %lld workouts complete" : {
       "localizations" : {
         "en" : {
@@ -591,6 +601,9 @@
           }
         }
       }
+    },
+    "%lld percent" : {
+
     },
     "%lld planned %@." : {
       "localizations" : {
@@ -1027,9 +1040,6 @@
     "Added: %@" : {
 
     },
-    "Adding up your week" : {
-
-    },
     "Adding…" : {
 
     },
@@ -1048,7 +1058,16 @@
     "Adjusted for how hard you trained each muscle and your recent sleep." : {
 
     },
+    "After" : {
+
+    },
+    "After Training" : {
+
+    },
     "Age" : {
+
+    },
+    "Aggregate weekly data from MyFitPlate. Routes, food names, account details, and raw heart-rate samples are not included." : {
 
     },
     "AI data sharing" : {
@@ -1138,6 +1157,9 @@
     "Ask Maia anything" : {
 
     },
+    "Ask Maia for an Idea" : {
+
+    },
     "Assistant tone" : {
 
     },
@@ -1159,6 +1181,9 @@
     "Auto-Rest Timer" : {
 
     },
+    "Available After Training" : {
+
+    },
     "Available Equipment" : {
 
     },
@@ -1175,6 +1200,9 @@
 
     },
     "Averages (%@)" : {
+
+    },
+    "Averages exclude days when food sources did not report that nutrient. Missing values are not counted as zero." : {
 
     },
     "Avg intake (21d)" : {
@@ -1235,6 +1263,15 @@
     "Bedtime Consistency" : {
 
     },
+    "Before" : {
+
+    },
+    "Before training" : {
+
+    },
+    "Before Training" : {
+
+    },
     "Beta Feature: Results may not be 100% accurate." : {
 
     },
@@ -1275,6 +1312,9 @@
 
     },
     "Building your estimate" : {
+
+    },
+    "Building your weekly story" : {
 
     },
     "Bulk ingredients" : {
@@ -1348,9 +1388,6 @@
     "Calories Burned" : {
 
     },
-    "Calories, workouts, and records from the last 7 days" : {
-
-    },
     "Camera, exercise, recipes, buffet, and running" : {
 
     },
@@ -1387,6 +1424,9 @@
     "Check back later" : {
 
     },
+    "Checking training, nutrition, recovery, and comparable history." : {
+
+    },
     "Chef Maia is analyzing" : {
 
     },
@@ -1408,10 +1448,16 @@
     "Choose a slot, then add a recipe to this day's plan. You can still regenerate meals around it later." : {
 
     },
+    "Choose at least one window to create a fuel target." : {
+
+    },
     "Choose different files" : {
 
     },
     "Choose files" : {
+
+    },
+    "Choose Food" : {
 
     },
     "Choose from Library" : {
@@ -1469,6 +1515,9 @@
 
     },
     "Clear timer" : {
+
+    },
+    "Clear training fuel target" : {
 
     },
     "Clear workout history search" : {
@@ -1531,6 +1580,9 @@
     "Confirm password" : {
 
     },
+    "Confirm whether the session was completed or skipped before recovery guidance appears." : {
+
+    },
     "Confirm your password" : {
 
     },
@@ -1574,6 +1626,9 @@
 
     },
     "Create account" : {
+
+    },
+    "Create food" : {
 
     },
     "Create Group" : {
@@ -1785,10 +1840,16 @@
     "Duration" : {
 
     },
+    "Duration could not be derived from this plan. Review it below." : {
+
+    },
     "Duration in minutes, set %lld" : {
 
     },
     "Duration in seconds, set %lld" : {
+
+    },
+    "Duration, effort, and focus are editable estimates." : {
 
     },
     "Duration: %@" : {
@@ -1807,6 +1868,9 @@
 
     },
     "Each scanned product logs as its own entry. Tap to edit a serving, or swipe to remove one." : {
+
+    },
+    "Easy" : {
 
     },
     "Edit" : {
@@ -1837,6 +1901,9 @@
 
     },
     "Edit Workout" : {
+
+    },
+    "Effort" : {
 
     },
     "Effort metric" : {
@@ -1907,6 +1974,12 @@
     "Estimated catalog • updated %@. Brand menus change, so review the meal before logging." : {
 
     },
+    "Evening protein catch-up" : {
+
+    },
+    "Evening reminder" : {
+
+    },
     "Everything visible is checked off" : {
 
     },
@@ -1932,6 +2005,9 @@
 
     },
     "Fast Food" : {
+
+    },
+    "Fast Food Builder" : {
 
     },
     "Fastest: %@" : {
@@ -2018,6 +2094,9 @@
     "Fix this data" : {
 
     },
+    "Food logged elsewhere used the remaining daily budget, so this target was paused." : {
+
+    },
     "Food name" : {
 
     },
@@ -2034,6 +2113,9 @@
 
     },
     "Fueled & Tracked with MyFitPlate" : {
+
+    },
+    "Full Body" : {
 
     },
     "Gear Tagged" : {
@@ -2151,6 +2233,9 @@
     "Groups" : {
 
     },
+    "Hard" : {
+
+    },
     "Headline trend" : {
 
     },
@@ -2158,9 +2243,6 @@
 
     },
     "Heart-rate zones" : {
-
-    },
-    "Here's what the week added up to." : {
 
     },
     "Hide done" : {
@@ -2412,9 +2494,6 @@
     "Log a food and this hub will show source quality, cross-checks, and anything that needs review." : {
 
     },
-    "Log a meal or a workout and next week's recap fills up." : {
-
-    },
     "Log a meal to see your daily split." : {
 
     },
@@ -2517,6 +2596,9 @@
     "Loop Best" : {
 
     },
+    "Lower Body" : {
+
+    },
     "Macro" : {
 
     },
@@ -2595,6 +2677,9 @@
     "Mark %@ incomplete" : {
 
     },
+    "Mark complete" : {
+
+    },
     "Max Level!" : {
 
     },
@@ -2665,7 +2750,13 @@
     "min" : {
 
     },
+    "Mixed" : {
+
+    },
     "Model Name (e.g. Pegasus 40, Clifton 9)" : {
+
+    },
+    "Moderate" : {
 
     },
     "More options" : {
@@ -2692,7 +2783,10 @@
     "My recipes" : {
 
     },
-    "My week with MyFitPlate" : {
+    "My weekly Training & Fuel data" : {
+
+    },
+    "My weekly Training & Fuel report" : {
 
     },
     "MyFitPlate" : {
@@ -2714,6 +2808,9 @@
 
     },
     "MyFitPlate: Weekly insights" : {
+
+    },
+    "N/A" : {
 
     },
     "Name" : {
@@ -2768,6 +2865,9 @@
 
     },
     "No foods logged yet" : {
+
+    },
+    "No foods found" : {
 
     },
     "No grocery list yet" : {
@@ -2857,6 +2957,9 @@
     "Not now" : {
 
     },
+    "Not Sure" : {
+
+    },
     "Nothing logged on this day" : {
 
     },
@@ -2911,6 +3014,9 @@
     "Open grocery list" : {
 
     },
+    "Open Meal Plan" : {
+
+    },
     "Open profile" : {
 
     },
@@ -2933,6 +3039,12 @@
 
     },
     "Opens the nutrition editor for this food." : {
+
+    },
+    "Opens the Trust Hub for today's foods." : {
+
+    },
+    "Opens today's training fuel planner." : {
 
     },
     "Optional Health context" : {
@@ -3014,6 +3126,9 @@
 
     },
     "Plan" : {
+
+    },
+    "Plan Training Fuel" : {
 
     },
     "plans" : {
@@ -3179,6 +3294,9 @@
     "Quick select" : {
 
     },
+    "Quiet hours" : {
+
+    },
     "Range" : {
 
     },
@@ -3252,6 +3370,18 @@
     "Recovery meal" : {
 
     },
+    "Recovery target" : {
+
+    },
+    "Recovery will appear after today's diary finishes loading." : {
+
+    },
+    "Recovery will be calculated after completion so it uses the correct day's remaining goals." : {
+
+    },
+    "Recovery will be calculated after completion using the next day's live goals and diary." : {
+
+    },
     "Recovery: %lld sec" : {
 
     },
@@ -3297,6 +3427,9 @@
     "Remove one %@" : {
 
     },
+    "Remove Plan" : {
+
+    },
     "Remove this meal?" : {
 
     },
@@ -3320,6 +3453,19 @@
     },
     "Report generated on: %@" : {
 
+    },
+    "Report unavailable" : {
+
+    },
+    "Reported on %lld of %lld days" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Reported on %1$lld of %2$lld days"
+          }
+        }
+      }
     },
     "Reports" : {
 
@@ -3378,6 +3524,9 @@
     "Review Food Trust" : {
 
     },
+    "Review Food Trust. Sources, cross-checks, and items to fix." : {
+
+    },
     "Review Health access" : {
 
     },
@@ -3394,6 +3543,9 @@
 
     },
     "Review today" : {
+
+    },
+    "Review Training Fuel" : {
 
     },
     "Review your true TDEE and metabolism trend." : {
@@ -3423,6 +3575,9 @@
     "RPE" : {
 
     },
+    "Run" : {
+
+    },
     "Run complete" : {
 
     },
@@ -3447,6 +3602,9 @@
     "Save Height" : {
 
     },
+    "Save plan" : {
+
+    },
     "Save Program" : {
 
     },
@@ -3466,6 +3624,9 @@
 
     },
     "Saved" : {
+
+    },
+    "Saved fuel plan for %@" : {
 
     },
     "Saved meals ready to log or reuse." : {
@@ -3546,6 +3707,9 @@
     "score" : {
 
     },
+    "Search and Recent Foods" : {
+
+    },
     "Search any exercise" : {
 
     },
@@ -3562,6 +3726,9 @@
 
     },
     "Search recipes or ingredients" : {
+
+    },
+    "Search could not load" : {
 
     },
     "Searching barcode" : {
@@ -3672,7 +3839,13 @@
     "Settings" : {
 
     },
+    "Share data as CSV" : {
+
+    },
     "Share list" : {
+
+    },
+    "Share report" : {
 
     },
     "Share Run Story" : {
@@ -3684,7 +3857,7 @@
     "Share Summary" : {
 
     },
-    "Share your week" : {
+    "Share summary image" : {
 
     },
     "Shoe Details" : {
@@ -3694,6 +3867,9 @@
 
     },
     "Shoe Performance Leaderboard" : {
+
+    },
+    "Shoe wear" : {
 
     },
     "Shopping run" : {
@@ -3742,6 +3918,15 @@
 
     },
     "Skip" : {
+
+    },
+    "Skip session" : {
+
+    },
+    "Skip Session" : {
+
+    },
+    "Skip this session?" : {
 
     },
     "Skip to Here" : {
@@ -3832,6 +4017,9 @@
     "Start run" : {
 
     },
+    "Start Time" : {
+
+    },
     "Start timer" : {
 
     },
@@ -3862,6 +4050,12 @@
 
     },
     "Steps" : {
+
+    },
+    "Strength" : {
+
+    },
+    "Strength, running, recovery, nutrition, and change from the last 7 days" : {
 
     },
     "Suggest another" : {
@@ -3958,6 +4152,9 @@
         }
       }
     },
+    "Targets stay inside today's calorie, protein, and carbohydrate goals. Fat is not prescribed, and Maia ideas remain optional suggestions." : {
+
+    },
     "Tell Maia what you want to make, including portions, ingredients, cuisine, and macro goals if you have them." : {
 
     },
@@ -3968,6 +4165,9 @@
 
     },
     "The fastest ways to capture food and activity." : {
+
+    },
+    "The saved fuel targets will be closed without changing your food log." : {
 
     },
     "The weekly rhythm is preserved, and the first workout is aligned to your chosen start date." : {
@@ -4009,6 +4209,12 @@
     "This run is under 50 meters. Discard it?" : {
 
     },
+    "This session was skipped. No fuel target remains active." : {
+
+    },
+    "This session window has passed. Update or remove the plan." : {
+
+    },
     "This week" : {
 
     },
@@ -4033,6 +4239,9 @@
     "Title" : {
 
     },
+    "to" : {
+
+    },
     "To failure" : {
 
     },
@@ -4046,6 +4255,15 @@
 
     },
     "Today's Best Next Step" : {
+
+    },
+    "Today's calorie target has been reached. Review the day instead of adding fuel." : {
+
+    },
+    "Today's diary contains a value that cannot be verified. Fix the log before using this plan." : {
+
+    },
+    "Today's nutrition targets cannot be verified. Update them before using this plan." : {
 
     },
     "Today's weight" : {
@@ -4066,13 +4284,19 @@
     "Total weight on barbell" : {
 
     },
+    "Totals include only foods whose source reports each nutrient. Missing values are unknown, not zero." : {
+
+    },
     "Track your gear mileage and get alerted when it's time for a replacement." : {
 
     },
-    "Tracked with MyFitPlate" : {
+    "Train" : {
 
     },
-    "Train" : {
+    "Training & Fuel" : {
+
+    },
+    "Training & Fuel report" : {
 
     },
     "Training Calendar" : {
@@ -4084,6 +4308,12 @@
     "Training Focus" : {
 
     },
+    "Training focus, %@" : {
+
+    },
+    "Training Fuel" : {
+
+    },
     "Training Hub" : {
 
     },
@@ -4093,7 +4323,13 @@
     "Training Program" : {
 
     },
+    "Training type" : {
+
+    },
     "Training volume and most frequent activity." : {
+
+    },
+    "Training, recovery, nutrition, and change from the last 7 days" : {
 
     },
     "Transcribing your meal..." : {
@@ -4112,6 +4348,9 @@
 
     },
     "Try a different search or filter. The catalog is built to grow as more training paths are added." : {
+
+    },
+    "Try a simpler search like \"chicken breast\", or create the food yourself." : {
 
     },
     "Try again" : {
@@ -4153,10 +4392,16 @@
     "Update Exercise" : {
 
     },
+    "Update plan" : {
+
+    },
     "Update Schedule" : {
 
     },
     "Update this item's details." : {
+
+    },
+    "Upper Body" : {
 
     },
     "URL" : {
@@ -4220,6 +4465,9 @@
 
     },
     "We need at least 7 days of weight data and 10 days of food logs to confidently adjust your TDEE." : {
+
+    },
+    "We couldn't reach the food databases. Your saved and recent foods still work." : {
 
     },
     "We've analyzed your weight and nutrition data from the past 3 weeks to adjust your metabolism estimate." : {
@@ -4304,6 +4552,9 @@
     "Why this target" : {
 
     },
+    "Window Passed" : {
+
+    },
     "Work goal" : {
 
     },
@@ -4344,6 +4595,9 @@
 
     },
     "Workout Summary" : {
+
+    },
+    "Workout, %@" : {
 
     },
     "Workouts" : {
@@ -4472,14 +4726,21 @@
     "Your true TDEE" : {
 
     },
-    "Your week" : {
-
-    },
     "Your workout is already saved. Trends and coaching notes will appear when ready." : {
 
     },
     "Z%lld" : {
 
+    },
+    "Zone %lld, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Zone %1$lld, %2$@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

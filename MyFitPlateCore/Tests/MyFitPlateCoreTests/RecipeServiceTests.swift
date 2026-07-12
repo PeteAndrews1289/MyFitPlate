@@ -74,7 +74,22 @@ final class RecipeServiceTests: XCTestCase {
     }
     
     func testRecipeToFoodItemConversion() {
-        let recipe = Recipe(id: "r1", name: "Test Recipe", ingredients: [], detailedIngredients: [], instructions: [], nutrition: Nutrition(calories: 500, protein: 30, carbs: 40, fats: 20), servings: 2)
+        let recipe = Recipe(
+            id: "r1",
+            name: "Test Recipe",
+            ingredients: [],
+            detailedIngredients: [],
+            instructions: [],
+            nutrition: Nutrition(
+                calories: 500,
+                protein: 30,
+                carbs: 40,
+                fats: 20,
+                magnesium: 75,
+                vitaminB6: 0.8
+            ),
+            servings: 2
+        )
         
         let foodItem = service.recipeToFoodItem(recipe: recipe)
         
@@ -84,6 +99,8 @@ final class RecipeServiceTests: XCTestCase {
         XCTAssertEqual(foodItem.protein, 30)
         XCTAssertEqual(foodItem.carbs, 40)
         XCTAssertEqual(foodItem.fats, 20)
+        XCTAssertEqual(foodItem.magnesium, 75)
+        XCTAssertEqual(foodItem.vitaminB6, 0.8)
         XCTAssertEqual(foodItem.quantityValue, 1.0)
         XCTAssertEqual(foodItem.servingUnit, "serving")
     }

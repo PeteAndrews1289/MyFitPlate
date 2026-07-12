@@ -1,6 +1,6 @@
 # MyFitPlate Privacy Policy
 
-**Effective date:** July 9, 2026
+**Effective date:** July 12, 2026
 
 MyFitPlate ("we," "our," or "us") provides nutrition, fitness, training, and wellness tools. This policy explains what information MyFitPlate handles, why it is used, when it is shared, and the choices available to you.
 
@@ -12,7 +12,7 @@ MyFitPlate ("we," "our," or "us") provides nutrition, fitness, training, and wel
 - **Apple Health information:** With your Apple Health permission, MyFitPlate may read or write the specific HealthKit categories shown in Apple's permission sheet, including workouts, activity, sleep, heart rate, body measurements, nutrition, and hydration. HealthKit information is never used for advertising or sold to data brokers.
 - **Location information:** Precise location is used only while you actively record an outdoor route. MyFitPlate does not continuously track location in the background outside an active recording.
 - **Photos, camera, microphone, and speech:** Images, audio, or transcribed text you choose to provide for food, menu, nutrition-label, or voice logging.
-- **App diagnostics and usage:** Feature interactions, device and app version, performance information, and crash diagnostics. Analytics are configured without your MyFitPlate account identifier and exclude nutrition, HealthKit, body, and workout values.
+- **App diagnostics and usage:** Feature interactions, a resettable app-instance/device identifier, approximate location derived by Google Analytics, device and app version, performance information, and crash diagnostics. Analytics are configured without your MyFitPlate account identifier and exclude nutrition, HealthKit, body, and workout values. Google states that the IP address used to derive approximate location is discarded before Analytics logs the data.
 
 ## 2. How We Use Information
 

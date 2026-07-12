@@ -1,4 +1,13 @@
 import Foundation
+
+private enum DailyLogMutationFailure: LocalizedError {
+    case persistenceRejected
+
+    var errorDescription: String? {
+        "The nutrition repository rejected a serialized daily-log write."
+    }
+}
+
 @MainActor
 public class DailyLogService: ObservableObject, DailyLogServicing {
     @Published public var currentDailyLog: DailyLog?
@@ -14,6 +23,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     public weak var achievementService: AchievementService?
     public weak var bannerService: BannerService?
     public weak var goalSettings: GoalSettings?
+    public weak var trainingFuelPlanStore: TrainingFuelPlanStore?
     private var activeListenerDate: Date?
     private var mutationTails: [String: Task<Void, Never>] = [:]
     private var mutationTokens: [String: Int] = [:]
@@ -44,7 +54,11 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     }
 
     private func syncCurrentDailyLogToWidgets() {
-        EcosystemSyncManager.shared.updateWidgetData(log: self.currentDailyLog, goals: self.goalSettings)
+        EcosystemSyncManager.shared.updateWidgetData(
+            log: self.currentDailyLog,
+            goals: self.goalSettings,
+            trainingFuelPlan: trainingFuelPlanStore?.confirmedPlan
+        )
     }
 
     private func normalizedFoodForLogging(_ foodItem: FoodItem, source: String) -> FoodItem {
@@ -53,6 +67,23 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
             AppLog.data.info("Adjusted estimated food calories from \(foodItem.calories, privacy: .public) to \(normalizedItem.calories, privacy: .public) for source \(source, privacy: .public).")
         }
         return normalizedItem
+    }
+
+    private func recordFoodLoggingSuccess(source: String) {
+        ProductEngagementTelemetry.recordFoodLoggingDay(source: source)
+        ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
+    }
+
+    private func recordDailyLogMutationFailure(_ error: Error, stage: String) {
+        guard let crashManager = DIContainer.shared.crashManager else { return }
+        ReleaseHealth.recordNonFatal(
+            error,
+            area: .nutrition,
+            operation: "daily_log_mutation",
+            metadata: ["stage": stage],
+            crashManager: crashManager,
+            analyticsManager: DIContainer.shared.analyticsManager
+        )
     }
 
     public func repeatFoods(from sourceDate: Date, to targetDate: Date, for userID: String) {
@@ -163,7 +194,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     "calories": itemToAdd.calories
                 ])
 
-                    ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
+                    self.recordFoodLoggingSuccess(source: "manual_add")
                     self.bannerService?.showBanner(title: "Success", message: "\(foodItem.name) logged to \(mealType)!")
                     self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
                     self.rescheduleDailyReminder()
@@ -249,6 +280,10 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     }
                     onSuccess(value, log)
                 } else {
+                    self.recordDailyLogMutationFailure(
+                        DailyLogMutationFailure.persistenceRejected,
+                        stage: "persist"
+                    )
                     self.bannerService?.showBanner(
                         title: "Error",
                         message: failureMessage,
@@ -259,6 +294,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                 completion?(success)
             } catch {
                 AppLog.data.error("Daily log mutation failed: \(error.localizedDescription, privacy: .public)")
+                self.recordDailyLogMutationFailure(error, stage: "prepare")
                 self.bannerService?.showBanner(
                     title: "Error",
                     message: failureMessage,
@@ -385,7 +421,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     "meal_type": mealName,
                     "calories": itemToAdd.calories
                 ])
-                ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
+                self.recordFoodLoggingSuccess(source: source)
                 self.bannerService?.showBanner(title: "Success", message: "\(itemToAdd.name) logged!")
                 self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
                 self.rescheduleDailyReminder()
@@ -416,7 +452,29 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         addMealToLog(for: userID, date: activelyViewedDate, mealName: mealName, foodItems: foodItems)
     }
 
-    public func addMealToLog(for userID: String, date: Date, mealName: String, foodItems: [FoodItem], source: String = "recipe") {
+    public func addMealToCurrentLog(
+        for userID: String,
+        mealName: String,
+        foodItems: [FoodItem],
+        completion: @escaping (Bool) -> Void
+    ) {
+        addMealToLog(
+            for: userID,
+            date: activelyViewedDate,
+            mealName: mealName,
+            foodItems: foodItems,
+            source: "recipe",
+            completion: completion
+        )
+    }
+
+    public func addMealToLog(
+        for userID: String,
+        date: Date,
+        mealName: String,
+        foodItems: [FoodItem],
+        source: String = "recipe"
+    ) {
         addMealGroupsToLog(
             for: userID,
             date: date,
@@ -425,10 +483,51 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         )
     }
 
-    public func addMealGroupsToLog(for userID: String, date: Date, mealGroups: [(mealName: String, foodItems: [FoodItem])], source: String = "recipe") {
+    public func addMealToLog(
+        for userID: String,
+        date: Date,
+        mealName: String,
+        foodItems: [FoodItem],
+        source: String,
+        completion: @escaping (Bool) -> Void
+    ) {
+        addMealGroupsToLog(
+            for: userID,
+            date: date,
+            mealGroups: [(mealName: mealName, foodItems: foodItems)],
+            source: source,
+            completion: completion
+        )
+    }
+
+    public func addMealGroupsToLog(
+        for userID: String,
+        date: Date,
+        mealGroups: [(mealName: String, foodItems: [FoodItem])],
+        source: String = "recipe"
+    ) {
+        addMealGroupsToLog(
+            for: userID,
+            date: date,
+            mealGroups: mealGroups,
+            source: source,
+            completion: nil
+        )
+    }
+
+    private func addMealGroupsToLog(
+        for userID: String,
+        date: Date,
+        mealGroups: [(mealName: String, foodItems: [FoodItem])],
+        source: String,
+        completion: ((Bool) -> Void)? = nil
+    ) {
         let dateToLog = Calendar.current.startOfDay(for: date)
         let nonEmptyGroups = mealGroups.filter { !$0.foodItems.isEmpty }
-        guard !nonEmptyGroups.isEmpty else { return }
+        guard !nonEmptyGroups.isEmpty else {
+            completion?(false)
+            return
+        }
 
         enqueueDailyLogMutation(
             for: userID,
@@ -455,13 +554,14 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     EcosystemSyncManager.shared.syncNutritionToHealthKit(item: item)
                     self.recentFoodStore.addRecentFood(for: userID, foodItem: item, source: result.sourceUsed)
                 }
-                ActivationFunnel.logOnce(ActivationFunnel.firstFoodLogged)
+                self.recordFoodLoggingSuccess(source: result.sourceUsed)
                 let message = nonEmptyGroups.count == 1
                     ? "\(nonEmptyGroups[0].mealName) logged!"
                     : "Planned day logged!"
                 self.bannerService?.showBanner(title: "Success", message: message)
                 self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
-            }
+            },
+            completion: completion
         )
     }
 

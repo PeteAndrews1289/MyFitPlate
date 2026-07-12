@@ -80,6 +80,56 @@ final class NutritionLogModelTests: XCTestCase {
         XCTAssertEqual(database.calories, 100, accuracy: 0.001)
     }
 
+    func testEditableServingTreatsSelectedLabelAsReplacementInsteadOfPatch() {
+        let staleItem = FoodItem(
+            name: "Old combined scan",
+            calories: 500,
+            protein: 20,
+            carbs: 60,
+            fats: 12,
+            saturatedFat: 18,
+            polyunsaturatedFat: 4,
+            monounsaturatedFat: 5,
+            fiber: 10,
+            servingSize: "Combined items",
+            servingWeight: 100,
+            sodium: 900
+        )
+        let scannedLabel = ServingSizeOption(
+            description: "2 cookies (29 g)",
+            servingWeightGrams: nil,
+            calories: 150,
+            protein: 0,
+            carbs: 21,
+            fats: 7
+        )
+
+        let edited = ServingNutritionCalculator.editableServing(
+            from: staleItem,
+            selectedServing: scannedLabel,
+            edits: ServingNutritionEdits(
+                description: scannedLabel.description,
+                servingWeightGrams: nil,
+                calories: 150,
+                protein: 0,
+                carbs: 21,
+                fats: 7,
+                visibleSaturatedFat: nil,
+                visibleFiber: nil
+            )
+        )
+
+        XCTAssertEqual(edited.description, "2 cookies (29 g)")
+        XCTAssertEqual(edited.calories, 150, accuracy: 0.001)
+        XCTAssertEqual(edited.fats, 7, accuracy: 0.001)
+        XCTAssertNil(edited.servingWeightGrams)
+        XCTAssertNil(edited.saturatedFat)
+        XCTAssertNil(edited.polyunsaturatedFat)
+        XCTAssertNil(edited.monounsaturatedFat)
+        XCTAssertNil(edited.fiber)
+        XCTAssertNil(edited.sodium)
+    }
+
     func testDailyLogAggregatesMacrosMicrosFatsAndExerciseBurn() {
         let breakfast = FoodItem(
             id: "breakfast",

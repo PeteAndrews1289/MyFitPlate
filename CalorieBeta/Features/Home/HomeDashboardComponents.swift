@@ -131,7 +131,7 @@ struct DailySnapshotStrip: View {
     let isToday: Bool
     let dateTitle: String
     let onOpenInsights: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @AppStorage("includeActiveCaloriesInGoal") var includeActiveCaloriesInGoal: Bool = false
 
@@ -241,6 +241,7 @@ struct DailySnapshotStrip: View {
                     .foregroundColor(coach.color)
                     .frame(width: 36, height: 36)
                     .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -263,21 +264,18 @@ struct DailySnapshotStrip: View {
                     Text(coach.title)
                         .appFont(size: 13, weight: .semibold)
                         .foregroundColor(coach.color)
-                        .lineLimit(1)
                         .minimumScaleFactor(0.85)
 
                     Text("\(Int(protein.rounded()).formatted())g protein • \(Int(waterIntake.rounded()).formatted()) oz water")
                         .appFont(size: 13, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(1)
                         .minimumScaleFactor(0.82)
                 }
+                .layoutPriority(dynamicTypeSize.isAccessibilitySize ? 1 : 0)
             }
             Text(coach.message)
                 .appFont(size: 12)
                 .foregroundColor(Color(UIColor.secondaryLabel))
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: 520)
         .padding(.horizontal, 14)
