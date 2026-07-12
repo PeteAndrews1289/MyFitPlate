@@ -22,7 +22,6 @@ Code complete without required hardware validation is `Ready for device`, not `C
 
 | ID | Severity | Feedback or risk | State | Owner and next evidence |
 | --- | --- | --- | --- | --- |
-| FB-2301 | P1 | Watch app said to open the phone but never received context | Ready for device | Peter: install the phone build containing the newly embedded companion, then prove initial sync and offline meal replay. Remove/reinstall the Watch app once if watchOS retained the stale copy. |
 | FB-2302 | P1 | Guided intervals and advanced strength controls still need real sensor/input validation | Ready for device | Peter: complete the GPS, imported-HR, phone-without-HR, superset/rest, RPE/RIR, and set-type checks in `docs/device-test-2.3.md`. |
 | FB-2303 | P1 | Release console gates cannot be proven from source | Owner action | Peter: reconcile App Check, privacy labels, public legal links, production Functions, version/build, signed archive, and upload using `docs/device-test-2.3.md`. |
 | FB-2304 | P2 | KPI and launch-health views need real production traffic | Waiting for data | Peter configures Firebase/App Store views; Codex analyzes only clean versioned cohorts after 7-14 days. Trust reweighting requires the separate minimums in `docs/trust-calibration-2.3.md`. |
@@ -39,6 +38,7 @@ Code complete without required hardware validation is `Ready for device`, not `C
 | FB-2293 | Many foods appeared to lack micronutrients despite multiple databases | Provider units, nil-versus-zero semantics, exact-product enrichment, recipe retention/scaling, and daily/report coverage were corrected and documented in `docs/micronutrient-data-2.3.md`. |
 | FB-2294 | The Watch target built but did not arrive with the phone app | The Watch product is embedded in the phone bundle, companion identities are corrected, and the context handshake retries activation/reachability/state changes. Physical replacement is tracked separately as FB-2301. |
 | FB-2295 | A food database outage left search at a dead end | Search now keeps local history available, uses nontechnical failure copy, and offers Try again plus Create food. A deterministic UI regression test covers the recovery state. |
+| FB-2301 | Watch app said to open the phone but never received context | The companion is embedded, the activation/reachability handshake recovers, and Peter physically validated initial context, current values, offline exactly-once water/meal replay, reconnect, and account-scoped clearing on 2026-07-12. |
 
 ## Intake template
 

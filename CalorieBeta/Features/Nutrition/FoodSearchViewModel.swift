@@ -3,7 +3,9 @@ import Combine
 
 @MainActor
 class FoodSearchViewModel: ObservableObject {
-    private static let unavailableMessage = "We couldn't reach the food databases. Your saved and recent foods still work."
+    private static let unavailableMessage = String(
+        localized: "We couldn't reach the food databases. Your saved and recent foods still work."
+    )
 
     @Published var searchText = ""
     @Published var selectedMeal: String

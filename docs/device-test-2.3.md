@@ -25,12 +25,16 @@ identifiers and arm64_32 plus arm64 architectures. App result:
 
 ### Phone and Watch
 
-- [ ] Install the newest phone build and confirm the companion MyFitPlate Watch app updates.
-- [ ] Open the phone app, then Watch. Confirm calories, macros, water, weight units, next action, and last-sync state populate without a stale `Open the phone app to sync` loop.
-- [ ] Put the phone out of reach. Queue water and one recent-meal repeat on Watch, reconnect, and confirm exactly one write on the intended day.
-- [ ] Sign out on the phone and confirm account-scoped Watch context clears.
+- [x] Install the newest phone build and confirm the companion MyFitPlate Watch app updates.
+- [x] Open the phone app, then Watch. Confirm calories, macros, water, weight units, next action, and last-sync state populate without a stale `Open the phone app to sync` loop.
+- [x] Put the phone out of reach. Queue water and one recent-meal repeat on Watch, reconnect, and confirm exactly one write on the intended day.
+- [x] Sign out on the phone and confirm account-scoped Watch context clears.
 - [ ] Add/tap each widget family after an app-group refresh and confirm its exact destination.
 - [ ] Enable one training-fuel reminder, receive it from the Lock Screen, and confirm the tap opens Training Fuel rather than a neighboring tab.
+
+Peter physically validated all four Watch checks against the current 2.3 foundation on
+2026-07-12. The missing-Watch-product defect remains specific to the archived 2.2 build 1;
+the current Release product embeds and syncs the companion correctly.
 
 ### Running and strength
 

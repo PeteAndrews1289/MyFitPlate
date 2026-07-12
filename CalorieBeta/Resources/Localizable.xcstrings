@@ -572,6 +572,16 @@
         }
       }
     },
+    "%lld of %lld vitamins and minerals reported. Missing values are unknown, not zero." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld vitamins and minerals reported. Missing values are unknown, not zero."
+          }
+        }
+      }
+    },
     "%lld of %lld workouts complete" : {
       "localizations" : {
         "en" : {
@@ -1190,6 +1200,9 @@
 
     },
     "Averages (%@)" : {
+
+    },
+    "Averages exclude days when food sources did not report that nutrient. Missing values are not counted as zero." : {
 
     },
     "Avg intake (21d)" : {
@@ -2797,6 +2810,9 @@
     "MyFitPlate: Weekly insights" : {
 
     },
+    "N/A" : {
+
+    },
     "Name" : {
 
     },
@@ -3025,10 +3041,10 @@
     "Opens the nutrition editor for this food." : {
 
     },
-    "Opens today's training fuel planner." : {
+    "Opens the Trust Hub for today's foods." : {
 
     },
-    "Opens the Trust Hub for today's foods." : {
+    "Opens today's training fuel planner." : {
 
     },
     "Optional Health context" : {
@@ -3440,6 +3456,16 @@
     },
     "Report unavailable" : {
 
+    },
+    "Reported on %lld of %lld days" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Reported on %1$lld of %2$lld days"
+          }
+        }
+      }
     },
     "Reports" : {
 
@@ -4256,6 +4282,9 @@
 
     },
     "Total weight on barbell" : {
+
+    },
+    "Totals include only foods whose source reports each nutrient. Missing values are unknown, not zero." : {
 
     },
     "Track your gear mileage and get alerted when it's time for a replacement." : {

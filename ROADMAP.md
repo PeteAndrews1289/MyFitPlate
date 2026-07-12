@@ -90,8 +90,9 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   iPhone bundle instead of merely building beside it. The phone retains the latest account-scoped
   context until WatchConnectivity is activated, paired, and installed; activation, reachability,
   Watch-state changes, and an explicit Watch sync request all replay it. The embedded generic-iOS
-  product and companion identifiers are verified; replacement of the stale hardware install and
-  real paired-device sync remain in Known device closures.
+  product and companion identifiers are verified. Peter also physically validated companion
+  installation, initial/current context, account clearing, and offline exactly-once water/meal
+  replay on 2026-07-12.
 - [x] **Micronutrient integrity and coverage closure**: USDA now uses Vitamin A RAE and converts
   copper to the app's established unit, FNDDS prepared foods join text search, Open Food Facts
   maps all 22 supported vitamins/minerals with correct per-serving conversions, and FatSecret no
@@ -103,10 +104,9 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 - [ ] **Known device closures**: validate guided intervals on real GPS, Watch-imported runs
   with heart-rate series, phone-only runs without HR, workout supersets/rest behavior, and
   RPE/RIR/set-type editing on hardware. Also validate widget tap-through after an app-group
-  refresh, install the newly embedded Watch companion and validate initial context sync plus
-  recent-meal replay while the phone is unreachable, and deliver one opt-in training-fuel
-  notification through its exact app destination. The concise closure sequence and release-stop
-  conditions are now centralized in `docs/device-test-2.3.md`.
+  refresh and deliver one opt-in training-fuel notification through its exact app destination.
+  Watch companion sync and phone-unreachable replay are physically closed. The concise remaining
+  sequence and release-stop conditions are centralized in `docs/device-test-2.3.md`.
 - [ ] **Organic acquisition follow-through**: submit the 2.2 featuring nomination, publish
   Trust/Strength/Weight/Dining custom product pages after 2.2 approval, and add exact app
   routes plus deterministic screenshot fixtures for Food Search, Trust, Fast Food Builder,
@@ -354,8 +354,9 @@ Goal: make the Apple ecosystem experience feel first-class and repeatable.
 
 - [x] **Apple Watch standalone quick logging**: water, weight, a two-step recent-meal repeat,
   and compact training/recovery review are complete with offline-safe delivery. Workout
-  start/finish remains a later Watch expansion and is not required for 2.3. Installation and
-  paired-device validation remain under Known device closures.
+  start/finish remains a later Watch expansion and is not required for 2.3. Installation,
+  paired-device context, account clearing, and offline exactly-once replay are physically
+  validated.
 - [x] **Widget and Live Activity refinement**: every widget family now answers "what should I do
   next?" with the deterministic Training Fuel, Trust, protein, or steady-day action while
   retaining the calorie glance and interactive water action. Live Activity already carries

@@ -502,19 +502,19 @@ struct FoodSearchView: View {
         } else if let searchErrorMessage = viewModel.searchErrorMessage, viewModel.searchResults.isEmpty {
             FoodSearchEmptyState(
                 icon: "wifi.exclamationmark",
-                title: "Search could not load",
+                title: String(localized: "Search could not load"),
                 message: searchErrorMessage,
-                primaryActionTitle: "Try again",
+                primaryActionTitle: String(localized: "Try again"),
                 primaryAction: { viewModel.submitSearch() },
-                secondaryActionTitle: onFoodItemSelected == nil ? "Create food" : nil,
+                secondaryActionTitle: onFoodItemSelected == nil ? String(localized: "Create food") : nil,
                 secondaryAction: onFoodItemSelected == nil ? { showingAddFoodManually = true } : nil
             )
         } else if viewModel.searchResults.isEmpty && trustedResults.isEmpty {
             FoodSearchEmptyState(
                 icon: "magnifyingglass",
-                title: "No foods found",
-                message: "Try a simpler search like \"chicken breast\", or create the food yourself.",
-                primaryActionTitle: onFoodItemSelected == nil ? "Create food" : nil,
+                title: String(localized: "No foods found"),
+                message: String(localized: "Try a simpler search like \"chicken breast\", or create the food yourself."),
+                primaryActionTitle: onFoodItemSelected == nil ? String(localized: "Create food") : nil,
                 primaryAction: onFoodItemSelected == nil ? { showingAddFoodManually = true } : nil
             )
         } else if !viewModel.searchResults.isEmpty {
