@@ -997,16 +997,18 @@ final class RunDetailViewModel: ObservableObject {
 
         importer.fetchRoute(forRunID: run.id) { [weak self] fixes in
             guard let self else { return }
-            self.routeCoordinates = fixes.map {
+            let orderedFixes = fixes.sorted { $0.timestamp < $1.timestamp }
+            self.routeCoordinates = orderedFixes.map {
                 CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
             }
             // Imports carry no splits — replay the GPS trace through the same engine the
-            // live recorder uses, so a Garmin run gets real per-km splits anyway.
-            if self.splits.isEmpty, fixes.count > 1 {
-                let replay = RunSession(metric: metric)
-                replay.start(at: fixes[0].timestamp)
-                fixes.forEach { replay.ingest($0) }
-                if let replayed = replay.finish(at: fixes[fixes.count - 1].timestamp) {
+            // live recorder uses. Historical splits retain elapsed gaps so their times
+            // reconcile with the HealthKit workout summary after weak/indoor GPS periods.
+            if self.splits.isEmpty, orderedFixes.count > 1 {
+                let replay = RunSession(metric: metric, timeAccounting: .elapsed)
+                replay.start(at: run.startDate)
+                orderedFixes.forEach { replay.ingest($0) }
+                if let replayed = replay.finish(at: run.endDate) {
                     self.splits = replayed.splits
                 }
             }
