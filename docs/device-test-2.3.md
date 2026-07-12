@@ -98,7 +98,9 @@ Record findings in `docs/feedback-triage-2.3.md`.
   custom definitions/metrics, four key events, Activation and Launch Health explorations, and
   Crashlytics email/velocity alerts. Assign an owner and rollback response to each red live metric.
 - [x] Confirm Privacy Policy, Terms, and Support URLs are publicly reachable from a signed-in and signed-out browser.
-- [ ] Reconcile App Store privacy answers with `docs/data-safety.md` and `docs/security-privacy-review.md`.
+- [x] Reconcile App Store privacy answers with `docs/data-safety.md` and
+  `docs/security-privacy-review.md`. The published 13-type summary has linked account/run data,
+  unlinked diagnostics plus Device ID, and no tracking.
 - [x] Keep the app, widget, Live Activity, and Watch targets on marketing version 2.2 and set
   their build number to 2. The withdrawn build 1 cannot be reused.
 - [ ] Create a signed Archive, run Validate App, inspect the archive for the Watch companion and privacy manifests, then upload.
