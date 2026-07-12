@@ -67,18 +67,18 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   analytics, one daily active-logger event, running-aware activation, exact deep-link
   destinations, barcode outcome latency, private server token totals, and the canonical
   metric definitions in `docs/analytics-dashboard-2.3.md`.
-- [ ] **Competitive KPI dashboard rollout**: configure the Firebase/App Store operating view
-  from the tracked contract, then join acquisition with first-food completion, time to first
-  log, barcode recovery, import completion, Trust review/correction, first training,
-  nutrition-plus-training loop completion, D1/D7 return, weekly active loggers, and aggregate
-  AI cost per active user. Peter owns console access; final thresholds wait for clean traffic.
+- [x] **Competitive KPI dashboard rollout**: Firebase custom definitions/metrics, four completion
+  key events, and the version/schema-aware Activation exploration are configured from the tracked
+  contract. The weekly App Store acquisition join, live cohort interpretation, and final alert
+  thresholds begin after replacement 2.2 has clean production traffic.
 - [x] **Launch-health instrumentation foundation**: operation-tagged serialized diary failures,
   AI decode failures, account-deletion outcomes, end-to-end barcode latency/misses, build and
   startup context, and private AI request outcome/token/latency counters are implemented with
   privacy regression coverage.
-- [ ] **Launch-health operating view rollout**: configure crash-free comparisons, non-fatal
-  operation alerts, callable/provider trends, AI cost, and App Check validity by production
-  build. Every red metric needs an owner and rollback path; enforcement waits for clean data.
+- [x] **Launch-health operating view rollout**: the version/schema-aware operational exploration
+  and Crashlytics email/velocity alerts are configured. Callable/provider trends, AI cost, and
+  App Check validity are reviewed against build 2 after upload; every red metric still needs an
+  owner and rollback path, and enforcement waits for clean production data.
 - [x] **Quick Log first-interaction hardening**: opening is idempotent, the dismissal backdrop
   cannot consume the opening touch, idle notification UI is not mounted over Home, direct
   Simulator clicks open on the first attempt, and the complete UI suite is green.

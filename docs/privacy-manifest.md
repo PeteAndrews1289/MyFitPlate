@@ -13,15 +13,16 @@ declaring them (the `ITMS-91053: Missing API declaration` email).
   **`NSPrivacyAccessedAPICategoryUserDefaults`**, reason **`CA92.1`** (storing user preferences
   accessible only to the app). A code scan found no file-timestamp, disk-space, or boot-time
   API usage in the app or Core.
-- **`NSPrivacyCollectedDataTypes`** — health, fitness, precise route location, user-submitted
-  photos, email, name, user content, product interaction, crash data, performance data, and
-  device ID, with linked/purpose flags.
+- **`NSPrivacyCollectedDataTypes`** — health, fitness, precise route location, Analytics-derived
+  coarse location, user-submitted photos, email, user/account ID, user content, product
+  interaction, crash/performance/other diagnostics, and device ID, with linked/purpose flags.
 
 Analytics and crash reporting do not receive the Firebase Auth UID. The shared analytics
 sanitizer also removes nutrition, body, HealthKit, workout, distance, sleep, hydration, and
 related values from event parameters. The manifest remains conservative: health/fitness and
-account content are linked for app functionality; crash/performance/device diagnostics are
-declared unlinked and not used for tracking.
+account content are linked for app functionality; coarse location and product interaction are
+conservatively linked for Analytics; crash/performance/other diagnostics and device ID are
+declared unlinked. None are used for tracking.
 
 ## Before each submission — verify
 
@@ -37,7 +38,8 @@ declared unlinked and not used for tracking.
    ```
    Add the matching reason code (`C617.1`, `E174.1`, `35F9.1`, `54BD.1`) if anything turns up.
 3. Third-party SDKs (Firebase, gRPC, DGCharts, …) ship their **own** manifests inside their
-   bundles — you don't redeclare those here, only the app's first-party usage.
+   bundles. Inspect the archive's complete manifest set as well as this first-party manifest;
+   overlap is intentional where both app instrumentation and an SDK collect the same category.
 
 ## Wiring
 The file is a Copy-Bundle-Resources member of the `MyFitPlate` (CalorieBeta) target, so it ships

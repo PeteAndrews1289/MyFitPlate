@@ -9,7 +9,10 @@ filenames and analytics schema remain unchanged for traceability.
 - HealthKit data is read or written only after Apple permission and is used for visible app functionality. Precise location is used for an active outdoor run.
 - AI requests go through authenticated Firebase callable Functions to OpenAI. The client never contains the OpenAI secret.
 - FatSecret requests go through an authenticated Firebase callable proxy. USDA and Open Food Facts are direct HTTPS lookup sources; USDA is disabled without a dedicated configured key.
-- Firebase Analytics and Crashlytics receive app/reliability context without the Firebase Auth UID. Health, nutrition, body, and workout values are removed from analytics event parameters.
+- Firebase Analytics receives an app-instance/device identifier, approximate location, and
+  app/reliability context without the Firebase Auth UID. Crashlytics receives unlinked crash and
+  diagnostic context and is explicitly cleared of any user ID. Health, nutrition, body, and
+  workout values are removed from analytics event parameters.
 - Trust calibration uses only source/band/evidence categories, coarse changed-field groups, and
   stable outcomes. The central sanitizer also rejects raw identity and free-form content keys
   such as barcode, food/account ID, email, prompt, query, and message.

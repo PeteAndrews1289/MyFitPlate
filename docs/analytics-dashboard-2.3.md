@@ -142,6 +142,13 @@ Peter must complete the console-side setup after the instrumented build produces
    inside, Firebase's app-instance funnel.
 8. After 7-14 clean days, record the 2.2 baseline and set alert thresholds in this document.
 
+Console state on 2026-07-12: items 1-5 are configured. The property has 36 event-scoped
+dimensions and 15 custom metrics, the four completion outcomes are key events, the `2.2
+Activation` and `2.2 Launch Health` explorations are saved, and Crashlytics fatal, non-fatal,
+regressed, trending, and velocity email alerts are enabled. Items 6-8 require signed build 2
+traffic or post-release acquisition data and remain operating follow-through rather than code
+gates.
+
 ## Ownership and rollout
 
 - **Codex:** event contracts, instrumentation, tests, dashboard definitions, privacy checks,

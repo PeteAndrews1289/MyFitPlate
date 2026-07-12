@@ -89,12 +89,15 @@ Record findings in `docs/feedback-triage-2.3.md`.
 - [ ] Verify production Functions, Rules, and indexes match the intended release commit. No
   backend redeploy is required for Watch, micronutrient, search-recovery, Maia prompt, or
   on-device Maia voice changes alone.
-- [ ] Apply or reconcile `.github/rulesets/main-branch-protection.json` in GitHub so Unit tests, UI smoke tests, Firebase Functions, Firebase Rules, and Data migrations are required on `main`.
-- [ ] Register App Attest for the production app. The Release client and production entitlement
-  are present; verify App Check validity metrics and do not enable enforcement until valid
-  production traffic is clean.
-- [ ] Configure the KPI and launch-health views from `docs/analytics-dashboard-2.3.md`; assign an owner and rollback response to each red metric.
-- [ ] Confirm Privacy Policy, Terms, and Support URLs are publicly reachable from a signed-in and signed-out browser.
+- [x] Apply or reconcile `.github/rulesets/main-branch-protection.json` in GitHub so Unit tests, UI smoke tests, Firebase Functions, Firebase Rules, and Data migrations are required on `main`.
+- [x] Register App Attest for the production app. The Release client and production entitlement
+  are present.
+- [ ] Verify App Check validity metrics from the signed/TestFlight build and do not enable
+  enforcement until valid production traffic is clean.
+- [x] Configure the KPI and launch-health views from `docs/analytics-dashboard-2.3.md`, including
+  custom definitions/metrics, four key events, Activation and Launch Health explorations, and
+  Crashlytics email/velocity alerts. Assign an owner and rollback response to each red live metric.
+- [x] Confirm Privacy Policy, Terms, and Support URLs are publicly reachable from a signed-in and signed-out browser.
 - [ ] Reconcile App Store privacy answers with `docs/data-safety.md` and `docs/security-privacy-review.md`.
 - [x] Keep the app, widget, Live Activity, and Watch targets on marketing version 2.2 and set
   their build number to 2. The withdrawn build 1 cannot be reused.
