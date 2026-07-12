@@ -10,7 +10,7 @@
 set -euo pipefail
 
 PKG="MyFitPlateCore"
-FLOOR="${CORE_COVERAGE_MINIMUM:-70.0}"
+FLOOR="${CORE_COVERAGE_MINIMUM:-80.0}"
 
 # Search the SPM build dir (what CI's `swift test` writes) and the agents' local
 # Xcode derived-data path — whichever exist. Pass only existing dirs and use

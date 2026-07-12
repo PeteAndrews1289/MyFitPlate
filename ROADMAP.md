@@ -76,9 +76,11 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 - [x] **Quick Log first-interaction hardening**: opening is idempotent, the dismissal backdrop
   cannot consume the opening touch, idle notification UI is not mounted over Home, direct
   Simulator clicks open on the first attempt, and the complete UI suite is green.
-- [ ] **Structured feedback triage**: keep one severity-ranked list for review feedback,
-  support messages, device-only defects, and repeated friction. Do not redesign a flow from
-  one opinion unless it reveals a clear usability or correctness fault.
+- [x] **Structured feedback triage**: `docs/feedback-triage-2.3.md` is the single
+  severity-ranked ledger for review feedback, support messages, device-only defects, and
+  repeated friction. It separates code complete from device validated, names closure evidence,
+  and keeps one preference from becoming a redesign unless it exposes a correctness,
+  accessibility, or workflow fault.
 - [x] **Trust correction-loop feedback closure**: label-photo replacement no longer carries
   stale saturated fat, optional nutrients, or serving weight from an older combined/barcode
   item. Label parsing now captures the printed serving description and gram weight. Both food
@@ -103,7 +105,8 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   RPE/RIR/set-type editing on hardware. Also validate widget tap-through after an app-group
   refresh, install the newly embedded Watch companion and validate initial context sync plus
   recent-meal replay while the phone is unreachable, and deliver one opt-in training-fuel
-  notification through its exact app destination.
+  notification through its exact app destination. The concise closure sequence and release-stop
+  conditions are now centralized in `docs/device-test-2.3.md`.
 - [ ] **Organic acquisition follow-through**: submit the 2.2 featuring nomination, publish
   Trust/Strength/Weight/Dining custom product pages after 2.2 approval, and add exact app
   routes plus deterministic screenshot fixtures for Food Search, Trust, Fast Food Builder,
@@ -250,6 +253,9 @@ not an invented industry benchmark.
 7. [x] Develop the community aggregate behind a server-only flag; do not couple it to 2.3 launch.
 8. [x] Close the Watch companion packaging/sync defect surfaced by physical-device testing.
 9. [x] Make micronutrient ingestion, recipe retention, and report coverage honest end to end.
+10. [x] Close local release-readiness gaps: resilient food-search recovery, accessibility-size
+    Home copy, Node 22 Functions CI, an enforced 80% Core coverage floor, current branch checks,
+    and one feedback/device closure ledger.
 
 ### Ownership and Dependencies
 
@@ -274,10 +280,14 @@ Goal: establish the competitive scoreboard and make the product story sharper be
 - [x] **Refresh App Store story**: created an eight-shot deterministic gallery covering Home, Trust, fast repeat/search, the 25-chain meal builder, Train, Maia action coaching, Meal Plan, and Reports. The first three images carry the positioning and conversion story.
 - [x] **Fix screenshot-visible polish**: corrected clipped Train targets and Reports chart labels, rebuilt the builder's bottom tray, centered a compact outlined Quick Log action above five equal-width destinations, made the expanded action list reachable on compact phones, and visually checked both required phone-size galleries. A final accessibility-size sweep also corrected clipping in Trust details, Food Search, Fast Food Builder, Train, Maia, Meal Plan, and Quick Log, and hardened Trust Hub presentation against asynchronous Home refreshes.
 - [x] **Add a release feedback and referral loop**: Settings now provides a prefilled privacy-safe feedback email and direct App Store sharing; recap, achievement, run-story, and workout-summary shares point back to the live listing; review requests are limited to fresh workout completions after three distinct sessions across at least three days, once per version with a 120-day cooldown.
-- [ ] **Release gate**: automated code checks are green locally and Peter deployed the current
-  production Firebase Functions on 2026-07-11. Remaining gates are the real-device checklist,
-  App Check console setup, public legal-doc push, App Store privacy-label reconciliation,
-  build-number increment, and a signed archive validation/upload.
+- [ ] **Release gate**: Core 1,016/1,016 with 85.24% coverage, app 83/83, UI 14/14,
+  Functions 11/11 with zero production dependency vulnerabilities, strict lint/catalog/diff
+  checks, and the unsigned physical-iOS Release build are green locally. CI now matches the
+  Functions Node 22 runtime and requires the 80% Core floor; the checked branch ruleset includes
+  app UI and Functions checks. Peter deployed the then-current production Functions on
+  2026-07-11. Remaining owner gates are the physical checklist, production/branch-console
+  reconciliation, App Check, public legal links, privacy labels, version/build increment, and a
+  signed archive validation/upload in `docs/device-test-2.3.md`.
 
 Success signal: a new user can understand why MyFitPlate exists in 10 seconds, and the team has baseline numbers for the conversion funnel.
 
@@ -326,7 +336,10 @@ Goal: own the daily loop for lifters and runners: train, recover, eat, repeat.
 - [x] **Lifting workout quality foundation**: bring the workout player closer to Strong/Hevy parity with warmup/drop/failure set types, RPE/RIR effort capture, warmups excluded from volume/1RM analytics, adjacent supersets, and an autoregulated progression coach based on the previous top working set.
 - [x] **Running effort detail**: Run Detail shows average-HR zone plus a real time-in-zone card computed from the HealthKit heart-rate series for the run window. The card only appears when HR data exists and skips long sample gaps instead of fabricating effort.
 - [x] **Indoor / treadmill support**: Apple Health indoor runs already import; MyFitPlate now also has a manual treadmill log path from Start Run that writes an indoor HealthKit run with distance, duration, estimated calories, generated splits, and no route.
-- [ ] **Structured interval workouts**: add a workout-step model, saved interval templates, recorder step state, and live pace/distance/time guidance for workouts like warmup -> 5x400m -> cooldown. Started: built Core step/plan/tracker rules, built-in templates, saved custom repeat templates, a Start Run picker, live recorder step guidance with progress, haptics, audio step cues, effort/pace-target capable steps, Live Activity step/target text, persisted plan-vs-actual step reviews on run summary/detail, manual pace-range targets for custom repeat workouts, and a saved step-by-step editor for arbitrary run workouts. Still open: device validation on real GPS guided runs.
+- [x] **Structured interval workouts**: the workout-step model, built-in and saved custom
+  templates, arbitrary step editor, recorder state, live pace/distance/time guidance, haptics,
+  spoken cues, Live Activity state, and persisted plan-vs-actual review are implemented with
+  Core coverage. Real-GPS validation remains explicitly open under Known device closures.
 - [x] **Running recovery polish**: the unified Training & Fuel report now combines weekly mileage,
   weighted pace, route/distance PRs, shoe wear, real HR time in zone, guided-step results, and
   timestamped recovery follow-through in one seven-day story.
@@ -339,9 +352,10 @@ Success signal: MyFitPlate feels more useful after a workout than a generic calo
 ### Sprint 5 — Platform Polish and Daily Retention
 Goal: make the Apple ecosystem experience feel first-class and repeatable.
 
-- [ ] **Apple Watch standalone quick logging**: water, weight, a two-step recent-meal repeat,
+- [x] **Apple Watch standalone quick logging**: water, weight, a two-step recent-meal repeat,
   and compact training/recovery review are complete with offline-safe delivery. Workout
-  start/finish remains a later Watch expansion and is not required for 2.3.
+  start/finish remains a later Watch expansion and is not required for 2.3. Installation and
+  paired-device validation remain under Known device closures.
 - [x] **Widget and Live Activity refinement**: every widget family now answers "what should I do
   next?" with the deterministic Training Fuel, Trust, protein, or steady-day action while
   retaining the calorie glance and interactive water action. Live Activity already carries
@@ -349,10 +363,14 @@ Goal: make the Apple ecosystem experience feel first-class and repeatable.
 - [x] **Notifications that earn trust**: three independently opt-in, deterministic reminder
   types use quiet hours, a two-per-day cap, stable IDs, exact routes, and privacy-safe outcome
   telemetry. The generic AI engagement nudge is retired.
-- [ ] **Reports and export polish**: the unified report now exports a privacy-safe rendered image
+- [x] **Reports and export polish**: the unified report exports a privacy-safe rendered image
   and aggregate CSV for a selected seven-day period. Polished PDF output and arbitrary date
   ranges remain later work rather than 2.3 requirements.
-- [ ] **Accessibility/device pass**: Dynamic Type, VoiceOver labels, dark mode, low-connectivity behavior, and full device checklist.
+- [ ] **Accessibility/device pass**: the complete deterministic UI suite and a light/dark
+  accessibility-XXXL matrix are green; Home support copy now grows rather than truncates and
+  Food Search has visible retry/manual recovery during provider outages. Physical VoiceOver,
+  Increase Contrast, compact-device, connectivity, widget, Watch, and GPS checks remain in
+  `docs/device-test-2.3.md`.
 
 Success signal: users can interact with the app without opening the phone every time, and weekly retention has a clear habit loop.
 
@@ -378,9 +396,10 @@ Success signal: users can name a MyFitPlate feature they cannot get from MyFitne
 ## 🛠️ Always-On — Ops, Quality & Health
 - [x] Wire release-health instrumentation and Crashlytics/Analytics dashboards.
 - [ ] Monitor LLM / AI call frequencies against cost estimates.
-- [ ] Keep package test coverage at 80%+ with behavior tests on every core engine and data calculation path.
+- [ ] Keep package test coverage at 80%+ with behavior tests on every core engine and data
+  calculation path. The enforced floor is now 80%; the 2026-07-12 measured baseline is 85.24%.
 - [ ] Keep `AGENT_HANDOFF.local.md` updated after meaningful roadmap, architecture, or code changes so future agents know the intent, verification, and risks.
 - [ ] Every sprint must include user-facing copy review, privacy review for new data flows, and a rollback/feature-flag plan for risky launches.
 
 ---
-_Living document — Single Point of Truth. Last updated: 2026-07-11._
+_Living document — Single Point of Truth. Last updated: 2026-07-12._

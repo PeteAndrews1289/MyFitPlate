@@ -3,6 +3,8 @@ import Combine
 
 @MainActor
 class FoodSearchViewModel: ObservableObject {
+    private static let unavailableMessage = "We couldn't reach the food databases. Your saved and recent foods still work."
+
     @Published var searchText = ""
     @Published var selectedMeal: String
     
@@ -107,7 +109,15 @@ class FoodSearchViewModel: ObservableObject {
 
     private func searchByQuery(query: String, includeOpenFoodFacts: Bool) {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-ui-testing-search-failure") {
+            searchTask?.cancel()
+            searchResults = []
+            isLoading = false
+            searchErrorMessage = Self.unavailableMessage
+            return
+        }
+        if arguments.contains("-ui-testing") {
             searchTask?.cancel()
             searchResults = [
                 FoodItem(
@@ -153,14 +163,14 @@ class FoodSearchViewModel: ObservableObject {
                     usda: usda,
                     openFoodFacts: off
                 )
-            case .failure(let error):
+            case .failure:
                 let fallback = FoodSearchRanking.mergedSearchResults(
                     fatSecret: [],
                     usda: usda,
                     openFoodFacts: off
                 )
                 if fallback.isEmpty {
-                    self.searchErrorMessage = "Check your connection and try again. \(error.localizedDescription)"
+                    self.searchErrorMessage = Self.unavailableMessage
                     self.searchResults = []
                 } else {
                     self.searchErrorMessage = nil

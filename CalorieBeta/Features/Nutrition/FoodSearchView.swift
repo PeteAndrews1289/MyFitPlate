@@ -503,13 +503,19 @@ struct FoodSearchView: View {
             FoodSearchEmptyState(
                 icon: "wifi.exclamationmark",
                 title: "Search could not load",
-                message: searchErrorMessage
+                message: searchErrorMessage,
+                primaryActionTitle: "Try again",
+                primaryAction: { viewModel.submitSearch() },
+                secondaryActionTitle: onFoodItemSelected == nil ? "Create food" : nil,
+                secondaryAction: onFoodItemSelected == nil ? { showingAddFoodManually = true } : nil
             )
         } else if viewModel.searchResults.isEmpty && trustedResults.isEmpty {
             FoodSearchEmptyState(
                 icon: "magnifyingglass",
                 title: "No foods found",
-                message: "Try a simpler search like \"chicken breast\", or add it manually."
+                message: "Try a simpler search like \"chicken breast\", or create the food yourself.",
+                primaryActionTitle: onFoodItemSelected == nil ? "Create food" : nil,
+                primaryAction: onFoodItemSelected == nil ? { showingAddFoodManually = true } : nil
             )
         } else if !viewModel.searchResults.isEmpty {
             FoodPickerSection(

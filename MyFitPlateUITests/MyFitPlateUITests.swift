@@ -62,6 +62,60 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testFoodSearchFailureOffersRetryAndManualFallback() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-ui-testing-search-failure",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "food-search"
+        ]
+        app.launch()
+
+        let searchField = app.textFields["Search foods, meals, brands"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 8))
+        searchField.tap()
+        searchField.typeText("apple")
+
+        XCTAssertTrue(app.staticTexts["Search could not load"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["We couldn't reach the food databases. Your saved and recent foods still work."].exists)
+        XCTAssertTrue(app.buttons["Try again"].isHittable)
+        XCTAssertTrue(app.buttons["Create food"].isHittable)
+    }
+
+    @MainActor
+    func testHomeDarkAccessibilityTextIsNotClipped() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-dark-mode",
+            "-screenshot-screen",
+            "home",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["quick_log_button"].waitForExistence(timeout: 8))
+        XCTAssertTrue(
+            app.buttons
+                .matching(NSPredicate(format: "label CONTAINS %@", "Review Food Trust"))
+                .firstMatch
+                .isHittable
+        )
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Home - dark accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testSettingsFeedbackAndShareRowsAreReachable() throws {
         let app = XCUIApplication()
         app.terminate()

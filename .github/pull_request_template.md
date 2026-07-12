@@ -2,15 +2,22 @@
 
 - 
 
-## 2.1 Release Health
+## Verification
 
-- [ ] Core tests pass, including the coverage gate.
-- [ ] App build passes locally or in CI.
+- [ ] Core tests pass and line coverage remains at or above 80%.
+- [ ] App unit and UI smoke tests pass locally or in CI.
+- [ ] Unsigned generic-device Release build passes.
+- [ ] Strict SwiftLint and `git diff --check` pass.
 - [ ] No new secrets or generated build logs are included.
-- [ ] Crashlytics / Analytics changes avoid health, nutrition, prompt, or personally sensitive payloads.
-- [ ] If release-facing, `docs/release-health-2.1.md` still reflects the current ship plan.
+
+## Release Safety
+
+- [ ] Analytics and Crashlytics changes avoid account, food, workout, route, Health, prompt, and free-form values.
+- [ ] New network or AI behavior has a visible failure/retry path.
+- [ ] Risky server or community behavior is behind a default-off flag with a rollback path.
+- [ ] User-facing copy, dark mode, Dynamic Type, and VoiceOver impact were reviewed for touched screens.
+- [ ] `ROADMAP.md`, relevant docs, and `AGENT_HANDOFF.local.md` reflect meaningful product or architecture changes.
 
 ## Not In This PR
 
-- TestFlight/Fastlane automation is intentionally not required for 2.1.
-- App Check enforcement is intentionally not required for 2.1.
+- List device, console, deployment, production-data, or App Store actions that still require the owner.

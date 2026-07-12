@@ -7,7 +7,11 @@ struct QuickLogActionButton: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var buttonWidth: CGFloat {
-        dynamicTypeSize.isAccessibilitySize ? 132 : 108
+        dynamicTypeSize.isAccessibilitySize ? 148 : 108
+    }
+
+    private var buttonHeight: CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 52 : 44
     }
     
     var body: some View {
@@ -26,9 +30,9 @@ struct QuickLogActionButton: View {
                 Text("Quick Log")
                     .appFont(size: 14, weight: .semibold)
                     .foregroundColor(.textPrimary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: true)
             }
-            .frame(width: buttonWidth, height: 44)
+            .frame(width: buttonWidth, height: buttonHeight)
             .background(
                 Capsule()
                     .fill(Color.backgroundPrimary.opacity(0.96))

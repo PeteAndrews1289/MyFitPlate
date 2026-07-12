@@ -1615,6 +1615,9 @@
     "Create account" : {
 
     },
+    "Create food" : {
+
+    },
     "Create Group" : {
 
     },
@@ -2848,6 +2851,9 @@
     "No foods logged yet" : {
 
     },
+    "No foods found" : {
+
+    },
     "No grocery list yet" : {
 
     },
@@ -3020,6 +3026,9 @@
 
     },
     "Opens today's training fuel planner." : {
+
+    },
+    "Opens the Trust Hub for today's foods." : {
 
     },
     "Optional Health context" : {
@@ -3489,6 +3498,9 @@
     "Review Food Trust" : {
 
     },
+    "Review Food Trust. Sources, cross-checks, and items to fix." : {
+
+    },
     "Review Health access" : {
 
     },
@@ -3688,6 +3700,9 @@
 
     },
     "Search recipes or ingredients" : {
+
+    },
+    "Search could not load" : {
 
     },
     "Searching barcode" : {
@@ -4306,6 +4321,9 @@
     "Try a different search or filter. The catalog is built to grow as more training paths are added." : {
 
     },
+    "Try a simpler search like \"chicken breast\", or create the food yourself." : {
+
+    },
     "Try again" : {
 
     },
@@ -4418,6 +4436,9 @@
 
     },
     "We need at least 7 days of weight data and 10 days of food logs to confidently adjust your TDEE." : {
+
+    },
+    "We couldn't reach the food databases. Your saved and recent foods still work." : {
 
     },
     "We've analyzed your weight and nutrition data from the past 3 weeks to adjust your metabolism estimate." : {
