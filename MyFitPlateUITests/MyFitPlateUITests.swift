@@ -96,6 +96,42 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testTrainingFuelNotificationControlsAreReachableAndFit() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "settings",
+            "-trainingFuelPreSessionNotificationsEnabled",
+            "YES",
+            "-trainingFuelEveningNotificationsEnabled",
+            "YES"
+        ]
+        app.launch()
+
+        let beforeTraining = app.switches["Before training"]
+        let recovery = app.switches["Recovery target"]
+        let evening = app.switches["Evening protein catch-up"]
+        for _ in 0..<6 where !beforeTraining.isHittable || !evening.isHittable {
+            app.swipeUp()
+        }
+
+        XCTAssertTrue(beforeTraining.waitForExistence(timeout: 5))
+        XCTAssertTrue(recovery.exists)
+        XCTAssertTrue(evening.exists)
+        XCTAssertTrue(app.staticTexts["Quiet hours"].exists)
+        XCTAssertTrue(app.staticTexts["Evening reminder"].exists)
+        XCTAssertLessThanOrEqual(evening.frame.maxX, app.frame.maxX + 1)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Training fuel notification controls"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testHomeTrustHubHasNavigationAndInteractiveRows() throws {
         let app = XCUIApplication()
         app.terminate()
@@ -224,7 +260,8 @@ final class MyFitPlateUITests: XCTestCase {
             ("myfitplate://trust", "Trust Hub"),
             ("myfitplate://builder", "Fast Food"),
             ("myfitplate://runs", "Running"),
-            ("myfitplate://meal-plan", "Meal plan")
+            ("myfitplate://meal-plan", "Meal plan"),
+            ("myfitplate://training-fuel", "Training Fuel")
         ]
 
         for (url, title) in destinations {

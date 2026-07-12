@@ -45,6 +45,9 @@ These events evaluate the 2.3 loop before waiting for D7 retention:
 | Training fuel plan confirmed | `training_fuel_plan_saved`, grouped by `training_mode`, `phase_count`, and `confirmation_path` (`save` or `handoff`) |
 | Training fuel destination chosen | `training_fuel_handoff_selected`, grouped by `phase` and `destination` |
 | Training fuel session resolved | `training_fuel_session_outcome`, grouped by `outcome` (`completed` or `skipped`) and privacy-safe `source` |
+| Useful reminder scheduled | `training_fuel_notification_scheduled`, grouped by `notification_type` (`pre_session`, `recovery`, or `evening_catch_up`) |
+| Useful reminder opened | `training_fuel_notification_opened`, grouped by `notification_type`; compare distinct opens with scheduled events, then use existing handoff/outcome events for downstream action |
+| Watch meal replay result | `watch_meal_repeat_result`, grouped by `result` (`logged` or `failed`); `item_count` is an aggregate operational count, never food names or nutrition |
 | Recovery offer seen | `workout_recovery_handoff_viewed`, grouped by `kind` |
 | Recovery action chosen | `workout_recovery_handoff_tapped`, grouped by `kind` and `action` |
 | Recovery suggestion logged | `workout_recovery_handoff_logged` event count and distinct users |
@@ -60,7 +63,7 @@ conversion, territory, source type, and custom product page. Firebase is authori
 what happens after launch.
 
 Use `deep_link_opened.destination` as a routing integrity check for Food Search, Trust,
-Fast Food Builder, Running, and Meal Plan. The old parameter name `route` is intentionally
+Fast Food Builder, Running, Meal Plan, and Training Fuel. The old parameter name `route` is intentionally
 blocked because it could also mean a GPS route; 2.3 uses the privacy-safe `destination` key.
 
 For each weekly custom-page cohort, report:
@@ -119,10 +122,10 @@ Peter must complete the console-side setup after the instrumented build produces
 
 1. Register useful custom dimensions: `analytics_schema`, `destination`, `entry_source`,
    `training_mode`, `result`, `source`, `outcome`, `duration_bucket`, `trust_model_version`,
-   `trust_level`, `action`, `phase`, `confirmation_path`, `area`, `operation`, and deletion
+   `trust_level`, `action`, `phase`, `confirmation_path`, `notification_type`, `area`, `operation`, and deletion
    `reason`.
 2. Register numeric metrics where Firebase requires it: `elapsed_seconds`, `duration_ms`,
-   `trust_score`, and operational import counts.
+   `trust_score`, `item_count`, and operational import counts.
 3. Mark `first_food_logged`, `first_workout_completed`,
    `nutrition_training_loop_completed`, and `mfp_import_completed` as key events.
 4. Build one Activation exploration and one Launch Health exploration from the definitions

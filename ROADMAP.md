@@ -86,7 +86,9 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   and overwrite an existing My Foods barcode correction instead of creating a duplicate.
 - [ ] **Known device closures**: validate guided intervals on real GPS, Watch-imported runs
   with heart-rate series, phone-only runs without HR, workout supersets/rest behavior, and
-  RPE/RIR/set-type editing on hardware.
+  RPE/RIR/set-type editing on hardware. Also validate widget tap-through after an app-group
+  refresh, paired-Watch context/recent-meal replay while the phone is unreachable, and one
+  opt-in training-fuel notification from delivery through its exact app destination.
 - [ ] **Organic acquisition follow-through**: submit the 2.2 featuring nomination, publish
   Trust/Strength/Weight/Dining custom product pages after 2.2 approval, and add exact app
   routes plus deterministic screenshot fixtures for Food Search, Trust, Fast Food Builder,
@@ -154,16 +156,23 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 
 ### Should Ship — Next Action Beyond the Phone App
 
-- [ ] **Widget: next move**: extend shared widget data beyond totals so one clear action can be
-  shown: pre-workout fuel, recovery meal, protein catch-up, Trust review, or steady day. Keep
-  interactive water logging and add a direct route into the relevant app screen.
-- [ ] **Watch quick actions**: retain the existing daily glance, water, and weight tools; add a
-  narrowly scoped recent-meal repeat and recovery-plan review with an offline-safe queued
-  result. Do not attempt full database food search on the Watch in this release.
-- [ ] **Notifications that earn permission**: opt-in controls for pre-session fuel, post-session
-  recovery, and one evening catch-up reminder; include quiet hours, per-type toggles, strict
-  frequency caps, and outcome telemetry. No generic engagement nags.
-- [x] **Exact deep links**: `food-search`, `trust`, `builder`, `runs`, and `meal-plan` parse,
+- [x] **Widget: next move**: shared widget data now carries one deterministic action: pre-workout
+  fuel, recovery meal, protein catch-up, Trust review, or steady day. Small/medium/large and
+  accessory layouts expose it, interactive water remains, and the widget routes directly to
+  Food Search, Trust, Home, or the exact Training Fuel Planner. Historical diary browsing can
+  no longer overwrite today's widget state.
+- [x] **Watch quick actions**: the existing daily glance, water, and weight tools remain. Watch
+  now shows the same next action, a compact training/recovery target review, and a two-step
+  recent-meal repeat. Requests use a durable deduplicated inbox, fresh food identities, random
+  per-account scopes instead of user IDs, success-only acknowledgement, and offline-safe
+  `transferUserInfo`; oversized or invalid meals fail closed. Full Watch food search remains out.
+- [x] **Notifications that earn permission**: Settings has independent opt-in controls for
+  pre-session fuel, explicit-completion recovery, and one meaningful evening protein catch-up,
+  plus quiet hours and the evening time. Deterministic rules cap the day at two, stable IDs and a
+  local ledger prevent stacking/replay, taps open the exact route, and scheduled/opened telemetry
+  carries only reminder type. The old background AI engagement nudge is removed and canceled.
+- [x] **Exact deep links**: `food-search`, `trust`, `builder`, `runs`, `meal-plan`, and
+  `training-fuel` parse,
   queue through signed-out/onboarding blockers, and present their exact destinations from the
   stable app shell. Core and cold-launch UI regression tests are green. Keep the 2.2 custom
   pages link-free until this 2.3 binary is approved.
@@ -215,7 +224,7 @@ not an invented industry benchmark.
 4. [x] Add the Home planner/review flow and connect it to existing logging destinations.
 5. [x] Build the unified Training and Fuel report from existing running, lifting, and nutrition
    engines before adding new data collection.
-6. [ ] Extend widget shared data, then deliver the narrow Watch and notification slices.
+6. [x] Extend widget shared data, then deliver the narrow Watch and notification slices.
 7. [ ] Develop the community aggregate behind a server-only flag; do not couple it to 2.3 launch.
 
 ### Ownership and Dependencies
@@ -285,24 +294,40 @@ Success signal: Maia produces loggable, editable actions that save time weekly a
 Goal: own the daily loop for lifters and runners: train, recover, eat, repeat.
 
 - [x] **Today fuel plan**: Home shows one training-aware nutrition target for the next meaningful event: run recovery, lift recovery, protein catch-up, dinner planning, or a neutral over-target review. MVP shipped: `TodayFuelPlanRules` chooses one priority, clamps recovery macro targets inside remaining calories, routes actions to recovery search / Fill macros / Trust Hub review, and replaces the old standalone run-recovery banner.
-- [ ] **Training fuel guardrails**: help users budget carbs/protein before heavy leg days, long runs, or hard sessions while preserving the chosen calorie target. If a user goes over, respond with a neutral review and next-step plan; do not reframe the overage as a win. Started: Today fuel plan and workout-completion handoff now prioritize neutral review when calories are already over target, and recovery targets are bounded by remaining calories.
+- [x] **Training fuel guardrails**: the confirmed Training Fuel Planner budgets carbs/protein
+  before and after demanding strength or running sessions without raising the chosen calorie
+  target. Live diary reconciliation, explicit completion/skipping, overnight recovery, and
+  neutral over-target states prevent planned fuel from disguising an overage.
 - [x] **Workout completion meal handoff**: after a completed lift/run, present a Maia recovery card with carb/protein targets and a search/quick-log path. MVP shipped: today's workout summary shows a budget-aware recovery handoff with protein/carb targets, "Find food" search, Fill macros meal generation, and over-target Review today fallback.
 - [x] **Lifting workout quality foundation**: bring the workout player closer to Strong/Hevy parity with warmup/drop/failure set types, RPE/RIR effort capture, warmups excluded from volume/1RM analytics, adjacent supersets, and an autoregulated progression coach based on the previous top working set.
 - [x] **Running effort detail**: Run Detail shows average-HR zone plus a real time-in-zone card computed from the HealthKit heart-rate series for the run window. The card only appears when HR data exists and skips long sample gaps instead of fabricating effort.
 - [x] **Indoor / treadmill support**: Apple Health indoor runs already import; MyFitPlate now also has a manual treadmill log path from Start Run that writes an indoor HealthKit run with distance, duration, estimated calories, generated splits, and no route.
 - [ ] **Structured interval workouts**: add a workout-step model, saved interval templates, recorder step state, and live pace/distance/time guidance for workouts like warmup -> 5x400m -> cooldown. Started: built Core step/plan/tracker rules, built-in templates, saved custom repeat templates, a Start Run picker, live recorder step guidance with progress, haptics, audio step cues, effort/pace-target capable steps, Live Activity step/target text, persisted plan-vs-actual step reviews on run summary/detail, manual pace-range targets for custom repeat workouts, and a saved step-by-step editor for arbitrary run workouts. Still open: device validation on real GPS guided runs.
-- [ ] **Running recovery polish**: make shoe mileage, route PRs, recovery fuel, weekly mileage, HR zones, and time-in-zone form one clear story in Reports.
-- [ ] **Strength progression nutrition**: surface protein consistency, calories around hard training days, and PR weeks in Weekly Recap.
+- [x] **Running recovery polish**: the unified Training & Fuel report now combines weekly mileage,
+  weighted pace, route/distance PRs, shoe wear, real HR time in zone, guided-step results, and
+  timestamped recovery follow-through in one seven-day story.
+- [x] **Strength progression nutrition**: the unified report now shows working sets/volume,
+  prior-history PRs, working-set RPE trend, demanding days, and calorie/protein consistency on
+  those demanding days.
 
 Success signal: MyFitPlate feels more useful after a workout than a generic calorie counter.
 
 ### Sprint 5 — Platform Polish and Daily Retention
 Goal: make the Apple ecosystem experience feel first-class and repeatable.
 
-- [ ] **Apple Watch standalone quick logging**: wrist-first water, weight, recent foods, workout start/finish, and recovery prompt review.
-- [ ] **Widget and Live Activity refinement**: widgets should answer "what should I do next?" rather than only display totals.
-- [ ] **Notifications that earn trust**: smart nudges must be sparse, contextual, and measurable; include opt-out and notification type controls.
-- [ ] **Reports and export polish**: finish PDF/CSV export for coaching/medical review, with clean date ranges and privacy-safe sharing.
+- [ ] **Apple Watch standalone quick logging**: water, weight, a two-step recent-meal repeat,
+  and compact training/recovery review are complete with offline-safe delivery. Workout
+  start/finish remains a later Watch expansion and is not required for 2.3.
+- [x] **Widget and Live Activity refinement**: every widget family now answers "what should I do
+  next?" with the deterministic Training Fuel, Trust, protein, or steady-day action while
+  retaining the calorie glance and interactive water action. Live Activity already carries
+  structured guided-run step/target state.
+- [x] **Notifications that earn trust**: three independently opt-in, deterministic reminder
+  types use quiet hours, a two-per-day cap, stable IDs, exact routes, and privacy-safe outcome
+  telemetry. The generic AI engagement nudge is retired.
+- [ ] **Reports and export polish**: the unified report now exports a privacy-safe rendered image
+  and aggregate CSV for a selected seven-day period. Polished PDF output and arbitrary date
+  ranges remain later work rather than 2.3 requirements.
 - [ ] **Accessibility/device pass**: Dynamic Type, VoiceOver labels, dark mode, low-connectivity behavior, and full device checklist.
 
 Success signal: users can interact with the app without opening the phone every time, and weekly retention has a clear habit loop.
@@ -312,7 +337,9 @@ Goal: add memorable features only after the core competitive loop is strong.
 
 ### Gamified Dining & Nutrition
 - [x] **Restaurant Value Radar MVP**: AI menu scanner ranks dishes by Protein-to-Dollar and Protein-to-Calorie using only prices visibly printed on the menu; nutrition remains reviewable AI estimate data, fictional demo data is labeled, and demo logging is disabled. Future work: OCR confidence, multi-page menus, and verified restaurant nutrition sources.
-- [ ] **Training fuel planner**: pre-plan carbs/protein for heavy leg days or endurance runs inside the user's target, with clear labels for planned fuel vs. accidental overage.
+- [x] **Training fuel planner**: confirmed pre/post carb and protein allocations now stay inside
+  the user's live target, distinguish planned timing from diary intake, reconcile explicit
+  workout outcomes, and become neutral when the budget is exhausted or over target.
 - [ ] **Beat the buffet 2.0**: manual off-catalog entries, scanned item review, better city pricing confidence, and a clear "estimate" trust label on every price.
 
 ### Platform Expansion & Community

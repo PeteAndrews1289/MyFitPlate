@@ -65,7 +65,8 @@ final class AppCoordinatorTests: XCTestCase {
             ("myfitplate://trust-score", .trust, 0),
             ("myfitplate://fast-food-builder", .builder, 0),
             ("myfitplate://running", .runs, 2),
-            ("myfitplate://meal-plan", .nutrition, 3)
+            ("myfitplate://meal-plan", .nutrition, 3),
+            ("myfitplate://training-fuel", .trainingFuel, 0)
         ]
 
         for (urlString, expectedRoute, expectedTab) in cases {
@@ -75,6 +76,16 @@ final class AppCoordinatorTests: XCTestCase {
             XCTAssertEqual(coordinator.pendingRoute, expectedRoute)
             XCTAssertEqual(appState.selectedTab, expectedTab)
         }
+    }
+
+    func testRouteCanQueueWithoutAnAppStateForNotificationDelegate() throws {
+        let coordinator = AppCoordinator()
+
+        let route = coordinator.handle(url: try XCTUnwrap(URL(string: "myfitplate://recovery-fuel")))
+
+        XCTAssertEqual(route, .trainingFuel)
+        XCTAssertEqual(coordinator.currentRoute, .trainingFuel)
+        XCTAssertEqual(coordinator.pendingRoute, .trainingFuel)
     }
 
     func testPathStyleLinkAndPendingRouteSurviveUntilTaken() throws {

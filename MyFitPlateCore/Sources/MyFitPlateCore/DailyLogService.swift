@@ -23,6 +23,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     public weak var achievementService: AchievementService?
     public weak var bannerService: BannerService?
     public weak var goalSettings: GoalSettings?
+    public weak var trainingFuelPlanStore: TrainingFuelPlanStore?
     private var activeListenerDate: Date?
     private var mutationTails: [String: Task<Void, Never>] = [:]
     private var mutationTokens: [String: Int] = [:]
@@ -53,7 +54,11 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     }
 
     private func syncCurrentDailyLogToWidgets() {
-        EcosystemSyncManager.shared.updateWidgetData(log: self.currentDailyLog, goals: self.goalSettings)
+        EcosystemSyncManager.shared.updateWidgetData(
+            log: self.currentDailyLog,
+            goals: self.goalSettings,
+            trainingFuelPlan: trainingFuelPlanStore?.confirmedPlan
+        )
     }
 
     private func normalizedFoodForLogging(_ foodItem: FoodItem, source: String) -> FoodItem {
@@ -447,7 +452,29 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         addMealToLog(for: userID, date: activelyViewedDate, mealName: mealName, foodItems: foodItems)
     }
 
-    public func addMealToLog(for userID: String, date: Date, mealName: String, foodItems: [FoodItem], source: String = "recipe") {
+    public func addMealToCurrentLog(
+        for userID: String,
+        mealName: String,
+        foodItems: [FoodItem],
+        completion: @escaping (Bool) -> Void
+    ) {
+        addMealToLog(
+            for: userID,
+            date: activelyViewedDate,
+            mealName: mealName,
+            foodItems: foodItems,
+            source: "recipe",
+            completion: completion
+        )
+    }
+
+    public func addMealToLog(
+        for userID: String,
+        date: Date,
+        mealName: String,
+        foodItems: [FoodItem],
+        source: String = "recipe"
+    ) {
         addMealGroupsToLog(
             for: userID,
             date: date,
@@ -456,10 +483,51 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         )
     }
 
-    public func addMealGroupsToLog(for userID: String, date: Date, mealGroups: [(mealName: String, foodItems: [FoodItem])], source: String = "recipe") {
+    public func addMealToLog(
+        for userID: String,
+        date: Date,
+        mealName: String,
+        foodItems: [FoodItem],
+        source: String,
+        completion: @escaping (Bool) -> Void
+    ) {
+        addMealGroupsToLog(
+            for: userID,
+            date: date,
+            mealGroups: [(mealName: mealName, foodItems: foodItems)],
+            source: source,
+            completion: completion
+        )
+    }
+
+    public func addMealGroupsToLog(
+        for userID: String,
+        date: Date,
+        mealGroups: [(mealName: String, foodItems: [FoodItem])],
+        source: String = "recipe"
+    ) {
+        addMealGroupsToLog(
+            for: userID,
+            date: date,
+            mealGroups: mealGroups,
+            source: source,
+            completion: nil
+        )
+    }
+
+    private func addMealGroupsToLog(
+        for userID: String,
+        date: Date,
+        mealGroups: [(mealName: String, foodItems: [FoodItem])],
+        source: String,
+        completion: ((Bool) -> Void)? = nil
+    ) {
         let dateToLog = Calendar.current.startOfDay(for: date)
         let nonEmptyGroups = mealGroups.filter { !$0.foodItems.isEmpty }
-        guard !nonEmptyGroups.isEmpty else { return }
+        guard !nonEmptyGroups.isEmpty else {
+            completion?(false)
+            return
+        }
 
         enqueueDailyLogMutation(
             for: userID,
@@ -492,7 +560,8 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     : "Planned day logged!"
                 self.bannerService?.showBanner(title: "Success", message: message)
                 self.achievementService?.checkAchievementsOnLogUpdate(userID: userID, logDate: dateToLog)
-            }
+            },
+            completion: completion
         )
     }
 

@@ -7,4 +7,5 @@ enum WatchPalette {
     static let accentCarbs = Color(red: 0.839, green: 0.659, blue: 0.243)
     static let accentFats = Color(red: 0.588, green: 0.427, blue: 0.675)
     static let accentWater = Color(red: 0.290, green: 0.663, blue: 0.741)
+    static let accentSignal = Color(red: 0.878, green: 0.541, blue: 0.294)
 }

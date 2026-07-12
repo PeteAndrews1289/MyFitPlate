@@ -1,5 +1,6 @@
 import AppIntents
 import WidgetKit
+import MyFitPlateCore
 
 struct LogWaterIntent: AppIntent {
     static var title: LocalizedStringResource = "Log Water"

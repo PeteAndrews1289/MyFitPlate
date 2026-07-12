@@ -13,12 +13,13 @@ public enum Route: String, Hashable, Identifiable, Sendable {
     case trust
     case builder
     case runs
+    case trainingFuel
 
     public var id: String { rawValue }
 
     public var selectedTab: Int {
         switch self {
-        case .home, .profile, .settings, .community, .foodSearch, .trust, .builder:
+        case .home, .profile, .settings, .community, .foodSearch, .trust, .builder, .trainingFuel:
             return 0
         case .maia:
             return 1

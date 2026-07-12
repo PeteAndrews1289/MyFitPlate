@@ -8,6 +8,12 @@ struct SettingsPreferencesSection: View {
     @Binding var hydrationRemindersEnabled: Bool
     @Binding var weighInReminderEnabled: Bool
     @Binding var notificationTimeBinding: Date
+    @Binding var preSessionFuelRemindersEnabled: Bool
+    @Binding var recoveryFuelRemindersEnabled: Bool
+    @Binding var eveningProteinRemindersEnabled: Bool
+    @Binding var quietStartBinding: Date
+    @Binding var quietEndBinding: Date
+    @Binding var eveningProteinTimeBinding: Date
 
     @AppStorage("liftingEffortMetric") private var liftingEffortMetric: String = "rpe"
 
@@ -103,6 +109,62 @@ struct SettingsPreferencesSection: View {
                     .onChange(of: weighInReminderEnabled) { _, enabled in
                         NotificationManager.shared.setWeighInReminder(enabled: enabled)
                     }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        SettingsLabel(
+                            icon: "bolt.fill",
+                            title: "Training & Fuel",
+                            subtitle: "Choose only the moments when a reminder would help.",
+                            color: .orange
+                        )
+
+                        Toggle("Before training", isOn: $preSessionFuelRemindersEnabled)
+                            .onChange(of: preSessionFuelRemindersEnabled) { _, enabled in
+                                trainingFuelPreferenceChanged(requestPermission: enabled)
+                            }
+                        Toggle("Recovery target", isOn: $recoveryFuelRemindersEnabled)
+                            .onChange(of: recoveryFuelRemindersEnabled) { _, enabled in
+                                trainingFuelPreferenceChanged(requestPermission: enabled)
+                            }
+                        Toggle("Evening protein catch-up", isOn: $eveningProteinRemindersEnabled)
+                            .onChange(of: eveningProteinRemindersEnabled) { _, enabled in
+                                trainingFuelPreferenceChanged(requestPermission: enabled)
+                            }
+
+                        if trainingFuelRemindersEnabled {
+                            Divider()
+                            HStack {
+                                Text("Quiet hours")
+                                    .appFont(size: 14, weight: .semibold)
+                                Spacer()
+                                DatePicker("Start", selection: $quietStartBinding, displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                                Text("to")
+                                    .foregroundStyle(.secondary)
+                                DatePicker("End", selection: $quietEndBinding, displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                            }
+                            .onChange(of: quietStartBinding) { _, _ in postTrainingFuelPreferenceChange() }
+                            .onChange(of: quietEndBinding) { _, _ in postTrainingFuelPreferenceChange() }
+
+                            if eveningProteinRemindersEnabled {
+                                HStack {
+                                    Text("Evening reminder")
+                                        .appFont(size: 14, weight: .semibold)
+                                    Spacer()
+                                    DatePicker(
+                                        "Evening reminder",
+                                        selection: $eveningProteinTimeBinding,
+                                        displayedComponents: .hourAndMinute
+                                    )
+                                    .labelsHidden()
+                                }
+                                .onChange(of: eveningProteinTimeBinding) { _, _ in postTrainingFuelPreferenceChange() }
+                            }
+                        }
+                    }
                 }
                 .padding(16)
             }
@@ -146,5 +208,24 @@ struct SettingsPreferencesSection: View {
                 .padding(16)
             }
         }
+    }
+
+    private var trainingFuelRemindersEnabled: Bool {
+        preSessionFuelRemindersEnabled || recoveryFuelRemindersEnabled || eveningProteinRemindersEnabled
+    }
+
+    private func trainingFuelPreferenceChanged(requestPermission: Bool) {
+        guard requestPermission else {
+            postTrainingFuelPreferenceChange()
+            return
+        }
+        NotificationManager.shared.requestAuthorization { _ in
+            postTrainingFuelPreferenceChange()
+        }
+    }
+
+    private func postTrainingFuelPreferenceChange() {
+        NotificationManager.shared.cancelTrainingFuelNotifications()
+        NotificationCenter.default.post(name: .trainingFuelNotificationPreferencesChanged, object: nil)
     }
 }

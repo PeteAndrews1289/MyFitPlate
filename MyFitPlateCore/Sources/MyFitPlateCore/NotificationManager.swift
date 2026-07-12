@@ -68,6 +68,9 @@ public class NotificationManager {
     /// The XCTest guard below only protects the REAL center (app-target test runs must not
     /// mutate the device's pending notifications). Injected fakes are exactly for tests.
     private let isSystemCenter: Bool
+    private let trainingFuelLedgerKey = "trainingFuelNotificationLedger.v1"
+    private let trainingFuelLedgerLock = NSLock()
+    private var trainingFuelSyncGeneration = 0
 
     public init(center: UserNotificationScheduling = SystemUserNotificationCenter(),
                 defaults: UserDefaults = .standard) {
@@ -185,23 +188,52 @@ public class NotificationManager {
         }
     }
 
-    public func scheduleSmartNudge(title: String, body: String, delayHours: Double) {
-        // Cancel existing nudge to avoid stacking
-        cancelNotification(identifier: "smart_ai_nudge")
-        
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
-        content.sound = .default
-        content.badge = 1
-        
-        // Schedule for X hours from now
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delayHours * 3600, repeats: false)
-        let request = UNNotificationRequest(identifier: "smart_ai_nudge", content: content, trigger: trigger)
+    public func syncTrainingFuelNotifications(
+        preferences: TrainingFuelNotificationPreferences,
+        plan: TrainingFuelConfirmedPlan?,
+        today: DailyLog?,
+        goals: TodayFuelPlanGoals,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) {
+        if isSystemCenter && NSClassFromString("XCTest") != nil { return }
+        let generation = beginTrainingFuelSync()
+        // Remove the retired AI-generated engagement nudge from older app versions.
+        center.removePendingRequests(withIdentifiers: ["smart_ai_nudge"])
 
-        center.add(request) { error in
-            if let error = error {
-                AppLog.notifications.error("Error scheduling smart nudge: \(error.localizedDescription, privacy: .public)")
+        let candidates = TrainingFuelNotificationRules.candidates(
+            preferences: preferences,
+            plan: plan,
+            today: today,
+            goals: goals,
+            now: now,
+            calendar: calendar
+        )
+        let allIDs = TrainingFuelNotificationCandidate.Kind.allCases.map(\.identifier)
+        let candidateIDs = Set(candidates.map { $0.kind.identifier })
+        let removedIDs = allIDs.filter { !candidateIDs.contains($0) }
+        if !removedIDs.isEmpty {
+            center.removePendingRequests(withIdentifiers: removedIDs)
+            removeTrainingFuelLedgerEntries(identifiers: removedIDs)
+        }
+        guard preferences.hasAnyEnabled, !candidates.isEmpty else { return }
+
+        center.authorizationStatus { status in
+            let scheduleCurrentCandidates = {
+                guard self.isCurrentTrainingFuelSync(generation),
+                      status == .authorized || status == .provisional else { return }
+                for candidate in candidates {
+                    self.scheduleTrainingFuelCandidate(
+                        candidate,
+                        calendar: calendar,
+                        generation: generation
+                    )
+                }
+            }
+            if Thread.isMainThread {
+                scheduleCurrentCandidates()
+            } else {
+                DispatchQueue.main.async(execute: scheduleCurrentCandidates)
             }
         }
     }
@@ -290,6 +322,103 @@ public class NotificationManager {
 
     public func cancelNotification(identifier: String) {
         center.removePendingRequests(withIdentifiers: [identifier])
+    }
+
+    public func cancelTrainingFuelNotifications() {
+        invalidateTrainingFuelSync()
+        let identifiers = TrainingFuelNotificationCandidate.Kind.allCases.map(\.identifier) + ["smart_ai_nudge"]
+        center.removePendingRequests(withIdentifiers: identifiers)
+        removeTrainingFuelLedgerEntries(identifiers: identifiers)
+    }
+
+    private func scheduleTrainingFuelCandidate(
+        _ candidate: TrainingFuelNotificationCandidate,
+        calendar: Calendar,
+        generation: Int
+    ) {
+        let identifier = candidate.kind.identifier
+        let fingerprint = [
+            String(Int(candidate.fireDate.timeIntervalSince1970)),
+            candidate.title,
+            candidate.body,
+            candidate.deepLink
+        ].joined(separator: "|")
+        guard claimTrainingFuelFingerprint(
+            fingerprint,
+            identifier: identifier,
+            generation: generation
+        ) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = candidate.title
+        content.body = candidate.body
+        content.sound = .default
+        content.userInfo = [
+            "deep_link": candidate.deepLink,
+            "notification_type": candidate.kind.rawValue
+        ]
+        let components = calendar.dateComponents(
+            [.calendar, .timeZone, .year, .month, .day, .hour, .minute],
+            from: candidate.fireDate
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+
+        center.add(request) { error in
+            if let error {
+                self.removeTrainingFuelLedgerEntries(identifiers: [identifier])
+                AppLog.notifications.error("Error scheduling training fuel reminder: \(error.localizedDescription, privacy: .public)")
+                return
+            }
+            Task { @MainActor in
+                DIContainer.shared.analyticsManager?.logEvent(
+                    ProductAnalytics.Event.trainingFuelNotificationScheduled.rawValue,
+                    parameters: ["notification_type": candidate.kind.rawValue]
+                )
+            }
+        }
+    }
+
+    private func beginTrainingFuelSync() -> Int {
+        trainingFuelLedgerLock.lock()
+        defer { trainingFuelLedgerLock.unlock() }
+        trainingFuelSyncGeneration &+= 1
+        return trainingFuelSyncGeneration
+    }
+
+    private func invalidateTrainingFuelSync() {
+        trainingFuelLedgerLock.lock()
+        defer { trainingFuelLedgerLock.unlock() }
+        trainingFuelSyncGeneration &+= 1
+    }
+
+    private func isCurrentTrainingFuelSync(_ generation: Int) -> Bool {
+        trainingFuelLedgerLock.lock()
+        defer { trainingFuelLedgerLock.unlock() }
+        return trainingFuelSyncGeneration == generation
+    }
+
+    private func claimTrainingFuelFingerprint(
+        _ fingerprint: String,
+        identifier: String,
+        generation: Int
+    ) -> Bool {
+        trainingFuelLedgerLock.lock()
+        defer { trainingFuelLedgerLock.unlock() }
+        guard trainingFuelSyncGeneration == generation else { return false }
+        var ledger = defaults.dictionary(forKey: trainingFuelLedgerKey) as? [String: String] ?? [:]
+        guard ledger[identifier] != fingerprint else { return false }
+        ledger[identifier] = fingerprint
+        defaults.set(ledger, forKey: trainingFuelLedgerKey)
+        return true
+    }
+
+    private func removeTrainingFuelLedgerEntries(identifiers: [String]) {
+        trainingFuelLedgerLock.lock()
+        defer { trainingFuelLedgerLock.unlock() }
+        var ledger = defaults.dictionary(forKey: trainingFuelLedgerKey) as? [String: String] ?? [:]
+        identifiers.forEach { ledger[$0] = nil }
+        defaults.set(ledger, forKey: trainingFuelLedgerKey)
     }
     
     private func fetchUserData(userID: String, completion: @escaping (Double, Double) -> Void) {

@@ -79,7 +79,13 @@ final class LocalStateManagerTests: XCTestCase {
             fats: 60,
             fatGoal: 75,
             lastUpdated: Date(timeIntervalSince1970: 123),
-            macroCalorieDelta: 12
+            macroCalorieDelta: 12,
+            nextAction: DailyNextAction(
+                kind: .trustReview,
+                title: "Review food data",
+                detail: "1 entry needs your review",
+                deepLink: "myfitplate://trust"
+            )
         )
 
         XCTAssertTrue(manager.saveData(data))
@@ -87,6 +93,7 @@ final class LocalStateManagerTests: XCTestCase {
         XCTAssertEqual(loaded?.calories, 1_900)
         XCTAssertEqual(loaded?.proteinGoal, 180)
         XCTAssertEqual(loaded?.macroCalorieDelta, 12)
+        XCTAssertEqual(loaded?.nextAction?.kind, .trustReview)
 
         manager.logPendingWater(ounces: 8)
         manager.logPendingWater(ounces: 4)
@@ -104,5 +111,26 @@ final class LocalStateManagerTests: XCTestCase {
         XCTAssertGreaterThan(preview.proteinGoal, 0)
         XCTAssertNil(preview.macroCalorieDelta)
         XCTAssertNotNil(preview.lastUpdated)
+        XCTAssertEqual(preview.nextAction?.kind, .preWorkoutFuel)
+    }
+
+    func testWidgetDataDecodesLegacyPayloadWithoutNextAction() throws {
+        let legacy = """
+        {
+          "calories": 900,
+          "calorieGoal": 2200,
+          "protein": 70,
+          "proteinGoal": 150,
+          "carbs": 100,
+          "carbsGoal": 240,
+          "fats": 30,
+          "fatGoal": 70
+        }
+        """
+
+        let decoded = try JSONDecoder().decode(WidgetData.self, from: Data(legacy.utf8))
+
+        XCTAssertEqual(decoded.calories, 900)
+        XCTAssertNil(decoded.nextAction)
     }
 }

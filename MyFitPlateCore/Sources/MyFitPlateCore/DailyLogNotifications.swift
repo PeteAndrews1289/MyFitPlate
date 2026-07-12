@@ -3,6 +3,8 @@ import Foundation
 public extension Notification.Name {
     static let foodItemLogged = Notification.Name("FoodItemLogged")
     static let didUpdateExerciseLog = Notification.Name("didUpdateExerciseLog")
+    static let openTrainingFuelPlanner = Notification.Name("OpenTrainingFuelPlanner")
+    static let trainingFuelNotificationPreferencesChanged = Notification.Name("TrainingFuelNotificationPreferencesChanged")
 }
 
 public enum DailyLogNotificationUserInfoKey {

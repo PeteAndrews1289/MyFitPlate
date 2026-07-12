@@ -18,6 +18,12 @@ struct SettingsView: View {
     @AppStorage("notificationMinute") private var notificationMinute: Int = 0
     @AppStorage("hydrationRemindersEnabled") private var hydrationRemindersEnabled: Bool = false
     @AppStorage("weighInReminderEnabled") private var weighInReminderEnabled: Bool = false
+    @AppStorage(TrainingFuelNotificationPreferenceKey.preSessionEnabled) private var preSessionFuelRemindersEnabled = false
+    @AppStorage(TrainingFuelNotificationPreferenceKey.recoveryEnabled) private var recoveryFuelRemindersEnabled = false
+    @AppStorage(TrainingFuelNotificationPreferenceKey.eveningCatchUpEnabled) private var eveningProteinRemindersEnabled = false
+    @AppStorage(TrainingFuelNotificationPreferenceKey.quietStartMinutes) private var trainingFuelQuietStartMinutes = 22 * 60
+    @AppStorage(TrainingFuelNotificationPreferenceKey.quietEndMinutes) private var trainingFuelQuietEndMinutes = 7 * 60
+    @AppStorage(TrainingFuelNotificationPreferenceKey.eveningMinutes) private var eveningProteinReminderMinutes = 19 * 60 + 30
 
     @Binding var showSettings: Bool
 
@@ -31,6 +37,27 @@ struct SettingsView: View {
                 notificationHour = components.hour ?? 20
                 notificationMinute = components.minute ?? 0
             }
+        )
+    }
+
+    private var trainingFuelQuietStartBinding: Binding<Date> {
+        minuteOfDayBinding(
+            get: { trainingFuelQuietStartMinutes },
+            set: { trainingFuelQuietStartMinutes = $0 }
+        )
+    }
+
+    private var trainingFuelQuietEndBinding: Binding<Date> {
+        minuteOfDayBinding(
+            get: { trainingFuelQuietEndMinutes },
+            set: { trainingFuelQuietEndMinutes = $0 }
+        )
+    }
+
+    private var eveningProteinReminderBinding: Binding<Date> {
+        minuteOfDayBinding(
+            get: { eveningProteinReminderMinutes },
+            set: { eveningProteinReminderMinutes = $0 }
         )
     }
     
@@ -71,7 +98,13 @@ struct SettingsView: View {
                         includeActiveCaloriesInGoal: $includeActiveCaloriesInGoal,
                         hydrationRemindersEnabled: $hydrationRemindersEnabled,
                         weighInReminderEnabled: $weighInReminderEnabled,
-                        notificationTimeBinding: notificationTimeBinding
+                        notificationTimeBinding: notificationTimeBinding,
+                        preSessionFuelRemindersEnabled: $preSessionFuelRemindersEnabled,
+                        recoveryFuelRemindersEnabled: $recoveryFuelRemindersEnabled,
+                        eveningProteinRemindersEnabled: $eveningProteinRemindersEnabled,
+                        quietStartBinding: trainingFuelQuietStartBinding,
+                        quietEndBinding: trainingFuelQuietEndBinding,
+                        eveningProteinTimeBinding: eveningProteinReminderBinding
                     )
 
                     SettingsAccountSection(
@@ -149,6 +182,27 @@ struct SettingsView: View {
         } message: {
             Text("Closes Settings and plays the guided tips again from the Home screen.")
         }
+    }
+
+    private func minuteOfDayBinding(
+        get: @escaping () -> Int,
+        set: @escaping (Int) -> Void
+    ) -> Binding<Date> {
+        Binding(
+            get: {
+                let minutes = get()
+                return Calendar.current.date(
+                    bySettingHour: minutes / 60,
+                    minute: minutes % 60,
+                    second: 0,
+                    of: Date()
+                ) ?? Date()
+            },
+            set: { date in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+                set((components.hour ?? 0) * 60 + (components.minute ?? 0))
+            }
+        )
     }
     
     private func updateHeight() {

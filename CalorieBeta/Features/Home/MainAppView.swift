@@ -7,6 +7,7 @@ import FirebaseAppCheck
 #endif
 import WatchConnectivity
 import HealthKit
+import UserNotifications
 
 #if ENABLE_APP_CHECK
 /// Supplies App Attest tokens so Firebase backends (Functions, Firestore) can verify that calls
@@ -18,15 +19,58 @@ final class MyFitPlateAppCheckProviderFactory: NSObject, AppCheckProviderFactory
 }
 #endif
 
+final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = AppNotificationDelegate()
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        let type = userInfo["notification_type"] as? String
+        let deepLink = userInfo["deep_link"] as? String
+        Task { @MainActor in
+            guard let type, TrainingFuelNotificationCandidate.Kind(rawValue: type) != nil else { return }
+            if let deepLink, let url = URL(string: deepLink) { AppCoordinator.shared.handle(url: url) }
+            DIContainer.shared.analyticsManager?.logEvent(
+                ProductAnalytics.Event.trainingFuelNotificationOpened.rawValue,
+                parameters: ["notification_type": type]
+            )
+        }
+        completionHandler()
+    }
+}
+
 class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var isReachable: Bool = false
+    @Published private(set) var isActivated: Bool = false
 
     /// Water logged on the watch, waiting to be written to the daily log. Mirrors the
     /// widget's pending-water pattern: accumulate here, drain exactly once on the main actor.
     @Published private(set) var pendingWatchWaterOunces: Double = 0
+    @Published private(set) var pendingWatchMealRepeatCount: Int = 0
+
+    private let accountScopeStore = WatchAccountScopeStore()
+    private let mealRepeatInbox = WatchMealRepeatInbox()
+    private var pendingWatchWaterByScope: [String: Double] = [:]
+    private var shouldClearWatchAccount = UserDefaults.standard.bool(forKey: "watchAccountClearPending") {
+        didSet {
+            UserDefaults.standard.set(shouldClearWatchAccount, forKey: "watchAccountClearPending")
+        }
+    }
 
     override init() {
         super.init()
+        pendingWatchMealRepeatCount = mealRepeatInbox.pendingCount
         if WCSession.isSupported() {
             WCSession.default.delegate = self
             WCSession.default.activate()
@@ -36,6 +80,10 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         DispatchQueue.main.async {
             self.isReachable = session.isReachable
+            self.isActivated = activationState == .activated
+            if self.isActivated && self.shouldClearWatchAccount {
+                self.sendClearWatchContext()
+            }
         }
     }
 
@@ -49,40 +97,115 @@ class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        guard let ounces = userInfo["logWaterOunces"] as? Double, ounces > 0 else { return }
-        DispatchQueue.main.async {
-            self.pendingWatchWaterOunces += ounces
+        if let ounces = userInfo["logWaterOunces"] as? Double,
+           ounces > 0,
+           let accountScope = userInfo[WatchQuickActionPayload.accountScope] as? String,
+           !accountScope.isEmpty {
+            DispatchQueue.main.async {
+                self.pendingWatchWaterByScope[accountScope, default: 0] += ounces
+                self.pendingWatchWaterOunces = self.pendingWatchWaterByScope.values.reduce(0, +)
+            }
+        }
+
+        if let data = userInfo[WatchQuickActionPayload.repeatMealRequest] as? Data,
+           let request = try? JSONDecoder().decode(WatchMealRepeatRequest.self, from: data),
+           mealRepeatInbox.enqueue(request) {
+            DispatchQueue.main.async {
+                self.pendingWatchMealRepeatCount = self.mealRepeatInbox.pendingCount
+            }
         }
     }
 
     /// Returns the accumulated watch water and resets it, so each transfer logs exactly once.
-    func claimPendingWatchWater() -> Double {
-        let claimed = pendingWatchWaterOunces
+    func claimPendingWatchWater(for userID: String) -> Double {
+        let scope = accountScopeStore.scope(for: userID)
+        let claimed = pendingWatchWaterByScope.removeValue(forKey: scope) ?? 0
+        pendingWatchWaterByScope.removeAll()
         pendingWatchWaterOunces = 0
         return claimed
     }
 
-    func sendNutritionToWatch(goalCal: Double, userCal: Int, userProt: Double, totalProt: Double, totalCarb: Double, totalFat: Double, userCarb: Double, userFat: Double, goalWeight: Double, userWeight: Double, currWater: Double, goalWater: Double, usesMetric: Bool) {
+    func sendNutritionToWatch(
+        goalCal: Double,
+        userCal: Double,
+        userProt: Double,
+        totalProt: Double,
+        totalCarb: Double,
+        totalFat: Double,
+        userCarb: Double,
+        userFat: Double,
+        goalWeight: Double,
+        userWeight: Double,
+        currWater: Double,
+        goalWater: Double,
+        usesMetric: Bool,
+        userID: String,
+        nextAction: DailyNextAction,
+        recentMeal: WatchMealSnapshot?
+    ) {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         guard session.activationState == .activated else { return }
         guard session.isPaired && session.isWatchAppInstalled else { return }
         
-        let context: [String: Any] = [
+        var context: [String: Any] = [
             "goalCal": goalCal, "userCal": userCal,
             "userProt": userProt, "totalProt": totalProt,
             "userCarb": userCarb, "totalCarb": totalCarb,
             "userFat": userFat, "totalFat": totalFat,
             "userWeight": userWeight, "goalWeight": goalWeight,
             "currWater": currWater, "goalWater": goalWater,
-            "usesMetric": usesMetric
+            "usesMetric": usesMetric,
+            WatchQuickActionPayload.accountScope: accountScopeStore.scope(for: userID),
+            WatchQuickActionPayload.clearAccount: false
         ]
+
+        if let actionData = try? JSONEncoder().encode(nextAction) {
+            context[WatchQuickActionPayload.nextAction] = actionData
+        }
+        if let recentMeal, let mealData = try? JSONEncoder().encode(recentMeal) {
+            context[WatchQuickActionPayload.recentMeal] = mealData
+        }
         
         do {
             try session.updateApplicationContext(context)
+            shouldClearWatchAccount = false
         } catch {
             AppLog.watch.error("Failed to send context to watch: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    func clearWatchAccount() {
+        shouldClearWatchAccount = true
+        mealRepeatInbox.discardRequests(exceptAccountScope: nil)
+        pendingWatchWaterByScope.removeAll()
+        pendingWatchWaterOunces = 0
+        pendingWatchMealRepeatCount = 0
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated else { return }
+        sendClearWatchContext()
+    }
+
+    private func sendClearWatchContext() {
+        do {
+            try WCSession.default.updateApplicationContext([
+                WatchQuickActionPayload.clearAccount: true
+            ])
+            shouldClearWatchAccount = false
+        } catch {
+            AppLog.watch.error("Failed to clear watch context: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func nextMealRepeatRequest(for userID: String) -> WatchMealRepeatRequest? {
+        let scope = accountScopeStore.scope(for: userID)
+        mealRepeatInbox.discardRequests(exceptAccountScope: scope)
+        pendingWatchMealRepeatCount = mealRepeatInbox.pendingCount
+        return mealRepeatInbox.nextRequest(accountScope: scope)
+    }
+
+    func markMealRepeatHandled(id: String) {
+        mealRepeatInbox.markHandled(id: id)
+        pendingWatchMealRepeatCount = mealRepeatInbox.pendingCount
     }
 }
 
@@ -253,6 +376,7 @@ struct CalorieBetaApp: App {
         goalsSvc.adaptiveGoalService = adaptiveSvc
         logService.bannerService = bannerSvc
         logService.achievementService = achieveService
+        logService.trainingFuelPlanStore = fuelPlanStore
         achieveService.setupDependencies(dailyLogService: logService, goalSettings: goalsSvc, bannerService: bannerSvc)
         hkViewModel.setup(
             dailyLogService: logService,
@@ -273,6 +397,7 @@ struct CalorieBetaApp: App {
         #endif
         
         NotificationManager.shared.clearNotificationBadge()
+        UNUserNotificationCenter.current().delegate = AppNotificationDelegate.shared
         ReleaseHealth.recordStartupCompleted(
             duration: Date().timeIntervalSince(launchStartedAt),
             crashManager: DIContainer.shared.crashManager,
@@ -314,11 +439,9 @@ struct ContentView: View {
     @EnvironmentObject var bannerService: BannerService
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var connectivityManager: WatchConnectivityManager
-    @EnvironmentObject var cycleService: CycleTrackingService
     @EnvironmentObject var pantryService: PantryService
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
-    @Environment(\.scenePhase) var scenePhase
 
     @State private var isLoadingUserState = true
     @State private var shouldShowOnboardingSurvey = false
@@ -357,6 +480,7 @@ struct ContentView: View {
             checkUserStatusAndFirstLogin()
             trainingFuelPlanStore.load(for: currentUserID)
             sendNutritionToWatchIfNeeded()
+            syncTrainingFuelNotificationsIfNeeded()
             processPendingDeepLinkIfReady()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
@@ -365,6 +489,7 @@ struct ContentView: View {
         .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
             trainingFuelPlanStore.load(for: isLoggedIn ? currentUserID : nil)
             handleLoginStateChange(isLoggedIn: isLoggedIn)
+            syncTrainingFuelNotificationsIfNeeded()
         }
         .onChange(of: appCoordinator.pendingRoute) { _, _ in
             processPendingDeepLinkIfReady()
@@ -376,14 +501,29 @@ struct ContentView: View {
         }
         .onChange(of: dailyLogService.currentDailyLog) {
             sendNutritionToWatchIfNeeded()
+            syncTrainingFuelNotificationsIfNeeded()
+        }
+        .onChange(of: trainingFuelPlanStore.confirmedPlan) {
+            dailyLogService.updateWidgetData()
+            sendNutritionToWatchIfNeeded()
+            syncTrainingFuelNotificationsIfNeeded()
         }
         .onChange(of: connectivityManager.pendingWatchWaterOunces) { _, pending in
             if pending > 0 { drainPendingWatchWater() }
         }
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .background && appState.isUserLoggedIn {
-                scheduleBackgroundNudge()
+        .onChange(of: connectivityManager.pendingWatchMealRepeatCount) { _, pending in
+            if pending > 0 { drainPendingWatchMealRepeats() }
+        }
+        .onChange(of: connectivityManager.isActivated) { _, isActivated in
+            guard isActivated else { return }
+            if appState.isUserLoggedIn {
+                sendNutritionToWatchIfNeeded()
+            } else {
+                connectivityManager.clearWatchAccount()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .trainingFuelNotificationPreferencesChanged)) { _ in
+            syncTrainingFuelNotificationsIfNeeded()
         }
         .withGlobalToast()
         .sheet(isPresented: $shouldShowFeatureTour) {
@@ -444,6 +584,10 @@ struct ContentView: View {
         switch route {
         case .foodSearch, .trust, .builder, .runs:
             presentedDeepLinkRoute = route
+        case .trainingFuel:
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .openTrainingFuelPlanner, object: nil)
+            }
         case .home, .maia, .profile, .settings, .nutrition, .workouts, .reports, .community:
             break
         }
@@ -469,7 +613,7 @@ struct ContentView: View {
             )
         case .runs:
             DeepLinkedRunHistoryView()
-        case .home, .maia, .profile, .settings, .nutrition, .workouts, .reports, .community:
+        case .home, .maia, .profile, .settings, .nutrition, .workouts, .reports, .community, .trainingFuel:
             EmptyView()
         }
     }
@@ -487,42 +631,6 @@ struct ContentView: View {
         appCoordinator.handle(url: url, appState: appState)
     }
     #endif
-
-    private func scheduleBackgroundNudge() {
-        // Gather Data
-        let log = dailyLogService.currentDailyLog
-        let goals = goalSettings
-        
-        // Find last workout info
-        let lastWorkoutDate = log?.exercises?.sorted(by: { $0.date < $1.date }).last?.date ?? Date.distantPast
-        let daysSinceWorkout = Calendar.current.dateComponents([.day], from: lastWorkoutDate, to: Date()).day ?? 0
-        
-        // Pass `nil` for wellnessScore since it is not persisted in HealthKitViewModel
-        // This is safe because InsightsService will simply skip the "Recovery Hook" if score is nil.
-        let context = InsightsService.NotificationContext(
-            gender: goals.gender,
-            phase: cycleService.cycleDay?.phase, // Will be nil for men or non-trackers
-            wellnessScore: nil,
-            sleepScore: healthKitViewModel.sleepSummary.lastNightScore,
-            caloriesRemaining: (goals.calories ?? 2000) - (log?.totalCalories() ?? 0),
-            proteinRemaining: goals.protein - (log?.totalMacros().protein ?? 0),
-            daysSinceLastWorkout: daysSinceWorkout,
-            lastWorkoutName: log?.exercises?.last?.name,
-            stepsToday: healthKitViewModel.todaySteps,
-            activeEnergyToday: healthKitViewModel.todayActiveEnergy
-        )
-        
-        Task {
-            if let notification = await insightsService.generateSmartNotification(context: context) {
-                // Schedule for 5 hours later (e.g. to prompt for the next meal)
-                NotificationManager.shared.scheduleSmartNudge(
-                    title: notification.title,
-                    body: notification.body,
-                    delayHours: 5.0
-                )
-            }
-        }
-    }
 
     @ViewBuilder
     private var mainContent: some View {
@@ -545,22 +653,40 @@ struct ContentView: View {
     }
     
     private func sendNutritionToWatchIfNeeded() {
-        guard appState.isUserLoggedIn else { return }
+        guard appState.isUserLoggedIn,
+              let userID = currentUserID,
+              let todayLog = dailyLogService.currentDailyLog,
+              Calendar.current.isDateInToday(todayLog.date) else { return }
+
+        let goals = TodayFuelPlanGoals(
+            calories: goalSettings.calories ?? 0,
+            protein: goalSettings.protein,
+            carbs: goalSettings.carbs,
+            fats: goalSettings.fats
+        )
+        let nextAction = DailyNextActionRules.makeAction(
+            plan: trainingFuelPlanStore.confirmedPlan,
+            today: todayLog,
+            goals: goals
+        )
 
         connectivityManager.sendNutritionToWatch(
             goalCal: goalSettings.calories ?? 0.0,
-            userCal: Int(dailyLogService.currentDailyLog?.totalCalories() ?? 0),
-            userProt: dailyLogService.currentDailyLog?.totalMacros().protein ?? 0.0,
+            userCal: todayLog.totalCalories(),
+            userProt: todayLog.totalMacros().protein,
             totalProt: goalSettings.protein,
             totalCarb: goalSettings.carbs,
             totalFat: goalSettings.fats,
-            userCarb: dailyLogService.currentDailyLog?.totalMacros().carbs ?? 0.0,
-            userFat: dailyLogService.currentDailyLog?.totalMacros().fats ?? 0.0,
+            userCarb: todayLog.totalMacros().carbs,
+            userFat: todayLog.totalMacros().fats,
             goalWeight: goalSettings.targetWeight ?? 0.0,
             userWeight: goalSettings.weight,
-            currWater: dailyLogService.currentDailyLog?.waterTracker?.totalOunces ?? 0.0,
+            currWater: todayLog.waterTracker?.totalOunces ?? 0.0,
             goalWater: max(1, goalSettings.waterGoal),
-            usesMetric: useMetricBodyUnits
+            usesMetric: useMetricBodyUnits,
+            userID: userID,
+            nextAction: nextAction,
+            recentMeal: WatchQuickActionRules.recentMeal(from: todayLog)
         )
     }
 
@@ -572,6 +698,8 @@ struct ContentView: View {
             sendNutritionToWatchIfNeeded()
             drainPendingWidgetWater()
             drainPendingWatchWater()
+            drainPendingWatchMealRepeats()
+            syncTrainingFuelNotificationsIfNeeded()
         }
     }
 
@@ -589,10 +717,62 @@ struct ContentView: View {
     /// re-pushes context so the watch's optimistic total gets replaced by the real one.
     private func drainPendingWatchWater() {
         guard appState.isUserLoggedIn, let userID = currentUserID else { return }
-        let pending = connectivityManager.claimPendingWatchWater()
+        let pending = connectivityManager.claimPendingWatchWater(for: userID)
         guard pending > 0 else { return }
         dailyLogService.addWaterToCurrentLog(for: userID, amount: pending, goalOunces: goalSettings.waterGoal)
         bannerService.showBanner(title: "Water Logged", message: "Added \(Int(pending)) oz from your watch.")
+    }
+
+    private func drainPendingWatchMealRepeats() {
+        guard appState.isUserLoggedIn,
+              let userID = currentUserID,
+              let request = connectivityManager.nextMealRepeatRequest(for: userID) else { return }
+        let items = WatchQuickActionRules.itemsForLogging(
+            from: request.snapshot,
+            at: request.requestedAt
+        )
+        guard !items.isEmpty else {
+            connectivityManager.markMealRepeatHandled(id: request.id)
+            drainPendingWatchMealRepeats()
+            return
+        }
+
+        dailyLogService.addMealToLog(
+            for: userID,
+            date: request.requestedAt,
+            mealName: request.snapshot.mealName,
+            foodItems: items,
+            source: "watch_repeat_meal"
+        ) { success in
+            DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.watchMealRepeatResult.rawValue, parameters: [
+                "result": success ? "logged" : "failed",
+                "item_count": items.count
+            ])
+            guard success else { return }
+            connectivityManager.markMealRepeatHandled(id: request.id)
+            drainPendingWatchMealRepeats()
+        }
+    }
+
+    private func syncTrainingFuelNotificationsIfNeeded() {
+        guard appState.isUserLoggedIn else {
+            NotificationManager.shared.cancelTrainingFuelNotifications()
+            return
+        }
+        guard let todayLog = dailyLogService.currentDailyLog,
+              Calendar.current.isDateInToday(todayLog.date) else { return }
+        let goals = TodayFuelPlanGoals(
+            calories: goalSettings.calories ?? 0,
+            protein: goalSettings.protein,
+            carbs: goalSettings.carbs,
+            fats: goalSettings.fats
+        )
+        NotificationManager.shared.syncTrainingFuelNotifications(
+            preferences: TrainingFuelNotificationPreferences.load(),
+            plan: trainingFuelPlanStore.confirmedPlan,
+            today: todayLog,
+            goals: goals
+        )
     }
     
     private func handleOnboardingComplete() {
@@ -620,6 +800,7 @@ struct ContentView: View {
     private func handleLoginStateChange(isLoggedIn: Bool) {
         if isLoggedIn {
             checkUserStatusAndFirstLogin()
+            drainPendingWatchMealRepeats()
         } else {
             self.isLoadingUserState = false
             self.shouldShowOnboardingSurvey = false
@@ -627,6 +808,7 @@ struct ContentView: View {
             self.shouldShowFirstSessionMFPImport = false
             self.shouldShowFirstSessionFoodSearch = false
             self.pantryService.stopListening()
+            self.connectivityManager.clearWatchAccount()
         }
     }
     
@@ -680,9 +862,11 @@ struct ContentView: View {
             goalSettings.loadUserGoals(userID: userID) {
                 self.goalSettings.loadWeightHistory()
                 self.sendNutritionToWatchIfNeeded()
+                self.syncTrainingFuelNotificationsIfNeeded()
             }
             dailyLogService.fetchLog(for: userID, date: Date()) { _ in
                 self.sendNutritionToWatchIfNeeded()
+                self.syncTrainingFuelNotificationsIfNeeded()
             }
             insightsService.generateAndFetchInsights()
             NotificationManager.shared.scheduleDailyLogReminderIfAuthorized()

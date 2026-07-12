@@ -35,6 +35,8 @@ final class AnalyticsContractTests: XCTestCase {
             "source": "recorded_run",
             "phase": "before_training",
             "destination": "food_search",
+            "notification_type": "recovery",
+            "item_count": 3,
             "target_protein": 25,
             "target_carbs": 40
         ])
@@ -46,6 +48,8 @@ final class AnalyticsContractTests: XCTestCase {
         XCTAssertEqual(parameters["source"] as? String, "recorded_run")
         XCTAssertEqual(parameters["phase"] as? String, "before_training")
         XCTAssertEqual(parameters["destination"] as? String, "food_search")
+        XCTAssertEqual(parameters["notification_type"] as? String, "recovery")
+        XCTAssertEqual(parameters["item_count"] as? Int, 3)
         XCTAssertNil(parameters["target_protein"])
         XCTAssertNil(parameters["target_carbs"])
     }

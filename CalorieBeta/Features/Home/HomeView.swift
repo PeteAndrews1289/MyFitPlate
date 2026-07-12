@@ -476,6 +476,17 @@ struct HomeView: View {
                   onHomeViewAppear()
               }
           }
+          .onReceive(NotificationCenter.default.publisher(for: .openTrainingFuelPlanner)) { _ in
+              if !isToday {
+                  selectedDate = Calendar.current.startOfDay(for: Date())
+                  dailyLogService.activelyViewedDate = selectedDate
+                  fetchLogForSelectedDate {
+                      showingTrainingFuelPlanner = true
+                  }
+              } else {
+                  showingTrainingFuelPlanner = true
+              }
+          }
           // The "start workout" quick action switches to the Train tab instead of pushing
           // a second copy of the whole Train screen inside Home's navigation stack.
           .onChange(of: showingWorkoutRoutines) { _, isShowing in

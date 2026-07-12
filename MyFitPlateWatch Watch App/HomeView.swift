@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 // DESIGN.md rule 1: the watch answers "how am I doing today?" the moment it opens.
 // The glance IS the home — calories remaining as hero, the macro trio under it,
@@ -48,6 +49,28 @@ struct HomeView: View {
                     }
 
                     VStack(spacing: 6) {
+                        if let nextAction = appDelegate.nextAction {
+                            NavigationLink(destination: WatchNextActionView(action: nextAction)) {
+                                HomeLinkRow(
+                                    icon: icon(for: nextAction.kind),
+                                    title: nextAction.title,
+                                    iconColor: actionColor(for: nextAction.kind)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if let recentMeal = appDelegate.recentMeal {
+                            NavigationLink(destination: WatchRepeatMealView(snapshot: recentMeal)) {
+                                HomeLinkRow(
+                                    icon: "arrow.clockwise",
+                                    title: "Repeat \(recentMeal.mealName)",
+                                    iconColor: WatchPalette.brandPrimary
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
                         NavigationLink(destination: WaterBottleView()) {
                             HomeLinkRow(icon: "drop.fill", title: "Log water", iconColor: WatchPalette.accentWater)
                         }
@@ -64,6 +87,137 @@ struct HomeView: View {
             }
             .navigationTitle("Today")
         }
+    }
+
+    private func icon(for kind: DailyNextAction.Kind) -> String {
+        switch kind {
+        case .preWorkoutFuel: return "bolt.fill"
+        case .recoveryMeal: return "fork.knife"
+        case .proteinCatchUp: return "chart.bar.fill"
+        case .trustReview: return "checkmark.shield.fill"
+        case .steadyDay: return "checkmark.circle.fill"
+        }
+    }
+
+    private func actionColor(for kind: DailyNextAction.Kind) -> Color {
+        switch kind {
+        case .preWorkoutFuel, .recoveryMeal: return WatchPalette.accentSignal
+        case .proteinCatchUp: return WatchPalette.accentProtein
+        case .trustReview, .steadyDay: return WatchPalette.brandPrimary
+        }
+    }
+}
+
+private struct WatchNextActionView: View {
+    let action: DailyNextAction
+
+    private var icon: String {
+        switch action.kind {
+        case .preWorkoutFuel: return "bolt.fill"
+        case .recoveryMeal: return "fork.knife"
+        case .proteinCatchUp: return "chart.bar.fill"
+        case .trustReview: return "checkmark.shield.fill"
+        case .steadyDay: return "checkmark.circle.fill"
+        }
+    }
+
+    private var color: Color {
+        switch action.kind {
+        case .preWorkoutFuel, .recoveryMeal: return WatchPalette.accentSignal
+        case .proteinCatchUp: return WatchPalette.accentProtein
+        case .trustReview, .steadyDay: return WatchPalette.brandPrimary
+        }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(color)
+
+                Text(action.title)
+                    .font(.headline)
+                Text(action.detail)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+
+                if action.kind == .preWorkoutFuel || action.kind == .recoveryMeal {
+                    HStack(spacing: 12) {
+                        if let protein = action.proteinGrams, protein > 0 {
+                            WatchTargetMetric(value: protein, label: "Protein")
+                        }
+                        if let carbs = action.carbGrams, carbs > 0 {
+                            WatchTargetMetric(value: carbs, label: "Carbs")
+                        }
+                    }
+                }
+
+                Text("Continue in MyFitPlate on iPhone")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 2)
+        }
+        .navigationTitle("Next")
+    }
+}
+
+private struct WatchTargetMetric: View {
+    let value: Int
+    let label: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text("\(value) g")
+                .font(.system(.headline, design: .rounded, weight: .bold))
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct WatchRepeatMealView: View {
+    @EnvironmentObject private var appDelegate: AppDelegate
+    let snapshot: WatchMealSnapshot
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(snapshot.mealName)
+                    .font(.headline)
+                Text("\(snapshot.foodItems.count) \(snapshot.foodItems.count == 1 ? "item" : "items") · \(snapshot.totalCalories) cal")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Button {
+                    appDelegate.repeatRecentMeal()
+                } label: {
+                    Label("Log again", systemImage: "arrow.clockwise")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(WatchPalette.brandPrimary)
+
+                if let status = appDelegate.repeatMealStatus {
+                    Label(
+                        status,
+                        systemImage: appDelegate.repeatMealQueued
+                            ? "checkmark.circle.fill"
+                            : "exclamationmark.triangle.fill"
+                    )
+                        .font(.footnote)
+                        .foregroundStyle(
+                            appDelegate.repeatMealQueued ? Color.secondary : WatchPalette.accentSignal
+                        )
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 2)
+        }
+        .navigationTitle("Repeat Meal")
     }
 }
 

@@ -8,8 +8,9 @@ public class AppCoordinator: ObservableObject {
     
     public init() {}
     
-    public func handle(url: URL, appState: AppState) {
-        guard url.scheme?.lowercased() == "myfitplate" else { return }
+    @discardableResult
+    public func handle(url: URL) -> Route? {
+        guard url.scheme?.lowercased() == "myfitplate" else { return nil }
 
         let routeName = [
             url.host,
@@ -21,6 +22,11 @@ public class AppCoordinator: ObservableObject {
         let route = route(for: routeName)
         currentRoute = route
         pendingRoute = route
+        return route
+    }
+
+    public func handle(url: URL, appState: AppState) {
+        guard let route = handle(url: url) else { return }
         appState.selectedTab = route.selectedTab
     }
 
@@ -49,6 +55,8 @@ public class AppCoordinator: ObservableObject {
             return .builder
         case "runs", "running", "run-history":
             return .runs
+        case "training-fuel", "fuel", "recovery-fuel":
+            return .trainingFuel
         case "profile":
             return .profile
         case "settings":
