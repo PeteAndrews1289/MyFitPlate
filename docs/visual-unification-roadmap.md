@@ -85,9 +85,32 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   passed on an iPhone SE, and standard, compact, and dark accessibility captures were reviewed.
   Living Day, sharing, and design-system tests passed 26/26.
 
-All five primary tabs now share the same chrome. The active visual-unification queue moves to the
-core repeated workflows, beginning with Food Search and Fast Food Builder, where speed and density
-matter more than editorial presentation.
+### Batch 5 - Food Search and Fast Food Builder (complete)
+
+- Rebuilt Food Search around its primary job: search first, meal destination second, repeat logging
+  next, and alternate entry methods after that. The meal destination uses a standard segmented
+  control at regular sizes and a compact menu when accessibility text needs the space.
+- Replaced mint page washes and scattered tinted cards with neutral controls, grouped result rows,
+  quiet loading/error/empty states, and complete history cards that adapt from two columns to one
+  on narrow or accessibility layouts.
+- Kept quick logging direct while making success legible to VoiceOver and slower devices. The
+  completed state now remains available long enough to be announced instead of disappearing during
+  an accessibility focus transition.
+- Increased Fast Food Builder density without hiding evidence: restaurant identity now carries the
+  catalog date and review caveat, brand color marks the selected restaurant, and ingredient color is
+  reserved for actual selection rather than washing every row.
+- Preserved one persistent review action and a compact calorie/macro summary. Accessibility layouts
+  reduce the footer to `Review order`, move totals into its accessibility value, hide decorative
+  search chrome, and use responsive ingredient identity, nutrition, and portion controls.
+- All five focused standard/dark/largest-text scenarios passed in their final executions. Food
+  Search and builder also passed their compact iPhone SE workflows, including direct selection and
+  sticky-total state changes. Focused Core food-search/catalog/display tests passed 26/26, strict
+  lint passed with zero violations on the structured changed files, and the unsigned Release build
+  passed for the full app and extensions.
+
+All five primary tabs now share the same chrome, and the two highest-frequency nutrition entry
+workflows share the same operational grammar. The active queue moves to Food Detail below Trust
+Receipt, then Running and the remaining repeated logging tools.
 
 ## Product Direction
 
@@ -158,8 +181,8 @@ Current source indicators:
 | Reports detail | Batch 3 migrated | Quiet trend controls, responsive evidence, and flat report surfaces |
 | Trust Receipt | Strong but split | Keep receipt; flatten the nutrition grid and replace the gradient footer CTA |
 | Running | Strong utility | Keep density; adopt shared header, rows, and surfaces |
-| Food Search | Clear but over-tinted | Make search the hero; neutralize selectors and empty states |
-| Fast Food Builder | Useful and distinct | Increase density; reserve tint for selection and evidence only |
+| Food Search | Batch 5 migrated | Search-first hierarchy, neutral repeat/result surfaces, adaptive meal selection |
+| Fast Food Builder | Batch 5 migrated | Dense direct selection, persistent summary, tint reserved for brand and state |
 | Settings | Orderly but generic | Use a native grouped configuration pattern; remove the dashboard hero |
 | Quick Log | Polished but over-layered | Use a neutral sheet scaffold and simpler rows |
 | Maia | Batch 3 migrated | One deterministic recommendation, concise context, labeled evidence, pinned composer |
@@ -293,8 +316,8 @@ weight, and nested-surface debt. Living Day itself changes last and only at the 
 
 ### Phase 3 - Core repeated workflows
 
-1. Food Search and its empty/history states
-2. Fast Food Builder
+1. Food Search and its empty/history states (Batch 5 complete)
+2. Fast Food Builder (Batch 5 complete)
 3. Food Detail below Trust Receipt
 4. Running history and run detail
 5. My Foods, recipes, grocery, and logging confirmation sheets

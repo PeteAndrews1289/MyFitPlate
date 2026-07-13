@@ -255,7 +255,9 @@ class FoodSearchViewModel: ObservableObject {
         ])
 
         quickLoggedFoodIDs.insert(sourceFoodID)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+        // Keep success feedback visible long enough for VoiceOver and slower devices
+        // to announce it before the quick-log action becomes available again.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
             self.quickLoggedFoodIDs.remove(sourceFoodID)
         }
         HapticManager.instance.feedback(.medium)

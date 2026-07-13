@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 struct FoodSearchRow: View {
     let food: FoodItem
@@ -22,9 +23,10 @@ struct FoodSearchRow: View {
         HStack(spacing: 10) {
                 HStack(spacing: 12) {
                     Text(FoodEmojiMapper.getEmoji(for: food.name))
-                        .appFont(size: 23)
-                        .frame(width: 42, height: 42)
+                        .font(.system(size: 23))
+                        .frame(width: 46, height: 46)
                         .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(food.name)
@@ -105,6 +107,7 @@ struct FoodHorizontalScroller: View {
     let source: String?
     let headerActionTitle: String?
     let headerAction: (() -> Void)?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
         title: String,
@@ -133,50 +136,43 @@ struct FoodHorizontalScroller: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack(alignment: .top, spacing: 10) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .appFont(size: 18, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    if !subtitle.isEmpty {
-                        Text(subtitle)
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-                }
-
-                Spacer(minLength: 0)
-
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: title, subtitle: subtitle.isEmpty ? nil : subtitle) {
                 if let headerActionTitle, let headerAction {
                     Button(headerActionTitle, action: headerAction)
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .appTextRole(.secondary)
+                        .foregroundStyle(AppPalette.brand)
                         .buttonStyle(.plain)
-                        .padding(.vertical, 4)
+                        .frame(minHeight: 44)
                 }
             }
 
             if foods.isEmpty {
                 FoodSearchEmptyState(icon: "tray", title: emptyTitle, message: emptyMessage)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(foods) { food in
-                            FoodCard(
-                                food: food,
-                                isQuickLogged: quickLoggedFoodIDs.contains(food.id),
-                                onSelect: onSelect,
-                                onQuickLog: onQuickLog,
-                                source: source
-                            )
+                GeometryReader { proxy in
+                    let visibleCardCount = dynamicTypeSize.isAccessibilitySize || proxy.size.width < 320 ? 1 : 2
+                    let totalSpacing = CGFloat(visibleCardCount - 1) * AppSpacing.row
+                    let cardWidth = (proxy.size.width - totalSpacing) / CGFloat(visibleCardCount)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: AppSpacing.row) {
+                            ForEach(foods) { food in
+                                FoodCard(
+                                    food: food,
+                                    isQuickLogged: quickLoggedFoodIDs.contains(food.id),
+                                    onSelect: onSelect,
+                                    onQuickLog: onQuickLog,
+                                    source: source,
+                                    width: cardWidth
+                                )
+                            }
                         }
+                        .padding(.vertical, 4)
                     }
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 4)
+                    .contentMargins(.horizontal, 0, for: .scrollContent)
                 }
-                .padding(.horizontal, -4)
+                .frame(height: dynamicTypeSize.isAccessibilitySize ? 254 : 172)
             }
         }
     }
@@ -188,15 +184,12 @@ struct FoodCard: View {
     let onSelect: (FoodItem) -> Void
     let onQuickLog: ((FoodItem) -> Void)?
     let source: String?
+    let width: CGFloat
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var usesAccessibilityLayout: Bool {
         dynamicTypeSize.isAccessibilitySize
-    }
-
-    private var cardWidth: CGFloat {
-        usesAccessibilityLayout ? 224 : 168
     }
 
     private var cardHeight: CGFloat {
@@ -212,8 +205,7 @@ struct FoodCard: View {
         Button(action: { onSelect(food) }) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
-                    Text(FoodEmojiMapper.getEmoji(for: food.name))
-                        .appFont(size: 32)
+                    foodGlyph
 
                     Spacer()
 
@@ -238,20 +230,26 @@ struct FoodCard: View {
                     Text(food.name)
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
-                        .lineLimit(usesAccessibilityLayout ? 3 : 2)
+                        .lineLimit(usesAccessibilityLayout ? nil : 2)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Text(servingText)
                         .appFont(size: 11, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(1)
+                        .lineLimit(usesAccessibilityLayout ? nil : 1)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     nutritionFooter
                 }
             }
-            .padding(14)
-            .frame(width: cardWidth, height: cardHeight)
-            .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(AppSpacing.row)
+            .frame(width: width, height: cardHeight)
+            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    .stroke(AppPalette.separator.opacity(0.5), lineWidth: 0.5)
+            }
         }
         .buttonStyle(.plain)
     }
@@ -273,6 +271,23 @@ struct FoodCard: View {
         }
     }
 
+    @ViewBuilder
+    private var foodGlyph: some View {
+        if usesAccessibilityLayout {
+            Image(systemName: "fork.knife")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 54, height: 54)
+                .accessibilityHidden(true)
+        } else {
+            Text(FoodEmojiMapper.getEmoji(for: food.name))
+                .font(.system(size: 30))
+                .padding(6)
+                .frame(width: 54, height: 54)
+                .accessibilityHidden(true)
+        }
+    }
+
     private var calorieText: some View {
         Text("\(Int(food.calories.rounded()).formatted()) cal")
             .appFont(size: 13, weight: .medium)
@@ -284,22 +299,22 @@ struct FoodSearchLoadingState: View {
     let query: String
 
     var body: some View {
-        VStack(spacing: 13) {
+        VStack(spacing: AppSpacing.row) {
             ProgressView()
-                .tint(Color(UIColor.secondaryLabel))
+                .tint(.secondary)
 
             Text("Searching foods")
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
 
             Text(query.trimmingCharacters(in: .whitespacesAndNewlines))
-                .appFont(size: 13, weight: .medium)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 34)
-        .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.vertical, AppSpacing.section)
+        .appSurface(.quiet, padding: AppSpacing.group)
     }
 }
 
@@ -331,21 +346,20 @@ struct FoodSearchEmptyState: View {
     }
 
     var body: some View {
-        VStack(spacing: 11) {
+        VStack(spacing: AppSpacing.row) {
             Image(systemName: icon)
-                .appFont(size: 22, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .frame(width: 48, height: 48)
-                .background(Color(UIColor.secondarySystemFill), in: Circle())
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(.secondary)
+                .frame(width: 44, height: 44)
 
             VStack(spacing: 4) {
                 Text(title)
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.textPrimary)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
 
                 Text(message)
-                    .appFont(size: 13, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -353,25 +367,21 @@ struct FoodSearchEmptyState: View {
             if let primaryActionTitle, let primaryAction {
                 VStack(spacing: 8) {
                     Button(primaryActionTitle, action: primaryAction)
-                        .appFont(size: 15, weight: .bold)
-                        .buttonStyle(.borderedProminent)
-                        .tint(.brandPrimary)
-                        .controlSize(.large)
+                        .buttonStyle(AppActionButtonStyle(.primary, fillsWidth: false))
 
                     if let secondaryActionTitle, let secondaryAction {
                         Button(secondaryActionTitle, action: secondaryAction)
-                            .appFont(size: 14, weight: .bold)
-                            .foregroundColor(.brandPrimary)
+                            .appTextRole(.secondary)
+                            .foregroundStyle(AppPalette.brand)
                             .buttonStyle(.plain)
-                            .padding(.vertical, 4)
+                            .frame(minHeight: 44)
                     }
                 }
                 .padding(.top, 4)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 26)
-        .background(Color.backgroundSecondary.opacity(0.62), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.vertical, AppSpacing.compact)
+        .appSurface(.quiet, padding: AppSpacing.group)
     }
 }

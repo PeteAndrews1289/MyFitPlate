@@ -490,7 +490,10 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   changing its evidence-led timeline, actions, sharing, density controls, or rollout fallback.
   Standard, compact-phone, dark largest-text, previous-day fallback, and Reports round-trip checks
   are captured.
-- [ ] Migrate Food Search, Fast Food Builder, Food Detail, Running, and the repeated logging tools
+- [x] Migrate Food Search and Fast Food Builder without adding taps or editorial friction. Search
+  now leads a neutral, adaptive repeat-and-result workflow; the builder uses dense brand/evidence
+  identity, state-only selection tint, responsive controls, and one persistent review action.
+- [ ] Migrate Food Detail below Trust Receipt, Running, and the remaining repeated logging tools
   without adding taps or editorial friction.
 - [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,
   remove legacy glass aliases, and enforce the new rules in source checks.

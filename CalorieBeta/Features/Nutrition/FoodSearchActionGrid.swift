@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 // DESIGN.md rule 1: search is this screen's hero. The alternate logging paths are one
 // compact, horizontally scrollable row of chips (~44pt) instead of a 2x3 grid of 82pt
@@ -37,25 +38,32 @@ struct FoodSearchActionChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 7) {
+            HStack(spacing: AppSpacing.compact) {
                 Image(systemName: icon)
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
 
                 Text(title)
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.textPrimary)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(AppPalette.text)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 10)
-            .background(Color.backgroundSecondary.opacity(0.78), in: Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(Color.primary.opacity(0.05), lineWidth: 1)
-            )
+            .padding(.horizontal, AppSpacing.row)
+            .frame(minHeight: 44)
+            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    .stroke(AppPalette.separator.opacity(0.55), lineWidth: 0.5)
+            }
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("food_search_action_\(identifier)")
+    }
+
+    private var identifier: String {
+        title
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "_")
     }
 }
 
@@ -67,35 +75,52 @@ struct YesterdayLogActions: View {
     let dayCalories: Double
     let onLogMeal: () -> Void
     let onLogDay: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
             Text("Copy yesterday")
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
 
-            HStack(spacing: 10) {
-                if mealItemCount > 0 {
-                    yesterdayButton(
-                        title: selectedMeal,
-                        detail: detailText(count: mealItemCount, calories: mealCalories),
-                        icon: "clock.arrow.circlepath",
-                        isEnabled: true,
-                        action: onLogMeal
-                    )
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: AppSpacing.compact) {
+                        yesterdayMealButton
+                        yesterdayDayButton
+                    }
+                } else {
+                    HStack(spacing: AppSpacing.compact) {
+                        yesterdayMealButton
+                        yesterdayDayButton
+                    }
                 }
-
-                yesterdayButton(
-                    title: "Full day",
-                    detail: detailText(count: dayItemCount, calories: dayCalories),
-                    icon: "calendar.badge.plus",
-                    isEnabled: dayItemCount > 0,
-                    action: onLogDay
-                )
             }
         }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .appSurface(.quiet, padding: AppSpacing.row)
+    }
+
+    @ViewBuilder
+    private var yesterdayMealButton: some View {
+        if mealItemCount > 0 {
+            yesterdayButton(
+                title: selectedMeal,
+                detail: detailText(count: mealItemCount, calories: mealCalories),
+                icon: "clock.arrow.circlepath",
+                isEnabled: true,
+                action: onLogMeal
+            )
+        }
+    }
+
+    private var yesterdayDayButton: some View {
+        yesterdayButton(
+            title: "Full day",
+            detail: detailText(count: dayItemCount, calories: dayCalories),
+            icon: "calendar.badge.plus",
+            isEnabled: dayItemCount > 0,
+            action: onLogDay
+        )
     }
 
     private func detailText(count: Int, calories: Double) -> String {
@@ -107,31 +132,29 @@ struct YesterdayLogActions: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
                 Image(systemName: icon)
-                    .appFont(size: 15, weight: .bold)
-                    .foregroundColor(isEnabled ? Color(UIColor.secondaryLabel) : Color(UIColor.tertiaryLabel))
-                    .frame(width: 30, height: 30)
-                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .appTextRole(.body)
+                    .foregroundStyle(isEnabled ? Color.secondary : Color.gray.opacity(0.5))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .appFont(size: 14, weight: .bold)
-                        .foregroundColor(isEnabled ? .textPrimary : Color(UIColor.secondaryLabel))
+                        .appTextRole(.body)
+                        .foregroundStyle(isEnabled ? AppPalette.text : Color.secondary)
                         .lineLimit(1)
 
                     Text(detail)
-                        .appFont(size: 11, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
-            .padding(12)
-            .background(Color.backgroundPrimary.opacity(isEnabled ? 0.78 : 0.42), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: dynamicTypeSize.isAccessibilitySize ? nil : 84,
+                alignment: .leading
             )
+            .padding(AppSpacing.row)
+            .background(AppPalette.canvas.opacity(isEnabled ? 1 : 0.55), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)

@@ -104,6 +104,192 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testFoodSearchUsesSearchFirstHierarchyAndQuickLog() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "food-search"
+        ]
+        app.launch()
+
+        let searchField = app.textFields["food_search_field"]
+        let mealPicker = app.descendants(matching: .any)["food_search_meal_picker"]
+        let repeatSection = app.staticTexts
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label == %@",
+                "food_search_repeat_section",
+                "Repeat faster"
+            ))
+            .firstMatch
+        XCTAssertTrue(searchField.waitForExistence(timeout: 8))
+        XCTAssertTrue(mealPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(repeatSection.waitForExistence(timeout: 5))
+        XCTAssertLessThan(searchField.frame.minY, mealPicker.frame.minY)
+        XCTAssertLessThan(mealPicker.frame.minY, repeatSection.frame.minY)
+
+        focusAndType("apple", into: searchField)
+
+        let result = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Test Kitchen Apple"))
+            .firstMatch
+        let quickLog = app.buttons["Quick log Test Kitchen Apple"]
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        XCTAssertTrue(quickLog.waitForExistence(timeout: 5))
+        XCTAssertTrue(quickLog.isHittable)
+        quickLog.tap()
+
+        let logged = app.buttons["Test Kitchen Apple logged"]
+        XCTAssertTrue(logged.waitForExistence(timeout: 5))
+        XCTAssertFalse(logged.isEnabled)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Food Search - grouped results and quick log"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testFoodSearchSupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "food-search",
+            "-screenshot-dark-mode",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.textFields["food_search_field"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any)["food_search_meal_menu"].waitForExistence(timeout: 5))
+        let repeatSection = app.staticTexts
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label == %@",
+                "food_search_repeat_section",
+                "Repeat faster"
+            ))
+            .firstMatch
+        XCTAssertTrue(repeatSection.waitForExistence(timeout: 5))
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let topScreenshot = XCTAttachment(screenshot: app.screenshot())
+        topScreenshot.name = "Food Search - dark accessibility XXXL"
+        topScreenshot.lifetime = .keepAlways
+        add(topScreenshot)
+
+        let historyCard = app.staticTexts["Chicken Breast, Grilled"]
+        for _ in 0..<4 where !historyCard.exists || !historyCard.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(historyCard.waitForExistence(timeout: 5))
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let historyScreenshot = XCTAttachment(screenshot: app.screenshot())
+        historyScreenshot.name = "Food Search history - dark accessibility XXXL"
+        historyScreenshot.lifetime = .keepAlways
+        add(historyScreenshot)
+    }
+
+    @MainActor
+    func testFastFoodBuilderKeepsSelectionWorkflowDirect() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "builder"
+        ]
+        app.launch()
+
+        let searchField = app.textFields["chain_builder_search"]
+        let chainIdentity = app.staticTexts
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label == %@",
+                "chain_builder_selected_chain",
+                "Chipotle"
+            ))
+            .firstMatch
+        let review = app.buttons["chain_builder_review_meal"]
+        let category = app.staticTexts["Bases & Grains"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 8))
+        XCTAssertTrue(chainIdentity.waitForExistence(timeout: 5))
+        XCTAssertTrue(category.waitForExistence(timeout: 5))
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        XCTAssertLessThan(searchField.frame.minY, chainIdentity.frame.minY)
+        XCTAssertLessThan(chainIdentity.frame.minY, category.frame.minY)
+
+        let whiteRice = app.buttons["Cilantro-Lime White Rice"]
+        XCTAssertTrue(whiteRice.waitForExistence(timeout: 5))
+        XCTAssertTrue(whiteRice.isHittable)
+        XCTAssertLessThan(whiteRice.frame.maxY, review.frame.minY - 8)
+        let visibleIngredientSummary = whiteRice.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.35, dy: 0.2)
+        )
+        visibleIngredientSummary.tap()
+
+        let fiveItems = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value CONTAINS %@", "5 items selected"),
+            object: review
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [fiveItems], timeout: 3), .completed)
+
+        visibleIngredientSummary.tap()
+
+        let sixItems = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value CONTAINS %@", "6 items selected"),
+            object: review
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [sixItems], timeout: 3), .completed)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Fast Food Builder - direct selection workflow"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testFastFoodBuilderSupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "builder",
+            "-screenshot-dark-mode",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let chainIdentity = app.staticTexts
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label == %@",
+                "chain_builder_selected_chain",
+                "Chipotle"
+            ))
+            .firstMatch
+        let review = app.buttons["chain_builder_review_meal"]
+        XCTAssertTrue(chainIdentity.waitForExistence(timeout: 8))
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        XCTAssertEqual(review.label, "Review order")
+        XCTAssertLessThan(review.frame.height, app.frame.height * 0.20)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Fast Food Builder - dark accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testHomeDarkAccessibilityTextIsNotClipped() throws {
         let app = XCUIApplication()
         app.terminate()

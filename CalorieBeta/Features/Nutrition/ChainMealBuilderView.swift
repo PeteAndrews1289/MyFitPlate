@@ -103,7 +103,7 @@ public struct ChainMealBuilderView: View {
                 Color.backgroundPrimary.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: AppSpacing.group) {
                         chainSearchBar
                         chainSelectorBar
                         selectedChainHeader
@@ -115,17 +115,17 @@ public struct ChainMealBuilderView: View {
                                 currentCarbs: totalCarbs
                             )
                         }
-                        catalogNotice
                         mealSelectorBar
 
                         ForEach(selectedChain.categories) { category in
                             categorySection(for: category)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 16)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.row)
+                    .padding(.bottom, AppSpacing.group)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 stickyBottomBar
@@ -153,30 +153,40 @@ public struct ChainMealBuilderView: View {
 
     // MARK: - Chain Selector Bar
     private var chainSearchBar: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .appFont(size: 15, weight: .bold)
-                .foregroundColor(.secondary)
+        HStack(spacing: AppSpacing.compact) {
+            if !usesAccessibilityLayout {
+                Image(systemName: "magnifyingglass")
+                    .appTextRole(.control)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
 
-            TextField("Search chains", text: $chainSearchText)
+            TextField(usesAccessibilityLayout ? "Find chain" : "Search chains", text: $chainSearchText)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
-                .appFont(size: 15, weight: .semibold)
+                .appTextRole(.body)
+                .accessibilityIdentifier("chain_builder_search")
 
             if !chainSearchText.isEmpty {
                 Button {
                     chainSearchText = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.secondary)
+                        .appTextRole(.control)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Clear chain search")
             }
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 10)
-        .background(Color.backgroundSecondary.opacity(0.75), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, AppSpacing.row)
+        .frame(minHeight: 54)
+        .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                .stroke(AppPalette.separator.opacity(0.7), lineWidth: 0.5)
+        }
     }
 
     private var chainSelectorBar: some View {
@@ -196,15 +206,15 @@ public struct ChainMealBuilderView: View {
                                 .appFont(size: 14, weight: .bold)
                         }
                         .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
+                        .frame(minHeight: 44)
                         .background(
                             selectedChain.id == chain.id
                             ? Color(chainHex: chain.brandColorHex)
-                            : Color.backgroundSecondary,
-                            in: Capsule()
+                            : AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                         )
                         .overlay(
-                            Capsule()
+                            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                                 .stroke(Color(chainHex: chain.brandColorHex).opacity(selectedChain.id == chain.id ? 0 : 0.35), lineWidth: 1)
                         )
                         .foregroundColor(
@@ -214,63 +224,68 @@ public struct ChainMealBuilderView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("chain_builder_chain_\(chain.id)")
                 }
             }
         }
     }
 
-    private var catalogNotice: some View {
-        Label {
-            Text("Estimated catalog • updated \(ChainRestaurantCatalog.lastUpdatedDate). Brand menus change, so review the meal before logging.")
-                .appFont(size: 12, weight: .medium)
-                .fixedSize(horizontal: false, vertical: true)
-        } icon: {
-            Image(systemName: "checkmark.shield")
-                .appFont(size: 13, weight: .semibold)
+    private var selectedChainHeader: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Group {
+                if usesAccessibilityLayout {
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        selectedChainIdentity
+                        selectedChainItemCount
+                    }
+                } else {
+                    HStack(spacing: AppSpacing.row) {
+                        selectedChainIdentity
+                        Spacer(minLength: 0)
+                        selectedChainItemCount
+                    }
+                }
+            }
+
+            Label {
+                Text("Estimated catalog · Updated \(ChainRestaurantCatalog.lastUpdatedDate) · Review before logging")
+                    .appTextRole(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "checkmark.shield")
+                    .appTextRole(.caption)
+            }
+            .foregroundStyle(.secondary)
         }
-        .foregroundColor(.secondary)
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.backgroundSecondary.opacity(0.62), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityIdentifier("chain_builder_selected_chain")
     }
 
-    private var selectedChainHeader: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(brandColor.opacity(0.15))
-                    .frame(width: 44, height: 44)
+    private var selectedChainIdentity: some View {
+        HStack(spacing: AppSpacing.row) {
+            Image(systemName: selectedChain.iconName)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(brandColor)
+                .frame(width: 44, height: 44)
+                .background(brandColor.opacity(0.12), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
 
-                Image(systemName: selectedChain.iconName)
-                    .appFont(size: 19, weight: .bold)
-                    .foregroundColor(brandColor)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(selectedChain.name)
-                    .appFont(size: 18, weight: .heavy)
-                    .foregroundColor(.textPrimary)
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
 
                 Text(selectedChain.subtitle)
-                    .appFont(size: 13, weight: .semibold)
-                    .foregroundColor(.secondary)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            Spacer()
-
-            Text("\(selectedChain.ingredientCount) items")
-                .appFont(size: 13, weight: .heavy)
-                .foregroundColor(brandColor)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(brandColor.opacity(0.12), in: Capsule())
         }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(brandColor.opacity(0.18), lineWidth: 1)
-        )
+    }
+
+    private var selectedChainItemCount: some View {
+        Text("\(selectedChain.ingredientCount) items")
+            .appTextRole(.secondary)
+            .foregroundStyle(brandColor)
+            .accessibilityIdentifier("chain_builder_catalog_count")
     }
 
     // MARK: - Meal Selector Bar
@@ -278,7 +293,7 @@ public struct ChainMealBuilderView: View {
     private var mealSelectorBar: some View {
         Group {
             if usesAccessibilityLayout {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
                     mealSelectorLabel
                     mealPicker
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -291,15 +306,17 @@ public struct ChainMealBuilderView: View {
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.backgroundSecondary.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.vertical, AppSpacing.compact)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+        .accessibilityIdentifier("chain_builder_meal_target")
     }
 
     private var mealSelectorLabel: some View {
-        Text("Log to meal:")
-            .appFont(size: 14, weight: .semibold)
-            .foregroundColor(.secondary)
+        Text("Log to meal")
+            .appTextRole(.secondary)
+            .foregroundStyle(.secondary)
     }
 
     private var mealPicker: some View {
@@ -309,18 +326,17 @@ public struct ChainMealBuilderView: View {
             }
         }
         .pickerStyle(.menu)
-        .tint(.brandPrimary)
+        .tint(AppPalette.brand)
     }
 
     // MARK: - Category Section
     private func categorySection(for category: ChainCategory) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(category.title.uppercased())
-                .appFont(size: 12, weight: .bold)
-                .foregroundColor(.secondary)
-                .padding(.leading, 4)
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text(category.title)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
 
-            VStack(spacing: 8) {
+            VStack(spacing: AppSpacing.compact) {
                 ForEach(category.ingredients) { ingredient in
                     ingredientRow(for: ingredient)
                 }
@@ -332,135 +348,217 @@ public struct ChainMealBuilderView: View {
         let isSelected = selections[ingredient.id] != nil
         let currentPortion = selections[ingredient.id]?.portion ?? .regular
 
-        return VStack(spacing: 10) {
+        return VStack(alignment: .leading, spacing: AppSpacing.compact) {
             Button {
                 toggleIngredient(ingredient)
             } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(isSelected ? .brandPrimary : .secondary)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(ingredient.name)
-                            .appFont(size: 15, weight: .semibold)
-                            .foregroundColor(.textPrimary)
-
-                        Text(ingredient.servingDescription)
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(.secondary)
-                    }
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("\(Int(ingredient.calories.rounded())) cal")
-                            .appFont(size: 14, weight: .bold)
-                            .foregroundColor(.textPrimary)
-
-                        Text("\(Int(ingredient.protein.rounded()))g P • \(Int(ingredient.carbs.rounded()))g C • \(Int(ingredient.fat.rounded()))g F")
-                            .appFont(size: 11, weight: .medium)
-                            .foregroundColor(.secondary)
-                    }
-                }
+                ingredientSummary(ingredient, isSelected: isSelected)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(ingredient.name)
+            .accessibilityValue(isSelected ? "Selected" : "Not selected")
 
             if isSelected {
                 switch ingredient.controlStyle {
                 case .portion:
-                    HStack(spacing: 8) {
-                        Text("Portion:")
-                            .appFont(size: 12, weight: .semibold)
-                            .foregroundColor(.secondary)
-
-                        Spacer()
-
-                        ForEach(ChainMealPortion.allCases) { portion in
-                            Button {
-                                updatePortion(for: ingredient, to: portion)
-                            } label: {
-                                Text(portion.title)
-                                    .appFont(size: 12, weight: .bold)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        currentPortion == portion
-                                        ? Color.brandPrimary.opacity(0.2)
-                                        : Color.backgroundPrimary,
-                                        in: Capsule()
-                                    )
-                                    .foregroundColor(
-                                        currentPortion == portion
-                                        ? .brandPrimary
-                                        : .textPrimary
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.top, 4)
-                    .padding(.leading, 32)
+                    portionControl(for: ingredient, currentPortion: currentPortion)
 
                 case .stepper(let unit):
-                    HStack(spacing: 8) {
-                        Text("Quantity (\(unit)):")
-                            .appFont(size: 12, weight: .semibold)
-                            .foregroundColor(.secondary)
-
-                        Spacer()
-
-                        HStack(spacing: 14) {
-                            Button {
-                                decrementCount(for: ingredient)
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                                    .appFont(size: 22, weight: .bold)
-                                    .foregroundColor((selections[ingredient.id]?.count ?? 1) > 1 ? .brandPrimary : .gray.opacity(0.4))
-                            }
-                            .disabled((selections[ingredient.id]?.count ?? 1) <= 1)
-                            .buttonStyle(.plain)
-
-                            Text("\(selections[ingredient.id]?.count ?? 1)")
-                                .appFont(size: 14, weight: .heavy)
-                                .foregroundColor(.textPrimary)
-                                .frame(minWidth: 24)
-
-                            Button {
-                                incrementCount(for: ingredient)
-                            } label: {
-                                Image(systemName: "plus.circle.fill")
-                                    .appFont(size: 22, weight: .bold)
-                                    .foregroundColor(canIncrement(ingredient) ? .brandPrimary : .gray.opacity(0.4))
-                            }
-                            .disabled(!canIncrement(ingredient))
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.top, 4)
-                    .padding(.leading, 32)
+                    quantityControl(for: ingredient, unit: unit)
 
                 case .fixed:
                     EmptyView()
                 }
             }
         }
-        .padding(13)
+        .padding(AppSpacing.row)
         .background(
             isSelected
-            ? Color.brandPrimary.opacity(0.08)
-            : Color.backgroundSecondary,
-            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            ? AppPalette.brand.opacity(0.08)
+            : AppPalette.control,
+            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                 .stroke(
                     isSelected
-                    ? Color.brandPrimary.opacity(0.4)
-                    : Color.clear,
-                    lineWidth: 1.5
+                    ? AppPalette.brand.opacity(0.45)
+                    : AppPalette.separator.opacity(0.45),
+                    lineWidth: isSelected ? 1.5 : 0.5
                 )
-        )
+        }
+        .accessibilityIdentifier("chain_builder_ingredient_\(ingredient.id)")
+    }
+
+    @ViewBuilder
+    private func ingredientSummary(_ ingredient: ChainIngredient, isSelected: Bool) -> some View {
+        if usesAccessibilityLayout {
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                ingredientIdentity(ingredient, isSelected: isSelected)
+                ingredientNutrition(ingredient, alignment: .leading)
+            }
+        } else {
+            HStack(spacing: AppSpacing.row) {
+                ingredientIdentity(ingredient, isSelected: isSelected)
+                Spacer(minLength: AppSpacing.compact)
+                ingredientNutrition(ingredient, alignment: .trailing)
+            }
+        }
+    }
+
+    private func ingredientIdentity(_ ingredient: ChainIngredient, isSelected: Bool) -> some View {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(isSelected ? AppPalette.brand : Color.secondary)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(ingredient.name)
+                    .appTextRole(.body)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(ingredient.servingDescription)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func ingredientNutrition(
+        _ ingredient: ChainIngredient,
+        alignment: HorizontalAlignment
+    ) -> some View {
+        VStack(alignment: alignment, spacing: 2) {
+            Text("\(Int(ingredient.calories.rounded())) cal")
+                .appTextRole(.body)
+                .foregroundStyle(AppPalette.text)
+
+            Text(
+                "P \(Int(ingredient.protein.rounded()))g  " +
+                "C \(Int(ingredient.carbs.rounded()))g  " +
+                "F \(Int(ingredient.fat.rounded()))g"
+            )
+            .appTextRole(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private func portionControl(
+        for ingredient: ChainIngredient,
+        currentPortion: ChainMealPortion
+    ) -> some View {
+        if usesAccessibilityLayout {
+            HStack(spacing: AppSpacing.row) {
+                Text("Portion")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+
+                Menu {
+                    ForEach(ChainMealPortion.allCases) { portion in
+                        Button(portion.title) {
+                            updatePortion(for: ingredient, to: portion)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(currentPortion.title)
+                            .appTextRole(.secondary)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .appTextRole(.caption)
+                    }
+                    .foregroundStyle(AppPalette.text)
+                    .padding(.horizontal, AppSpacing.row)
+                    .frame(minHeight: 44)
+                    .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                }
+            }
+        } else {
+            HStack(spacing: AppSpacing.compact) {
+                Text("Portion")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+
+                ForEach(ChainMealPortion.allCases) { portion in
+                    Button {
+                        updatePortion(for: ingredient, to: portion)
+                    } label: {
+                        Text(portion.title)
+                            .appTextRole(.caption)
+                            .padding(.horizontal, 10)
+                            .frame(minHeight: 36)
+                            .background(
+                                currentPortion == portion
+                                ? AppPalette.brand.opacity(0.16)
+                                : AppPalette.canvas,
+                                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                            )
+                            .foregroundStyle(currentPortion == portion ? AppPalette.brand : AppPalette.text)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func quantityControl(for ingredient: ChainIngredient, unit: String) -> some View {
+        if usesAccessibilityLayout {
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                quantityLabel(unit: unit)
+                quantityButtons(for: ingredient)
+            }
+        } else {
+            HStack(spacing: AppSpacing.compact) {
+                quantityLabel(unit: unit)
+                Spacer(minLength: 0)
+                quantityButtons(for: ingredient)
+            }
+        }
+    }
+
+    private func quantityLabel(unit: String) -> some View {
+        Text("Quantity (\(unit))")
+            .appTextRole(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    private func quantityButtons(for ingredient: ChainIngredient) -> some View {
+        HStack(spacing: AppSpacing.compact) {
+            Button {
+                decrementCount(for: ingredient)
+            } label: {
+                Image(systemName: "minus")
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(AppIconButtonStyle(.plain))
+            .disabled((selections[ingredient.id]?.count ?? 1) <= 1)
+            .accessibilityLabel("Decrease quantity")
+
+            Text("\(selections[ingredient.id]?.count ?? 1)")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .frame(minWidth: 32)
+                .contentTransition(.numericText())
+
+            Button {
+                incrementCount(for: ingredient)
+            } label: {
+                Image(systemName: "plus")
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(AppIconButtonStyle(.plain))
+            .disabled(!canIncrement(ingredient))
+            .accessibilityLabel("Increase quantity")
+        }
     }
 
     private func toggleIngredient(_ ingredient: ChainIngredient) {
@@ -501,63 +599,54 @@ public struct ChainMealBuilderView: View {
 
     // MARK: - Sticky Bottom Bar
     private var stickyBottomBar: some View {
-        VStack(spacing: 10) {
-            Group {
-                if usesAccessibilityLayout {
-                    VStack(alignment: .leading, spacing: 8) {
-                        calorieSelectionSummary
-                        macroSummary
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    HStack(spacing: 14) {
-                        calorieSelectionSummary
-                        Spacer()
-                        macroSummary
-                    }
+        VStack(spacing: AppSpacing.row) {
+            if !usesAccessibilityLayout {
+                HStack(spacing: 14) {
+                    calorieSelectionSummary
+                    Spacer()
+                    macroSummary
                 }
             }
 
             Button {
                 logCustomMeal()
             } label: {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text("Review meal for \(selectedMeal)")
-                }
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(
-                    selections.isEmpty
-                    ? Color.gray.opacity(0.5)
-                    : Color.brandPrimary,
-                    in: RoundedRectangle(cornerRadius: 14)
+                Label(
+                    usesAccessibilityLayout ? "Review order" : "Review \(selectedMeal) meal",
+                    systemImage: "checkmark.circle.fill"
                 )
             }
+            .buttonStyle(AppActionButtonStyle(.primary))
             .disabled(selections.isEmpty)
+            .accessibilityValue(
+                "\(Int(totalCalories.rounded())) calories, " +
+                "\(selectedItemCount) \(selectedItemCount == 1 ? "item" : "items") selected"
+            )
+            .accessibilityIdentifier("chain_builder_review_meal")
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 10)
+        .padding(.horizontal, AppSpacing.screenHorizontal)
+        .padding(.top, AppSpacing.row)
+        .padding(.bottom, AppSpacing.compact)
         .background {
-            Color.backgroundSecondary
-                .shadow(color: .black.opacity(0.15), radius: 10, y: -4)
+            AppPalette.canvas
                 .ignoresSafeArea(edges: .bottom)
+        }
+        .overlay(alignment: .top) {
+            Divider()
         }
     }
 
     private var calorieSelectionSummary: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(Int(totalCalories.rounded())) cal")
-                .appFont(size: 20, weight: .heavy)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
 
             Text("\(selectedItemCount) \(selectedItemCount == 1 ? "item" : "items") selected")
-                .appFont(size: 12, weight: .medium)
-                .foregroundColor(.secondary)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
         }
+        .accessibilityIdentifier("chain_builder_selection_summary")
     }
 
     private var macroSummary: some View {
@@ -571,14 +660,14 @@ public struct ChainMealBuilderView: View {
     private func macroBadge(label: String, grams: Double, color: Color) -> some View {
         HStack(spacing: 3) {
             Text(label)
-                .appFont(size: 11, weight: .heavy)
-                .foregroundColor(color)
+                .appTextRole(.caption)
+                .foregroundStyle(color)
             Text("\(Int(grams.rounded()))g")
-                .appFont(size: 12, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.secondary)
+                .foregroundStyle(AppPalette.text)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.horizontal, AppSpacing.compact)
+        .frame(minHeight: 32)
         .background(color.opacity(0.14), in: Capsule())
     }
 

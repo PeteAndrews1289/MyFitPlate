@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 struct FoodSearchHeader: View {
     @Binding var searchText: String
@@ -7,23 +8,30 @@ struct FoodSearchHeader: View {
     let onSubmit: () -> Void
     var onMic: (() -> Void)?
     var isRecording: Bool = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .appFont(size: 17, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+        HStack(spacing: AppSpacing.compact) {
+            if !dynamicTypeSize.isAccessibilitySize {
+                Image(systemName: "magnifyingglass")
+                    .appTextRole(.control)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
 
-            TextField(placeholder, text: $searchText)
+            TextField(dynamicTypeSize.isAccessibilitySize ? "Search foods" : placeholder, text: $searchText)
+                .appTextRole(.body)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.search)
                 .onSubmit(onSubmit)
+                .accessibilityIdentifier("food_search_field")
 
             if !searchText.isEmpty {
                 Button(action: onClear) {
                     Image(systemName: "xmark.circle.fill")
-                        .appFont(size: 18, weight: .semibold)
-                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                        .appTextRole(.control)
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 36, height: 36)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")
@@ -32,22 +40,22 @@ struct FoodSearchHeader: View {
             if let onMic = onMic {
                 Button(action: onMic) {
                     Image(systemName: isRecording ? "mic.fill" : "mic")
-                        .appFont(size: 18, weight: .semibold)
-                        .foregroundColor(isRecording ? .accentProtein : .brandPrimary)
-                        .padding(6)
+                        .appTextRole(.control)
+                        .foregroundStyle(isRecording ? Color.accentProtein : AppPalette.brand)
+                        .frame(width: 36, height: 36)
                         .background(isRecording ? Color.accentProtein.opacity(0.15) : Color.clear, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Voice search")
+                .accessibilityValue(isRecording ? "Recording" : "Not recording")
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-        )
+        .padding(.horizontal, AppSpacing.row)
+        .frame(minHeight: 54)
+        .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                .stroke(AppPalette.separator.opacity(0.7), lineWidth: 0.5)
+        }
     }
 }

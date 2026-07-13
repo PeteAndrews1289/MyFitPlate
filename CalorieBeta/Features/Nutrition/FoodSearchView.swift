@@ -86,16 +86,16 @@ struct FoodSearchView: View {
         NavigationView {
             ZStack {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: AppSpacing.group) {
                         if let trainingFuelTarget {
                             TrainingFuelTargetContextView(target: trainingFuelTarget)
                         }
                         mainActionContent
                         searchOrSavedContent
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
-                    .padding(.bottom, 28)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.group)
+                    .padding(.bottom, AppSpacing.section)
                 }
                 .background(Color.backgroundPrimary.ignoresSafeArea())
                 .scrollDismissesKeyboard(.interactively)
@@ -414,26 +414,12 @@ struct FoodSearchView: View {
     @ViewBuilder
     private var fastRepeatContent: some View {
         if hasFastRepeatOptions {
-            VStack(alignment: .leading, spacing: 13) {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .appFont(size: 17, weight: .bold)
-                        .foregroundColor(.brandPrimary)
-                        .frame(width: 36, height: 36)
-                        .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Repeat faster")
-                            .appFont(size: 18, weight: .bold)
-                            .foregroundColor(.textPrimary)
-
-                        Text("Your history is the fastest way to log today.")
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-
-                    Spacer(minLength: 0)
-                }
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                AppSectionHeader(
+                    title: "Repeat faster",
+                    subtitle: "Your history is the fastest way to log today."
+                )
+                .accessibilityIdentifier("food_search_repeat_section")
 
                 if viewModel.hasYesterdayFoods {
                     YesterdayLogActions(
@@ -490,7 +476,21 @@ struct FoodSearchView: View {
         }
         mealTargetContent
         fastRepeatContent
-        actionGridContent
+        alternateLoggingContent
+    }
+
+    @ViewBuilder
+    private var alternateLoggingContent: some View {
+        if onFoodItemSelected == nil && !viewModel.isSearching {
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                AppSectionHeader(
+                    title: "More ways to log",
+                    subtitle: "Scan, describe, or build a meal when search is not the fastest route."
+                )
+                actionGridContent
+            }
+            .accessibilityIdentifier("food_search_alternate_actions")
+        }
     }
 
     @ViewBuilder

@@ -7,6 +7,8 @@ final class CoreDisplayModelTests: XCTestCase {
         XCTAssertEqual(FoodEmojiMapper.getEmoji(for: "pizza"), "🍕")
         XCTAssertEqual(FoodEmojiMapper.getEmoji(for: "roasted chicken breast"), "🍗")
         XCTAssertEqual(FoodEmojiMapper.getEmoji(for: "banana smoothie"), "🍌")
+        XCTAssertEqual(FoodEmojiMapper.getEmoji(for: "Greek yogurt"), "🥣")
+        XCTAssertEqual(FoodEmojiMapper.getEmoji(for: "protein shake"), "🥤")
         XCTAssertEqual(FoodEmojiMapper.getEmoji(for: "unknown food"), "🍽️")
     }
 
