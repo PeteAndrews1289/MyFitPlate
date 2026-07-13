@@ -1,6 +1,32 @@
 import MyFitPlateCore
 import SwiftUI
 
+struct WeekInMotionLoadingView: View {
+    private static let placeholderRecap = WeeklyRecapBuilder.build(
+        dailyLogs: [],
+        sessionLogs: [],
+        priorSessionLogs: [],
+        weightHistory: [],
+        calorieGoal: 2_000,
+        proteinGoal: 120
+    )
+
+    var body: some View {
+        WeekInMotionView(recap: Self.placeholderRecap)
+            .redacted(reason: .placeholder)
+            .overlay(alignment: .topTrailing) {
+                ProgressView()
+                    .tint(.brandPrimary)
+                    .accessibilityHidden(true)
+            }
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Building Week in Motion")
+            .accessibilityHint("Joining the last seven days of training, fuel, recovery, and Trust.")
+            .accessibilityIdentifier("week_in_motion_loading")
+    }
+}
+
 struct WeekInMotionView: View {
     let recap: WeeklyRecap
     var showsDetailAction = true

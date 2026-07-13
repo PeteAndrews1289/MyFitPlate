@@ -366,8 +366,12 @@ Full experience, state, accessibility, rollout, and technical contract:
   actual simulator accessibility settings. Physical-device comprehension, spoken cadence, tactile
   motion, widget refresh/deep links, signed archive validation, and production cohort setup remain
   rollout gates rather than unfinished app implementation.
-- [ ] **Reserve two release slots for evidence:** use them only for the largest repeated 2.2
-  correctness or friction findings, not unvalidated feature requests.
+- [x] **Use two release slots for confirmed device evidence:** Peter's first physical 2.3 pass
+  exposed two reproducible lifecycle defects rather than speculative feature requests. Living Day
+  now keeps one app-shell-owned feature decision across Home tab reconstruction, and Reports keeps
+  one account/day-scoped Week in Motion loader plus a full-footprint loading sequence so its opening
+  story no longer inserts late and moves the page. Both have focused regression coverage; physical
+  revalidation remains in `docs/device-test-2.3.md`.
 
 ### Should Ship - Reach and Cohesion
 
@@ -421,8 +425,10 @@ Full experience, state, accessibility, rollout, and technical contract:
    leave the visible library unchanged, and dated diary records remain outside the mutation path.
 8. [x] Add the selected widget slice plus explicit-section Living Day and Week in Motion sharing,
    with legacy widget fallback and aggregate-only privacy tests.
-9. [ ] Fill the two evidence-reserved slots only from repeated live feedback. They remain
-   intentionally unallocated because no repeated production evidence exists yet.
+9. [x] Fill the two evidence-reserved slots from live device feedback. The 2026-07-13 phone pass
+   assigned them to Living Day tab-return persistence and Reports first-paint stability. The fixes
+   retain state above disposable tab views, keep recap data account/day scoped, and reserve the
+   complete Week in Motion layout while its first load finishes.
 10. [x] Close local accessibility, privacy, performance, analytics, CI, and rollback gates.
     Physical iPhone comprehension, spoken VoiceOver cadence, tactile motion, widget refresh/deep
     links, signed archive validation, and the production Remote Config cohort remain Peter-owned

@@ -41,6 +41,12 @@ signed production console and must remain open until they are directly observed:
 - [ ] On the smallest supported physical iPhone, enable Living Day and perform a five-second glance.
   Confirm you can identify what happened, what is planned, and the single next action without
   explanatory help. Repeat once in compact and once in detailed density.
+- [ ] With Living Day enabled, switch Home -> Reports -> Home three times. Living Day must return
+  every time without falling back to the 2.2 dashboard. Then fully relaunch once and confirm the
+  tester override or Remote Config condition still selects the intended Home.
+- [ ] Open Reports once immediately after launch and again after visiting another tab. The first
+  load may show the full Week in Motion skeleton, but the controls and charts below it must not jump
+  when data arrives; the return visit should reuse the completed weekly story without rebuilding it.
 - [ ] With VoiceOver, traverse the Living Day heading, freshness, budget, current action, Maia
   annotation, transition status when present, chronological events, Show All, and Quick Actions.
   Confirm the spoken order is useful and no decorative content is announced.
@@ -61,7 +67,8 @@ signed production console and must remain open until they are directly observed:
   embedded phone/widget/Watch versions and privacy manifests, then upload that exact build.
 
 No Firebase Functions, Rules, index, or data migration deployment is required for the Living Day,
-Maia annotation, share image, widget payload, or density work. The new Firebase custom definitions
+Maia annotation, share image, widget payload, density work, tab-lifecycle fix, or Reports loading
+stability work. The new Firebase custom definitions
 in `docs/analytics-dashboard-2.3.md` should be created only after DebugView or signed-build traffic
 confirms their parameters.
 

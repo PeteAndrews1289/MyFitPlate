@@ -264,7 +264,9 @@ network access. It should expose explicit unavailable and approximate states.
   physical-device comprehension, spoken cadence, and tactile-motion pass remain rollout gates.
 - [x] Default-off feature flag, old-Home fallback, Home analytics, deterministic screenshots, and
   immediate rollback path. Production cohort rollout remains gated on physical-device validation.
-- [ ] Two reserved slots for the largest repeated 2.2 friction or correctness findings.
+- [x] Two evidence-reserved slots filled from Peter's physical 2.3 pass: Living Day now survives
+  Home tab reconstruction, and Reports holds a stable Week in Motion footprint while one shared,
+  account/day-scoped recap load completes.
 
 ### Should ship
 
@@ -423,8 +425,9 @@ and legacy-payload rollback tests pass, and CI no longer invokes a Node 20 actio
 
 ### Phase 5: release closure
 
-- Hold the two reserved live-feedback slots until repeated production evidence exists. Do not fill
-  them with speculative work merely to close a checklist.
+- Use the two reserved live-feedback slots only for observed workflow or correctness failures. The
+  2026-07-13 device pass filled them with Home lifecycle persistence and Reports first-paint
+  stability; no speculative feature was added.
 - Run screenshot, UI, device, accessibility, privacy, and performance matrices.
 - Compare the feature-flag cohort with the 2.2 Home baseline.
 - Keep community publication and Trust reweighting out unless their independent evidence gates pass.
@@ -436,10 +439,14 @@ Simulator Dark Mode + Increase Contrast, actual Reduce Motion, compact share pre
 Living Day/Week share journeys, strict SwiftLint, project/catalog/diff/privacy checks, CI parse,
 Functions 11/11, Rules 23/23, migrations 10/10, and unsigned generic-device Release build pass.
 The phone, widget, Live Activity, and embedded Watch are version 2.3 build 1; both Watch HealthKit
-purpose strings, required architectures, and privacy manifests are present. The only unfilled app
-slots are the two evidence-reserved slots, intentionally held until repeated production feedback.
-Physical comprehension, spoken/tactile behavior, real widget refresh/deep links, Remote Config
-cohort setup, and signed archive validation remain owner rollout gates in `device-test-2.3.md`.
+purpose strings, required architectures, and privacy manifests are present. Peter's first physical
+2.3 pass then filled the two evidence slots: the app shell now owns the Living Day flag across tab
+reconstruction, and Reports reuses an account/day-scoped recap loader behind a full-footprint
+loading sequence. Focused rendering and Home-to-Reports-to-Home UI regressions pass. Physical
+revalidation, spoken/tactile behavior, real widget refresh/deep links, Remote Config cohort setup,
+and signed archive validation remain owner rollout gates in `device-test-2.3.md`. The final app
+unit target passes 98/98, the complete UI target passes 21/21 concrete executions, strict SwiftLint
+passes, and the unsigned generic-iOS Release build remains green on this production-code tree.
 
 ## Success measures
 
@@ -482,8 +489,9 @@ Experience guardrails:
    true-duplicate merge, failure-path coverage, and standard/accessibility render fixtures.
 9. [x] Add the selected widget slice and Living Day/Week in Motion explicit-selection sharing with
    legacy widget fallback and aggregate-only privacy tests.
-10. [ ] Fill the two evidence-reserved slots only after repeated live feedback identifies them.
-    They remain intentionally unallocated; no repeated production evidence exists yet.
+10. [x] Fill the two evidence-reserved slots from confirmed live feedback. Home lifecycle
+    persistence and Reports first-paint stability were implemented and regression-tested after
+    Peter's 2026-07-13 physical-phone pass.
 11. [x] Close local accessibility, privacy, performance, analytics, CI, and rollback gates.
     Physical iPhone comprehension, spoken VoiceOver cadence, tactile motion, widget refresh/deep
     links, signed archive validation, and the production Remote Config cohort remain Peter-owned

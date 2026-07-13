@@ -6,6 +6,34 @@ import XCTest
 
 @MainActor
 final class WeekInMotionRenderingTests: XCTestCase {
+    func testLoadingSequenceReservesWeekInMotionFootprint() throws {
+        let width: CGFloat = 394
+        let loadingHeight = fittingHeight(
+            AnyView(WeekInMotionLoadingView().environment(\.sizeCategory, .large)),
+            width: width
+        )
+        let reportHeight = fittingHeight(
+            AnyView(WeekInMotionView(recap: makeRecap()).environment(\.sizeCategory, .large)),
+            width: width
+        )
+
+        XCTAssertGreaterThan(loadingHeight, reportHeight * 0.8)
+        XCTAssertLessThan(loadingHeight, reportHeight * 1.2)
+
+        try render(
+            AnyView(
+                ScrollView(.vertical, showsIndicators: true) {
+                    WeekInMotionLoadingView()
+                        .padding(18)
+                }
+                .background(Color(UIColor.systemBackground))
+                .environment(\.sizeCategory, .large)
+            ),
+            frame: CGRect(x: 0, y: 0, width: 430, height: 1_100),
+            attachmentName: "Week in Motion - stable loading sequence"
+        )
+    }
+
     func testWeekInMotionRendersStandardAndAccessibilitySequences() throws {
         let recap = makeRecap()
 
@@ -210,5 +238,12 @@ final class WeekInMotionRenderingTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
         window.isHidden = true
+    }
+
+    private func fittingHeight(_ view: AnyView, width: CGFloat) -> CGFloat {
+        let controller = UIHostingController(rootView: view)
+        return controller.sizeThatFits(
+            in: CGSize(width: width, height: UIView.layoutFittingExpandedSize.height)
+        ).height
     }
 }

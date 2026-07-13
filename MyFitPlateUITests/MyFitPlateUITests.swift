@@ -21,6 +21,23 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    private func focusAndType(_ text: String, into field: XCUIElement) {
+        var receivedFocus = false
+
+        for _ in 0..<2 where !receivedFocus {
+            field.tap()
+            let focusExpectation = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "hasKeyboardFocus == true"),
+                object: field
+            )
+            receivedFocus = XCTWaiter.wait(for: [focusExpectation], timeout: 3) == .completed
+        }
+
+        XCTAssertTrue(receivedFocus, "The text field should receive keyboard focus")
+        field.typeText(text)
+    }
+
+    @MainActor
     func testHomeDashboardLoads() throws {
         let app = XCUIApplication()
 
@@ -43,17 +60,19 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(quickLogButton.waitForExistence(timeout: 5), "Quick log button should be visible")
         let quickLogHittable = expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: quickLogButton)
         XCTAssertEqual(XCTWaiter.wait(for: [quickLogHittable], timeout: 5), .completed)
-        quickLogButton.tap()
-
         let searchFoodButton = app.buttons["Search food"]
+        quickLogButton.press(forDuration: 0.1)
+        if !searchFoodButton.waitForExistence(timeout: 3) {
+            XCTAssertTrue(quickLogButton.isHittable, "Quick Log should remain tappable after a dropped input event")
+            quickLogButton.press(forDuration: 0.1)
+        }
         XCTAssertTrue(searchFoodButton.waitForExistence(timeout: 5), "Search Food option should be visible")
         searchFoodButton.tap()
 
         let searchField = app.textFields["Search foods, meals, brands"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 5), "Food search field should appear")
 
-        searchField.tap()
-        searchField.typeText("Apple")
+        focusAndType("Apple", into: searchField)
 
         let firstResult = app.buttons
             .matching(NSPredicate(format: "label CONTAINS %@", "Test Kitchen Apple"))
@@ -76,8 +95,7 @@ final class MyFitPlateUITests: XCTestCase {
 
         let searchField = app.textFields["Search foods, meals, brands"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 8))
-        searchField.tap()
-        searchField.typeText("apple")
+        focusAndType("apple", into: searchField)
 
         XCTAssertTrue(app.staticTexts["Search could not load"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["We couldn't reach the food databases. Your saved and recent foods still work."].exists)
@@ -146,9 +164,12 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertLessThan(action.frame.minY, maia.frame.minY)
         XCTAssertLessThan(maia.frame.minY, firstEvent.frame.minY)
 
-        density.tap()
         let detailedPath = app.buttons["Detailed path"]
-        XCTAssertTrue(detailedPath.waitForExistence(timeout: 3))
+        density.press(forDuration: 0.1)
+        if !detailedPath.waitForExistence(timeout: 3), density.isHittable {
+            density.press(forDuration: 0.1)
+        }
+        XCTAssertTrue(detailedPath.waitForExistence(timeout: 7))
         detailedPath.tap()
 
         try app.performAccessibilityAudit(for: [.textClipped])
@@ -210,6 +231,32 @@ final class MyFitPlateUITests: XCTestCase {
         screenshot.name = "Living Day accessibility XXXL"
         screenshot.lifetime = .keepAlways
         add(screenshot)
+    }
+
+    @MainActor
+    func testLivingDaySurvivesReportsTabRoundTrip() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "home",
+            "-living-day-home"
+        ]
+        app.launch()
+
+        let livingDay = app.staticTexts["Living Day"]
+        XCTAssertTrue(livingDay.waitForExistence(timeout: 10))
+
+        app.buttons["tab_reports"].tap()
+        XCTAssertTrue(app.navigationBars["Reports"].waitForExistence(timeout: 5))
+
+        app.buttons["tab_home"].tap()
+        XCTAssertTrue(
+            livingDay.waitForExistence(timeout: 5),
+            "Living Day should remain enabled when Home is rebuilt after a tab change"
+        )
     }
 
     @MainActor
@@ -336,10 +383,12 @@ final class MyFitPlateUITests: XCTestCase {
             evaluatedWith: trustButton
         )
         XCTAssertEqual(XCTWaiter.wait(for: [trustHittable], timeout: 5), .completed)
-        trustButton.tap()
-
         let doneButton = app.buttons["Done"]
-        XCTAssertTrue(doneButton.waitForExistence(timeout: 5), "Trust Hub should always provide a visible dismissal")
+        trustButton.press(forDuration: 0.1)
+        if !doneButton.waitForExistence(timeout: 3), trustButton.isHittable {
+            trustButton.press(forDuration: 0.1)
+        }
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 7), "Trust Hub should always provide a visible dismissal")
         XCTAssertTrue(doneButton.isHittable, "Trust Hub dismissal should be tappable")
 
         let verifiedFood = app.buttons

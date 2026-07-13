@@ -8,10 +8,14 @@ final class WeeklyRecapLoader: ObservableObject {
     @Published private(set) var loadMessage: String?
 
     private var generation = UUID()
+    private var loadedUserID: String?
+    private var loadedDay: Date?
+    private var acceptsInitialRecap: Bool
 
     init(initialRecap: WeeklyRecap? = nil) {
         recap = initialRecap
         isLoading = initialRecap == nil
+        acceptsInitialRecap = initialRecap != nil
     }
 
     func load(
@@ -20,21 +24,39 @@ final class WeeklyRecapLoader: ObservableObject {
         goalSettings: GoalSettings,
         force: Bool = false
     ) async {
-        guard force || recap == nil else { return }
-
-        let requestID = UUID()
-        generation = requestID
-        isLoading = recap == nil
-        loadMessage = nil
-
         guard let userID = DIContainer.shared.authService.currentUserID else {
+            generation = UUID()
+            recap = nil
             isLoading = false
+            loadedUserID = nil
+            loadedDay = nil
+            acceptsInitialRecap = false
             loadMessage = "Sign in to build your weekly report."
             return
         }
 
         let now = Date()
         let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let hasCurrentRecap = recap != nil && (
+            acceptsInitialRecap || (
+                loadedUserID == userID &&
+                loadedDay.map { calendar.isDate($0, inSameDayAs: today) } == true
+            )
+        )
+        guard force || !hasCurrentRecap else { return }
+
+        if loadedUserID != nil, loadedUserID != userID {
+            recap = nil
+            loadedDay = nil
+        }
+        acceptsInitialRecap = false
+
+        let requestID = UUID()
+        generation = requestID
+        isLoading = recap == nil
+        loadMessage = nil
+
         let weekStart = calendar.date(
             byAdding: .day,
             value: -6,
@@ -125,6 +147,8 @@ final class WeeklyRecapLoader: ObservableObject {
             runWorkoutResults: workoutResults,
             shoes: shoeStore.shoes
         )
+        loadedUserID = userID
+        loadedDay = today
         isLoading = false
         loadMessage = nil
     }

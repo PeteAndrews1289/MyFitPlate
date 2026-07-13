@@ -23,6 +23,7 @@ struct HomeView: View {
     @Binding var navigateToProfile: Bool
     @Binding var showSettings: Bool
     let livingDayTransition: LivingDayTransition?
+    let isLivingDayHomeEnabled: Bool
 
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
@@ -66,8 +67,6 @@ struct HomeView: View {
     @State private var showingMFPImport = false
     @State private var livingDayMealPlan: MealPlanDay?
     @State private var livingDayMealPlanUserID: String?
-    @State private var didRefreshLivingDayFlag = false
-    @State private var livingDayFlagRevision = 0
     @StateObject private var runPlanStore = RunWorkoutPlanStore()
     @AppStorage("mfpSwitcherPromptDismissed") private var mfpSwitcherPromptDismissed = false
     @AppStorage("mfpSwitcherPromptSeen") private var mfpSwitcherPromptSeen = false
@@ -80,15 +79,6 @@ struct HomeView: View {
 
     private var isMenuScannerEnabled: Bool {
         DIContainer.shared.featureFlagService?.isFeatureEnabled(.menuScanner) ?? FeatureFlag.menuScanner.defaultValue
-    }
-
-    private var isLivingDayHomeEnabled: Bool {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-living-day-home") { return true }
-        #endif
-        _ = livingDayFlagRevision
-        return DIContainer.shared.featureFlagService?.isFeatureEnabled(.livingDayHome)
-            ?? FeatureFlag.livingDayHome.defaultValue
     }
 
     private var spotlightOrder: [String] {
@@ -500,6 +490,9 @@ struct HomeView: View {
           .onChange(of: selectedDate) { _, _ in
               refreshLivingDayMealPlan()
           }
+          .onChange(of: isLivingDayHomeEnabled) { _, _ in
+              refreshLivingDayMealPlan()
+          }
           .onChange(of: spotlightManager.replayToken) { _, _ in
               startSpotlightTourIfNeeded()
           }
@@ -574,7 +567,6 @@ struct HomeView: View {
         workoutService.fetchRoutinesAndPrograms()
         trainingFuelPlanStore.load(for: DIContainer.shared.authService.currentUserID)
         fetchLogForSelectedDate()
-        refreshLivingDayFeatureFlagIfNeeded()
         refreshLivingDayMealPlan()
         syncLivingDayWidgetPath()
         refreshStreakHistory()
@@ -963,18 +955,6 @@ struct HomeView: View {
                   Calendar.current.isDate(selectedDate, inSameDayAs: requestedDate) else { return }
             livingDayMealPlan = plan
             livingDayMealPlanUserID = userID
-        }
-    }
-
-    private func refreshLivingDayFeatureFlagIfNeeded() {
-        guard !didRefreshLivingDayFlag,
-              let featureFlagService = DIContainer.shared.featureFlagService else { return }
-        didRefreshLivingDayFlag = true
-
-        Task { @MainActor in
-            await featureFlagService.refresh()
-            livingDayFlagRevision += 1
-            refreshLivingDayMealPlan()
         }
     }
 

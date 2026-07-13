@@ -50,6 +50,11 @@ struct MainTabView: View {
     @State private var showingSpotlightTour = false
     @State private var showingAIDataConsent = false
     @State private var livingDayTransition: LivingDayTransition?
+    @State private var isLivingDayHomeEnabled: Bool
+    @State private var didRefreshLivingDayFlag = false
+    @StateObject private var weeklyRecapLoader = WeeklyRecapLoader()
+
+    private let forcesLivingDayHome: Bool
 
     private let imageModel = MLImageModel()
     private let barcodeLookupService = BarcodeFoodLookupService()
@@ -67,6 +72,19 @@ struct MainTabView: View {
     }
 
     init() {
+        #if DEBUG
+        let forcesLivingDayHome = ProcessInfo.processInfo.arguments.contains("-living-day-home")
+        #else
+        let forcesLivingDayHome = false
+        #endif
+        self.forcesLivingDayHome = forcesLivingDayHome
+        _isLivingDayHomeEnabled = State(
+            initialValue: forcesLivingDayHome || (
+                DIContainer.shared.featureFlagService?.isFeatureEnabled(.livingDayHome)
+                    ?? FeatureFlag.livingDayHome.defaultValue
+            )
+        )
+
         #if DEBUG
         let screenshotScreen = ScreenshotDemoData.requestedScreen
         _showSettings = State(initialValue: screenshotScreen == "settings")
@@ -94,13 +112,20 @@ struct MainTabView: View {
                         case 3:
                             NavigationStack { MealPlannerView() }.trackScreen(.mealPlanner)
                         case 4:
-                            NavigationStack { ReportsView(dailyLogService: dailyLogService) }.trackScreen(.reports)
+                            NavigationStack {
+                                ReportsView(
+                                    dailyLogService: dailyLogService,
+                                    weeklyRecapLoader: weeklyRecapLoader
+                                )
+                            }
+                            .trackScreen(.reports)
                         default:
                             NavigationStack {
                                 HomeView(
                                     navigateToProfile: .constant(false),
                                     showSettings: $showSettings,
-                                    livingDayTransition: livingDayTransition
+                                    livingDayTransition: livingDayTransition,
+                                    isLivingDayHomeEnabled: isLivingDayHomeEnabled
                                 )
                             }
                             .trackScreen(.homeDashboard)
@@ -423,6 +448,7 @@ struct MainTabView: View {
                 ImageProcessingView()
             }
         }
+        .task { await refreshLivingDayFeatureFlagIfNeeded() }
     }
 
     @ViewBuilder
@@ -448,10 +474,27 @@ struct MainTabView: View {
             HomeView(
                 navigateToProfile: .constant(false),
                 showSettings: $showSettings,
-                livingDayTransition: livingDayTransition
+                livingDayTransition: livingDayTransition,
+                isLivingDayHomeEnabled: isLivingDayHomeEnabled
             )
         }
         .trackScreen(.homeDashboard)
+    }
+
+    @MainActor
+    private func refreshLivingDayFeatureFlagIfNeeded() async {
+        guard !didRefreshLivingDayFlag else { return }
+        didRefreshLivingDayFlag = true
+
+        if forcesLivingDayHome {
+            isLivingDayHomeEnabled = true
+            return
+        }
+
+        guard let featureFlagService = DIContainer.shared.featureFlagService else { return }
+        await featureFlagService.refresh()
+        guard !Task.isCancelled else { return }
+        isLivingDayHomeEnabled = featureFlagService.isFeatureEnabled(.livingDayHome)
     }
 
     private func handleFoodLoggedTransition(_ notification: Notification) {

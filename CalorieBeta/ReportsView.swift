@@ -15,11 +15,11 @@ struct ReportsView: View {
     @State private var showingDetailedInsights = false
     @State private var showingWeeklyReport = false
     @State private var didLogWeekInMotion = false
-    @StateObject private var weeklyRecapLoader: WeeklyRecapLoader
+    @ObservedObject private var weeklyRecapLoader: WeeklyRecapLoader
 
-    init(dailyLogService: DailyLogService) {
+    init(dailyLogService: DailyLogService, weeklyRecapLoader: WeeklyRecapLoader) {
         _viewModel = StateObject(wrappedValue: ReportsViewModel(dailyLogService: dailyLogService))
-        _weeklyRecapLoader = StateObject(wrappedValue: WeeklyRecapLoader())
+        _weeklyRecapLoader = ObservedObject(wrappedValue: weeklyRecapLoader)
     }
 
     private var hasReportContent: Bool {
@@ -165,51 +165,47 @@ struct ReportsView: View {
 
     @ViewBuilder
     private var weekInMotionSection: some View {
-        if let recap = weeklyRecapLoader.recap {
-            let observation = WeekInMotionBuilder.build(from: recap).observation
-            VStack(spacing: 18) {
-                WeekInMotionView(recap: recap) {
-                    HapticManager.instance.feedback(.light)
-                    DIContainer.shared.analyticsManager?.logEvent(
-                        ProductAnalytics.Event.weekInMotionDetailOpened.rawValue,
-                        parameters: [
-                            "observation_kind": observation.kind.rawValue,
-                            "observation_tone": observation.tone.rawValue
-                        ]
-                    )
-                    showingWeeklyReport = true
-                }
+        VStack(spacing: 18) {
+            if weeklyRecapLoader.isLoading || weeklyRecapLoader.recap != nil {
+                ZStack(alignment: .topLeading) {
+                    WeekInMotionLoadingView()
+                        .opacity(weeklyRecapLoader.recap == nil ? 1 : 0)
+                        .accessibilityHidden(weeklyRecapLoader.recap != nil)
 
-                Divider()
-            }
-        } else if weeklyRecapLoader.isLoading {
-            HStack(spacing: 12) {
-                ProgressView()
-                    .tint(.brandPrimary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Building Week in Motion")
+                    if let recap = weeklyRecapLoader.recap {
+                        let observation = WeekInMotionBuilder.build(from: recap).observation
+                        WeekInMotionView(recap: recap) {
+                            HapticManager.instance.feedback(.light)
+                            DIContainer.shared.analyticsManager?.logEvent(
+                                ProductAnalytics.Event.weekInMotionDetailOpened.rawValue,
+                                parameters: [
+                                    "observation_kind": observation.kind.rawValue,
+                                    "observation_tone": observation.tone.rawValue
+                                ]
+                            )
+                            showingWeeklyReport = true
+                        }
+                        .transition(.opacity)
+                    }
+                }
+                .animation(.easeOut(duration: 0.18), value: weeklyRecapLoader.recap != nil)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Week in Motion is unavailable")
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
-                    Text("Joining the last seven days of training, fuel, recovery, and Trust.")
+                    Text(weeklyRecapLoader.loadMessage ?? "Your detailed reports remain available below.")
                         .appFont(size: 11, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
+                    Button("Try again") { Task { await loadWeekInMotion(force: true) } }
+                        .appFont(size: 12, weight: .bold)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 12)
             }
-            .padding(.vertical, 14)
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Week in Motion is unavailable")
-                    .appFont(size: 15, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Text(weeklyRecapLoader.loadMessage ?? "Your detailed reports remain available below.")
-                    .appFont(size: 11, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Try again") { Task { await loadWeekInMotion(force: true) } }
-                    .appFont(size: 12, weight: .bold)
-            }
-            .padding(.vertical, 12)
+
+            Divider()
         }
     }
 
