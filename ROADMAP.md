@@ -347,8 +347,12 @@ Full experience, state, accessibility, rollout, and technical contract:
   evidence rather than the visual starting point. Food Detail now uses one unframed vertical
   receipt, puts the numeric score behind `Why this score`, removes duplicate AI/sanity panels, and
   exposes one correction action with standard and largest-Dynamic-Type render coverage.
-- [ ] **Build My Foods Library:** search, sort, filter, edit, delete, merge true duplicates, and
-  inspect/remove barcode associations without mutating historical diary entries.
+- [x] **Build My Foods Library:** search, sort, and filter reusable saved foods; edit reviewed
+  nutrition in place; inspect or remove personal barcode associations; and delete or atomically
+  merge only byte-equivalent nutrition/serving/source copies. Persistence must succeed before the
+  library changes, and dated diary entries are never queried or rewritten. Standard and largest-
+  Dynamic-Type render fixtures plus failure-path tests pin those boundaries. Full contract:
+  [`docs/my-foods-library-2.3.md`](docs/my-foods-library-2.3.md).
 - [ ] **Build Week in Motion:** open Reports with a full-width seven-day story covering training
   rhythm, fuel timing, recovery follow-through, Trust/coverage, and one bounded observation;
   preserve detailed charts and export below it.
@@ -403,7 +407,9 @@ Full experience, state, accessibility, rollout, and technical contract:
 6. [x] Ship Trust Receipt and persistence-backed evidence-state updates. The previous receipt stays
    authoritative until the write succeeds; success then updates provenance, nutrition findings,
    personal review, VoiceOver, and the short resolution treatment together.
-7. [ ] Ship My Foods Library and prove destructive actions cannot alter history.
+7. [x] Ship My Foods Library and prove destructive actions cannot alter history. Personal barcode
+   detachment, deletion, and atomic true-duplicate merge touch only `customFoods`; failed writes
+   leave the visible library unchanged, and dated diary records remain outside the mutation path.
 8. [ ] Add Week in Motion, then the selected sharing and widget slices.
 9. [ ] Fill the two evidence-reserved slots from real 2.2 feedback.
 10. [ ] Close accessibility, device, privacy, performance, analytics, and rollback gates.

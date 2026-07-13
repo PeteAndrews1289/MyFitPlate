@@ -298,11 +298,42 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
     
     func saveCustomFood(userID: String, foodItem: FoodItem) async throws {
         let ref = db.collection(FirestoreCollection.users).document(userID).collection("customFoods").document(foodItem.id)
-        try ref.setData(from: foodItem, merge: true)
+        // Custom-food edits are complete replacements. Merge would retain cleared optional fields
+        // such as saturated fat or barcode associations when Firestore.Encoder omits nil values.
+        try ref.setData(from: foodItem, merge: false)
     }
     
     func deleteCustomFood(userID: String, foodItemID: String) async throws {
         try await db.collection(FirestoreCollection.users).document(userID).collection("customFoods").document(foodItemID).delete()
+    }
+
+    func removeCustomFoodBarcode(userID: String, foodItemID: String) async throws {
+        let ref = db.collection(FirestoreCollection.users)
+            .document(userID)
+            .collection("customFoods")
+            .document(foodItemID)
+        try await ref.updateData(["sourceMetadata.barcode": FieldValue.delete()])
+    }
+
+    func mergeCustomFoods(userID: String, keepingFoodID: String, removingFoodIDs: [String]) async throws {
+        let uniqueIDs = Array(Set(removingFoodIDs)).filter { $0 != keepingFoodID }
+        guard !uniqueIDs.isEmpty else { return }
+        guard uniqueIDs.count <= 499 else {
+            throw NSError(
+                domain: "MyFoodsLibrary",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Too many duplicate foods to merge at once."]
+            )
+        }
+
+        let collection = db.collection(FirestoreCollection.users)
+            .document(userID)
+            .collection("customFoods")
+        let batch = db.batch()
+        for foodID in uniqueIDs {
+            batch.deleteDocument(collection.document(foodID))
+        }
+        try await batch.commit()
     }
     
     func fetchCustomFoods(userID: String) async throws -> [FoodItem] {

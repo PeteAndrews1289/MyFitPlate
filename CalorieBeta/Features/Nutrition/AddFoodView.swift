@@ -9,6 +9,7 @@ struct AddFoodView: View {
     var targetMealName: String?
     var onLogUpdated: () -> Void
     var onUpdate: ((FoodItem) -> Void)?
+    var showsSavedControl: Bool
 
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -43,7 +44,7 @@ struct AddFoodView: View {
     @State private var scanError: (Bool, String) = (false, "")
 
     // MARK: - Robust Initializer
-    init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "manual", targetMealName: String? = nil, onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil) {
+    init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "manual", targetMealName: String? = nil, onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil, showsSavedControl: Bool = true) {
         self.initialFoodItem = initialFoodItem
         self._dailyLog = dailyLog
         self.date = date
@@ -51,6 +52,7 @@ struct AddFoodView: View {
         self.targetMealName = targetMealName
         self.onLogUpdated = onLogUpdated
         self.onUpdate = onUpdate
+        self.showsSavedControl = showsSavedControl
 
         let isEditingLoggedItem = source.starts(with: "log_")
         self._isLoggedItem = State(initialValue: isEditingLoggedItem)
@@ -274,10 +276,12 @@ struct AddFoodView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: toggleSavedState) {
-                    Image(systemName: isSavedAsCustom ? "star.fill" : "star")
-                        .foregroundColor(isSavedAsCustom ? .yellow : .blue)
+            if showsSavedControl {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: toggleSavedState) {
+                        Image(systemName: isSavedAsCustom ? "star.fill" : "star")
+                            .foregroundColor(isSavedAsCustom ? .yellow : .blue)
+                    }
                 }
             }
         }
@@ -287,7 +291,9 @@ struct AddFoodView: View {
         }
         .onAppear {
             setupInitialData()
-            checkIfSaved()
+            if showsSavedControl {
+                checkIfSaved()
+            }
         }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(sourceType: .camera) { image in
@@ -565,19 +571,25 @@ struct AddFoodView: View {
         let n = adjustedNutrients
 
         let rawItemToLog = FoodItem(
-            id: isLoggedItem ? initialFoodItem.id : UUID().uuidString,
+            id: isLoggedItem || onUpdate != nil ? initialFoodItem.id : UUID().uuidString,
             name: trimmedFoodName, calories: n.calories, protein: n.protein, carbs: n.carbs, fats: n.fats,
             saturatedFat: n.saturatedFat, polyunsaturatedFat: n.polyunsaturatedFat, monounsaturatedFat: n.monounsaturatedFat, fiber: n.fiber,
-            servingSize: n.servingDescription, servingWeight: n.servingWeightGrams, timestamp: isLoggedItem ? initialFoodItem.timestamp : Date(),
+            servingSize: n.servingDescription,
+            servingWeight: n.servingWeightGrams,
+            timestamp: isLoggedItem || onUpdate != nil ? initialFoodItem.timestamp : Date(),
             sourceMetadata: initialFoodItem.sourceMetadata ?? .userEntered(),
             calcium: n.calcium, iron: n.iron, potassium: n.potassium, sodium: n.sodium,
             vitaminA: n.vitaminA, vitaminC: n.vitaminC, vitaminD: n.vitaminD, vitaminB12: n.vitaminB12, folate: n.folate,
             magnesium: n.magnesium, phosphorus: n.phosphorus, zinc: n.zinc, copper: n.copper, manganese: n.manganese, selenium: n.selenium,
             vitaminB1: n.vitaminB1, vitaminB2: n.vitaminB2, vitaminB3: n.vitaminB3, vitaminB5: n.vitaminB5, vitaminB6: n.vitaminB6, vitaminE: n.vitaminE, vitaminK: n.vitaminK
         )
-        let itemToLog = rawItemToLog
-            .normalizedForEstimatedSource(source)
-            .markedUserConfirmed(sourceType: .manual)
+        let normalizedItem = rawItemToLog.normalizedForEstimatedSource(source)
+        let itemToLog = onUpdate == nil
+            ? normalizedItem.markedUserConfirmed(sourceType: .manual)
+            : normalizedItem.markedUserEdited(
+                sourceType: initialFoodItem.sourceMetadata?.sourceType ?? .custom,
+                originalItem: initialFoodItem
+            )
 
         if let updateHandler = onUpdate {
             updateHandler(itemToLog)
@@ -595,7 +607,9 @@ struct AddFoodView: View {
             dailyLogService.addFoodToCurrentLog(for: userID, foodItem: itemToLog, source: source)
         }
         rememberManualBarcodeCorrectionIfNeeded(itemToLog, userID: userID)
-        HapticManager.instance.feedback(.medium)
+        if onUpdate == nil {
+            HapticManager.instance.feedback(.medium)
+        }
         onLogUpdated()
         dismiss()
     }

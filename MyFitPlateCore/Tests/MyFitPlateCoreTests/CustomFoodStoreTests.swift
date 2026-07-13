@@ -80,4 +80,59 @@ final class CustomFoodStoreTests: XCTestCase {
         }
         wait(for: [exp], timeout: 2)
     }
+
+    func testRemoveBarcodeAssociationRecordsIDAndReportsTrue() {
+        let exp = expectation(description: "remove barcode")
+        store.removeBarcodeAssociation(for: "u1", foodItemID: "barcode-food") { ok in
+            XCTAssertTrue(ok)
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 2)
+        XCTAssertEqual(mockRepo.barcodeRemovedCustomFoodIDs, ["barcode-food"])
+    }
+
+    func testRemoveBarcodeAssociationFailsClosed() {
+        mockRepo.customFoodError = URLError(.timedOut)
+        let exp = expectation(description: "remove barcode fail")
+        store.removeBarcodeAssociation(for: "u1", foodItemID: "barcode-food") { ok in
+            XCTAssertFalse(ok)
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 2)
+        XCTAssertTrue(mockRepo.barcodeRemovedCustomFoodIDs.isEmpty)
+    }
+
+    func testMergeRecordsKeeperAndDuplicateIDs() {
+        let exp = expectation(description: "merge")
+        store.mergeCustomFoods(
+            for: "u1",
+            keepingFoodID: "keeper",
+            removingFoodIDs: ["duplicate-a", "duplicate-b"]
+        ) { ok in
+            XCTAssertTrue(ok)
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 2)
+        XCTAssertEqual(mockRepo.mergedCustomFoodOperations.count, 1)
+        XCTAssertEqual(mockRepo.mergedCustomFoodOperations.first?.keeping, "keeper")
+        XCTAssertEqual(
+            mockRepo.mergedCustomFoodOperations.first?.removing,
+            ["duplicate-a", "duplicate-b"]
+        )
+    }
+
+    func testMergeFailsClosed() {
+        mockRepo.customFoodError = URLError(.notConnectedToInternet)
+        let exp = expectation(description: "merge fail")
+        store.mergeCustomFoods(
+            for: "u1",
+            keepingFoodID: "keeper",
+            removingFoodIDs: ["duplicate"]
+        ) { ok in
+            XCTAssertFalse(ok)
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 2)
+        XCTAssertTrue(mockRepo.mergedCustomFoodOperations.isEmpty)
+    }
 }

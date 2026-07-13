@@ -164,6 +164,7 @@
 		B10000000000000000000008 /* ShimmerModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000008 /* ShimmerModifier.swift */; };
 		B23000000000000000000001 /* TrainingFuelPlannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000001 /* TrainingFuelPlannerView.swift */; };
 		B23000000000000000000002 /* TrainingFuelTargetContextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000002 /* TrainingFuelTargetContextView.swift */; };
+		B23000000000000000000003 /* MyFoodsLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000003 /* MyFoodsLibraryView.swift */; };
 		B240FB7DB053BE65F6ED7E5B /* ProgramCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25DBAC08245DF730F4A57058 /* ProgramCreatorView.swift */; };
 		B3490F4AF6B8367BA0EE972E /* GroceryListRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDBF64359556D6DA0B848C78 /* GroceryListRows.swift */; };
 		B3766EBB4E84B3A67F2838B1 /* WorkoutPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2781B8ECF8FB8D8FBC67FE8 /* WorkoutPlayerViewModel.swift */; };
@@ -499,6 +500,7 @@
 		F1E2D3C4B5A60718293A4B5C /* ShoeGearManagerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoeGearManagerView.swift; sourceTree = "<group>"; };
 		F23000000000000000000001 /* TrainingFuelPlannerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrainingFuelPlannerView.swift; sourceTree = "<group>"; };
 		F23000000000000000000002 /* TrainingFuelTargetContextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrainingFuelTargetContextView.swift; sourceTree = "<group>"; };
+		F23000000000000000000003 /* MyFoodsLibraryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MyFoodsLibraryView.swift; sourceTree = "<group>"; };
 		F63BD33A24942200DB828B77 /* AISummaryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AISummaryView.swift; sourceTree = "<group>"; };
 		F95DB8CA120BD855D269D6AE /* HomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		F99B0ADD63EACCE1DE4D43C9 /* FirestoreSeeder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreSeeder.swift; sourceTree = "<group>"; };
@@ -885,6 +887,7 @@
 				8B1C2D3E4F5A6B7C8D9E0A14 /* ChainMealBuilderView.swift */,
 				CB557B9F1155B0AC707AC507 /* FoodSearchViewComponents.swift */,
 				CA5B2E12B72BCB3BC0388DE5 /* FoodSearchViewModel.swift */,
+				F23000000000000000000003 /* MyFoodsLibraryView.swift */,
 				7A5C4F03C5EFECBA18FFB0E0 /* GroceryListView.swift */,
 				0C1CF52DA1681A7CD91E9EDA /* MealPlanSurveyView.swift */,
 				0DA77751A3F64DE4D3F27F3E /* MealPlannerComponents.swift */,
@@ -1356,6 +1359,7 @@
 				8B1C2D3E4F5A6B7C8D9E0A13 /* ChainMealBuilderView.swift in Sources */,
 				962BC293EB2D602E4612FF9C /* FoodSearchViewComponents.swift in Sources */,
 				544269FEB74BBB6C47F7497D /* FoodSearchViewModel.swift in Sources */,
+				B23000000000000000000003 /* MyFoodsLibraryView.swift in Sources */,
 				CB45F16C1F80853956621A94 /* GroceryListView.swift in Sources */,
 				4A29B4703D532360B3801CCF /* MealPlanSurveyView.swift in Sources */,
 				ADAC758083955353D562FD4A /* MealPlannerComponents.swift in Sources */,

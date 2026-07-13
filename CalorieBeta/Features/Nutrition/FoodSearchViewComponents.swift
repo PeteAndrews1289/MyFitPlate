@@ -103,6 +103,8 @@ struct FoodHorizontalScroller: View {
     let onSelect: (FoodItem) -> Void
     let onQuickLog: ((FoodItem) -> Void)?
     let source: String?
+    let headerActionTitle: String?
+    let headerAction: (() -> Void)?
 
     init(
         title: String,
@@ -113,7 +115,9 @@ struct FoodHorizontalScroller: View {
         emptyMessage: String,
         onSelect: @escaping (FoodItem) -> Void,
         onQuickLog: ((FoodItem) -> Void)?,
-        source: String? = nil
+        source: String? = nil,
+        headerActionTitle: String? = nil,
+        headerAction: (() -> Void)? = nil
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -124,19 +128,33 @@ struct FoodHorizontalScroller: View {
         self.onSelect = onSelect
         self.onQuickLog = onQuickLog
         self.source = source
+        self.headerActionTitle = headerActionTitle
+        self.headerAction = headerAction
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 11) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.textPrimary)
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .appFont(size: 18, weight: .bold)
+                        .foregroundColor(.textPrimary)
 
-                if !subtitle.isEmpty {
-                    Text(subtitle)
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
+                            .appFont(size: 12, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                if let headerActionTitle, let headerAction {
+                    Button(headerActionTitle, action: headerAction)
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(.brandPrimary)
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
                 }
             }
 

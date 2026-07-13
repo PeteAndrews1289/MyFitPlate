@@ -58,6 +58,21 @@ These events evaluate the replacement 2.2 loop before waiting for D7 retention:
 Calorie and macro values attached by older call sites are removed by the analytics privacy
 sanitizer. The dashboard measures whether a user acted, not the contents of their plan.
 
+## My Foods management indicators
+
+The 2.3 personal-library slice emits three privacy-safe events. These measure whether reusable
+food data is manageable without sending the food itself.
+
+| Behavior | Event and allowed parameters |
+|---|---|
+| Library exposure | `my_foods_library_viewed`: aggregate `saved_count`, `barcode_count`, `needs_review_count`, and `duplicate_group_count` |
+| Filter use | `my_foods_library_filter`: enum `filter` only |
+| Persisted mutation outcome | `my_foods_library_action`: enum `action`, boolean `success`, and aggregate `item_count` |
+
+Never attach food names, serving text, barcodes, nutrition values, document IDs, search queries, or
+account identifiers. Treat an action as successful only after its custom-food write commits. The
+primary guardrail is failed mutation rate; deletion and merge counts are not engagement goals.
+
 ## Acquisition and custom product pages
 
 App Store Connect is authoritative for impressions, product-page views, downloads,

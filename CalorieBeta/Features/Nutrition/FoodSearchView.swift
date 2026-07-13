@@ -27,6 +27,7 @@ struct FoodSearchView: View {
     @State private var showingAITextLog = false
     @State private var showingValueRadar = false
     @State private var showingChainBuilder = false
+    @State private var showingMyFoodsLibrary = false
 
     @State private var selectedFoodItem: FoodItem?
     @State private var selectedFoodSource: String = "search_result"
@@ -102,6 +103,16 @@ struct FoodSearchView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                    if onFoodItemSelected == nil {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button {
+                                showingMyFoodsLibrary = true
+                            } label: {
+                                Image(systemName: "folder")
+                            }
+                            .accessibilityLabel("Manage My Foods")
+                        }
+                    }
                 }
                 .onAppear {
                     viewModel.setup(dailyLogService: dailyLogService)
@@ -261,6 +272,13 @@ struct FoodSearchView: View {
                         viewModel.selectedMeal = mealName
                         handleSelection(food: mealItem, source: "chain_builder")
                     }
+                }
+                .sheet(isPresented: $showingMyFoodsLibrary) {
+                    MyFoodsLibraryView(
+                        initialFoods: viewModel.savedFoods,
+                        recentFoods: viewModel.recentFoods,
+                        onLibraryChanged: refreshSavedFoods
+                    )
                 }
                 .sheet(isPresented: $showingBarcodeRecovery, onDismiss: handleBarcodeRecoveryDismissed) {
                     BarcodeMissRecoveryView(
@@ -441,7 +459,9 @@ struct FoodSearchView: View {
                         emptyMessage: "",
                         onSelect: { handleSelection(food: $0, source: "custom_food") },
                         onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "saved_food_quick_log") } : nil,
-                        source: "custom_food"
+                        source: "custom_food",
+                        headerActionTitle: "Manage",
+                        headerAction: { showingMyFoodsLibrary = true }
                     )
                 }
 
@@ -544,7 +564,9 @@ struct FoodSearchView: View {
             emptyMessage: "Star foods from detail screens and they will appear here.",
             onSelect: { handleSelection(food: $0, source: "custom_food") },
             onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "saved_food_quick_log") } : nil,
-            source: "custom_food"
+            source: "custom_food",
+            headerActionTitle: onFoodItemSelected == nil ? "Manage" : nil,
+            headerAction: onFoodItemSelected == nil ? { showingMyFoodsLibrary = true } : nil
         )
 
         FoodHorizontalScroller(
@@ -594,6 +616,11 @@ struct FoodSearchView: View {
             selectedFoodSource = source
             self.selectedFoodItem = food
         }
+    }
+
+    private func refreshSavedFoods() {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        viewModel.fetchSavedFoods(userID: userID)
     }
 
     private func hideKeyboard() {

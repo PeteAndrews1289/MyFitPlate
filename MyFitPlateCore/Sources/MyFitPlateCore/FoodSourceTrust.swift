@@ -427,6 +427,9 @@ public struct FoodNutritionSnapshot: Codable, Hashable, Sendable {
 
 public struct FoodSourceMetadata: Codable, Hashable, Sendable {
     public var sourceType: FoodSourceType
+    /// Source category before an item was saved into My Foods. Optional so existing documents
+    /// decode unchanged and saved recipes remain filterable after becoming custom foods.
+    public var originSourceType: FoodSourceType?
     public var confidence: FoodConfidenceLevel
     public var reviewStatus: FoodReviewStatus
     public var sourceName: String?
@@ -443,6 +446,7 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
 
     public init(
         sourceType: FoodSourceType,
+        originSourceType: FoodSourceType? = nil,
         confidence: FoodConfidenceLevel,
         reviewStatus: FoodReviewStatus,
         sourceName: String? = nil,
@@ -456,6 +460,7 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
         crossVerifiedBy: [String]? = nil
     ) {
         self.sourceType = sourceType
+        self.originSourceType = originSourceType
         self.confidence = confidence
         self.reviewStatus = reviewStatus
         self.sourceName = sourceName
@@ -849,6 +854,9 @@ public extension FoodItem {
         let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode ?? metadata.barcode ?? "")
         let originalSnapshot = originalItem?.nutritionSnapshot ?? metadata.originalEstimate
 
+        if metadata.sourceType != .custom && metadata.sourceType != .manual {
+            metadata.originSourceType = metadata.originSourceType ?? metadata.sourceType
+        }
         metadata.sourceType = .custom
         metadata.confidence = .userVerified
         metadata.reviewStatus = originalSnapshot == nil || originalSnapshot == nutritionSnapshot ? .userConfirmed : .userEdited

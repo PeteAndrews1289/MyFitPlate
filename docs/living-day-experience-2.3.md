@@ -255,7 +255,8 @@ network access. It should expose explicit unavailable and approximate states.
 - [x] Trust Receipt on Food Detail. Evidence leads in one unframed source/verification/nutrition/
   review trace; the score follows behind disclosure; and correction state changes only after a
   successful saved-food write.
-- [ ] My Foods Library with safe edit/delete/barcode management.
+- [x] My Foods Library with search/filter/sort, persistence-backed edit/delete, personal barcode
+  detachment, and atomic true-duplicate merge. Dated diary history is outside every mutation path.
 - [ ] Week in Motion opening report sequence.
 - [ ] VoiceOver, Dynamic Type, Reduce Motion, contrast, dark mode, and compact-device closure.
 - [x] Default-off feature flag, old-Home fallback, Home analytics, deterministic screenshots, and
@@ -375,6 +376,16 @@ treatment. Failure leaves the original state actionable.
 Exit gate: duplicate management cannot mutate history; shares contain no names, account IDs,
 routes, coordinates, or raw Health samples unless the user explicitly selected visible content.
 
+Implementation checkpoint (2026-07-12): My Foods is now an operational, searchable library over
+the signed-in user's reusable `customFoods` documents. It supports source/review filters, stable
+sorting, last-used context derived only from explicit saved-food identity, in-place nutrition
+editing, personal barcode detachment, deletion, and an atomic merge offered only when normalized
+identity, serving, source category, barcode state, macros, micronutrients, weight, and quantity all
+match. The interface changes only after persistence succeeds. Standard and accessibility-extra-
+extra-extra-large captures pass, and no diary collection is read or written by a destructive
+operation. Week in Motion and sharing remain open in Phase 4. The full boundary is documented in
+`my-foods-library-2.3.md`.
+
 ### Phase 5: release closure
 
 - Resolve the two reserved live-feedback slots.
@@ -419,7 +430,8 @@ Experience guardrails:
    recovery transitions; exact read-only navigation remains complete.
 7. [x] Build Trust Receipt with evidence-first hierarchy, one action, persistence-backed resolution,
    Reduce Motion behavior, VoiceOver announcement, and standard/accessibility render fixtures.
-8. [ ] Build My Foods Library.
+8. [x] Build My Foods Library with safe history isolation, personal barcode management, atomic
+   true-duplicate merge, failure-path coverage, and standard/accessibility render fixtures.
 9. [ ] Add Week in Motion, sharing, and the selected widget slice.
 10. [ ] Fill the two evidence-reserved slots from 2.2 feedback.
 11. [ ] Close accessibility, device, privacy, performance, and rollback gates.

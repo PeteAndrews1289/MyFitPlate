@@ -30,6 +30,8 @@ public protocol NutritionRepositoryProtocol: Sendable {
     // Custom Foods
     func saveCustomFood(userID: String, foodItem: FoodItem) async throws
     func deleteCustomFood(userID: String, foodItemID: String) async throws
+    func removeCustomFoodBarcode(userID: String, foodItemID: String) async throws
+    func mergeCustomFoods(userID: String, keepingFoodID: String, removingFoodIDs: [String]) async throws
     func fetchCustomFoods(userID: String) async throws -> [FoodItem]
     
     // Recent Foods

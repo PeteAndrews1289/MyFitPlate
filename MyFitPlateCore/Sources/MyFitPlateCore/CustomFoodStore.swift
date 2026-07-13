@@ -2,6 +2,8 @@ import Foundation
 public class CustomFoodStore {
     private let customFoodsCollection = "customFoods"
 
+    public init() {}
+
     public func saveCustomFood(for userID: String, foodItem: FoodItem, completion: @escaping (Bool) -> Void) {
         Task {
             do {
@@ -18,6 +20,40 @@ public class CustomFoodStore {
         Task {
             do {
                 try await DIContainer.shared.nutritionRepository.deleteCustomFood(userID: userID, foodItemID: foodItemID)
+                DispatchQueue.main.async { completion(true) }
+            } catch {
+                DispatchQueue.main.async { completion(false) }
+            }
+        }
+    }
+
+    public func removeBarcodeAssociation(for userID: String, foodItemID: String, completion: @escaping (Bool) -> Void) {
+        Task {
+            do {
+                try await DIContainer.shared.nutritionRepository.removeCustomFoodBarcode(
+                    userID: userID,
+                    foodItemID: foodItemID
+                )
+                DispatchQueue.main.async { completion(true) }
+            } catch {
+                DispatchQueue.main.async { completion(false) }
+            }
+        }
+    }
+
+    public func mergeCustomFoods(
+        for userID: String,
+        keepingFoodID: String,
+        removingFoodIDs: [String],
+        completion: @escaping (Bool) -> Void
+    ) {
+        Task {
+            do {
+                try await DIContainer.shared.nutritionRepository.mergeCustomFoods(
+                    userID: userID,
+                    keepingFoodID: keepingFoodID,
+                    removingFoodIDs: removingFoodIDs
+                )
                 DispatchQueue.main.async { completion(true) }
             } catch {
                 DispatchQueue.main.async { completion(false) }
