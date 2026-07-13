@@ -1,10 +1,11 @@
 # Whole-App Visual Unification
 
-Status: active on `codex/2.4-visual-unification`, based on the 2026-07-13 light/dark simulator
-audit. The Living Day candidate remains preserved on `main` as the rollback boundary.
+Status: active for version 2.3 on `codex/2.3-visual-unification`, based on the 2026-07-13
+light/dark simulator audit. Version 2.2 remains pending in App Store review and is untouched by
+this branch; `main` remains the source rollback boundary.
 
-This program must not be folded into the current Living Day release candidate. It is a staged
-system migration for the next development branch after the current signed release gate closes.
+This program is version 2.3 and must not be folded into the pending 2.2 submission. It remains a
+staged migration so each feature family can be reviewed, tested, and reverted independently.
 
 ## Implementation Progress
 
@@ -25,8 +26,28 @@ system migration for the next development branch after the current signed releas
   both standard and compact phone sizes. Focused UI tests passed 3/3, design-system tests passed
   10/10, strict lint passed with zero violations, and Debug plus unsigned Release builds passed.
 
-The next batch applies the shared screen header and surface rules to Train and Meal Plan first.
-Those screens have the highest combination of frequency, nested-surface debt, and visual weight.
+### Batch 2 - Train and Meal Plan (complete)
+
+- Applied one shared primary-tab header and action grammar to Train and Meal Plan without changing
+  their destinations, data stores, or logging/workout behavior.
+- Rebuilt Train's first viewport around one emphasized next-step progression surface, a direct
+  `Start` action, a quieter `Skip`, an unframed program-week rhythm, and flat readiness/action rows.
+- Rebuilt Meal Plan around an unframed seven-day selector, one daily summary band, aligned metrics
+  and progress, one day-level logging action, and quieter planned-meal rows.
+- Added a reusable metric strip that changes from aligned columns to full-width rows at
+  accessibility text sizes.
+- Added dedicated large-text layouts: Train removes low-priority exercise previews so names and
+  actions remain readable, while Meal Plan turns the compressed week into horizontally scrolling
+  full-size day cards.
+- Corrected compact-width exercise targets so values retain their natural width and names wrap,
+  instead of targets collapsing into columns of individual letters.
+- Added deterministic Train and Meal Plan hierarchy tests plus a combined dark, largest-Dynamic-
+  Type clipping audit. Focused UI checks passed 3/3, design-system tests passed 10/10, strict lint
+  passed with zero violations, the unsigned Release build passed, and standard/compact phone
+  captures were reviewed.
+
+The next primary-tab batch migrates Maia and the detailed Reports content. Living Day changes only
+at the final shell boundary, after the other primary tabs share the same visual grammar.
 
 ## Product Direction
 
@@ -101,8 +122,8 @@ Current source indicators:
 | Settings | Orderly but generic | Use a native grouped configuration pattern; remove the dashboard hero |
 | Quick Log | Polished but over-layered | Use a neutral sheet scaffold and simpler rows |
 | Maia | Friendly but card-heavy | Convert summary cards into a concise context strip and one suggested action |
-| Train | Clear hierarchy, heavy nesting | Rebuild the hero as one progression surface with one flat Start action |
-| Meal Plan | Highest visual debt | Unframe the week and summary; turn meals into readable sections/rows |
+| Train | Batch 2 migrated | One progression surface, direct Start action, unframed week, flat readiness rows |
+| Meal Plan | Batch 2 migrated | Unframed week, one summary band, aligned progress, quieter meal rows |
 | Legacy Home | Superseded direction | Retain only as rollback until Living Day is proven, then retire it |
 
 ## Unified System

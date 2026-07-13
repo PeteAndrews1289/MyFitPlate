@@ -46,6 +46,20 @@ struct AppVisualSystemGallery: View {
 
                 VStack(alignment: .leading, spacing: AppSpacing.group) {
                     AppSectionHeader(
+                        title: "Metric strip",
+                        subtitle: "Aligned values without nested tiles."
+                    )
+
+                    AppMetricStrip(items: [
+                        AppMetricItem(label: "Meals", value: "3", accent: AppPalette.brand),
+                        AppMetricItem(label: "Calories", value: "1,805 cal", accent: .orange),
+                        AppMetricItem(label: "Protein", value: "135 g", accent: .blue)
+                    ])
+                    .appSurface(.quiet)
+                }
+
+                VStack(alignment: .leading, spacing: AppSpacing.group) {
+                    AppSectionHeader(
                         title: "Actions",
                         subtitle: "One filled action, then quieter alternatives."
                     )

@@ -4,10 +4,11 @@ A living, definitive roadmap and product vision for MyFitPlate.
 
 Competitive thesis: MyFitPlate should not try to out-database MyFitnessPal, out-micronutrient Cronometer, or out-algorithm MacroFactor head-on. The wedge is **high-trust nutrition logging for people who train**, with Maia turning food, recovery, lifting, running, and real-world dining into one daily loop.
 
-Current objective: ship the completed local 2.3 Living Day candidate through physical-device and
-signed-release gates, then use real 2.2/2.3 evidence for the two deliberately reserved follow-up
-slots. Every sprint should preserve fast logging while making Trust, food timing, training, and
-recovery feel like one daily system rather than separate capable tools.
+Current objective: leave the submitted 2.2 binary isolated while App Store review is pending, and
+build version 2.3 on `codex/2.3-visual-unification`. Carry Living Day's evidence-led language across
+the app in reviewable feature batches without adding logging or workout friction. Every sprint
+should preserve fast logging while making Trust, food timing, training, and recovery feel like one
+daily system rather than separate capable tools.
 
 ---
 
@@ -474,10 +475,13 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   glass-card call sites or 68 shared button-style call sites.
 - [x] Migrate the tab bar and Quick Log sheet, and add reusable header and modal scaffolds with
   compact-phone, dark-mode, VoiceOver, and accessibility-size coverage.
-- [ ] Apply the shared primary-tab header and modal scaffold across Home, Train, Meal Plan, Maia,
-  and Reports without changing their feature behavior.
-- [ ] Migrate Train, Meal Plan, Maia, detailed Reports, and the Living Day shell boundary in that
-  order, with light/dark/large-type captures for every batch.
+- [x] Apply the shared primary-tab header, responsive metric strip, and flat action/surface grammar
+  to Train and Meal Plan without changing feature behavior or adding workflow steps.
+- [x] Migrate Train and Meal Plan with deterministic standard, dark, largest-text, and compact-
+  phone coverage. Train now has one next-step progression surface and unframed program week; Meal
+  Plan has an unframed week selector, one daily summary band, and quieter meal rows.
+- [ ] Apply the shared primary-tab shell to Maia and detailed Reports, then align the Living Day
+  shell boundary last. Preserve the editorial/operational distinction and capture every batch.
 - [ ] Migrate Food Search, Fast Food Builder, Food Detail, Running, and the repeated logging tools
   without adding taps or editorial friction.
 - [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,

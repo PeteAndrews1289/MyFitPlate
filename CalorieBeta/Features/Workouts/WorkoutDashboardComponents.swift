@@ -8,16 +8,16 @@ struct TrainingHeroCard: View {
     let programCount: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Training Hub")
-                        .appFont(size: 26, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                        .appTextRole(.sectionTitle)
+                        .foregroundStyle(AppPalette.text)
 
                     Text(activeProgramName.map { "Active: \($0)" } ?? "Pick a plan, build a routine, or start a one-off session.")
-                        .appFont(size: 14)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.body)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -25,73 +25,50 @@ struct TrainingHeroCard: View {
 
                 Image(systemName: "figure.strengthtraining.traditional")
                     .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundStyle(AppPalette.brand)
                     .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
             }
 
-            HStack(spacing: 10) {
-                TrainingMetricPill(title: "Programs", value: "\(programCount)", color: .brandPrimary)
-                TrainingMetricPill(title: "Routines", value: "\(routineCount)", color: .blue)
-                TrainingMetricPill(title: "Status", value: activeProgramName == nil ? "Open" : "Active", color: .accentPositive)
-            }
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Programs", value: "\(programCount)", accent: AppPalette.brand),
+                AppMetricItem(label: "Routines", value: "\(routineCount)", accent: .blue),
+                AppMetricItem(
+                    label: "Status",
+                    value: activeProgramName == nil ? "Open" : "Active",
+                    accent: .accentPositive
+                )
+            ])
         }
-        .asCard()
+        .appSurface(.emphasized, radius: AppRadius.hero)
     }
 }
 
 struct TrainingReadinessCard: View {
     let brief: TrainingReadinessBrief
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8)
-    ]
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: brief.icon)
-                    .appFont(size: 18, weight: .bold)
-                    .foregroundColor(brief.color)
-                    .frame(width: 42, height: 42)
-                    .background(brief.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(brief.status)
-                        .appFont(size: 19, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text(brief.message)
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 8)
-
-                VStack(spacing: 0) {
-                    Text("\(brief.score)")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(brief.color)
-                    Text("ready")
-                        .appFont(size: 10, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(brief.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(title: brief.status, subtitle: brief.message) {
+                Text("\(brief.score)%")
+                    .appTextRole(.control)
+                    .foregroundStyle(brief.color)
+                    .monospacedDigit()
+                    .accessibilityLabel("Readiness score \(brief.score) out of 100")
             }
 
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(brief.signals) { signal in
+            VStack(spacing: 0) {
+                ForEach(Array(brief.signals.enumerated()), id: \.element.id) { index, signal in
                     TrainingSignalPill(signal: signal)
+
+                    if index < brief.signals.count - 1 {
+                        Divider().padding(.leading, 52)
+                    }
                 }
             }
+            .appSurface(.quiet, padding: 0)
         }
-        .asCard()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(brief.status). \(brief.message). Readiness score is \(brief.score) out of 100.")
+        .accessibilityIdentifier("train_readiness")
     }
 }
 
@@ -99,31 +76,27 @@ struct TrainingSignalPill: View {
     let signal: TrainingSignal
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AppSpacing.row) {
             Image(systemName: signal.icon)
-                .appFont(size: 11, weight: .bold)
-                .foregroundColor(signal.color)
-                .frame(width: 24, height: 24)
-                .background(signal.color.opacity(0.12), in: Circle())
+                .appFont(size: 15, weight: .semibold)
+                .foregroundStyle(signal.color)
+                .frame(width: 32, height: 32)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(signal.title)
-                    .appFont(size: 10, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(1)
-
-                Text(signal.value)
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-            }
+            Text(signal.title)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
 
             Spacer(minLength: 0)
+
+            Text(signal.value)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-        .background(Color.backgroundSecondary.opacity(0.68), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.compact)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(signal.title): \(signal.value)")
     }
@@ -138,28 +111,21 @@ struct TrainingWeekPreviewCard: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Program Week")
-                        .appFont(size: 19, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text(program.daysOfWeek?.isEmpty == false ? "Your training rhythm at a glance." : "Choose training days to unlock scheduling.")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Program Week",
+                subtitle: program.daysOfWeek?.isEmpty == false
+                    ? "Your training rhythm at a glance."
+                    : "Choose training days to unlock scheduling."
+            ) {
                 // DESIGN.md rule 3: progress in words, not bare fractions ("5/7" read as
                 // program progress when it meant training days per week).
                 Text("\(program.daysOfWeek?.count ?? 0) training days")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.backgroundSecondary.opacity(0.7), in: Capsule())
+                    .background(AppPalette.control, in: Capsule())
             }
 
             HStack(spacing: 7) {
@@ -178,11 +144,11 @@ struct TrainingWeekPreviewCard: View {
             // names the next workout. The schedule hint only appears when it adds info.
             if nextWorkout == nil {
                 Text("Set a schedule in program details.")
-                    .appFont(size: 13, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .asCard()
+        .accessibilityIdentifier("train_program_week")
     }
 
     private var routineByWeekday: [Int: WorkoutRoutine] {
@@ -247,20 +213,20 @@ struct TrainingWeekDayChip: View {
     var body: some View {
         VStack(spacing: 5) {
             Text(label)
-                .appFont(size: 11, weight: .bold)
-                .foregroundColor(isNext ? .brandPrimary : Color(UIColor.secondaryLabel))
+                .appTextRole(.caption)
+                .foregroundStyle(isNext ? AppPalette.brand : Color.secondary)
 
             Text(detail ?? "-")
-                .appFont(size: 10, weight: .bold)
-                .foregroundColor(isNext ? .brandPrimary : (isActive ? .textPrimary : Color(UIColor.tertiaryLabel)))
-                .frame(width: 26, height: 26)
+                .appFont(size: 11, weight: .bold)
+                .foregroundStyle(isNext ? AppPalette.brand : (isActive ? AppPalette.text : Color.secondary))
+                .frame(width: 30, height: 30)
                 .background(
                     Circle()
-                        .fill(isNext ? Color.brandPrimary.opacity(0.15) : Color.backgroundSecondary.opacity(isActive ? 0.9 : 0.45))
+                        .fill(isNext ? AppPalette.brand.opacity(0.10) : AppPalette.control.opacity(isActive ? 1 : 0.45))
                 )
                 .overlay(
                     Circle()
-                        .stroke(isNext ? Color.brandPrimary : Color.clear, lineWidth: 1.5)
+                        .stroke(isNext ? AppPalette.brand : Color.clear, lineWidth: 1.5)
                 )
         }
         .frame(maxWidth: .infinity)
@@ -442,59 +408,29 @@ struct ActiveProgramManagementCard<Destination: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "slider.horizontal.3")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-                    .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Current Program")
-                        .appFont(size: 18, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text(program.name)
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                }
-
-                Spacer()
-
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(title: "Current Program", subtitle: program.name) {
                 Text(progressText)
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.brand)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                    .background(AppPalette.brand.opacity(0.10), in: Capsule())
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: AppSpacing.compact) {
                 NavigationLink(destination: destination()) {
                     Label("Manage", systemImage: "folder.fill")
-                        .appFont(size: 14, weight: .bold)
-                        .foregroundColor(.brandPrimary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppActionButtonStyle(.secondary))
 
                 Button(role: .destructive, action: onDelete) {
                     Label("Delete", systemImage: "trash.fill")
-                        .appFont(size: 14, weight: .bold)
-                        .foregroundColor(.red)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppActionButtonStyle(.destructive))
             }
         }
-        .asCard()
+        .appSurface(.quiet)
     }
 }
 
@@ -503,15 +439,7 @@ struct TrainingSectionHeader: View {
     let subtitle: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .appFont(size: 22, weight: .bold)
-                .foregroundColor(.textPrimary)
-            Text(subtitle)
-                .appFont(size: 13)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        AppSectionHeader(title: title, subtitle: subtitle)
     }
 }
 
@@ -522,27 +450,35 @@ struct TrainingActionTile: View {
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        HStack(spacing: AppSpacing.row) {
             Image(systemName: icon)
                 .appFont(size: 18, weight: .bold)
-                .foregroundColor(color)
-                .frame(width: 42, height: 42)
-                .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .foregroundStyle(color)
+                .frame(width: 40, height: 40)
+                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                .accessibilityHidden(true)
 
-            Text(title)
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
 
-            Text(subtitle)
-                .appFont(size: 12)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .lineLimit(2)
+                Text(subtitle)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: AppSpacing.compact)
+
+            Image(systemName: "chevron.right")
+                .appTextRole(.caption)
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
         }
-        .frame(maxWidth: .infinity, minHeight: 128, alignment: .topLeading)
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(AppSpacing.row)
+        .appSurface(.quiet, padding: 0)
+        .contentShape(Rectangle())
     }
 }
 

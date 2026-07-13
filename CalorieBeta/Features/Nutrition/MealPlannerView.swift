@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct MealPlannerView: View {
@@ -7,8 +9,7 @@ struct MealPlannerView: View {
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var recipeService: RecipeService
-    @Environment(\.colorScheme) var colorScheme
-
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var planForSelectedDate: MealPlanDay?
     @State private var isLoading = false
@@ -73,8 +74,7 @@ struct MealPlannerView: View {
         ZStack {
             mainScrollView
                 .background(Color.backgroundPrimary)
-                .navigationTitle("Meal plan")
-                .navigationBarTitleDisplayMode(.inline)
+                .toolbar(.hidden, for: .navigationBar)
                 .sheet(isPresented: $showingGroceryList) {
                     NavigationStack {
                         GroceryListView()
@@ -172,15 +172,20 @@ struct MealPlannerView: View {
             Text("This adds the planned meals to the food log for \(selectedDate, formatter: DateFormatter.longDate).")
         }
         .onAppear(perform: onMealPlanAppear)
-        .toolbar {
-            toolbarContent
-        }
     }
 
     @ViewBuilder
     private var mainScrollView: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: AppSpacing.section) {
+                AppScreenHeader(
+                    title: "Meal Plan",
+                    subtitle: "Plan the week, then make today easy."
+                ) {
+                    mealPlanHeaderActions
+                }
+                .accessibilityIdentifier("meal_plan_screen_header")
+
                 if let trainingFuelTarget = appState.pendingTrainingFuelTarget {
                     TrainingFuelTargetContextView(
                         target: trainingFuelTarget,
@@ -188,7 +193,7 @@ struct MealPlannerView: View {
                     )
                 }
 
-                WeekView(
+                MealPlanWeekStrip(
                     selectedDate: $selectedDate,
                     mealCountsByDay: weekMealCounts
                 )
@@ -221,7 +226,42 @@ struct MealPlannerView: View {
 
                 scanPantryButton
             }
-            .padding(16)
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.section)
+        }
+    }
+
+    private var mealPlanHeaderActions: some View {
+        HStack(spacing: AppSpacing.compact) {
+            Button(action: { showingGroceryList = true }) {
+                Image(systemName: "list.bullet.clipboard")
+            }
+            .buttonStyle(AppIconButtonStyle(.neutral))
+            .accessibilityLabel("Grocery list")
+
+            Menu {
+                Button("Add meal", systemImage: "plus") {
+                    showingAddMealToPlan = true
+                }
+                Button("Generate week", systemImage: "wand.and.stars") {
+                    showingMealPlanSurvey = true
+                }
+                Button("Open pantry", systemImage: "refrigerator.fill") {
+                    showingPantrySheet = true
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .appFont(size: 17, weight: .semibold)
+                    .foregroundStyle(AppPalette.text)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        AppPalette.control,
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
+            }
+            .accessibilityLabel("Meal plan tools")
+            .accessibilityIdentifier("meal_plan_tools")
         }
     }
 
@@ -229,42 +269,13 @@ struct MealPlannerView: View {
     private func planContentView(for plan: MealPlanDay) -> some View {
         MealPlanSummaryCard(date: selectedDate, meals: plan.meals, goals: goalSettings)
 
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(selectedPlanTitle)
-                        .appFont(size: 22, weight: .bold)
-                        .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: selectedPlanTitle,
+                subtitle: "Regenerate individual meals or send them to Maia to log."
+            )
 
-                    Text("Regenerate individual meals or send them to Maia to log.")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
-                if plan.meals.contains(where: { $0.foodItem != nil }) {
-                    Button(action: { showingLogDayConfirmation = true }) {
-                        Label("Log day", systemImage: "checkmark.circle.fill")
-                            .appFont(size: 13, weight: .bold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color.brandPrimary.opacity(0.12), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.brandPrimary)
-                }
-
-                Button(action: { showingAddMealToPlan = true }) {
-                    Label("Add", systemImage: "plus")
-                        .appFont(size: 13, weight: .bold)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color(UIColor.secondarySystemFill), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-            }
+            planActions(hasLoggableMeals: plan.meals.contains { $0.foodItem != nil })
 
             ForEach(plan.meals) { meal in
                 MealCardView(
@@ -279,73 +290,62 @@ struct MealPlannerView: View {
         }
         .featureSpotlight(isActive: isSpotlightActive(for: "planContent"))
         .id("planContent")
+        .accessibilityIdentifier("meal_plan_day")
+    }
+
+    @ViewBuilder
+    private func planActions(hasLoggableMeals: Bool) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: AppSpacing.compact) {
+                planActionButtons(hasLoggableMeals: hasLoggableMeals)
+            }
+        } else {
+            HStack(spacing: AppSpacing.compact) {
+                planActionButtons(hasLoggableMeals: hasLoggableMeals)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func planActionButtons(hasLoggableMeals: Bool) -> some View {
+        if hasLoggableMeals {
+            Button(action: { showingLogDayConfirmation = true }) {
+                Label("Log day", systemImage: "checkmark.circle.fill")
+            }
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .accessibilityIdentifier("meal_plan_log_day")
+        }
+
+        Button(action: { showingAddMealToPlan = true }) {
+            Label("Add meal", systemImage: "plus")
+        }
+        .buttonStyle(AppActionButtonStyle(.secondary))
+        .accessibilityIdentifier("meal_plan_add_meal")
     }
 
     @ViewBuilder
     private var scanPantryButton: some View {
         Button(action: { showingImagePicker = true }) {
-            HStack(spacing: 12) {
+            AppListRow(
+                icon: "camera.macro",
+                iconColor: .orange,
+                title: isAnalyzingImage ? "Chef Maia is analyzing" : "Scan pantry",
+                subtitle: isAnalyzingImage ? "Building recipe ideas" : "AI recipe generator"
+            ) {
                 if isAnalyzingImage {
                     ProgressView()
                         .tint(.orange)
-                    Text("Chef Maia is analyzing")
                 } else {
-                    Image(systemName: "camera.macro")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.orange)
-                        .frame(width: 42, height: 42)
-                        .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    VStack(alignment: .leading) {
-                        Text("Scan pantry")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                        Text("AI recipe generator")
-                            .appFont(size: 12)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-                }
-                Spacer()
-                if !isAnalyzingImage {
                     Image(systemName: "chevron.right")
-                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
                 }
             }
-            .foregroundColor(.textPrimary)
-            .padding(18)
-            .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .appSurface(.quiet, padding: 0)
         }
         .buttonStyle(.plain)
         .disabled(isAnalyzingImage)
-    }
-
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .navigationBarLeading) {
-            HStack {
-                Button(action: { showingGroceryList = true }) {
-                    Image(systemName: "list.bullet.clipboard")
-                }
-                .accessibilityLabel("Grocery list")
-
-                Button(action: { showingPantrySheet = true }) {
-                    Image(systemName: "refrigerator.fill")
-                }
-                .accessibilityLabel("Pantry")
-            }
-        }
-        ToolbarItem(placement: .navigationBarTrailing) {
-            HStack {
-                Button(action: { showingAddMealToPlan = true }) {
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("Add meal to plan")
-
-                Button(action: { showingMealPlanSurvey = true }) {
-                    Image(systemName: "wand.and.stars")
-                }
-                .accessibilityLabel("Generate meal plan")
-            }
-        }
+        .accessibilityIdentifier("meal_plan_scan_pantry")
     }
 
     private func onMealPlanAppear() {

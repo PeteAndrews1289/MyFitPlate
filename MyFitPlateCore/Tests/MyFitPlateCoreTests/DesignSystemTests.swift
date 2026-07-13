@@ -79,6 +79,10 @@ final class DesignSystemTests: XCTestCase {
             .buttonStyle(AppIconButtonStyle())
         let header = AppScreenHeader(title: "Living Day", subtitle: "Current")
         let section = AppSectionHeader(title: "Your day")
+        let metrics = AppMetricStrip(items: [
+            AppMetricItem(label: "Calories", value: "1,805 cal", accent: .orange),
+            AppMetricItem(label: "Protein", value: "135 g", accent: .blue)
+        ])
         let row = AppListRow(icon: "magnifyingglass", title: "Search food", subtitle: "Find from the food database")
         let sheet = AppSheetScaffold(title: "Quick Log", dismiss: {}) { EmptyView() }
 
@@ -89,6 +93,7 @@ final class DesignSystemTests: XCTestCase {
         XCTAssertNotNil(icon)
         XCTAssertNotNil(header.body)
         XCTAssertNotNil(section.body)
+        XCTAssertNotNil(metrics.body)
         XCTAssertNotNil(row.body)
         XCTAssertNotNil(sheet.body)
     }

@@ -187,6 +187,113 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testTrainUsesUnifiedActionHierarchy() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "train"
+        ]
+        app.launch()
+
+        let header = app.staticTexts["Train"]
+        let nextStep = app.staticTexts
+            .matching(NSPredicate(format: "label == %@", "Dumbbell Strength & Hypertrophy"))
+            .firstMatch
+        let programWeek = app.staticTexts["Program Week"]
+
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        XCTAssertTrue(nextStep.waitForExistence(timeout: 5))
+        XCTAssertTrue(programWeek.waitForExistence(timeout: 5))
+        XCTAssertLessThan(nextStep.frame.minY, programWeek.frame.minY)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Train - unified hierarchy"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testMealPlanUsesUnifiedPlanningHierarchy() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "meal-plan"
+        ]
+        app.launch()
+
+        let header = app.staticTexts["Meal Plan"]
+        let week = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "planned meals, selected"))
+            .firstMatch
+        let summary = app.staticTexts["Today's meal plan"]
+        let day = app.staticTexts["Today's plan"]
+
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        XCTAssertTrue(week.waitForExistence(timeout: 5))
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertTrue(day.waitForExistence(timeout: 5))
+        XCTAssertLessThan(week.frame.minY, summary.frame.minY)
+        XCTAssertLessThan(summary.frame.minY, day.frame.minY)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Meal Plan - unified hierarchy"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testTrainAndMealPlanSupportDarkAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "train", label: "Dumbbell Strength & Hypertrophy", isButton: false),
+            (name: "meal-plan", label: "planned meals, selected", isButton: true)
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-dark-mode",
+                "-screenshot-screen",
+                screen.name,
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let primarySurface: XCUIElement
+            if screen.isButton {
+                primarySurface = app.buttons
+                    .matching(NSPredicate(format: "label CONTAINS %@", screen.label))
+                    .firstMatch
+            } else {
+                primarySurface = app.staticTexts
+                    .matching(NSPredicate(format: "label == %@", screen.label))
+                    .firstMatch
+            }
+            XCTAssertTrue(primarySurface.waitForExistence(timeout: 12))
+            XCTAssertGreaterThan(primarySurface.frame.width, 0)
+            XCTAssertGreaterThanOrEqual(primarySurface.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(primarySurface.frame.maxX, app.frame.maxX + 1)
+            try app.performAccessibilityAudit(for: [.textClipped])
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testLivingDayOrdersActionsAndOffersExplicitShareSelection() throws {
         let app = XCUIApplication()
         app.terminate()

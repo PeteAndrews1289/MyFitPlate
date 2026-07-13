@@ -275,6 +275,8 @@ public struct AppScreenHeader<Trailing: View>: View {
     public let subtitle: String?
     private let trailing: Trailing
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     public init(
         eyebrow: String? = nil,
         title: String,
@@ -288,30 +290,42 @@ public struct AppScreenHeader<Trailing: View>: View {
     }
 
     public var body: some View {
-        HStack(alignment: .top, spacing: AppSpacing.group) {
-            VStack(alignment: .leading, spacing: 4) {
-                if let eyebrow {
-                    Text(eyebrow.uppercased())
-                        .appTextRole(.caption)
-                        .foregroundStyle(.secondary)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    textBlock
+                    trailing
                 }
-
-                Text(title)
-                    .appTextRole(.screenTitle)
-                    .foregroundStyle(AppPalette.text)
-
-                if let subtitle {
-                    Text(subtitle)
-                        .appTextRole(.secondary)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack(alignment: .top, spacing: AppSpacing.group) {
+                    textBlock
+                    Spacer(minLength: 0)
+                    trailing
                 }
             }
-
-            Spacer(minLength: 0)
-            trailing
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var textBlock: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let eyebrow {
+                Text(eyebrow.uppercased())
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(title)
+                .appTextRole(.screenTitle)
+                .foregroundStyle(AppPalette.text)
+
+            if let subtitle {
+                Text(subtitle)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 
@@ -326,6 +340,8 @@ public struct AppSectionHeader<Trailing: View>: View {
     public let subtitle: String?
     private let trailing: Trailing
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     public init(
         title: String,
         subtitle: String? = nil,
@@ -337,30 +353,147 @@ public struct AppSectionHeader<Trailing: View>: View {
     }
 
     public var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .appTextRole(.sectionTitle)
-                    .foregroundStyle(AppPalette.text)
-
-                if let subtitle {
-                    Text(subtitle)
-                        .appTextRole(.secondary)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    textBlock
+                    trailing
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                    textBlock
+                    Spacer(minLength: 0)
+                    trailing
                 }
             }
-
-            Spacer(minLength: 0)
-            trailing
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var textBlock: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+
+            if let subtitle {
+                Text(subtitle)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 
 public extension AppSectionHeader where Trailing == EmptyView {
     init(title: String, subtitle: String? = nil) {
         self.init(title: title, subtitle: subtitle) { EmptyView() }
+    }
+}
+
+public struct AppMetricItem: Identifiable {
+    public let id: String
+    public let label: String
+    public let value: String
+    public let accent: Color
+
+    public init(id: String? = nil, label: String, value: String, accent: Color = AppPalette.brand) {
+        self.id = id ?? label
+        self.label = label
+        self.value = value
+        self.accent = accent
+    }
+}
+
+/// A flat metric treatment for summaries. Standard text uses aligned columns; accessibility text
+/// switches to full-width rows so values never have to shrink to remain legible.
+public struct AppMetricStrip: View {
+    public let items: [AppMetricItem]
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    public init(items: [AppMetricItem]) {
+        self.items = items
+    }
+
+    public var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                            metricLabel(item)
+                            Spacer(minLength: AppSpacing.group)
+                            metricValue(item)
+                                .multilineTextAlignment(.trailing)
+                        }
+                        .padding(.vertical, AppSpacing.compact)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(item.label), \(item.value)")
+
+                        if index < items.count - 1 {
+                            Divider()
+                        }
+                    }
+                }
+            } else if items.count > 3 {
+                LazyVGrid(
+                    columns: [GridItem(.flexible()), GridItem(.flexible())],
+                    alignment: .leading,
+                    spacing: AppSpacing.group
+                ) {
+                    ForEach(items) { item in
+                        VStack(alignment: .leading, spacing: 4) {
+                            metricValue(item)
+                            metricLabel(item)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(item.label), \(item.value)")
+                    }
+                }
+            } else {
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        VStack(alignment: .leading, spacing: 4) {
+                            metricValue(item)
+                            metricLabel(item)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(item.label), \(item.value)")
+
+                        if index < items.count - 1 {
+                            Divider()
+                                .padding(.horizontal, AppSpacing.row)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func metricLabel(_ item: AppMetricItem) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(item.accent)
+                .frame(width: 6, height: 6)
+                .accessibilityHidden(true)
+
+            Text(item.label)
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func metricValue(_ item: AppMetricItem) -> some View {
+        Text(item.value)
+            .appTextRole(.control)
+            .foregroundStyle(AppPalette.text)
+            .monospacedDigit()
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
