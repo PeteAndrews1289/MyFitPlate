@@ -157,11 +157,11 @@ struct LivingDayHomeExperience: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Living Day")
-                    .appFont(size: 24, weight: .bold)
-                    .foregroundStyle(Color.textPrimary)
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
 
                 Label(freshness.title, systemImage: freshness.icon)
-                    .appFont(size: 11, weight: .bold)
+                    .appTextRole(.caption)
                     .foregroundStyle(freshness.color)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -172,12 +172,8 @@ struct LivingDayHomeExperience: View {
                 showingShareOptions = true
             } label: {
                 Image(systemName: "square.and.arrow.up")
-                    .appFont(size: 17, weight: .semibold)
-                    .foregroundStyle(Color.brandPrimary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppIconButtonStyle(.neutral))
             .accessibilityLabel("Share Living Day")
             .accessibilityIdentifier("livingDayShareButton")
 
@@ -194,11 +190,8 @@ struct LivingDayHomeExperience: View {
                 }
             } label: {
                 Image(systemName: density.icon)
-                    .appFont(size: 17, weight: .semibold)
-                    .foregroundStyle(Color.brandPrimary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
             }
+            .buttonStyle(AppIconButtonStyle(.neutral))
             .accessibilityLabel("Path density")
             .accessibilityValue(density.title)
             .accessibilityIdentifier("livingDayDensityMenu")

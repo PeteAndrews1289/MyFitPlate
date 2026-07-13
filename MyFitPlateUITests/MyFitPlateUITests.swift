@@ -418,6 +418,53 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testLivingDayUsesSharedHomeShell() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "home",
+            "-living-day-home"
+        ]
+        app.launch()
+
+        let header = app.staticTexts
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label == %@",
+                "home_screen_header",
+                "Home"
+            ))
+            .firstMatch
+        let date = app.staticTexts
+            .matching(NSPredicate(format: "identifier == %@", "home_date_label"))
+            .firstMatch
+        let livingDay = app.staticTexts["Living Day"]
+        let profile = app.buttons["Open profile"]
+        let settings = app.buttons["Open settings"]
+
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        XCTAssertTrue(date.waitForExistence(timeout: 5))
+        XCTAssertTrue(livingDay.waitForExistence(timeout: 5))
+        XCTAssertTrue(profile.isHittable)
+        XCTAssertTrue(settings.isHittable)
+        XCTAssertLessThan(header.frame.minY, date.frame.minY)
+        XCTAssertLessThan(date.frame.minY, livingDay.frame.minY)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Living Day - shared Home shell"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+
+        app.buttons["Previous day"].tap()
+        XCTAssertTrue(livingDay.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Calories"].waitForExistence(timeout: 5))
+        XCTAssertTrue(header.exists)
+    }
+
+    @MainActor
     func testLivingDayOrdersActionsAndOffersExplicitShareSelection() throws {
         let app = XCUIApplication()
         app.terminate()
@@ -498,13 +545,22 @@ final class MyFitPlateUITests: XCTestCase {
             "-screenshot-screen",
             "home",
             "-living-day-home",
+            "-screenshot-dark-mode",
             "-UIPreferredContentSizeCategoryName",
             "UICTContentSizeCategoryAccessibilityXXXL"
         ]
         app.launch()
 
+        let header = app.staticTexts
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label == %@",
+                "home_screen_header",
+                "Home"
+            ))
+            .firstMatch
         let surface = app.staticTexts["Living Day"]
         let action = app.descendants(matching: .any)["livingDayCurrentAction"]
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
         XCTAssertTrue(surface.waitForExistence(timeout: 10))
         XCTAssertTrue(action.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(action.frame.minX, app.frame.minX - 1)
@@ -531,6 +587,14 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         let livingDay = app.staticTexts["Living Day"]
+        let homeHeader = app.staticTexts
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label == %@",
+                "home_screen_header",
+                "Home"
+            ))
+            .firstMatch
+        XCTAssertTrue(homeHeader.waitForExistence(timeout: 10))
         XCTAssertTrue(livingDay.waitForExistence(timeout: 10))
 
         app.buttons["tab_reports"].tap()
@@ -546,6 +610,7 @@ final class MyFitPlateUITests: XCTestCase {
         )
 
         app.buttons["tab_home"].tap()
+        XCTAssertTrue(homeHeader.waitForExistence(timeout: 5))
         XCTAssertTrue(
             livingDay.waitForExistence(timeout: 5),
             "Living Day should remain enabled when Home is rebuilt after a tab change"

@@ -68,9 +68,26 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   dark mode at accessibility XXXL and text-clipping audits. Design-system and Week in Motion tests
   passed 16/16, and strict lint passed with zero violations.
 
-The next primary-tab batch aligns only the Living Day shell boundary. Its evidence-led timeline,
-feature decision, and rollback behavior remain unchanged. Core repeated workflows follow after all
-five primary tabs share the same chrome.
+### Batch 4 - Home and Living Day shell (complete)
+
+- Added the same stable, pinned primary-screen header used by the other four tabs, with direct
+  profile and settings actions that remain reachable without scrolling.
+- Replaced the material date capsule with quiet, unframed date navigation. The layout remains
+  centered on standard phones and stacks its date and controls at accessibility text sizes.
+- Kept Living Day's evidence-led timeline, budget, recommendation, Maia annotation, action routes,
+  share selection, density controls, selected-date behavior, feature decision, and legacy Home
+  rollback path unchanged.
+- Aligned Living Day's local title, freshness label, and utility controls with the shared text,
+  palette, and icon-button grammar instead of introducing a second visual system inside Home.
+- Added regression coverage for the shared shell, previous-day legacy fallback, Reports tab return,
+  explicit sharing, density controls, dark mode, and the largest accessibility text size.
+- The consolidated device-level run passed 4/4 on an iPhone 17 Pro Max, the compact shell check
+  passed on an iPhone SE, and standard, compact, and dark accessibility captures were reviewed.
+  Living Day, sharing, and design-system tests passed 26/26.
+
+All five primary tabs now share the same chrome. The active visual-unification queue moves to the
+core repeated workflows, beginning with Food Search and Fast Food Builder, where speed and density
+matter more than editorial presentation.
 
 ## Product Direction
 
@@ -136,7 +153,7 @@ Current source indicators:
 
 | Surface | Current visual state | Direction |
 |---|---|---|
-| Living Day | North star | Keep the unframed path; align shell, copy case, and action treatment |
+| Living Day | North star, Batch 4 shell aligned | Keep the unframed path and preserve its evidence-led behavior |
 | Week in Motion | North star, Batch 3 retained | Keep the rhythm/evidence structure as the Reports lead story |
 | Reports detail | Batch 3 migrated | Quiet trend controls, responsive evidence, and flat report surfaces |
 | Trust Receipt | Strong but split | Keep receipt; flatten the nutrition grid and replace the gradient footer CTA |

@@ -19,6 +19,7 @@ struct HomeView: View {
     @EnvironmentObject var workoutService: WorkoutService
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Binding var navigateToProfile: Bool
     @Binding var showSettings: Bool
@@ -136,18 +137,21 @@ struct HomeView: View {
     }
 
     var body: some View {
-          ZStack {
+        VStack(spacing: 0) {
+            homeScreenHeader
+
+            ZStack {
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(spacing: 16) {
                             dateNavigationView
-                                .padding(.horizontal)
-                                .padding(.top, 10)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
+                                .padding(.top, AppSpacing.group)
 
                             if goalSettings.isCheckInReady {
                                 weeklyCheckInBanner
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
                             }
 
                             Group {
@@ -178,12 +182,12 @@ struct HomeView: View {
                                     )
                                 }
                             }
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
                                 .id("dashboardHeader")
 
                             if shouldOfferSwitcherPrompt {
                                 switcherPromptCard
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
                             }
 
@@ -199,7 +203,7 @@ struct HomeView: View {
                                 onRepeatYesterdayMeals: { repeatYesterdayMeals() }
                             )
                                 .featureSpotlight(isActive: isSpotlightActive(for: "quickActions"))
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
                                 .id("quickActions")
 
                             // DESIGN.md rule 1: the diary is the most-touched section, so it
@@ -216,7 +220,7 @@ struct HomeView: View {
                                 onDeleteFood: { deleteFood(byID: $0) },
                                 onDeleteExercise: { deleteExercise(byID: $0) }
                             )
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
                                 .id("dailyLog")
 
                             if isToday, (goalSettings.calories ?? 0) > 0 {
@@ -236,25 +240,25 @@ struct HomeView: View {
                                         showingTrainingFuelPlanner = true
                                     }
                                 )
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
                             }
 
                             if shouldOfferFillMyMacros,
                                todayFuelPlan.action == .none,
                                trainingFuelPlanStore.confirmedPlan == nil {
                                 fillMyMacrosCard
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
                             }
 
                             weeklyRecapBanner
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
 
                             if currentLogForSelectedDate != nil {
                                 HealthActivityCard()
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
                                 HomeWeightTrackingCard(showingWeightEntrySheet: $showingWeightEntrySheet)
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
                             }
 
                             // The training-aware fuel plan is a "next step" nudge, not the
@@ -262,7 +266,7 @@ struct HomeView: View {
                             // actions, and diary keep the prime real estate up top.
                             if shouldShowTodayFuelPlan {
                                 todayFuelPlanCard(for: todayFuelPlan)
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
                             }
                         }
                         .frame(width: geometry.size.width, alignment: .top)
@@ -298,9 +302,10 @@ struct HomeView: View {
                     }
                 }
             }
-
-          }
-          .overlayPreferenceValue(SpotlightBoundsKey.self) { anchor in
+            }
+        }
+        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .overlayPreferenceValue(SpotlightBoundsKey.self) { anchor in
               GeometryReader { proxy in
                   if showingSpotlightTour,
                      currentSpotlightIndex < tourSpotlightIDs.count,
@@ -317,39 +322,8 @@ struct HomeView: View {
                       .animation(.easeInOut(duration: 0.25), value: currentSpotlightIndex)
                   }
               }
-          }
-          .toolbar {
-              ToolbarItem(placement: .navigationBarLeading) {
-                  Button(action: { self.showingProfileSheet = true }) {
-                      Text("MFP")
-                          .appFont(size: 13, weight: .bold)
-                          .foregroundColor(.brandPrimary)
-                          .frame(width: 44, height: 44)
-                          .background(.ultraThinMaterial, in: Circle())
-                          .overlay(
-                              Circle()
-                                  .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                          )
-                  }
-                  .buttonStyle(.plain)
-                  .accessibilityLabel("Open profile")
-              }
-              ToolbarItem(placement: .navigationBarTrailing) {
-                  Menu {
-                      Button(action: { self.showingProfileSheet = true }) {
-                          Label("Profile", systemImage: "person")
-                      }
-                      Divider()
-                      Button(action: { self.showSettings = true }) {
-                          Label("Settings", systemImage: "gearshape")
-                      }
-                  } label: {
-                      Image(systemName: "line.3.horizontal")
-                          .font(.title2)
-                          .foregroundColor(Color(UIColor.secondaryLabel))
-                  }
-              }
-          }
+        }
+        .toolbar(.hidden, for: .navigationBar)
           // MARK: - Sheets
           .sheet(isPresented: $showingDetailedInsights) {
               NavigationStack {
@@ -656,70 +630,109 @@ struct HomeView: View {
 
     // MARK: - Components & Subviews
 
-    private var dateNavigationView: some View {
-        HStack(spacing: 12) {
-            Button(action: {
-                changeSelectedDate(by: -1)
-            }) {
-                Image(systemName: "chevron.left")
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .frame(width: 38, height: 38)
-                    .background(Color.backgroundPrimary.opacity(0.82), in: Circle())
+    private var homeScreenHeader: some View {
+        AppScreenHeader(
+            title: "Home",
+            subtitle: isToday
+                ? "Your food, training, and recovery today."
+                : "Review your food, training, and recovery."
+        ) {
+            HStack(spacing: AppSpacing.compact) {
+                Button(action: { showingProfileSheet = true }) {
+                    Image(systemName: "person.crop.circle")
+                }
+                .buttonStyle(AppIconButtonStyle(.neutral))
+                .accessibilityLabel("Open profile")
+                .accessibilityIdentifier("home_profile_button")
+
+                Button(action: { showSettings = true }) {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(AppIconButtonStyle(.neutral))
+                .accessibilityLabel("Open settings")
+                .accessibilityIdentifier("home_settings_button")
             }
+        }
+        .padding(.horizontal, AppSpacing.screenHorizontal)
+        .padding(.top, AppSpacing.group)
+        .padding(.bottom, AppSpacing.compact)
+        .accessibilityIdentifier("home_screen_header")
+    }
 
-            Spacer()
+    private var dateNavigationView: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    dateNavigationLabel
 
-            VStack(spacing: 2) {
-                Text(selectedDateFormattedString)
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.textPrimary)
-
-                // The streak replaces the weekday line once it means something. Orange is
-                // the flame's semantic color; the grace-day copy nudges without shaming.
-                if isToday, streakDays >= 2 {
-                    HStack(spacing: 3) {
-                        Image(systemName: "flame.fill")
-                            .appFont(size: 10, weight: .bold)
-                            .foregroundColor(.orange)
-                        Text(streakOnGrace ? "\(streakDays)-day streak — log to keep it" : "\(streakDays)-day streak")
-                            .appFont(size: 11, weight: .semibold)
-                            .foregroundColor(streakOnGrace ? .orange : Color(UIColor.secondaryLabel))
-                            .contentTransition(.numericText())
+                    HStack(spacing: AppSpacing.compact) {
+                        previousDateButton
+                        nextDateButton
                     }
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: streakDays)
-                    .accessibilityLabel(streakOnGrace
-                        ? "\(streakDays) day logging streak. Log today to keep it."
-                        : "\(streakDays) day logging streak")
-                } else {
-                    Text(selectedDateSubtitle)
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    previousDateButton
+                    Spacer(minLength: AppSpacing.row)
+                    dateNavigationLabel
+                    Spacer(minLength: AppSpacing.row)
+                    nextDateButton
                 }
             }
-
-            Spacer()
-
-            Button(action: {
-                changeSelectedDate(by: 1)
-            }) {
-                Image(systemName: "chevron.right")
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(isToday ? Color(UIColor.tertiaryLabel) : Color(UIColor.secondaryLabel))
-                    .frame(width: 38, height: 38)
-                    .background(Color.backgroundPrimary.opacity(isToday ? 0.36 : 0.82), in: Circle())
-            }
-            .disabled(isToday)
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(maxWidth: 520)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay(
-            Capsule()
-                .stroke(Color.white.opacity(0.16), lineWidth: 1)
-        )
+        .frame(maxWidth: 520, alignment: .leading)
+    }
+
+    private var dateNavigationLabel: some View {
+        VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .center, spacing: 2) {
+            Text(selectedDateFormattedString)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("home_date_label")
+
+            // The streak replaces the weekday line once it means something. Orange is
+            // the flame's semantic color; the grace-day copy nudges without shaming.
+            if isToday, streakDays >= 2 {
+                HStack(spacing: 3) {
+                    Image(systemName: "flame.fill")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.orange)
+                    Text(streakOnGrace ? "\(streakDays)-day streak — log to keep it" : "\(streakDays)-day streak")
+                        .appTextRole(.caption)
+                        .foregroundStyle(streakOnGrace ? .orange : Color(UIColor.secondaryLabel))
+                        .contentTransition(.numericText())
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .animation(AppMotion.standard, value: streakDays)
+                .accessibilityLabel(streakOnGrace
+                    ? "\(streakDays) day logging streak. Log today to keep it."
+                    : "\(streakDays) day logging streak")
+            } else {
+                Text(selectedDateSubtitle)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .center)
+    }
+
+    private var previousDateButton: some View {
+        Button(action: { changeSelectedDate(by: -1) }) {
+            Image(systemName: "chevron.left")
+        }
+        .buttonStyle(AppIconButtonStyle(.neutral))
+        .accessibilityLabel("Previous day")
+    }
+
+    private var nextDateButton: some View {
+        Button(action: { changeSelectedDate(by: 1) }) {
+            Image(systemName: "chevron.right")
+        }
+        .buttonStyle(AppIconButtonStyle(.neutral))
+        .disabled(isToday)
+        .opacity(isToday ? 0.35 : 1)
+        .accessibilityLabel("Next day")
     }
 
     private var todayHasLoggedFood: Bool {

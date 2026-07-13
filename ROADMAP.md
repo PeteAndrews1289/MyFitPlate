@@ -485,8 +485,11 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   pinned composer; Reports preserves Week in Motion as its opening story and moves detailed trends
   into calmer, responsive surfaces below it. Standard, dark largest-text, and compact-phone checks
   are captured, including a regression for honest zero-of-N recovery copy.
-- [ ] Align the Living Day shell boundary last so Home shares the same stable header and app chrome
-  without changing its evidence-led timeline or rollout fallback.
+- [x] Align the Living Day shell boundary so Home now shares the stable primary-screen header,
+  direct profile/settings actions, responsive date navigation, and shared app chrome without
+  changing its evidence-led timeline, actions, sharing, density controls, or rollout fallback.
+  Standard, compact-phone, dark largest-text, previous-day fallback, and Reports round-trip checks
+  are captured.
 - [ ] Migrate Food Search, Fast Food Builder, Food Detail, Running, and the repeated logging tools
   without adding taps or editorial friction.
 - [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,
