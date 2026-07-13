@@ -22,6 +22,7 @@ struct HomeView: View {
 
     @Binding var navigateToProfile: Bool
     @Binding var showSettings: Bool
+    let livingDayTransition: LivingDayTransition?
 
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
@@ -163,6 +164,7 @@ struct HomeView: View {
                                 if isLivingDayHomeEnabled, isToday {
                                     LivingDayHomeExperience(
                                         snapshot: livingDaySnapshot,
+                                        transition: livingDayTransition,
                                         onEventSelected: { event in
                                             handleLivingDayEvent(event, scrollProxy: proxy)
                                         },

@@ -16,6 +16,7 @@ struct MainTabView: View {
     @EnvironmentObject var mealPlannerService: MealPlannerService
     @EnvironmentObject var recipeService: RecipeService
     @EnvironmentObject var spotlightManager: SpotlightManager
+    @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
     
     @State private var showSettings = false
     @State private var showingAddOptions = false
@@ -48,6 +49,7 @@ struct MainTabView: View {
     
     @State private var showingSpotlightTour = false
     @State private var showingAIDataConsent = false
+    @State private var livingDayTransition: LivingDayTransition?
 
     private let imageModel = MLImageModel()
     private let barcodeLookupService = BarcodeFoodLookupService()
@@ -94,7 +96,14 @@ struct MainTabView: View {
                         case 4:
                             NavigationStack { ReportsView(dailyLogService: dailyLogService) }.trackScreen(.reports)
                         default:
-                            NavigationStack { HomeView(navigateToProfile: .constant(false), showSettings: $showSettings) }.trackScreen(.homeDashboard)
+                            NavigationStack {
+                                HomeView(
+                                    navigateToProfile: .constant(false),
+                                    showSettings: $showSettings,
+                                    livingDayTransition: livingDayTransition
+                                )
+                            }
+                            .trackScreen(.homeDashboard)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -384,6 +393,12 @@ struct MainTabView: View {
             .onReceive(NotificationCenter.default.publisher(for: .aiDataConsentRequired)) { _ in
                 showingAIDataConsent = true
             }
+            .onReceive(NotificationCenter.default.publisher(for: .foodItemLogged)) { notification in
+                handleFoodLoggedTransition(notification)
+            }
+            .onChange(of: trainingFuelPlanStore.confirmedPlan) { previousPlan, currentPlan in
+                handleTrainingFuelTransition(from: previousPlan, to: currentPlan)
+            }
             
             if showingSpotlightTour {
                 Color.black.opacity(0.6).ignoresSafeArea()
@@ -430,9 +445,88 @@ struct MainTabView: View {
 
     private var standardHomeContent: some View {
         NavigationStack {
-            HomeView(navigateToProfile: .constant(false), showSettings: $showSettings)
+            HomeView(
+                navigateToProfile: .constant(false),
+                showSettings: $showSettings,
+                livingDayTransition: livingDayTransition
+            )
         }
         .trackScreen(.homeDashboard)
+    }
+
+    private func handleFoodLoggedTransition(_ notification: Notification) {
+        guard let payload = DailyLogNotifications.foodLoggedPayload(from: notification),
+              payload.userID == DIContainer.shared.authService.currentUserID,
+              let log = dailyLogService.currentDailyLog,
+              Calendar.current.isDateInToday(log.date),
+              let meal = log.meals.first(where: { meal in
+                  meal.foodItems.contains(where: { $0.id == payload.foodItem.id })
+              }) else { return }
+
+        livingDayTransition = .foodLogged(payload.foodItem, meal: meal)
+    }
+
+    private func handleTrainingFuelTransition(
+        from previousPlan: TrainingFuelConfirmedPlan?,
+        to currentPlan: TrainingFuelConfirmedPlan?
+    ) {
+        guard let currentPlan else { return }
+        let now = Date()
+        let eventID = "training:\(currentPlan.id)"
+
+        if previousPlan?.outcome?.status != currentPlan.outcome?.status,
+           let outcome = currentPlan.outcome,
+           abs(now.timeIntervalSince(outcome.recordedAt)) <= 12 {
+            let kind: LivingDayTransition.Kind
+            let title: String
+            let detail: String
+            switch outcome.status {
+            case .completed:
+                kind = .trainingCompleted
+                title = "Training complete"
+                let outcomeDate = outcome.actualEndAt ?? outcome.recordedAt
+                let outcomeLog = dailyLogService.currentDailyLog.flatMap { log in
+                    Calendar.current.isDate(log.date, inSameDayAs: outcomeDate) ? log : nil
+                }
+                let progress = TrainingFuelPlanProgressRules.makeProgress(
+                    plan: currentPlan,
+                    today: outcomeLog,
+                    goals: TodayFuelPlanGoals(
+                        calories: goalSettings.calories ?? 0,
+                        protein: goalSettings.protein,
+                        carbs: goalSettings.carbs,
+                        fats: goalSettings.fats
+                    ),
+                    now: now
+                )
+                detail = progress.status == .recovery
+                    ? "Recovery window is ready"
+                    : "Today's path reflects the completed session"
+            case .skipped:
+                kind = .trainingSkipped
+                title = "Session skipped"
+                detail = "Today's path has been updated"
+            }
+            livingDayTransition = LivingDayTransition(
+                kind: kind,
+                eventID: eventID,
+                title: title,
+                detail: detail,
+                createdAt: outcome.recordedAt
+            )
+            return
+        }
+
+        guard previousPlan?.id != currentPlan.id,
+              currentPlan.outcome == nil,
+              abs(now.timeIntervalSince(currentPlan.confirmedAt)) <= 12 else { return }
+        livingDayTransition = LivingDayTransition(
+            kind: .trainingPlanned,
+            eventID: eventID,
+            title: "Training plan ready",
+            detail: currentPlan.draft.sessionTitle,
+            createdAt: currentPlan.confirmedAt
+        )
     }
     
     private func finishTour() {

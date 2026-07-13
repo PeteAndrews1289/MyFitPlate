@@ -1,14 +1,70 @@
 import MyFitPlateCore
 import SwiftUI
+import UIKit
+
+struct LivingDayTransition: Equatable, Identifiable {
+    enum Kind: String {
+        case foodLogged = "food_logged"
+        case trainingPlanned = "training_planned"
+        case trainingCompleted = "training_completed"
+        case trainingSkipped = "training_skipped"
+    }
+
+    let id: UUID
+    let kind: Kind
+    let eventID: String?
+    let title: String
+    let detail: String
+    let createdAt: Date
+
+    init(
+        id: UUID = UUID(),
+        kind: Kind,
+        eventID: String?,
+        title: String,
+        detail: String,
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.kind = kind
+        self.eventID = eventID
+        self.title = title
+        self.detail = detail
+        self.createdAt = createdAt
+    }
+
+    static func foodLogged(
+        _ foodItem: FoodItem,
+        meal: Meal,
+        createdAt: Date = Date()
+    ) -> LivingDayTransition {
+        let mealName = meal.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return LivingDayTransition(
+            kind: .foodLogged,
+            eventID: "meal:\(meal.id.uuidString)",
+            title: mealName.isEmpty ? "Food added" : "Added to \(mealName)",
+            detail: foodItem.name,
+            createdAt: createdAt
+        )
+    }
+
+    func isRecent(at date: Date = Date(), maximumAge: TimeInterval = 8) -> Bool {
+        let age = date.timeIntervalSince(createdAt)
+        return age >= -1 && age <= maximumAge
+    }
+}
 
 struct LivingDayHomeExperience: View {
     let snapshot: LivingDaySnapshot
+    let transition: LivingDayTransition?
     let onEventSelected: (LivingDaySnapshot.Event) -> Void
     let onActionSelected: (DailyNextAction) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isExpanded = false
+    @State private var presentedTransition: LivingDayTransition?
+    @State private var emphasizedEventID: String?
 
     private let collapsedEventLimit = 2
 
@@ -19,10 +75,17 @@ struct LivingDayHomeExperience: View {
             LivingDayActionButton(action: snapshot.nextAction) {
                 onActionSelected(snapshot.nextAction)
             }
+            if let presentedTransition {
+                LivingDayTransitionNotice(transition: presentedTransition)
+                    .transition(statusTransition)
+            }
             timeline
         }
         .frame(maxWidth: 520, alignment: .leading)
         .accessibilityIdentifier("livingDayHomeExperience")
+        .task(id: transition?.id) {
+            await presentTransitionIfNeeded()
+        }
     }
 
     private var header: some View {
@@ -82,10 +145,12 @@ struct LivingDayHomeExperience: View {
 
                     LivingDayTimelineRow(
                         event: event,
-                        showsConnector: index < visibleEvents.count - 1
+                        showsConnector: index < visibleEvents.count - 1,
+                        isEmphasized: emphasizedEventID == event.id
                     ) {
                         onEventSelected(event)
                     }
+                    .transition(eventTransition)
                 }
 
                 if shouldShowNowAfterLastEvent {
@@ -101,11 +166,19 @@ struct LivingDayHomeExperience: View {
                 }
             }
         }
+        .animation(eventAnimation, value: snapshot.events.map(\.id))
+        .animation(eventAnimation, value: snapshot.events.map(\.state))
     }
 
     private var visibleEvents: [LivingDaySnapshot.Event] {
         let events = snapshot.events
         guard !isExpanded, events.count > collapsedEventLimit else { return events }
+
+        if let emphasizedEventID,
+           let emphasizedIndex = events.firstIndex(where: { $0.id == emphasizedEventID }) {
+            let start = min(max(0, emphasizedIndex - 1), events.count - collapsedEventLimit)
+            return Array(events[start..<(start + collapsedEventLimit)])
+        }
 
         guard let currentTime = snapshot.currentTime else {
             return Array(events.suffix(collapsedEventLimit))
@@ -144,6 +217,89 @@ struct LivingDayHomeExperience: View {
         case .unavailable:
             return ("Limited Data", "exclamationmark.circle", .orange)
         }
+    }
+
+    private var eventAnimation: Animation {
+        reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.34, dampingFraction: 0.82)
+    }
+
+    private var eventTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(
+            insertion: .scale(scale: 0.92, anchor: .leading).combined(with: .opacity),
+            removal: .opacity
+        )
+    }
+
+    private var statusTransition: AnyTransition {
+        .opacity
+    }
+
+    @MainActor
+    private func presentTransitionIfNeeded() async {
+        guard let transition, transition.isRecent() else { return }
+
+        withAnimation(eventAnimation) {
+            presentedTransition = transition
+            emphasizedEventID = transition.eventID
+        }
+        DIContainer.shared.analyticsManager?.logEvent("living_day_transition_presented", parameters: [
+            "kind": transition.kind.rawValue,
+            "matched_event": snapshot.events.contains(where: { $0.id == transition.eventID })
+        ])
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: "\(transition.title). \(transition.detail)"
+        )
+
+        do {
+            try await Task.sleep(nanoseconds: 2_400_000_000)
+        } catch {
+            return
+        }
+        guard presentedTransition?.id == transition.id else { return }
+        withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .easeOut(duration: 0.22)) {
+            presentedTransition = nil
+            emphasizedEventID = nil
+        }
+    }
+}
+
+private struct LivingDayTransitionNotice: View {
+    let transition: LivingDayTransition
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: transition.icon)
+                .appFont(size: 14, weight: .bold)
+                .foregroundStyle(transition.color)
+                .frame(width: 32, height: 32)
+                .background(transition.color.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(transition.title)
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundStyle(Color.textPrimary)
+                Text(transition.detail)
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+            Image(systemName: "checkmark")
+                .appFont(size: 12, weight: .bold)
+                .foregroundStyle(transition.color)
+        }
+        .padding(.vertical, 7)
+        .padding(.leading, 12)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(transition.color)
+                .frame(width: 3)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(transition.title). \(transition.detail)")
     }
 }
 
@@ -195,6 +351,7 @@ private struct LivingDayBudgetView: View {
 
 private struct LivingDayBudgetBar: View {
     let nutrient: LivingDaySnapshot.NutrientBudget
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geometry in
@@ -213,6 +370,10 @@ private struct LivingDayBudgetBar: View {
             }
         }
         .frame(minWidth: 48, minHeight: 8, maxHeight: 8)
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.14) : .easeInOut(duration: 0.28),
+            value: nutrient
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(nutrient.accessibilitySummary)
     }
@@ -221,6 +382,7 @@ private struct LivingDayBudgetBar: View {
 private struct LivingDayActionButton: View {
     let action: DailyNextAction
     let onSelect: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: onSelect) {
@@ -250,6 +412,11 @@ private struct LivingDayActionButton: View {
             .background(action.color, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+        .contentTransition(.opacity)
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.14) : .easeInOut(duration: 0.24),
+            value: action
+        )
         .accessibilityHint(action.accessibilityHint)
     }
 }
@@ -257,6 +424,7 @@ private struct LivingDayActionButton: View {
 private struct LivingDayTimelineRow: View {
     let event: LivingDaySnapshot.Event
     let showsConnector: Bool
+    let isEmphasized: Bool
     let onSelect: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -286,7 +454,7 @@ private struct LivingDayTimelineRow: View {
                 .frame(width: dynamicTypeSize.isAccessibilitySize ? 74 : 68, alignment: .trailing)
 
             VStack(spacing: 0) {
-                LivingDayEventNode(event: event)
+                LivingDayEventNode(event: event, isEmphasized: isEmphasized)
                 if showsConnector {
                     Rectangle()
                         .fill(Color.secondary.opacity(0.22))
@@ -313,15 +481,7 @@ private struct LivingDayTimelineRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
 
-                HStack(spacing: 8) {
-                    if event.evidence != .notApplicable {
-                        Label(event.evidence.title, systemImage: event.evidence.icon)
-                            .foregroundStyle(event.evidence.color)
-                    }
-                    Text(event.state.title)
-                        .foregroundStyle(.secondary)
-                }
-                .appFont(size: 10, weight: .bold)
+                eventMetadata
             }
             .padding(.top, 1)
 
@@ -335,11 +495,48 @@ private struct LivingDayTimelineRow: View {
             }
         }
         .contentShape(Rectangle())
+        .padding(.vertical, 2)
+        .overlay(alignment: .leading) {
+            if isEmphasized {
+                Rectangle()
+                    .fill(event.color)
+                    .frame(width: 3)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var eventMetadata: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 2) {
+                if event.evidence != .notApplicable {
+                    Label(event.evidence.title, systemImage: event.evidence.icon)
+                        .foregroundStyle(event.evidence.color)
+                }
+                Text(event.state.title)
+                    .foregroundStyle(.secondary)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .appFont(size: 10, weight: .bold)
+        } else {
+            HStack(spacing: 8) {
+                if event.evidence != .notApplicable {
+                    Label(event.evidence.title, systemImage: event.evidence.icon)
+                        .foregroundStyle(event.evidence.color)
+                }
+                Text(event.state.title)
+                    .foregroundStyle(.secondary)
+            }
+            .appFont(size: 10, weight: .bold)
+        }
     }
 }
 
 private struct LivingDayEventNode: View {
     let event: LivingDaySnapshot.Event
+    let isEmphasized: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -349,6 +546,17 @@ private struct LivingDayEventNode: View {
                 .foregroundStyle(event.state == .planned || event.state == .skipped ? event.color : .white)
         }
         .frame(width: 36, height: 36)
+        .overlay {
+            Circle()
+                .stroke(event.color.opacity(isEmphasized ? 0.55 : 0), lineWidth: 3)
+                .padding(-5)
+        }
+        .scaleEffect(isEmphasized && !reduceMotion ? 1.08 : 1)
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.3, dampingFraction: 0.7),
+            value: isEmphasized
+        )
+        .animation(.easeInOut(duration: reduceMotion ? 0.14 : 0.22), value: event.state)
         .accessibilityHidden(true)
     }
 
@@ -448,6 +656,25 @@ private extension LivingDaySnapshot.NutrientBudget {
         guard let consumed, let planned, let target else { return "\(title) budget unavailable" }
         let unit = kind == .calories ? "calories" : "grams"
         return "\(title), \(Int(consumed.rounded())) \(unit) consumed, \(Int(planned.rounded())) planned, target \(Int(target.rounded()))"
+    }
+}
+
+private extension LivingDayTransition {
+    var icon: String {
+        switch kind {
+        case .foodLogged: return "fork.knife"
+        case .trainingPlanned: return "calendar.badge.checkmark"
+        case .trainingCompleted: return "bolt.heart.fill"
+        case .trainingSkipped: return "forward.fill"
+        }
+    }
+
+    var color: Color {
+        switch kind {
+        case .foodLogged, .trainingCompleted: return .brandPrimary
+        case .trainingPlanned: return .indigo
+        case .trainingSkipped: return .orange
+        }
     }
 }
 

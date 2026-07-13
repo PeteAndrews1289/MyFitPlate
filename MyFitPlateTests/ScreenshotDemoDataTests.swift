@@ -1,3 +1,4 @@
+import MyFitPlateCore
 import XCTest
 @testable import MyFitPlate
 
@@ -27,5 +28,21 @@ final class ScreenshotDemoDataTests: XCTestCase {
         XCTAssertTrue(runs.allSatisfy { $0.distanceMeters >= 5_000 })
         XCTAssertTrue(runs.allSatisfy { !$0.splits.isEmpty })
         XCTAssertTrue(runs.allSatisfy(\.hasRoute))
+    }
+
+    func testLivingDayFoodTransitionTargetsPersistedMealNode() {
+        let mealID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let food = FoodItem(id: "logged-food", name: "Chicken bowl", calories: 520)
+        let meal = Meal(id: mealID, name: "Lunch", foodItems: [food])
+        let createdAt = Date(timeIntervalSince1970: 100)
+
+        let transition = LivingDayTransition.foodLogged(food, meal: meal, createdAt: createdAt)
+
+        XCTAssertEqual(transition.kind, .foodLogged)
+        XCTAssertEqual(transition.eventID, "meal:\(mealID.uuidString)")
+        XCTAssertEqual(transition.title, "Added to Lunch")
+        XCTAssertEqual(transition.detail, "Chicken bowl")
+        XCTAssertTrue(transition.isRecent(at: createdAt.addingTimeInterval(8)))
+        XCTAssertFalse(transition.isRecent(at: createdAt.addingTimeInterval(8.01)))
     }
 }

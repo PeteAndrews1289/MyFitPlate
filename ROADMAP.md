@@ -336,6 +336,10 @@ Full experience, state, accessibility, rollout, and technical contract:
 - [ ] **Connect meaningful transitions:** Quick Log insertion, planned-to-completed state, saved
   Trust correction, and training-to-recovery handoff use short explanatory motion and haptics.
   Reduce Motion receives equivalent fades and content updates; motion never delays a write.
+  Persistence-backed Quick Log insertion, planned/training state changes, and the training-to-
+  recovery handoff are complete: the exact affected node is kept visible and emphasized, budget
+  and next-action changes animate from the committed snapshot, and stale cross-tab transitions
+  expire instead of replaying. Saved Trust-correction resolution remains paired with Trust Receipt.
 - [ ] **Build Trust Receipt:** lead Food Detail with a readable source/cross-check/sanity/review
   trace, place findings beside the values they affect, and make the existing score a summary of
   evidence rather than the visual starting point.
@@ -387,8 +391,11 @@ Full experience, state, accessibility, rollout, and technical contract:
 3. [x] Implement `LivingDaySnapshot`, the initial adversarial Core matrix, and the Debug-only
    developer fixture gallery.
 4. [x] Integrate read-only Fuel Path behind the feature flag with the 2.2 Home as fallback.
-5. [ ] Add Quick Log insertion and training/recovery transitions; exact node and action navigation
-   is complete in the read-only Home slice.
+5. [x] Add Quick Log insertion and training/recovery transitions. Food insertion begins only from
+   the serialized diary success notification; Training Fuel transitions survive tab changes and
+   distinguish planned, completed/recovery, and skipped outcomes. Reduce Motion uses fades and
+   content updates, VoiceOver announces the persisted result, and exact node/action navigation
+   remains intact.
 6. [ ] Ship Trust Receipt and persistence-backed evidence-state updates.
 7. [ ] Ship My Foods Library and prove destructive actions cannot alter history.
 8. [ ] Add Week in Motion, then the selected sharing and widget slices.

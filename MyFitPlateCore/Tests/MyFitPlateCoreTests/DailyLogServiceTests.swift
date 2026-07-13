@@ -512,4 +512,29 @@ final class DailyLogServiceTests: XCTestCase {
         }
         await fulfillment(of: [exp], timeout: 1.0)
     }
+
+    func testFoodLoggedNotificationExposesTypedPayload() throws {
+        let food = FoodItem(id: "persisted-food", name: "Greek yogurt", calories: 140)
+        let notification = Notification(
+            name: .foodItemLogged,
+            userInfo: [
+                DailyLogNotificationUserInfoKey.foodItem: food,
+                DailyLogNotificationUserInfoKey.userID: "user-1"
+            ]
+        )
+        let payload = try XCTUnwrap(DailyLogNotifications.foodLoggedPayload(from: notification))
+        XCTAssertEqual(payload.foodItem, food)
+        XCTAssertEqual(payload.userID, "user-1")
+    }
+
+    func testFoodLoggedPayloadRejectsWrongNotificationAndEmptyAccount() {
+        XCTAssertNil(DailyLogNotifications.foodLoggedPayload(from: Notification(name: .didUpdateExerciseLog)))
+        XCTAssertNil(DailyLogNotifications.foodLoggedPayload(from: Notification(
+            name: .foodItemLogged,
+            userInfo: [
+                "foodItem": FoodItem(id: "food", name: "Oats", calories: 150),
+                "userID": ""
+            ]
+        )))
+    }
 }

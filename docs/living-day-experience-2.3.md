@@ -249,7 +249,9 @@ network access. It should expose explicit unavailable and approximate states.
 - [x] Living Day visual tokens and reusable Home path primitives.
 - [x] `LivingDaySnapshot` deterministic Core model and initial adversarial test matrix.
 - [x] Fuel Path read-only Home experience with exact navigation.
-- [ ] Quick Log insertion and training-to-recovery transitions.
+- [x] Quick Log insertion and training-to-recovery transitions. Successful serialized diary writes
+  target and emphasize the exact meal node; planned/completed/skipped Training Fuel changes carry
+  across tabs; stale transitions expire; and Reduce Motion receives fades/content updates.
 - [ ] Trust Receipt on Food Detail.
 - [ ] My Foods Library with safe edit/delete/barcode management.
 - [ ] Week in Motion opening report sequence.
@@ -348,6 +350,15 @@ and controlled Remote Config rollout remain open.
 Exit gate: actions remain exactly-once, account scoped, and consistent across midnight/offline
 recovery; Trust never changes before persistence succeeds.
 
+Implementation checkpoint (2026-07-12): Quick Log insertion is driven by the typed food-log
+notification emitted only after the serialized diary write succeeds. The affected aggregate meal
+node is forced into the collapsed two-event window, receives a short evidence-colored emphasis,
+and updates the budget and deterministic action from the new snapshot. Training Fuel plan,
+completion/recovery, and skip transitions are retained by the app shell across tab switches and
+expire before they can replay on a later Home visit. VoiceOver announces the persisted result;
+Reduce Motion replaces scale/spatial insertion with opacity and content changes. Standard and
+accessibility-size render captures pass. Trust-correction resolution remains open with Trust Receipt.
+
 ### Phase 4: personal library and weekly story
 
 - Ship My Foods Library with safe management actions.
@@ -397,7 +408,8 @@ Experience guardrails:
    changing operational screens.
 4. [x] Implement and test `LivingDaySnapshot`.
 5. [x] Ship read-only Fuel Path behind default-off `feature_livingDayHome` with exact 2.2 fallback.
-6. [ ] Add Quick Log insertion; exact read-only navigation is complete.
+6. [x] Add persistence-backed Quick Log insertion plus planned/completed/skipped training and
+   recovery transitions; exact read-only navigation remains complete.
 7. [ ] Build Trust Receipt.
 8. [ ] Build My Foods Library.
 9. [ ] Add Week in Motion, sharing, and the selected widget slice.

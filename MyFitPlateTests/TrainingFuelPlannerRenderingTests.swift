@@ -137,6 +137,55 @@ final class TrainingFuelPlannerRenderingTests: XCTestCase {
         )
     }
 
+    func testLivingDayPersistedInsertionRendersAtStandardAndAccessibilitySizes() throws {
+        let now = Date()
+        let food = FoodItem(
+            id: "transition-food",
+            name: "Greek yogurt and berries",
+            calories: 280,
+            protein: 26,
+            carbs: 32,
+            fats: 6,
+            timestamp: now.addingTimeInterval(-60)
+        )
+        let meal = Meal(name: "Afternoon Snack", foodItems: [food])
+        let log = DailyLog(date: now, meals: [meal])
+        let snapshot = LivingDaySnapshotBuilder.make(
+            date: now,
+            now: now,
+            dailyLog: log,
+            goals: TodayFuelPlanGoals(calories: 2_200, protein: 165, carbs: 240, fats: 70)
+        )
+        let transition = LivingDayTransition.foodLogged(food, meal: meal, createdAt: now)
+        let view = LivingDayHomeExperience(
+            snapshot: snapshot,
+            transition: transition,
+            onEventSelected: { _ in },
+            onActionSelected: { _ in }
+        )
+
+        try render(
+            AnyView(
+                VStack(spacing: 0) {
+                    view.environment(\.sizeCategory, .large)
+                    Spacer(minLength: 0)
+                }
+            ),
+            frame: CGRect(x: 0, y: 0, width: 430, height: 780),
+            attachmentName: "Living Day persisted insertion - standard"
+        )
+        try render(
+            AnyView(
+                VStack(spacing: 0) {
+                    view.environment(\.sizeCategory, .accessibilityExtraExtraExtraLarge)
+                    Spacer(minLength: 0)
+                }
+            ),
+            frame: CGRect(x: 0, y: 0, width: 320, height: 780),
+            attachmentName: "Living Day persisted insertion - accessibility"
+        )
+    }
+
     private func render(
         _ view: AnyView,
         frame: CGRect,
@@ -148,6 +197,8 @@ final class TrainingFuelPlannerRenderingTests: XCTestCase {
         window.makeKeyAndVisible()
         controller.view.frame = frame
         controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
         controller.view.layoutIfNeeded()
 
         let renderer = UIGraphicsImageRenderer(bounds: frame)
