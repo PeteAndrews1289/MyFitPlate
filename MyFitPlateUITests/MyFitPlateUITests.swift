@@ -294,6 +294,130 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testMaiaUsesOneRecommendedActionHierarchy() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "maia"
+        ]
+        app.launch()
+
+        let header = app.staticTexts
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label == %@",
+                "maia_screen_header",
+                "Maia"
+            ))
+            .firstMatch
+        let context = app.staticTexts["Today in context"]
+        let recommendation = app.buttons["maia_recommended_action"]
+        let composer = app.textFields["Ask Maia anything"]
+
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        XCTAssertTrue(context.waitForExistence(timeout: 5))
+        XCTAssertTrue(recommendation.waitForExistence(timeout: 5))
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertLessThan(context.frame.minY, recommendation.frame.minY)
+        XCTAssertLessThan(recommendation.frame.minY, composer.frame.minY)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Maia - unified recommendation hierarchy"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testReportsKeepsWeekInMotionAboveDetailedEvidence() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "reports"
+        ]
+        app.launch()
+
+        let header = app.staticTexts
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label == %@",
+                "reports_screen_header",
+                "Reports"
+            ))
+            .firstMatch
+        let headline = app.staticTexts["weekly_report_headline"]
+        let timeframe = app.staticTexts["Trend window"]
+        let overview = app.staticTexts["At a glance"]
+
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        XCTAssertTrue(headline.waitForExistence(timeout: 10))
+        XCTAssertLessThan(header.frame.minY, headline.frame.minY)
+
+        for _ in 0..<6 where !timeframe.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(timeframe.waitForExistence(timeout: 5))
+        XCTAssertTrue(timeframe.isHittable)
+
+        for _ in 0..<5 where !overview.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(overview.waitForExistence(timeout: 5))
+        XCTAssertTrue(overview.isHittable)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Reports - detailed evidence hierarchy"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testMaiaAndReportsSupportDarkAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "maia", heading: "Maia"),
+            (name: "reports", heading: "Reports")
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-dark-mode",
+                "-screenshot-screen",
+                screen.name,
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let header = app.staticTexts
+                .matching(NSPredicate(
+                    format: "identifier == %@ AND label == %@",
+                    "\(screen.name)_screen_header",
+                    screen.heading
+                ))
+                .firstMatch
+            XCTAssertTrue(header.waitForExistence(timeout: 12))
+            XCTAssertGreaterThan(header.frame.width, 0)
+            XCTAssertGreaterThanOrEqual(header.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(header.frame.maxX, app.frame.maxX + 1)
+            try app.performAccessibilityAudit(for: [.textClipped])
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testLivingDayOrdersActionsAndOffersExplicitShareSelection() throws {
         let app = XCUIApplication()
         app.terminate()
@@ -410,7 +534,16 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(livingDay.waitForExistence(timeout: 10))
 
         app.buttons["tab_reports"].tap()
-        XCTAssertTrue(app.navigationBars["Reports"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.staticTexts
+                .matching(NSPredicate(
+                    format: "identifier == %@ AND label == %@",
+                    "reports_screen_header",
+                    "Reports"
+                ))
+                .firstMatch
+                .waitForExistence(timeout: 5)
+        )
 
         app.buttons["tab_home"].tap()
         XCTAssertTrue(

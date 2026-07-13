@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 import Charts
 
@@ -247,7 +249,7 @@ struct MetabolismReportCard: View {
                 .appFont(size: 14, weight: .semibold)
                 .foregroundColor(Color(UIColor.tertiaryLabel))
         }
-        .padding(16)
-        .asCard()
+        .padding(AppSpacing.group)
+        .appSurface(.quiet, padding: 0)
     }
 }

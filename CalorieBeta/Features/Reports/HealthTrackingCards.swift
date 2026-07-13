@@ -22,19 +22,20 @@ struct CycleTrackingCard: View {
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Cycle tracking")
-                        .appFont(size: 16, weight: .semibold)
-                        .foregroundColor(.textPrimary)
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
                     
                     if let cycleDay = cycleService.cycleDay {
                         Text("Day \(cycleDay.cycleDayNumber) - \(cycleDay.phase.rawValue.capitalized)")
                             .appFont(size: 14)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .foregroundStyle(.secondary)
                     } else {
                         Text("Log your period to get started")
                             .appFont(size: 14)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .foregroundStyle(.secondary)
                     }
                 }
+                .fixedSize(horizontal: false, vertical: true)
                 
                 Spacer()
                 
@@ -42,9 +43,8 @@ struct CycleTrackingCard: View {
                     .appFont(size: 14, weight: .semibold)
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
-            .padding()
-            .asCard()
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .padding(AppSpacing.row)
+            .appSurface(.quiet, padding: 0)
         }
         .buttonStyle(.plain)
     }
@@ -55,18 +55,12 @@ struct ComprehensiveHealthCard: View {
     let weeklyActiveEnergy: [Double]
     let weeklyRestingHeartRate: [Double]
     let weeklyHRV: [Double]
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Health trends")
-                    .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Spacer()
-                Text("Last 7 days")
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
+            AppSectionHeader(title: "Health trends", subtitle: "Last 7 days")
             
             VStack(spacing: 12) {
                 healthRow(
@@ -112,39 +106,55 @@ struct ComprehensiveHealthCard: View {
                 )
             }
         }
-        .padding()
-        .asCard()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .appSurface(.quiet)
     }
     
     private func healthRow(icon: String, color: Color, title: String, value: String, unit: String, trend: Trend) -> some View {
-        HStack(spacing: 12) {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    healthLabel(icon: icon, color: color, title: title)
+                    healthValue(value: value, unit: unit, trend: trend)
+                }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    healthLabel(icon: icon, color: color, title: title)
+                    Spacer()
+                    healthValue(value: value, unit: unit, trend: trend)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(value) \(unit)")
+    }
+
+    private func healthLabel(icon: String, color: Color, title: String) -> some View {
+        HStack(spacing: AppSpacing.row) {
             Image(systemName: icon)
                 .appFont(size: 16, weight: .bold)
-                .foregroundColor(color)
+                .foregroundStyle(color)
                 .frame(width: 32, height: 32)
                 .background(color.opacity(0.12), in: Circle())
-            
+
             Text(title)
-                .appFont(size: 15, weight: .medium)
-                .foregroundColor(.textPrimary)
-            
-            Spacer()
-            
-            HStack(spacing: 6) {
-                if trend != .neutral {
-                    Image(systemName: trend == .up ? "arrow.up.right" : "arrow.down.right")
-                        .appFont(size: 10, weight: .bold)
-                        .foregroundColor(trend.color)
-                }
-                
-                HStack(spacing: 0) {
-                    Text(value).fontWeight(.bold)
-                    Text(" \(unit)").appFont(size: 12).foregroundColor(.secondary)
-                }
-                .appFont(size: 16)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.body)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func healthValue(value: String, unit: String, trend: Trend) -> some View {
+        HStack(spacing: 6) {
+            if trend != .neutral {
+                Image(systemName: trend == .up ? "arrow.up.right" : "arrow.down.right")
+                    .appFont(size: 10, weight: .bold)
+                    .foregroundStyle(trend.color)
             }
+
+            Text("\(value) \(unit)")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .monospacedDigit()
         }
     }
     

@@ -135,7 +135,7 @@ public enum WeekInMotionBuilder {
             let pending = recap.recoveryFuelPendingRuns > 0
                 ? " \(recap.recoveryFuelPendingRuns) additional \(windowWord(recap.recoveryFuelPendingRuns)) still open."
                 : ""
-            return "Both recovery targets were met after \(recap.recoveryFuelAdherence.completed) of \(recap.recoveryFuelAdherence.eligible) assessed runs.\(pending)"
+            return "\(recoveryCoverageText(recap)).\(pending)"
         }
         if recap.recoveryFuelPendingRuns > 0 {
             return "\(recap.recoveryFuelPendingRuns) run recovery \(windowWord(recap.recoveryFuelPendingRuns)) still open and unscored."
@@ -176,7 +176,7 @@ public enum WeekInMotionBuilder {
             return WeekInMotionObservation(
                 kind: .recovery,
                 title: "Recovery follow-through",
-                text: "Both recovery targets were met after \(recap.recoveryFuelAdherence.completed) of \(recap.recoveryFuelAdherence.eligible) assessed runs.",
+                text: "\(recoveryCoverageText(recap)).",
                 basis: "Only timestamped food inside a completed recovery window is counted.",
                 tone: .attention
             )
@@ -234,6 +234,9 @@ public enum WeekInMotionBuilder {
     }
 
     private static func dayWord(_ count: Int) -> String { count == 1 ? "day" : "days" }
+    private static func recoveryCoverageText(_ recap: WeeklyRecap) -> String {
+        "\(recap.recoveryFuelAdherence.completed) of \(recap.recoveryFuelAdherence.eligible) assessed runs had both recovery targets logged"
+    }
     private static func windowWord(_ count: Int) -> String { count == 1 ? "window is" : "windows are" }
     private static func entryWord(_ count: Int) -> String { count == 1 ? "entry" : "entries" }
     private static func recordWord(_ count: Int) -> String { count == 1 ? "result" : "results" }

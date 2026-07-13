@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 import Charts
 
@@ -7,6 +9,7 @@ struct ReportsView: View {
     @EnvironmentObject var insightsService: InsightsService
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var workoutService: WorkoutService
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var selectedTimeframe: ReportTimeframe = .week
     @State private var customStartDate: Date = Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date()
@@ -78,54 +81,64 @@ struct ReportsView: View {
 
     var body: some View {
         SpotlightTourScaffold(steps: ReportsView.reportsTourSteps) { isActive in
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                weekInMotionSection
+        VStack(spacing: 0) {
+            AppScreenHeader(
+                title: "Reports",
+                subtitle: "Your week, trends, and underlying data."
+            )
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.compact)
+            .accessibilityIdentifier("reports_screen_header")
 
-                // DESIGN.md rule 1: Reports answers "is it working?" — the timeframe picker
-                // is chrome and leads (it scopes everything below, including the overview);
-                // the headline trend is the hero, directly under it.
-                timeframeSelectorAndPickers
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    weekInMotionSection
 
-                TrendDashboardView(
-                    weightHistory: goalSettings.weightHistory,
-                    dateRange: selectedTrendRange,
-                    title: selectedTrendTitle
-                )
+                    // DESIGN.md rule 1: Reports answers "is it working?" — the timeframe picker
+                    // is chrome and leads (it scopes everything below, including the overview);
+                    // the headline trend is the hero, directly under it.
+                    timeframeSelectorAndPickers
+
+                    TrendDashboardView(
+                        weightHistory: goalSettings.weightHistory,
+                        dateRange: selectedTrendRange,
+                        title: selectedTrendTitle
+                    )
                     .featureSpotlight(isActive: isActive("reports-trend"))
 
-                ReportsOverviewCard(
-                    selectedTimeframe: selectedTimeframe,
-                    customStartDate: customStartDate,
-                    customEndDate: customEndDate,
-                    summary: viewModel.summary,
-                    wellnessScore: viewModel.wellnessScore,
-                    workoutReport: viewModel.weeklyWorkoutReport,
-                    sleepReport: viewModel.enhancedSleepReport,
-                    onOpenInsights: {
-                        insightsService.generateAndFetchInsights(forLastDays: 7, requestConsentIfNeeded: true)
-                        showingDetailedInsights = true
+                    ReportsOverviewCard(
+                        selectedTimeframe: selectedTimeframe,
+                        customStartDate: customStartDate,
+                        customEndDate: customEndDate,
+                        summary: viewModel.summary,
+                        wellnessScore: viewModel.wellnessScore,
+                        workoutReport: viewModel.weeklyWorkoutReport,
+                        sleepReport: viewModel.enhancedSleepReport,
+                        onOpenInsights: {
+                            insightsService.generateAndFetchInsights(forLastDays: 7, requestConsentIfNeeded: true)
+                            showingDetailedInsights = true
+                        }
+                    )
+                    .featureSpotlight(isActive: isActive("reports-overview"))
+
+                    if let insight = insightsService.smartSuggestion {
+                        SmartReportInsightCard(insight: insight)
                     }
-                )
-                .featureSpotlight(isActive: isActive("reports-overview"))
 
-                if let insight = insightsService.smartSuggestion {
-                    SmartReportInsightCard(insight: insight)
+                    if goalSettings.gender.lowercased() == "female" {
+                        CycleTrackingCard()
+                    }
+
+                    contentStateView
                 }
-
-                if goalSettings.gender.lowercased() == "female" {
-                    CycleTrackingCard()
-                }
-
-                contentStateView
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.section)
             }
-            .padding(.horizontal)
-            .padding(.top, 12)
-            .padding(.bottom, 28)
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Reports")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             viewModel.setup(goals: goalSettings, healthKitViewModel: healthKitViewModel)
             fetchDataForCurrentSelection()
@@ -165,7 +178,7 @@ struct ReportsView: View {
 
     @ViewBuilder
     private var weekInMotionSection: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: AppSpacing.group) {
             if weeklyRecapLoader.isLoading || weeklyRecapLoader.recap != nil {
                 ZStack(alignment: .topLeading) {
                     WeekInMotionLoadingView()
@@ -192,17 +205,17 @@ struct ReportsView: View {
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Week in Motion is unavailable")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
                     Text(weeklyRecapLoader.loadMessage ?? "Your detailed reports remain available below.")
-                        .appFont(size: 11, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Try again") { Task { await loadWeekInMotion(force: true) } }
-                        .appFont(size: 12, weight: .bold)
+                        .buttonStyle(AppActionButtonStyle(.ghost, fillsWidth: false))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 12)
+                .appSurface(.quiet)
             }
 
             Divider()
@@ -255,7 +268,7 @@ struct ReportsView: View {
 
     @ViewBuilder
     private var reportsContentSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
             ReportSectionHeader(
                 title: "Report cards",
                 subtitle: "Tap a card to inspect the underlying trends."
@@ -301,66 +314,125 @@ struct ReportsView: View {
                 #endif
             }
 
-            HStack(spacing: 12) {
-                #if !TARGET_IS_WIDGET_EXTENSION
-                NavigationLink(destination: CalorieTrackingView(viewModel: viewModel)) {
-                    mealDistributionCard
-                }
-                .buttonStyle(AnimatedCardButtonStyle())
-                #else
-                mealDistributionCard
-                #endif
-
-                #if !TARGET_IS_WIDGET_EXTENSION
-                NavigationLink(destination: WeightTrackingView()) {
-                    WeightCardReport
-                }
-                .buttonStyle(AnimatedCardButtonStyle())
-                #else
-                WeightCardReport
-                #endif
-            }
+            reportPair
 
         }
     }
 
+    @ViewBuilder
+    private var reportPair: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: AppSpacing.row) {
+                mealDistributionDestination
+                weightDestination
+            }
+        } else {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                mealDistributionDestination
+                weightDestination
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mealDistributionDestination: some View {
+        #if !TARGET_IS_WIDGET_EXTENSION
+        NavigationLink(destination: CalorieTrackingView(viewModel: viewModel)) {
+            mealDistributionCard
+        }
+        .buttonStyle(AnimatedCardButtonStyle())
+        #else
+        mealDistributionCard
+        #endif
+    }
+
+    @ViewBuilder
+    private var weightDestination: some View {
+        #if !TARGET_IS_WIDGET_EXTENSION
+        NavigationLink(destination: WeightTrackingView()) {
+            WeightCardReport
+        }
+        .buttonStyle(AnimatedCardButtonStyle())
+        #else
+        WeightCardReport
+        #endif
+    }
+
     // Compact filter chrome, not a card with its own headline — DESIGN.md rule 4.
     private var timeframeSelectorAndPickers: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Trend window",
+                subtitle: "Choose the period used by the detailed charts below."
+            )
+
             Picker("Timeframe", selection: $selectedTimeframe) {
                 ForEach(ReportTimeframe.allCases) { tf in Text(tf.rawValue).tag(tf) }
             }
             .pickerStyle(SegmentedPickerStyle())
 
             if selectedTimeframe == .custom {
-                VStack(spacing: 12) {
-                    Grid(alignment: .leading) {
-                        GridRow {
-                            Text("Start")
-                                .appFont(size: 13, weight: .semibold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .gridColumnAlignment(.leading)
-                            DatePicker("Start date", selection: $customStartDate, in: ...customEndDate, displayedComponents: .date)
-                                .labelsHidden()
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                        GridRow {
-                            Text("End")
-                                .appFont(size: 13, weight: .semibold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .gridColumnAlignment(.leading)
-                            DatePicker("End date", selection: $customEndDate, in: customStartDate..., displayedComponents: .date)
-                                .labelsHidden()
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    }
+                VStack(spacing: AppSpacing.row) {
+                    customDateControls
+
                     Button("View custom report") { fetchDataForCurrentSelection() }
-                        .buttonStyle(PrimaryButtonStyle())
+                        .buttonStyle(AppActionButtonStyle(.primary))
                 }
-                .padding(14)
-                .background(Color.backgroundSecondary.opacity(0.7), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .appSurface(.quiet)
                 .transition(.asymmetric(insertion: .scale(scale: 0.95).combined(with: .opacity), removal: .opacity))
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: selectedTimeframe)
+                .animation(AppMotion.standard, value: selectedTimeframe)
+            }
+        }
+        .accessibilityIdentifier("reports_timeframe")
+    }
+
+    @ViewBuilder
+    private var customDateControls: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                DatePicker(
+                    "Start date",
+                    selection: $customStartDate,
+                    in: ...customEndDate,
+                    displayedComponents: .date
+                )
+                DatePicker(
+                    "End date",
+                    selection: $customEndDate,
+                    in: customStartDate...,
+                    displayedComponents: .date
+                )
+            }
+        } else {
+            Grid(alignment: .leading) {
+                GridRow {
+                    Text("Start")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.leading)
+                    DatePicker(
+                        "Start date",
+                        selection: $customStartDate,
+                        in: ...customEndDate,
+                        displayedComponents: .date
+                    )
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                GridRow {
+                    Text("End")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.leading)
+                    DatePicker(
+                        "End date",
+                        selection: $customEndDate,
+                        in: customStartDate...,
+                        displayedComponents: .date
+                    )
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
             }
         }
     }
@@ -373,10 +445,10 @@ struct ReportsView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Weight")
-                        .appFont(size: 16, weight: .bold)
+                        .appTextRole(.control)
                     Text("Goal progress")
-                        .appFont(size: 11, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -398,15 +470,15 @@ struct ReportsView: View {
                     .animation(.easeInOut, value: goalSettings.weight)
                 VStack {
                     Text("\(Int(progress.rounded()).formatted())%")
-                        .appFont(size: 24, weight: .bold)
+                        .appTextRole(.sectionTitle)
                     Text("Progress")
-                        .appFont(size: 11, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
-        .foregroundColor(.textPrimary)
-        .asCard()
+        .foregroundStyle(AppPalette.text)
+        .appSurface(.quiet)
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 180)
     }
 
@@ -415,10 +487,10 @@ struct ReportsView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Calories")
-                        .appFont(size: 16, weight: .bold)
+                        .appTextRole(.control)
                     Text("By meal")
-                        .appFont(size: 11, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -458,11 +530,11 @@ struct ReportsView: View {
 
                     VStack(spacing: 0) {
                         Text(Int(totalCalories.rounded()).formatted())
-                            .appFont(size: 22, weight: .bold)
-                            .foregroundColor(.textPrimary)
+                            .appTextRole(.sectionTitle)
+                            .foregroundStyle(AppPalette.text)
                         Text("cal")
-                            .appFont(size: 10, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -473,8 +545,8 @@ struct ReportsView: View {
                                 .fill(mealColors[dp.meal, default: .gray])
                                 .frame(width: 8, height: 8)
                             Text(dp.meal)
-                                .appFont(size: 11, weight: .medium)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
+                                .appTextRole(.caption)
+                                .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
                     }
@@ -485,18 +557,18 @@ struct ReportsView: View {
                         .appFont(size: 24)
                         .foregroundColor(Color(UIColor.tertiaryLabel))
                     Text("No meals logged")
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(.textPrimary)
+                        .appTextRole(.secondary)
+                        .foregroundStyle(AppPalette.text)
                     Text("Log a meal to see your daily split.")
-                        .appFont(size: 11)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
             }
         }
-        .asCard()
+        .appSurface(.quiet)
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 180)
     }
 }

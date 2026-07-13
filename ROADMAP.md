@@ -480,8 +480,13 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
 - [x] Migrate Train and Meal Plan with deterministic standard, dark, largest-text, and compact-
   phone coverage. Train now has one next-step progression surface and unframed program week; Meal
   Plan has an unframed week selector, one daily summary band, and quieter meal rows.
-- [ ] Apply the shared primary-tab shell to Maia and detailed Reports, then align the Living Day
-  shell boundary last. Preserve the editorial/operational distinction and capture every batch.
+- [x] Apply the shared primary-tab shell to Maia and detailed Reports. Maia now opens with one
+  deterministic best next step, concise day context, labeled evidence, quiet alternatives, and a
+  pinned composer; Reports preserves Week in Motion as its opening story and moves detailed trends
+  into calmer, responsive surfaces below it. Standard, dark largest-text, and compact-phone checks
+  are captured, including a regression for honest zero-of-N recovery copy.
+- [ ] Align the Living Day shell boundary last so Home shares the same stable header and app chrome
+  without changing its evidence-led timeline or rollout fallback.
 - [ ] Migrate Food Search, Fast Food Builder, Food Detail, Running, and the repeated logging tools
   without adding taps or editorial friction.
 - [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,

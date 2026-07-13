@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct SuggestionButtonsView: View {
@@ -51,6 +53,17 @@ struct MaiaActionBoardView: View {
     var onTrustOrToday: () -> Void
     var onHydrate: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private enum ActionKind: String, CaseIterable, Identifiable {
+        case fillMacros
+        case proteinOrRecovery
+        case trustOrToday
+        case hydrate
+
+        var id: String { rawValue }
+    }
+
     private var proteinCardTitle: String {
         hasWorkoutToday ? "Recovery meal" : "Protein anchor"
     }
@@ -66,46 +79,176 @@ struct MaiaActionBoardView: View {
         hasNutritionMismatch ? "Review trust" : "Read today"
     }
 
+    private var recommendedAction: ActionKind {
+        if hasNutritionMismatch { return .trustOrToday }
+        if hasWorkoutToday && remainingProtein >= 10 { return .proteinOrRecovery }
+        if remainingCalories >= 150 { return .fillMacros }
+        if waterRemaining > 0 { return .hydrate }
+        return .trustOrToday
+    }
+
+    private var secondaryActions: [ActionKind] {
+        ActionKind.allCases.filter { $0 != recommendedAction }
+    }
+
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                MaiaActionChip(
-                    title: "Fill macros",
-                    subtitle: "\(Int(remainingCalories.rounded())) cal",
-                    icon: "fork.knife.circle.fill",
-                    tint: .orange,
-                    isLoading: isGeneratingMeal,
-                    action: onFillMacros
-                )
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            Button(action: { perform(recommendedAction) }) {
+                HStack(alignment: .top, spacing: AppSpacing.row) {
+                    Group {
+                        if recommendedAction == .fillMacros && isGeneratingMeal {
+                            ProgressView()
+                        } else {
+                            Image(systemName: icon(for: recommendedAction))
+                                .appFont(size: 18, weight: .bold)
+                                .foregroundStyle(tint(for: recommendedAction))
+                        }
+                    }
+                    .frame(width: 44, height: 44)
+                    .background(
+                        tint(for: recommendedAction).opacity(0.10),
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
 
-                MaiaActionChip(
-                    title: proteinCardTitle,
-                    subtitle: proteinCardSubtitle,
-                    icon: hasWorkoutToday ? "bolt.heart.fill" : "figure.strengthtraining.traditional",
-                    tint: hasWorkoutToday ? .accentSignal : .accentProtein,
-                    action: onProteinOrRecovery
-                )
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Best next step")
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
 
-                MaiaActionChip(
-                    title: trustCardTitle,
-                    subtitle: nil,
-                    icon: hasNutritionMismatch ? "exclamationmark.shield.fill" : "checkmark.shield.fill",
-                    tint: hasNutritionMismatch ? .orange : .accentPositive,
-                    action: onTrustOrToday
-                )
+                        Text(title(for: recommendedAction))
+                            .appTextRole(.sectionTitle)
+                            .foregroundStyle(AppPalette.text)
 
-                MaiaActionChip(
-                    title: "Hydrate",
-                    subtitle: waterRemaining > 0 ? "+16 oz" : "Covered",
-                    icon: "drop.fill",
-                    tint: .accentWater,
-                    isDisabled: waterRemaining <= 0,
-                    action: onHydrate
-                )
+                        Text(recommendationSummary(for: recommendedAction))
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: AppSpacing.compact)
+
+                    Image(systemName: "arrow.right")
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.brand)
+                        .accessibilityHidden(true)
+                }
+                .appSurface(.emphasized, radius: AppRadius.hero)
             }
-            .padding(.horizontal)
+            .buttonStyle(.plain)
+            .disabled(recommendedAction == .fillMacros && isGeneratingMeal)
+            .accessibilityIdentifier("maia_recommended_action")
+
+            MaiaDataBoundaryStrip(
+                healthKitEnabled: healthKitEnabled,
+                pantryCount: pantryCount
+            )
+
+            Text("More options")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: AppSpacing.compact) {
+                    ForEach(secondaryActions) { action in
+                        secondaryActionChip(action, showsSubtitle: true)
+                    }
+                }
+            } else {
+                HStack(spacing: AppSpacing.compact) {
+                    ForEach(secondaryActions) { action in
+                        secondaryActionChip(action, showsSubtitle: false)
+                    }
+                }
+            }
         }
         .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
+
+    private func title(for action: ActionKind) -> String {
+        switch action {
+        case .fillMacros: "Fill macros"
+        case .proteinOrRecovery: proteinCardTitle
+        case .trustOrToday: trustCardTitle
+        case .hydrate: "Hydrate"
+        }
+    }
+
+    private func subtitle(for action: ActionKind) -> String? {
+        switch action {
+        case .fillMacros: "\(Int(remainingCalories.rounded())) cal"
+        case .proteinOrRecovery: proteinCardSubtitle
+        case .trustOrToday: nil
+        case .hydrate: waterRemaining > 0 ? "+16 oz" : "Covered"
+        }
+    }
+
+    private func icon(for action: ActionKind) -> String {
+        switch action {
+        case .fillMacros: "fork.knife.circle.fill"
+        case .proteinOrRecovery:
+            hasWorkoutToday ? "bolt.heart.fill" : "figure.strengthtraining.traditional"
+        case .trustOrToday:
+            hasNutritionMismatch ? "exclamationmark.shield.fill" : "checkmark.shield.fill"
+        case .hydrate: "drop.fill"
+        }
+    }
+
+    private func tint(for action: ActionKind) -> Color {
+        switch action {
+        case .fillMacros: .orange
+        case .proteinOrRecovery: hasWorkoutToday ? .accentSignal : .accentProtein
+        case .trustOrToday: hasNutritionMismatch ? .orange : .accentPositive
+        case .hydrate: .accentWater
+        }
+    }
+
+    private func recommendationSummary(for action: ActionKind) -> String {
+        switch action {
+        case .fillMacros:
+            "\(Int(remainingCalories.rounded()).formatted()) calories remain in today's target."
+        case .proteinOrRecovery:
+            hasWorkoutToday
+                ? "You trained today and have \(Int(remainingProtein.rounded()).formatted())g protein left."
+                : "You have \(Int(remainingProtein.rounded()).formatted())g protein left today."
+        case .trustOrToday:
+            hasNutritionMismatch
+                ? "A nutrition mismatch is worth reviewing before you use today's totals."
+                : "See what today's food, water, and training point to."
+        case .hydrate:
+            "\(Int(waterRemaining.rounded()).formatted()) oz remains toward today's water target."
+        }
+    }
+
+    private func perform(_ action: ActionKind) {
+        switch action {
+        case .fillMacros: onFillMacros()
+        case .proteinOrRecovery: onProteinOrRecovery()
+        case .trustOrToday: onTrustOrToday()
+        case .hydrate: onHydrate()
+        }
+    }
+
+    private func isDisabled(_ action: ActionKind) -> Bool {
+        switch action {
+        case .fillMacros: isGeneratingMeal
+        case .hydrate: waterRemaining <= 0
+        case .proteinOrRecovery, .trustOrToday: false
+        }
+    }
+
+    private func secondaryActionChip(_ action: ActionKind, showsSubtitle: Bool) -> some View {
+        MaiaActionChip(
+            title: title(for: action),
+            subtitle: showsSubtitle ? subtitle(for: action) : nil,
+            icon: icon(for: action),
+            tint: tint(for: action),
+            isLoading: action == .fillMacros && isGeneratingMeal,
+            isDisabled: isDisabled(action),
+            fillsWidth: true,
+            action: { perform(action) }
+        )
     }
 }
 
@@ -116,6 +259,7 @@ private struct MaiaActionChip: View {
     let tint: Color
     var isLoading = false
     var isDisabled = false
+    var fillsWidth = false
     var action: () -> Void
 
     var body: some View {
@@ -139,13 +283,20 @@ private struct MaiaActionChip: View {
                         .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                 }
+
+                if fillsWidth {
+                    Spacer(minLength: 0)
+                }
             }
             .padding(.horizontal, 13)
-            .padding(.vertical, 8)
-            .background(Color.backgroundSecondary.opacity(isDisabled ? 0.35 : 0.82), in: Capsule())
+            .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 44, alignment: .leading)
+            .background(
+                AppPalette.control.opacity(isDisabled ? 0.35 : 1),
+                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+            )
             .overlay(
-                Capsule()
-                    .stroke(tint.opacity(isDisabled ? 0.08 : 0.22), lineWidth: 1)
+                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    .stroke(AppPalette.separator, lineWidth: 0.5)
             )
         }
         .buttonStyle(.plain)
@@ -159,19 +310,21 @@ private struct MaiaDataBoundaryStrip: View {
     let pantryCount: Int
 
     var body: some View {
-        HStack(spacing: 7) {
-            MaiaDataChip(icon: "calendar", text: "Today", color: .brandPrimary)
-            MaiaDataChip(icon: "target", text: "Goals", color: .accentPositive)
-            if healthKitEnabled {
-                MaiaDataChip(icon: "applewatch", text: "HealthKit", color: .blue)
+        ScrollView(.horizontal) {
+            HStack(spacing: AppSpacing.row) {
+                MaiaDataChip(icon: "calendar", text: "Today", color: AppPalette.brand)
+                MaiaDataChip(icon: "target", text: "Goals", color: .accentPositive)
+                if healthKitEnabled {
+                    MaiaDataChip(icon: "applewatch", text: "HealthKit", color: .blue)
+                }
+                if pantryCount > 0 {
+                    MaiaDataChip(icon: "cabinet.fill", text: "\(pantryCount) pantry", color: .orange)
+                }
+                MaiaDataChip(icon: "sparkles", text: "Estimates labeled", color: .purple)
             }
-            if pantryCount > 0 {
-                MaiaDataChip(icon: "cabinet.fill", text: "\(pantryCount) pantry", color: .orange)
-            }
-            MaiaDataChip(icon: "sparkles", text: "Estimates", color: .purple)
         }
-        .padding(9)
-        .background(Color.backgroundSecondary.opacity(0.52), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .scrollIndicators(.hidden)
+        .accessibilityIdentifier("maia_evidence_strip")
     }
 }
 
@@ -184,16 +337,12 @@ private struct MaiaDataChip: View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .appFont(size: 9, weight: .bold)
+                .foregroundStyle(color)
             Text(text)
-                .appFont(size: 10, weight: .bold)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: true, vertical: false)
         }
-        .foregroundColor(color)
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 5)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.10), in: Capsule())
     }
 }
 
@@ -746,7 +895,7 @@ struct MacroLabel: View {
     }
 }
 
-struct ChatHistoryListView: View {
+struct ChatHistoryListView<TopContent: View, BottomContent: View>: View {
     @Binding var chatMessages: [ChatMessage]
     var onLogRecipe: (String) -> Void
     var onSpeak: (String) -> Void
@@ -755,39 +904,78 @@ struct ChatHistoryListView: View {
     var onAction: (MaiaAction) -> Void
     @Binding var showAlert: Bool
     @Binding var alertMessage: String
+    let topContent: TopContent
+    let bottomContent: BottomContent
+
+    init(
+        chatMessages: Binding<[ChatMessage]>,
+        onLogRecipe: @escaping (String) -> Void,
+        onSpeak: @escaping (String) -> Void,
+        onStopSpeaking: @escaping () -> Void,
+        currentSpokenText: String?,
+        onAction: @escaping (MaiaAction) -> Void,
+        showAlert: Binding<Bool>,
+        alertMessage: Binding<String>,
+        @ViewBuilder topContent: () -> TopContent,
+        @ViewBuilder bottomContent: () -> BottomContent
+    ) {
+        _chatMessages = chatMessages
+        self.onLogRecipe = onLogRecipe
+        self.onSpeak = onSpeak
+        self.onStopSpeaking = onStopSpeaking
+        self.currentSpokenText = currentSpokenText
+        self.onAction = onAction
+        _showAlert = showAlert
+        _alertMessage = alertMessage
+        self.topContent = topContent()
+        self.bottomContent = bottomContent()
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(chatMessages) { message in
-                        ChatBubble(
-                            message: message,
-                            onLogRecipe: onLogRecipe,
-                            onSpeak: onSpeak,
-                            onStopSpeaking: onStopSpeaking,
-                            currentSpokenText: currentSpokenText,
-                            onAction: onAction,
-                            showAlert: $showAlert,
-                            alertMessage: $alertMessage
-                        )
-                        .id(message.id)
+                VStack(alignment: .leading, spacing: 0) {
+                    topContent
+                        .id("maia-conversation-top")
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        if chatMessages.count > 1 {
+                            ForEach(chatMessages) { message in
+                                ChatBubble(
+                                    message: message,
+                                    onLogRecipe: onLogRecipe,
+                                    onSpeak: onSpeak,
+                                    onStopSpeaking: onStopSpeaking,
+                                    currentSpokenText: currentSpokenText,
+                                    onAction: onAction,
+                                    showAlert: $showAlert,
+                                    alertMessage: $alertMessage
+                                )
+                                .id(message.id)
+                            }
+                        }
                     }
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.vertical, AppSpacing.row)
+
+                    bottomContent
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 12)
             }
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: chatMessages) {
-                if let lastId = chatMessages.last?.id {
+                if chatMessages.count > 1, let lastId = chatMessages.last?.id {
                     withAnimation {
                         proxy.scrollTo(lastId, anchor: .bottom)
                     }
+                } else {
+                    proxy.scrollTo("maia-conversation-top", anchor: .top)
                 }
             }
             .onAppear {
-                if let lastId = chatMessages.last?.id {
+                if chatMessages.count > 1, let lastId = chatMessages.last?.id {
                     proxy.scrollTo(lastId, anchor: .bottom)
+                } else {
+                    proxy.scrollTo("maia-conversation-top", anchor: .top)
                 }
             }
         }
@@ -804,131 +992,42 @@ struct MaiaBriefingCard: View {
     let mealCount: Int
     let workoutCount: Int
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                Image("maia_avatar")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 46, height: 46)
-                    .clipShape(Circle())
-                    .background(Color.backgroundSecondary, in: Circle())
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Maia is ready")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("Ask for food ideas, meal logging, recipe help, or a quick read on today.")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer()
-            }
-
-            MaiaDailyContextRow(
-                mealCount: mealCount,
-                workoutCount: workoutCount,
-                water: water,
-                waterGoal: waterGoal
-            )
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                MaiaBriefingMetric(title: "Calories left", value: Int(calories.rounded()).formatted(), color: .orange)
-                MaiaBriefingMetric(title: "Protein left", value: "\(Int(protein.rounded()).formatted())g", color: .accentProtein)
-                MaiaBriefingMetric(title: "Carbs left", value: "\(Int(carbs.rounded()).formatted())g", color: .accentCarbs)
-                MaiaBriefingMetric(title: "Fats left", value: "\(Int(fats.rounded()).formatted())g", color: .accentFats)
-            }
-        }
-        .asCard()
-    }
-}
-
-struct MaiaDailyContextRow: View {
-    let mealCount: Int
-    let workoutCount: Int
-    let water: Double
-    let waterGoal: Double
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    @ViewBuilder
-    var body: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                contextChips
-            }
-        } else {
-            HStack(spacing: 8) {
-                contextChips
-            }
-        }
+    private var contextSummary: String {
+        let mealText = mealCount == 1 ? "1 meal" : "\(mealCount) meals"
+        let workoutText = workoutCount == 1 ? "1 workout" : "\(workoutCount) workouts"
+        let waterText = "\(Int(water.rounded()).formatted()) of \(Int(waterGoal.rounded()).formatted()) oz water"
+        return [mealText, workoutText, waterText].joined(separator: " · ")
     }
 
-    @ViewBuilder
-    private var contextChips: some View {
-        MaiaContextChip(icon: "fork.knife", title: "\(mealCount)", subtitle: mealCount == 1 ? "meal" : "meals", color: .orange)
-        MaiaContextChip(icon: "figure.strengthtraining.traditional", title: "\(workoutCount)", subtitle: workoutCount == 1 ? "workout" : "workouts", color: .brandPrimary)
-        MaiaContextChip(icon: "drop.fill", title: "\(Int(water.rounded()))", subtitle: "/ \(Int(waterGoal.rounded())) oz", color: .blue)
-    }
-}
-
-struct MaiaContextChip: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    let color: Color
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: icon)
-                .appFont(size: 11, weight: .bold)
-                .foregroundColor(color)
-                .frame(width: 24, height: 24)
-                .background(color.opacity(0.12), in: Circle())
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(title: "Today in context", subtitle: contextSummary)
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text(title)
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Text(subtitle)
-                    .appFont(size: 10, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
+            AppMetricStrip(items: [
+                AppMetricItem(
+                    label: "Calories left",
+                    value: Int(calories.rounded()).formatted(),
+                    accent: .orange
+                ),
+                AppMetricItem(
+                    label: "Protein left",
+                    value: "\(Int(protein.rounded()).formatted())g",
+                    accent: .accentProtein
+                ),
+                AppMetricItem(
+                    label: "Carbs left",
+                    value: "\(Int(carbs.rounded()).formatted())g",
+                    accent: .accentCarbs
+                ),
+                AppMetricItem(
+                    label: "Fats left",
+                    value: "\(Int(fats.rounded()).formatted())g",
+                    accent: .accentFats
+                )
+            ])
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(9)
-        .background(Color.backgroundSecondary.opacity(0.62), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-    }
-}
-
-struct MaiaBriefingMetric: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(color)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Text(title)
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(9)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .appSurface(.quiet)
+        .accessibilityIdentifier("maia_daily_context")
     }
 }
 
@@ -937,49 +1036,52 @@ struct MaiaHealthKitContextIndicator: View {
     let activeEnergy: Double
     let sleepSummary: SleepHealthSummary
 
-    var body: some View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var healthSummary: String {
         let sleepHours = sleepSummary.lastNightHours
         let sleepScore = sleepSummary.lastNightScore ?? sleepSummary.averageScore
+        var parts: [String] = []
 
-        HStack(spacing: 8) {
-            Image(systemName: "applewatch")
-                .foregroundColor(.brandPrimary)
-            Text("Apple Health context included")
-                .appFont(size: 12, weight: .semibold)
-                .foregroundColor(.secondary)
-            Spacer()
+        if steps > 0 { parts.append("\(Int(steps.rounded()).formatted()) steps") }
+        if activeEnergy > 0 { parts.append("\(Int(activeEnergy.rounded()).formatted()) active cal") }
+        if sleepHours > 0 { parts.append(String(format: "%.1f hr sleep", sleepHours)) }
+        if let sleepScore { parts.append("sleep score \(sleepScore)") }
 
-            HStack(spacing: 12) {
-                if steps > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "figure.walk")
-                        Text(Int(steps.rounded()).formatted())
-                    }
+        return parts.isEmpty ? "No recent metrics" : parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    healthLabel
+                    healthSummaryText
                 }
-                if activeEnergy > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "flame.fill")
-                        Text(Int(activeEnergy.rounded()).formatted())
-                    }
-                }
-                if sleepHours > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "moon.zzz.fill")
-                        Text(String(format: "%.1fh", sleepHours))
-                    }
-                }
-                if let sleepScore {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bed.double.fill")
-                        Text("\(sleepScore)")
-                    }
+            } else {
+                HStack(spacing: AppSpacing.compact) {
+                    healthLabel
+                    Spacer(minLength: AppSpacing.row)
+                    healthSummaryText
+                        .multilineTextAlignment(.trailing)
                 }
             }
-            .appFont(size: 11, weight: .bold)
-            .foregroundColor(.secondary)
         }
-        .padding(12)
-        .background(Color.backgroundSecondary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("maia_health_context")
+    }
+
+    private var healthLabel: some View {
+        Label("Apple Health included", systemImage: "applewatch")
+            .appTextRole(.caption)
+            .foregroundStyle(AppPalette.brand)
+    }
+
+    private var healthSummaryText: some View {
+        Text(healthSummary)
+            .appTextRole(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

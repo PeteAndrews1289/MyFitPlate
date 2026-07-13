@@ -46,8 +46,31 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   passed with zero violations, the unsigned Release build passed, and standard/compact phone
   captures were reviewed.
 
-The next primary-tab batch migrates Maia and the detailed Reports content. Living Day changes only
-at the final shell boundary, after the other primary tabs share the same visual grammar.
+### Batch 3 - Maia and Reports (complete)
+
+- Gave both tabs the same stable, pinned primary-screen header so scrolling evidence no longer
+  passes visibly behind the status bar.
+- Rebuilt Maia around a concise `Today in context` summary and one deterministic `Best next step`.
+  Trust mismatches, workout recovery, remaining macros, hydration, and the daily read now resolve
+  to one recommendation with three quiet alternatives instead of competing dashboard cards.
+- Added explicit evidence labels for Today, Goals, optional HealthKit and pantry context, and
+  estimates. The untouched conversation no longer repeats the same macro numbers in an opening
+  bubble, keeping the recommendation visible on compact phones.
+- Kept Maia's conversation in one scrollable timeline with a pinned composer, while preserving
+  existing prompts, meal generation, hydration, chat history, speech, consent, and logging paths.
+- Preserved Week in Motion as Reports' opening story, then separated the trend window, weight
+  evidence, at-a-glance summary, wellness, workout, metabolism, sleep, and health cards into quiet
+  responsive surfaces without adding navigation steps.
+- Corrected zero-of-N recovery language so a week with no completed recovery targets reads
+  literally instead of saying both targets were met.
+- Focused UI checks passed 3/3 on a standard phone, 2/2 on an iPhone SE, and the final compact Maia
+  hierarchy check passed after removing the duplicate opening bubble. The standard run includes
+  dark mode at accessibility XXXL and text-clipping audits. Design-system and Week in Motion tests
+  passed 16/16, and strict lint passed with zero violations.
+
+The next primary-tab batch aligns only the Living Day shell boundary. Its evidence-led timeline,
+feature decision, and rollback behavior remain unchanged. Core repeated workflows follow after all
+five primary tabs share the same chrome.
 
 ## Product Direction
 
@@ -114,14 +137,15 @@ Current source indicators:
 | Surface | Current visual state | Direction |
 |---|---|---|
 | Living Day | North star | Keep the unframed path; align shell, copy case, and action treatment |
-| Week in Motion | North star | Keep the rhythm/evidence structure; migrate detailed reports below it |
+| Week in Motion | North star, Batch 3 retained | Keep the rhythm/evidence structure as the Reports lead story |
+| Reports detail | Batch 3 migrated | Quiet trend controls, responsive evidence, and flat report surfaces |
 | Trust Receipt | Strong but split | Keep receipt; flatten the nutrition grid and replace the gradient footer CTA |
 | Running | Strong utility | Keep density; adopt shared header, rows, and surfaces |
 | Food Search | Clear but over-tinted | Make search the hero; neutralize selectors and empty states |
 | Fast Food Builder | Useful and distinct | Increase density; reserve tint for selection and evidence only |
 | Settings | Orderly but generic | Use a native grouped configuration pattern; remove the dashboard hero |
 | Quick Log | Polished but over-layered | Use a neutral sheet scaffold and simpler rows |
-| Maia | Friendly but card-heavy | Convert summary cards into a concise context strip and one suggested action |
+| Maia | Batch 3 migrated | One deterministic recommendation, concise context, labeled evidence, pinned composer |
 | Train | Batch 2 migrated | One progression surface, direct Start action, unframed week, flat readiness rows |
 | Meal Plan | Batch 2 migrated | Unframed week, one summary band, aligned progress, quieter meal rows |
 | Legacy Home | Superseded direction | Retain only as rollback until Living Day is proven, then retire it |

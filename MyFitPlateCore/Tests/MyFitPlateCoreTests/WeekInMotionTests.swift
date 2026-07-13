@@ -121,7 +121,11 @@ final class WeekInMotionTests: XCTestCase {
 
         XCTAssertEqual(motion.observation.title, "Recovery follow-through")
         XCTAssertEqual(motion.observation.kind, .recovery)
-        XCTAssertTrue(motion.observation.text.contains("0 of 1"))
+        XCTAssertEqual(
+            motion.observation.text,
+            "0 of 1 assessed runs had both recovery targets logged."
+        )
+        XCTAssertTrue(motion.recoverySummary.hasPrefix("0 of 1 assessed runs"))
         XCTAssertTrue(motion.observation.basis.contains("timestamped food"))
         XCTAssertEqual(motion.recoveryProgress, WeeklyRecapProgress(completed: 0, eligible: 1))
     }
