@@ -160,6 +160,7 @@ final class TrainingFuelPlannerRenderingTests: XCTestCase {
         let view = LivingDayHomeExperience(
             snapshot: snapshot,
             transition: transition,
+            density: .compact,
             onEventSelected: { _ in },
             onActionSelected: { _ in }
         )
@@ -171,7 +172,7 @@ final class TrainingFuelPlannerRenderingTests: XCTestCase {
                     Spacer(minLength: 0)
                 }
             ),
-            frame: CGRect(x: 0, y: 0, width: 430, height: 780),
+            frame: CGRect(x: 0, y: 0, width: 430, height: 900),
             attachmentName: "Living Day persisted insertion - standard"
         )
         try render(
@@ -181,7 +182,7 @@ final class TrainingFuelPlannerRenderingTests: XCTestCase {
                     Spacer(minLength: 0)
                 }
             ),
-            frame: CGRect(x: 0, y: 0, width: 320, height: 780),
+            frame: CGRect(x: 0, y: 0, width: 320, height: 1_100),
             attachmentName: "Living Day persisted insertion - accessibility"
         )
     }

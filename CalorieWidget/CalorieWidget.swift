@@ -224,7 +224,64 @@ struct MediumWidgetView: View {
         abs(data.macroCalorieDelta ?? 0) >= 75
     }
 
+    private var pathEvents: [WidgetPathEvent] {
+        data.currentPathEvents
+    }
+
     var body: some View {
+        Group {
+            if pathEvents.isEmpty {
+                legacyBody
+            } else {
+                livingDayBody
+            }
+        }
+        .padding()
+    }
+
+    private var livingDayBody: some View {
+        VStack(spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Living Day")
+                        .font(.caption.weight(.bold))
+                    Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
+                        .font(.system(.headline, design: .rounded, weight: .bold))
+                        .foregroundStyle(WidgetPalette.brandPrimary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                HStack(spacing: 8) {
+                    Text("P \(Int(max(0, data.proteinGoal - data.protein)).formatted())g")
+                        .foregroundStyle(WidgetPalette.accentProtein)
+                    Text("C \(Int(max(0, data.carbsGoal - data.carbs)).formatted())g")
+                        .foregroundStyle(WidgetPalette.accentCarbs)
+                    Text("F \(Int(max(0, data.fatGoal - data.fats)).formatted())g")
+                        .foregroundStyle(WidgetPalette.accentFats)
+                }
+                .font(.caption2.weight(.bold))
+
+                Button(intent: LogWaterIntent()) {
+                    Image(systemName: "drop.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(.white)
+                        .frame(width: 26, height: 26)
+                        .background(WidgetPalette.accentWater, in: Circle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            WidgetFuelPathStrip(events: Array(pathEvents.prefix(3)))
+
+            if let action = data.nextAction {
+                WidgetNextActionRow(action: action, compact: true)
+            }
+        }
+    }
+
+    private var legacyBody: some View {
         VStack(spacing: 9) {
             HStack(spacing: 20) {
                 VStack {
@@ -271,7 +328,6 @@ struct MediumWidgetView: View {
                 WidgetNextActionRow(action: action, compact: true)
             }
         }
-        .padding()
     }
 }
 
@@ -378,7 +434,69 @@ struct LargeWidgetView: View {
     let data: WidgetData
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
+    private var pathEvents: [WidgetPathEvent] {
+        data.currentPathEvents
+    }
+
     var body: some View {
+        Group {
+            if pathEvents.isEmpty {
+                legacyBody
+            } else {
+                livingDayBody
+            }
+        }
+        .padding()
+    }
+
+    private var livingDayBody: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Living Day")
+                        .font(.headline)
+                    Text("Your current path")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
+                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .foregroundStyle(WidgetPalette.brandPrimary)
+            }
+
+            HStack(spacing: 14) {
+                MacroBar(
+                    label: "Protein",
+                    value: data.protein,
+                    goal: data.proteinGoal,
+                    color: WidgetPalette.accentProtein
+                )
+                MacroBar(
+                    label: "Carbs",
+                    value: data.carbs,
+                    goal: data.carbsGoal,
+                    color: WidgetPalette.accentCarbs
+                )
+                MacroBar(
+                    label: "Fats",
+                    value: data.fats,
+                    goal: data.fatGoal,
+                    color: WidgetPalette.accentFats
+                )
+            }
+
+            WidgetFuelPathList(events: Array(pathEvents.prefix(4)))
+
+            if let action = data.nextAction {
+                WidgetNextActionRow(action: action)
+            }
+        }
+    }
+
+    private var legacyBody: some View {
         VStack(spacing: 10) {
             LazyVGrid(columns: columns, spacing: 20) {
                 ProgressBubble(
@@ -418,7 +536,118 @@ struct LargeWidgetView: View {
                 WidgetNextActionRow(action: action)
             }
         }
-        .padding()
+    }
+}
+
+private struct WidgetFuelPathStrip: View {
+    let events: [WidgetPathEvent]
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Rectangle()
+                .fill(Color.secondary.opacity(0.2))
+                .frame(height: 1)
+                .padding(.horizontal, 30)
+                .offset(y: 25)
+
+            HStack(alignment: .top, spacing: 0) {
+                ForEach(events) { event in
+                    VStack(spacing: 2) {
+                        Text(event.startDate.formatted(date: .omitted, time: .shortened))
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                        WidgetFuelPathNode(event: event, size: 24)
+                        Text(event.kind.shortTitle)
+                            .font(.system(size: 8, weight: .bold))
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(event.accessibilitySummary)
+                }
+            }
+        }
+        .frame(height: 52)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct WidgetFuelPathList: View {
+    let events: [WidgetPathEvent]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
+                HStack(alignment: .top, spacing: 9) {
+                    Text(event.startDate.formatted(date: .omitted, time: .shortened))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .frame(width: 54, alignment: .trailing)
+
+                    VStack(spacing: 0) {
+                        WidgetFuelPathNode(event: event, size: 26)
+                        if index < events.count - 1 {
+                            Rectangle()
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(width: 1, height: 10)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(event.kind.title)
+                            .font(.caption.weight(.bold))
+                        Text(event.state.title)
+                            .font(.caption2)
+                            .foregroundStyle(event.needsTrustReview ? WidgetPalette.accentSignal : .secondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if event.needsTrustReview {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(WidgetPalette.accentSignal)
+                            .accessibilityLabel("Trust review needed")
+                    }
+                }
+                .frame(minHeight: 34)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(event.accessibilitySummary)
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct WidgetFuelPathNode: View {
+    let event: WidgetPathEvent
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            nodeBackground
+            Image(systemName: event.kind.icon)
+                .font(.system(size: size * 0.42, weight: .bold))
+                .foregroundStyle(event.state == .planned ? event.kind.color : .white)
+        }
+        .frame(width: size, height: size)
+    }
+
+    @ViewBuilder
+    private var nodeBackground: some View {
+        switch event.state {
+        case .completed:
+            Circle().fill(event.kind.color)
+        case .planned:
+            Circle()
+                .fill(WidgetPalette.backgroundPrimary)
+                .overlay(Circle().stroke(event.kind.color, lineWidth: 1.5))
+        case .active:
+            RoundedRectangle(cornerRadius: 6)
+                .fill(event.kind.color)
+        }
     }
 }
 
@@ -526,5 +755,76 @@ struct ProgressBubble: View {
             }
             Text(label).font(.caption).bold()
         }
+    }
+}
+
+private extension WidgetData {
+    var currentPathEvents: [WidgetPathEvent] {
+        guard let pathDate,
+              Calendar.current.isDateInToday(pathDate) else { return [] }
+        return (pathEvents ?? []).sorted {
+            if $0.startDate == $1.startDate { return $0.sequence < $1.sequence }
+            return $0.startDate < $1.startDate
+        }
+    }
+}
+
+private extension WidgetPathEvent.Kind {
+    var title: String {
+        switch self {
+        case .meal: return "Meal"
+        case .strength: return "Strength"
+        case .run: return "Run"
+        case .activity: return "Activity"
+        case .recovery: return "Recovery"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .meal: return "Meal"
+        case .strength: return "Lift"
+        case .run: return "Run"
+        case .activity: return "Move"
+        case .recovery: return "Recover"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .meal: return "fork.knife"
+        case .strength: return "dumbbell.fill"
+        case .run: return "figure.run"
+        case .activity: return "figure.mixed.cardio"
+        case .recovery: return "bolt.heart.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .meal: return WidgetPalette.brandPrimary
+        case .strength: return .indigo
+        case .run: return .cyan
+        case .activity: return .blue
+        case .recovery: return WidgetPalette.accentSignal
+        }
+    }
+}
+
+private extension WidgetPathEvent.State {
+    var title: String {
+        switch self {
+        case .completed: return "Completed"
+        case .planned: return "Planned"
+        case .active: return "In progress"
+        }
+    }
+}
+
+private extension WidgetPathEvent {
+    var accessibilitySummary: String {
+        let approximation = isApproximate ? "approximately " : ""
+        let trust = needsTrustReview ? ", Trust review needed" : ""
+        return "\(kind.title), \(state.title), \(approximation)\(startDate.formatted(date: .omitted, time: .shortened))\(trust)"
     }
 }

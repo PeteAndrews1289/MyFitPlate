@@ -494,6 +494,9 @@ struct HomeView: View {
           .onChange(of: dailyLogService.currentDailyLog) { _, _ in
               refreshDeferredTrainingRecoveryIfNeeded()
           }
+          .onChange(of: livingDayWidgetSignature) { _, _ in
+              syncLivingDayWidgetPath()
+          }
           .onChange(of: selectedDate) { _, _ in
               refreshLivingDayMealPlan()
           }
@@ -573,6 +576,7 @@ struct HomeView: View {
         fetchLogForSelectedDate()
         refreshLivingDayFeatureFlagIfNeeded()
         refreshLivingDayMealPlan()
+        syncLivingDayWidgetPath()
         refreshStreakHistory()
         if isToday {
             if !ScreenshotDemoMode.isEnabled {
@@ -910,6 +914,36 @@ struct HomeView: View {
         )
     }
 
+    private var livingDayWidgetSignature: String {
+        guard isLivingDayHomeEnabled, isToday else { return "disabled" }
+        let snapshot = livingDaySnapshot
+        let events = snapshot.events.map { event in
+            [
+                event.id,
+                event.kind.rawValue,
+                event.state.rawValue,
+                String(event.startDate.timeIntervalSinceReferenceDate),
+                event.evidence.rawValue
+            ].joined(separator: ":")
+        }
+        let budget = snapshot.budget.nutrients.map { nutrient in
+            [nutrient.consumed, nutrient.planned, nutrient.target]
+                .map { value in
+                    value.map { String($0) } ?? "nil"
+                }
+                .joined(separator: ":")
+        }
+        return ([snapshot.nextAction.kind.rawValue] + budget + events).joined(separator: "|")
+    }
+
+    private func syncLivingDayWidgetPath() {
+        guard isLivingDayHomeEnabled, isToday else {
+            EcosystemSyncManager.shared.updateWidgetPath(snapshot: nil)
+            return
+        }
+        EcosystemSyncManager.shared.updateWidgetPath(snapshot: livingDaySnapshot)
+    }
+
     private func refreshLivingDayMealPlan() {
         guard isLivingDayHomeEnabled,
               isToday,
@@ -949,7 +983,7 @@ struct HomeView: View {
         scrollProxy: ScrollViewProxy
     ) {
         HapticManager.instance.feedback(.light)
-        DIContainer.shared.analyticsManager?.logEvent("living_day_event_opened", parameters: [
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.livingDayEventOpened.rawValue, parameters: [
             "kind": event.kind.rawValue,
             "state": event.state.rawValue,
             "evidence": event.evidence.rawValue
@@ -986,7 +1020,7 @@ struct HomeView: View {
         scrollProxy: ScrollViewProxy
     ) {
         HapticManager.instance.feedback(.light)
-        DIContainer.shared.analyticsManager?.logEvent("living_day_action_opened", parameters: [
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.livingDayActionOpened.rawValue, parameters: [
             "kind": action.kind.rawValue
         ])
 

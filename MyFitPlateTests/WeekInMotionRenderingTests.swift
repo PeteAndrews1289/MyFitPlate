@@ -58,7 +58,20 @@ final class WeekInMotionRenderingTests: XCTestCase {
                 )
             ),
             frame: CGRect(x: 0, y: 0, width: 360, height: 500),
-            attachmentName: "Week in Motion - share"
+            attachmentName: "Week in Motion - share all selected"
+        )
+
+        try render(
+            AnyView(
+                WeeklyRecapShareCard(
+                    recap: recap,
+                    weekRangeText: "Jul 6 - Jul 12",
+                    useMetric: false,
+                    selection: [.rhythm, .observation]
+                )
+            ),
+            frame: CGRect(x: 0, y: 0, width: 360, height: 500),
+            attachmentName: "Week in Motion - share selected sections"
         )
     }
 

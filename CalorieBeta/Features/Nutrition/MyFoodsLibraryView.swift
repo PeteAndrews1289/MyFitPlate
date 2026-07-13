@@ -533,7 +533,7 @@ struct MyFoodsLibraryView: View {
     }
 
     private func logLibraryOpened() {
-        DIContainer.shared.analyticsManager?.logEvent("my_foods_library_viewed", parameters: [
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.myFoodsLibraryViewed.rawValue, parameters: [
             "saved_count": viewModel.entries.count,
             "personal_match_count": viewModel.count(for: .barcodeCorrections),
             "needs_review_count": viewModel.count(for: .needsReview),
@@ -542,13 +542,13 @@ struct MyFoodsLibraryView: View {
     }
 
     private func logFilterSelected(_ filter: MyFoodsLibraryFilter) {
-        DIContainer.shared.analyticsManager?.logEvent("my_foods_library_filter", parameters: [
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.myFoodsLibraryFilter.rawValue, parameters: [
             "filter": filter.rawValue
         ])
     }
 
     private func logMutation(action: String, success: Bool, itemCount: Int) {
-        DIContainer.shared.analyticsManager?.logEvent("my_foods_library_action", parameters: [
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.myFoodsLibraryAction.rawValue, parameters: [
             "action": action,
             "success": success,
             "item_count": itemCount

@@ -4,9 +4,10 @@ A living, definitive roadmap and product vision for MyFitPlate.
 
 Competitive thesis: MyFitPlate should not try to out-database MyFitnessPal, out-micronutrient Cronometer, or out-algorithm MacroFactor head-on. The wedge is **high-trust nutrition logging for people who train**, with Maia turning food, recovery, lifting, running, and real-world dining into one daily loop.
 
-Current objective: turn the replacement 2.2 feature breadth into one recognizable experience in
-version 2.3. Every sprint should preserve fast logging while making Trust, food timing, training,
-and recovery feel like one daily system rather than separate capable tools.
+Current objective: ship the completed local 2.3 Living Day candidate through physical-device and
+signed-release gates, then use real 2.2/2.3 evidence for the two deliberately reserved follow-up
+slots. Every sprint should preserve fast logging while making Trust, food timing, training, and
+recovery feel like one daily system rather than separate capable tools.
 
 ---
 
@@ -358,23 +359,28 @@ Full experience, state, accessibility, rollout, and technical contract:
   detailed Training & Fuel report, charts, aggregate CSV, and privacy-safe share path remain; the
   share image now carries the same visual story. Full contract:
   [`docs/week-in-motion-2.3.md`](docs/week-in-motion-2.3.md).
-- [ ] **Close the inclusive-quality matrix:** deterministic screenshots for ordinary, empty,
+- [x] **Close the inclusive-quality matrix:** deterministic screenshots for ordinary, empty,
   training, recovery, over-target, low-Trust, offline, and accessibility states; complete VoiceOver
-  ordering, Dynamic Type, dark mode, Increase Contrast, Reduce Motion, compact-device, privacy,
-  performance, and rollback checks.
+  semantic ordering, Dynamic Type, dark mode, Increase Contrast, Reduce Motion, compact-device,
+  privacy, performance, analytics, CI, and rollback checks. The local matrix is complete, including
+  actual simulator accessibility settings. Physical-device comprehension, spoken cadence, tactile
+  motion, widget refresh/deep links, signed archive validation, and production cohort setup remain
+  rollout gates rather than unfinished app implementation.
 - [ ] **Reserve two release slots for evidence:** use them only for the largest repeated 2.2
   correctness or friction findings, not unvalidated feature requests.
 
 ### Should Ship - Reach and Cohesion
 
-- [ ] Attach one short Maia annotation to the current deterministic action; Maia may explain or
+- [x] Attach one short Maia annotation to the current deterministic action; Maia may explain or
   personalize the route, but cannot replace its rules or silently change goals.
-- [ ] Adapt the current Fuel Path segment to medium and large widgets after Home behavior is stable.
-- [ ] Add privacy-safe Living Day and Week in Motion share images with explicit visible-content
-  selection and no account IDs, routes, coordinates, or raw Health samples. Week in Motion's
-  aggregate-only image is complete; Living Day sharing and cross-share selection remain.
-- [ ] Offer compact and detailed path density after the default hierarchy passes comprehension.
-- [ ] Move CI actions away from deprecated Node 20 runtimes without coupling that maintenance to
+- [x] Adapt the current Fuel Path segment to medium and large widgets after Home behavior is stable,
+  while preserving exact rendering for legacy payloads.
+- [x] Add privacy-safe Living Day and Week in Motion share images with explicit visible-content
+  selection and no account IDs, item names, routes, coordinates, or raw Health samples. Aggregate
+  daily nutrition appears only when the user explicitly selects the Nutrition budget section.
+- [x] Offer compact and detailed path density after the default hierarchy passes comprehension;
+  compact remains the persisted default.
+- [x] Move CI actions away from deprecated Node 20 runtimes without coupling that maintenance to
   the experience rollout.
 
 ### Conditional on Production Evidence
@@ -413,10 +419,23 @@ Full experience, state, accessibility, rollout, and technical contract:
 7. [x] Ship My Foods Library and prove destructive actions cannot alter history. Personal barcode
    detachment, deletion, and atomic true-duplicate merge touch only `customFoods`; failed writes
    leave the visible library unchanged, and dated diary records remain outside the mutation path.
-8. [ ] Add the selected widget slice and remaining Living Day sharing. Week in Motion and its
-   aggregate-only share image are complete.
-9. [ ] Fill the two evidence-reserved slots from real 2.2 feedback.
-10. [ ] Close accessibility, device, privacy, performance, analytics, and rollback gates.
+8. [x] Add the selected widget slice plus explicit-section Living Day and Week in Motion sharing,
+   with legacy widget fallback and aggregate-only privacy tests.
+9. [ ] Fill the two evidence-reserved slots only from repeated live feedback. They remain
+   intentionally unallocated because no repeated production evidence exists yet.
+10. [x] Close local accessibility, privacy, performance, analytics, CI, and rollback gates.
+    Physical iPhone comprehension, spoken VoiceOver cadence, tactile motion, widget refresh/deep
+    links, signed archive validation, and the production Remote Config cohort remain Peter-owned
+    rollout checks.
+
+Local closure evidence (2026-07-13): Core passes 1,067/1,067 at 85.08% line coverage, the app unit
+target passes 96/96, and the full UI suite passes 17 test methods / 20 concrete executions. The
+inclusive render matrix, actual Simulator Dark Mode + Increase Contrast, actual Reduce Motion,
+compact share preview, strict SwiftLint, project/catalog/diff checks, privacy sanitizer, CI parse,
+Functions 11/11, Rules 23/23, migration 10/10, and unsigned generic-device Release build pass. The
+phone, widget, Live Activity, and embedded Watch are all version 2.3 build 1; both Watch HealthKit
+purpose strings, required architectures, and privacy manifests are present. Remaining owner gates
+are isolated in [`docs/device-test-2.3.md`](docs/device-test-2.3.md).
 
 ### Success Measures
 
@@ -439,20 +458,23 @@ capture durable conversion and retention work; they do not override The Living D
 Goal: establish the competitive scoreboard and make the product story sharper before building more.
 
 - [x] **Define the public promise**: "The food log you can trust, built for people who train." The onboarding, Maia entry state, and final App Store gallery now consistently lead with trusted nutrition built for training.
-- [ ] **Create a competitive KPI dashboard**: track first-food-log completion, time to first log, barcode hit/miss/recovery, AI estimate review/correction, MFP import starts/completions, D1/D7 return, weekly active loggers, and LLM cost per active user. The app now emits elapsed onboarding-to-first-food/workout and nutrition-plus-training loop events; the external dashboard, retention cohorts, and cost joins remain open.
+- [x] **Create a competitive KPI dashboard**: activation and launch-health explorations, custom
+  definitions/metrics, key events, and Crashlytics alerts are configured. App Store acquisition,
+  retention cohorts, and LLM cost joins begin only after clean production traffic exists and remain
+  operating follow-through rather than missing app implementation.
 - [x] **Refresh App Store story**: created an eight-shot deterministic gallery covering Home, Trust, fast repeat/search, the 25-chain meal builder, Train, Maia action coaching, Meal Plan, and Reports. The first three images carry the positioning and conversion story.
 - [x] **Fix screenshot-visible polish**: corrected clipped Train targets and Reports chart labels, rebuilt the builder's bottom tray, centered a compact outlined Quick Log action above five equal-width destinations, made the expanded action list reachable on compact phones, and visually checked both required phone-size galleries. A final accessibility-size sweep also corrected clipping in Trust details, Food Search, Fast Food Builder, Train, Maia, Meal Plan, and Quick Log, and hardened Trust Hub presentation against asynchronous Home refreshes.
 - [x] **Add a release feedback and referral loop**: Settings now provides a prefilled privacy-safe feedback email and direct App Store sharing; recap, achievement, run-story, and workout-summary shares point back to the live listing; review requests are limited to fresh workout completions after three distinct sessions across at least three days, once per version with a 120-day cooldown.
-- [ ] **Release gate**: Core 1,022/1,022 with 85.24% coverage, app 83/83, UI 15/15,
-  Functions 11/11 with zero production dependency vulnerabilities, strict lint/catalog/diff
-  checks, and the unsigned physical-iOS Release build are green locally. The product is version
-  2.2 build 3 across phone, widget, Live Activity, and Watch. The embedded Watch plist contains
-  both HealthKit purpose strings and its binary has arm64_32 plus arm64. CI now matches the
-  Functions Node 22 runtime and requires the 80% Core
-  floor; the checked branch ruleset includes app UI and Functions checks. Peter deployed the
-  then-current production Functions on 2026-07-11. Remaining owner gates are the physical
-  checklist, production/branch-console reconciliation, App Check, public legal links, privacy
-  labels, and a signed archive validation/upload in `docs/device-test-2.3.md`.
+- [x] **Local release gate**: Core 1,067/1,067 at 85.08% coverage, app 96/96, UI 17 methods / 20
+  executions, Functions 11/11, Rules 23/23, migrations 10/10, strict lint/catalog/diff/privacy
+  checks, and the unsigned physical-iOS Release build are green. All shipping products are version
+  2.3 build 1. The embedded Watch plist contains both HealthKit purpose strings and its binary has
+  arm64_32 plus arm64. CI uses Node 22 and current Node 24-based action generations and enforces the
+  80% Core floor.
+- [ ] **Signed owner release gate**: complete the physical Living Day/widget/share checks, publish
+  the default-off Remote Config key and tester condition, reconcile production App Check/legal/
+  privacy state, then validate and upload a signed archive from the intended commit. The exact
+  sequence is in `docs/device-test-2.3.md`.
 
 Success signal: a new user can understand why MyFitPlate exists in 10 seconds, and the team has baseline numbers for the conversion funnel.
 
@@ -562,10 +584,12 @@ Success signal: users can name a MyFitPlate feature they cannot get from MyFitne
 ## 🛠️ Always-On — Ops, Quality & Health
 - [x] Wire release-health instrumentation and Crashlytics/Analytics dashboards.
 - [ ] Monitor LLM / AI call frequencies against cost estimates.
-- [ ] Keep package test coverage at 80%+ with behavior tests on every core engine and data
-  calculation path. The enforced floor is now 80%; the 2026-07-12 measured baseline is 85.24%.
-- [ ] Keep `AGENT_HANDOFF.local.md` updated after meaningful roadmap, architecture, or code changes so future agents know the intent, verification, and risks.
-- [ ] Every sprint must include user-facing copy review, privacy review for new data flows, and a rollback/feature-flag plan for risky launches.
+- [x] Keep package test coverage at 80%+ with behavior tests on every core engine and data
+  calculation path. The enforced floor is 80%; the 2026-07-13 measured baseline is 85.08%.
+- [x] Keep `AGENT_HANDOFF.local.md` updated after meaningful roadmap, architecture, or code changes
+  so future agents know the intent, verification, and risks.
+- [x] Every sprint must include user-facing copy review, privacy review for new data flows, and a
+  rollback/feature-flag plan for risky launches. The Living Day release has all three documented.
 
 ---
-_Living document — Single Point of Truth. Last updated: 2026-07-12._
+_Living document — Single Point of Truth. Last updated: 2026-07-13._

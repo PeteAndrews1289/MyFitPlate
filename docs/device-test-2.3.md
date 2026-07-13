@@ -29,6 +29,42 @@ embedded-binary validation passed. The main privacy manifest parses. App result:
 `.codex_xcode/TestResults-2.2b2-app-final.xcresult`. UI result:
 `.codex_xcode/TestResults-2.2b2-ui-final.xcresult`.
 
+## Version 2.3 Living Day owner gates
+
+The implementation, deterministic rendering, simulator accessibility, privacy, performance, CI,
+and rollback matrices are automated locally. These checks require Peter's physical device or a
+signed production console and must remain open until they are directly observed:
+
+- [ ] In Firebase Remote Config, create `feature_livingDayHome` with default `false`. Add a tester-
+  only condition before enabling it for any production cohort; confirm the 2.2 Home returns
+  immediately when the condition is removed.
+- [ ] On the smallest supported physical iPhone, enable Living Day and perform a five-second glance.
+  Confirm you can identify what happened, what is planned, and the single next action without
+  explanatory help. Repeat once in compact and once in detailed density.
+- [ ] With VoiceOver, traverse the Living Day heading, freshness, budget, current action, Maia
+  annotation, transition status when present, chronological events, Show All, and Quick Actions.
+  Confirm the spoken order is useful and no decorative content is announced.
+- [ ] With Reduce Motion both off and on, log one food and complete or skip one Training Fuel
+  session. Confirm the affected node stays visible, the result is announced, haptics feel
+  restrained, and no animation delays the saved write or navigation.
+- [ ] Add the medium and large widgets, refresh Home once, and confirm each shows the current coarse
+  path segment and opens its existing destination. Disable Living Day or install a legacy payload
+  and confirm the exact 2.2 widget body remains usable.
+- [ ] Share Living Day and Week in Motion through one real share destination after changing the
+  visible-section toggles. Confirm the exported image matches the preview; any daily budget values
+  must match the selected preview, with no account ID, food/workout name, route, coordinate,
+  item-level nutrition, or raw Health sample.
+- [ ] Scroll Home repeatedly while data refreshes on the physical phone. Quick Log must remain
+  reachable and responsive, and compact/detailed switching must not jump or obscure the current
+  action.
+- [ ] For release, archive the intended 2.3 commit, validate the signed archive, inspect the
+  embedded phone/widget/Watch versions and privacy manifests, then upload that exact build.
+
+No Firebase Functions, Rules, index, or data migration deployment is required for the Living Day,
+Maia annotation, share image, widget payload, or density work. The new Firebase custom definitions
+in `docs/analytics-dashboard-2.3.md` should be created only after DebugView or signed-build traffic
+confirms their parameters.
+
 ## Peter: physical release blockers
 
 ### Phone and Watch

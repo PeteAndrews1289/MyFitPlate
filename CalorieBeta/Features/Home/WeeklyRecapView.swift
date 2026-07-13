@@ -6,13 +6,12 @@ struct WeeklyRecapView: View {
     @EnvironmentObject private var goalSettings: GoalSettings
     @EnvironmentObject private var workoutService: WorkoutService
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.displayScale) private var displayScale
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
 
     @StateObject private var loader: WeeklyRecapLoader
-    @State private var shareImage: Image?
     @State private var csvURL: URL?
     @State private var didRecordView = false
+    @State private var showingShareOptions = false
 
     init(initialRecap: WeeklyRecap? = nil) {
         _loader = StateObject(wrappedValue: WeeklyRecapLoader(initialRecap: initialRecap))
@@ -59,6 +58,17 @@ struct WeeklyRecapView: View {
                 }
             }
             .task { await loadRecap() }
+            .sheet(isPresented: $showingShareOptions) {
+                if let recap {
+                    WeeklyRecapShareOptionsView(
+                        recap: recap,
+                        weekRangeText: weekRangeText,
+                        useMetric: useMetric
+                    )
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                }
+            }
         }
     }
 
@@ -362,36 +372,34 @@ struct WeeklyRecapView: View {
 
     @ViewBuilder
     private var shareMenu: some View {
-        if let shareImage {
-            Menu {
-                ShareLink(
-                    item: shareImage,
-                    subject: Text("My Week in Motion"),
-                    message: Text(MyFitPlateLinks.shareMessage("My training, fuel, recovery, and Trust story from this week.")),
-                    preview: SharePreview("Week in Motion", image: shareImage)
-                ) {
-                    Label("Share summary image", systemImage: "photo")
-                }
-
-                if let csvURL {
-                    ShareLink(
-                        item: csvURL,
-                        subject: Text("My weekly Training & Fuel data"),
-                        message: Text("Aggregate weekly data from MyFitPlate. Routes, food names, account details, and raw heart-rate samples are not included.")
-                    ) {
-                        Label("Share data as CSV", systemImage: "tablecells")
-                    }
-                }
+        Menu {
+            Button {
+                showingShareOptions = true
             } label: {
-                Label("Share report", systemImage: "square.and.arrow.up")
-                    .frame(maxWidth: .infinity)
+                Label("Choose summary image", systemImage: "photo")
             }
-            .buttonStyle(PrimaryButtonStyle())
-            .simultaneousGesture(TapGesture().onEnded {
-                DIContainer.shared.analyticsManager?.logEvent("weekly_report_share_opened", parameters: nil)
-            })
-            .accessibilityIdentifier("weekly_report_share")
+
+            if let csvURL {
+                ShareLink(
+                    item: csvURL,
+                    subject: Text("My weekly Training & Fuel data"),
+                    message: Text("Aggregate weekly data from MyFitPlate. Routes, food names, account details, and raw heart-rate samples are not included.")
+                ) {
+                    Label("Share data as CSV", systemImage: "tablecells")
+                }
+            }
+        } label: {
+            Label("Share report", systemImage: "square.and.arrow.up")
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(PrimaryButtonStyle())
+        .simultaneousGesture(TapGesture().onEnded {
+            DIContainer.shared.analyticsManager?.logEvent(
+                ProductAnalytics.Event.weeklyReportShareOpened.rawValue,
+                parameters: nil
+            )
+        })
+        .accessibilityIdentifier("weekly_report_share")
     }
 
     @MainActor
@@ -406,7 +414,7 @@ struct WeeklyRecapView: View {
 
         if !didRecordView {
             didRecordView = true
-            DIContainer.shared.analyticsManager?.logEvent("weekly_recap_viewed", parameters: [
+            DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.weeklyRecapViewed.rawValue, parameters: [
                 "days_logged": built.daysLogged,
                 "training_days": built.trainingDays,
                 "workouts": built.workoutsCompleted,
@@ -414,21 +422,7 @@ struct WeeklyRecapView: View {
                 "prs": built.personalRecords + built.runRecordCount
             ])
         }
-        renderShareImage(for: built)
         prepareCSV(for: built)
-    }
-
-    @MainActor
-    private func renderShareImage(for recap: WeeklyRecap) {
-        let renderer = ImageRenderer(content: WeeklyRecapShareCard(
-            recap: recap,
-            weekRangeText: weekRangeText,
-            useMetric: useMetric
-        ))
-        renderer.scale = displayScale
-        if let uiImage = renderer.uiImage {
-            shareImage = Image(uiImage: uiImage)
-        }
     }
 
     private func prepareCSV(for recap: WeeklyRecap) {
@@ -757,11 +751,170 @@ private extension View {
     }
 }
 
+struct WeeklyShareSelection: OptionSet, Equatable {
+    let rawValue: Int
+
+    static let rhythm = WeeklyShareSelection(rawValue: 1 << 0)
+    static let evidence = WeeklyShareSelection(rawValue: 1 << 1)
+    static let observation = WeeklyShareSelection(rawValue: 1 << 2)
+    static let standard: WeeklyShareSelection = [.rhythm, .evidence, .observation]
+}
+
+struct WeeklyRecapShareOptionsView: View {
+    let recap: WeeklyRecap
+    let weekRangeText: String
+    let useMetric: Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.displayScale) private var displayScale
+    @State private var includesRhythm = true
+    @State private var includesEvidence = true
+    @State private var includesObservation = true
+    @State private var shareImage: Image?
+
+    private var selection: WeeklyShareSelection {
+        var selection: WeeklyShareSelection = []
+        if includesRhythm { selection.insert(.rhythm) }
+        if includesEvidence { selection.insert(.evidence) }
+        if includesObservation { selection.insert(.observation) }
+        return selection
+    }
+
+    private var selectedCount: Int {
+        [includesRhythm, includesEvidence, includesObservation].filter { $0 }.count
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("Include in image")
+                        .appFont(size: 20, weight: .bold)
+
+                    VStack(spacing: 0) {
+                        selectionToggle(
+                            title: "Seven-day rhythm",
+                            systemImage: "calendar.day.timeline.left",
+                            identifier: "weeklyShareRhythmToggle",
+                            isOn: $includesRhythm
+                        )
+                        Divider()
+                        selectionToggle(
+                            title: "Evidence summary",
+                            systemImage: "list.bullet.rectangle",
+                            identifier: "weeklyShareEvidenceToggle",
+                            isOn: $includesEvidence
+                        )
+                        Divider()
+                        selectionToggle(
+                            title: "Weekly observation",
+                            systemImage: "quote.bubble.fill",
+                            identifier: "weeklyShareObservationToggle",
+                            isOn: $includesObservation
+                        )
+                    }
+
+                    FixedShareCardPreview {
+                        WeeklyRecapShareCard(
+                            recap: recap,
+                            weekRangeText: weekRangeText,
+                            useMetric: useMetric,
+                            selection: selection
+                        )
+                    }
+                    .accessibilityHidden(true)
+
+                    if let shareImage {
+                        ShareLink(
+                            item: shareImage,
+                            subject: Text("My Week in Motion"),
+                            message: Text(MyFitPlateLinks.shareMessage(
+                                "My training, fuel, recovery, and Trust story from this week."
+                            )),
+                            preview: SharePreview("Week in Motion", image: shareImage)
+                        ) {
+                            Label("Share Week in Motion", systemImage: "square.and.arrow.up")
+                                .appFont(size: 16, weight: .bold)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity, minHeight: 50)
+                                .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        .simultaneousGesture(TapGesture().onEnded(logShareOpened))
+                        .accessibilityIdentifier("weeklyShareCommitButton")
+                    } else {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                }
+                .padding(20)
+            }
+            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .navigationTitle("Share Week in Motion")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task(id: selection.rawValue) {
+                renderShareImage()
+            }
+            .onAppear {
+                DIContainer.shared.analyticsManager?.logEvent(
+                    ProductAnalytics.Event.weeklyReportShareOptionsOpened.rawValue,
+                    parameters: nil
+                )
+            }
+        }
+    }
+
+    private func selectionToggle(
+        title: String,
+        systemImage: String,
+        identifier: String,
+        isOn: Binding<Bool>
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            Label(title, systemImage: systemImage)
+                .appFont(size: 15, weight: .semibold)
+                .foregroundStyle(Color.textPrimary)
+        }
+        .tint(.brandPrimary)
+        .padding(.vertical, 13)
+        .disabled(isOn.wrappedValue && selectedCount == 1)
+        .accessibilityIdentifier(identifier)
+    }
+
+    @MainActor
+    private func renderShareImage() {
+        let renderer = ImageRenderer(content: WeeklyRecapShareCard(
+            recap: recap,
+            weekRangeText: weekRangeText,
+            useMetric: useMetric,
+            selection: selection
+        ))
+        renderer.scale = max(2, displayScale)
+        shareImage = renderer.uiImage.map(Image.init(uiImage:))
+    }
+
+    private func logShareOpened() {
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.weeklyReportShareImageOpened.rawValue,
+            parameters: [
+                "includes_rhythm": includesRhythm,
+                "includes_evidence": includesEvidence,
+                "includes_observation": includesObservation
+            ]
+        )
+    }
+}
+
 /// Fixed-size, aggregate-only card rendered for social sharing.
 struct WeeklyRecapShareCard: View {
     let recap: WeeklyRecap
     let weekRangeText: String
     let useMetric: Bool
+    var selection: WeeklyShareSelection = .standard
 
     private var motion: WeekInMotion { WeekInMotionBuilder.build(from: recap) }
 
@@ -777,74 +930,81 @@ struct WeeklyRecapShareCard: View {
                     .foregroundColor(Color.black.opacity(0.48))
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("WEEK IN MOTION")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(Color(red: 0.00, green: 0.66, blue: 0.38))
-                Text(motion.headline)
-                    .font(.system(size: 25, weight: .bold, design: .rounded))
-                    .foregroundColor(.black)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text("WEEK IN MOTION")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundColor(Color(red: 0.00, green: 0.66, blue: 0.38))
 
-            HStack(alignment: .top, spacing: 0) {
-                ForEach(motion.days, id: \.date) { day in
-                    VStack(spacing: 5) {
-                        Text(day.date.formatted(.dateTime.weekday(.narrow)))
-                            .font(.system(size: 9, weight: .bold, design: .rounded))
-                            .foregroundColor(Color.black.opacity(0.45))
-                        ZStack {
-                            Circle()
-                                .fill(shareTrainingColor(day))
-                                .frame(width: 27, height: 27)
-                            Image(systemName: shareTrainingIcon(day))
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(day.hasTraining ? .white : Color.black.opacity(0.35))
+            if selection.contains(.rhythm) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(motion.headline)
+                        .font(.system(size: 25, weight: .bold, design: .rounded))
+                        .foregroundColor(.black)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(alignment: .top, spacing: 0) {
+                        ForEach(motion.days, id: \.date) { day in
+                            VStack(spacing: 5) {
+                                Text(day.date.formatted(.dateTime.weekday(.narrow)))
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .foregroundColor(Color.black.opacity(0.45))
+                                ZStack {
+                                    Circle()
+                                        .fill(shareTrainingColor(day))
+                                        .frame(width: 27, height: 27)
+                                    Image(systemName: shareTrainingIcon(day))
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(day.hasTraining ? .white : Color.black.opacity(0.35))
+                                }
+                                Circle()
+                                    .fill(day.nutritionLogged
+                                          ? Color(red: 0.20, green: 0.48, blue: 0.78)
+                                          : Color.black.opacity(0.12))
+                                    .frame(width: 6, height: 6)
+                            }
+                            .frame(maxWidth: .infinity)
                         }
-                        Circle()
-                            .fill(day.nutritionLogged
-                                  ? Color(red: 0.20, green: 0.48, blue: 0.78)
-                                  : Color.black.opacity(0.12))
-                            .frame(width: 6, height: 6)
                     }
-                    .frame(maxWidth: .infinity)
                 }
             }
 
-            VStack(spacing: 8) {
-                shareRow(label: "Training", value: shareTrainingValue)
-                shareRow(
-                    label: "Fuel coverage",
-                    value: recap.trainingDays > 0
-                        ? "\(recap.trainingDaysLogged) of \(recap.trainingDays) training days"
-                        : "\(recap.daysLogged) of 7 days"
-                )
-                shareRow(
-                    label: "Recovery",
-                    value: recap.recoveryFuelAdherence.eligible > 0
-                        ? "\(recap.recoveryFuelAdherence.completed) of \(recap.recoveryFuelAdherence.eligible) assessed runs"
-                        : "No assessed window"
-                )
-                shareRow(
-                    label: "Trust",
-                    value: recap.trustReview.eligible > 0
-                        ? "\(recap.trustReview.completed) of \(recap.trustReview.eligible) reviewed"
-                        : "No review required"
-                )
+            if selection.contains(.evidence) {
+                VStack(spacing: 8) {
+                    shareRow(label: "Training", value: shareTrainingValue)
+                    shareRow(
+                        label: "Fuel coverage",
+                        value: recap.trainingDays > 0
+                            ? "\(recap.trainingDaysLogged) of \(recap.trainingDays) training days"
+                            : "\(recap.daysLogged) of 7 days"
+                    )
+                    shareRow(
+                        label: "Recovery",
+                        value: recap.recoveryFuelAdherence.eligible > 0
+                            ? "\(recap.recoveryFuelAdherence.completed) of \(recap.recoveryFuelAdherence.eligible) assessed runs"
+                            : "No assessed window"
+                    )
+                    shareRow(
+                        label: "Trust",
+                        value: recap.trustReview.eligible > 0
+                            ? "\(recap.trustReview.completed) of \(recap.trustReview.eligible) reviewed"
+                            : "No review required"
+                    )
+                }
             }
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(motion.observation.title)
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(shareObservationColor)
-                Text(motion.observation.text)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundColor(.black)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.leading, 10)
-            .overlay(alignment: .leading) {
-                Rectangle().fill(shareObservationColor).frame(width: 3)
+            if selection.contains(.observation) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(motion.observation.title)
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundColor(shareObservationColor)
+                    Text(motion.observation.text)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(.black)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 10)
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(shareObservationColor).frame(width: 3)
+                }
             }
 
             Spacer(minLength: 0)

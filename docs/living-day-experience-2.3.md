@@ -259,19 +259,25 @@ network access. It should expose explicit unavailable and approximate states.
   detachment, and atomic true-duplicate merge. Dated diary history is outside every mutation path.
 - [x] Week in Motion opening report sequence with seven exact day states, denominator-backed
   evidence, one bounded observation, detailed-report handoff, and aggregate-only share image.
-- [ ] VoiceOver, Dynamic Type, Reduce Motion, contrast, dark mode, and compact-device closure.
+- [x] VoiceOver semantic order, Dynamic Type, Reduce Motion, contrast, dark mode, and compact-
+  device closure. Deterministic render and focused UI matrices cover every named state; Peter's
+  physical-device comprehension, spoken cadence, and tactile-motion pass remain rollout gates.
 - [x] Default-off feature flag, old-Home fallback, Home analytics, deterministic screenshots, and
   immediate rollback path. Production cohort rollout remains gated on physical-device validation.
 - [ ] Two reserved slots for the largest repeated 2.2 friction or correctness findings.
 
 ### Should ship
 
-- [ ] Contextual Maia annotation on the current next action.
-- [ ] Medium/large widget adaptation of the current Fuel Path segment.
-- [ ] Shareable Living Day and Week in Motion images with no private raw data. The Week in Motion
-  image is complete; Living Day and shared visible-content selection remain.
-- [ ] User-selectable compact or detailed path density.
-- [ ] CI upgrades away from official Actions that target deprecated Node 20.
+- [x] Contextual Maia annotation on the current next action. Its fixed explanation follows the
+  deterministic rule and can only open the existing action.
+- [x] Medium/large widget adaptation of the current Fuel Path segment with an exact legacy payload
+  and layout fallback.
+- [x] Shareable Living Day and Week in Motion images with explicit coarse-section selection and no
+  account IDs, item names, routes, coordinates, or raw Health samples. Aggregate daily nutrition
+  appears only when the user explicitly selects the Nutrition budget section.
+- [x] User-selectable compact or detailed path density, persisted locally with compact as default.
+- [x] CI upgrades away from Actions that target deprecated Node 20. Current action generations run
+  on Node 24 and project JavaScript jobs run on Node 22.
 
 ### Conditional on evidence
 
@@ -375,8 +381,10 @@ treatment. Failure leaves the original state actionable.
 - Add Week in Motion above the detailed report.
 - Add share renderers and selected widget adaptation.
 
-Exit gate: duplicate management cannot mutate history; shares contain no names, account IDs,
-routes, coordinates, or raw Health samples unless the user explicitly selected visible content.
+Exit gate: duplicate management cannot mutate history; shares contain no item names, account IDs,
+routes, coordinates, or raw Health samples. Users explicitly select only coarse visible sections
+such as rhythm, evidence, budget, path, Trust status, and current action; aggregate daily nutrition
+appears only when the user selects the Nutrition budget section.
 
 Implementation checkpoint (2026-07-12): My Foods is now an operational, searchable library over
 the signed-in user's reusable `customFoods` documents. It supports source/review filters, stable
@@ -398,12 +406,40 @@ aggregate-only rhythm and excludes names, routes, coordinates, account data, and
 samples. Standard, dark, accessibility-extra-extra-extra-large, fixed share, real Reports-screen,
 and legacy end-to-end weekly-report checks pass. Full contract: `week-in-motion-2.3.md`.
 
+Implementation checkpoint (2026-07-13): Living Day and Week in Motion now open explicit share-
+selection sheets with fixed live previews. Living Day projects only aggregate budget status,
+coarse event kinds/states/evidence, Trust review count, and the deterministic action; Week in
+Motion shares only selected rhythm, evidence, and observation bands. Reflection-based Core tests
+reject names, identifiers, routes, coordinates, and raw samples. The medium and large widgets show
+the current coarse path segment when the new optional payload exists and preserve the exact 2.2
+body when it does not. Payload decoding remains backward compatible.
+
+The current action now carries one fixed Maia annotation, compact/detailed density is persisted
+locally, and both are analytics-safe. The inclusive matrix covers ordinary, empty, training,
+recovery, over-target, low-Trust, stale/offline, compact, dark, high-contrast, and largest-text
+states. Actual simulator Dark Mode + Increase Contrast and actual Reduce Motion UI runs pass. The
+snapshot/share/widget projection loop remains well inside its local render budget, feature-flag
+and legacy-payload rollback tests pass, and CI no longer invokes a Node 20 action runtime.
+
 ### Phase 5: release closure
 
-- Resolve the two reserved live-feedback slots.
+- Hold the two reserved live-feedback slots until repeated production evidence exists. Do not fill
+  them with speculative work merely to close a checklist.
 - Run screenshot, UI, device, accessibility, privacy, and performance matrices.
 - Compare the feature-flag cohort with the 2.2 Home baseline.
 - Keep community publication and Trust reweighting out unless their independent evidence gates pass.
+
+Local closure checkpoint (2026-07-13): the complete app-side build queue is implemented. Core
+passes 1,067/1,067 at 85.08% line coverage, the app unit target passes 96/96, and the full UI suite
+passes 17 test methods / 20 concrete executions. The named inclusive render matrix, actual
+Simulator Dark Mode + Increase Contrast, actual Reduce Motion, compact share preview, focused
+Living Day/Week share journeys, strict SwiftLint, project/catalog/diff/privacy checks, CI parse,
+Functions 11/11, Rules 23/23, migrations 10/10, and unsigned generic-device Release build pass.
+The phone, widget, Live Activity, and embedded Watch are version 2.3 build 1; both Watch HealthKit
+purpose strings, required architectures, and privacy manifests are present. The only unfilled app
+slots are the two evidence-reserved slots, intentionally held until repeated production feedback.
+Physical comprehension, spoken/tactile behavior, real widget refresh/deep links, Remote Config
+cohort setup, and signed archive validation remain owner rollout gates in `device-test-2.3.md`.
 
 ## Success measures
 
@@ -444,10 +480,14 @@ Experience guardrails:
    Reduce Motion behavior, VoiceOver announcement, and standard/accessibility render fixtures.
 8. [x] Build My Foods Library with safe history isolation, personal barcode management, atomic
    true-duplicate merge, failure-path coverage, and standard/accessibility render fixtures.
-9. [ ] Add the selected widget slice and remaining Living Day sharing. Week in Motion and its
-   aggregate-only share image are complete.
-10. [ ] Fill the two evidence-reserved slots from 2.2 feedback.
-11. [ ] Close accessibility, device, privacy, performance, and rollback gates.
+9. [x] Add the selected widget slice and Living Day/Week in Motion explicit-selection sharing with
+   legacy widget fallback and aggregate-only privacy tests.
+10. [ ] Fill the two evidence-reserved slots only after repeated live feedback identifies them.
+    They remain intentionally unallocated; no repeated production evidence exists yet.
+11. [x] Close local accessibility, privacy, performance, analytics, CI, and rollback gates.
+    Physical iPhone comprehension, spoken VoiceOver cadence, tactile motion, widget refresh/deep
+    links, signed archive validation, and the production Remote Config cohort remain Peter-owned
+    rollout checks rather than unfinished implementation.
 
 ## Ownership
 

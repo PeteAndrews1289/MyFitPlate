@@ -54,6 +54,22 @@ struct LivingDayTransition: Equatable, Identifiable {
     }
 }
 
+enum LivingDayPathDensity: String, CaseIterable, Identifiable {
+    case compact
+    case detailed
+
+    static let defaultsKey = "living_day_path_density"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .compact: return "Compact path"
+        case .detailed: return "Detailed path"
+        }
+    }
+}
+
 struct LivingDayHomeExperience: View {
     let snapshot: LivingDaySnapshot
     let transition: LivingDayTransition?
@@ -65,14 +81,46 @@ struct LivingDayHomeExperience: View {
     @State private var isExpanded = false
     @State private var presentedTransition: LivingDayTransition?
     @State private var emphasizedEventID: String?
+    @State private var density: LivingDayPathDensity
+    @State private var showingShareOptions = false
+    @State private var didLogExposure = false
+
+    private let persistsDensity: Bool
 
     private let collapsedEventLimit = 2
+
+    init(
+        snapshot: LivingDaySnapshot,
+        transition: LivingDayTransition?,
+        density: LivingDayPathDensity? = nil,
+        onEventSelected: @escaping (LivingDaySnapshot.Event) -> Void,
+        onActionSelected: @escaping (DailyNextAction) -> Void
+    ) {
+        self.snapshot = snapshot
+        self.transition = transition
+        self.onEventSelected = onEventSelected
+        self.onActionSelected = onActionSelected
+        persistsDensity = density == nil
+
+        let storedDensity = UserDefaults.standard.string(forKey: LivingDayPathDensity.defaultsKey)
+            .flatMap(LivingDayPathDensity.init(rawValue:))
+        _density = State(initialValue: density ?? storedDensity ?? .compact)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             header
             LivingDayBudgetView(budget: snapshot.budget)
             LivingDayActionButton(action: snapshot.nextAction) {
+                onActionSelected(snapshot.nextAction)
+            }
+            LivingDayMaiaAnnotation(
+                annotation: DailyNextActionAnnotationRules.make(for: snapshot.nextAction)
+            ) {
+                DIContainer.shared.analyticsManager?.logEvent(
+                    ProductAnalytics.Event.livingDayMaiaAnnotationOpened.rawValue,
+                    parameters: ["action_kind": snapshot.nextAction.kind.rawValue]
+                )
                 onActionSelected(snapshot.nextAction)
             }
             if let presentedTransition {
@@ -82,25 +130,78 @@ struct LivingDayHomeExperience: View {
             timeline
         }
         .frame(maxWidth: 520, alignment: .leading)
-        .accessibilityIdentifier("livingDayHomeExperience")
         .task(id: transition?.id) {
             await presentTransitionIfNeeded()
+        }
+        .onAppear(perform: logExposureIfNeeded)
+        .onChange(of: density) { _, newValue in
+            if persistsDensity {
+                UserDefaults.standard.set(newValue.rawValue, forKey: LivingDayPathDensity.defaultsKey)
+            }
+            if newValue == .compact {
+                isExpanded = false
+            }
+            DIContainer.shared.analyticsManager?.logEvent(
+                ProductAnalytics.Event.livingDayDensityChanged.rawValue,
+                parameters: ["density": newValue.rawValue]
+            )
+        }
+        .sheet(isPresented: $showingShareOptions) {
+            LivingDayShareOptionsView(snapshot: snapshot)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text("Living Day")
-                .appFont(size: 24, weight: .bold)
-                .foregroundStyle(Color.textPrimary)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Living Day")
+                    .appFont(size: 24, weight: .bold)
+                    .foregroundStyle(Color.textPrimary)
+
+                Label(freshness.title, systemImage: freshness.icon)
+                    .appFont(size: 11, weight: .bold)
+                    .foregroundStyle(freshness.color)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Spacer(minLength: 0)
 
-            Label(freshness.title, systemImage: freshness.icon)
-                .appFont(size: 11, weight: .bold)
-                .foregroundStyle(freshness.color)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+            Button {
+                showingShareOptions = true
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .appFont(size: 17, weight: .semibold)
+                    .foregroundStyle(Color.brandPrimary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Share Living Day")
+            .accessibilityIdentifier("livingDayShareButton")
+
+            Menu {
+                ForEach(LivingDayPathDensity.allCases) { option in
+                    Button {
+                        density = option
+                    } label: {
+                        Label(
+                            option.title,
+                            systemImage: density == option ? "checkmark" : option.icon
+                        )
+                    }
+                }
+            } label: {
+                Image(systemName: density.icon)
+                    .appFont(size: 17, weight: .semibold)
+                    .foregroundStyle(Color.brandPrimary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Path density")
+            .accessibilityValue(density.title)
+            .accessibilityIdentifier("livingDayDensityMenu")
         }
     }
 
@@ -113,7 +214,7 @@ struct LivingDayHomeExperience: View {
 
                 Spacer(minLength: 0)
 
-                if snapshot.events.count > collapsedEventLimit {
+                if density == .compact, snapshot.events.count > collapsedEventLimit {
                     Button {
                         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                             isExpanded.toggle()
@@ -172,6 +273,7 @@ struct LivingDayHomeExperience: View {
 
     private var visibleEvents: [LivingDaySnapshot.Event] {
         let events = snapshot.events
+        guard density == .compact else { return events }
         guard !isExpanded, events.count > collapsedEventLimit else { return events }
 
         if let emphasizedEventID,
@@ -223,6 +325,29 @@ struct LivingDayHomeExperience: View {
         reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.34, dampingFraction: 0.82)
     }
 
+    private func logExposureIfNeeded() {
+        guard !didLogExposure else { return }
+        didLogExposure = true
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.livingDayViewed.rawValue,
+            parameters: [
+                "path_event_count": snapshot.events.count,
+                "has_training": snapshot.trainingWindow != nil,
+                "freshness": analyticsFreshness,
+                "next_action_kind": snapshot.nextAction.kind.rawValue,
+                "density": density.rawValue
+            ]
+        )
+    }
+
+    private var analyticsFreshness: String {
+        switch snapshot.freshness {
+        case .current: return "current"
+        case .stale: return "stale"
+        case .unavailable: return "unavailable"
+        }
+    }
+
     private var eventTransition: AnyTransition {
         if reduceMotion { return .opacity }
         return .asymmetric(
@@ -243,10 +368,13 @@ struct LivingDayHomeExperience: View {
             presentedTransition = transition
             emphasizedEventID = transition.eventID
         }
-        DIContainer.shared.analyticsManager?.logEvent("living_day_transition_presented", parameters: [
-            "kind": transition.kind.rawValue,
-            "matched_event": snapshot.events.contains(where: { $0.id == transition.eventID })
-        ])
+        DIContainer.shared.analyticsManager?.logEvent(
+            ProductAnalytics.Event.livingDayTransitionPresented.rawValue,
+            parameters: [
+                "kind": transition.kind.rawValue,
+                "matched_event": snapshot.events.contains(where: { $0.id == transition.eventID })
+            ]
+        )
         UIAccessibility.post(
             notification: .announcement,
             argument: "\(transition.title). \(transition.detail)"
@@ -300,6 +428,46 @@ private struct LivingDayTransitionNotice: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(transition.title). \(transition.detail)")
+    }
+}
+
+private struct LivingDayMaiaAnnotation: View {
+    let annotation: DailyNextActionAnnotation
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "bubble.left.and.text.bubble.right.fill")
+                    .appFont(size: 13, weight: .semibold)
+                    .foregroundStyle(Color.brandPrimary)
+                    .frame(width: 30, height: 30)
+                    .background(Color.brandPrimary.opacity(0.1), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Maia")
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundStyle(Color.brandPrimary)
+                    Text(annotation.text)
+                        .appFont(size: 12, weight: .medium)
+                        .foregroundStyle(Color.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .appFont(size: 10, weight: .bold)
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 10)
+            }
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Maia. \(annotation.text)")
+        .accessibilityHint("Opens the current action")
+        .accessibilityIdentifier("livingDayMaiaAnnotation")
     }
 }
 
@@ -418,6 +586,7 @@ private struct LivingDayActionButton: View {
             value: action
         )
         .accessibilityHint(action.accessibilityHint)
+        .accessibilityIdentifier("livingDayCurrentAction")
     }
 }
 
@@ -441,9 +610,33 @@ private struct LivingDayTimelineRow: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(event.accessibilitySummary)
+        .accessibilityIdentifier("livingDayEvent")
+    }
+
+    @ViewBuilder
+    private var rowLayout: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            accessibilityRow
+        } else {
+            standardRow
+        }
     }
 
     private var row: some View {
+        rowLayout
+            .contentShape(Rectangle())
+            .padding(.vertical, 2)
+            .overlay(alignment: .leading) {
+                if isEmphasized {
+                    Rectangle()
+                        .fill(event.color)
+                        .frame(width: 3)
+                        .transition(.opacity)
+                }
+            }
+    }
+
+    private var standardRow: some View {
         HStack(alignment: .top, spacing: 12) {
             Text(event.startDate.formatted(date: .omitted, time: .shortened))
                 .appFont(size: 11, weight: .semibold)
@@ -451,39 +644,18 @@ private struct LivingDayTimelineRow: View {
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-                .frame(width: dynamicTypeSize.isAccessibilitySize ? 74 : 68, alignment: .trailing)
+                .frame(width: 68, alignment: .trailing)
 
             VStack(spacing: 0) {
                 LivingDayEventNode(event: event, isEmphasized: isEmphasized)
                 if showsConnector {
                     Rectangle()
                         .fill(Color.secondary.opacity(0.22))
-                        .frame(width: 2, height: dynamicTypeSize.isAccessibilitySize ? 62 : 42)
+                        .frame(width: 2, height: 42)
                 }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(event.title)
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundStyle(Color.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if event.timing == .approximate {
-                        Text("Approx.")
-                            .appFont(size: 9, weight: .bold)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Text(event.detail)
-                    .appFont(size: 12, weight: .medium)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-
-                eventMetadata
-            }
-            .padding(.top, 1)
+            eventContent
 
             Spacer(minLength: 0)
 
@@ -494,14 +666,82 @@ private struct LivingDayTimelineRow: View {
                     .padding(.top, 11)
             }
         }
-        .contentShape(Rectangle())
-        .padding(.vertical, 2)
-        .overlay(alignment: .leading) {
-            if isEmphasized {
-                Rectangle()
-                    .fill(event.color)
-                    .frame(width: 3)
-                    .transition(.opacity)
+    }
+
+    private var accessibilityRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(event.startDate.formatted(date: .omitted, time: .shortened))
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+
+                if event.timing == .approximate {
+                    Text("Approximate time")
+                        .appFont(size: 9, weight: .bold)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                if event.destination != .none {
+                    Image(systemName: "chevron.right")
+                        .appFont(size: 10, weight: .bold)
+                        .foregroundStyle(Color(uiColor: .tertiaryLabel))
+                }
+            }
+
+            HStack(alignment: .top, spacing: 12) {
+                VStack(spacing: 0) {
+                    LivingDayEventNode(event: event, isEmphasized: isEmphasized)
+                    if showsConnector {
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.22))
+                            .frame(width: 2, height: 72)
+                    }
+                }
+
+                eventContent
+
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private var eventContent: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            eventHeading
+
+            Text(event.detail)
+                .appFont(size: 12, weight: .medium)
+                .foregroundStyle(.secondary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+
+            eventMetadata
+        }
+        .padding(.top, 1)
+    }
+
+    @ViewBuilder
+    private var eventHeading: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Text(event.title)
+                .appFont(size: 15, weight: .bold)
+                .foregroundStyle(Color.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(event.title)
+                    .appFont(size: 15, weight: .bold)
+                    .foregroundStyle(Color.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if event.timing == .approximate {
+                    Text("Approx.")
+                        .appFont(size: 9, weight: .bold)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -610,6 +850,15 @@ private struct LivingDayNowMarker: View {
             .frame(minHeight: 28)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Current time, \(currentTime.formatted(date: .omitted, time: .shortened))")
+        }
+    }
+}
+
+private extension LivingDayPathDensity {
+    var icon: String {
+        switch self {
+        case .compact: return "line.3.horizontal.decrease"
+        case .detailed: return "list.bullet"
         }
     }
 }

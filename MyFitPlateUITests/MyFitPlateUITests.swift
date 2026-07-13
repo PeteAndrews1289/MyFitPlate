@@ -116,6 +116,103 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testLivingDayOrdersActionsAndOffersExplicitShareSelection() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "home",
+            "-living-day-home"
+        ]
+        app.launch()
+
+        let surface = app.staticTexts["Living Day"]
+        let action = app.descendants(matching: .any)["livingDayCurrentAction"]
+        let maia = app.descendants(matching: .any)["livingDayMaiaAnnotation"]
+        let firstEvent = app.descendants(matching: .any)
+            .matching(identifier: "livingDayEvent")
+            .firstMatch
+        let share = app.descendants(matching: .any)["livingDayShareButton"]
+        let density = app.descendants(matching: .any)["livingDayDensityMenu"]
+
+        XCTAssertTrue(surface.waitForExistence(timeout: 10))
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertTrue(maia.waitForExistence(timeout: 5))
+        XCTAssertTrue(firstEvent.waitForExistence(timeout: 5))
+        XCTAssertTrue(share.isHittable)
+        XCTAssertTrue(density.isHittable)
+        XCTAssertLessThan(action.frame.minY, maia.frame.minY)
+        XCTAssertLessThan(maia.frame.minY, firstEvent.frame.minY)
+
+        density.tap()
+        let detailedPath = app.buttons["Detailed path"]
+        XCTAssertTrue(detailedPath.waitForExistence(timeout: 3))
+        detailedPath.tap()
+
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        share.tap()
+        XCTAssertTrue(app.navigationBars["Share Living Day"].waitForExistence(timeout: 5))
+
+        let budget = app.switches["livingDayShareBudgetToggle"]
+        let path = app.switches["livingDaySharePathToggle"]
+        let trust = app.switches["livingDayShareTrustToggle"]
+        let nextAction = app.switches["livingDayShareActionToggle"]
+        XCTAssertTrue(budget.waitForExistence(timeout: 5))
+        XCTAssertTrue(path.exists)
+        XCTAssertTrue(trust.exists)
+        XCTAssertTrue(nextAction.exists)
+
+        trust.tap()
+        budget.tap()
+        XCTAssertTrue(path.isEnabled)
+        XCTAssertTrue(nextAction.isEnabled)
+
+        let commit = app.descendants(matching: .any)["livingDayShareCommitButton"]
+        for _ in 0..<4 where !commit.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(commit.waitForExistence(timeout: 5))
+        XCTAssertTrue(commit.isHittable)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Living Day explicit share selection"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testLivingDaySupportsLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "home",
+            "-living-day-home",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let surface = app.staticTexts["Living Day"]
+        let action = app.descendants(matching: .any)["livingDayCurrentAction"]
+        XCTAssertTrue(surface.waitForExistence(timeout: 10))
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(action.frame.minX, app.frame.minX - 1)
+        XCTAssertLessThanOrEqual(action.frame.maxX, app.frame.maxX + 1)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Living Day accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testSettingsFeedbackAndShareRowsAreReachable() throws {
         let app = XCUIApplication()
         app.terminate()
@@ -307,6 +404,27 @@ final class MyFitPlateUITests: XCTestCase {
         bottomScreenshot.name = "Unified Training and Fuel report - context and share"
         bottomScreenshot.lifetime = .keepAlways
         add(bottomScreenshot)
+
+        share.tap()
+        let chooseImage = app.buttons["Choose summary image"]
+        XCTAssertTrue(chooseImage.waitForExistence(timeout: 3))
+        chooseImage.tap()
+        XCTAssertTrue(app.navigationBars["Share Week in Motion"].waitForExistence(timeout: 5))
+
+        let rhythm = app.switches["weeklyShareRhythmToggle"]
+        let evidence = app.switches["weeklyShareEvidenceToggle"]
+        let observation = app.switches["weeklyShareObservationToggle"]
+        XCTAssertTrue(rhythm.waitForExistence(timeout: 5))
+        XCTAssertTrue(evidence.exists)
+        XCTAssertTrue(observation.exists)
+        evidence.tap()
+
+        let shareImage = app.descendants(matching: .any)["weeklyShareCommitButton"]
+        for _ in 0..<4 where !shareImage.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(shareImage.waitForExistence(timeout: 5))
+        XCTAssertTrue(shareImage.isHittable)
     }
 
     @MainActor

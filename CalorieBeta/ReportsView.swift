@@ -171,7 +171,7 @@ struct ReportsView: View {
                 WeekInMotionView(recap: recap) {
                     HapticManager.instance.feedback(.light)
                     DIContainer.shared.analyticsManager?.logEvent(
-                        "week_in_motion_detail_opened",
+                        ProductAnalytics.Event.weekInMotionDetailOpened.rawValue,
                         parameters: [
                             "observation_kind": observation.kind.rawValue,
                             "observation_tone": observation.tone.rawValue
@@ -224,7 +224,7 @@ struct ReportsView: View {
         guard !didLogWeekInMotion, let recap = weeklyRecapLoader.recap else { return }
         didLogWeekInMotion = true
         let motion = WeekInMotionBuilder.build(from: recap)
-        DIContainer.shared.analyticsManager?.logEvent("week_in_motion_viewed", parameters: [
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.weekInMotionViewed.rawValue, parameters: [
             "days_logged": recap.daysLogged,
             "training_days": recap.trainingDays,
             "recovery_eligible": recap.recoveryFuelAdherence.eligible,

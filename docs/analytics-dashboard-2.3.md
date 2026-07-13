@@ -73,6 +73,28 @@ Never attach food names, serving text, barcodes, nutrition values, document IDs,
 account identifiers. Treat an action as successful only after its custom-food write commits. The
 primary guardrail is failed mutation rate; deletion and merge counts are not engagement goals.
 
+## Living Day indicators
+
+Living Day is a deterministic view over existing data, not a new health score. Its events measure
+whether the hierarchy is understandable and whether users reach an existing workflow.
+
+| Behavior | Event and allowed parameters |
+|---|---|
+| Path exposure | `living_day_viewed`: aggregate `path_event_count`, boolean `has_training`, and enums `freshness`, `next_action_kind`, and `density` |
+| Path node opened | `living_day_event_opened`: enums `kind`, `state`, and `evidence` |
+| Current action opened | `living_day_action_opened`: enum `kind` |
+| Persisted transition shown | `living_day_transition_presented`: enum `kind` and boolean `matched_event` |
+| Maia context opened | `living_day_maia_annotation_opened`: enum `action_kind` only |
+| Density changed | `living_day_density_changed`: enum `density` only |
+| Share choices opened | `living_day_share_options_opened`: no additional payload |
+| Selected share committed | `living_day_share_opened`: booleans `includes_budget`, `includes_path`, `includes_trust`, and `includes_action`, plus aggregate `path_event_count` |
+
+The Maia annotation explains the already-selected deterministic action; this event is not evidence
+that Maia chose or changed the action. Share telemetry records only which coarse sections the user
+included. Never attach event titles, meal or workout names, serving text, nutrition values, Trust
+findings, account identifiers, routes, coordinates, timestamps, freeform Maia text, or raw Health
+samples.
+
 ## Week in Motion indicators
 
 Week in Motion is an opening report story, not a score or a success event.
@@ -82,6 +104,8 @@ Week in Motion is an opening report story, not a score or a success event.
 | Opening story available | `week_in_motion_viewed`: aggregate `days_logged`, `training_days`, `recovery_eligible`, `trust_eligible`, plus enums `observation_kind` and `observation_tone` |
 | Detailed report requested | `week_in_motion_detail_opened`: enums `observation_kind` and `observation_tone` only |
 | Existing share menu opened | `weekly_report_share_opened`: no additional payload |
+| Share choices opened | `weekly_report_share_options_opened`: no additional payload |
+| Selected share committed | `weekly_report_share_image_opened`: booleans `includes_rhythm`, `includes_evidence`, and `includes_observation` |
 
 Do not attach day-level timestamps, food or routine names, routes, coordinates, nutrition values,
 raw Health samples, observation prose, or account identifiers. Observation kind and tone are
@@ -159,13 +183,16 @@ Peter must complete the console-side setup after the instrumented build produces
    `trust_level`, `action`, `evidence_class`, `serving_evidence`, `sanity_profile`,
    `correction_scope`, `resulting_sanity`, `resulting_review_status`, `phase`,
    `confirmation_path`, `notification_type`, `area`, `operation`, and deletion `reason`.
-   Before 2.3 analysis, also register `filter`, `observation_kind`, and `observation_tone`.
+   Before 2.3 analysis, also register `filter`, `observation_kind`, `observation_tone`,
+   `freshness`, `next_action_kind`, `density`, `action_kind`, `kind`, `state`, `evidence`,
+   `has_training`, `matched_event`, `includes_budget`, `includes_path`, `includes_trust`,
+   `includes_action`, `includes_rhythm`, `includes_evidence`, and `includes_observation`.
 2. Register numeric metrics where Firebase requires it: `elapsed_seconds`, `duration_ms`,
    `trust_score`, `cross_verified_count`, `sanity_finding_count`,
    `resulting_sanity_finding_count`, `item_count`, and operational import counts.
-   The 2.3 My Foods/Week additions are `saved_count`, `personal_match_count`,
+   The 2.3 My Foods/Living Day/Week additions are `saved_count`, `personal_match_count`,
    `needs_review_count`, `duplicate_group_count`, `days_logged`, `training_days`,
-   `recovery_eligible`, and `trust_eligible`.
+   `recovery_eligible`, `trust_eligible`, and `path_event_count`.
 3. Mark `first_food_logged`, `first_workout_completed`,
    `nutrition_training_loop_completed`, and `mfp_import_completed` as key events.
 4. Build one Activation exploration and one Launch Health exploration from the definitions
@@ -176,13 +203,14 @@ Peter must complete the console-side setup after the instrumented build produces
    inside, Firebase's app-instance funnel.
 8. After 7-14 clean days, record the 2.2 baseline and set alert thresholds in this document.
 
-Console state on 2026-07-12: items 1-5 are configured. The property has 36 event-scoped
+Console state on 2026-07-12: items 1-5 are configured for the replacement 2.2 schema. The property has 36 event-scoped
 dimensions and 15 custom metrics, the four completion outcomes are key events, the `2.2
 Activation` and `2.2 Launch Health` explorations are saved, and Crashlytics fatal, non-fatal,
 regressed, trending, and velocity email alerts are enabled. Items 6-8 require signed build 3
 traffic or post-release acquisition data and remain operating follow-through rather than code
-gates. The explicitly listed 2.3 My Foods/Week definitions are new and remain pending until an
-instrumented 2.3 build produces their parameters.
+gates. The explicitly listed 2.3 My Foods, Living Day, and Week in Motion definitions are new and
+remain pending until an instrumented 2.3 build produces their parameters. Do not create those
+definitions from guessed values before DebugView or a signed build confirms the exact parameters.
 
 ## Ownership and rollout
 

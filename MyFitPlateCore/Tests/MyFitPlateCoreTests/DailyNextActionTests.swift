@@ -150,6 +150,43 @@ final class DailyNextActionTests: XCTestCase {
         XCTAssertEqual(invalidAction.kind, .steadyDay)
     }
 
+    func testMaiaAnnotationStaysBoundToEveryDeterministicAction() {
+        for kind in DailyNextAction.Kind.allCases {
+            let action = DailyNextAction(
+                kind: kind,
+                title: "Private presentation title",
+                detail: "Private presentation detail",
+                deepLink: "myfitplate://test/\(kind.rawValue)"
+            )
+
+            let annotation = DailyNextActionAnnotationRules.make(for: action)
+
+            XCTAssertEqual(annotation.actionKind, kind)
+            XCTAssertEqual(annotation.deepLink, action.deepLink)
+            XCTAssertFalse(annotation.text.isEmpty)
+            XCTAssertFalse(annotation.text.contains(action.title))
+            XCTAssertFalse(annotation.text.contains(action.detail))
+            XCTAssertLessThanOrEqual(annotation.text.count, 100)
+        }
+    }
+
+    func testMaiaAnnotationUsesHumanLanguageWithoutMakingNewClaims() {
+        let recovery = DailyNextAction(
+            kind: .recoveryMeal,
+            title: "Log recovery fuel",
+            detail: "25 g protein + 45 g carbs",
+            deepLink: "myfitplate://training-fuel"
+        )
+        let annotation = DailyNextActionAnnotationRules.make(for: recovery)
+
+        XCTAssertEqual(
+            annotation.text,
+            "You've done the work. This target keeps recovery inside what is left today."
+        )
+        XCTAssertFalse(annotation.text.contains("45"))
+        XCTAssertFalse(annotation.text.lowercased().contains("optimal"))
+    }
+
     private func confirmedPlan(
         start: Date,
         confirmedAt: Date,

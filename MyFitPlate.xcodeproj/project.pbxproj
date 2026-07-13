@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4B5BEE242E1EE5A500EF366C /* MyFitPlateWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = E7659EAD2E7A263BBC681565 /* MyFitPlateWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		02FA4AF952FDA646780FFC99 /* HealthActivityCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 474393F656E359C15028DD41 /* HealthActivityCard.swift */; };
 		035E97655B630DBAC9C29290 /* FirestoreDatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB95651294D4A7D538913023 /* FirestoreDatabaseService.swift */; };
 		086975417A5AC78E43FCB812 /* PostRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CC190EEE53A5F355CAED792 /* PostRowView.swift */; };
@@ -69,6 +68,7 @@
 		4B46941A2DCD118C006F1F86 /* CreateRecipeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B4694192DCD1186006F1F86 /* CreateRecipeView.swift */; };
 		4B46941C2DCE59BF006F1F86 /* ReportsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B46941B2DCE59AE006F1F86 /* ReportsViewModel.swift */; };
 		4B52090C5864D02B7F5FB8D9 /* WorkoutReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0D3096513C51AD152B50BA /* WorkoutReport.swift */; };
+		4B5BEE242E1EE5A500EF366C /* MyFitPlateWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = E7659EAD2E7A263BBC681565 /* MyFitPlateWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4B6046A92DEE1F0E000B4A46 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 4B6046A82DEE1F0E000B4A46 /* FirebaseCrashlytics */; };
 		4BA2DB3C2D42A38B00B6BDED /* MLImageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA2DB3B2D42A37B00B6BDED /* MLImageModel.swift */; };
 		4BC927C32FF199C400C46AA9 /* MyFitPlateCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC927C22FF199C400C46AA9 /* MyFitPlateCore */; };
@@ -134,8 +134,6 @@
 		9A744407266AED50FC9CFE18 /* WeeklyRecapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD3DB29E78F7C168EF51C1B /* WeeklyRecapView.swift */; };
 		9AC8EED4B548E2C96D674464 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4180672E4964440B1FB6DD68 /* ImagePicker.swift */; };
 		9B789140A83C3CFC871CD982 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53B7A21F718ECDDA786A5100 /* MainTabView.swift */; };
-		B30000000000000000000001 /* LivingDayPrototypeGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000001 /* LivingDayPrototypeGallery.swift */; };
-		B30000000000000000000002 /* LivingDayHomeExperience.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000002 /* LivingDayHomeExperience.swift */; };
 		9B9FDCF8A32649902D48552F /* UserProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 474B671A01476E32396D1127 /* UserProfileView.swift */; };
 		9D4B6C42B60F3D4A4CC5C341 /* MyFitPlateCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC927C22FF199C400C46AA9 /* MyFitPlateCore */; };
 		9E72528672FD4636311C2A65 /* DetailedInsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16452663171ACDF10A869684 /* DetailedInsightsView.swift */; };
@@ -167,7 +165,10 @@
 		B23000000000000000000003 /* MyFoodsLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000003 /* MyFoodsLibraryView.swift */; };
 		B23000000000000000000004 /* WeeklyRecapLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000004 /* WeeklyRecapLoader.swift */; };
 		B23000000000000000000005 /* WeekInMotionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000005 /* WeekInMotionView.swift */; };
+		B23000000000000000000006 /* LivingDayShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000006 /* LivingDayShareView.swift */; };
 		B240FB7DB053BE65F6ED7E5B /* ProgramCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25DBAC08245DF730F4A57058 /* ProgramCreatorView.swift */; };
+		B30000000000000000000001 /* LivingDayPrototypeGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000001 /* LivingDayPrototypeGallery.swift */; };
+		B30000000000000000000002 /* LivingDayHomeExperience.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000002 /* LivingDayHomeExperience.swift */; };
 		B3490F4AF6B8367BA0EE972E /* GroceryListRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDBF64359556D6DA0B848C78 /* GroceryListRows.swift */; };
 		B3766EBB4E84B3A67F2838B1 /* WorkoutPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2781B8ECF8FB8D8FBC67FE8 /* WorkoutPlayerViewModel.swift */; };
 		B3D7426C035BF7C145890D3E /* WorkoutInsightRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB8A1A2D3339E67B5D3DFE15 /* WorkoutInsightRowView.swift */; };
@@ -380,8 +381,6 @@
 		517B4E7447CE20FDB3548868 /* WorkoutCompleteAnalyticsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutCompleteAnalyticsView.swift; sourceTree = "<group>"; };
 		51BAE1366F527542235F3820 /* WorkoutInsightListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutInsightListView.swift; sourceTree = "<group>"; };
 		53B7A21F718ECDDA786A5100 /* MainTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
-		A30000000000000000000001 /* LivingDayPrototypeGallery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LivingDayPrototypeGallery.swift; sourceTree = "<group>"; };
-		A30000000000000000000002 /* LivingDayHomeExperience.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LivingDayHomeExperience.swift; sourceTree = "<group>"; };
 		54473EE46835F753086266F6 /* SetWaterGoalView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SetWaterGoalView.swift; sourceTree = "<group>"; };
 		54E45C44C964310D562B526C /* GlobalImports.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlobalImports.swift; sourceTree = "<group>"; };
 		596F113E58BF96F6625FA145 /* QuickAddMacrosView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickAddMacrosView.swift; sourceTree = "<group>"; };
@@ -430,6 +429,8 @@
 		9F4F9AAB73ED0E3461738A51 /* WelcomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		A27511C94B27F0BEB20F9B5B /* FirestoreReportsRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreReportsRepository.swift; sourceTree = "<group>"; };
 		A2781B8ECF8FB8D8FBC67FE8 /* WorkoutPlayerViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutPlayerViewModel.swift; sourceTree = "<group>"; };
+		A30000000000000000000001 /* LivingDayPrototypeGallery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LivingDayPrototypeGallery.swift; sourceTree = "<group>"; };
+		A30000000000000000000002 /* LivingDayHomeExperience.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LivingDayHomeExperience.swift; sourceTree = "<group>"; };
 		A314E4E4DA84B9119ED26E82 /* MealSuggestionCardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealSuggestionCardView.swift; sourceTree = "<group>"; };
 		A411836458D36A8BCD415382 /* MainAppView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MainAppView.swift; sourceTree = "<group>"; };
 		A547C2EFB15F007A0AE43DC3 /* ReportsViewComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReportsViewComponents.swift; sourceTree = "<group>"; };
@@ -505,6 +506,7 @@
 		F23000000000000000000003 /* MyFoodsLibraryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MyFoodsLibraryView.swift; sourceTree = "<group>"; };
 		F23000000000000000000004 /* WeeklyRecapLoader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyRecapLoader.swift; sourceTree = "<group>"; };
 		F23000000000000000000005 /* WeekInMotionView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeekInMotionView.swift; sourceTree = "<group>"; };
+		F23000000000000000000006 /* LivingDayShareView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LivingDayShareView.swift; sourceTree = "<group>"; };
 		F63BD33A24942200DB828B77 /* AISummaryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AISummaryView.swift; sourceTree = "<group>"; };
 		F95DB8CA120BD855D269D6AE /* HomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		F99B0ADD63EACCE1DE4D43C9 /* FirestoreSeeder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreSeeder.swift; sourceTree = "<group>"; };
@@ -785,6 +787,7 @@
 				53B7A21F718ECDDA786A5100 /* MainTabView.swift */,
 				F95DB8CA120BD855D269D6AE /* HomeView.swift */,
 				A30000000000000000000002 /* LivingDayHomeExperience.swift */,
+				F23000000000000000000006 /* LivingDayShareView.swift */,
 				A30000000000000000000001 /* LivingDayPrototypeGallery.swift */,
 				F23000000000000000000001 /* TrainingFuelPlannerView.swift */,
 				F23000000000000000000004 /* WeeklyRecapLoader.swift */,
@@ -1443,6 +1446,7 @@
 				9B789140A83C3CFC871CD982 /* MainTabView.swift in Sources */,
 				84940528533254B02ECEFE50 /* HomeView.swift in Sources */,
 				B30000000000000000000002 /* LivingDayHomeExperience.swift in Sources */,
+				B23000000000000000000006 /* LivingDayShareView.swift in Sources */,
 				B30000000000000000000001 /* LivingDayPrototypeGallery.swift in Sources */,
 				B23000000000000000000001 /* TrainingFuelPlannerView.swift in Sources */,
 				B23000000000000000000004 /* WeeklyRecapLoader.swift in Sources */,
@@ -1731,7 +1735,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = CalorieBeta/CalorieBeta.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"CalorieBeta/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
@@ -1761,7 +1765,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.5;
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1784,7 +1788,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = CalorieBeta/CalorieBeta.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"CalorieBeta/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
@@ -1814,7 +1818,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.5;
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1836,7 +1840,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = CalorieWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieWidget/Info.plist;
@@ -1848,7 +1852,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.CalorieWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1866,7 +1870,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = CalorieWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CalorieWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CalorieWidget;
@@ -1877,7 +1881,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.CalorieWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1895,7 +1899,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_ASSET_PATHS = "\"MyFitPlateWatch Watch App/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
@@ -1909,7 +1913,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1927,7 +1931,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"MyFitPlateWatch Watch App/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1940,7 +1944,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -2055,7 +2059,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LiveActivity/Info.plist;
@@ -2067,7 +2071,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.LiveActivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -2088,7 +2092,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LiveActivity/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = LiveActivity;
@@ -2099,7 +2103,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2;
+				MARKETING_VERSION = 2.3;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = MyFitPlate.CalorieBeta.LiveActivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";

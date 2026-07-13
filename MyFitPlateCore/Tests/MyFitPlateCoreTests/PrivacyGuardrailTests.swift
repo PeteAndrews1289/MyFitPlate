@@ -89,4 +89,32 @@ final class PrivacyGuardrailTests: XCTestCase {
             XCTAssertNil(result?[key], key)
         }
     }
+
+    func testAnalyticsSanitizerKeepsLivingDayAggregateDimensions() {
+        let result = AnalyticsPrivacy.sanitizedParameters([
+            "path_event_count": 4,
+            "has_training": true,
+            "freshness": "current",
+            "next_action_kind": "recovery_meal",
+            "density": "compact",
+            "includes_budget": true,
+            "includes_path": true,
+            "includes_trust": false,
+            "includes_action": true,
+            "food_name": "Private meal",
+            "route": "Private GPS route"
+        ])
+
+        XCTAssertEqual(result?["path_event_count"] as? Int, 4)
+        XCTAssertEqual(result?["has_training"] as? Bool, true)
+        XCTAssertEqual(result?["freshness"] as? String, "current")
+        XCTAssertEqual(result?["next_action_kind"] as? String, "recovery_meal")
+        XCTAssertEqual(result?["density"] as? String, "compact")
+        XCTAssertEqual(result?["includes_budget"] as? Bool, true)
+        XCTAssertEqual(result?["includes_path"] as? Bool, true)
+        XCTAssertEqual(result?["includes_trust"] as? Bool, false)
+        XCTAssertEqual(result?["includes_action"] as? Bool, true)
+        XCTAssertNil(result?["food_name"])
+        XCTAssertNil(result?["route"])
+    }
 }

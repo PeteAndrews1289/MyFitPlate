@@ -318,4 +318,52 @@ final class LivingDaySnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.nextAction.title, "Your Plan Covers Protein")
         XCTAssertEqual(snapshot.nextAction.deepLink, "myfitplate://meal-plan")
     }
+
+    func testSnapshotAndPrivacyProjectionStayWithinLocalRenderBudget() {
+        let breakfast = FoodItem(
+            id: "performance-breakfast",
+            name: "Breakfast",
+            calories: 510,
+            protein: 34,
+            carbs: 58,
+            fats: 16,
+            timestamp: day.addingTimeInterval(8 * 60 * 60)
+        )
+        let log = DailyLog(
+            date: day,
+            meals: [Meal(name: "Breakfast", foodItems: [breakfast])]
+        )
+        let activity = LivingDayActivityInput(
+            id: "performance-run",
+            kind: .run,
+            title: "Easy run",
+            detail: "45 min",
+            startDate: day.addingTimeInterval(17 * 60 * 60),
+            endDate: day.addingTimeInterval(17.75 * 60 * 60),
+            state: .planned,
+            destination: .runs
+        )
+
+        let startedAt = Date().timeIntervalSinceReferenceDate
+        var projectedEventCount = 0
+        for _ in 0..<300 {
+            let snapshot = LivingDaySnapshotBuilder.make(
+                date: day,
+                now: day.addingTimeInterval(12 * 60 * 60),
+                dailyLog: log,
+                goals: goals,
+                activities: [activity],
+                calendar: calendar
+            )
+            projectedEventCount += WidgetPathProjection.make(from: snapshot).count
+            projectedEventCount += LivingDayShareBuilder.make(
+                from: snapshot,
+                selection: [.budget, .path, .trust, .action]
+            ).events.count
+        }
+        let elapsed = Date().timeIntervalSinceReferenceDate - startedAt
+
+        XCTAssertEqual(projectedEventCount, 1_200)
+        XCTAssertLessThan(elapsed, 3, "Living Day assembly must remain presentation-local and fast.")
+    }
 }

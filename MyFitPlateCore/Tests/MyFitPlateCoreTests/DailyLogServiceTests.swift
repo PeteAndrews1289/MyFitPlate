@@ -469,7 +469,7 @@ final class DailyLogServiceTests: XCTestCase {
         service.activelyViewedDate = date
         mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: []))
         
-        var food = FoodItem(id: "f1", name: "Apple", calories: 95)
+        let food = FoodItem(id: "f1", name: "Apple", calories: 95)
         // Add a case where normalizedForEstimatedSource changes calories if source is some specific string
         // Actually we just test that the logging calls the normalizer and adds it.
         service.addFoodToLog(for: "user", date: date, mealName: "Snack", foodItem: food, source: "estimate")

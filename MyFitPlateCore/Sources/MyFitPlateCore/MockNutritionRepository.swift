@@ -119,10 +119,10 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
 
     public func deletePantryItem(userID: String, itemID: String) async throws {
         if let pantryItemError { throw pantryItemError }
-        lock.lock()
-        deletedPantryUserIDs.append(userID)
-        deletedPantryItemIDs.append(itemID)
-        lock.unlock()
+        lock.withLock {
+            deletedPantryUserIDs.append(userID)
+            deletedPantryItemIDs.append(itemID)
+        }
     }
     public var mockRecipes: [Recipe] = []
     public var savedRecipes: [Recipe] = []
