@@ -290,6 +290,77 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testFoodDetailKeepsTrustEvidenceAheadOfNutritionSummary() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "trust"
+        ]
+        app.launch()
+
+        let identity = app.descendants(matching: .any)["food_detail_identity"]
+        let receipt = app.descendants(matching: .any)["food_trust_receipt"]
+        let score = app.descendants(matching: .any)["food_trust_score"]
+        let macros = app.descendants(matching: .any)["food_detail_macro_summary"]
+        let logAction = app.buttons["food_detail_log_action"]
+
+        XCTAssertTrue(identity.waitForExistence(timeout: 10))
+        XCTAssertTrue(receipt.waitForExistence(timeout: 5))
+        XCTAssertTrue(score.waitForExistence(timeout: 5))
+        XCTAssertTrue(macros.waitForExistence(timeout: 5))
+        XCTAssertTrue(logAction.waitForExistence(timeout: 5))
+        XCTAssertLessThan(identity.frame.minY, receipt.frame.minY)
+        XCTAssertLessThan(receipt.frame.minY, macros.frame.minY)
+        XCTAssertTrue(logAction.isHittable)
+        XCTAssertEqual(score.label, "Trust Score")
+        XCTAssertTrue(score.value as? String == "98 out of 99, Excellent trust")
+        // SwiftUI reports one unresolvable decorative node here; the XXXL test below is unfiltered.
+        try app.performAccessibilityAudit(for: [.textClipped]) { issue in
+            issue.element == nil
+        }
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Food Detail - trust-led hierarchy"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testFoodDetailSupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "trust",
+            "-screenshot-dark-mode",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let identity = app.descendants(matching: .any)["food_detail_identity"]
+        let receipt = app.descendants(matching: .any)["food_trust_receipt"]
+        let score = app.descendants(matching: .any)["food_trust_score"]
+        let logAction = app.buttons["food_detail_log_action"]
+        XCTAssertTrue(identity.waitForExistence(timeout: 10))
+        XCTAssertTrue(receipt.waitForExistence(timeout: 5))
+        XCTAssertTrue(score.waitForExistence(timeout: 5))
+        XCTAssertTrue(logAction.waitForExistence(timeout: 5))
+        XCTAssertTrue(logAction.isHittable)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Food Detail - dark accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testHomeDarkAccessibilityTextIsNotClipped() throws {
         let app = XCUIApplication()
         app.terminate()

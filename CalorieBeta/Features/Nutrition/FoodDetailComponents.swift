@@ -4,32 +4,56 @@ struct FoodDetailHeroCard: View {
     let foodName: String
     let servingDescription: String
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Text(FoodEmojiMapper.getEmoji(for: foodName))
-                .appFont(size: 34)
-                .frame(width: 62, height: 62)
-                .background(
-                    Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
-
-            VStack(alignment: .leading, spacing: 7) {
-                Text(foodName)
-                    .appFont(size: 24, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Label(servingDescription, systemImage: "scalemass.fill")
-                    .appFont(size: 13, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(2)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    foodEmoji
+                    foodIdentity
+                }
+            } else {
+                HStack(alignment: .top, spacing: AppSpacing.group) {
+                    foodEmoji
+                    foodIdentity
+                    Spacer(minLength: 0)
+                }
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(18)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface(.quiet, radius: AppRadius.hero)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("food_detail_identity")
+    }
+
+    private var foodEmoji: some View {
+        Text(FoodEmojiMapper.getEmoji(for: foodName))
+            .font(.system(size: 30))
+            .frame(width: 54, height: 54)
+            .background(
+                AppPalette.control,
+                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                    .stroke(AppPalette.separator.opacity(0.55), lineWidth: 0.5)
+            }
+            .accessibilityHidden(true)
+    }
+
+    private var foodIdentity: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text(foodName)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Label(servingDescription, systemImage: "scalemass.fill")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 
@@ -40,36 +64,30 @@ struct FoodDetailMacroGrid: View {
     let fats: Double
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            FoodDetailMacroTile(
-                title: "Calories",
-                value: Int(calories.rounded()).formatted(),
-                unit: "cal",
-                icon: "flame.fill",
-                color: .orange
+        AppMetricStrip(items: [
+            AppMetricItem(
+                label: "Calories",
+                value: "\(Int(calories.rounded()).formatted()) cal",
+                accent: .orange
+            ),
+            AppMetricItem(
+                label: "Protein",
+                value: "\(macroValue(protein)) g",
+                accent: .accentProtein
+            ),
+            AppMetricItem(
+                label: "Carbs",
+                value: "\(macroValue(carbs)) g",
+                accent: .accentCarbs
+            ),
+            AppMetricItem(
+                label: "Fat",
+                value: "\(macroValue(fats)) g",
+                accent: .accentFats
             )
-            FoodDetailMacroTile(
-                title: "Protein",
-                value: macroValue(protein),
-                unit: "g",
-                icon: "bolt.fill",
-                color: .accentProtein
-            )
-            FoodDetailMacroTile(
-                title: "Carbs",
-                value: macroValue(carbs),
-                unit: "g",
-                icon: "leaf.fill",
-                color: .accentCarbs
-            )
-            FoodDetailMacroTile(
-                title: "Fat",
-                value: macroValue(fats),
-                unit: "g",
-                icon: "drop.fill",
-                color: .accentFats
-            )
-        }
+        ])
+        .appSurface(.quiet)
+        .accessibilityIdentifier("food_detail_macro_summary")
     }
 
     private func macroValue(_ value: Double) -> String {
@@ -78,49 +96,6 @@ struct FoodDetailMacroGrid: View {
             return Int(rounded).formatted()
         }
         return rounded.formatted(.number.precision(.fractionLength(1)))
-    }
-}
-
-struct FoodDetailMacroTile: View {
-    let title: String
-    let value: String
-    let unit: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: icon)
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(color)
-                    .frame(width: 30, height: 30)
-                    .background(color.opacity(0.12), in: Circle())
-
-                Spacer()
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(value)
-                        .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-
-                    Text(unit)
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Text(title)
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -514,19 +489,17 @@ struct FoodDetailActionBar: View {
     let action: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            Button(title, action: action)
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(!isEnabled)
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .background(Color.backgroundPrimary.opacity(0.98).ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.primary.opacity(0.06))
-                .frame(height: 1)
-        }
+        Button(title, action: action)
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .disabled(!isEnabled)
+            .accessibilityIdentifier("food_detail_log_action")
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.row)
+            .background(AppPalette.canvas.ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(AppPalette.separator)
+                    .frame(height: 1)
+            }
     }
 }

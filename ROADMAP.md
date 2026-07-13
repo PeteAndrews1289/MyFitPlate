@@ -493,8 +493,11 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
 - [x] Migrate Food Search and Fast Food Builder without adding taps or editorial friction. Search
   now leads a neutral, adaptive repeat-and-result workflow; the builder uses dense brand/evidence
   identity, state-only selection tint, responsive controls, and one persistent review action.
-- [ ] Migrate Food Detail below Trust Receipt, Running, and the remaining repeated logging tools
-  without adding taps or editorial friction.
+- [x] Migrate Food Detail below Trust Receipt without adding taps or editorial friction. Food
+  identity is neutral, Trust owns semantic state color, the 98/99 score is visible and accessible,
+  macros use one responsive summary, and the logging footer uses the shared flat primary action.
+- [ ] Migrate Running history/detail and the remaining repeated logging tools without adding taps
+  or editorial friction.
 - [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,
   remove legacy glass aliases, and enforce the new rules in source checks.
 

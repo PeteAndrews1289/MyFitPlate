@@ -270,7 +270,7 @@ struct FoodDetailView: View {
         ZStack {
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(spacing: AppSpacing.group) {
                         FoodDetailHeroCard(
                             foodName: foodName,
                             servingDescription: adjustedNutrients.servingDescription
@@ -336,9 +336,9 @@ struct FoodDetailView: View {
     }
 }
 
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.group)
+                    .padding(.bottom, AppSpacing.row)
                 }
                 .scrollDismissesKeyboard(.interactively)
 
@@ -413,22 +413,20 @@ struct FoodDetailView: View {
     }
 
     @ViewBuilder private var servingControlsCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Serving")
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(title: "Serving")
 
-            HStack(spacing: 12) {
+            HStack(spacing: AppSpacing.row) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(isLoggedItem ? "Logged servings" : "Number of servings")
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
 
                     TextField("Quantity", text: $quantity)
                         .accessibilityLabel("Quantity")
                         .keyboardType(.decimalPad)
-                        .appFont(size: 28, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                        .appTextRole(.metric)
+                        .foregroundStyle(AppPalette.text)
                         .multilineTextAlignment(.leading)
                 }
 
@@ -436,15 +434,16 @@ struct FoodDetailView: View {
 
                 Image(systemName: "number")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.blue)
+                    .foregroundStyle(AppPalette.brand)
                     .frame(width: 42, height: 42)
-                    .background(Color.blue.opacity(0.12), in: Circle())
+                    .background(AppPalette.brand.opacity(0.10), in: Circle())
             }
-            .padding(14)
-            .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.vertical, AppSpacing.compact)
 
             if canChangeServing {
                 if !availableServings.isEmpty {
+                    Divider()
+
                     Menu {
                         ForEach(availableServings) { option in
                             Button(option.description) {
@@ -455,17 +454,17 @@ struct FoodDetailView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "fork.knife")
                                 .appFont(size: 14, weight: .bold)
-                                .foregroundColor(.blue)
+                                .foregroundStyle(AppPalette.brand)
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Serving size")
-                                    .appFont(size: 13, weight: .semibold)
-                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                                    .appTextRole(.caption)
+                                    .foregroundStyle(.secondary)
 
                                 Text(selectedServingOption?.description ?? "Select")
-                                    .appFont(size: 15, weight: .bold)
-                                    .foregroundColor(.textPrimary)
-                                    .lineLimit(2)
+                                    .appTextRole(.control)
+                                    .foregroundStyle(AppPalette.text)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
 
                             Spacer()
@@ -474,8 +473,7 @@ struct FoodDetailView: View {
                                 .appFont(size: 12, weight: .bold)
                                 .foregroundColor(Color(UIColor.tertiaryLabel))
                         }
-                        .padding(14)
-                        .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .padding(.vertical, AppSpacing.compact)
                     }
                     .buttonStyle(.plain)
                 } else if !isLoadingDetails {
@@ -489,18 +487,16 @@ struct FoodDetailView: View {
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .appSurface(.quiet)
+        .accessibilityIdentifier("food_detail_serving_controls")
     }
 
     @ViewBuilder private var nutritionDetailsCard: some View {
         let nutrients = adjustedNutrients
         let totalUnsaturatedFat = nutrients.fats - (nutrients.saturatedFat ?? 0)
 
-        VStack(alignment: .leading, spacing: 13) {
-            Text("Nutrition details")
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Nutrition details")
 
             DisclosureGroup("Fat and fiber") {
                 VStack(spacing: 8) {
@@ -547,9 +543,9 @@ struct FoodDetailView: View {
                 .padding(.top, 8)
             }
         }
-        .tint(.blue)
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .tint(AppPalette.brand)
+        .appSurface(.quiet)
+        .accessibilityIdentifier("food_detail_nutrition_details")
     }
 
     private var labelScannerButton: some View {
@@ -1044,6 +1040,7 @@ struct FoodTrustReceipt: View {
     let onAction: (() -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsScoreDetails = false
     @State private var presentedResolution: FoodTrustResolution?
 
@@ -1179,20 +1176,15 @@ struct FoodTrustReceipt: View {
                     HStack(spacing: 8) {
                         if isSavingCorrection {
                             ProgressView()
-                                .tint(.white)
                         } else {
                             Image(systemName: action == "Fix data" ? "pencil" : "slider.horizontal.3")
                         }
                         Text(isSavingCorrection ? "Saving correction" : action)
                     }
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-                    .background(tint, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppActionButtonStyle(evaluation.requiresCorrection ? .destructive : .secondary))
                 .disabled(isSavingCorrection)
+                .accessibilityIdentifier("food_trust_action")
                 .accessibilityLabel(isSavingCorrection ? "Saving correction" : action)
                 .accessibilityHint("Opens the nutrition editor for this food.")
             }
@@ -1204,7 +1196,21 @@ struct FoodTrustReceipt: View {
     }
 
     private var receiptHeader: some View {
-        receiptIdentity
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    receiptIdentity
+                    scoreSummary
+                }
+            } else {
+                HStack(alignment: .top, spacing: AppSpacing.group) {
+                    receiptIdentity
+                    Spacer(minLength: AppSpacing.group)
+                    scoreSummary
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var receiptIdentity: some View {
@@ -1212,6 +1218,7 @@ struct FoodTrustReceipt: View {
             Text("Trust Receipt")
                 .appFont(size: 20, weight: .bold)
                 .foregroundColor(.textPrimary)
+                .accessibilityIdentifier("food_trust_receipt")
             Text(evaluation.label)
                 .appFont(size: 12, weight: .bold)
                 .foregroundColor(tint)
@@ -1228,6 +1235,7 @@ struct FoodTrustReceipt: View {
                 .foregroundColor(Color(UIColor.secondaryLabel))
         }
         .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("food_trust_score")
         .accessibilityLabel("Trust Score")
         .accessibilityValue("\(evaluation.score) out of 99, \(evaluation.label)")
     }
@@ -1374,14 +1382,6 @@ struct FoodTrustReceipt: View {
             .accessibilityLabel(showsScoreDetails ? "Hide Trust Score details" : "Show Trust Score details")
 
             if showsScoreDetails {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Trust Score")
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                    Spacer(minLength: 0)
-                    scoreSummary
-                }
-
                 Text(evaluation.summary)
                     .appFont(size: 11, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))

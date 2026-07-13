@@ -108,9 +108,26 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   lint passed with zero violations on the structured changed files, and the unsigned Release build
   passed for the full app and extensions.
 
-All five primary tabs now share the same chrome, and the two highest-frequency nutrition entry
-workflows share the same operational grammar. The active queue moves to Food Detail below Trust
-Receipt, then Running and the remaining repeated logging tools.
+### Batch 6 - Food Detail and Trust Receipt (complete)
+
+- Made food identity neutral so source quality and correction state, rather than the food itself,
+  carry semantic color. The identity reflows at accessibility sizes and its decorative glyph keeps
+  stable geometry.
+- Kept Trust Receipt unframed and first in the evidence hierarchy, while moving the numeric score
+  into the visible header with an explicit VoiceOver label and value.
+- Replaced four large nutrition tiles with one responsive neutral metric strip. It uses a compact
+  two-column summary at standard sizes and full-width rows at accessibility sizes.
+- Flattened serving and nutrition-detail controls into shared quiet surfaces without changing
+  quantity, serving selection, correction, label scan, save, or logging behavior.
+- Replaced the glowing gradient logging footer with the shared flat primary action. Trust repair
+  remains destructive only when correction is actually required.
+- Added deterministic hierarchy, score-contract, action, dark-mode, and largest-text coverage. The
+  final focused run passed 2/2, its largest-text clipping audit passed unfiltered, full SwiftLint
+  reported zero violations, and the standard and dark captures were reviewed.
+
+All five primary tabs, the two highest-frequency nutrition entry workflows, and Food Detail now
+share one visual grammar. The active queue moves to Running history/detail and the remaining
+repeated logging tools.
 
 ## Product Direction
 
@@ -179,7 +196,7 @@ Current source indicators:
 | Living Day | North star, Batch 4 shell aligned | Keep the unframed path and preserve its evidence-led behavior |
 | Week in Motion | North star, Batch 3 retained | Keep the rhythm/evidence structure as the Reports lead story |
 | Reports detail | Batch 3 migrated | Quiet trend controls, responsive evidence, and flat report surfaces |
-| Trust Receipt | Strong but split | Keep receipt; flatten the nutrition grid and replace the gradient footer CTA |
+| Trust Receipt | Batch 6 migrated | Unframed evidence path, visible score, neutral macro summary, flat logging action |
 | Running | Strong utility | Keep density; adopt shared header, rows, and surfaces |
 | Food Search | Batch 5 migrated | Search-first hierarchy, neutral repeat/result surfaces, adaptive meal selection |
 | Fast Food Builder | Batch 5 migrated | Dense direct selection, persistent summary, tint reserved for brand and state |
@@ -318,7 +335,7 @@ weight, and nested-surface debt. Living Day itself changes last and only at the 
 
 1. Food Search and its empty/history states (Batch 5 complete)
 2. Fast Food Builder (Batch 5 complete)
-3. Food Detail below Trust Receipt
+3. Food Detail below Trust Receipt (Batch 6 complete)
 4. Running history and run detail
 5. My Foods, recipes, grocery, and logging confirmation sheets
 
