@@ -153,15 +153,22 @@ job, and explicit owner approval. The full contract and rollout order are in
 
 ## UI and accessibility contract
 
-- The card exposes four distinct facts: Source, Verification, Your Review, Nutrition Check.
-- The header describes provenance once; fact rows carry the score explanation without
-  repeating the same evidence in decorative bullets.
-- Cautions and corrections remain visible beneath the facts. Pure evidence bullets are
-  omitted because they duplicate the fact rows.
-- The score is announced as `N out of 99` in VoiceOver.
-- The correction/review action remains a separate accessible button; the whole card is not
-  combined into one inaccessible element.
-- Long source/confidence combinations and fact rows stack at accessibility text sizes.
+- Food Detail uses one unframed **Trust Receipt**, not a score-first nested card plus separate
+  warning or AI panels.
+- The receipt exposes four distinct steps in evidence order: Source, Verification, Nutrition
+  Check, Your Review. Shape, icon, label, and text carry meaning without relying on color.
+- Nutrition findings sit inside Nutrition Check beside the affected field group, such as
+  `Saturated fat + Total fat`, instead of repeating the warning elsewhere on the page.
+- The verdict is visible immediately. The numeric score, summary, and non-evidence reasons follow
+  behind `Why this score`; the score is announced as `N out of 99` when disclosed.
+- Pure evidence bullets are omitted because they duplicate the trace. The receipt exposes at most
+  one separate correction/review button.
+- A submitted correction leaves the existing receipt authoritative while persistence is pending.
+  Provenance, findings, review state, success haptic, and VoiceOver resolution update only after the
+  saved-food write succeeds; a failed write keeps the prior state and action.
+- Saved barcode resolution says that future scans will use the reviewed entry. Community detail
+  remains aggregate-only and never exposes contributor identity.
+- Long source/confidence combinations and every trace step stack at accessibility text sizes.
 
 ## Verification coverage
 

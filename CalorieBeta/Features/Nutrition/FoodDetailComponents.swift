@@ -209,166 +209,40 @@ struct FoodDetailLabelScanCard: View {
     }
 }
 
-struct FoodDetailBarcodeCorrectionCard: View {
-    let fixAction: () -> Void
+struct FoodDetailBarcodeMemoryAction: View {
     let rememberAction: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        Button(action: rememberAction) {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "barcode.viewfinder")
                     .appFont(size: 17, weight: .bold)
                     .foregroundColor(.blue)
-                    .frame(width: 42, height: 42)
-                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .frame(width: 38, height: 38)
+                    .background(Color.blue.opacity(0.10), in: Circle())
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Barcode match")
+                    Text("Use for future scans")
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("Fix the match or save this version for future scans.")
+                    Text("Save this reviewed entry as the match for this barcode.")
                         .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 0)
+                Image(systemName: "bookmark")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(.blue)
             }
-
-            HStack(spacing: 10) {
-                Button(action: fixAction) {
-                    Label("Fix", systemImage: "pencil")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
-
-                Button(action: rememberAction) {
-                    Label("Remember", systemImage: "bookmark.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .blue, isFilled: false))
-                .accessibilityHint("Saves this food as the match for this barcode.")
-            }
-        }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-private struct FoodDetailCorrectionButtonStyle: ButtonStyle {
-    let tint: Color
-    let isFilled: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .appFont(size: 13, weight: .bold)
-            .foregroundColor(isFilled ? .white : tint)
             .padding(.vertical, 10)
-            .background(
-                (isFilled ? tint : tint.opacity(0.12)),
-                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-            )
-            .opacity(configuration.isPressed ? 0.72 : 1)
-    }
-}
-
-struct FoodDetailAIRefineCard: View {
-    let refineAction: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: "sparkles")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.orange)
-                    .frame(width: 42, height: 42)
-                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("This is an AI estimate")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("Portions and hidden ingredients vary. A 30-second refine makes it yours.")
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-            }
-
-            Button(action: refineAction) {
-                Label("Refine estimate", systemImage: "slider.horizontal.3")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
-            .accessibilityHint("Opens an editor to adjust this estimate's name, serving, and macros.")
         }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-struct FoodDataSanityCard: View {
-    let findings: [FoodDataSanity.Finding]
-    let fixAction: () -> Void
-
-    private var hasWarning: Bool {
-        findings.contains { $0.severity == .warning }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: hasWarning ? "exclamationmark.triangle.fill" : "info.circle.fill")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(hasWarning ? .orange : .blue)
-                    .frame(width: 42, height: 42)
-                    .background((hasWarning ? Color.orange : Color.blue).opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(hasWarning ? "This data looks off" : "Worth a quick look")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("MyFitPlate checks every food against nutrition math.")
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(findings) { finding in
-                    HStack(alignment: .top, spacing: 7) {
-                        Image(systemName: finding.severity == .warning ? "exclamationmark.circle.fill" : "info.circle")
-                            .appFont(size: 11, weight: .bold)
-                            .foregroundColor(finding.severity == .warning ? .orange : Color(UIColor.secondaryLabel))
-                            .padding(.top, 1)
-
-                        Text(finding.message)
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-
-            if hasWarning {
-                Button(action: fixAction) {
-                    Label("Fix this data", systemImage: "pencil")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
-                .accessibilityHint("Opens an editor to correct this food's nutrition data.")
-            }
-        }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .buttonStyle(.plain)
+        .overlay(alignment: .top) { Divider() }
+        .overlay(alignment: .bottom) { Divider() }
+        .accessibilityHint("Saves this food as the match for this barcode.")
     }
 }
 

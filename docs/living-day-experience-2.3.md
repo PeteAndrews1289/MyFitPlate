@@ -252,7 +252,9 @@ network access. It should expose explicit unavailable and approximate states.
 - [x] Quick Log insertion and training-to-recovery transitions. Successful serialized diary writes
   target and emphasize the exact meal node; planned/completed/skipped Training Fuel changes carry
   across tabs; stale transitions expire; and Reduce Motion receives fades/content updates.
-- [ ] Trust Receipt on Food Detail.
+- [x] Trust Receipt on Food Detail. Evidence leads in one unframed source/verification/nutrition/
+  review trace; the score follows behind disclosure; and correction state changes only after a
+  successful saved-food write.
 - [ ] My Foods Library with safe edit/delete/barcode management.
 - [ ] Week in Motion opening report sequence.
 - [ ] VoiceOver, Dynamic Type, Reduce Motion, contrast, dark mode, and compact-device closure.
@@ -357,7 +359,12 @@ and updates the budget and deterministic action from the new snapshot. Training 
 completion/recovery, and skip transitions are retained by the app shell across tab switches and
 expire before they can replay on a later Home visit. VoiceOver announces the persisted result;
 Reduce Motion replaces scale/spatial insertion with opacity and content changes. Standard and
-accessibility-size render captures pass. Trust-correction resolution remains open with Trust Receipt.
+accessibility-size render captures pass. Food Detail now replaces its nested score-first Trust card
+and duplicate warning/AI panels with one evidence-first Trust Receipt. Findings sit beside their
+affected field group, private community identity stays absent, and the score is disclosed on demand.
+Correction submission leaves the prior receipt intact while saving; only a successful custom-food
+write updates provenance, nutrition findings, personal review, VoiceOver, and the short resolution
+treatment. Failure leaves the original state actionable.
 
 ### Phase 4: personal library and weekly story
 
@@ -405,12 +412,13 @@ Experience guardrails:
 2. [x] Build and compare the three Fuel Path prototypes; retain Peter's on-device selection as the
    final direction gate.
 3. [ ] Carry the completed Home visual token layer into Trust Receipt and Week in Motion without
-   changing operational screens.
+   changing operational screens. Trust Receipt is complete; Week in Motion remains.
 4. [x] Implement and test `LivingDaySnapshot`.
 5. [x] Ship read-only Fuel Path behind default-off `feature_livingDayHome` with exact 2.2 fallback.
 6. [x] Add persistence-backed Quick Log insertion plus planned/completed/skipped training and
    recovery transitions; exact read-only navigation remains complete.
-7. [ ] Build Trust Receipt.
+7. [x] Build Trust Receipt with evidence-first hierarchy, one action, persistence-backed resolution,
+   Reduce Motion behavior, VoiceOver announcement, and standard/accessibility render fixtures.
 8. [ ] Build My Foods Library.
 9. [ ] Add Week in Motion, sharing, and the selected widget slice.
 10. [ ] Fill the two evidence-reserved slots from 2.2 feedback.

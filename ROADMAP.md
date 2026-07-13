@@ -318,8 +318,9 @@ Full experience, state, accessibility, rollout, and technical contract:
 - [ ] **Create the 2.3 experience system:** add restrained path, evidence, chart, motion, spacing,
   stroke, and color primitives. Keep operational screens quiet; remove pale-card and nested-card
   treatment first from Home, Food Detail/Trust, and the weekly report. The reusable Home timeline,
-  evidence, state-shape, budget, and action primitives are complete; Trust Receipt and Week in
-  Motion still need to carry the system into their own surfaces.
+  evidence, state-shape, budget, and action primitives are complete, and Trust Receipt now carries
+  the unframed evidence language into Food Detail. Week in Motion remains the final primary surface
+  that must adopt the system.
 - [x] **Build `LivingDaySnapshot`:** assemble an immutable, finite-value checked, account-scoped
   presentation model from the existing diary, goals, Trust, workouts, runs, fuel plan, meal plan,
   next action, and sync state. No node-level repository fetches and no new backend store. The Core
@@ -333,16 +334,19 @@ Full experience, state, accessibility, rollout, and technical contract:
   off, refreshes once per Home session, applies only to Today, and preserves the 2.2 dashboard as
   the exact fallback. The first viewport shows the two events nearest now, one reconciled action,
   and an explicit Show All expansion without displacing Quick Actions.
-- [ ] **Connect meaningful transitions:** Quick Log insertion, planned-to-completed state, saved
+- [x] **Connect meaningful transitions:** Quick Log insertion, planned-to-completed state, saved
   Trust correction, and training-to-recovery handoff use short explanatory motion and haptics.
   Reduce Motion receives equivalent fades and content updates; motion never delays a write.
   Persistence-backed Quick Log insertion, planned/training state changes, and the training-to-
   recovery handoff are complete: the exact affected node is kept visible and emphasized, budget
   and next-action changes animate from the committed snapshot, and stale cross-tab transitions
-  expire instead of replaying. Saved Trust-correction resolution remains paired with Trust Receipt.
-- [ ] **Build Trust Receipt:** lead Food Detail with a readable source/cross-check/sanity/review
+  expire instead of replaying. Trust correction now keeps the prior evidence visible while saving,
+  then resolves Nutrition Check and Your Review only after the custom-food write succeeds.
+- [x] **Build Trust Receipt:** lead Food Detail with a readable source/cross-check/sanity/review
   trace, place findings beside the values they affect, and make the existing score a summary of
-  evidence rather than the visual starting point.
+  evidence rather than the visual starting point. Food Detail now uses one unframed vertical
+  receipt, puts the numeric score behind `Why this score`, removes duplicate AI/sanity panels, and
+  exposes one correction action with standard and largest-Dynamic-Type render coverage.
 - [ ] **Build My Foods Library:** search, sort, filter, edit, delete, merge true duplicates, and
   inspect/remove barcode associations without mutating historical diary entries.
 - [ ] **Build Week in Motion:** open Reports with a full-width seven-day story covering training
@@ -396,7 +400,9 @@ Full experience, state, accessibility, rollout, and technical contract:
    distinguish planned, completed/recovery, and skipped outcomes. Reduce Motion uses fades and
    content updates, VoiceOver announces the persisted result, and exact node/action navigation
    remains intact.
-6. [ ] Ship Trust Receipt and persistence-backed evidence-state updates.
+6. [x] Ship Trust Receipt and persistence-backed evidence-state updates. The previous receipt stays
+   authoritative until the write succeeds; success then updates provenance, nutrition findings,
+   personal review, VoiceOver, and the short resolution treatment together.
 7. [ ] Ship My Foods Library and prove destructive actions cannot alter history.
 8. [ ] Add Week in Motion, then the selected sharing and widget slices.
 9. [ ] Fill the two evidence-reserved slots from real 2.2 feedback.
