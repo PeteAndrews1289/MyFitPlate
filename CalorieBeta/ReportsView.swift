@@ -6,6 +6,7 @@ struct ReportsView: View {
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var insightsService: InsightsService
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
+    @EnvironmentObject var workoutService: WorkoutService
 
     @State private var selectedTimeframe: ReportTimeframe = .week
     @State private var customStartDate: Date = Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date()
@@ -13,9 +14,12 @@ struct ReportsView: View {
 
     @State private var showingDetailedInsights = false
     @State private var showingWeeklyReport = false
+    @State private var didLogWeekInMotion = false
+    @StateObject private var weeklyRecapLoader: WeeklyRecapLoader
 
     init(dailyLogService: DailyLogService) {
         _viewModel = StateObject(wrappedValue: ReportsViewModel(dailyLogService: dailyLogService))
+        _weeklyRecapLoader = StateObject(wrappedValue: WeeklyRecapLoader())
     }
 
     private var hasReportContent: Bool {
@@ -76,6 +80,8 @@ struct ReportsView: View {
         SpotlightTourScaffold(steps: ReportsView.reportsTourSteps) { isActive in
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                weekInMotionSection
+
                 // DESIGN.md rule 1: Reports answers "is it working?" — the timeframe picker
                 // is chrome and leads (it scopes everything below, including the overview);
                 // the headline trend is the hero, directly under it.
@@ -87,8 +93,6 @@ struct ReportsView: View {
                     title: selectedTrendTitle
                 )
                     .featureSpotlight(isActive: isActive("reports-trend"))
-
-                weeklyTrainingFuelCard
 
                 ReportsOverviewCard(
                     selectedTimeframe: selectedTimeframe,
@@ -133,6 +137,7 @@ struct ReportsView: View {
                  healthKitViewModel.fetchLastSevenDaysSleep()
             }
         }
+        .task { await loadWeekInMotion() }
         .onChange(of: selectedTimeframe) { _, newValue in
             if newValue != .custom {
                 fetchDataForCurrentSelection()
@@ -152,50 +157,81 @@ struct ReportsView: View {
             DetailedInsightsView(insightsService: insightsService)
         }
         .sheet(isPresented: $showingWeeklyReport) {
-            WeeklyRecapView()
+            WeeklyRecapView(initialRecap: weeklyRecapLoader.recap)
         }
         #endif
         }
     }
 
-    private var weeklyTrainingFuelCard: some View {
-        Button {
-            HapticManager.instance.feedback(.light)
-            showingWeeklyReport = true
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "figure.mixed.cardio")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-                    .frame(width: 40, height: 40)
-                    .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Training & Fuel")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    Text("Strength, running, recovery, nutrition, and change from the last 7 days")
-                        .appFont(size: 12)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+    @ViewBuilder
+    private var weekInMotionSection: some View {
+        if let recap = weeklyRecapLoader.recap {
+            let observation = WeekInMotionBuilder.build(from: recap).observation
+            VStack(spacing: 18) {
+                WeekInMotionView(recap: recap) {
+                    HapticManager.instance.feedback(.light)
+                    DIContainer.shared.analyticsManager?.logEvent(
+                        "week_in_motion_detail_opened",
+                        parameters: [
+                            "observation_kind": observation.kind.rawValue,
+                            "observation_tone": observation.tone.rawValue
+                        ]
+                    )
+                    showingWeeklyReport = true
                 }
 
-                Spacer(minLength: 8)
-
-                Image(systemName: "chevron.right")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                Divider()
             }
-            .padding(16)
-            .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.primary.opacity(0.05), lineWidth: 1)
-            )
+        } else if weeklyRecapLoader.isLoading {
+            HStack(spacing: 12) {
+                ProgressView()
+                    .tint(.brandPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Building Week in Motion")
+                        .appFont(size: 15, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    Text("Joining the last seven days of training, fuel, recovery, and Trust.")
+                        .appFont(size: 11, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.vertical, 14)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Week in Motion is unavailable")
+                    .appFont(size: 15, weight: .bold)
+                    .foregroundColor(.textPrimary)
+                Text(weeklyRecapLoader.loadMessage ?? "Your detailed reports remain available below.")
+                    .appFont(size: 11, weight: .medium)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Try again") { Task { await loadWeekInMotion(force: true) } }
+                    .appFont(size: 12, weight: .bold)
+            }
+            .padding(.vertical, 12)
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("weekly_report_entry")
+    }
+
+    @MainActor
+    private func loadWeekInMotion(force: Bool = false) async {
+        await weeklyRecapLoader.load(
+            dailyLogService: viewModel.dailyLogService,
+            workoutService: workoutService,
+            goalSettings: goalSettings,
+            force: force
+        )
+        guard !didLogWeekInMotion, let recap = weeklyRecapLoader.recap else { return }
+        didLogWeekInMotion = true
+        let motion = WeekInMotionBuilder.build(from: recap)
+        DIContainer.shared.analyticsManager?.logEvent("week_in_motion_viewed", parameters: [
+            "days_logged": recap.daysLogged,
+            "training_days": recap.trainingDays,
+            "recovery_eligible": recap.recoveryFuelAdherence.eligible,
+            "trust_eligible": recap.trustReview.eligible,
+            "observation_kind": motion.observation.kind.rawValue,
+            "observation_tone": motion.observation.tone.rawValue
+        ])
     }
 
     @ViewBuilder

@@ -535,7 +535,7 @@ struct MyFoodsLibraryView: View {
     private func logLibraryOpened() {
         DIContainer.shared.analyticsManager?.logEvent("my_foods_library_viewed", parameters: [
             "saved_count": viewModel.entries.count,
-            "barcode_count": viewModel.count(for: .barcodeCorrections),
+            "personal_match_count": viewModel.count(for: .barcodeCorrections),
             "needs_review_count": viewModel.count(for: .needsReview),
             "duplicate_group_count": viewModel.duplicateGroups.count
         ])

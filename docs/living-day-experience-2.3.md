@@ -257,7 +257,8 @@ network access. It should expose explicit unavailable and approximate states.
   successful saved-food write.
 - [x] My Foods Library with search/filter/sort, persistence-backed edit/delete, personal barcode
   detachment, and atomic true-duplicate merge. Dated diary history is outside every mutation path.
-- [ ] Week in Motion opening report sequence.
+- [x] Week in Motion opening report sequence with seven exact day states, denominator-backed
+  evidence, one bounded observation, detailed-report handoff, and aggregate-only share image.
 - [ ] VoiceOver, Dynamic Type, Reduce Motion, contrast, dark mode, and compact-device closure.
 - [x] Default-off feature flag, old-Home fallback, Home analytics, deterministic screenshots, and
   immediate rollback path. Production cohort rollout remains gated on physical-device validation.
@@ -267,7 +268,8 @@ network access. It should expose explicit unavailable and approximate states.
 
 - [ ] Contextual Maia annotation on the current next action.
 - [ ] Medium/large widget adaptation of the current Fuel Path segment.
-- [ ] Shareable Living Day and Week in Motion images with no private raw data.
+- [ ] Shareable Living Day and Week in Motion images with no private raw data. The Week in Motion
+  image is complete; Living Day and shared visible-content selection remain.
 - [ ] User-selectable compact or detailed path density.
 - [ ] CI upgrades away from official Actions that target deprecated Node 20.
 
@@ -386,6 +388,16 @@ extra-extra-large captures pass, and no diary collection is read or written by a
 operation. Week in Motion and sharing remain open in Phase 4. The full boundary is documented in
 `my-foods-library-2.3.md`.
 
+Implementation checkpoint (2026-07-12): Reports now opens with Week in Motion before timeframe
+controls and detailed charts. `WeeklyRecap` gained exactly seven ordered day states; the editorial
+projection joins shape-coded strength/running rhythm, food coverage, timestamped recovery outcomes,
+and Trust denominators without a composite score. One deterministic observation includes both its
+fact and its basis. A shared loader gives Reports and the detailed sheet the same recap, while the
+existing report cards, CSV, and share controls remain below. The share image now uses the same
+aggregate-only rhythm and excludes names, routes, coordinates, account data, and raw Health
+samples. Standard, dark, accessibility-extra-extra-extra-large, fixed share, real Reports-screen,
+and legacy end-to-end weekly-report checks pass. Full contract: `week-in-motion-2.3.md`.
+
 ### Phase 5: release closure
 
 - Resolve the two reserved live-feedback slots.
@@ -422,8 +434,8 @@ Experience guardrails:
 1. [x] Lock the Living Day information hierarchy with deterministic 2.2 fixtures.
 2. [x] Build and compare the three Fuel Path prototypes; retain Peter's on-device selection as the
    final direction gate.
-3. [ ] Carry the completed Home visual token layer into Trust Receipt and Week in Motion without
-   changing operational screens. Trust Receipt is complete; Week in Motion remains.
+3. [x] Carry the completed Home visual token layer into Trust Receipt and Week in Motion without
+   changing operational screens.
 4. [x] Implement and test `LivingDaySnapshot`.
 5. [x] Ship read-only Fuel Path behind default-off `feature_livingDayHome` with exact 2.2 fallback.
 6. [x] Add persistence-backed Quick Log insertion plus planned/completed/skipped training and
@@ -432,7 +444,8 @@ Experience guardrails:
    Reduce Motion behavior, VoiceOver announcement, and standard/accessibility render fixtures.
 8. [x] Build My Foods Library with safe history isolation, personal barcode management, atomic
    true-duplicate merge, failure-path coverage, and standard/accessibility render fixtures.
-9. [ ] Add Week in Motion, sharing, and the selected widget slice.
+9. [ ] Add the selected widget slice and remaining Living Day sharing. Week in Motion and its
+   aggregate-only share image are complete.
 10. [ ] Fill the two evidence-reserved slots from 2.2 feedback.
 11. [ ] Close accessibility, device, privacy, performance, and rollback gates.
 

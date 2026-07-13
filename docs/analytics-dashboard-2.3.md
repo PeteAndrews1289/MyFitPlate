@@ -65,13 +65,28 @@ food data is manageable without sending the food itself.
 
 | Behavior | Event and allowed parameters |
 |---|---|
-| Library exposure | `my_foods_library_viewed`: aggregate `saved_count`, `barcode_count`, `needs_review_count`, and `duplicate_group_count` |
+| Library exposure | `my_foods_library_viewed`: aggregate `saved_count`, `personal_match_count`, `needs_review_count`, and `duplicate_group_count` |
 | Filter use | `my_foods_library_filter`: enum `filter` only |
 | Persisted mutation outcome | `my_foods_library_action`: enum `action`, boolean `success`, and aggregate `item_count` |
 
 Never attach food names, serving text, barcodes, nutrition values, document IDs, search queries, or
 account identifiers. Treat an action as successful only after its custom-food write commits. The
 primary guardrail is failed mutation rate; deletion and merge counts are not engagement goals.
+
+## Week in Motion indicators
+
+Week in Motion is an opening report story, not a score or a success event.
+
+| Behavior | Event and allowed parameters |
+|---|---|
+| Opening story available | `week_in_motion_viewed`: aggregate `days_logged`, `training_days`, `recovery_eligible`, `trust_eligible`, plus enums `observation_kind` and `observation_tone` |
+| Detailed report requested | `week_in_motion_detail_opened`: enums `observation_kind` and `observation_tone` only |
+| Existing share menu opened | `weekly_report_share_opened`: no additional payload |
+
+Do not attach day-level timestamps, food or routine names, routes, coordinates, nutrition values,
+raw Health samples, observation prose, or account identifiers. Observation kind and tone are
+coarse UI states, not health classifications. Measure whether the detailed report is useful after
+exposure; do not optimize for attention-toned observations.
 
 ## Acquisition and custom product pages
 
@@ -144,9 +159,13 @@ Peter must complete the console-side setup after the instrumented build produces
    `trust_level`, `action`, `evidence_class`, `serving_evidence`, `sanity_profile`,
    `correction_scope`, `resulting_sanity`, `resulting_review_status`, `phase`,
    `confirmation_path`, `notification_type`, `area`, `operation`, and deletion `reason`.
+   Before 2.3 analysis, also register `filter`, `observation_kind`, and `observation_tone`.
 2. Register numeric metrics where Firebase requires it: `elapsed_seconds`, `duration_ms`,
    `trust_score`, `cross_verified_count`, `sanity_finding_count`,
    `resulting_sanity_finding_count`, `item_count`, and operational import counts.
+   The 2.3 My Foods/Week additions are `saved_count`, `personal_match_count`,
+   `needs_review_count`, `duplicate_group_count`, `days_logged`, `training_days`,
+   `recovery_eligible`, and `trust_eligible`.
 3. Mark `first_food_logged`, `first_workout_completed`,
    `nutrition_training_loop_completed`, and `mfp_import_completed` as key events.
 4. Build one Activation exploration and one Launch Health exploration from the definitions
@@ -162,7 +181,8 @@ dimensions and 15 custom metrics, the four completion outcomes are key events, t
 Activation` and `2.2 Launch Health` explorations are saved, and Crashlytics fatal, non-fatal,
 regressed, trending, and velocity email alerts are enabled. Items 6-8 require signed build 3
 traffic or post-release acquisition data and remain operating follow-through rather than code
-gates.
+gates. The explicitly listed 2.3 My Foods/Week definitions are new and remain pending until an
+instrumented 2.3 build produces their parameters.
 
 ## Ownership and rollout
 

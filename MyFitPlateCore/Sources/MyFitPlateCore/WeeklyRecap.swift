@@ -1,6 +1,6 @@
 import Foundation
 
-public struct WeeklyRecapProgress: Equatable {
+public struct WeeklyRecapProgress: Equatable, Sendable {
     public let completed: Int
     public let eligible: Int
 
@@ -51,12 +51,53 @@ public struct WeeklyRecapStory: Equatable {
     }
 }
 
+public enum WeeklyRecapTrainingKind: String, Equatable, Sendable {
+    case rest
+    case strength
+    case run
+    case mixed
+}
+
+public struct WeeklyRecapDay: Equatable, Sendable {
+    public let date: Date
+    public let nutritionLogged: Bool
+    public let strengthSessions: Int
+    public let runCount: Int
+    public let isDemandingStrengthDay: Bool
+
+    public init(
+        date: Date,
+        nutritionLogged: Bool,
+        strengthSessions: Int,
+        runCount: Int,
+        isDemandingStrengthDay: Bool
+    ) {
+        self.date = date
+        self.nutritionLogged = nutritionLogged
+        self.strengthSessions = max(0, strengthSessions)
+        self.runCount = max(0, runCount)
+        self.isDemandingStrengthDay = isDemandingStrengthDay
+    }
+
+    public var trainingKind: WeeklyRecapTrainingKind {
+        switch (strengthSessions > 0, runCount > 0) {
+        case (true, true): return .mixed
+        case (true, false): return .strength
+        case (false, true): return .run
+        case (false, false): return .rest
+        }
+    }
+
+    public var hasTraining: Bool { trainingKind != .rest }
+}
+
 /// One week of nutrition and training, computed from data the app already stores. Every
 /// rate carries its denominator so missing data stays visibly missing instead of becoming
 /// an invented failure or an opaque composite score.
 public struct WeeklyRecap: Equatable {
     public let weekStart: Date
     public let weekEnd: Date
+    public let days: [WeeklyRecapDay]
 
     /// Days in the window with at least one food item logged.
     public let daysLogged: Int
@@ -301,6 +342,25 @@ public enum WeeklyRecapBuilder {
         let runDates = Set(weekRuns.map { calendar.startOfDay(for: $0.startDate) })
         let trainingDates = strengthDates.union(runDates)
         let trainingDaysLogged = trainingDates.intersection(loggedDates).count
+        let sessionsByDate = Dictionary(grouping: weekSessions) {
+            calendar.startOfDay(for: $0.date)
+        }
+        let runsByDate = Dictionary(grouping: weekRuns) {
+            calendar.startOfDay(for: $0.startDate)
+        }
+        let days = (0..<7).compactMap { offset -> WeeklyRecapDay? in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: weekStart) else {
+                return nil
+            }
+            let normalizedDate = calendar.startOfDay(for: date)
+            return WeeklyRecapDay(
+                date: normalizedDate,
+                nutritionLogged: loggedDates.contains(normalizedDate),
+                strengthSessions: sessionsByDate[normalizedDate]?.count ?? 0,
+                runCount: runsByDate[normalizedDate]?.count ?? 0,
+                isDemandingStrengthDay: hardStrengthDates.contains(normalizedDate)
+            )
+        }
 
         let rawWeightChange = rawWeightChange(
             history: weightHistory,
@@ -332,6 +392,7 @@ public enum WeeklyRecapBuilder {
         return WeeklyRecap(
             weekStart: weekStart,
             weekEnd: weekEnd,
+            days: days,
             daysLogged: daysLogged,
             averageCalories: averageCalories,
             averageProtein: averageProtein,

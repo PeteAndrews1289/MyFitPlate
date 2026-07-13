@@ -57,9 +57,10 @@ Personal barcode removal uses a targeted nested-field deletion instead.
 
 ## Privacy and analytics
 
-Analytics may include only aggregate library counts, filter enums, action enums, success, and item
-count. Food names, search text, serving text, barcodes, nutrition values, document IDs, and account
-identifiers are prohibited. Public community-barcode records are a separate system; removing a
+Analytics may include only aggregate library counts (including privacy-safe `personal_match_count`),
+filter enums, action enums, success, and item count. Food names, search text, serving text, barcodes,
+nutrition values, document IDs, and account identifiers are prohibited. Public community-barcode
+records are a separate system; removing a
 personal association does not claim to remove a provider or public database match.
 
 ## Verification gate

@@ -165,6 +165,8 @@
 		B23000000000000000000001 /* TrainingFuelPlannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000001 /* TrainingFuelPlannerView.swift */; };
 		B23000000000000000000002 /* TrainingFuelTargetContextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000002 /* TrainingFuelTargetContextView.swift */; };
 		B23000000000000000000003 /* MyFoodsLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000003 /* MyFoodsLibraryView.swift */; };
+		B23000000000000000000004 /* WeeklyRecapLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000004 /* WeeklyRecapLoader.swift */; };
+		B23000000000000000000005 /* WeekInMotionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23000000000000000000005 /* WeekInMotionView.swift */; };
 		B240FB7DB053BE65F6ED7E5B /* ProgramCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25DBAC08245DF730F4A57058 /* ProgramCreatorView.swift */; };
 		B3490F4AF6B8367BA0EE972E /* GroceryListRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDBF64359556D6DA0B848C78 /* GroceryListRows.swift */; };
 		B3766EBB4E84B3A67F2838B1 /* WorkoutPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2781B8ECF8FB8D8FBC67FE8 /* WorkoutPlayerViewModel.swift */; };
@@ -501,6 +503,8 @@
 		F23000000000000000000001 /* TrainingFuelPlannerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrainingFuelPlannerView.swift; sourceTree = "<group>"; };
 		F23000000000000000000002 /* TrainingFuelTargetContextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrainingFuelTargetContextView.swift; sourceTree = "<group>"; };
 		F23000000000000000000003 /* MyFoodsLibraryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MyFoodsLibraryView.swift; sourceTree = "<group>"; };
+		F23000000000000000000004 /* WeeklyRecapLoader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyRecapLoader.swift; sourceTree = "<group>"; };
+		F23000000000000000000005 /* WeekInMotionView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeekInMotionView.swift; sourceTree = "<group>"; };
 		F63BD33A24942200DB828B77 /* AISummaryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AISummaryView.swift; sourceTree = "<group>"; };
 		F95DB8CA120BD855D269D6AE /* HomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		F99B0ADD63EACCE1DE4D43C9 /* FirestoreSeeder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FirestoreSeeder.swift; sourceTree = "<group>"; };
@@ -783,6 +787,8 @@
 				A30000000000000000000002 /* LivingDayHomeExperience.swift */,
 				A30000000000000000000001 /* LivingDayPrototypeGallery.swift */,
 				F23000000000000000000001 /* TrainingFuelPlannerView.swift */,
+				F23000000000000000000004 /* WeeklyRecapLoader.swift */,
+				F23000000000000000000005 /* WeekInMotionView.swift */,
 				F10000000000000000000001 /* HomeQuickActionsView.swift */,
 				F10000000000000000000002 /* HomeWeightTrackingCard.swift */,
 				4BD3DB29E78F7C168EF51C1B /* WeeklyRecapView.swift */,
@@ -1439,6 +1445,8 @@
 				B30000000000000000000002 /* LivingDayHomeExperience.swift in Sources */,
 				B30000000000000000000001 /* LivingDayPrototypeGallery.swift in Sources */,
 				B23000000000000000000001 /* TrainingFuelPlannerView.swift in Sources */,
+				B23000000000000000000004 /* WeeklyRecapLoader.swift in Sources */,
+				B23000000000000000000005 /* WeekInMotionView.swift in Sources */,
 				B10000000000000000000001 /* HomeQuickActionsView.swift in Sources */,
 				B10000000000000000000002 /* HomeWeightTrackingCard.swift in Sources */,
 				9A744407266AED50FC9CFE18 /* WeeklyRecapView.swift in Sources */,

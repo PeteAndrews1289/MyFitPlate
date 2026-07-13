@@ -315,12 +315,11 @@ Full experience, state, accessibility, rollout, and technical contract:
   scan. The clock remains a strong secondary-summary candidate; the rail is compact but compresses
   adjacent future events. The production Home implementation remains default-off until physical-
   device comprehension and motion checks pass.
-- [ ] **Create the 2.3 experience system:** add restrained path, evidence, chart, motion, spacing,
+- [x] **Create the 2.3 experience system:** add restrained path, evidence, chart, motion, spacing,
   stroke, and color primitives. Keep operational screens quiet; remove pale-card and nested-card
-  treatment first from Home, Food Detail/Trust, and the weekly report. The reusable Home timeline,
-  evidence, state-shape, budget, and action primitives are complete, and Trust Receipt now carries
-  the unframed evidence language into Food Detail. Week in Motion remains the final primary surface
-  that must adopt the system.
+  treatment first from Home, Food Detail/Trust, and the weekly report. Fuel Path, Trust Receipt,
+  My Foods, and Week in Motion now share the restrained path/evidence language while repeated
+  operational screens remain task-focused.
 - [x] **Build `LivingDaySnapshot`:** assemble an immutable, finite-value checked, account-scoped
   presentation model from the existing diary, goals, Trust, workouts, runs, fuel plan, meal plan,
   next action, and sync state. No node-level repository fetches and no new backend store. The Core
@@ -353,9 +352,12 @@ Full experience, state, accessibility, rollout, and technical contract:
   library changes, and dated diary entries are never queried or rewritten. Standard and largest-
   Dynamic-Type render fixtures plus failure-path tests pin those boundaries. Full contract:
   [`docs/my-foods-library-2.3.md`](docs/my-foods-library-2.3.md).
-- [ ] **Build Week in Motion:** open Reports with a full-width seven-day story covering training
-  rhythm, fuel timing, recovery follow-through, Trust/coverage, and one bounded observation;
-  preserve detailed charts and export below it.
+- [x] **Build Week in Motion:** Reports now opens with a full-width seven-day rhythm joining
+  strength, runs, food coverage, recovery timing, and Trust evidence. Exactly one deterministic
+  observation states its denominator and basis without creating a weekly score. The existing
+  detailed Training & Fuel report, charts, aggregate CSV, and privacy-safe share path remain; the
+  share image now carries the same visual story. Full contract:
+  [`docs/week-in-motion-2.3.md`](docs/week-in-motion-2.3.md).
 - [ ] **Close the inclusive-quality matrix:** deterministic screenshots for ordinary, empty,
   training, recovery, over-target, low-Trust, offline, and accessibility states; complete VoiceOver
   ordering, Dynamic Type, dark mode, Increase Contrast, Reduce Motion, compact-device, privacy,
@@ -369,7 +371,8 @@ Full experience, state, accessibility, rollout, and technical contract:
   personalize the route, but cannot replace its rules or silently change goals.
 - [ ] Adapt the current Fuel Path segment to medium and large widgets after Home behavior is stable.
 - [ ] Add privacy-safe Living Day and Week in Motion share images with explicit visible-content
-  selection and no account IDs, routes, coordinates, or raw Health samples.
+  selection and no account IDs, routes, coordinates, or raw Health samples. Week in Motion's
+  aggregate-only image is complete; Living Day sharing and cross-share selection remain.
 - [ ] Offer compact and detailed path density after the default hierarchy passes comprehension.
 - [ ] Move CI actions away from deprecated Node 20 runtimes without coupling that maintenance to
   the experience rollout.
@@ -394,8 +397,8 @@ Full experience, state, accessibility, rollout, and technical contract:
 
 1. [x] Select the vertical timeline as the production direction after comparing all three
    deterministic prototypes; retain physical-device validation as a rollout gate.
-2. [ ] Carry the selected visual token/primitives layer beyond the completed Home slice into Trust
-   Receipt and Week in Motion.
+2. [x] Carry the selected visual token/primitives layer beyond Home into Trust Receipt and Week in
+   Motion without editorializing repeated operational screens.
 3. [x] Implement `LivingDaySnapshot`, the initial adversarial Core matrix, and the Debug-only
    developer fixture gallery.
 4. [x] Integrate read-only Fuel Path behind the feature flag with the 2.2 Home as fallback.
@@ -410,7 +413,8 @@ Full experience, state, accessibility, rollout, and technical contract:
 7. [x] Ship My Foods Library and prove destructive actions cannot alter history. Personal barcode
    detachment, deletion, and atomic true-duplicate merge touch only `customFoods`; failed writes
    leave the visible library unchanged, and dated diary records remain outside the mutation path.
-8. [ ] Add Week in Motion, then the selected sharing and widget slices.
+8. [ ] Add the selected widget slice and remaining Living Day sharing. Week in Motion and its
+   aggregate-only share image are complete.
 9. [ ] Fill the two evidence-reserved slots from real 2.2 feedback.
 10. [ ] Close accessibility, device, privacy, performance, analytics, and rollback gates.
 
