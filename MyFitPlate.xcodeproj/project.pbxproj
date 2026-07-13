@@ -169,6 +169,7 @@
 		B240FB7DB053BE65F6ED7E5B /* ProgramCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25DBAC08245DF730F4A57058 /* ProgramCreatorView.swift */; };
 		B30000000000000000000001 /* LivingDayPrototypeGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000001 /* LivingDayPrototypeGallery.swift */; };
 		B30000000000000000000002 /* LivingDayHomeExperience.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000002 /* LivingDayHomeExperience.swift */; };
+		B40000000000000000000001 /* AppVisualSystemGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000001 /* AppVisualSystemGallery.swift */; };
 		B3490F4AF6B8367BA0EE972E /* GroceryListRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDBF64359556D6DA0B848C78 /* GroceryListRows.swift */; };
 		B3766EBB4E84B3A67F2838B1 /* WorkoutPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2781B8ECF8FB8D8FBC67FE8 /* WorkoutPlayerViewModel.swift */; };
 		B3D7426C035BF7C145890D3E /* WorkoutInsightRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB8A1A2D3339E67B5D3DFE15 /* WorkoutInsightRowView.swift */; };
@@ -431,6 +432,7 @@
 		A2781B8ECF8FB8D8FBC67FE8 /* WorkoutPlayerViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutPlayerViewModel.swift; sourceTree = "<group>"; };
 		A30000000000000000000001 /* LivingDayPrototypeGallery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LivingDayPrototypeGallery.swift; sourceTree = "<group>"; };
 		A30000000000000000000002 /* LivingDayHomeExperience.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LivingDayHomeExperience.swift; sourceTree = "<group>"; };
+		A40000000000000000000001 /* AppVisualSystemGallery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppVisualSystemGallery.swift; sourceTree = "<group>"; };
 		A314E4E4DA84B9119ED26E82 /* MealSuggestionCardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealSuggestionCardView.swift; sourceTree = "<group>"; };
 		A411836458D36A8BCD415382 /* MainAppView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MainAppView.swift; sourceTree = "<group>"; };
 		A547C2EFB15F007A0AE43DC3 /* ReportsViewComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReportsViewComponents.swift; sourceTree = "<group>"; };
@@ -806,6 +808,14 @@
 			path = Home;
 			sourceTree = "<group>";
 		};
+		D40000000000000000000001 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000001 /* AppVisualSystemGallery.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
 		6D29DF3C2774991E9620505F /* Workouts */ = {
 			isa = PBXGroup;
 			children = (
@@ -982,6 +992,7 @@
 		E12F08C75CE8B49BB5C0FA54 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				D40000000000000000000001 /* Design */,
 				6D29DF3C2774991E9620505F /* Workouts */,
 				5D172E62156FEFF12213DF38 /* Maia */,
 				851E13303634BF2096AD3B9A /* Nutrition */,
@@ -1448,6 +1459,7 @@
 				B30000000000000000000002 /* LivingDayHomeExperience.swift in Sources */,
 				B23000000000000000000006 /* LivingDayShareView.swift in Sources */,
 				B30000000000000000000001 /* LivingDayPrototypeGallery.swift in Sources */,
+				B40000000000000000000001 /* AppVisualSystemGallery.swift in Sources */,
 				B23000000000000000000001 /* TrainingFuelPlannerView.swift in Sources */,
 				B23000000000000000000004 /* WeeklyRecapLoader.swift in Sources */,
 				B23000000000000000000005 /* WeekInMotionView.swift in Sources */,

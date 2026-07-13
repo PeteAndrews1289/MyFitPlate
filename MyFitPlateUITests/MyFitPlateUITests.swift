@@ -134,6 +134,59 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testVisualSystemGalleryIsLegible() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "visual-system"
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.descendants(matching: .any)["visualSystemGallery"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any)["visualSystemHero"].exists)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Visual system gallery"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testQuickLogSheetDarkAccessibilityLayout() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-dark-mode",
+            "-screenshot-screen",
+            "quick-log",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let searchFood = app.descendants(matching: .any)["quick_log_search_food"]
+        XCTAssertTrue(
+            searchFood.waitForExistence(timeout: 8),
+            "Quick Log should expose its primary action at accessibility text sizes"
+        )
+        XCTAssertTrue(app.buttons["Close"].isHittable)
+        XCTAssertGreaterThan(searchFood.frame.width, 0)
+        XCTAssertGreaterThanOrEqual(searchFood.frame.minX, app.frame.minX)
+        XCTAssertLessThanOrEqual(searchFood.frame.maxX, app.frame.maxX)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Quick Log - dark accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testLivingDayOrdersActionsAndOffersExplicitShareSelection() throws {
         let app = XCUIApplication()
         app.terminate()

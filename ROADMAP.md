@@ -456,6 +456,35 @@ are isolated in [`docs/device-test-2.3.md`](docs/device-test-2.3.md).
 
 ---
 
+## Post-Living Day - Whole-App Visual Unification (Active)
+
+The Living Day pass exposed a stronger design language than several older dashboard and workflow
+surfaces. The next visual program should unify the app without making every workflow editorial.
+The governing principle is **editorial when interpreting, operational when acting, and native when
+configuring**. Full audit, component map, screen order, and acceptance gates:
+[`docs/visual-unification-roadmap.md`](docs/visual-unification-roadmap.md).
+
+- [x] Audit shared styles plus twelve representative light/dark surfaces and identify the three
+  visual generations currently in the app.
+- [x] Define the target surface hierarchy, typography roles, semantic-color rules, navigation
+  shell, component migration map, and screen-by-screen direction.
+- [x] Preserve the current Living Day candidate on `main`, then create a dedicated visual-system
+  branch; do not mix broad design migration with release fixes.
+- [x] Add versioned flat primitives and a Debug component gallery before changing the 120 legacy
+  glass-card call sites or 68 shared button-style call sites.
+- [x] Migrate the tab bar and Quick Log sheet, and add reusable header and modal scaffolds with
+  compact-phone, dark-mode, VoiceOver, and accessibility-size coverage.
+- [ ] Apply the shared primary-tab header and modal scaffold across Home, Train, Meal Plan, Maia,
+  and Reports without changing their feature behavior.
+- [ ] Migrate Train, Meal Plan, Maia, detailed Reports, and the Living Day shell boundary in that
+  order, with light/dark/large-type captures for every batch.
+- [ ] Migrate Food Search, Fast Food Builder, Food Detail, Running, and the repeated logging tools
+  without adding taps or editorial friction.
+- [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,
+  remove legacy glass aliases, and enforce the new rules in source checks.
+
+---
+
 ## 🧭 Long-Term Competitive Backlog
 This backlog remains source material after the active 2.3 build queue above. Its earlier sprints
 capture durable conversion and retention work; they do not override The Living Day release order.

@@ -7,18 +7,18 @@ struct QuickLogActionButton: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var buttonWidth: CGFloat {
-        dynamicTypeSize.isAccessibilitySize ? 148 : 108
+        dynamicTypeSize.isAccessibilitySize ? 150 : 112
     }
 
     private var buttonHeight: CGFloat {
-        dynamicTypeSize.isAccessibilitySize ? 52 : 44
+        dynamicTypeSize.isAccessibilitySize ? 50 : 42
     }
     
     var body: some View {
         Button(action: action) {
             HStack(spacing: 7) {
                 Image(systemName: "plus")
-                    .appFont(size: 14, weight: .bold)
+                    .appFont(size: 15, weight: .bold)
                     .foregroundColor(.brandPrimary)
                     .rotationEffect(Angle(degrees: isActive ? 45 : 0))
                     .frame(width: 24, height: 24)
@@ -28,23 +28,22 @@ struct QuickLogActionButton: View {
                     )
 
                 Text("Quick Log")
-                    .appFont(size: 14, weight: .semibold)
+                    .appFont(size: 15, weight: .semibold)
                     .foregroundColor(.textPrimary)
                     .fixedSize(horizontal: true, vertical: true)
             }
             .frame(width: buttonWidth, height: buttonHeight)
             .background(
                 Capsule()
-                    .fill(Color.backgroundPrimary.opacity(0.96))
-                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                    .fill(AppPalette.canvas)
             )
             .overlay(
                 Capsule()
-                    .stroke(Color(UIColor.separator).opacity(0.28), lineWidth: 1)
+                    .stroke(AppPalette.separator, lineWidth: 1)
             )
             .contentShape(Capsule())
             .scaleEffect(isActive ? 0.96 : 1.0)
-            .animation(.interpolatingSpring(stiffness: 250, damping: 15), value: isActive)
+            .animation(AppMotion.standard, value: isActive)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Quick Log")
@@ -64,25 +63,32 @@ struct CustomTabBar: View {
         ("calendar", "Meal Plan"),
         ("chart.bar.xaxis", "Reports")
     ]
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var barHeight: CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 76 : 64
+    }
+
+    private var totalHeight: CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 118 : 104
+    }
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(.ultraThinMaterial)
+            AppPalette.canvas
+                .frame(height: totalHeight + 12)
+                .ignoresSafeArea(edges: .bottom)
+
+            RoundedRectangle(cornerRadius: AppRadius.hero, style: .continuous)
+                .fill(.regularMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.5), Color.white.opacity(0.1)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
+                    RoundedRectangle(cornerRadius: AppRadius.hero, style: .continuous)
+                        .stroke(AppPalette.separator, lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.12), radius: 20, x: 0, y: 10)
-                .padding(.horizontal, 10)
-                .frame(height: 72)
+                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
+                .padding(.horizontal, 12)
+                .frame(height: barHeight)
                 .padding(.bottom, 4)
 
             HStack(alignment: .bottom, spacing: 0) {
@@ -93,50 +99,47 @@ struct CustomTabBar: View {
                         if showingAddOptions {
                             withAnimation { showingAddOptions = false }
                         }
-                        withAnimation(.interpolatingSpring(stiffness: 300, damping: 25)) {
+                        withAnimation(AppMotion.standard) {
                             self.selectedIndex = index
                         }
                     } label: {
                         VStack(spacing: 4) {
                             Image(systemName: item.icon)
+                                .symbolVariant(isSelected ? .fill : .none)
                                 .font(.system(size: 21, weight: isSelected ? .bold : .medium))
-                                .frame(width: 38, height: 28)
-                                .background(
-                                    Capsule()
-                                        .fill(isSelected ? Color.brandPrimary.opacity(0.15) : Color.clear)
-                                )
-                                .scaleEffect(isSelected ? 1.05 : 1.0)
+                                .frame(width: 38, height: 24)
+
+                            Capsule()
+                                .fill(isSelected ? Color.brandPrimary : Color.clear)
+                                .frame(width: 18, height: 2)
 
                             Text(item.name)
-                                .appFont(size: 10, weight: isSelected ? .bold : .medium)
+                                .appFont(size: 10.5, weight: isSelected ? .bold : .medium)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
+                                .frame(width: 64)
                         }
                         .foregroundColor(isSelected ? Color.brandPrimary : Color(UIColor.secondaryLabel))
-                        .animation(.easeOut(duration: 0.2), value: isSelected)
+                        .animation(AppMotion.visibility, value: isSelected)
                     }
                     .buttonStyle(.plain)
                     .frame(maxWidth: .infinity)
                     .accessibilityIdentifier("tab_\(item.name.lowercased().replacingOccurrences(of: " ", with: "_"))")
                 }
             }
-            .frame(height: 54)
-            .padding(.bottom, 13)
-            .padding(.horizontal, 12)
+            .frame(height: barHeight - 8)
+            .padding(.bottom, 10)
+            .padding(.horizontal, 14)
 
             QuickLogActionButton(isActive: showingAddOptions, action: centerButtonAction)
                 .accessibilityIdentifier("quick_log_button")
                 .frame(maxWidth: .infinity)
-                .padding(.bottom, 64)
-                .opacity(showingAddOptions ? 0 : 1)
-                .scaleEffect(showingAddOptions ? 0.82 : 1)
-                .allowsHitTesting(!showingAddOptions)
-                .accessibilityHidden(showingAddOptions)
+                .padding(.bottom, barHeight)
         }
         // The lifted control stays inside this layout region so its visible and tappable
         // frames are identical and touches cannot fall through to Home content.
         .frame(maxWidth: .infinity)
-        .frame(height: 128)
-        .animation(.easeOut(duration: 0.16), value: showingAddOptions)
+        .frame(height: totalHeight)
+        .animation(AppMotion.visibility, value: showingAddOptions)
     }
 }

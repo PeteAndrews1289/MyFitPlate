@@ -7,6 +7,15 @@ struct IdentifiableFoodItems: Identifiable {
     let items: [FoodItem]
 }
 
+private struct QuickLogOption: Identifiable {
+    let title: String
+    let subtitle: String
+    let icon: String
+    let action: () -> Void
+
+    var id: String { title }
+}
+
 struct MainTabView: View {
     @EnvironmentObject var goalSettings: GoalSettings
     @EnvironmentObject var dailyLogService: DailyLogService
@@ -17,11 +26,12 @@ struct MainTabView: View {
     @EnvironmentObject var recipeService: RecipeService
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     
     @State private var showSettings = false
     @State private var showingAddOptions = false
     @State private var showingAllQuickLogActions = false
-    @State private var quickLogBackdropIsInteractive = false
+    @State private var quickLogDetent: PresentationDetent = .medium
 
     @State private var showingFoodSearch = false
     @State private var showingBarcodeScanner = false
@@ -59,16 +69,15 @@ struct MainTabView: View {
     private let imageModel = MLImageModel()
     private let barcodeLookupService = BarcodeFoodLookupService()
     
-    private var containerBackground: Color {
-        Color.backgroundSecondary
-    }
-
     private var suppressesSpotlightTours: Bool {
         ScreenshotDemoMode.isEnabled || ProcessInfo.processInfo.arguments.contains("-ui-testing")
     }
 
     private func contentBottomInset(for width: CGFloat) -> CGFloat {
-        width < 440 ? 128 : 112
+        if dynamicTypeSize.isAccessibilitySize {
+            return 148
+        }
+        return width < 440 ? 108 : 96
     }
 
     init() {
@@ -141,144 +150,12 @@ struct MainTabView: View {
                     centerButtonAction: {
                         guard !showingAddOptions else { return }
                         HapticsService.shared.playImpact(style: .light)
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                        withAnimation(AppMotion.standard) {
                             showingAddOptions = true
                         }
                     }
                 )
                 .zIndex(showingAddOptions ? 0 : 1)
-
-                if showingAddOptions {
-                    Color.black.opacity(0.34)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            HapticsService.shared.playImpact(style: .medium)
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                                showingAddOptions = false
-                                showingAllQuickLogActions = false
-                            }
-                        }
-                        .allowsHitTesting(quickLogBackdropIsInteractive)
-                        .zIndex(1)
-
-                    let quickLogPanelContent = VStack(alignment: .leading, spacing: 16) {
-                        // DESIGN.md rule 2: one hero (search, the primary path, in brand green);
-                        // the other rows are neutral — no per-row rainbow tints.
-                        let primaryButtons: [(title: String, subtitle: String, icon: String, isPrimary: Bool, action: () -> Void)] = [
-                            ("Search food", "Find from the food database", "magnifyingglass", true, { self.showingFoodSearch = true }),
-                            ("Scan barcode", "Fast packaged food lookup", "barcode.viewfinder", false, { self.showingBarcodeScanner = true }),
-                            ("Describe your meal", "Tell Maia what you ate", "text.bubble.fill", false, { self.showingAITextLog = true })
-                        ]
-                        let moreButtons: [(title: String, subtitle: String, icon: String, isPrimary: Bool, action: () -> Void)] = [
-                            ("Log with camera", "Estimate nutrition from a photo", "camera.fill", false, { self.showingImagePicker = true }),
-                            ("Log exercise", "Record activity and calories", "figure.walk", false, { self.showingAddExerciseView = true }),
-                            ("Log recipe or meal", "Use saved recipes and meals", "list.clipboard", false, { self.showingRecipeListView = true }),
-                            ("Beat the buffet", "Log an all-you-can-eat session", "fork.knife", false, { self.showingAYCESession = true }),
-                            ("Running", "Your runs from every watch", "figure.run", false, { self.showingRunHistory = true })
-                        ]
-
-                        Capsule()
-                            .fill(Color(UIColor.tertiaryLabel).opacity(0.35))
-                            .frame(width: 42, height: 5)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 2)
-
-                        HStack(alignment: .top, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Quick Log")
-                                    .foregroundColor(.textPrimary)
-                                    .appFont(size: 24, weight: .bold)
-
-                                Text("The fastest ways to capture food and activity.")
-                                    .foregroundColor(Color(UIColor.secondaryLabel))
-                                    .appFont(size: 14)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-
-                            Spacer()
-
-                            Button {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                    showingAddOptions = false
-                                }
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .appFont(size: 13, weight: .bold)
-                                    .foregroundColor(Color(UIColor.secondaryLabel))
-                                    .frame(width: 32, height: 32)
-                                    .background(Color.backgroundPrimary.opacity(0.78), in: Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Close quick log menu")
-                        }
-
-                        ForEach(Array(primaryButtons.enumerated()), id: \.offset) { index, buttonInfo in
-                            actionButton(
-                                title: buttonInfo.title,
-                                subtitle: buttonInfo.subtitle,
-                                icon: buttonInfo.icon,
-                                isPrimary: buttonInfo.isPrimary
-                            ) {
-                                buttonInfo.action()
-                                self.showingAddOptions = false
-                                self.showingAllQuickLogActions = false
-                            }
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                            .animation(.spring(response: 0.3, dampingFraction: 0.6).delay(0.05 * Double(index)), value: showingAddOptions)
-                        }
-
-                        quickLogMoreButton
-
-                        if showingAllQuickLogActions {
-                            ForEach(Array(moreButtons.enumerated()), id: \.offset) { index, buttonInfo in
-                                actionButton(
-                                    title: buttonInfo.title,
-                                    subtitle: buttonInfo.subtitle,
-                                    icon: buttonInfo.icon,
-                                    isPrimary: buttonInfo.isPrimary
-                                ) {
-                                    buttonInfo.action()
-                                    self.showingAddOptions = false
-                                    self.showingAllQuickLogActions = false
-                                }
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                                .animation(
-                                    .spring(response: 0.3, dampingFraction: 0.6).delay(0.04 * Double(index)),
-                                    value: showingAllQuickLogActions
-                                )
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 10)
-                    .padding(.bottom, 18)
-                    .frame(maxWidth: .infinity)
-
-                    Group {
-                        if showingAllQuickLogActions {
-                            ScrollView(.vertical) {
-                                quickLogPanelContent
-                            }
-                            .scrollIndicators(.hidden)
-                            .scrollBounceBehavior(.basedOnSize)
-                            .frame(maxHeight: 800)
-                        } else {
-                            quickLogPanelContent
-                        }
-                    }
-                    .frame(maxWidth: 520)
-                    .background(containerBackground.opacity(0.92), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.18), radius: 24, x: 0, y: 16)
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 92)
-                    .zIndex(2)
-                    .featureSpotlight(isActive: showingSpotlightTour)
-                }
                 
                 if isSearchingAfterScan {
                     Color.black.opacity(0.5).edgesIgnoringSafeArea(.all)
@@ -290,16 +167,14 @@ struct MainTabView: View {
                 }
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
-            .onChange(of: showingAddOptions) { _, isShowing in
-                quickLogBackdropIsInteractive = false
-                guard isShowing else { return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    if showingAddOptions {
-                        quickLogBackdropIsInteractive = true
-                    }
-                }
-            }
             .sheet(isPresented: $showSettings) { NavigationStack { SettingsView(showSettings: $showSettings) } }
+            .sheet(isPresented: $showingAddOptions, onDismiss: resetQuickLogPresentation) {
+                quickLogSheet
+                    .presentationDetents([.medium, .large], selection: $quickLogDetent)
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(AppPalette.canvas)
+                    .interactiveDismissDisabled(showingSpotlightTour)
+            }
             .sheet(isPresented: $showingWeeklyReport) {
                 WeeklyRecapView()
             }
@@ -410,7 +285,7 @@ struct MainTabView: View {
                 if newValue &&
                     !suppressesSpotlightTours &&
                     !spotlightManager.isShown(id: "action-menu") {
-                    withAnimation {
+                    withAnimation(AppMotion.visibility) {
                         showingSpotlightTour = true
                     }
                 }
@@ -425,25 +300,6 @@ struct MainTabView: View {
                 handleTrainingFuelTransition(from: previousPlan, to: currentPlan)
             }
             
-            if showingSpotlightTour {
-                Color.black.opacity(0.6).ignoresSafeArea()
-                    .onTapGesture(perform: finishTour)
-                    .transition(.opacity)
-                
-                let content = (
-                    title: "Quick Actions",
-                    text: "From here you can log anything. Search our database, scan a barcode, analyze a meal with your camera, or add a recipe or exercise."
-                )
-                
-                SpotlightTextView(
-                    content: content,
-                    currentIndex: 0,
-                    total: 1,
-                    position: .top,
-                    onNext: finishTour
-                )
-            }
-            
             if isProcessingImage {
                 ImageProcessingView()
             }
@@ -455,6 +311,9 @@ struct MainTabView: View {
     private var homeContent: some View {
         #if DEBUG
         if ScreenshotDemoMode.isEnabled,
+           ScreenshotDemoData.requestedScreen == "visual-system" {
+            NavigationStack { AppVisualSystemGallery() }
+        } else if ScreenshotDemoMode.isEnabled,
            ScreenshotDemoData.requestedScreen.hasPrefix("living-day") {
             NavigationStack {
                 LivingDayPrototypeGallery(
@@ -573,7 +432,7 @@ struct MainTabView: View {
     }
     
     private func finishTour() {
-        withAnimation {
+        withAnimation(AppMotion.visibility) {
             showingSpotlightTour = false
         }
         spotlightManager.markAsShown(id: "action-menu")
@@ -676,101 +535,216 @@ struct MainTabView: View {
         showingBarcodeRecovery = false
     }
 
+    private var primaryQuickLogOptions: [QuickLogOption] {
+        [
+            QuickLogOption(
+                title: "Search food",
+                subtitle: "Find from the food database",
+                icon: "magnifyingglass",
+                action: { showingFoodSearch = true }
+            ),
+            QuickLogOption(
+                title: "Scan barcode",
+                subtitle: "Fast packaged food lookup",
+                icon: "barcode.viewfinder",
+                action: { showingBarcodeScanner = true }
+            ),
+            QuickLogOption(
+                title: "Describe your meal",
+                subtitle: "Tell Maia what you ate",
+                icon: "text.bubble.fill",
+                action: { showingAITextLog = true }
+            )
+        ]
+    }
+
+    private var additionalQuickLogOptions: [QuickLogOption] {
+        [
+            QuickLogOption(
+                title: "Log with camera",
+                subtitle: "Estimate nutrition from a photo",
+                icon: "camera.fill",
+                action: { showingImagePicker = true }
+            ),
+            QuickLogOption(
+                title: "Log exercise",
+                subtitle: "Record activity and calories",
+                icon: "figure.walk",
+                action: { showingAddExerciseView = true }
+            ),
+            QuickLogOption(
+                title: "Log recipe or meal",
+                subtitle: "Use saved recipes and meals",
+                icon: "list.clipboard",
+                action: { showingRecipeListView = true }
+            ),
+            QuickLogOption(
+                title: "Beat the buffet",
+                subtitle: "Log an all-you-can-eat session",
+                icon: "fork.knife",
+                action: { showingAYCESession = true }
+            ),
+            QuickLogOption(
+                title: "Running",
+                subtitle: "Your runs from every watch",
+                icon: "figure.run",
+                action: { showingRunHistory = true }
+            )
+        ]
+    }
+
+    private var quickLogSheet: some View {
+        ZStack {
+            AppSheetScaffold(
+                title: "Quick Log",
+                subtitle: "The fastest ways to capture food and activity.",
+                dismiss: dismissQuickLog
+            ) {
+                ScrollView {
+                    VStack(spacing: AppSpacing.group) {
+                        quickLogGroup(primaryQuickLogOptions, highlightsFirst: true)
+                        quickLogMoreButton
+
+                        if showingAllQuickLogActions {
+                            quickLogGroup(additionalQuickLogOptions)
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.vertical, AppSpacing.group)
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+            }
+
+            if showingSpotlightTour {
+                Color.black.opacity(0.6)
+                    .ignoresSafeArea()
+                    .onTapGesture(perform: finishTour)
+                    .transition(.opacity)
+
+                SpotlightTextView(
+                    content: (
+                        title: "Quick Actions",
+                        text: "Search, scan, describe a meal, or open specialty logging tools from one place."
+                    ),
+                    currentIndex: 0,
+                    total: 1,
+                    position: .top,
+                    onNext: finishTour
+                )
+            }
+        }
+        .onAppear {
+            if dynamicTypeSize.isAccessibilitySize {
+                quickLogDetent = .large
+            }
+        }
+    }
+
+    private func quickLogGroup(_ options: [QuickLogOption], highlightsFirst: Bool = false) -> some View {
+        VStack(spacing: 0) {
+            ForEach(options) { option in
+                Button {
+                    openQuickLogOption(option)
+                } label: {
+                    AppListRow(
+                        icon: option.icon,
+                        iconColor: highlightsFirst && option.id == options.first?.id
+                            ? AppPalette.brand
+                            : AppPalette.text,
+                        title: option.title,
+                        subtitle: option.subtitle,
+                        hidesTextFromAccessibility: true
+                    ) {
+                        Image(systemName: "chevron.right")
+                            .appTextRole(.caption)
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(option.title)
+                .accessibilityHint(option.subtitle)
+                .accessibilityIdentifier("quick_log_\(quickLogIdentifier(for: option.title))")
+
+                if option.id != options.last?.id {
+                    Divider().padding(.leading, 68)
+                }
+            }
+        }
+        .appSurface(.quiet, padding: 0)
+    }
+
     private var quickLogMoreButton: some View {
         Button {
             HapticsService.shared.playImpact(style: .light)
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                showingAllQuickLogActions.toggle()
+            let willExpand = !showingAllQuickLogActions
+            withAnimation(AppMotion.standard) {
+                showingAllQuickLogActions = willExpand
+                quickLogDetent = willExpand ? .large : .medium
             }
             DIContainer.shared.analyticsManager?.logEvent("quick_log_more_toggled", parameters: [
-                "expanded": showingAllQuickLogActions
+                "expanded": willExpand
             ])
         } label: {
-            HStack(spacing: 12) {
-                Image(systemName: showingAllQuickLogActions ? "chevron.up.circle" : "ellipsis.circle")
-                    .appFont(size: 18, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .frame(width: 44, height: 44)
-                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(showingAllQuickLogActions ? "Fewer options" : "More options")
-                        .foregroundColor(.textPrimary)
-                        .appFont(size: 16, weight: .semibold)
-
-                    Text(showingAllQuickLogActions ? "Hide specialty logging tools" : "Camera, exercise, recipes, buffet, and running")
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .appFont(size: 13)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer()
+            AppListRow(
+                icon: showingAllQuickLogActions ? "chevron.up.circle" : "ellipsis.circle",
+                title: showingAllQuickLogActions ? "Fewer options" : "More options",
+                subtitle: showingAllQuickLogActions
+                    ? "Hide specialty logging tools"
+                    : "Camera, exercise, recipes, buffet, and running",
+                hidesTextFromAccessibility: true
+            ) {
+                Image(systemName: showingAllQuickLogActions ? "chevron.up" : "chevron.down")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(Color.backgroundPrimary.opacity(0.62), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
-            )
+            .appSurface(.quiet, padding: 0)
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
         .accessibilityLabel(showingAllQuickLogActions ? "Fewer options" : "More options")
-        .accessibilityValue(showingAllQuickLogActions ? "Hide specialty logging tools" : "Show specialty logging tools")
+        .accessibilityHint(showingAllQuickLogActions ? "Hide specialty logging tools" : "Show specialty logging tools")
+        .accessibilityIdentifier("quick_log_more_options")
         .accessibilityAddTraits(.isButton)
     }
-    
-    private func actionButton(title: String, subtitle: String, icon: String, isPrimary: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: {
-            HapticsService.shared.playImpact(style: .light)
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                action()
-            }
-        }) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(isPrimary ? Color.brandPrimary : Color(UIColor.secondarySystemFill))
 
-                    Image(systemName: icon)
-                        .appFont(size: 18, weight: .semibold)
-                        .foregroundColor(isPrimary ? .white : Color(UIColor.secondaryLabel))
-                }
-                .frame(width: 44, height: 44)
+    private func quickLogIdentifier(for title: String) -> String {
+        title
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "_")
+    }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .foregroundColor(.textPrimary)
-                        .appFont(size: 16, weight: .semibold)
+    private func openQuickLogOption(_ option: QuickLogOption) {
+        HapticsService.shared.playImpact(style: .light)
+        let action = option.action
 
-                    Text(subtitle)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .appFont(size: 13)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.9)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
-            }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-            )
+        withAnimation(AppMotion.visibility) {
+            showingAddOptions = false
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(title)
-        .accessibilityValue(subtitle)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Opens \(title)")
+        showingAllQuickLogActions = false
+        quickLogDetent = .medium
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+            action()
+        }
+    }
+
+    private func dismissQuickLog() {
+        if showingSpotlightTour {
+            finishTour()
+        }
+        withAnimation(AppMotion.visibility) {
+            showingAddOptions = false
+        }
+    }
+
+    private func resetQuickLogPresentation() {
+        if showingSpotlightTour {
+            finishTour()
+        }
+        showingAllQuickLogActions = false
+        quickLogDetent = .medium
     }
 }
