@@ -570,8 +570,12 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   standard plus dark accessibility-XXXL coverage. Preference normalization, pantry matching,
   suggestion sanitization, instruction parsing, timer end dates, and quantity wording are covered
   by focused rules rather than view-local assumptions.
-- [ ] Migrate the remaining specialty nutrition tools without turning the dormant social prototype
-  into 2.3 release scope. Continue with reachable calculators and long-tail report surfaces.
+- [x] Migrate the remaining specialty nutrition tools without turning the dormant social prototype
+  into 2.3 release scope. Plate Loading now uses one tested exact/closest-load contract from both
+  calculator and workout-set entry points. Nutrition Trends and Maia Insights now share the
+  evidence-led report hierarchy, explicit source/goal language, deterministic fixtures, and
+  standard plus dark accessibility-XXXL coverage. Dormant social and unlinked legacy log
+  prototypes remain inaccessible rather than becoming accidental release scope.
 - [ ] Retire legacy Home after rollout proof, remove the remaining legacy glass aliases, enforce
   the new rules in source checks, and complete the full 2.3 regression/release pass.
 

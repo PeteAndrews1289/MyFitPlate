@@ -714,6 +714,105 @@ enum ScreenshotDemoData {
         ]
     }
 
+    static func reportDemoViewModel(dailyLogService: DailyLogService) -> ReportsViewModel {
+        let viewModel = ReportsViewModel(dailyLogService: dailyLogService)
+        let values: [(calories: Double, protein: Double, carbs: Double, fat: Double)] = [
+            (1_940, 142, 210, 61),
+            (2_080, 158, 224, 66),
+            (2_160, 164, 238, 68),
+            (1_990, 151, 214, 63),
+            (2_120, 169, 226, 70),
+            (2_240, 171, 249, 72),
+            (2_050, 162, 218, 65)
+        ]
+
+        for (offset, value) in values.enumerated() {
+            let daysAgo = values.count - 1 - offset
+            let date = calendar.date(byAdding: .day, value: -daysAgo, to: today) ?? today
+            viewModel.calorieTrend.append(DateValuePoint(date: date, value: value.calories))
+            viewModel.proteinTrend.append(DateValuePoint(date: date, value: value.protein))
+            viewModel.carbTrend.append(DateValuePoint(date: date, value: value.carbs))
+            viewModel.fatTrend.append(DateValuePoint(date: date, value: value.fat))
+        }
+
+        viewModel.micronutrientAverages = [
+            MicroAverageDataPoint(
+                name: "Calcium",
+                unit: "mg",
+                averageValue: 860,
+                goalValue: 1_000,
+                reportedDayCount: 6,
+                totalDayCount: 7
+            ),
+            MicroAverageDataPoint(
+                name: "Iron",
+                unit: "mg",
+                averageValue: 16.4,
+                goalValue: 18,
+                reportedDayCount: 7,
+                totalDayCount: 7
+            ),
+            MicroAverageDataPoint(
+                name: "Potassium",
+                unit: "mg",
+                averageValue: 3_180,
+                goalValue: 3_500,
+                reportedDayCount: 5,
+                totalDayCount: 7
+            ),
+            MicroAverageDataPoint(
+                name: "Sodium",
+                unit: "mg",
+                averageValue: 2_410,
+                goalValue: 2_300,
+                reportedDayCount: 7,
+                totalDayCount: 7
+            ),
+            MicroAverageDataPoint(
+                name: "Fiber",
+                unit: "g",
+                averageValue: 27.2,
+                goalValue: 30,
+                reportedDayCount: 7,
+                totalDayCount: 7
+            )
+        ]
+        return viewModel
+    }
+
+    static var insightsDemo: [UserInsight] {
+        [
+            UserInsight(
+                title: "Protein Stayed Reliable",
+                message: "You reached at least 90% of your protein target on six of seven logged days, including both training days.",
+                category: .macroBalance,
+                priority: 90,
+                sourceData: "6 of 7 logged days at or above 90% of the current protein target."
+            ),
+            UserInsight(
+                title: "Fiber Improved Late in the Week",
+                message: "Fiber intake moved closer to target after beans, berries, and vegetables appeared more often in the diary.",
+                category: .fiberIntake,
+                priority: 72,
+                sourceData: "Four-day average: 29 g. First three logged days: 21 g."
+            ),
+            UserInsight(
+                title: "Recovery Meals Followed Training",
+                message: "Both demanding sessions were followed by logged protein and carbohydrate within the recovery window.",
+                category: .postWorkout,
+                priority: 64,
+                sourceData: "2 of 2 eligible training sessions had a matching recovery meal."
+            ),
+            UserInsight(
+                title: "Hydration Was Less Consistent",
+                message: "Water logging fell below your usual pattern on the weekend. This may reflect missing entries rather than lower intake.",
+                category: .hydration,
+                priority: 48,
+                sourceData: "Five weekdays reported water; one of two weekend days reported water."
+            )
+        ]
+    }
+
     static var ayceLiveSession: AYCESession {
         let nigiri = AYCECatalog.item(id: "sushi_salmon_nigiri") ?? AYCECatalog.all[0]
         let roll = AYCECatalog.item(id: "sushi_california_roll") ?? AYCECatalog.all[0]

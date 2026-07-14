@@ -3030,6 +3030,153 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testReportUtilityFamilyUsesUnifiedHierarchy() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (
+                name: "Plate Calculator",
+                route: "plate-calculator",
+                title: "Plate Loading",
+                summary: "plate_calculator_summary"
+            ),
+            (
+                name: "Set Plate Loading",
+                route: "plate-math",
+                title: "Plate Loading",
+                summary: "plate_calculator_summary"
+            ),
+            (
+                name: "Nutrition Trends",
+                route: "nutrition-trends",
+                title: "Nutrition Trends",
+                summary: "nutrition_trends_summary"
+            ),
+            (
+                name: "Maia Insights",
+                route: "maia-insights",
+                title: "Weekly Insights",
+                summary: "maia_insights_summary"
+            )
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route
+            ]
+            app.launch()
+
+            let title = app.staticTexts
+                .matching(NSPredicate(format: "label == %@", screen.title))
+                .firstMatch
+            let summary = app.descendants(matching: .any)
+                .matching(identifier: screen.summary)
+                .firstMatch
+
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(summary.waitForExistence(timeout: 5), "\(screen.name) should show its summary")
+            XCTAssertGreaterThanOrEqual(title.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX + 1)
+            XCTAssertGreaterThanOrEqual(summary.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.maxX + 1)
+
+            if screen.route.hasPrefix("plate") {
+                let closeButton = app.buttons["app_sheet_close_button"]
+                XCTAssertTrue(closeButton.waitForExistence(timeout: 5))
+                XCTAssertTrue(closeButton.isHittable)
+            } else if screen.route == "maia-insights" {
+                let shareButton = app.buttons["maia_insights_share"]
+                XCTAssertTrue(shareButton.waitForExistence(timeout: 5))
+                XCTAssertTrue(shareButton.isHittable)
+            }
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - unified report utility hierarchy"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testReportUtilityFamilySupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (
+                name: "Plate Calculator",
+                route: "plate-calculator",
+                title: "Plate Loading",
+                summary: "plate_calculator_summary"
+            ),
+            (
+                name: "Set Plate Loading",
+                route: "plate-math",
+                title: "Plate Loading",
+                summary: "plate_calculator_summary"
+            ),
+            (
+                name: "Nutrition Trends",
+                route: "nutrition-trends",
+                title: "Nutrition Trends",
+                summary: "nutrition_trends_summary"
+            ),
+            (
+                name: "Maia Insights",
+                route: "maia-insights",
+                title: "Weekly Insights",
+                summary: "maia_insights_summary"
+            )
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let title = app.staticTexts
+                .matching(NSPredicate(format: "label == %@", screen.title))
+                .firstMatch
+            let summary = app.descendants(matching: .any)
+                .matching(identifier: screen.summary)
+                .firstMatch
+
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(summary.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(title.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX + 1)
+            XCTAssertGreaterThanOrEqual(summary.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.maxX + 1)
+            XCTAssertGreaterThanOrEqual(summary.frame.minY, app.frame.minY - 1)
+            XCTAssertLessThanOrEqual(summary.frame.maxY, app.frame.maxY + 1)
+
+            if screen.route.hasPrefix("plate") {
+                let closeButton = app.buttons["app_sheet_close_button"]
+                XCTAssertTrue(closeButton.waitForExistence(timeout: 5))
+                XCTAssertTrue(closeButton.isHittable)
+            } else if screen.route == "maia-insights" {
+                let shareButton = app.buttons["maia_insights_share"]
+                XCTAssertTrue(shareButton.waitForExistence(timeout: 5))
+                XCTAssertTrue(shareButton.isHittable)
+            }
+
+            let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testCustomProductPageDeepLinksOpenExactDestinations() throws {
         let app = XCUIApplication()
         let destinations = [

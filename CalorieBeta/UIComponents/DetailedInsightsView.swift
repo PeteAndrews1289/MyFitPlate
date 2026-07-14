@@ -1,446 +1,449 @@
+import MyFitPlateCore
 import SwiftUI
 
 struct DetailedInsightsView: View {
     @ObservedObject var insightsService: InsightsService
+    private let initialInsights: [UserInsight]?
     @State private var showShareSheet = false
     @State private var pdfURL: URL?
+    @State private var exportError: String?
 
     private var sortedInsights: [UserInsight] {
         insightsService.currentInsights.sorted { first, second in
             if first.priority == second.priority {
-                return first.title < second.title
+                return first.title.localizedCaseInsensitiveCompare(second.title) == .orderedAscending
             }
             return first.priority > second.priority
         }
     }
 
+    private var topInsight: UserInsight? {
+        sortedInsights.first
+    }
+
+    private var remainingInsights: [UserInsight] {
+        Array(sortedInsights.dropFirst())
+    }
+
+    private var categoryCount: Int {
+        Set(sortedInsights.map(\.category)).count
+    }
+
+    init(insightsService: InsightsService, initialInsights: [UserInsight]? = nil) {
+        self.insightsService = insightsService
+        self.initialInsights = initialInsights
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                AppScreenHeader(
+                    eyebrow: "Maia",
+                    title: "Weekly Insights",
+                    subtitle: "Patterns from your logged nutrition, training, hydration, and recovery data."
+                )
+
                 if insightsService.isLoadingInsights {
                     InsightsLoadingState()
-                } else if insightsService.currentInsights.isEmpty {
+                } else if sortedInsights.isEmpty {
                     InsightsEmptyState()
                 } else {
-                    InsightsHeroCard(insights: sortedInsights)
-                    InsightCategoryStrip(insights: sortedInsights)
+                    insightSummary
 
-                    ForEach(sortedInsights) { insight in
-                        InsightDetailCard(insight: insight)
+                    if let topInsight {
+                        LeadInsightView(insight: topInsight)
+                    }
+
+                    if !remainingInsights.isEmpty {
+                        insightList
                     }
                 }
 
-                InsightDisclaimerCard()
+                InsightDisclaimer()
             }
-            .padding()
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.section)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Maia insights")
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .navigationTitle("Maia Insights")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: exportToPDF) {
                     Image(systemName: "square.and.arrow.up")
                 }
-                .disabled(insightsService.currentInsights.isEmpty || insightsService.isLoadingInsights)
+                .disabled(sortedInsights.isEmpty || insightsService.isLoadingInsights)
+                .accessibilityLabel("Share Maia insights")
+                .accessibilityIdentifier("maia_insights_share")
             }
         }
-        .tint(.blue)
+        .tint(AppPalette.brand)
+        .onAppear {
+            guard let initialInsights else { return }
+            insightsService.isLoadingInsights = false
+            insightsService.currentInsights = initialInsights
+        }
         .sheet(isPresented: $showShareSheet) {
-            if let pdfURL = pdfURL {
+            if let pdfURL {
                 PDFShareView(activityItems: [pdfURL])
             }
         }
+        .alert("Could Not Export Insights", isPresented: exportAlertBinding) {
+            Button("OK", role: .cancel) { exportError = nil }
+        } message: {
+            Text(exportError ?? "Try again in a moment.")
+        }
+    }
+
+    private var insightSummary: some View {
+        AppMetricStrip(items: [
+            AppMetricItem(
+                label: "Patterns",
+                value: sortedInsights.count.formatted(),
+                accent: AppPalette.brand
+            ),
+            AppMetricItem(
+                label: "Areas",
+                value: categoryCount.formatted(),
+                accent: .blue
+            ),
+            AppMetricItem(
+                label: "Interpretation",
+                value: "AI Assisted",
+                accent: .orange
+            )
+        ])
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("maia_insights_summary")
+    }
+
+    private var insightList: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Other Patterns",
+                subtitle: "Review each observation and open its source data when available."
+            )
+
+            VStack(spacing: 0) {
+                ForEach(Array(remainingInsights.enumerated()), id: \.element.id) { index, insight in
+                    InsightEvidenceRow(insight: insight)
+
+                    if index < remainingInsights.count - 1 {
+                        Divider().padding(.leading, 60)
+                    }
+                }
+            }
+            .appSurface(.quiet, padding: 0)
+            .accessibilityIdentifier("maia_insights_list")
+        }
+    }
+
+    private var exportAlertBinding: Binding<Bool> {
+        Binding(
+            get: { exportError != nil },
+            set: { if !$0 { exportError = nil } }
+        )
     }
 
     @MainActor
     private func exportToPDF() {
-        let insightsToExport = insightsService.currentInsights
-        guard !insightsToExport.isEmpty else { return }
+        let insights = sortedInsights
+        guard !insights.isEmpty else { return }
 
-        let renderer = ImageRenderer(content: InsightsPDFLayout(insights: insightsToExport))
-        
         let url = URL.documentsDirectory.appending(path: "MyFitPlate_Insights.pdf")
-        
-        renderer.render { _, context in
-            var box = CGRect(x: 0, y: 0, width: 612, height: 792)
-            
-            guard let pdf = CGContext(url as CFURL, mediaBox: &box, nil) else {
-                return
-            }
-            
-            pdf.beginPDFPage(nil)
-            context(pdf)
-            pdf.endPDFPage()
-            pdf.closePDF()
-            
-            self.pdfURL = url
-            self.showShareSheet = true
+        var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
+        guard let pdf = CGContext(url as CFURL, mediaBox: &mediaBox, nil) else {
+            exportError = "MyFitPlate could not create the PDF file."
+            return
         }
+
+        for (index, insight) in insights.enumerated() {
+            let page = InsightsPDFPage(
+                insight: insight,
+                pageNumber: index + 1,
+                pageCount: insights.count
+            )
+            let renderer = ImageRenderer(content: page)
+            renderer.render { _, render in
+                pdf.beginPDFPage(nil)
+                render(pdf)
+                pdf.endPDFPage()
+            }
+        }
+        pdf.closePDF()
+
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            exportError = "The PDF was not saved. Check available storage and try again."
+            return
+        }
+        pdfURL = url
+        showShareSheet = true
     }
 }
 
-private struct InsightsHeroCard: View {
-    let insights: [UserInsight]
-
-    private var topInsight: UserInsight? {
-        insights.first
-    }
-
-    private var categoryCount: Int {
-        Set(insights.map(\.category)).count
-    }
+private struct LeadInsightView: View {
+    let insight: UserInsight
+    @State private var showsSource = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                Image("maia_avatar")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 50, height: 50)
-                    .clipShape(Circle())
-                    .background(Color.backgroundSecondary, in: Circle())
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                Image(systemName: insight.category.iconName)
+                    .appFont(size: 18, weight: .semibold)
+                    .foregroundStyle(insight.category.tintColor)
+                    .frame(width: 42, height: 42)
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                    .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Maia's read")
-                        .appFont(size: 21, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("A weekly pattern check across nutrition, training, hydration, and recovery.")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Lead Pattern")
+                        .appTextRole(.caption)
+                        .foregroundStyle(insight.category.tintColor)
+                    Text(insight.title)
+                        .appTextRole(.sectionTitle)
+                        .foregroundStyle(AppPalette.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Spacer()
             }
 
-            if let topInsight {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Highest priority")
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+            Text(insight.message)
+                .appTextRole(.body)
+                .foregroundStyle(.secondary)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
 
-                    Text(topInsight.title)
-                        .appFont(size: 18, weight: .bold)
-                        .foregroundColor(.textPrimary)
+            if let source = normalizedSource(insight.sourceData) {
+                sourceDisclosure(source)
+            }
+        }
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("maia_insights_lead")
+    }
 
-                    Text(topInsight.message)
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(3)
+    private func sourceDisclosure(_ source: String) -> some View {
+        DisclosureGroup(isExpanded: $showsSource) {
+            Text(source)
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, AppSpacing.compact)
+        } label: {
+            Label("Source Data", systemImage: "doc.text.magnifyingglass")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.brand)
+        }
+    }
+}
+
+private struct InsightEvidenceRow: View {
+    let insight: UserInsight
+    @State private var showsSource = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                Image(systemName: insight.category.iconName)
+                    .appFont(size: 16, weight: .semibold)
+                    .foregroundStyle(insight.category.tintColor)
+                    .frame(width: 40, height: 40)
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(insight.category.displayName)
+                        .appTextRole(.caption)
+                        .foregroundStyle(insight.category.tintColor)
+                    Text(insight.title)
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(12)
-                .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
 
-            HStack(spacing: 10) {
-                InsightHeroMetric(title: "Insights", value: insights.count.formatted(), color: .blue)
-                InsightHeroMetric(title: "Categories", value: categoryCount.formatted(), color: .purple)
-                InsightHeroMetric(title: "Focus", value: topInsight?.category.displayName ?? "Ready", color: .accentPositive)
-            }
-        }
-        .asCard()
-    }
-}
+            Text(insight.message)
+                .appTextRole(.body)
+                .foregroundStyle(.secondary)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
 
-private struct InsightHeroMetric: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-
-            HStack(spacing: 5) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 6, height: 6)
-
-                Text(title)
-                    .appFont(size: 10, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(1)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-}
-
-private struct InsightCategoryStrip: View {
-    let insights: [UserInsight]
-
-    private var categories: [(category: UserInsight.InsightCategory, count: Int)] {
-        Dictionary(grouping: insights, by: \.category)
-            .map { ($0.key, $0.value.count) }
-            .sorted { lhs, rhs in
-                if lhs.1 == rhs.1 {
-                    return lhs.0.displayName < rhs.0.displayName
-                }
-                return lhs.1 > rhs.1
-            }
-    }
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(categories, id: \.category) { item in
-                    InsightCategoryPill(category: item.category, count: item.count)
+            if let source = normalizedSource(insight.sourceData) {
+                DisclosureGroup(isExpanded: $showsSource) {
+                    Text(source)
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, AppSpacing.compact)
+                } label: {
+                    Text("Source Data")
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.brand)
                 }
             }
-            .padding(.vertical, 2)
         }
-    }
-}
-
-private struct InsightCategoryPill: View {
-    let category: UserInsight.InsightCategory
-    let count: Int
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: category.iconName)
-                .appFont(size: 11, weight: .bold)
-
-            Text(category.displayName)
-                .appFont(size: 12, weight: .bold)
-
-            Text(count.formatted())
-                .appFont(size: 10, weight: .bold)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color(UIColor.secondarySystemFill), in: Capsule())
-        }
-        .foregroundColor(category.tintColor)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(Color.backgroundSecondary.opacity(0.78), in: Capsule())
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
     }
 }
 
 private struct InsightsLoadingState: View {
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: AppSpacing.row) {
             ProgressView()
-                .tint(.blue)
-
-            Text("Maia is reading the week")
-                .appFont(size: 19, weight: .bold)
-                .foregroundColor(.textPrimary)
-
-            Text("Nutrition, workouts, hydration, sleep, and journal notes are being checked for useful patterns.")
-                .appFont(size: 13)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .tint(AppPalette.brand)
+            Text("Reading the Week")
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+            Text("Maia is checking nutrition, training, hydration, sleep, and journal signals for useful patterns.")
+                .appTextRole(.body)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 42)
-        .padding(.horizontal, 18)
-        .asCard()
+        .padding(.vertical, AppSpacing.section)
+        .appSurface(.quiet)
     }
 }
 
 private struct InsightsEmptyState: View {
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: AppSpacing.row) {
             Image(systemName: "chart.line.text.clipboard")
-                .appFont(size: 30, weight: .semibold)
-                .foregroundColor(.blue)
-                .frame(width: 62, height: 62)
-                .background(Color(UIColor.secondarySystemFill), in: Circle())
-
-            Text("Not enough signal yet")
-                .appFont(size: 20, weight: .bold)
-                .foregroundColor(.textPrimary)
-
-            Text("A few logged meals, water entries, and workouts give Maia enough context to produce a better weekly read.")
-                .appFont(size: 13)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appFont(size: 28, weight: .semibold)
+                .foregroundStyle(AppPalette.brand)
+            Text("Not Enough Signal Yet")
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+            Text("A few logged meals, water entries, and workouts give Maia enough context to produce a more useful weekly read.")
+                .appTextRole(.body)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 34)
-        .padding(.horizontal, 18)
-        .asCard()
+        .padding(.vertical, AppSpacing.section)
+        .appSurface(.quiet)
     }
 }
 
-private struct InsightDisclaimerCard: View {
+private struct InsightDisclaimer: View {
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "info.circle.fill")
-                .appFont(size: 15, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .padding(.top, 1)
-
-            Text("Insights are generated from logged data and general health guidelines. They are not medical advice.")
-                .appFont(size: 12)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+        Label {
+            Text("Maia interprets logged data using general health guidance. These insights can be incomplete and are not medical advice.")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "info.circle")
+                .foregroundStyle(.secondary)
         }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.66), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
-struct InsightsPDFLayout: View {
-    let insights: [UserInsight]
-    
+private struct InsightsPDFPage: View {
+    let insight: UserInsight
+    let pageNumber: Int
+    let pageCount: Int
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("MyFitPlate: Weekly insights")
-                .font(.largeTitle.bold())
-            Text("Report generated on: \(Date().formatted(date: .long, time: .shortened))")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Divider()
-            
-            ForEach(insights) { insight in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(insight.title)
-                        .font(.title2.bold())
-                    Text(insight.message)
-                        .font(.body)
-                }
-                .padding(.bottom)
+            HStack(alignment: .firstTextBaseline) {
+                Text("MyFitPlate Weekly Insights")
+                    .font(.title.bold())
+                Spacer()
+                Text("\(pageNumber) / \(pageCount)")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
+
+            Text("Generated \(Date().formatted(date: .long, time: .shortened))")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Divider()
+
+            Text(insight.category.displayName)
+                .font(.headline)
+                .foregroundStyle(insight.category.tintColor)
+
+            Text(insight.title)
+                .font(.title2.bold())
+
+            Text(insight.message)
+                .font(.body)
+                .lineSpacing(4)
+
+            Spacer()
+
+            Text("Generated from logged data and general guidance. Not medical advice.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        .padding(40)
-        .frame(width: 612)
+        .padding(48)
+        .frame(width: 612, height: 792, alignment: .topLeading)
+        .background(Color.white)
+        .foregroundStyle(Color.black)
     }
 }
 
-struct InsightDetailCard: View {
-    let insight: UserInsight
-    @State private var showSourceData = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: insight.category.iconName)
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(insight.category.tintColor)
-                    .frame(width: 40, height: 40)
-                    .background(insight.category.tintColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(insight.category.displayName)
-                        .appFont(size: 10, weight: .bold)
-                        .foregroundColor(insight.category.tintColor)
-
-                    Text(insight.title)
-                        .appFont(size: 18, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer()
-
-                if insight.priority > 0 {
-                    Text("\(insight.priority)")
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundColor(.orange)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Color.orange.opacity(0.10), in: Capsule())
-                }
-            }
-            
-            Text(insight.message)
-                .appFont(size: 15)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .lineSpacing(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let sourceData = insight.sourceData, !sourceData.isEmpty {
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showSourceData.toggle()
-                    }
-                }) {
-                    Label(showSourceData ? "Hide source data" : "Show source data", systemImage: showSourceData ? "chevron.up" : "chevron.down")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(.blue)
-                }
-                .buttonStyle(.plain)
-
-                if showSourceData {
-                    Text(sourceData)
-                        .appFont(size: 12)
-                        .foregroundColor(.textPrimary)
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
-        }
-        .asCard()
-    }
+private func normalizedSource(_ source: String?) -> String? {
+    guard let source else { return nil }
+    let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
 }
 
 private extension UserInsight.InsightCategory {
     var displayName: String {
         switch self {
-        case .nutritionGeneral: return "Nutrition"
-        case .hydration: return "Hydration"
-        case .macroBalance: return "Macros"
-        case .microNutrient: return "Micros"
-        case .mealTiming: return "Meal timing"
-        case .consistency: return "Consistency"
-        case .postWorkout: return "Post workout"
-        case .foodVariety: return "Variety"
-        case .positiveReinforcement: return "Win"
-        case .sugarAwareness: return "Sugar"
-        case .fiberIntake: return "Fiber"
-        case .saturatedFat: return "Fats"
-        case .smartSuggestion: return "Suggestion"
-        case .sleep: return "Sleep"
-        case .calorieFluctuation: return "Calories"
-        case .weekendTrends: return "Weekend"
-        case .exerciseSynergy: return "Training"
+        case .nutritionGeneral: "Nutrition"
+        case .hydration: "Hydration"
+        case .macroBalance: "Macros"
+        case .microNutrient: "Micros"
+        case .mealTiming: "Meal Timing"
+        case .consistency: "Consistency"
+        case .postWorkout: "Post Workout"
+        case .foodVariety: "Variety"
+        case .positiveReinforcement: "Win"
+        case .sugarAwareness: "Sugar"
+        case .fiberIntake: "Fiber"
+        case .saturatedFat: "Fats"
+        case .smartSuggestion: "Suggestion"
+        case .sleep: "Sleep"
+        case .calorieFluctuation: "Calories"
+        case .weekendTrends: "Weekend"
+        case .exerciseSynergy: "Training"
         }
     }
 
     var iconName: String {
         switch self {
-        case .sleep: return "bed.double.fill"
-        case .hydration: return "drop.fill"
-        case .microNutrient, .fiberIntake, .saturatedFat: return "leaf.fill"
-        case .macroBalance: return "chart.pie.fill"
-        case .nutritionGeneral, .foodVariety: return "fork.knife"
-        case .consistency, .mealTiming, .weekendTrends: return "calendar.badge.clock"
-        case .postWorkout, .exerciseSynergy: return "flame.fill"
-        case .positiveReinforcement: return "star.fill"
-        case .sugarAwareness: return "bubbles.and.sparkles"
-        default: return "lightbulb.fill"
+        case .sleep: "bed.double.fill"
+        case .hydration: "drop.fill"
+        case .microNutrient, .fiberIntake, .saturatedFat: "leaf.fill"
+        case .macroBalance: "chart.pie.fill"
+        case .nutritionGeneral, .foodVariety: "fork.knife"
+        case .consistency, .mealTiming, .weekendTrends: "calendar.badge.clock"
+        case .postWorkout, .exerciseSynergy: "flame.fill"
+        case .positiveReinforcement: "star.fill"
+        case .sugarAwareness: "bubbles.and.sparkles"
+        default: "lightbulb.fill"
         }
     }
 
     var tintColor: Color {
         switch self {
-        case .sleep: return .indigo
-        case .hydration: return .blue
-        case .microNutrient, .fiberIntake, .foodVariety: return .accentPositive
-        case .saturatedFat: return .pink
-        case .macroBalance: return .accentCarbs
-        case .nutritionGeneral: return .purple
-        case .consistency, .mealTiming, .weekendTrends: return .teal
-        case .postWorkout, .exerciseSynergy: return .orange
-        case .positiveReinforcement: return .yellow
-        case .sugarAwareness: return .red
-        default: return .gray
+        case .sleep: .indigo
+        case .hydration: .blue
+        case .microNutrient, .fiberIntake, .foodVariety: .accentPositive
+        case .saturatedFat: .pink
+        case .macroBalance: .accentCarbs
+        case .nutritionGeneral: .purple
+        case .consistency, .mealTiming, .weekendTrends: .teal
+        case .postWorkout, .exerciseSynergy: .orange
+        case .positiveReinforcement: .yellow
+        case .sugarAwareness: .red
+        default: .gray
         }
     }
 }

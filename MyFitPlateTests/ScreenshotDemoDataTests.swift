@@ -127,6 +127,29 @@ final class ScreenshotDemoDataTests: XCTestCase {
         )
     }
 
+    func testReportUtilityFixturesProvideStableEvidence() {
+        let viewModel = ScreenshotDemoData.reportDemoViewModel(
+            dailyLogService: DailyLogService()
+        )
+        let summary = NutritionTrendRules.summary(
+            calories: viewModel.calorieTrend,
+            protein: viewModel.proteinTrend,
+            carbs: viewModel.carbTrend,
+            fat: viewModel.fatTrend
+        )
+
+        XCTAssertEqual(viewModel.calorieTrend.count, 7)
+        XCTAssertEqual(viewModel.micronutrientAverages.count, 5)
+        XCTAssertEqual(summary.observedDays, 7)
+        XCTAssertGreaterThan(summary.averageProtein ?? 0, 150)
+
+        let insights = ScreenshotDemoData.insightsDemo
+        XCTAssertEqual(insights.count, 4)
+        XCTAssertEqual(Set(insights.map(\.category)).count, 4)
+        XCTAssertTrue(insights.allSatisfy { !$0.title.isEmpty && !$0.message.isEmpty })
+        XCTAssertTrue(insights.allSatisfy { !($0.sourceData ?? "").isEmpty })
+    }
+
     func testLivingDayFoodTransitionTargetsPersistedMealNode() {
         let mealID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
         let food = FoodItem(id: "logged-food", name: "Chicken bowl", calories: 520)

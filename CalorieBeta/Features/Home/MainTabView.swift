@@ -27,6 +27,7 @@ struct MainTabView: View {
     @EnvironmentObject var pantryService: PantryService
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
+    @EnvironmentObject var insightsService: InsightsService
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     
     @State private var showSettings = false
@@ -82,7 +83,8 @@ struct MainTabView: View {
             "profile", "challenges", "pantry", "pantry-recipes", "receipt-review",
             "ayce-start", "ayce-live", "ayce-review", "ayce-summary", "value-radar",
             "celebration", "meal-plan-survey", "meal-plan-survey-cooking", "meal-prep",
-            "meal-prep-steps", "meal-suggestion"
+            "meal-prep-steps", "meal-suggestion", "plate-calculator", "plate-math",
+            "nutrition-trends", "maia-insights"
         ].contains(ScreenshotDemoData.requestedScreen)
         #else
         false
@@ -440,6 +442,25 @@ struct MainTabView: View {
                 onLog: { _ in },
                 onRegenerate: {}
             )
+        case "plate-calculator":
+            PlateCalculatorView(initialTargetWeight: 225)
+        case "plate-math":
+            PlateMathVisualizer(totalWeight: 185)
+        case "nutrition-trends":
+            NavigationStack {
+                CalorieTrackingView(
+                    viewModel: ScreenshotDemoData.reportDemoViewModel(
+                        dailyLogService: dailyLogService
+                    )
+                )
+            }
+        case "maia-insights":
+            NavigationStack {
+                DetailedInsightsView(
+                    insightsService: insightsService,
+                    initialInsights: ScreenshotDemoData.insightsDemo
+                )
+            }
         default:
             standardHomeContent
         }

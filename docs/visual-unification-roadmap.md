@@ -390,15 +390,37 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   `git diff --check` passed, and the complete simulator build passed with the embedded Watch app,
   widgets, and Live Activity.
 
+### Batch 21 - Report and Plate Utilities (complete)
+
+- Replaced the separate workout and nutrition plate calculators with one responsive Plate Loading
+  surface and one shared finite-input rules engine. Editable targets and fixed workout-set targets
+  now use the same standard 45 lb bar and plate inventory, show exact versus closest loading, state
+  any difference from the requested weight, and render the physical plates plus literal per-side
+  counts.
+- Rebuilt Nutrition Trends around one seven-day evidence summary, safe calorie and macro charts,
+  an explicit current-goal line, a continuous micronutrient-coverage section, and plain language
+  for foods whose sources do not report micronutrients. Invalid or negative chart inputs fail
+  closed instead of distorting averages or axes.
+- Rebuilt Maia Insights around one lead pattern, a continuous supporting-pattern surface, direct
+  source-data disclosure, cautious AI-assisted interpretation language, and bounded one-page-per-
+  insight PDF output with visible export failures.
+- Added deterministic direct routes, report/insight fixtures, seven Core rules tests, one fixture
+  contract test, and standard plus dark accessibility-XXXL four-screen UI journeys. The focused
+  app/UI result passed 3/3 selected tests, strict lint and `git diff --check` passed, and the full
+  simulator build passed with the embedded Watch app, widgets, and Live Activity. Delayed direct
+  captures were reviewed for both Plate Loading modes, Nutrition Trends, and Maia Insights.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
 review family now join that system, along with wellness, weight, fasting, and cycle tracking. The
 first-run and account-access family now joins them, as do the live progress, achievement, and
 weekly-challenge surfaces. Smart Pantry, pantry recipe drafts, receipt review, AYCE, Restaurant
-Value Radar, and the meal-planning support family now join them. The active migration queue is the
-remaining reachable calculators and long-tail report surfaces; unfinished public social surfaces
-remain explicitly gated rather than being polished into accidental release scope.
+Value Radar, meal-planning support, Plate Loading, Nutrition Trends, and Maia Insights now join
+them. The reachable migration queue is complete. The active queue moves to retiring proven legacy
+styling, enforcing the shared rules in source checks, and running the complete 2.3 regression and
+release pass; unfinished public social surfaces remain explicitly gated rather than being polished
+into accidental release scope.
 
 ## Product Direction
 
@@ -633,7 +655,7 @@ start. Editorial composition must not leak into repeated workflows.
 - Smart Pantry, pantry recipe drafts, and receipt review (Batch 18 complete)
 - AYCE and Restaurant Value Radar (Batch 19 complete)
 - Meal-plan setup, meal-prep cooking, and AI meal-suggestion review (Batch 20 complete)
-- Remaining reachable calculator and long-tail report surfaces
+- Plate Loading, Nutrition Trends, and Maia Insights (Batch 21 complete)
 
 Migrate by feature family so each batch can be reviewed and reverted independently.
 
