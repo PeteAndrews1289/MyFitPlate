@@ -19,13 +19,19 @@ struct SettingsAccountSection: View {
     @State private var exportURLs: [URL] = []
     @State private var showingExportShare = false
     @State private var showingMFPImport = false
+    @State private var didPresentScreenshotImport = false
 
     var body: some View {
-        SettingsSectionCard(title: "Account") {
+        SettingsSectionCard(title: "Goals & Data") {
             Button { showCaloricCalculator = true } label: {
-                SettingsLabel(icon: "target", title: "Calorie and macro goals", subtitle: "Adjust targets and goal method.", color: .orange)
+                SettingsLabel(
+                    icon: "target",
+                    title: "Calorie and macro goals",
+                    subtitle: "Adjust targets and goal method.",
+                    showsDisclosure: true
+                )
             }
-            .padding(16)
+            .padding(AppSpacing.group)
             
             Divider().padding(.leading, 50)
             
@@ -35,9 +41,14 @@ struct SettingsAccountSection: View {
                 inchesInput = "\(currentHeight.inches)"
                 showHeightEditor = true
             } label: {
-                SettingsLabel(icon: "ruler", title: "Height", subtitle: "Update your body metrics.", color: .blue)
+                SettingsLabel(
+                    icon: "ruler",
+                    title: "Height",
+                    subtitle: "Update your body metrics.",
+                    showsDisclosure: true
+                )
             }
-            .padding(16)
+            .padding(AppSpacing.group)
             
             Divider().padding(.leading, 50)
             
@@ -45,51 +56,40 @@ struct SettingsAccountSection: View {
                 waterGoalInput = "\(Int(goalSettings.waterGoal.rounded()))"
                 showingWaterGoalSheet = true
             } label: {
-                SettingsLabel(icon: "drop.fill", title: "Daily water goal", subtitle: "\(Int(goalSettings.waterGoal.rounded()).formatted()) oz per day.", color: .cyan)
+                SettingsLabel(
+                    icon: "drop.fill",
+                    title: "Daily water goal",
+                    subtitle: "\(Int(goalSettings.waterGoal.rounded()).formatted()) oz per day.",
+                    showsDisclosure: true
+                )
             }
-            .padding(16)
+            .padding(AppSpacing.group)
             
             Divider().padding(.leading, 50)
             
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Calorie goal method")
-                    .appFont(size: 15, weight: .semibold)
-                    .foregroundColor(.textPrimary)
-
-                Menu {
-                    ForEach(CalorieGoalMethod.allCases) { method in
-                        Button {
-                            selectCalorieGoalMethod(method)
-                        } label: {
-                            if goalSettings.calorieGoalMethod == method {
-                                Label(method.rawValue, systemImage: "checkmark")
-                            } else {
-                                Text(method.rawValue)
-                            }
+            Menu {
+                ForEach(CalorieGoalMethod.allCases) { method in
+                    Button {
+                        selectCalorieGoalMethod(method)
+                    } label: {
+                        if goalSettings.calorieGoalMethod == method {
+                            Label(method.rawValue, systemImage: "checkmark")
+                        } else {
+                            Text(method.rawValue)
                         }
                     }
-                } label: {
-                    HStack(spacing: 12) {
-                        Text(goalSettings.calorieGoalMethod.rawValue)
-                            .appFont(size: 15, weight: .semibold)
-                            .foregroundColor(.textPrimary)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Spacer(minLength: 8)
-
-                        Image(systemName: "chevron.up.chevron.down")
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .padding(.horizontal, 14)
-                    .background(Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                .accessibilityLabel("Calorie goal method")
-                .accessibilityValue(goalSettings.calorieGoalMethod.rawValue)
+            } label: {
+                SettingsLabel(
+                    icon: "function",
+                    title: "Calorie goal method",
+                    subtitle: goalSettings.calorieGoalMethod.rawValue,
+                    showsDisclosure: true
+                )
             }
-            .padding(16)
+            .accessibilityLabel("Calorie goal method")
+            .accessibilityValue(goalSettings.calorieGoalMethod.rawValue)
+            .padding(AppSpacing.group)
 
             Divider().padding(.leading, 50)
 
@@ -100,8 +100,7 @@ struct SettingsAccountSection: View {
                     SettingsLabel(
                         icon: "square.and.arrow.up",
                         title: "Export your data",
-                        subtitle: "Food diary and workouts as CSV files.",
-                        color: .blue
+                        subtitle: "Food diary and workouts as CSV files."
                     )
                     if isExporting {
                         Spacer()
@@ -110,7 +109,7 @@ struct SettingsAccountSection: View {
                 }
             }
             .disabled(isExporting)
-            .padding(16)
+            .padding(AppSpacing.group)
 
             Divider().padding(.leading, 50)
 
@@ -121,11 +120,12 @@ struct SettingsAccountSection: View {
                     icon: "square.and.arrow.down",
                     title: "Import from MyFitnessPal",
                     subtitle: "Bring your diary and weight history with you.",
-                    color: .accentProtein
+                    showsDisclosure: true
                 )
             }
-            .padding(16)
+            .padding(AppSpacing.group)
         }
+        .accessibilityIdentifier("settings_goals_data")
         .sheet(isPresented: $showingExportShare) {
             PDFShareView(activityItems: exportURLs)
         }
@@ -134,6 +134,17 @@ struct SettingsAccountSection: View {
                 .environmentObject(dailyLogService)
                 .environmentObject(goalSettings)
         }
+        .onAppear(perform: presentScreenshotImportIfNeeded)
+    }
+
+    private func presentScreenshotImportIfNeeded() {
+        #if DEBUG
+        guard ScreenshotDemoMode.isEnabled,
+              ScreenshotDemoData.requestedScreen == "settings-import",
+              !didPresentScreenshotImport else { return }
+        didPresentScreenshotImport = true
+        showingMFPImport = true
+        #endif
     }
 
     private func selectCalorieGoalMethod(_ method: CalorieGoalMethod) {

@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 struct SettingsSectionCard<Content: View>: View {
     let title: String?
@@ -10,20 +11,20 @@ struct SettingsSectionCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let title = title {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            if let title {
                 Text(title)
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .padding(.horizontal, 8)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, AppSpacing.compact)
             }
-            
+
             VStack(spacing: 0) {
                 content
             }
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Color.white.opacity(0.15), lineWidth: 1))
+            .appSurface(.quiet, padding: 0, radius: AppRadius.control)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -31,55 +32,53 @@ struct SettingsLabel: View {
     let icon: String
     let title: String
     let subtitle: String
-    let color: Color
+    let showsDisclosure: Bool
+
+    init(
+        icon: String,
+        title: String,
+        subtitle: String,
+        showsDisclosure: Bool = false
+    ) {
+        self.icon = icon
+        self.title = title
+        self.subtitle = subtitle
+        self.showsDisclosure = showsDisclosure
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: icon)
-                .appFont(size: 15, weight: .bold)
-                .foregroundColor(color)
-                .frame(width: 32, height: 32)
-                .background(color.opacity(0.12), in: Circle())
+                .appFont(size: 17, weight: .semibold)
+                .foregroundStyle(.secondary)
+                .frame(width: 36, height: 36)
+                .background(
+                    AppPalette.surface,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .appFont(size: 15, weight: .semibold)
-                    .foregroundColor(.textPrimary)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
                 Text(subtitle)
-                    .appFont(size: 12)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-        }
-    }
-}
 
-struct SettingsMetric: View {
-    let title: String
-    let value: String
-    let color: Color
+            Spacer(minLength: AppSpacing.compact)
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .appFont(size: 15, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            HStack(spacing: 5) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 6, height: 6)
-
-                Text(title)
-                    .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(1)
+            if showsDisclosure {
+                Image(systemName: "chevron.right")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, AppSpacing.compact)
+                    .accessibilityHidden(true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(Color.backgroundPrimary.opacity(0.58), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -89,39 +88,29 @@ struct SettingsHeaderCard: View {
     let heightText: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "slider.horizontal.3")
-                    .appFont(size: 20, weight: .bold)
-                    .foregroundColor(.blue)
-                    .frame(width: 46, height: 46)
-                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Your Targets",
+                subtitle: "The current goals used across food, hydration, and training."
+            )
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Personal settings")
-                        .appFont(size: 21, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    Text("Tune the goals and integrations that power the rest of MyFitPlate.")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            HStack(spacing: 10) {
-                SettingsMetric(title: "Calories", value: calorieGoal.map { "\(Int($0.rounded()).formatted()) cal" } ?? "--", color: .orange)
-                SettingsMetric(title: "Water", value: "\(Int(waterGoal.rounded()).formatted()) oz", color: .cyan)
-                SettingsMetric(title: "Height", value: heightText, color: .blue)
-            }
+            AppMetricStrip(items: [
+                AppMetricItem(
+                    label: "Calories",
+                    value: calorieGoal.map { "\(Int($0.rounded()).formatted()) cal" } ?? "--",
+                    accent: .orange
+                ),
+                AppMetricItem(
+                    label: "Water",
+                    value: "\(Int(waterGoal.rounded()).formatted()) oz",
+                    accent: .cyan
+                ),
+                AppMetricItem(label: "Height", value: heightText, accent: AppPalette.brand)
+            ])
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .appSurface(.emphasized)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings_goals_summary")
     }
 }
 
@@ -169,20 +158,6 @@ enum SettingsLegalInfoKind {
         }
     }
 
-    var icon: String {
-        switch self {
-        case .privacy: return "lock.shield.fill"
-        case .terms: return "doc.text.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .privacy: return .blue
-        case .terms: return .purple
-        }
-    }
-
     var intro: String {
         switch self {
         case .privacy:
@@ -218,48 +193,43 @@ struct SettingsLegalInfoView: View {
     let kind: SettingsLegalInfoKind
 
     var body: some View {
-        ZStack {
-            AnimatedBackgroundView()
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                AppScreenHeader(
+                    eyebrow: "MyFitPlate",
+                    title: kind.title,
+                    subtitle: kind.intro
+                )
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .top, spacing: 14) {
-                        Image(systemName: kind.icon)
-                            .appFont(size: 22, weight: .bold)
-                            .foregroundColor(kind.color)
-                            .frame(width: 46, height: 46)
-                            .background(kind.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                        Text(kind.intro)
-                            .appFont(size: 14)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(18)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 1))
-
-                    ForEach(kind.sections) { section in
+                VStack(spacing: 0) {
+                    ForEach(Array(kind.sections.enumerated()), id: \.element.id) { index, section in
                         VStack(alignment: .leading, spacing: 8) {
                             Text(section.title)
-                                .appFont(size: 17, weight: .bold)
-                                .foregroundColor(.textPrimary)
+                                .appTextRole(.control)
+                                .foregroundStyle(AppPalette.text)
                             Text(section.body)
-                                .appFont(size: 14)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
+                                .appTextRole(.body)
+                                .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        .padding(18)
+                        .padding(AppSpacing.group)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 1))
+
+                        if index < kind.sections.count - 1 {
+                            Divider()
+                                .padding(.leading, AppSpacing.group)
+                        }
                     }
                 }
-                .padding(20)
+                .appSurface(.quiet, padding: 0, radius: AppRadius.control)
             }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.group)
         }
+        .background(AppPalette.canvas.ignoresSafeArea())
         .navigationTitle(kind.title)
         .navigationBarTitleDisplayMode(.inline)
+        .tint(AppPalette.brand)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Done") { dismiss() }

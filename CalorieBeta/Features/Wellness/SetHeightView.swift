@@ -1,82 +1,141 @@
 import SwiftUI
 
+private enum HeightField: Hashable {
+    case centimeters
+    case feet
+    case inches
+}
+
 struct SetHeightView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject var goalSettings: GoalSettings
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @Binding var feetInput: String
     @Binding var inchesInput: String
     @State private var cmInput: String = ""
+    @FocusState private var focusedField: HeightField?
     var onSave: () -> Void
 
     var body: some View {
-        ZStack {
-            AnimatedBackgroundView()
-            
-            VStack(spacing: 24) {
-                // Header Graphic
-                ZStack {
-                    Circle()
-                        .fill(Color.blue.opacity(0.15))
-                        .frame(width: 100, height: 100)
-                    
-                    Image(systemName: "ruler.fill")
-                        .appFont(size: 38, weight: .bold)
-                        .foregroundColor(.blue)
-                        .shadow(color: .blue.opacity(0.4), radius: 10, x: 0, y: 5)
-                        .rotationEffect(.degrees(45))
-                }
-                .padding(.top, 24)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    AppScreenHeader(
+                        eyebrow: "Personal Details",
+                        title: "Height",
+                        subtitle: "Height helps calculate energy needs and keeps body metrics consistent."
+                    )
 
-                VStack(spacing: 8) {
-                    Text("Your Height")
-                        .appFont(size: 28, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    
-                    Text("Accurate height data helps Maia estimate your metabolic rate.")
-                        .appFont(size: 15)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                }
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        AppSectionHeader(
+                            title: "Current Height",
+                            subtitle: useMetric ? "Enter centimeters." : "Enter feet and inches."
+                        )
 
-                // Inputs
-                Group {
-                    if useMetric {
-                        HeightInputCard(title: "Height", value: $cmInput, unit: "cm")
-                    } else {
-                        HStack(spacing: 16) {
-                            HeightInputCard(title: "Feet", value: $feetInput, unit: "ft")
-                            HeightInputCard(title: "Inches", value: $inchesInput, unit: "in")
-                        }
+                        heightFields
                     }
                 }
-                .padding(.horizontal, 32)
-                .padding(.top, 16)
-                .onAppear {
-                    if useMetric { cmInput = String(Int(goalSettings.height.rounded())) }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Height")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
                 }
 
-                Spacer()
-
-                Button(action: {
-                    if useMetric, let cm = Double(cmInput), cm > 0 {
-                        let totalInches = Int((cm / BodyUnits.cmPerInch).rounded())
-                        feetInput = String(totalInches / 12)
-                        inchesInput = String(totalInches % 12)
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focusedField = nil }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button("Save Height", action: save)
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .disabled(!hasValidHeight)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.row)
+                    .padding(.bottom, AppSpacing.compact)
+                    .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                    .overlay(alignment: .top) {
+                        Rectangle()
+                            .fill(AppPalette.separator)
+                            .frame(height: 1)
                     }
-                    self.onSave()
-                }) {
-                    Text("Save Height")
-                        .appFont(size: 17, weight: .bold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.blue, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .foregroundColor(.white)
+                    .accessibilityIdentifier("settings_height_save")
+            }
+            .onAppear {
+                if useMetric {
+                    cmInput = String(Int(goalSettings.height.rounded()))
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 34)
             }
         }
+        .tint(AppPalette.brand)
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .accessibilityIdentifier("settings_height_screen")
+    }
+
+    @ViewBuilder
+    private var heightFields: some View {
+        if useMetric {
+            HeightInputCard(
+                title: "Height",
+                value: $cmInput,
+                unit: "cm",
+                field: .centimeters,
+                focusedField: $focusedField
+            )
+        } else if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: AppSpacing.row) {
+                imperialFields
+            }
+        } else {
+            HStack(spacing: AppSpacing.row) {
+                imperialFields
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var imperialFields: some View {
+        HeightInputCard(
+            title: "Feet",
+            value: $feetInput,
+            unit: "ft",
+            field: .feet,
+            focusedField: $focusedField
+        )
+        HeightInputCard(
+            title: "Inches",
+            value: $inchesInput,
+            unit: "in",
+            field: .inches,
+            focusedField: $focusedField
+        )
+    }
+
+    private var hasValidHeight: Bool {
+        if useMetric {
+            guard let centimeters = Double(cmInput) else { return false }
+            return (90...250).contains(centimeters)
+        }
+
+        guard let feet = Int(feetInput), let inches = Int(inchesInput) else { return false }
+        return (3...8).contains(feet) && (0...11).contains(inches)
+    }
+
+    private func save() {
+        focusedField = nil
+        if useMetric, let centimeters = Double(cmInput) {
+            let totalInches = Int((centimeters / BodyUnits.cmPerInch).rounded())
+            feetInput = String(totalInches / 12)
+            inchesInput = String(totalInches % 12)
+        }
+        onSave()
     }
 }
 
@@ -84,31 +143,37 @@ private struct HeightInputCard: View {
     let title: String
     @Binding var value: String
     let unit: String
+    let field: HeightField
+    let focusedField: FocusState<HeightField?>.Binding
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
             Text(title)
-                .appFont(size: 13, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
             
-            HStack(alignment: .bottom, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
                 TextField("0", text: $value)
                     .keyboardType(.numberPad)
-                    .appFont(size: 42, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .padding(.bottom, -6)
+                    .appTextRole(.metric)
+                    .foregroundStyle(AppPalette.text)
+                    .monospacedDigit()
+                    .focused(focusedField, equals: field)
                 
                 Text(unit)
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.blue)
-                    .padding(.bottom, 4)
+                    .appTextRole(.control)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 24)
-        .padding(.horizontal, 16)
+        .padding(AppSpacing.group)
         .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white.opacity(0.15), lineWidth: 1))
+        .background(
+            AppPalette.control,
+            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                .stroke(AppPalette.separator, lineWidth: 1)
+        }
     }
 }

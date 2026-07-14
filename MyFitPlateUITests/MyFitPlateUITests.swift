@@ -1493,6 +1493,132 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testSettingsUsesUnifiedTargetsFirstHierarchy() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "settings"
+        ]
+        app.launch()
+
+        let screen = app.descendants(matching: .any)["settings_screen"]
+        let summary = app.staticTexts["Your Targets"]
+        let goalsAndData = app.staticTexts["Goals & Data"]
+        let done = app.buttons["Done"]
+
+        XCTAssertTrue(screen.waitForExistence(timeout: 10))
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertTrue(goalsAndData.waitForExistence(timeout: 5))
+        XCTAssertTrue(done.isHittable)
+        XCTAssertLessThan(summary.frame.minY, goalsAndData.frame.minY)
+        XCTAssertGreaterThanOrEqual(summary.frame.minX, app.frame.minX - 1)
+        XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.maxX + 1)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Settings - targets-first unified hierarchy"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testSettingsDestinationsUseUnifiedSurfaces() throws {
+        let app = XCUIApplication()
+        let destinations = [
+            (name: "Goals", route: "settings-goals", container: "settings_goals_screen", action: "settings_goals_save"),
+            (name: "Height", route: "settings-height", container: "settings_height_screen", action: "settings_height_save"),
+            (name: "Water", route: "settings-water", container: "settings_water_screen", action: "settings_water_save"),
+            (name: "Disclaimer", route: "settings-disclaimer", container: "settings_disclaimer_screen", action: ""),
+            (name: "AI Data", route: "settings-ai-data", container: "settings_ai_data_screen", action: "settings_ai_allow"),
+            (name: "Import", route: "settings-import", container: "settings_import_screen", action: "settings_import_choose_files")
+        ]
+
+        for destination in destinations {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                destination.route
+            ]
+            app.launch()
+
+            let container = app.descendants(matching: .any)[destination.container]
+            XCTAssertTrue(
+                container.waitForExistence(timeout: 10),
+                "\(destination.name) should open directly from its screenshot route"
+            )
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+
+            if !destination.action.isEmpty {
+                let action = app.buttons[destination.action]
+                XCTAssertTrue(action.waitForExistence(timeout: 5))
+                XCTAssertTrue(action.isHittable)
+            }
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "Settings - \(destination.name) unified surface"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testSettingsSupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let destinations = [
+            (name: "Settings", route: "settings", container: "settings_screen", action: "Done"),
+            (name: "Goals", route: "settings-goals", container: "settings_goals_screen", action: "settings_goals_save"),
+            (name: "Height", route: "settings-height", container: "settings_height_screen", action: "settings_height_save"),
+            (name: "Water", route: "settings-water", container: "settings_water_screen", action: "settings_water_save"),
+            (name: "Import", route: "settings-import", container: "settings_import_screen", action: "settings_import_choose_files")
+        ]
+
+        for destination in destinations {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                destination.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let container = app.descendants(matching: .any)[destination.container]
+            let action = app.buttons[destination.action]
+            XCTAssertTrue(container.waitForExistence(timeout: 10))
+            XCTAssertTrue(action.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+
+            try app.performAccessibilityAudit(for: [.textClipped])
+
+            if !action.isHittable {
+                let scrollView = app.scrollViews.firstMatch
+                XCTAssertTrue(scrollView.exists)
+                var remainingScrolls = 4
+                while !action.isHittable && remainingScrolls > 0 {
+                    scrollView.swipeUp()
+                    remainingScrolls -= 1
+                }
+                try app.performAccessibilityAudit(for: [.textClipped])
+            }
+            XCTAssertTrue(action.isHittable)
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "Settings - \(destination.name) dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testSettingsFeedbackAndShareRowsAreReachable() throws {
         let app = XCUIApplication()
         app.terminate()

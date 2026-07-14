@@ -208,10 +208,30 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   fixture test and full simulator build passed, SwiftLint reported zero violations across 232
   files, and all retained light/dark captures were reviewed.
 
+### Batch 12 - Settings, Account, Import, and Legal (complete)
+
+- Replaced the Personal Settings dashboard treatment with a targets-first configuration screen:
+  one compact nutrition summary followed by native grouped rows for goals, display and units,
+  integrations, notifications, training, Maia, support, account, and legal controls.
+- Kept configuration icons mostly neutral, reserved semantic color for state, and aligned switches,
+  menus, destructive actions, and completion controls with the shared app tint and action grammar.
+- Rebuilt calorie and macro goals, height, water, health disclaimer, and AI-data consent around
+  responsive native forms and quiet surfaces without changing goal calculations, persistence,
+  HealthKit behavior, consent, account deletion, or support links.
+- Rebuilt MyFitnessPal import as a full-height staged workflow with explicit evidence, conflict
+  language, progress, success, and recovery states. Its primary action remains reachable in every
+  actionable stage, including the largest accessibility text size.
+- Added deterministic routes and focused coverage for the targets-first hierarchy, six Settings
+  destinations, feedback/share reachability, notification controls, Maia voice controls, dark
+  mode, and accessibility XXXL. The final hierarchy and destination run passed 2/2, the strict
+  dark accessibility journey passed, the full app build passed, and SwiftLint reported zero
+  violations across 232 files.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
-Grocery and the remaining confirmation workflows now join that system. The active queue moves to
-Settings and the long-tail feature families.
+Grocery, the remaining confirmation workflows, and Settings now join that system. The active queue
+moves to workout editors and analytics, wellness and weight, onboarding and authentication,
+community, and the remaining specialty tools.
 
 ## Product Direction
 

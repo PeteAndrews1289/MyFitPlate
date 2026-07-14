@@ -11,46 +11,68 @@ struct SettingsSupportSection: View {
     let isDeletingAccount: Bool
 
     var body: some View {
-        VStack(spacing: 24) {
-            SettingsSectionCard(title: "Help & support") {
+        VStack(spacing: AppSpacing.section) {
+            SettingsSectionCard(title: "Help & Support") {
                 Button {
                     showingHealthDisclaimer = true
                 } label: {
-                    SettingsLabel(icon: "cross.case.fill", title: "Health disclaimers", subtitle: "Review medical, nutrition, and AI estimate guidance.", color: .orange)
+                    SettingsLabel(
+                        icon: "cross.case.fill",
+                        title: "Health disclaimers",
+                        subtitle: "Review medical, nutrition, and AI estimate guidance.",
+                        showsDisclosure: true
+                    )
                 }
-                .padding(16)
+                .padding(AppSpacing.group)
 
                 Divider().padding(.leading, 50)
 
                 Link(destination: URL(string: "https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/privacy_policy.md")!) {
-                    SettingsLabel(icon: "lock.shield.fill", title: "Privacy & data", subtitle: "See how health, nutrition, and AI data are handled.", color: .blue)
+                    SettingsLabel(
+                        icon: "lock.shield.fill",
+                        title: "Privacy & data",
+                        subtitle: "See how health, nutrition, and AI data are handled."
+                    )
                 }
-                .padding(16)
+                .padding(AppSpacing.group)
 
                 Divider().padding(.leading, 50)
 
                 Button {
                     showingAIDataConsent = true
                 } label: {
-                    SettingsLabel(icon: "brain.head.profile", title: "AI data sharing", subtitle: "Review or change what Maia may send for processing.", color: .indigo)
+                    SettingsLabel(
+                        icon: "brain.head.profile",
+                        title: "AI data sharing",
+                        subtitle: "Review or change what Maia may send for processing.",
+                        showsDisclosure: true
+                    )
                 }
-                .padding(16)
+                .padding(AppSpacing.group)
 
                 Divider().padding(.leading, 50)
 
                 Link(destination: URL(string: "https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/terms_of_service.md")!) {
-                    SettingsLabel(icon: "doc.text.fill", title: "Terms of service", subtitle: "Read our terms, conditions, and usage policies.", color: .purple)
+                    SettingsLabel(
+                        icon: "doc.text.fill",
+                        title: "Terms of service",
+                        subtitle: "Read our terms, conditions, and usage policies."
+                    )
                 }
-                .padding(16)
+                .padding(AppSpacing.group)
 
                 Divider().padding(.leading, 50)
 
                 Button {
                     openFeedbackEmail()
                 } label: {
-                    SettingsLabel(icon: "bubble.left.and.bubble.right.fill", title: "Feedback & support", subtitle: "Tell us what worked or where you got stuck.", color: .green)
+                    SettingsLabel(
+                        icon: "bubble.left.and.bubble.right.fill",
+                        title: "Feedback & support",
+                        subtitle: "Tell us what worked or where you got stuck."
+                    )
                 }
-                .padding(16)
+                .padding(AppSpacing.group)
 
                 Divider().padding(.leading, 50)
 
@@ -59,52 +81,66 @@ struct SettingsSupportSection: View {
                     subject: Text("MyFitPlate"),
                     message: Text("Nutrition built for people who train.")
                 ) {
-                    SettingsLabel(icon: "square.and.arrow.up", title: "Share MyFitPlate", subtitle: "Send the App Store link to someone who trains.", color: .blue)
+                    SettingsLabel(
+                        icon: "square.and.arrow.up",
+                        title: "Share MyFitPlate",
+                        subtitle: "Send the App Store link to someone who trains."
+                    )
                 }
                 .simultaneousGesture(TapGesture().onEnded {
                     DIContainer.shared.analyticsManager?.logEvent("app_store_share_opened", parameters: [
                         "source": "settings"
                     ])
                 })
-                .padding(16)
+                .padding(AppSpacing.group)
 
                 Divider().padding(.leading, 50)
 
                 Button {
                     showingResetTourConfirmation = true
                 } label: {
-                    SettingsLabel(icon: "questionmark.circle.fill", title: "Reset feature tooltips", subtitle: "Replay the guided app tips.", color: .blue)
+                    SettingsLabel(
+                        icon: "questionmark.circle.fill",
+                        title: "Reset feature tooltips",
+                        subtitle: "Replay the guided app tips."
+                    )
                 }
-                .padding(16)
+                .padding(AppSpacing.group)
             }
+            .accessibilityIdentifier("settings_help_support")
             
-            SettingsSectionCard(title: "Account access") {
-                Button(role: .destructive) { showingSignOutAlert = true } label: {
-                    Text("Sign out")
-                        .appFont(size: 17, weight: .semibold)
-                        .frame(maxWidth: .infinity, alignment: .center)
+            SettingsSectionCard(title: "Account Access") {
+                Button(role: .destructive) {
+                    showingSignOutAlert = true
+                } label: {
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                        .appTextRole(.control)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(16)
+                .padding(AppSpacing.group)
                 
                 Divider()
                 
                 if isDeletingAccount {
                     HStack {
                         Text("Deleting account")
-                            .appFont(size: 17, weight: .semibold)
+                            .appTextRole(.control)
                         Spacer()
                         ProgressView()
                     }
-                    .padding(16)
+                    .padding(AppSpacing.group)
                 } else {
-                    Button(role: .destructive) { showingDeleteAccountAlert = true } label: {
-                        Text("Delete account")
-                            .appFont(size: 17, weight: .semibold)
-                            .frame(maxWidth: .infinity, alignment: .center)
+                    Button(role: .destructive) {
+                        showingDeleteAccountAlert = true
+                    } label: {
+                        Label("Delete account", systemImage: "trash")
+                            .appTextRole(.control)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(16)
+                    .padding(AppSpacing.group)
                 }
             }
+            .accessibilityIdentifier("settings_account_access")
         }
     }
 
@@ -161,6 +197,7 @@ struct AIDataConsentSheet: View {
 
                 Section {
                     Toggle("Include Apple Health data", isOn: $includeHealthData)
+                        .accessibilityIdentifier("settings_ai_health_toggle")
                     Text("When enabled, Maia may also receive relevant steps, active energy, sleep summaries, and recovery signals. Apple Health data is never used for advertising.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -181,19 +218,24 @@ struct AIDataConsentSheet: View {
                         dismiss()
                     }
                     .disabled(userID.isEmpty)
+                    .accessibilityIdentifier("settings_ai_allow")
 
                     if hasExistingConsent {
                         Button("Turn off AI data sharing", role: .destructive) {
                             AIDataConsentStore.shared.revoke(for: userID)
                             dismiss()
                         }
+                        .accessibilityIdentifier("settings_ai_revoke")
                     } else {
                         Button("Not now", role: .cancel) { dismiss() }
                     }
                 }
             }
-            .navigationTitle("AI data sharing")
+            .scrollContentBackground(.hidden)
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("AI Data Sharing")
             .navigationBarTitleDisplayMode(.inline)
+            .tint(AppPalette.brand)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
@@ -206,5 +248,6 @@ struct AIDataConsentSheet: View {
                 }
             }
         }
+        .accessibilityIdentifier("settings_ai_data_screen")
     }
 }

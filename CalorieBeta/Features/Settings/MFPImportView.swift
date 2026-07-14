@@ -177,7 +177,7 @@ struct MFPImportView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
                     switch viewModel.stage {
                     case .instructions, .analyzing:
                         instructions
@@ -191,14 +191,23 @@ struct MFPImportView: View {
                         failedView(message)
                     }
                 }
-                .padding()
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.section)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Import from MyFitnessPal")
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .safeAreaInset(edge: .bottom) {
+                stageActionFooter
+            }
+            .navigationTitle("Import Data")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Close")
                         .disabled(isImporting)
                 }
             }
@@ -212,7 +221,11 @@ struct MFPImportView: View {
                 }
             }
         }
+        .tint(AppPalette.brand)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppPalette.canvas.ignoresSafeArea())
         .interactiveDismissDisabled(isImporting)
+        .accessibilityIdentifier("settings_import_screen")
     }
 
     private var isImporting: Bool {
@@ -221,63 +234,44 @@ struct MFPImportView: View {
     }
 
     private var instructions: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Bring your history with you")
-                .appFont(size: 22, weight: .bold)
-                .foregroundColor(.textPrimary)
-            Text("Your diary, your weight curve, your habits — imported in a few minutes. Days you've already logged here are never changed.")
-                .appFont(size: 14)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            AppScreenHeader(
+                eyebrow: "Data Import",
+                title: "Bring Your History With You",
+                subtitle: "Import your diary and weight history in a few minutes. Days you've already logged in MyFitPlate are never changed."
+            )
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
                 instructionRow(number: 1, text: "On myfitnesspal.com, open Settings and choose Download My Data (or Reports → Export).")
                 instructionRow(number: 2, text: "Unzip the export they email you.")
-                instructionRow(number: 3, text: "Choose the CSV files below — diary and weight files are detected automatically.")
+                instructionRow(number: 3, text: "Choose the CSV files below. Diary and weight files are detected automatically.")
             }
-            .asCard()
+            .appSurface(.quiet)
 
-            Button {
-                DIContainer.shared.analyticsManager?.logEvent("mfp_import_started", parameters: [
-                    "source": "instructions"
-                ])
-                showingFilePicker = true
-            } label: {
-                if case .analyzing = viewModel.stage {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                } else {
-                    Text("Choose files")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-            }
-            .buttonStyle(.plain)
         }
     }
 
     private func instructionRow(number: Int, text: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
             Text("\(number)")
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(.brandPrimary)
-                .frame(width: 22, height: 22)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .appTextRole(.caption)
+                .foregroundStyle(AppPalette.brand)
+                .frame(width: 28, height: 28)
+                .background(AppPalette.brand.opacity(0.10), in: Circle())
             Text(text)
-                .appFont(size: 13)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.body)
+                .foregroundStyle(AppPalette.text)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var preview: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Ready to import")
-                .appFont(size: 22, weight: .bold)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            AppScreenHeader(
+                eyebrow: "Import Preview",
+                title: "Ready to Import",
+                subtitle: "Review what MyFitPlate found before adding it to your history."
+            )
 
             VStack(spacing: 0) {
                 previewRow("Days of food history", "\(viewModel.diaryLogs.count)")
@@ -294,23 +288,11 @@ struct MFPImportView: View {
                     previewRow("Unreadable rows skipped", "\(viewModel.skippedRows)")
                 }
             }
-            .asCard()
+            .appSurface(.quiet)
 
             Text("Imported entries are labeled as MyFitnessPal data. Days you've already logged in MyFitPlate stay exactly as they are.")
-                .appFont(size: 12)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-
-            Button {
-                viewModel.runImport(dailyLogService: dailyLogService, goalSettings: goalSettings)
-            } label: {
-                Text("Import everything")
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            }
-            .buttonStyle(.plain)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
 
             Button {
                 DIContainer.shared.analyticsManager?.logEvent("mfp_import_started", parameters: [
@@ -318,93 +300,139 @@ struct MFPImportView: View {
                 ])
                 showingFilePicker = true
             } label: {
-                Text("Choose different files")
-                    .appFont(size: 14, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .frame(maxWidth: .infinity)
+                Text("Choose Different Files")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppActionButtonStyle(.secondary))
         }
     }
 
     private func previewRow(_ label: String, _ value: String) -> some View {
         HStack {
             Text(label)
-                .appFont(size: 14)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.body)
+                .foregroundStyle(.secondary)
             Spacer()
             Text(value)
-                .appFont(size: 14, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
                 .monospacedDigit()
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, AppSpacing.row)
     }
 
     private func importingView(written: Int, total: Int) -> some View {
-        VStack(spacing: 12) {
-            ProgressView(value: Double(written), total: Double(max(total, 1)))
-                .tint(.brandPrimary)
-            Text("Writing your history — \(written) of \(total)")
-                .appFont(size: 14, weight: .semibold)
-                .foregroundColor(.textPrimary)
-                .monospacedDigit()
-            Text("Keep the app open until this finishes.")
-                .appFont(size: 12)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            AppScreenHeader(
+                eyebrow: "Importing",
+                title: "Writing Your History",
+                subtitle: "Keep MyFitPlate open until this finishes."
+            )
+
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                ProgressView(value: Double(written), total: Double(max(total, 1)))
+                    .tint(AppPalette.brand)
+                Text("\(written) of \(total) items complete")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .monospacedDigit()
+            }
+            .appSurface(.emphasized)
         }
-        .padding(.vertical, 40)
     }
 
     private func finishedView(days: Int, entries: Int, weighIns: Int, conflicts: Int) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("🎒")
-                .font(.system(size: 44))
-                .accessibilityHidden(true)
-            Text("Your history moved in")
-                .appFont(size: 22, weight: .bold)
-                .foregroundColor(.textPrimary)
-            Text("\(days) days · \(entries.formatted()) entries · \(weighIns) weigh-ins" + (conflicts > 0 ? " · \(conflicts) days left untouched" : ""))
-                .appFont(size: 14)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .monospacedDigit()
-            Text("Reports and trends now include your imported history.")
-                .appFont(size: 13)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-
-            Button {
-                dismiss()
-            } label: {
-                Text("Done")
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            AppScreenHeader(
+                eyebrow: "Import Complete",
+                title: "Your History Moved In",
+                subtitle: "Reports and trends now include your imported history."
+            ) {
+                Image(systemName: "checkmark.circle.fill")
+                    .appTextRole(.screenTitle)
+                    .foregroundStyle(AppPalette.brand)
+                    .accessibilityHidden(true)
             }
-            .buttonStyle(.plain)
+
+            Text("\(days) days · \(entries.formatted()) entries · \(weighIns) weigh-ins" + (conflicts > 0 ? " · \(conflicts) days left untouched" : ""))
+                .appTextRole(.body)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .appSurface(.emphasized)
+
         }
     }
 
     private func failedView(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("That didn't work")
-                .appFont(size: 20, weight: .bold)
-                .foregroundColor(.textPrimary)
-            Text(message)
-                .appFont(size: 14)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-            Button {
-                viewModel.stage = .instructions
-            } label: {
-                Text("Try again")
-                    .appFont(size: 15, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            .buttonStyle(.plain)
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            AppScreenHeader(
+                eyebrow: "Import Problem",
+                title: "That Didn't Work",
+                subtitle: message
+            )
         }
+    }
+
+    @ViewBuilder
+    private var stageActionFooter: some View {
+        switch viewModel.stage {
+        case .instructions, .analyzing:
+            importFooter {
+                Button {
+                    DIContainer.shared.analyticsManager?.logEvent("mfp_import_started", parameters: [
+                        "source": "instructions"
+                    ])
+                    showingFilePicker = true
+                } label: {
+                    if case .analyzing = viewModel.stage {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    } else {
+                        Label("Choose Files", systemImage: "doc.badge.plus")
+                    }
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(viewModel.stage == .analyzing)
+                .accessibilityIdentifier("settings_import_choose_files")
+            }
+
+        case .preview:
+            importFooter {
+                Button {
+                    viewModel.runImport(dailyLogService: dailyLogService, goalSettings: goalSettings)
+                } label: {
+                    Label("Import Everything", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .accessibilityIdentifier("settings_import_confirm")
+            }
+
+        case .finished:
+            importFooter {
+                Button("Done") { dismiss() }
+                    .buttonStyle(AppActionButtonStyle(.primary))
+            }
+
+        case .failed:
+            importFooter {
+                Button("Try Again") { viewModel.stage = .instructions }
+                    .buttonStyle(AppActionButtonStyle(.primary))
+            }
+
+        case .importing:
+            EmptyView()
+        }
+    }
+
+    private func importFooter<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.row)
+            .padding(.bottom, AppSpacing.compact)
+            .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(AppPalette.separator)
+                    .frame(height: 1)
+            }
     }
 }

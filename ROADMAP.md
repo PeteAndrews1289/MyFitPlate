@@ -521,8 +521,14 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   Maia text/photo/barcode estimates use the same review-first hierarchy, own their editable item
   state, update totals after edits or removals, and keep confirmation explicit. Standard, editable,
   and dark accessibility-XXXL journeys are captured and pass focused UI coverage.
-- [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,
-  remove legacy glass aliases, and enforce the new rules in source checks.
+- [x] Migrate Settings, account, import, and legal surfaces. Settings now opens with a compact
+  targets summary and native grouped configuration; goals, height, water, AI consent, disclaimer,
+  and MyFitnessPal import use responsive shared surfaces and persistent actions. Standard and dark
+  accessibility-XXXL journeys are captured and pass focused coverage.
+- [ ] Migrate the long-tail feature families, beginning with workout editors and analytics, then
+  wellness and weight, onboarding/authentication, community, and specialty nutrition tools.
+- [ ] Retire legacy Home after rollout proof, remove the remaining legacy glass aliases, enforce
+  the new rules in source checks, and complete the full 2.3 regression/release pass.
 
 ---
 

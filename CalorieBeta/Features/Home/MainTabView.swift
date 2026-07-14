@@ -97,7 +97,7 @@ struct MainTabView: View {
 
         #if DEBUG
         let screenshotScreen = ScreenshotDemoData.requestedScreen
-        _showSettings = State(initialValue: screenshotScreen == "settings")
+        _showSettings = State(initialValue: screenshotScreen.hasPrefix("settings"))
         _showingAddOptions = State(initialValue: screenshotScreen == "quick-log")
         _showingFoodSearch = State(
             initialValue: [
