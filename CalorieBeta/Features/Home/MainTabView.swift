@@ -24,6 +24,7 @@ struct MainTabView: View {
     @EnvironmentObject var groupService: GroupService
     @EnvironmentObject var mealPlannerService: MealPlannerService
     @EnvironmentObject var recipeService: RecipeService
+    @EnvironmentObject var pantryService: PantryService
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -78,7 +79,7 @@ struct MainTabView: View {
         #if DEBUG
         ScreenshotDemoMode.isEnabled && [
             "weight-detail", "wellness-detail", "fasting-detail", "cycle-detail",
-            "profile", "challenges"
+            "profile", "challenges", "pantry", "pantry-recipes", "receipt-review"
         ].contains(ScreenshotDemoData.requestedScreen)
         #else
         false
@@ -388,6 +389,15 @@ struct MainTabView: View {
             NavigationStack { UserProfileView() }
         case "challenges":
             NavigationStack { ChallengesView() }
+        case "pantry":
+            PantryView()
+        case "pantry-recipes":
+            PantryRecipeGenerationView(
+                pantryService: pantryService,
+                initialRecipes: ScreenshotDemoData.pantryRecipeDrafts
+            )
+        case "receipt-review":
+            ReceiptScannerView(initialItems: ScreenshotDemoData.receiptDemoItems)
         default:
             standardHomeContent
         }

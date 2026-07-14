@@ -64,6 +64,24 @@ final class ScreenshotDemoDataTests: XCTestCase {
         XCTAssertEqual(items.reduce(0) { $0 + $1.calories }, 870, accuracy: 0.01)
     }
 
+    func testReceiptFixtureSupportsDeterministicReview() {
+        let items = ScreenshotDemoData.receiptDemoItems
+
+        XCTAssertEqual(items.count, 3)
+        XCTAssertEqual(Set(items.map(\.id)).count, items.count)
+        XCTAssertTrue(items.allSatisfy { !$0.name.isEmpty })
+        XCTAssertTrue(items.allSatisfy { $0.quantity > 0 })
+        XCTAssertTrue(items.allSatisfy { !$0.unit.isEmpty && !$0.category.isEmpty })
+    }
+
+    func testPantryRecipeFixtureCoversMultipleUnsavedDrafts() {
+        let recipes = ScreenshotDemoData.pantryRecipeDrafts
+
+        XCTAssertEqual(recipes.count, 2)
+        XCTAssertTrue(recipes.allSatisfy { $0.id == nil })
+        XCTAssertEqual(Set(recipes.map(\.name)).count, recipes.count)
+    }
+
     func testAchievementFixtureStartsAtAStableProgressState() {
         let repository = MockAchievementRepository()
 

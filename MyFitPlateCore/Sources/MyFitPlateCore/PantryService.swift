@@ -19,6 +19,25 @@ public struct PantryItem: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
+public enum PantryReceiptReviewRules {
+    public static func reviewedItems(from items: [PantryItem]) -> [PantryItem] {
+        items.compactMap { item in
+            var reviewed = item
+            reviewed.name = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            reviewed.unit = item.unit.trimmingCharacters(in: .whitespacesAndNewlines)
+            reviewed.category = item.category.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !reviewed.name.isEmpty,
+                  reviewed.quantity.isFinite,
+                  reviewed.quantity > 0 else { return nil }
+
+            if reviewed.unit.isEmpty { reviewed.unit = "item" }
+            if reviewed.category.isEmpty { reviewed.category = "Misc" }
+            return reviewed
+        }
+    }
+}
+
 @MainActor
 public class PantryService: ObservableObject {
     @Published public var pantryItems: [PantryItem] = []

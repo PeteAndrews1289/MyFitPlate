@@ -549,8 +549,16 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   standard plus dark accessibility-XXXL coverage. Placeholder identity and gender-derived labels
   are removed, BMI language is cautious, and sharing remains explicit. The dormant group/post
   prototype and public barcode consensus remain inaccessible behind their safety/rollout gates.
-- [ ] Migrate the remaining pantry and specialty nutrition tools without turning the dormant social
-  prototype into 2.3 release scope.
+- [x] Migrate Smart Pantry, pantry recipe drafts, and receipt review without adding workflow steps.
+  Pantry now has one ingredient/category summary, grouped management rows, a stable add bar, and a
+  direct recipe action. AI recipe drafts clearly label estimates and separate generation from save
+  errors; multiple unsaved drafts remain independently identifiable even when the AI returns no
+  IDs. Receipt parsing is review-first, keeps every detected field editable, filters blank and
+  non-finite/non-positive rows before saving, and never exposes raw backend errors. Deterministic
+  standard and dark accessibility-XXXL journeys are captured across all three surfaces.
+- [ ] Migrate the remaining specialty nutrition tools without turning the dormant social prototype
+  into 2.3 release scope. The next family is AYCE/Value Radar, followed by the remaining planning,
+  cooking, calculator, and long-tail report surfaces that are still reachable in the live app.
 - [ ] Retire legacy Home after rollout proof, remove the remaining legacy glass aliases, enforce
   the new rules in source checks, and complete the full 2.3 regression/release pass.
 

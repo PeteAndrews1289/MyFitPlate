@@ -601,6 +601,8 @@ public struct AppSheetScaffold<Content: View>: View {
     public let dismiss: () -> Void
     private let content: Content
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     public init(
         title: String,
         subtitle: String? = nil,
@@ -614,42 +616,83 @@ public struct AppSheetScaffold<Content: View>: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: AppSpacing.group) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .appTextRole(.sectionTitle)
-                        .foregroundStyle(AppPalette.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .layoutPriority(1)
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                sheetHeader
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
 
-                    if let subtitle {
-                        Text(subtitle)
-                            .appTextRole(.secondary)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                Divider()
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+        }
+        .background(AppPalette.canvas.ignoresSafeArea())
+    }
+
+    @ViewBuilder
+    private var sheetHeader: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                HStack {
+                    Spacer(minLength: 0)
+                    closeButton
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(title)
-                .accessibilityHint(subtitle ?? "")
-                .accessibilityAddTraits(.isHeader)
-
-                Spacer(minLength: 0)
-
-                Button(action: dismiss) {
-                    Image(systemName: "xmark")
-                }
-                .buttonStyle(AppIconButtonStyle(.neutral))
-                .accessibilityLabel("Close")
+                headerText
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.compact)
             .padding(.bottom, AppSpacing.group)
-
-            Divider()
-            content
+        } else {
+            ZStack(alignment: .topTrailing) {
+                headerText
+                    .padding(.trailing, 44 + AppSpacing.group)
+                closeButton
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.compact)
+            .padding(.bottom, AppSpacing.group)
         }
-        .background(AppPalette.canvas.ignoresSafeArea())
+    }
+
+    private var headerText: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let subtitle {
+                Text(subtitle)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityHint(subtitle ?? "")
+        .accessibilityAddTraits(.isHeader)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var closeButton: some View {
+        Button(action: dismiss) {
+            Image(systemName: "xmark")
+                .font(.system(size: 17, weight: .semibold))
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(AppPalette.text)
+                .frame(width: 44, height: 44)
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .accessibilityLabel("Close")
+        .accessibilityIdentifier("app_sheet_close_button")
     }
 }

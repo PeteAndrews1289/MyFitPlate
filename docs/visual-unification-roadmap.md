@@ -327,14 +327,35 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   app fixture tests passed 6/6, both end-to-end progress-family journeys passed, strict lint passed,
   and the complete simulator target compiled with Watch, widgets, and Live Activity.
 
+### Batch 18 - Smart Pantry, Pantry Recipes, and Receipt Review (complete)
+
+- Rebuilt Smart Pantry around one ingredient/category summary, one direct recipe action, canonical
+  category groups, quiet management rows, and a stable add/receipt bar. Existing listen, add,
+  update, and delete behavior remains unchanged.
+- Rebuilt pantry-generated recipe drafts as an explicitly AI-assisted review surface. Nutrition,
+  quantities, and directions are labeled as estimates; generation and save failures have separate
+  recovery paths; saving remains an explicit action per recipe. Unsaved AI drafts are keyed by
+  their list position, preventing nil recipe IDs from collapsing multiple drafts or sharing saved
+  state.
+- Rebuilt receipt scanning as a review-first import. Every detected name, amount, unit, and category
+  remains editable; invalid rows cannot be added; blank optional fields receive conservative
+  fallbacks; camera and parsing failures use actionable user language instead of raw backend text.
+- Hardened the shared sheet scaffold so its native close control receives a dedicated row at
+  accessibility sizes, a stable test identifier, and an explicit viewport boundary. Long scroll
+  content, titles, and subtitles can no longer compress or move the header outside the screen.
+- Added deterministic Pantry, generated-recipe, and receipt fixtures plus standard and dark
+  accessibility-XXXL journeys. Focused design-system and Pantry rules passed 29/29; the integrated
+  app/UI result passed 10/10; final standard and delayed direct dark captures were reviewed; and
+  the complete simulator target compiled with the embedded Watch app, widgets, and Live Activity.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
 review family now join that system, along with wellness, weight, fasting, and cycle tracking. The
 first-run and account-access family now joins them, as do the live progress, achievement, and
-weekly-challenge surfaces. The active migration queue is now the remaining specialty nutrition
-tools; unfinished public social surfaces remain explicitly gated rather than being polished into
-accidental release scope.
+weekly-challenge surfaces. Smart Pantry, pantry recipe drafts, and receipt review now join them.
+The active migration queue is the remaining specialty nutrition tools; unfinished public social
+surfaces remain explicitly gated rather than being polished into accidental release scope.
 
 ## Product Direction
 
@@ -566,7 +587,8 @@ start. Editorial composition must not leak into repeated workflows.
 - Profile, achievements, and weekly challenges (Batch 17 complete)
 - Dormant group/post social prototype (not release eligible; keep inaccessible until its safety
   and privacy product contracts exist)
-- Remaining pantry and specialty nutrition tools
+- Smart Pantry, pantry recipe drafts, and receipt review (Batch 18 complete)
+- Remaining specialty nutrition tools, beginning with AYCE and Value Radar
 
 Migrate by feature family so each batch can be reviewed and reverted independently.
 
@@ -664,6 +686,17 @@ Migrate by feature family so each batch can be reviewed and reverted independent
   completion, expiry, and point states rather than nested cards or celebratory decoration.
 - Keep sharing opt-in and limited to earned achievements. Do not expose the dormant public group or
   post feed without identity, reporting, blocking, moderation, and privacy review.
+
+### Smart Pantry and Receipt Review
+
+- Keep Pantry operational: one inventory summary, canonical category groups, direct item
+  management, one recipe action, and one persistent ingredient entry bar.
+- Identify pantry-generated recipes as AI-assisted drafts and keep estimate language adjacent to
+  the generated nutrition, ingredients, and directions.
+- Treat receipt parsing as an editable import draft. Nothing is saved until the user reviews it,
+  and invalid or empty rows never enter the pantry.
+- Preserve the receipt camera, PantryService writes, RecipeService saves, and existing feature flag
+  while replacing raw parsing/save errors with actionable language.
 
 ## Acceptance Gates
 

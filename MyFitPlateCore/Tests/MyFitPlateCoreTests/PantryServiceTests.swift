@@ -34,6 +34,33 @@ final class PantryServiceTests: XCTestCase {
         PantryItem(id: id, name: name, quantity: quantity, unit: unit, category: category, dateAdded: Date(timeIntervalSince1970: 100))
     }
 
+    func testReceiptReviewRulesTrimAndDefaultOptionalFields() throws {
+        let id = UUID()
+        let reviewed = PantryReceiptReviewRules.reviewedItems(from: [
+            item(id: id, name: "  Greek yogurt  ", quantity: 2, unit: "  ", category: "  ")
+        ])
+
+        let result = try XCTUnwrap(reviewed.first)
+        XCTAssertEqual(result.id, id)
+        XCTAssertEqual(result.name, "Greek yogurt")
+        XCTAssertEqual(result.quantity, 2)
+        XCTAssertEqual(result.unit, "item")
+        XCTAssertEqual(result.category, "Misc")
+    }
+
+    func testReceiptReviewRulesRejectInvalidRows() {
+        let reviewed = PantryReceiptReviewRules.reviewedItems(from: [
+            item(name: "  ", quantity: 1, unit: "item"),
+            item(name: "Zero", quantity: 0, unit: "item"),
+            item(name: "Negative", quantity: -1, unit: "item"),
+            item(name: "Not a number", quantity: .nan, unit: "item"),
+            item(name: "Infinite", quantity: .infinity, unit: "item"),
+            item(name: "Valid", quantity: 1, unit: "item")
+        ])
+
+        XCTAssertEqual(reviewed.map(\.name), ["Valid"])
+    }
+
     func testStartListeningSortsSnapshotItemsAndStopsLoading() async {
         mockRepo.mockPantrySnapshotResult = .success([
             item(name: "Zucchini", quantity: 2, unit: "item"),

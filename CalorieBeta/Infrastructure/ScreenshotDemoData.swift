@@ -565,6 +565,43 @@ enum ScreenshotDemoData {
         ]
     }
 
+    static var receiptDemoItems: [PantryItem] {
+        [
+            PantryItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!,
+                name: "Greek Yogurt",
+                quantity: 2,
+                unit: "tubs",
+                category: "Dairy",
+                dateAdded: Date(timeIntervalSince1970: 100)
+            ),
+            PantryItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!,
+                name: "Baby Spinach",
+                quantity: 1,
+                unit: "bag",
+                category: "Produce",
+                dateAdded: Date(timeIntervalSince1970: 100)
+            ),
+            PantryItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000203")!,
+                name: "Jasmine Rice",
+                quantity: 1,
+                unit: "bag",
+                category: "Grains",
+                dateAdded: Date(timeIntervalSince1970: 100)
+            )
+        ]
+    }
+
+    static var pantryRecipeDrafts: [Recipe] {
+        recipeDemoRecipes.prefix(2).map { recipe in
+            var draft = recipe
+            draft.id = nil
+            return draft
+        }
+    }
+
     static var runningDemoRuns: [Run] {
         let runs: [RunTemplate] = [
             RunTemplate(

@@ -2538,7 +2538,8 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertTrue(action.waitForExistence(timeout: 5), "\(screen.name) should keep its key action")
             XCTAssertTrue(action.isHittable, "\(screen.name) key action should remain reachable")
 
-            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            sleep(1)
+            let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
             screenshot.name = "\(screen.name) - dark accessibility XXXL"
             screenshot.lifetime = .keepAlways
             add(screenshot)
@@ -2630,6 +2631,123 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertTrue(summary.waitForExistence(timeout: 5))
             XCTAssertGreaterThanOrEqual(title.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX + 1)
+            XCTAssertGreaterThanOrEqual(summary.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.maxX + 1)
+
+            sleep(1)
+            let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testPantryFamilyUsesUnifiedHierarchy() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (
+                name: "Pantry",
+                route: "pantry",
+                title: "Smart Pantry",
+                summary: "pantry_summary",
+                action: "pantry_recipe_button"
+            ),
+            (
+                name: "Pantry Recipes",
+                route: "pantry-recipes",
+                title: "Pantry Recipes",
+                summary: "pantry_recipe_summary",
+                action: "pantry_recipe_save_button"
+            ),
+            (
+                name: "Receipt Review",
+                route: "receipt-review",
+                title: "Review Receipt",
+                summary: "receipt_review_summary",
+                action: "receipt_add_to_pantry_button"
+            )
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route
+            ]
+            app.launch()
+
+            let title = app.staticTexts[screen.title]
+            let summary = app.descendants(matching: .any)
+                .matching(identifier: screen.summary)
+                .firstMatch
+            let action = app.descendants(matching: .any)
+                .matching(identifier: screen.action)
+                .firstMatch
+
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(summary.waitForExistence(timeout: 5), "\(screen.name) should show its summary")
+
+            for _ in 0..<5 where !action.exists || !action.isHittable {
+                app.swipeUp()
+            }
+            XCTAssertTrue(action.waitForExistence(timeout: 5), "\(screen.name) should keep its key action")
+            XCTAssertTrue(action.isHittable, "\(screen.name) key action should remain reachable")
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - unified pantry hierarchy"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testPantryFamilySupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "Pantry", route: "pantry", title: "Smart Pantry", summary: "pantry_summary"),
+            (
+                name: "Pantry Recipes",
+                route: "pantry-recipes",
+                title: "Pantry Recipes",
+                summary: "pantry_recipe_summary"
+            ),
+            (
+                name: "Receipt Review",
+                route: "receipt-review",
+                title: "Review Receipt",
+                summary: "receipt_review_summary"
+            )
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let title = app.staticTexts[screen.title]
+            let summary = app.descendants(matching: .any)
+                .matching(identifier: screen.summary)
+                .firstMatch
+            let closeButton = app.buttons["app_sheet_close_button"]
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(summary.waitForExistence(timeout: 5))
+            XCTAssertTrue(closeButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(closeButton.isHittable, "\(screen.name) should keep its close control reachable")
+            XCTAssertGreaterThanOrEqual(closeButton.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(closeButton.frame.maxX, app.frame.maxX + 1)
+            XCTAssertGreaterThanOrEqual(closeButton.frame.minY, app.frame.minY - 1)
+            XCTAssertLessThanOrEqual(closeButton.frame.maxY, app.frame.maxY + 1)
             XCTAssertGreaterThanOrEqual(summary.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.maxX + 1)
 
