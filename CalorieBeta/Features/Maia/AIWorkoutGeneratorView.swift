@@ -183,27 +183,78 @@ struct GeneratedProgramPreviewView: View {
 /// A reusable component for selecting days of the week.
 struct WeekDaySelector: View {
     @Binding var selectedDays: [Int]
-    private let days = ["S", "M", "T", "W", "T", "F", "S"]
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private let days = [
+        WeekDayChoice(day: 1, shortName: "S", fullName: "Sunday"),
+        WeekDayChoice(day: 2, shortName: "M", fullName: "Monday"),
+        WeekDayChoice(day: 3, shortName: "T", fullName: "Tuesday"),
+        WeekDayChoice(day: 4, shortName: "W", fullName: "Wednesday"),
+        WeekDayChoice(day: 5, shortName: "T", fullName: "Thursday"),
+        WeekDayChoice(day: 6, shortName: "F", fullName: "Friday"),
+        WeekDayChoice(day: 7, shortName: "S", fullName: "Saturday")
+    ]
 
     var body: some View {
-        HStack {
-            ForEach(0..<7) { index in
-                let day = index + 1 // Use 1 (Sun) to 7 (Sat) for Calendar component
-                Text(days[index])
-                    .fontWeight(.bold)
-                    .foregroundColor(selectedDays.contains(day) ? .white : .primary)
-                    .frame(width: 35, height: 35)
-                    .background(
-                        Circle().fill(selectedDays.contains(day) ? Color.brandPrimary : Color.gray.opacity(0.2))
-                    )
-                    .onTapGesture {
-                        if let index = selectedDays.firstIndex(of: day) {
-                            selectedDays.remove(at: index)
-                        } else {
-                            selectedDays.append(day)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AppSpacing.compact) {
+                    ForEach(days) { day in
+                        dayButton(day, usesFullName: true)
+                    }
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(days) { day in
+                            dayButton(day, usesFullName: false)
                         }
                     }
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 88))], spacing: AppSpacing.compact) {
+                        ForEach(days) { day in
+                            dayButton(day, usesFullName: true)
+                        }
+                    }
+                }
             }
         }
+        .accessibilityIdentifier("weekday_selector")
     }
+
+    private func dayButton(_ day: WeekDayChoice, usesFullName: Bool) -> some View {
+        let isSelected = selectedDays.contains(day.day)
+        return Button {
+            if let index = selectedDays.firstIndex(of: day.day) {
+                selectedDays.remove(at: index)
+            } else {
+                selectedDays.append(day.day)
+            }
+        } label: {
+            Text(usesFullName ? day.fullName : day.shortName)
+                .appTextRole(usesFullName ? .secondary : .control)
+                .frame(width: usesFullName ? nil : 42)
+                .frame(maxWidth: usesFullName ? .infinity : nil, minHeight: 42)
+                .foregroundStyle(isSelected ? Color.white : AppPalette.text)
+                .background(
+                    isSelected ? AppPalette.brand : AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        .stroke(isSelected ? Color.clear : AppPalette.separator, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(day.fullName)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+    }
+}
+
+private struct WeekDayChoice: Identifiable {
+    let day: Int
+    let shortName: String
+    let fullName: String
+
+    var id: Int { day }
 }

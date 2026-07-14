@@ -525,8 +525,14 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   targets summary and native grouped configuration; goals, height, water, AI consent, disclaimer,
   and MyFitnessPal import use responsive shared surfaces and persistent actions. Standard and dark
   accessibility-XXXL journeys are captured and pass focused coverage.
-- [ ] Migrate the long-tail feature families, beginning with workout editors and analytics, then
-  wellness and weight, onboarding/authentication, community, and specialty nutrition tools.
+- [x] Migrate workout program and routine management without changing training behavior. Saved
+  plans, program creation/editing, routine creation/editing, exercise selection, set targets,
+  templates, and schedule selection now use the shared operational hierarchy and stable actions.
+  Standard and dark accessibility-XXXL journeys are captured, including explicit close/save
+  reachability and text-clipping audits.
+- [ ] Migrate the remaining long-tail feature families, beginning with program detail, workout
+  history and analytics, then wellness and weight, onboarding/authentication, community, and
+  specialty nutrition tools.
 - [ ] Retire legacy Home after rollout proof, remove the remaining legacy glass aliases, enforce
   the new rules in source checks, and complete the full 2.3 regression/release pass.
 

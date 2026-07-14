@@ -2150,6 +2150,123 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testTrainingEditorsUseUnifiedBuilderHierarchy() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (
+                name: "Saved Programs",
+                route: "saved-programs",
+                container: "saved_programs",
+                title: "Your Training Plans",
+                action: "",
+                close: ""
+            ),
+            (
+                name: "Program Builder",
+                route: "program-builder",
+                container: "program_builder",
+                title: "PROGRAM BUILDER",
+                action: "program_builder_save",
+                close: "program_builder_close"
+            ),
+            (
+                name: "Routine Builder",
+                route: "routine-builder",
+                container: "routine_builder",
+                title: "ROUTINE BUILDER",
+                action: "routine_builder_save",
+                close: "routine_builder_close"
+            )
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route
+            ]
+            app.launch()
+
+            let container = app.descendants(matching: .any)[screen.container]
+            XCTAssertTrue(container.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(app.staticTexts[screen.title].waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+
+            if !screen.action.isEmpty {
+                let action = app.buttons[screen.action]
+                XCTAssertTrue(action.waitForExistence(timeout: 5))
+                XCTAssertTrue(action.isHittable)
+            }
+
+            if !screen.close.isEmpty {
+                let close = app.buttons[screen.close]
+                XCTAssertTrue(close.waitForExistence(timeout: 5))
+                XCTAssertTrue(close.isHittable)
+            }
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - unified hierarchy"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testTrainingBuildersSupportDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (
+                name: "Program Builder",
+                route: "program-builder",
+                container: "program_builder",
+                action: "program_builder_save",
+                close: "program_builder_close"
+            ),
+            (
+                name: "Routine Builder",
+                route: "routine-builder",
+                container: "routine_builder",
+                action: "routine_builder_save",
+                close: "routine_builder_close"
+            )
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let container = app.descendants(matching: .any)[screen.container]
+            let action = app.buttons[screen.action]
+            let close = app.buttons[screen.close]
+            XCTAssertTrue(container.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(action.waitForExistence(timeout: 5))
+            XCTAssertTrue(action.isHittable)
+            XCTAssertTrue(close.waitForExistence(timeout: 5))
+            XCTAssertTrue(close.isHittable)
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+            try app.performAccessibilityAudit(for: [.textClipped])
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testCustomProductPageDeepLinksOpenExactDestinations() throws {
         let app = XCUIApplication()
         let destinations = [

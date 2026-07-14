@@ -19,67 +19,26 @@ struct RoutineEditorHeaderCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Routine Builder")
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .textCase(.uppercase)
-
-                    Text(routineName.trimmed.isEmpty ? "Untitled Routine" : routineName)
-                        .appFont(size: 28, weight: .black)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(2)
-
-                    Text(balanceText)
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(.brandPrimary)
-                        .lineLimit(2)
-                }
-
-                Spacer()
-
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppScreenHeader(
+                eyebrow: "Routine Builder",
+                title: routineName.trimmed.isEmpty ? "Untitled Routine" : routineName,
+                subtitle: balanceText
+            ) {
                 Text(ExerciseEmojiMapper.getEmoji(for: exercises.first?.name ?? routineName))
-                    .appFont(size: 30)
-                    .frame(width: 58, height: 58)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .appFont(size: 28)
+                    .frame(width: 52, height: 52)
+                    .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .accessibilityHidden(true)
             }
 
-            HStack(spacing: 10) {
-                RoutineEditorMetric(title: "Exercises", value: "\(exerciseCount)", icon: "dumbbell.fill", color: .brandPrimary)
-                RoutineEditorMetric(title: "Sets", value: "\(setCount)", icon: "checkmark.seal.fill", color: .accentPositive)
-                RoutineEditorMetric(title: "Time", value: estimatedMinutes > 0 ? "\(estimatedMinutes)m" : "-", icon: "clock.fill", color: .orange)
-            }
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Exercises", value: "\(exerciseCount)", accent: AppPalette.brand),
+                AppMetricItem(label: "Sets", value: "\(setCount)", accent: .accentPositive),
+                AppMetricItem(label: "Estimated", value: estimatedMinutes > 0 ? "\(estimatedMinutes) min" : "-", accent: .orange)
+            ])
+            .appSurface(.quiet)
         }
-        .asCard()
-    }
-}
-
-struct RoutineEditorMetric: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Image(systemName: icon)
-                .appFont(size: 12, weight: .bold)
-                .foregroundColor(color)
-
-            Text(value)
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-
-            Text(title)
-                .appFont(size: 10, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -88,33 +47,31 @@ struct RoutineBasicsCard: View {
     @Binding var routineNotes: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionLabel(title: "Basics", icon: "slider.horizontal.3")
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Routine Details",
+                subtitle: "Name the workout and leave cues you will want during training."
+            )
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Routine Name")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                TextField("Push Day, Lower A, Conditioning...", text: $routineName)
-                    .appFont(size: 18, weight: .bold)
-                    .textInputAutocapitalization(.words)
-                    .padding(12)
-                    .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                RoutineEditorFieldLabel(title: "Routine Name") {
+                    TextField("Push Day, Lower A, Conditioning...", text: $routineName)
+                        .appTextRole(.control)
+                        .textInputAutocapitalization(.words)
+                        .routineInputStyle()
+                }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Coach Notes")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                TextEditor(text: $routineNotes)
-                    .appFont(size: 14)
-                    .frame(minHeight: 74)
-                    .padding(8)
-                    .scrollContentBackground(.hidden)
-                    .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                RoutineEditorFieldLabel(title: "Coach Notes") {
+                    TextEditor(text: $routineNotes)
+                        .appTextRole(.body)
+                        .frame(minHeight: 88)
+                        .padding(AppSpacing.compact)
+                        .scrollContentBackground(.hidden)
+                        .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                }
             }
+            .appSurface(.quiet)
         }
-        .asCard()
     }
 }
 
@@ -123,11 +80,14 @@ struct RoutineTemplateStrip: View {
     let onApply: (RoutineEditorTemplate) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionLabel(title: "Fast Starts", icon: "bolt.fill")
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Fast Starts",
+                subtitle: "Append a proven block, then customize any movement."
+            )
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: AppSpacing.row) {
                     ForEach(templates) { template in
                         Button {
                             onApply(template)
@@ -135,14 +95,14 @@ struct RoutineTemplateStrip: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
                                     Image(systemName: template.icon)
-                                        .appFont(size: 14, weight: .bold)
-                                        .foregroundColor(template.color)
+                                        .appFont(size: 14, weight: .semibold)
+                                        .foregroundStyle(template.color)
                                         .frame(width: 30, height: 30)
                                         .background(template.color.opacity(0.12), in: Circle())
                                     Spacer()
                                     Text("+\(template.exercises.count)")
-                                        .appFont(size: 11, weight: .bold)
-                                        .foregroundColor(template.color)
+                                        .appTextRole(.caption)
+                                        .foregroundStyle(template.color)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 4)
                                         .background(template.color.opacity(0.10), in: Capsule())
@@ -150,26 +110,30 @@ struct RoutineTemplateStrip: View {
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(template.name)
-                                        .appFont(size: 15, weight: .bold)
-                                        .foregroundColor(.textPrimary)
+                                        .appTextRole(.control)
+                                        .foregroundStyle(AppPalette.text)
                                         .lineLimit(1)
                                     Text(template.subtitle)
-                                        .appFont(size: 12, weight: .semibold)
-                                        .foregroundColor(Color(UIColor.secondaryLabel))
+                                        .appTextRole(.secondary)
+                                        .foregroundStyle(.secondary)
                                         .lineLimit(2)
                                 }
                             }
-                            .padding()
+                            .padding(AppSpacing.row)
                             .frame(width: 184, alignment: .leading)
-                            .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                                    .stroke(AppPalette.separator, lineWidth: 0.5)
+                            }
                         }
                         .buttonStyle(.plain)
+                        .accessibilityHint("Adds \(template.exercises.count) exercises to this routine")
                     }
                 }
                 .padding(.horizontal, 1)
             }
         }
-        .asCard()
     }
 }
 
@@ -182,27 +146,22 @@ struct RoutineExerciseBuilderCard: View {
     let onMove: (RoutineExercise, RoutineMoveDirection) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                SectionLabel(title: "Exercise Plan", icon: "list.bullet.clipboard.fill")
-
-                Spacer()
-
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Exercise Plan",
+                subtitle: exercises.isEmpty ? "Add the first movement to begin." : "Tap a movement to edit its sets, target, rest, and substitutions."
+            ) {
                 Button(action: onAddExercise) {
-                    Label("Add", systemImage: "plus")
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(.brandPrimary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                    Image(systemName: "plus")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppIconButtonStyle(.brand))
+                .accessibilityLabel("Add exercise")
             }
 
             if exercises.isEmpty {
                 RoutineEmptyBuilderCard(onAddExercise: onAddExercise)
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: AppSpacing.compact) {
                     ForEach(Array(exercises.enumerated()), id: \.element.id) { index, exercise in
                         RoutineExerciseEditorRow(
                             index: index,
@@ -219,7 +178,6 @@ struct RoutineExerciseBuilderCard: View {
                 }
             }
         }
-        .asCard()
     }
 }
 
@@ -243,29 +201,35 @@ struct RoutineExerciseEditorRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
             Button(action: onEdit) {
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: AppSpacing.row) {
                     VStack(spacing: 4) {
                         Text("\(index + 1)")
-                            .appFont(size: 12, weight: .black)
-                            .foregroundColor(exercise.type.color)
+                            .appTextRole(.caption)
+                            .foregroundStyle(exercise.type.color)
                         Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
                             .font(.title3)
                     }
-                    .frame(width: 44, height: 50)
-                    .background(exercise.type.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    .frame(width: 42)
+                    .frame(minHeight: 50)
+                    .background(exercise.type.color.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .accessibilityHidden(true)
 
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(exercise.name)
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                            .lineLimit(2)
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.text)
+                            .fixedSize(horizontal: false, vertical: true)
 
                         Text("\(setCount) sets - \(targetText) - \(RoutineEditorDefaults.restLabel(exercise.restTimeInSeconds))")
-                            .appFont(size: 12, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .lineLimit(2)
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Label(exercise.type.shortTitle, systemImage: exercise.type.icon)
+                            .appTextRole(.caption)
+                            .foregroundStyle(exercise.type.color)
                     }
 
                     Spacer(minLength: 8)
@@ -274,40 +238,23 @@ struct RoutineExerciseEditorRow: View {
             }
             .buttonStyle(.plain)
 
-            VStack(alignment: .trailing, spacing: 10) {
-                Label(exercise.type.shortTitle, systemImage: exercise.type.icon)
-                    .appFont(size: 10, weight: .bold)
-                    .foregroundColor(exercise.type.color)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(exercise.type.color.opacity(0.10), in: Capsule())
-
-                HStack(spacing: 8) {
-                    Button(action: onMoveUp) {
-                        Image(systemName: "arrow.up")
-                    }
+            Menu {
+                Button("Edit Exercise", systemImage: "pencil", action: onEdit)
+                Button("Move Up", systemImage: "arrow.up", action: onMoveUp)
                     .disabled(isFirst)
-
-                    Button(action: onMoveDown) {
-                        Image(systemName: "arrow.down")
-                    }
+                Button("Move Down", systemImage: "arrow.down", action: onMoveDown)
                     .disabled(isLast)
-
-                    Button(action: onDuplicate) {
-                        Image(systemName: "plus.square.on.square")
-                    }
-
-                    Button(role: .destructive, action: onDelete) {
-                        Image(systemName: "trash")
-                    }
-                }
-                .appFont(size: 13, weight: .bold)
-                .buttonStyle(.borderless)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                Button("Duplicate", systemImage: "plus.square.on.square", action: onDuplicate)
+                Divider()
+                Button("Delete Exercise", systemImage: "trash", role: .destructive, action: onDelete)
+            } label: {
+                Image(systemName: "ellipsis")
             }
+            .buttonStyle(AppIconButtonStyle(.plain))
+            .accessibilityLabel("Options for \(exercise.name)")
         }
-        .padding(12)
-        .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(AppSpacing.row)
+        .appSurface(.quiet, padding: 0)
     }
 }
 
@@ -315,29 +262,27 @@ struct RoutineEmptyBuilderCard: View {
     let onAddExercise: () -> Void
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
             Image(systemName: "figure.strengthtraining.traditional")
-                .appFont(size: 34, weight: .bold)
-                .foregroundColor(.brandPrimary)
-                .frame(width: 68, height: 68)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .appFont(size: 28, weight: .semibold)
+                .foregroundStyle(AppPalette.brand)
+                .accessibilityHidden(true)
 
             Text("Build the first block")
-                .appFont(size: 19, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
 
             Text("Add movements manually or tap a fast-start template above.")
-                .appFont(size: 13, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .multilineTextAlignment(.center)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
 
             Button(action: onAddExercise) {
                 Label("Add Exercise", systemImage: "plus")
             }
-            .buttonStyle(SecondaryButtonStyle())
+            .buttonStyle(AppActionButtonStyle(.secondary))
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
+        .appSurface(.quiet)
     }
 }
 
@@ -345,26 +290,34 @@ struct ExerciseEditorHero: View {
     let exercise: RoutineExercise
 
     var body: some View {
-        HStack(spacing: 14) {
-            Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                .appFont(size: 32)
-                .frame(width: 64, height: 64)
-                .background(exercise.type.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(exercise.name.trimmed.isEmpty ? "New Exercise" : exercise.name)
-                    .appFont(size: 23, weight: .black)
-                    .foregroundColor(.textPrimary)
-                    .lineLimit(2)
-
-                Text("\(exercise.targetSets) sets - \(RoutineEditorDefaults.setTarget(for: exercise.type, target: exercise.targetReps))")
-                    .appFont(size: 13, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppScreenHeader(
+                eyebrow: "Exercise Prescription",
+                title: exercise.name.trimmed.isEmpty ? "New Exercise" : exercise.name,
+                subtitle: "Set the target, recovery time, cues, and swap options."
+            ) {
+                Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
+                    .appFont(size: 28)
+                    .frame(width: 52, height: 52)
+                    .background(exercise.type.color.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .accessibilityHidden(true)
             }
 
-            Spacer()
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Sets", value: "\(exercise.targetSets)", accent: exercise.type.color),
+                AppMetricItem(
+                    label: exercise.type.targetLabel,
+                    value: RoutineEditorDefaults.setTarget(for: exercise.type, target: exercise.targetReps),
+                    accent: AppPalette.brand
+                ),
+                AppMetricItem(
+                    label: "Rest",
+                    value: RoutineEditorDefaults.restLabel(exercise.restTimeInSeconds),
+                    accent: .orange
+                )
+            ])
+            .appSurface(.quiet)
         }
-        .asCard()
     }
 }
 
@@ -378,34 +331,36 @@ struct ExercisePickerRow: View {
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 12) {
+            HStack(spacing: AppSpacing.row) {
                 Text(ExerciseEmojiMapper.getEmoji(for: entry.name))
                     .font(.title3)
                     .frame(width: 42, height: 42)
-                    .background(type.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(type.color.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(entry.name)
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    Text(entry.category)
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("\(entry.category) • \(type.shortTitle)")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
 
-                Label(type.shortTitle, systemImage: type.icon)
-                    .appFont(size: 10, weight: .bold)
-                    .foregroundColor(type.color)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(type.color.opacity(0.10), in: Capsule())
+                Image(systemName: "plus")
+                    .appFont(size: 14, weight: .semibold)
+                    .foregroundStyle(AppPalette.brand)
+                    .accessibilityHidden(true)
             }
-            .padding(10)
-            .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(AppSpacing.row)
+            .appSurface(.quiet, padding: 0)
         }
         .buttonStyle(.plain)
+        .accessibilityHint("Adds this exercise to the routine")
     }
 }
 
@@ -416,12 +371,50 @@ struct SectionLabel: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .appFont(size: 13, weight: .semibold)
+                .foregroundStyle(AppPalette.brand)
+                .accessibilityHidden(true)
             Text(title)
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
         }
+    }
+}
+
+private struct RoutineEditorFieldLabel<Content: View>: View {
+    let title: String
+    private let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased())
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+            content
+        }
+    }
+}
+
+private struct RoutineInputStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding(AppSpacing.row)
+            .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    .stroke(AppPalette.separator, lineWidth: 0.5)
+            }
+    }
+}
+
+private extension View {
+    func routineInputStyle() -> some View {
+        modifier(RoutineInputStyle())
     }
 }
 
@@ -442,158 +435,152 @@ struct ExerciseSetEditorView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
                     ExerciseEditorHero(exercise: editableExercise)
 
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
                         SectionLabel(title: "Movement", icon: "slider.horizontal.3")
 
-                        TextField("Exercise name", text: $editableExercise.name)
-                            .appFont(size: 18, weight: .bold)
-                            .padding(12)
-                            .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        VStack(alignment: .leading, spacing: AppSpacing.group) {
+                            TextField("Exercise name", text: $editableExercise.name)
+                                .appTextRole(.control)
+                                .textInputAutocapitalization(.words)
+                                .routineInputStyle()
 
-                        Picker("Type", selection: $editableExercise.type) {
-                            ForEach(ExerciseType.allCases, id: \.self) { type in
-                                Label(type.rawValue, systemImage: type.icon).tag(type)
+                            Picker("Type", selection: $editableExercise.type) {
+                                ForEach(ExerciseType.allCases, id: \.self) { type in
+                                    Label(type.rawValue, systemImage: type.icon).tag(type)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .onChange(of: editableExercise.type) { _, newType in
+                                applyTypeDefaults(newType)
                             }
                         }
-                        .pickerStyle(.segmented)
-                        .onChange(of: editableExercise.type) { _, newType in
-                            applyTypeDefaults(newType)
-                        }
+                        .appSurface(.quiet)
                     }
-                    .asCard()
 
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
                         SectionLabel(title: "Prescription", icon: "target")
 
-                        Stepper("Sets: \(editableExercise.targetSets)", value: $editableExercise.targetSets, in: 1...15) { _ in
-                            updateSetCount()
-                        }
+                        VStack(alignment: .leading, spacing: AppSpacing.group) {
+                            Stepper("Sets: \(editableExercise.targetSets)", value: $editableExercise.targetSets, in: 1...15) { _ in
+                                updateSetCount()
+                            }
+                            .appTextRole(.control)
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(editableExercise.type.targetLabel)
-                                .appFont(size: 12, weight: .bold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-
-                            TextField(editableExercise.type.targetPlaceholder, text: $editableExercise.targetReps)
-                                .appFont(size: 16, weight: .semibold)
-                                .padding(12)
-                                .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .onChange(of: editableExercise.targetReps) { _, _ in
-                                    applyTargetToAllSets()
-                                }
-                        }
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Rest")
-                                .appFont(size: 12, weight: .bold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-
-                            HStack(spacing: 8) {
-                                ForEach(editableExercise.type.restPresets, id: \.self) { seconds in
-                                    Button {
-                                        editableExercise.restTimeInSeconds = seconds
-                                    } label: {
-                                        Text(RoutineEditorDefaults.restLabel(seconds))
-                                            .appFont(size: 12, weight: .bold)
-                                            .foregroundColor(editableExercise.restTimeInSeconds == seconds ? .white : editableExercise.type.color)
-                                            .padding(.horizontal, 11)
-                                            .padding(.vertical, 8)
-                                            .background(
-                                                editableExercise.restTimeInSeconds == seconds ? editableExercise.type.color : editableExercise.type.color.opacity(0.10),
-                                                in: Capsule()
-                                            )
+                            RoutineEditorFieldLabel(title: editableExercise.type.targetLabel) {
+                                TextField(editableExercise.type.targetPlaceholder, text: $editableExercise.targetReps)
+                                    .appTextRole(.control)
+                                    .routineInputStyle()
+                                    .onChange(of: editableExercise.targetReps) { _, _ in
+                                        applyTargetToAllSets()
                                     }
-                                    .buttonStyle(.plain)
+                            }
+
+                            Picker("Rest Between Sets", selection: $editableExercise.restTimeInSeconds) {
+                                ForEach(editableExercise.type.restPresets, id: \.self) { seconds in
+                                    Text(RoutineEditorDefaults.restLabel(seconds)).tag(seconds)
                                 }
                             }
+                            .appTextRole(.control)
+                            .tint(AppPalette.brand)
                         }
+                        .appSurface(.quiet)
                     }
-                    .asCard()
 
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
                         HStack {
                             SectionLabel(title: "Set Targets", icon: "list.number")
                             Spacer()
                             Button("Apply All") {
                                 applyTargetToAllSets()
                             }
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(.brandPrimary)
+                            .appTextRole(.secondary)
+                            .foregroundStyle(AppPalette.brand)
                         }
 
-                        ForEach(editableExercise.sets.indices, id: \.self) { index in
-                            HStack(spacing: 10) {
-                                Text("\(index + 1)")
-                                    .appFont(size: 12, weight: .black)
-                                    .foregroundColor(editableExercise.type.color)
-                                    .frame(width: 30, height: 30)
-                                    .background(editableExercise.type.color.opacity(0.10), in: Circle())
+                        VStack(spacing: AppSpacing.compact) {
+                            ForEach(editableExercise.sets.indices, id: \.self) { index in
+                                HStack(spacing: AppSpacing.row) {
+                                    Text("\(index + 1)")
+                                        .appTextRole(.caption)
+                                        .foregroundStyle(editableExercise.type.color)
+                                        .frame(width: 32, height: 32)
+                                        .background(editableExercise.type.color.opacity(0.10), in: Circle())
+                                        .accessibilityHidden(true)
 
-                                TextField("Target", text: Binding(
-                                    get: { editableExercise.sets[index].target ?? "" },
-                                    set: { editableExercise.sets[index].target = $0.trimmed.isEmpty ? nil : $0 }
-                                ))
-                                .appFont(size: 14, weight: .semibold)
-                                .padding(10)
-                                .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    TextField("Target", text: Binding(
+                                        get: { editableExercise.sets[index].target ?? "" },
+                                        set: { editableExercise.sets[index].target = $0.trimmed.isEmpty ? nil : $0 }
+                                    ))
+                                    .appTextRole(.body)
+                                    .routineInputStyle()
+                                    .accessibilityLabel("Set \(index + 1) target")
+                                }
                             }
                         }
+                        .appSurface(.quiet)
                     }
-                    .asCard()
 
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
                         SectionLabel(title: "Notes", icon: "note.text")
 
                         TextEditor(text: Binding(
                             get: { editableExercise.notes ?? "" },
                             set: { editableExercise.notes = $0.trimmed.isEmpty ? nil : $0 }
                         ))
-                        .appFont(size: 14)
+                        .appTextRole(.body)
                         .frame(minHeight: 90)
-                        .padding(8)
+                        .padding(AppSpacing.row)
                         .scrollContentBackground(.hidden)
-                        .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .appSurface(.quiet, padding: 0)
                     }
-                    .asCard()
 
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
                         SectionLabel(title: "Swap Options", icon: "arrow.triangle.2.circlepath")
 
-                        Text("Add alternatives separated by commas. These appear in the workout player when you need a substitute.")
-                            .appFont(size: 12, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            Text("Add alternatives separated by commas. These appear in the workout player when you need a substitute.")
+                                .appTextRole(.secondary)
+                                .foregroundStyle(.secondary)
 
-                        TextField("Dumbbell Bench Press, Push-up", text: $alternativesText)
-                            .appFont(size: 14, weight: .semibold)
-                            .textInputAutocapitalization(.words)
-                            .padding(12)
-                            .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            TextField("Dumbbell Bench Press, Push-up", text: $alternativesText)
+                                .appTextRole(.body)
+                                .textInputAutocapitalization(.words)
+                                .routineInputStyle()
+                        }
+                        .appSurface(.quiet)
                     }
-                    .asCard()
                 }
-                .padding()
-                .padding(.bottom, 20)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.section)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .background(AppPalette.canvas.ignoresSafeArea())
             .navigationTitle("Edit Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        normalizeExerciseBeforeSave()
-                        onSave(editableExercise)
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
                     }
-                    .disabled(editableExercise.name.trimmed.isEmpty)
+                    .accessibilityLabel("Close exercise editor")
                 }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button(action: saveAndDismiss) {
+                    Label("Save Exercise", systemImage: "checkmark")
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(editableExercise.name.trimmed.isEmpty)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.compact)
+                .background(.bar)
             }
         }
     }
@@ -638,6 +625,12 @@ struct ExerciseSetEditorView: View {
         updateSetCount()
         applyTargetToAllSets()
     }
+
+    private func saveAndDismiss() {
+        normalizeExerciseBeforeSave()
+        onSave(editableExercise)
+        dismiss()
+    }
 }
 
 struct ExercisePickerView: View {
@@ -669,49 +662,66 @@ struct ExercisePickerView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(title: "Custom Movement", icon: "plus.circle.fill")
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    AppScreenHeader(
+                        eyebrow: "Routine Builder",
+                        title: "Add a Movement",
+                        subtitle: "Search the exercise library or create one that is specific to your training."
+                    )
 
-                        HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        AppSectionHeader(
+                            title: "Custom Movement",
+                            subtitle: "Name it, choose how it is measured, and add it directly."
+                        )
+
+                        VStack(alignment: .leading, spacing: AppSpacing.group) {
                             TextField("Add your own exercise", text: $customExerciseName)
-                                .appFont(size: 15, weight: .semibold)
+                                .appTextRole(.control)
                                 .textInputAutocapitalization(.words)
-                                .padding(12)
-                                .background(Color.backgroundPrimary.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .routineInputStyle()
 
-                            Button {
-                                selectCustomExercise()
-                            } label: {
-                                Image(systemName: "plus")
-                                    .appFont(size: 14, weight: .bold)
-                                    .foregroundColor(.white)
-                                    .frame(width: 42, height: 42)
-                                    .background(Color.brandPrimary, in: Circle())
-                            }
-                            .disabled(customExerciseName.trimmed.isEmpty)
-                        }
-
-                        Picker("Type", selection: $customExerciseType) {
-                            ForEach(ExerciseType.allCases, id: \.self) { type in
-                                Text(type.shortTitle).tag(type)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    .asCard()
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(title: "Exercise Library", icon: "magnifyingglass")
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(categories, id: \.self) { category in
-                                    categoryButton(for: category)
+                            Picker("Measurement Type", selection: $customExerciseType) {
+                                ForEach(ExerciseType.allCases, id: \.self) { type in
+                                    Text(type.shortTitle).tag(type)
                                 }
                             }
+                            .pickerStyle(.segmented)
+
+                            Button(action: selectCustomExercise) {
+                                Label("Add Custom Movement", systemImage: "plus")
+                            }
+                            .buttonStyle(AppActionButtonStyle(.secondary))
+                            .disabled(customExerciseName.trimmed.isEmpty)
+                        }
+                        .appSurface(.quiet)
+                    }
+
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        AppSectionHeader(
+                            title: "Exercise Library",
+                            subtitle: selectedCategory == "All" ? "Showing every category" : "Filtered to \(selectedCategory)"
+                        ) {
+                            Menu {
+                                ForEach(categories, id: \.self) { category in
+                                    Button {
+                                        selectedCategory = category
+                                    } label: {
+                                        if selectedCategory == category {
+                                            Label(category, systemImage: "checkmark")
+                                        } else {
+                                            Text(category)
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "line.3.horizontal.decrease")
+                            }
+                            .buttonStyle(AppIconButtonStyle(.neutral))
+                            .accessibilityLabel("Filter exercise category")
+                            .accessibilityValue(selectedCategory)
                         }
 
                         if visibleEntries.isEmpty {
@@ -721,7 +731,7 @@ struct ExercisePickerView: View {
                                 message: "Try a different search term, or add a custom exercise."
                             )
                         } else {
-                            LazyVStack(spacing: 10) {
+                            LazyVStack(spacing: AppSpacing.compact) {
                                 ForEach(visibleEntries) { entry in
                                     ExercisePickerRow(entry: entry) {
                                         onSelect(ExercisePickerDraft(
@@ -735,17 +745,23 @@ struct ExercisePickerView: View {
                             }
                         }
                     }
-                    .asCard()
                 }
-                .padding()
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.section)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .background(AppPalette.canvas.ignoresSafeArea())
             .searchable(text: $searchText, prompt: "Search exercises")
             .navigationTitle("Add Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Close exercise library")
                 }
             }
         }
@@ -758,24 +774,5 @@ struct ExercisePickerView: View {
             type: customExerciseType
         ))
         dismiss()
-    }
-
-    @ViewBuilder
-    private func categoryButton(for category: String) -> some View {
-        let isSelected = (selectedCategory == category)
-        let fgColor: Color = isSelected ? .white : .brandPrimary
-        let bgColor: Color = isSelected ? Color.brandPrimary : Color.brandPrimary.opacity(0.10)
-        
-        Button {
-            selectedCategory = category
-        } label: {
-            Text(category)
-                .appFont(size: 12, weight: .bold)
-                .foregroundColor(fgColor)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(bgColor, in: Capsule())
-        }
-        .buttonStyle(.plain)
     }
 }

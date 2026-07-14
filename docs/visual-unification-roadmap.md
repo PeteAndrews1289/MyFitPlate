@@ -227,11 +227,30 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   dark accessibility journey passed, the full app build passed, and SwiftLint reported zero
   violations across 232 files.
 
+### Batch 13 - Workout Program and Routine Editors (complete)
+
+- Rebuilt Saved Plans around one training-library header, a compact plan count, and responsive
+  active/status/actions while preserving activation, deletion, start dates, routine order, and
+  progress.
+- Rebuilt program creation and editing around plan identity, a concise routine/set summary,
+  ordered routine rotation, schedule selection, and one persistent save action. Adding a routine
+  opens its editor immediately, and reopening that editor no longer resets in-progress changes.
+- Rebuilt routine creation and editing around identity, workload summary, details, fast-start
+  templates, exercise planning, movement selection, set targets, and one persistent save action.
+  Dense exercise-row actions now live in a discoverable menu without removing edit, move,
+  duplicate, or delete behavior.
+- Replaced the compact weekday control with full labeled, accessible day buttons shared by the
+  program editor, AI workout generator, and schedule editor.
+- Added deterministic Saved Plans, Program Builder, and Routine Builder routes. Standard and dark
+  accessibility-XXXL journeys verify hierarchy, stable save/close controls, screen bounds, and
+  text clipping. Twenty-eight focused routine/program rule tests and both final UI journeys pass;
+  the full simulator target compiles including Watch, widgets, and Live Activity.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, and Settings now join that system. The active queue
-moves to workout editors and analytics, wellness and weight, onboarding and authentication,
-community, and the remaining specialty tools.
+moves to program detail, workout history and analytics, wellness and weight, onboarding and
+authentication, community, and the remaining specialty tools.
 
 ## Product Direction
 

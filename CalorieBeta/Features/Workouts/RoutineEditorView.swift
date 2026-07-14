@@ -14,9 +14,9 @@ struct RoutineEditorView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
                     RoutineEditorHeaderCard(
                         routineName: viewModel.routineName,
                         exerciseCount: viewModel.exercises.count,
@@ -29,11 +29,13 @@ struct RoutineEditorView: View {
                         routineName: $viewModel.routineName,
                         routineNotes: $viewModel.routineNotes
                     )
+                    .accessibilityIdentifier("routine_builder_details")
 
                     RoutineTemplateStrip(
                         templates: RoutineEditorTemplate.templates,
                         onApply: { viewModel.applyTemplate($0) }
                     )
+                    .accessibilityIdentifier("routine_builder_templates")
 
                     RoutineExerciseBuilderCard(
                         exercises: viewModel.exercises,
@@ -43,38 +45,39 @@ struct RoutineEditorView: View {
                         onDelete: { viewModel.deleteExercise($0) },
                         onMove: { viewModel.moveExercise($0, direction: $1) }
                     )
+                    .accessibilityIdentifier("routine_builder_exercises")
                 }
-                .padding()
-                .padding(.bottom, 14)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.section)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .accessibilityIdentifier("routine_builder")
+            .background(AppPalette.canvas.ignoresSafeArea())
             .navigationTitle(viewModel.routineName.trimmed.isEmpty ? "Create Routine" : "Edit Routine")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: {
-                        viewModel.saveRoutine()
+                    Button {
                         dismiss()
-                    })
-                    .disabled(!viewModel.canSave)
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .tint(AppPalette.text)
+                    .accessibilityLabel("Close routine editor")
+                    .accessibilityIdentifier("routine_builder_close")
                 }
             }
+            .toolbar(.visible, for: .navigationBar)
             .safeAreaInset(edge: .bottom) {
-                Button {
-                    viewModel.saveRoutine()
-                    dismiss()
-                } label: {
+                Button(action: saveAndDismiss) {
                     Label("Save Routine", systemImage: "checkmark.circle.fill")
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .accessibilityIdentifier("routine_builder_save")
                 .disabled(!viewModel.canSave)
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 10)
-                .background(.ultraThinMaterial)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.compact)
+                .background(.bar)
             }
             .sheet(isPresented: $viewModel.showingExercisePicker) {
                 ExercisePickerView { draft in
@@ -91,5 +94,10 @@ struct RoutineEditorView: View {
                 )
             }
         }
+    }
+
+    private func saveAndDismiss() {
+        viewModel.saveRoutine()
+        dismiss()
     }
 }

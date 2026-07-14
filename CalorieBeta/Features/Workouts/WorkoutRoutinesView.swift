@@ -14,10 +14,27 @@ struct WorkoutRoutinesView: View {
     @State private var routineToEdit: WorkoutRoutine?
     @State private var reviewLog: WorkoutSessionLog?
     @State private var showingDeleteCurrentProgramAlert = false
+    @State private var showingProgramBuilder = false
+    @State private var showingSavedPrograms = false
+    @State private var screenshotProgramToEdit: WorkoutProgram?
 
     @StateObject private var viewModel = WorkoutDashboardViewModel()
 
     private let planLibraryColumns = [GridItem(.flexible())]
+
+    #if DEBUG
+    init() {
+        let screen = ScreenshotDemoData.requestedScreen
+        _showingProgramBuilder = State(initialValue: screen == "program-builder")
+        _showingSavedPrograms = State(initialValue: screen == "saved-programs")
+        _screenshotProgramToEdit = State(
+            initialValue: screen == "program-builder" ? ScreenshotDemoData.workoutBuilderProgram : nil
+        )
+        _routineToEdit = State(
+            initialValue: screen == "routine-builder" ? ScreenshotDemoData.routineBuilderRoutine : nil
+        )
+    }
+    #endif
 
     static let trainTourSteps: [SpotlightTourStep] = [
         SpotlightTourStep(id: "train-next-step", title: "Training hub",
@@ -288,6 +305,23 @@ struct WorkoutRoutinesView: View {
                 AIWorkoutGeneratorView()
                     .environmentObject(workoutService)
                     .environmentObject(goalSettings)
+            }
+            .sheet(isPresented: $showingProgramBuilder) {
+                NavigationStack {
+                    ProgramCreatorView(
+                        workoutService: workoutService,
+                        programToEdit: screenshotProgramToEdit,
+                        isPresentedModally: true
+                    )
+                }
+            }
+            .sheet(isPresented: $showingSavedPrograms) {
+                NavigationStack {
+                    ProgramListView(workoutService: workoutService)
+                        .environmentObject(goalSettings)
+                        .environmentObject(dailyLogService)
+                        .environmentObject(achievementService)
+                }
             }
             .sheet(item: $routineToEdit) { routine in
                 RoutineEditorView(

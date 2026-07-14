@@ -686,8 +686,8 @@ enum ScreenshotDemoData {
 
         switch requestedScreen {
         case "maia": appState.selectedTab = 1
-        case "train": appState.selectedTab = 2
-        case "runs": appState.selectedTab = 2
+        case "train", "runs", "saved-programs", "program-builder", "routine-builder":
+            appState.selectedTab = 2
         case "meal-plan": appState.selectedTab = 3
         case "reports": appState.selectedTab = 4
         default: appState.selectedTab = 0
@@ -954,6 +954,18 @@ enum ScreenshotDemoData {
         program.currentProgressIndex = 5
         program.routines.forEach { $0.userID = userID }
         return program
+    }
+
+    static var workoutBuilderProgram: WorkoutProgram {
+        strengthProgram()
+    }
+
+    static var routineBuilderRoutine: WorkoutRoutine {
+        strengthProgram().routines.first ?? WorkoutRoutine(
+            userID: userID,
+            name: "Upper Strength",
+            dateCreated: today
+        )
     }
 
     private static func workoutLogs(for program: WorkoutProgram) -> [WorkoutSessionLog] {
