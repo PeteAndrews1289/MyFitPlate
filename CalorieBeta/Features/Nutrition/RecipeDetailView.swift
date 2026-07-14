@@ -1,10 +1,10 @@
 import SwiftUI
+
 struct RecipeDetailView: View {
     @State private var recipe: Recipe
-    @EnvironmentObject var recipeService: RecipeService
-    @EnvironmentObject var dailyLogService: DailyLogService
-    @EnvironmentObject var mealPlannerService: MealPlannerService
-    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject private var recipeService: RecipeService
+    @EnvironmentObject private var dailyLogService: DailyLogService
+    @EnvironmentObject private var mealPlannerService: MealPlannerService
     @State private var showingAddToLogSheet = false
     @State private var showingAddToPlanSheet = false
     @State private var showingEditSheet = false
@@ -14,32 +14,32 @@ struct RecipeDetailView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            ScrollView {
-                VStack(spacing: 16) {
-                    RecipeHeroCard(recipe: recipe)
-                    RecipeMacroGrid(nutrition: recipe.nutrition)
-                    RecipeIngredientsCard(ingredients: recipe.ingredients)
-                    RecipeInstructionsCard(instructions: recipe.instructions)
-                    RecipeNutrientDetailsCard(nutrition: recipe.nutrition)
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 96)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                RecipeIdentityHeader(recipe: recipe)
+                RecipeNutritionSummary(nutrition: recipe.nutrition)
+                RecipeIngredientsSection(ingredients: recipe.ingredients)
+                RecipeInstructionsSection(instructions: recipe.instructions)
+                RecipeNutrientDetailsSection(nutrition: recipe.nutrition)
             }
-
-            RecipeDetailActionBar(
-                onPlan: { showingAddToPlanSheet = true },
-                onLog: { showingAddToLogSheet = true }
-            )
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.group)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .accessibilityIdentifier("recipe_detail")
+        .background(AppPalette.canvas.ignoresSafeArea())
         .navigationTitle("Recipe")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Edit") { showingEditSheet = true }
             }
+        }
+        .safeAreaInset(edge: .bottom) {
+            RecipeDetailActionBar(
+                onPlan: { showingAddToPlanSheet = true },
+                onLog: { showingAddToLogSheet = true }
+            )
         }
         .sheet(isPresented: $showingEditSheet) {
             CreateRecipeView(recipeToEdit: recipe) { updated in
@@ -61,9 +61,7 @@ struct RecipeDetailView: View {
                         dailyLog: $dailyLogService.currentDailyLog,
                         date: dailyLogService.activelyViewedDate,
                         source: "recipe_detail",
-                        onLogUpdated: {
-                            showingAddToLogSheet = false
-                        }
+                        onLogUpdated: { showingAddToLogSheet = false }
                     )
                 }
             }
@@ -76,268 +74,319 @@ struct RecipeDetailView: View {
     }
 }
 
-private struct RecipeHeroCard: View {
+private struct RecipeIdentityHeader: View {
     let recipe: Recipe
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            if let imageURLString = recipe.imageURL, let url = URL(string: imageURLString) {
-                CachedAsyncImage(url: url) { image in
-                    image.resizable()
-                         .aspectRatio(contentMode: .fill)
-                         .frame(width: 68, height: 68)
-                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                } placeholder: {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 68, height: 68)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    recipeArtwork
+                    identityText
                 }
             } else {
-                Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-                    .appFont(size: 38)
-                    .frame(width: 68, height: 68)
-                    .background(
-                        Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    )
-            }
-
-            VStack(alignment: .leading, spacing: 7) {
-                Text(recipe.name)
-                    .appFont(size: 25, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: 8) {
-                    RecipeHeroChip(icon: "list.bullet", text: "\(recipe.ingredients.count.formatted()) ingredients")
-                    RecipeHeroChip(icon: "text.badge.checkmark", text: "\(recipe.instructions.count.formatted()) steps")
+                HStack(alignment: .top, spacing: AppSpacing.group) {
+                    recipeArtwork
+                    identityText
                 }
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(18)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-    }
-}
-
-private struct RecipeHeroChip: View {
-    let icon: String
-    let text: String
-
-    var body: some View {
-        Label(text, systemImage: icon)
-            .appFont(size: 11, weight: .bold)
-            .foregroundColor(.blue)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(Color.blue.opacity(0.10), in: Capsule())
-    }
-}
-
-private struct RecipeMacroGrid: View {
-    let nutrition: Nutrition
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            RecipeMacroTile(
-                title: "Calories",
-                value: Int(nutrition.calories.rounded()).formatted(),
-                unit: "cal",
-                icon: "flame.fill",
-                color: .orange
-            )
-            RecipeMacroTile(
-                title: "Protein",
-                value: Int(nutrition.protein.rounded()).formatted(),
-                unit: "g",
-                icon: "bolt.fill",
-                color: .accentProtein
-            )
-            RecipeMacroTile(
-                title: "Carbs",
-                value: Int(nutrition.carbs.rounded()).formatted(),
-                unit: "g",
-                icon: "leaf.fill",
-                color: .accentCarbs
-            )
-            RecipeMacroTile(
-                title: "Fat",
-                value: Int(nutrition.fats.rounded()).formatted(),
-                unit: "g",
-                icon: "drop.fill",
-                color: .accentFats
-            )
-        }
-    }
-}
-
-private struct RecipeMacroTile: View {
-    let title: String
-    let value: String
-    let unit: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: icon)
-                .appFont(size: 14, weight: .bold)
-                .foregroundColor(color)
-                .frame(width: 30, height: 30)
-                .background(color.opacity(0.12), in: Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(value)
-                        .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-
-                    Text(unit)
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Text(title)
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
-}
 
-private struct RecipeIngredientsCard: View {
-    let ingredients: [String]
+    @ViewBuilder
+    private var recipeArtwork: some View {
+        if let imageURLString = recipe.imageURL, let url = URL(string: imageURLString) {
+            CachedAsyncImage(url: url) { image in
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 68, height: 68)
+                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+            } placeholder: {
+                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                    .fill(AppPalette.control)
+                    .frame(width: 68, height: 68)
+            }
+            .accessibilityHidden(true)
+        } else if dynamicTypeSize.isAccessibilitySize {
+            Image(systemName: "fork.knife")
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(.secondary)
+                .frame(width: 68, height: 68)
+                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+                .accessibilityHidden(true)
+        } else {
+            Text(FoodEmojiMapper.getEmoji(for: recipe.name))
+                .font(.system(size: 36))
+                .frame(width: 68, height: 68)
+                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+                .accessibilityHidden(true)
+        }
+    }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            RecipeSectionHeader(title: "Ingredients", icon: "basket.fill")
+    private var identityText: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text(recipe.name)
+                .appTextRole(dynamicTypeSize.isAccessibilitySize ? .sectionTitle : .screenTitle)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("recipe_detail_title")
 
-            VStack(spacing: 8) {
-                ForEach(ingredients, id: \.self) { ingredient in
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "circle.fill")
-                            .appFont(size: 6, weight: .bold)
-                            .foregroundColor(.blue)
-                            .padding(.top, 7)
-
-                        Text(ingredient)
-                            .appFont(size: 14, weight: .medium)
-                            .foregroundColor(.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Spacer(minLength: 0)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ingredientMetadata
+                        instructionMetadata
                     }
-                    .padding(12)
-                    .background(Color.backgroundPrimary.opacity(0.62), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                } else {
+                    HStack(spacing: AppSpacing.row) {
+                        ingredientMetadata
+                        instructionMetadata
+                    }
                 }
             }
         }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var ingredientMetadata: some View {
+        Label("\(recipe.ingredients.count.formatted()) ingredients", systemImage: "basket")
+            .appTextRole(.secondary)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.bottom, 2)
+            .accessibilityIdentifier("recipe_detail_ingredient_count")
+    }
+
+    private var instructionMetadata: some View {
+        Label("\(recipe.instructions.count.formatted()) steps", systemImage: "list.number")
+            .appTextRole(.secondary)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.bottom, 2)
+            .accessibilityIdentifier("recipe_detail_instruction_count")
     }
 }
 
-private struct RecipeInstructionsCard: View {
-    let instructions: [String]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            RecipeSectionHeader(title: "Instructions", icon: "text.badge.checkmark")
-
-            VStack(spacing: 10) {
-                ForEach(Array(instructions.enumerated()), id: \.offset) { index, instruction in
-                    HStack(alignment: .top, spacing: 12) {
-                        Text("\(index + 1)")
-                            .appFont(size: 13, weight: .bold)
-                            .foregroundColor(.white)
-                            .frame(width: 28, height: 28)
-                            .background(Color.blue, in: Circle())
-
-                        Text(instruction)
-                            .appFont(size: 14, weight: .medium)
-                            .foregroundColor(.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Spacer(minLength: 0)
-                    }
-                    .padding(12)
-                    .background(Color.backgroundPrimary.opacity(0.62), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-            }
-        }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-}
-
-private struct RecipeNutrientDetailsCard: View {
+private struct RecipeNutritionSummary: View {
     let nutrition: Nutrition
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            DisclosureGroup {
-                VStack(spacing: 8) {
-                    Text("\(nutrition.reportedVitaminMineralCount) of \(MicronutrientKey.vitaminAndMineralKeys.count) vitamins and minerals reported. Missing values are unknown, not zero.")
-                        .appFont(size: 12)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+        AppMetricStrip(items: [
+            AppMetricItem(
+                label: "Calories",
+                value: "\(Int(nutrition.calories.rounded()).formatted()) cal",
+                accent: .orange
+            ),
+            AppMetricItem(
+                label: "Protein",
+                value: "\(Int(nutrition.protein.rounded()).formatted()) g",
+                accent: .accentProtein
+            ),
+            AppMetricItem(
+                label: "Carbs",
+                value: "\(Int(nutrition.carbs.rounded()).formatted()) g",
+                accent: .accentCarbs
+            ),
+            AppMetricItem(
+                label: "Fat",
+                value: "\(Int(nutrition.fats.rounded()).formatted()) g",
+                accent: .accentFats
+            )
+        ])
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("recipe_nutrition_summary")
+    }
+}
+
+private struct RecipeIngredientsSection: View {
+    let ingredients: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Ingredients",
+                subtitle: "Amounts are shown as saved with this recipe."
+            )
+
+            VStack(spacing: 0) {
+                if ingredients.isEmpty {
+                    Text("No ingredients recorded.")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    nutrientRow(label: "Saturated fat", value: nutrition.saturatedFat)
-                    nutrientRow(label: "Polyunsaturated fat", value: nutrition.polyunsaturatedFat)
-                    nutrientRow(label: "Monounsaturated fat", value: nutrition.monounsaturatedFat)
-                    nutrientRow(label: "Fiber", value: nutrition.fiber)
-                    nutrientRow(label: "Calcium", value: nutrition.calcium, unit: "mg")
-                    nutrientRow(label: "Iron", value: nutrition.iron, unit: "mg")
-                    nutrientRow(label: "Potassium", value: nutrition.potassium, unit: "mg")
-                    nutrientRow(label: "Sodium", value: nutrition.sodium, unit: "mg")
-                    nutrientRow(label: "Vitamin A", value: nutrition.vitaminA, unit: "mcg")
-                    nutrientRow(label: "Vitamin C", value: nutrition.vitaminC, unit: "mg")
-                    nutrientRow(label: "Vitamin D", value: nutrition.vitaminD, unit: "mcg")
-                    nutrientRow(label: "Vitamin B12", value: nutrition.vitaminB12, unit: "mcg")
-                    nutrientRow(label: "Folate", value: nutrition.folate, unit: "mcg")
-                    nutrientRow(label: "Magnesium", value: nutrition.magnesium, unit: "mg")
-                    nutrientRow(label: "Phosphorus", value: nutrition.phosphorus, unit: "mg")
-                    nutrientRow(label: "Zinc", value: nutrition.zinc, unit: "mg")
-                    nutrientRow(label: "Copper", value: nutrition.copper, unit: "mcg")
-                    nutrientRow(label: "Manganese", value: nutrition.manganese, unit: "mg")
-                    nutrientRow(label: "Selenium", value: nutrition.selenium, unit: "mcg")
-                    nutrientRow(label: "Vitamin B1", value: nutrition.vitaminB1, unit: "mg")
-                    nutrientRow(label: "Vitamin B2", value: nutrition.vitaminB2, unit: "mg")
-                    nutrientRow(label: "Vitamin B3", value: nutrition.vitaminB3, unit: "mg")
-                    nutrientRow(label: "Vitamin B5", value: nutrition.vitaminB5, unit: "mg")
-                    nutrientRow(label: "Vitamin B6", value: nutrition.vitaminB6, unit: "mg")
-                    nutrientRow(label: "Vitamin E", value: nutrition.vitaminE, unit: "mg")
-                    nutrientRow(label: "Vitamin K", value: nutrition.vitaminK, unit: "mcg")
+                        .padding(AppSpacing.group)
+                } else {
+                    ForEach(Array(ingredients.enumerated()), id: \.offset) { index, ingredient in
+                        HStack(alignment: .top, spacing: AppSpacing.row) {
+                            Circle()
+                                .fill(AppPalette.brand)
+                                .frame(width: 6, height: 6)
+                                .padding(.top, 7)
+                                .accessibilityHidden(true)
+
+                            Text(ingredient)
+                                .appTextRole(.body)
+                                .foregroundStyle(AppPalette.text)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, AppSpacing.group)
+                        .padding(.vertical, AppSpacing.row)
+
+                        if index < ingredients.count - 1 {
+                            Divider()
+                                .padding(.leading, 34)
+                        }
+                    }
                 }
-                .padding(.top, 8)
-            } label: {
-                RecipeSectionHeader(title: "More nutrition", icon: "chart.bar.doc.horizontal.fill")
             }
+            .appSurface(.quiet, padding: 0)
         }
-        .tint(.blue)
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("recipe_ingredients")
+    }
+}
+
+private struct RecipeInstructionsSection: View {
+    let instructions: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Instructions",
+                subtitle: instructions.isEmpty ? nil : "Follow the saved order."
+            )
+
+            VStack(spacing: 0) {
+                if instructions.isEmpty {
+                    Text("No instructions recorded.")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AppSpacing.group)
+                } else {
+                    ForEach(Array(instructions.enumerated()), id: \.offset) { index, instruction in
+                        HStack(alignment: .top, spacing: AppSpacing.row) {
+                            Text((index + 1).formatted())
+                                .appTextRole(.caption)
+                                .foregroundStyle(AppPalette.brand)
+                                .frame(width: 28, height: 28)
+                                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                                .accessibilityHidden(true)
+
+                            Text(instruction)
+                                .appTextRole(.body)
+                                .foregroundStyle(AppPalette.text)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, AppSpacing.group)
+                        .padding(.vertical, AppSpacing.row)
+
+                        if index < instructions.count - 1 {
+                            Divider()
+                                .padding(.leading, 56)
+                        }
+                    }
+                }
+            }
+            .appSurface(.quiet, padding: 0)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("recipe_instructions")
+    }
+}
+
+private struct RecipeNutrientValue: Identifiable {
+    let label: String
+    let value: Double
+    let unit: String
+
+    var id: String { label }
+}
+
+private struct RecipeNutrientDetailsSection: View {
+    let nutrition: Nutrition
+
+    private var nutrientValues: [RecipeNutrientValue] {
+        let values: [(String, Double?, String)] = [
+            ("Saturated Fat", nutrition.saturatedFat, "g"),
+            ("Polyunsaturated Fat", nutrition.polyunsaturatedFat, "g"),
+            ("Monounsaturated Fat", nutrition.monounsaturatedFat, "g"),
+            ("Fiber", nutrition.fiber, "g"),
+            ("Calcium", nutrition.calcium, "mg"),
+            ("Iron", nutrition.iron, "mg"),
+            ("Potassium", nutrition.potassium, "mg"),
+            ("Sodium", nutrition.sodium, "mg"),
+            ("Vitamin A", nutrition.vitaminA, "mcg"),
+            ("Vitamin C", nutrition.vitaminC, "mg"),
+            ("Vitamin D", nutrition.vitaminD, "mcg"),
+            ("Vitamin B12", nutrition.vitaminB12, "mcg"),
+            ("Folate", nutrition.folate, "mcg"),
+            ("Magnesium", nutrition.magnesium, "mg"),
+            ("Phosphorus", nutrition.phosphorus, "mg"),
+            ("Zinc", nutrition.zinc, "mg"),
+            ("Copper", nutrition.copper, "mcg"),
+            ("Manganese", nutrition.manganese, "mg"),
+            ("Selenium", nutrition.selenium, "mcg"),
+            ("Vitamin B1", nutrition.vitaminB1, "mg"),
+            ("Vitamin B2", nutrition.vitaminB2, "mg"),
+            ("Vitamin B3", nutrition.vitaminB3, "mg"),
+            ("Vitamin B5", nutrition.vitaminB5, "mg"),
+            ("Vitamin B6", nutrition.vitaminB6, "mg"),
+            ("Vitamin E", nutrition.vitaminE, "mg"),
+            ("Vitamin K", nutrition.vitaminK, "mcg")
+        ]
+
+        return values.compactMap { label, value, unit in
+            guard let value, value.isFinite, value >= 0 else { return nil }
+            return RecipeNutrientValue(label: label, value: value, unit: unit)
+        }
     }
 
-    @ViewBuilder private func nutrientRow(label: String, value: Double?, unit: String = "g") -> some View {
-        if let value, value.isFinite, value >= 0 {
-            HStack {
-                Text(label)
-                    .appFont(size: 14, weight: .medium)
-                    .foregroundColor(.textPrimary)
+    var body: some View {
+        DisclosureGroup {
+            VStack(spacing: 0) {
+                Text("\(nutrition.reportedVitaminMineralCount) of \(MicronutrientKey.vitaminAndMineralKeys.count) vitamins and minerals reported. Missing values are unknown, not zero.")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, AppSpacing.row)
 
-                Spacer()
+                ForEach(Array(nutrientValues.enumerated()), id: \.element.id) { index, nutrient in
+                    HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                        Text(nutrient.label)
+                            .appTextRole(.body)
+                            .foregroundStyle(AppPalette.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: AppSpacing.group)
+                        Text("\(formatted(nutrient.value)) \(nutrient.unit)")
+                            .appTextRole(.body)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    .padding(.vertical, AppSpacing.compact)
 
-                Text("\(formatted(value)) \(unit)")
-                    .appFont(size: 14, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    if index < nutrientValues.count - 1 {
+                        Divider()
+                    }
+                }
             }
+            .padding(.top, AppSpacing.row)
+        } label: {
+            AppSectionHeader(
+                title: "More Nutrition",
+                subtitle: "Reported fats, fiber, vitamins, and minerals"
+            )
         }
+        .tint(AppPalette.brand)
+        .appSurface(.quiet)
+        .accessibilityIdentifier("recipe_more_nutrition")
     }
 
     private func formatted(_ value: Double) -> String {
@@ -346,76 +395,59 @@ private struct RecipeNutrientDetailsCard: View {
     }
 }
 
-private struct RecipeSectionHeader: View {
-    let title: String
-    let icon: String
-
-    var body: some View {
-        HStack(spacing: 9) {
-            Image(systemName: icon)
-                .appFont(size: 14, weight: .bold)
-                .foregroundColor(.blue)
-                .frame(width: 30, height: 30)
-                .background(Color.blue.opacity(0.12), in: Circle())
-
-            Text(title)
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.textPrimary)
-        }
-    }
-}
-
 private struct RecipeDetailActionBar: View {
     let onPlan: () -> Void
     let onLog: () -> Void
 
-    var body: some View {
-        HStack(spacing: 10) {
-            Button {
-                onPlan()
-            } label: {
-                Label("Plan", systemImage: "calendar.badge.plus")
-                    .appFont(size: 16, weight: .bold)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-            }
-            .foregroundColor(.blue)
-            .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.blue.opacity(0.22), lineWidth: 1)
-            )
-            .buttonStyle(.plain)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-            Button {
-                onLog()
-            } label: {
-                Label("Add to log", systemImage: "plus.circle.fill")
-                    .appFont(size: 16, weight: .bold)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: AppSpacing.compact) {
+                    logButton
+                    planButton
+                }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    planButton
+                    logButton
+                }
             }
-            .foregroundColor(.white)
-            .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .background(Color.backgroundPrimary.opacity(0.98).ignoresSafeArea(edges: .bottom))
+        .padding(.horizontal, AppSpacing.screenHorizontal)
+        .padding(.top, AppSpacing.row)
+        .padding(.bottom, AppSpacing.compact)
+        .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color.primary.opacity(0.06))
+                .fill(AppPalette.separator)
                 .frame(height: 1)
         }
+    }
+
+    private var planButton: some View {
+        Button(action: onPlan) {
+            Label("Add to Plan", systemImage: "calendar.badge.plus")
+        }
+        .buttonStyle(AppActionButtonStyle(.secondary))
+        .accessibilityIdentifier("recipe_add_to_plan")
+    }
+
+    private var logButton: some View {
+        Button(action: onLog) {
+            Label("Add to Log", systemImage: "plus.circle.fill")
+        }
+        .buttonStyle(AppActionButtonStyle(.primary))
+        .accessibilityIdentifier("recipe_add_to_log")
     }
 }
 
 private struct AddRecipeToPlanSheet: View {
     let recipe: Recipe
 
-    @EnvironmentObject var recipeService: RecipeService
-    @EnvironmentObject var mealPlannerService: MealPlannerService
+    @EnvironmentObject private var recipeService: RecipeService
+    @EnvironmentObject private var mealPlannerService: MealPlannerService
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
@@ -434,39 +466,26 @@ private struct AddRecipeToPlanSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
-                    AddRecipeToPlanHero(recipe: recipe)
-
-                    VStack(alignment: .leading, spacing: 14) {
-                        RecipeSectionHeader(title: "Schedule", icon: "calendar")
-
-                        DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
-                            .datePickerStyle(.compact)
-                            .tint(.blue)
-
-                        AddRecipeMealTypePicker(
-                            mealTypes: mealTypes,
-                            selectedMealType: $selectedMealType
-                        )
-                    }
-                    .padding(16)
-                    .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                    RecipePlanIdentity(recipe: recipe)
+                    scheduleSection
 
                     if selectedMealCount > 0 {
-                        AddRecipePlanModeCard(
+                        AddRecipePlanModeControl(
                             mealType: selectedMealType,
                             mealCount: selectedMealCount,
                             replaceExistingMealType: $replaceExistingMealType
                         )
                     }
 
-                    RecipeMacroGrid(nutrition: recipe.nutrition)
+                    RecipeNutritionSummary(nutrition: recipe.nutrition)
                 }
-                .padding(16)
-                .padding(.bottom, 86)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.group)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Add to plan")
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Add to Plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -474,27 +493,28 @@ private struct AddRecipeToPlanSheet: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Button {
-                    saveToPlan()
-                } label: {
+                Button(action: saveToPlan) {
                     if isSaving {
                         ProgressView()
                             .tint(.white)
                             .frame(maxWidth: .infinity)
                     } else {
-                        Label("Add to meal plan", systemImage: "calendar.badge.plus")
+                        Label("Add to Meal Plan", systemImage: "calendar.badge.plus")
                     }
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
                 .disabled(isSaving)
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 12)
-                .background(Color.backgroundPrimary.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.row)
+                .padding(.bottom, AppSpacing.compact)
+                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AppPalette.separator)
+                        .frame(height: 1)
+                }
             }
-            .task {
-                await loadExistingPlan()
-            }
+            .task { await loadExistingPlan() }
             .onChange(of: selectedDate) { _, _ in
                 Task { await loadExistingPlan() }
             }
@@ -503,15 +523,41 @@ private struct AddRecipeToPlanSheet: View {
                     replaceExistingMealType = false
                 }
             }
-            .alert("Could not add recipe", isPresented: Binding(
-                get: { alertMessage != nil },
-                set: { if !$0 { alertMessage = nil } }
-            )) {
+            .alert("Could Not Add Recipe", isPresented: alertIsPresented) {
                 Button("OK") {}
             } message: {
                 Text(alertMessage ?? "")
             }
         }
+    }
+
+    private var scheduleSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Schedule",
+                subtitle: "Choose the day and meal slot."
+            )
+
+            DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
+                .datePickerStyle(.compact)
+                .tint(AppPalette.brand)
+
+            Divider()
+
+            AddRecipeMealTypePicker(
+                mealTypes: mealTypes,
+                selectedMealType: $selectedMealType
+            )
+        }
+        .appSurface(.quiet)
+        .accessibilityIdentifier("recipe_plan_schedule")
+    }
+
+    private var alertIsPresented: Binding<Bool> {
+        Binding(
+            get: { alertMessage != nil },
+            set: { if !$0 { alertMessage = nil } }
+        )
     }
 
     private func loadExistingPlan() async {
@@ -529,7 +575,8 @@ private struct AddRecipeToPlanSheet: View {
         isSaving = true
 
         Task { @MainActor in
-            var plan = await mealPlannerService.fetchPlan(for: selectedDate, userID: userID) ?? emptyPlan(for: selectedDate)
+            var plan = await mealPlannerService.fetchPlan(for: selectedDate, userID: userID)
+                ?? emptyPlan(for: selectedDate)
             if replaceExistingMealType {
                 plan.meals.removeAll { mealTypeMatches($0.mealType, selectedMealType) }
             }
@@ -566,7 +613,8 @@ private struct AddRecipeToPlanSheet: View {
         if firstOrder != secondOrder {
             return firstOrder < secondOrder
         }
-        return (first.foodItem?.name ?? "").localizedCaseInsensitiveCompare(second.foodItem?.name ?? "") == .orderedAscending
+        return (first.foodItem?.name ?? "")
+            .localizedCaseInsensitiveCompare(second.foodItem?.name ?? "") == .orderedAscending
     }
 
     private func mealOrder(for mealType: String) -> Int {
@@ -584,35 +632,15 @@ private struct AddRecipeToPlanSheet: View {
     }
 }
 
-private struct AddRecipeToPlanHero: View {
+private struct RecipePlanIdentity: View {
     let recipe: Recipe
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-                .appFont(size: 34)
-                .frame(width: 62, height: 62)
-                .background(
-                    Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(recipe.name)
-                    .appFont(size: 22, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("Choose where this recipe should appear in your plan.")
-                    .appFont(size: 13, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(18)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        AppScreenHeader(
+            eyebrow: "Saved Recipe",
+            title: recipe.name,
+            subtitle: "Choose where this recipe should appear in your plan."
+        )
     }
 }
 
@@ -620,53 +648,89 @@ private struct AddRecipeMealTypePicker: View {
     let mealTypes: [String]
     @Binding var selectedMealType: String
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(mealTypes, id: \.self) { mealType in
-                Button {
-                    selectedMealType = mealType
-                    HapticManager.instance.feedback(.light)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                Menu {
+                    ForEach(mealTypes, id: \.self) { mealType in
+                        Button {
+                            select(mealType)
+                        } label: {
+                            Label(
+                                mealType,
+                                systemImage: selectedMealType == mealType ? "checkmark" : "fork.knife"
+                            )
+                        }
+                    }
                 } label: {
-                    Text(mealType)
-                        .appFont(size: 13, weight: .bold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .foregroundColor(selectedMealType == mealType ? .blue : Color(UIColor.secondaryLabel))
-                        .background(
-                            selectedMealType == mealType ? Color.blue.opacity(0.14) : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        )
+                    HStack(spacing: AppSpacing.row) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Meal")
+                                .appTextRole(.secondary)
+                                .foregroundStyle(.secondary)
+                            Text(selectedMealType)
+                                .appTextRole(.control)
+                                .foregroundStyle(AppPalette.text)
+                        }
+                        Spacer(minLength: AppSpacing.compact)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .foregroundStyle(AppPalette.brand)
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+            } else {
+                Picker("Meal", selection: $selectedMealType) {
+                    ForEach(mealTypes, id: \.self) { mealType in
+                        Text(mealType).tag(mealType)
+                    }
+                }
+                .pickerStyle(.segmented)
             }
         }
-        .padding(6)
-        .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func select(_ mealType: String) {
+        selectedMealType = mealType
+        HapticManager.instance.feedback(.light)
     }
 }
 
-private struct AddRecipePlanModeCard: View {
+private struct AddRecipePlanModeControl: View {
     let mealType: String
     let mealCount: Int
     @Binding var replaceExistingMealType: Bool
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var mealLabel: String {
         mealCount == 1 ? "meal" : "meals"
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("\(mealType) already has \(mealCount.formatted()) \(mealLabel)")
-                .appFont(size: 15, weight: .bold)
-                .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Existing \(mealType)",
+                subtitle: "\(mealCount.formatted()) \(mealLabel) already planned"
+            )
 
-            Picker("Add mode", selection: $replaceExistingMealType) {
-                Text("Add alongside").tag(false)
-                Text("Replace slot").tag(true)
+            if dynamicTypeSize.isAccessibilitySize {
+                Picker("How to add", selection: $replaceExistingMealType) {
+                    Text("Add Alongside").tag(false)
+                    Text("Replace Slot").tag(true)
+                }
+                .pickerStyle(.menu)
+                .tint(AppPalette.brand)
+            } else {
+                Picker("How to add", selection: $replaceExistingMealType) {
+                    Text("Add Alongside").tag(false)
+                    Text("Replace Slot").tag(true)
+                }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
         }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .appSurface(.quiet)
     }
 }

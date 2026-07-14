@@ -160,9 +160,29 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   passed; the full build linted 232 files with zero violations; and final light/dark captures were
   reviewed.
 
-All five primary tabs, the two highest-frequency nutrition entry workflows, Food Detail, Trust,
-Running, My Foods, and the manual food editor now share one visual grammar. The active queue moves
-to recipes, grocery, and confirmation sheets before Settings and the long-tail feature families.
+### Batch 9 - Recipe Workflows (complete)
+
+- Rebuilt Recipe Library around one Saved/Ingredients/Calories summary, direct search and refresh,
+  one continuous saved-recipe list, and an explicit delete confirmation while preserving edit,
+  detail, refresh, and deletion behavior.
+- Rebuilt Recipe Detail around responsive identity and nutrition summaries, continuous ingredient
+  and instruction sections, optional micronutrients, and direct pinned actions for logging and meal
+  planning. The meal-plan sheet retains add/replace behavior and adapts its meal control at large
+  text sizes.
+- Unified Create/Edit Recipe across Maia, pasted text, URL, and manual methods with one creation
+  selector, shared operational sections, a stable Cancel action, and a pinned manual Save action.
+- Rebuilt Recipe Logging around a responsive summary, meal destination, editable ingredients, and
+  one stable Log Recipe action. Removing every ingredient from a detailed recipe now produces zero
+  totals and disables logging instead of restoring the recipe's stale original totals.
+- Added deterministic recipe fixtures and four focused standard/dark accessibility UI scenarios.
+  The final run passed 4/4; 37 focused Core recipe tests passed; the full simulator build embedded
+  Watch, widgets, and Live Activity; SwiftLint reported zero violations across 232 files; and all
+  final light and dark accessibility captures were reviewed.
+
+All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
+Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
+The active queue moves to grocery and the remaining logging confirmation sheets before Settings
+and the long-tail feature families.
 
 ## Product Direction
 
@@ -237,6 +257,10 @@ Current source indicators:
 | Fast Food Builder | Batch 5 migrated | Dense direct selection, persistent summary, tint reserved for brand and state |
 | My Foods | Batch 8 migrated | Operational summary, compact controls, grouped duplicate review, continuous saved-food rows |
 | Manual Food Editor | Batch 8 migrated | Responsive identity/nutrition/serving/details form with one pinned action |
+| Recipe Library | Batch 9 migrated | One operational summary, direct search/refresh, continuous saved-recipe rows |
+| Recipe Detail | Batch 9 migrated | Responsive nutrition and ingredient evidence with direct log and meal-plan actions |
+| Recipe Create/Edit | Batch 9 migrated | One creation-mode control, coherent manual editor, stable Cancel and Save actions |
+| Recipe Logging | Batch 9 migrated | Editable ingredient list, responsive totals, meal choice, and guarded logging action |
 | Settings | Orderly but generic | Use a native grouped configuration pattern; remove the dashboard hero |
 | Quick Log | Polished but over-layered | Use a neutral sheet scaffold and simpler rows |
 | Maia | Batch 3 migrated | One deterministic recommendation, concise context, labeled evidence, pinned composer |
@@ -375,7 +399,8 @@ weight, and nested-surface debt. Living Day itself changes last and only at the 
 3. Food Detail below Trust Receipt (Batch 6 complete)
 4. Running history and run detail (Batch 7 complete)
 5. My Foods and the manual Add/Edit Food path (Batch 8 complete)
-6. Recipes, grocery, and logging confirmation sheets
+6. Recipe List, Detail, Create/Edit, and Logging (Batch 9 complete)
+7. Grocery and remaining logging confirmation sheets
 
 This phase must preserve or improve time to successful food log, item selection, and workout/run
 start. Editorial composition must not leak into repeated workflows.
@@ -456,6 +481,18 @@ Migrate by feature family so each batch can be reviewed and reverted independent
 - Manual Add/Edit Food uses responsive sections rather than independent macro and serving tiles.
 - Nutrition fields preserve direct editing, label scan, validation, save, and log behavior while
   presenting one stable action and a complete navigation bar from every entry point.
+
+### Recipes
+
+- Batch 9 gives Recipe Library one compact operational summary and one continuous saved-recipe
+  list, with search, refresh, edit, and deletion remaining directly available.
+- Recipe Detail keeps ingredient, instruction, micronutrient, meal-plan add/replace, and logging
+  behavior while presenting one responsive evidence hierarchy and two stable actions.
+- Create/Edit Recipe uses one segmented creation-mode control and shared section grammar across
+  Maia, pasted-text, URL, and manual workflows; manual editing retains direct ingredient changes
+  and one pinned Save action.
+- Recipe Logging keeps direct meal selection and ingredient editing. An empty detailed recipe now
+  reports zero nutrition and cannot be logged, preventing stale original totals from returning.
 
 ### Settings
 

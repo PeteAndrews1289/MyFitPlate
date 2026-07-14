@@ -188,6 +188,211 @@ enum ScreenshotDemoData {
         return [oats, shake]
     }
 
+    static var recipeDemoRecipes: [Recipe] {
+        func ingredient(
+            id: String,
+            name: String,
+            calories: Double,
+            protein: Double,
+            carbs: Double,
+            fats: Double,
+            fiber: Double,
+            quantity: Double,
+            unit: String
+        ) -> FoodItem {
+            var item = trustedFood(
+                id: id,
+                name: name,
+                calories: calories,
+                protein: protein,
+                carbs: carbs,
+                fats: fats,
+                fiber: fiber,
+                servingSize: "\(quantity.formatted()) \(unit)",
+                servingWeight: unit == "g" ? quantity : 0,
+                sourceType: .usda,
+                sourceName: "USDA FoodData Central"
+            )
+            item.quantityValue = quantity
+            item.servingUnit = unit
+            return item
+        }
+
+        let chickenBowlIngredients = [
+            ingredient(
+                id: "demo-recipe-chicken",
+                name: "Grilled Chicken Breast",
+                calories: 245,
+                protein: 46,
+                carbs: 0,
+                fats: 5,
+                fiber: 0,
+                quantity: 170,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-rice",
+                name: "Jasmine Rice",
+                calories: 180,
+                protein: 4,
+                carbs: 40,
+                fats: 0.5,
+                fiber: 1,
+                quantity: 140,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-beans",
+                name: "Black Beans",
+                calories: 90,
+                protein: 6,
+                carbs: 16,
+                fats: 0.5,
+                fiber: 6,
+                quantity: 85,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-salsa",
+                name: "Avocado Salsa",
+                calories: 95,
+                protein: 2,
+                carbs: 10,
+                fats: 6,
+                fiber: 4,
+                quantity: 95,
+                unit: "g"
+            )
+        ]
+
+        let oatsIngredients = [
+            ingredient(
+                id: "demo-recipe-oats",
+                name: "Rolled Oats",
+                calories: 225,
+                protein: 8,
+                carbs: 40,
+                fats: 4,
+                fiber: 6,
+                quantity: 60,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-yogurt",
+                name: "Greek Yogurt",
+                calories: 130,
+                protein: 23,
+                carbs: 9,
+                fats: 0,
+                fiber: 0,
+                quantity: 225,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-berries",
+                name: "Blueberries",
+                calories: 85,
+                protein: 1,
+                carbs: 21,
+                fats: 0.5,
+                fiber: 4,
+                quantity: 150,
+                unit: "g"
+            )
+        ]
+
+        let salmonIngredients = [
+            ingredient(
+                id: "demo-recipe-salmon",
+                name: "Baked Atlantic Salmon",
+                calories: 300,
+                protein: 34,
+                carbs: 0,
+                fats: 18,
+                fiber: 0,
+                quantity: 145,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-quinoa",
+                name: "Cooked Quinoa",
+                calories: 185,
+                protein: 7,
+                carbs: 32,
+                fats: 3,
+                fiber: 4,
+                quantity: 155,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-vegetables",
+                name: "Roasted Mixed Vegetables",
+                calories: 120,
+                protein: 4,
+                carbs: 21,
+                fats: 3,
+                fiber: 7,
+                quantity: 220,
+                unit: "g"
+            )
+        ]
+
+        return [
+            Recipe(
+                id: "demo-recipe-chicken-bowl",
+                name: "Weeknight Chicken Power Bowl",
+                ingredients: [
+                    "170 g grilled chicken breast",
+                    "140 g cooked jasmine rice",
+                    "85 g black beans",
+                    "95 g avocado salsa"
+                ],
+                detailedIngredients: chickenBowlIngredients,
+                instructions: [
+                    "Warm the rice and black beans together.",
+                    "Slice the grilled chicken and arrange it over the rice.",
+                    "Finish with avocado salsa and serve."
+                ],
+                nutrition: Nutrition.total(for: chickenBowlIngredients),
+                servings: 1
+            ),
+            Recipe(
+                id: "demo-recipe-oats",
+                name: "Blueberry Protein Overnight Oats",
+                ingredients: [
+                    "60 g rolled oats",
+                    "225 g nonfat Greek yogurt",
+                    "150 g blueberries"
+                ],
+                detailedIngredients: oatsIngredients,
+                instructions: [
+                    "Stir the oats and Greek yogurt together.",
+                    "Fold in half of the blueberries and refrigerate overnight.",
+                    "Top with the remaining berries before serving."
+                ],
+                nutrition: Nutrition.total(for: oatsIngredients),
+                servings: 1
+            ),
+            Recipe(
+                id: "demo-recipe-salmon",
+                name: "Lemon Salmon Quinoa Plate",
+                ingredients: [
+                    "145 g baked Atlantic salmon",
+                    "155 g cooked quinoa",
+                    "220 g roasted mixed vegetables"
+                ],
+                detailedIngredients: salmonIngredients,
+                instructions: [
+                    "Season the salmon with lemon and bake until just cooked through.",
+                    "Warm the quinoa and vegetables.",
+                    "Plate together and spoon the pan juices over the salmon."
+                ],
+                nutrition: Nutrition.total(for: salmonIngredients),
+                servings: 1
+            )
+        ]
+    }
+
     static var runningDemoRuns: [Run] {
         let runs: [RunTemplate] = [
             RunTemplate(
@@ -268,6 +473,7 @@ enum ScreenshotDemoData {
         nutrition.mockLogsByDay = logs
         nutrition.mockFetchDailyHistoryResult = .success(logs)
         nutrition.filtersHistoryByRequestedRange = true
+        nutrition.mockRecipes = recipeDemoRecipes
 
         let foods = discoveryFoods()
         nutrition.mockRecommendedFoods = Array(foods.prefix(5))

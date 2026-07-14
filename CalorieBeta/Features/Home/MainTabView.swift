@@ -101,6 +101,7 @@ struct MainTabView: View {
         _showingFoodSearch = State(
             initialValue: ["food-search", "builder", "trust", "my-foods", "add-food"].contains(screenshotScreen)
         )
+        _showingRecipeListView = State(initialValue: screenshotScreen == "recipes")
         _showingRunHistory = State(initialValue: screenshotScreen == "runs")
         _showingWeeklyReport = State(initialValue: screenshotScreen == "weekly-report")
         #endif

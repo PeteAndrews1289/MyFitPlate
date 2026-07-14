@@ -1,11 +1,11 @@
 import SwiftUI
 
 struct RecipeListView: View {
-    @EnvironmentObject var recipeService: RecipeService
-    @EnvironmentObject var dailyLogService: DailyLogService
-    @Environment(\.dismiss) var dismiss
-    
+    @EnvironmentObject private var recipeService: RecipeService
+    @Environment(\.dismiss) private var dismiss
+
     @State private var showingCreateRecipeSheet = false
+    @State private var pendingDeletion: Recipe?
     @State private var searchText = ""
 
     private var filteredRecipes: [Recipe] {
@@ -13,324 +13,365 @@ struct RecipeListView: View {
         guard !trimmed.isEmpty else { return recipeService.userRecipes }
         return recipeService.userRecipes.filter { recipe in
             recipe.name.localizedCaseInsensitiveContains(trimmed) ||
-            recipe.ingredients.contains { $0.localizedCaseInsensitiveContains(trimmed) }
+                recipe.ingredients.contains { $0.localizedCaseInsensitiveContains(trimmed) }
         }
     }
 
     var body: some View {
-        NavigationView {
-            ZStack {
+        NavigationStack {
+            Group {
                 if recipeService.isLoading && recipeService.userRecipes.isEmpty {
-                    RecipeListLoadingState()
+                    loadingState
                 } else if recipeService.userRecipes.isEmpty {
-                    RecipeListEmptyState {
-                        showingCreateRecipeSheet = true
-                    }
+                    emptyState
                 } else {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            RecipeLibrarySummaryCard(
-                                recipes: recipeService.userRecipes,
-                                onCreate: { showingCreateRecipeSheet = true }
-                            )
-
-                            RecipeSearchField(searchText: $searchText)
-
-                            if filteredRecipes.isEmpty {
-                                RecipeListNoMatchesState(searchText: searchText)
-                            } else {
-                                VStack(spacing: 12) {
-                                    ForEach(filteredRecipes) { recipe in
-                                        RecipeCardRow(
-                                            recipe: recipe,
-                                            onDelete: { deleteRecipe(recipe) }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                        .padding(.bottom, 28)
-                    }
+                    recipeLibrary
                 }
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("My recipes")
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("My Recipes")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: "Search recipes or ingredients")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
+                    Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showingCreateRecipeSheet = true }) {
+                    Button {
+                        showingCreateRecipeSheet = true
+                    } label: {
                         Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Create recipe")
+                }
+            }
+            .refreshable {
+                await recipeService.fetchUserRecipes()
+            }
+            .task {
+                await recipeService.fetchUserRecipes()
+            }
+        }
+        .sheet(isPresented: $showingCreateRecipeSheet, onDismiss: refreshRecipes) {
+            CreateRecipeView()
+        }
+        .alert("Delete recipe?", isPresented: deletionAlertIsPresented) {
+            Button("Cancel", role: .cancel) { pendingDeletion = nil }
+            Button("Delete", role: .destructive) {
+                guard let recipe = pendingDeletion else { return }
+                pendingDeletion = nil
+                deleteRecipe(recipe)
+            }
+        } message: {
+            Text("This removes \(pendingDeletion?.name ?? "the recipe") from your library. Foods already logged from it will not change.")
+        }
+    }
+
+    private var recipeLibrary: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                RecipeLibrarySummary(recipes: recipeService.userRecipes)
+
+                if filteredRecipes.isEmpty {
+                    noMatchesState
+                } else {
+                    savedRecipesSection
+                }
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.section)
+        }
+        .accessibilityIdentifier("recipe_library")
+    }
+
+    private var savedRecipesSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Saved Recipes",
+                subtitle: searchText.isEmpty
+                    ? "Open a recipe to review, plan, or log it."
+                    : "\(filteredRecipes.count) result\(filteredRecipes.count == 1 ? "" : "s")"
+            )
+
+            LazyVStack(spacing: 0) {
+                ForEach(Array(filteredRecipes.enumerated()), id: \.element.id) { index, recipe in
+                    RecipeLibraryRow(
+                        recipe: recipe,
+                        onDelete: { pendingDeletion = recipe }
+                    )
+
+                    if index < filteredRecipes.count - 1 {
+                        Divider()
+                            .padding(.leading, 68)
                     }
                 }
             }
-            .onAppear {
-                Task {
-                    await recipeService.fetchUserRecipes()
-                }
-            }
-            .sheet(isPresented: $showingCreateRecipeSheet, onDismiss: {
-                Task { await recipeService.fetchUserRecipes() }
-            }) {
-                 CreateRecipeView()
-            }
+            .appSurface(.quiet, padding: 0)
+            .accessibilityIdentifier("recipe_library_list")
         }
     }
-    
-    private func deleteRecipe(_ recipe: Recipe) {
-        Task {
-            await recipeService.deleteRecipe(recipe: recipe)
+
+    private var loadingState: some View {
+        VStack(spacing: AppSpacing.row) {
+            ProgressView()
+                .tint(AppPalette.brand)
+            Text("Loading Recipes")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: AppSpacing.group) {
+            Image(systemName: "book.closed")
+                .appTextRole(.screenTitle)
+                .foregroundStyle(AppPalette.brand)
+                .frame(width: 64, height: 64)
+                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+
+            VStack(spacing: 4) {
+                Text("No Saved Recipes")
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
+                Text("Generate one with Maia, import a recipe, or build one from foods you already log.")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button {
+                showingCreateRecipeSheet = true
+            } label: {
+                Label("Create Recipe", systemImage: "plus")
+            }
+            .buttonStyle(AppActionButtonStyle(.primary))
+        }
+        .frame(maxWidth: 420)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, AppSpacing.screenHorizontal)
+    }
+
+    private var noMatchesState: some View {
+        VStack(spacing: AppSpacing.row) {
+            Image(systemName: "magnifyingglass")
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(.secondary)
+            Text("No Matching Recipes")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+            Text("Try another recipe name or ingredient.")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .appSurface(.quiet)
+    }
+
+    private var deletionAlertIsPresented: Binding<Bool> {
+        Binding(
+            get: { pendingDeletion != nil },
+            set: { if !$0 { pendingDeletion = nil } }
+        )
+    }
+
+    private func refreshRecipes() {
+        Task { await recipeService.fetchUserRecipes() }
+    }
+
+    private func deleteRecipe(_ recipe: Recipe) {
+        Task { await recipeService.deleteRecipe(recipe: recipe) }
         HapticManager.instance.feedback(.light)
     }
 }
 
-private struct RecipeLibrarySummaryCard: View {
+private struct RecipeLibrarySummary: View {
     let recipes: [Recipe]
-    let onCreate: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var averageCalories: Double {
         guard !recipes.isEmpty else { return 0 }
         return recipes.reduce(0) { $0 + $1.nutrition.calories } / Double(recipes.count)
     }
 
+    private var averageIngredientCount: Double {
+        guard !recipes.isEmpty else { return 0 }
+        return Double(recipes.reduce(0) { $0 + $1.ingredients.count }) / Double(recipes.count)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Recipe library")
-                        .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("Saved meals ready to log or reuse.")
-                        .appFont(size: 13, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 0) {
+                    RecipeLibraryAccessibilityMetric(
+                        identifier: "recipe_summary_saved",
+                        label: "Saved",
+                        spokenLabel: "Saved recipes",
+                        value: recipes.count.formatted(),
+                        accent: AppPalette.brand
+                    )
+                    Divider()
+                    RecipeLibraryAccessibilityMetric(
+                        identifier: "recipe_summary_ingredients",
+                        label: "Avg Ingredients",
+                        spokenLabel: "Average ingredients",
+                        value: Int(averageIngredientCount.rounded()).formatted(),
+                        accent: .blue
+                    )
+                    Divider()
+                    RecipeLibraryAccessibilityMetric(
+                        identifier: "recipe_summary_calories",
+                        label: "Avg Calories",
+                        spokenLabel: "Average calories",
+                        value: "\(Int(averageCalories.rounded()).formatted()) cal",
+                        accent: .orange
+                    )
                 }
-
-                Spacer()
-
-                Button(action: onCreate) {
-                    Image(systemName: "plus")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
-                        .frame(width: 40, height: 40)
-                        .background(Color.brandPrimary, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Create recipe")
-            }
-
-            HStack(spacing: 10) {
-                RecipeLibraryMetric(title: "Recipes", value: recipes.count.formatted(), color: .blue)
-                RecipeLibraryMetric(
-                    title: "Avg calories",
-                    value: "\(Int(averageCalories.rounded()).formatted()) cal",
-                    color: .orange
-                )
+            } else {
+                AppMetricStrip(items: [
+                    AppMetricItem(label: "Saved", value: recipes.count.formatted()),
+                    AppMetricItem(
+                        label: "Avg Ingredients",
+                        value: Int(averageIngredientCount.rounded()).formatted(),
+                        accent: .blue
+                    ),
+                    AppMetricItem(
+                        label: "Avg Calories",
+                        value: "\(Int(averageCalories.rounded()).formatted()) cal",
+                        accent: .orange
+                    )
+                ])
             }
         }
-        .padding(18)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .appSurface(.emphasized)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("recipe_library_summary")
     }
 }
 
-private struct RecipeLibraryMetric: View {
-    let title: String
+private struct RecipeLibraryAccessibilityMetric: View {
+    let identifier: String
+    let label: String
+    let spokenLabel: String
     let value: String
-    let color: Color
+    let accent: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .appFont(size: 22, weight: .bold)
-                .foregroundColor(color)
-                .lineLimit(1)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(accent)
+                    .frame(width: 6, height: 6)
+                    .accessibilityHidden(true)
 
-            Text(title)
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                Text(label)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityHidden(true)
+            }
+
+            Text(value)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .padding(.vertical, AppSpacing.compact)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(spokenLabel), \(value)")
+        .accessibilityIdentifier(identifier)
     }
 }
 
-private struct RecipeSearchField: View {
-    @Binding var searchText: String
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .appFont(size: 17, weight: .semibold)
-                .foregroundColor(.blue)
-
-            TextField("Search recipes or ingredients", text: $searchText)
-                .textInputAutocapitalization(.words)
-
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .appFont(size: 18, weight: .semibold)
-                        .foregroundColor(Color(UIColor.tertiaryLabel))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear recipe search")
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
-        .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-        )
-    }
-}
-
-private struct RecipeCardRow: View {
+private struct RecipeLibraryRow: View {
     let recipe: Recipe
     let onDelete: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
+            recipeGlyph
+
             NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
-                HStack(spacing: 12) {
-                    Text(FoodEmojiMapper.getEmoji(for: recipe.name))
-                        .appFont(size: 28)
-                        .frame(width: 50, height: 50)
-                        .background(
-                            Color(.secondarySystemGroupedBackground),
-                            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        )
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(recipe.name)
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(recipe.name)
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                            .lineLimit(2)
+                    metadata
 
-                        Text("\(recipe.ingredients.count.formatted()) ingredients")
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-
-                        Text(macroSummary)
-                            .appFont(size: 11, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-
-                    Spacer(minLength: 6)
-
-                    Image(systemName: "chevron.right")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                    Text(nutritionSummary)
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityHint("Opens recipe details")
 
-            Button(role: .destructive, action: onDelete) {
-                Image(systemName: "trash")
-                    .appFont(size: 14, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .frame(width: 34, height: 34)
+            Menu {
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete Recipe", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Delete \(recipe.name)")
+            .buttonStyle(AppIconButtonStyle(.plain))
+            .accessibilityLabel("Actions for \(recipe.name)")
         }
-        .padding(12)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
+        .accessibilityIdentifier("recipe_row_\(recipe.id ?? recipe.name)")
     }
 
-    private var macroSummary: String {
+    @ViewBuilder
+    private var recipeGlyph: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Image(systemName: "fork.knife")
+                .appTextRole(.control)
+                .foregroundStyle(.secondary)
+                .frame(width: 44, height: 44)
+                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                .accessibilityHidden(true)
+        } else {
+            Text(FoodEmojiMapper.getEmoji(for: recipe.name))
+                .font(.system(size: 24))
+                .frame(width: 44, height: 44)
+                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                .accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
+    private var metadata: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(recipe.ingredients.count.formatted()) ingredients")
+                Text("\(recipe.instructions.count.formatted()) steps")
+            }
+            .appTextRole(.secondary)
+            .foregroundStyle(.secondary)
+        } else {
+            Text("\(recipe.ingredients.count.formatted()) ingredients · \(recipe.instructions.count.formatted()) steps")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var nutritionSummary: String {
         let calories = Int(recipe.nutrition.calories.rounded()).formatted()
         let protein = Int(recipe.nutrition.protein.rounded()).formatted()
-        let carbs = Int(recipe.nutrition.carbs.rounded()).formatted()
-        let fat = Int(recipe.nutrition.fats.rounded()).formatted()
-        return "\(calories) cal  P \(protein) g  C \(carbs) g  F \(fat) g"
-    }
-}
-
-private struct RecipeListLoadingState: View {
-    var body: some View {
-        VStack(spacing: 13) {
-            ProgressView()
-                .tint(.blue)
-
-            Text("Loading recipes")
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(.textPrimary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.backgroundPrimary.ignoresSafeArea())
-    }
-}
-
-private struct RecipeListEmptyState: View {
-    let onCreate: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "book.closed.fill")
-                .appFont(size: 40, weight: .bold)
-                .foregroundColor(.blue)
-                .frame(width: 76, height: 76)
-                .background(Color.blue.opacity(0.12), in: Circle())
-
-            VStack(spacing: 5) {
-                Text("No saved recipes yet")
-                    .appFont(size: 22, weight: .bold)
-                    .foregroundColor(.textPrimary)
-
-                Text("Create one with Maia or build it manually from foods you already log.")
-                    .appFont(size: 14, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Button("Create recipe", action: onCreate)
-                .buttonStyle(PrimaryButtonStyle())
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, 28)
-        .background(Color.backgroundPrimary.ignoresSafeArea())
-    }
-}
-
-private struct RecipeListNoMatchesState: View {
-    let searchText: String
-
-    var body: some View {
-        VStack(spacing: 11) {
-            Image(systemName: "magnifyingglass")
-                .appFont(size: 22, weight: .semibold)
-                .foregroundColor(.blue)
-                .frame(width: 48, height: 48)
-                .background(Color.blue.opacity(0.12), in: Circle())
-
-            Text("No matching recipes")
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.textPrimary)
-
-            Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines))
-                .appFont(size: 13, weight: .medium)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 28)
-        .background(Color.backgroundSecondary.opacity(0.62), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        return "\(calories) cal · \(protein) g protein"
     }
 }

@@ -507,8 +507,12 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   saved-food rows, and responsive accessibility layouts. Add/Edit Food now uses semantic identity,
   nutrition, serving, details, and preview sections with a stable logging action; all presentation
   paths retain their navigation title and Cancel action.
-- [ ] Migrate recipes, grocery, and the remaining logging confirmation sheets without adding taps
-  or editorial friction.
+- [x] Migrate the full recipe family without adding taps or editorial friction. Recipe Library,
+  Detail, Create/Edit, and Logging now share one responsive operational hierarchy, retain direct
+  meal-plan and log actions, and prevent an emptied detailed recipe from restoring stale totals or
+  enabling an invalid log.
+- [ ] Migrate grocery and the remaining logging confirmation sheets without adding taps or
+  editorial friction.
 - [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,
   remove legacy glass aliases, and enforce the new rules in source checks.
 
