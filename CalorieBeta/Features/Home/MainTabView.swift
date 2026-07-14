@@ -79,7 +79,9 @@ struct MainTabView: View {
         #if DEBUG
         ScreenshotDemoMode.isEnabled && [
             "weight-detail", "wellness-detail", "fasting-detail", "cycle-detail",
-            "profile", "challenges", "pantry", "pantry-recipes", "receipt-review"
+            "profile", "challenges", "pantry", "pantry-recipes", "receipt-review",
+            "ayce-start", "ayce-live", "ayce-review", "ayce-summary", "value-radar",
+            "celebration"
         ].contains(ScreenshotDemoData.requestedScreen)
         #else
         false
@@ -398,6 +400,26 @@ struct MainTabView: View {
             )
         case "receipt-review":
             ReceiptScannerView(initialItems: ScreenshotDemoData.receiptDemoItems)
+        case "ayce-start":
+            AYCEFlowView(restoresDraft: false, managesLiveActivity: false)
+        case "ayce-live":
+            AYCEFlowView(
+                initialSession: ScreenshotDemoData.ayceLiveSession,
+                restoresDraft: false,
+                managesLiveActivity: false
+            )
+        case "ayce-review":
+            AYCEPlateReviewDemoView()
+        case "ayce-summary":
+            AYCEFlowView(
+                finishedSession: ScreenshotDemoData.ayceSummarySession,
+                restoresDraft: false,
+                managesLiveActivity: false
+            )
+        case "value-radar":
+            RestaurantValueRadarDemoView()
+        case "celebration":
+            CelebrationOverlayDemoView()
         default:
             standardHomeContent
         }

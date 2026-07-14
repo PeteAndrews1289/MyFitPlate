@@ -68,8 +68,53 @@ public enum AYCEPricingRules {
     /// When the AI can't be reached, price from calories instead of blocking the log:
     /// roughly $1.60 per 100 cal with a $2 floor — crude, visibly an estimate, never zero.
     public static func heuristicPrices(calories: Double) -> (restaurant: Double, home: Double) {
-        let restaurant = max(2.0, (calories / 100) * 1.6)
+        let safeCalories = calories.isFinite ? max(0, calories) : 0
+        let restaurant = max(2.0, (safeCalories / 100) * 1.6)
         return clampedPrices(restaurant: restaurant, home: restaurant * 0.3)
+    }
+
+    /// Builds a user-reviewed scanned item. Returning nil keeps incomplete or impossible
+    /// edits out of both the value game and the nutrition diary.
+    public static func reviewedCatalogItem(
+        name: String,
+        unit: String,
+        cuisine: AYCECuisine,
+        calories: Double,
+        protein: Double,
+        carbs: Double,
+        fats: Double,
+        restaurantPrice: Double,
+        homeCost: Double,
+        isAIEstimated: Bool = true
+    ) -> AYCECatalogItem? {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanUnit = unit.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nutrition = [calories, protein, carbs, fats]
+        guard !cleanName.isEmpty,
+              nutrition.allSatisfy({ $0.isFinite && $0 >= 0 }),
+              restaurantPrice.isFinite,
+              restaurantPrice > 0,
+              homeCost.isFinite,
+              homeCost >= 0 else {
+            return nil
+        }
+
+        let prices = clampedPrices(restaurant: restaurantPrice, home: homeCost)
+        return AYCECatalogItem(
+            id: "custom_\(UUID().uuidString)",
+            cuisine: cuisine,
+            name: cleanName,
+            emoji: emoji(for: cleanName),
+            unit: cleanUnit.isEmpty ? "serving" : cleanUnit,
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fats: fats,
+            restaurantPrice: prices.restaurant,
+            homeCost: prices.home,
+            isAIEstimated: isAIEstimated,
+            isLocallyPriced: true
+        )
     }
 
     public static func catalogItem(
@@ -82,19 +127,25 @@ public enum AYCEPricingRules {
         restaurantPrice: Double,
         homeCost: Double
     ) -> AYCECatalogItem {
-        AYCECatalogItem(
+        let safeCalories = calories.isFinite ? max(0, calories) : 0
+        let safeProtein = protein.isFinite ? max(0, protein) : 0
+        let safeCarbs = carbs.isFinite ? max(0, carbs) : 0
+        let safeFats = fats.isFinite ? max(0, fats) : 0
+        let prices = clampedPrices(restaurant: restaurantPrice, home: homeCost)
+        return AYCECatalogItem(
             id: "custom_\(UUID().uuidString)",
             cuisine: cuisine,
             name: name,
             emoji: emoji(for: name),
             unit: "serving",
-            calories: max(0, calories),
-            protein: max(0, protein),
-            carbs: max(0, carbs),
-            fats: max(0, fats),
-            restaurantPrice: restaurantPrice,
-            homeCost: homeCost,
-            isAIEstimated: true
+            calories: safeCalories,
+            protein: safeProtein,
+            carbs: safeCarbs,
+            fats: safeFats,
+            restaurantPrice: prices.restaurant,
+            homeCost: prices.home,
+            isAIEstimated: true,
+            isLocallyPriced: true
         )
     }
 

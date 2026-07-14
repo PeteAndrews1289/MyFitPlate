@@ -1,472 +1,553 @@
-import SwiftUI
 import MyFitPlateCore
+import SwiftUI
+import UIKit
 
+@MainActor
 struct RestaurantValueRadarView: View {
-    @Environment(\.presentationMode) var presentationMode
-    @EnvironmentObject var dailyLogService: DailyLogService
-    @StateObject private var viewModel = RestaurantValueRadarViewModel()
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @EnvironmentObject private var dailyLogService: DailyLogService
+    @StateObject private var viewModel: RestaurantValueRadarViewModel
     @State private var showingImagePicker = false
     @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
+    @State private var itemToReview: RestaurantValueRadarItem?
+
+    init() {
+        _viewModel = StateObject(wrappedValue: RestaurantValueRadarViewModel())
+    }
+
+    init(viewModel: RestaurantValueRadarViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.backgroundPrimary.ignoresSafeArea()
+        AppSheetScaffold(
+            title: "Value Radar",
+            subtitle: "Compare printed menu prices with reviewable nutrition estimates",
+            dismiss: { dismiss() }
+        ) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                    scanActions
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        headerCard
-                        if viewModel.items.isEmpty || viewModel.isDemoMode {
-                            citySelectorCard
-                        }
-
-                        if viewModel.isAnalyzing {
-                            loadingView
-                        } else if let error = viewModel.errorMessage {
-                            errorView(error)
-                        } else if viewModel.items.isEmpty {
-                            emptyStateView
-                        } else {
-                            if viewModel.isDemoMode {
-                                Text("Demo data only. Prices and nutrition are fictional examples, and logging is disabled.")
-                                    .appFont(size: 13, weight: .semibold)
-                                    .foregroundColor(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(12)
-                                    .background(Color.accentSignal.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                            }
-                            topValueHighlight
-                            rankedListSection
-                        }
+                    if viewModel.isDemoMode {
+                        regionSelector
                     }
-                    .padding()
+
+                    resultContent
                 }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.section)
             }
-            .navigationTitle("Value Radar")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { presentationMode.wrappedValue.dismiss() }
-                        .fontWeight(.semibold)
-                }
+            .scrollDismissesKeyboard(.interactively)
+            .background(AppPalette.canvas)
+        }
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .tint(AppPalette.brand)
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePicker(sourceType: imageSourceType) { image in
+                viewModel.analyzeMenuImage(image)
             }
-            .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(sourceType: imageSourceType) { image in
-                    viewModel.analyzeMenuImage(image)
-                }
+        }
+        .sheet(item: $itemToReview) { item in
+            AISummaryView(
+                estimatedItems: [item.food],
+                mealName: item.food.name,
+                source: "value_radar",
+                isAIEstimate: true,
+                reviewTitle: "Review Menu Estimate"
+            )
+            .environmentObject(dailyLogService)
+        }
+        .accessibilityIdentifier("value_radar_screen")
+    }
+
+    @ViewBuilder
+    private var scanActions: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: AppSpacing.row) {
+                scanMenuButton
+                demoMenuButton
+            }
+        } else {
+            HStack(spacing: AppSpacing.row) {
+                scanMenuButton
+                demoMenuButton
             }
         }
     }
 
-    private func errorView(_ message: String) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle")
-                .appFont(size: 30, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-            Text(message)
-                .appFont(size: 14)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .multilineTextAlignment(.center)
+    private var scanMenuButton: some View {
+        Button {
+            imageSourceType = UIImagePickerController.isSourceTypeAvailable(.camera)
+                ? .camera
+                : .photoLibrary
+            showingImagePicker = true
+        } label: {
+            Label(
+                viewModel.items.isEmpty ? "Scan Menu" : "Scan Another Menu",
+                systemImage: "camera.viewfinder"
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .buttonStyle(AppActionButtonStyle(viewModel.items.isEmpty ? .primary : .secondary))
+        .disabled(viewModel.isAnalyzing)
+        .accessibilityIdentifier("value_radar_scan_button")
     }
 
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "chart.pie.fill")
-                    .foregroundColor(.brandPrimary)
-                    .appFont(size: 24, weight: .bold)
-                Text("Restaurant Value Radar")
-                    .appFont(size: 20, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Spacer()
-            }
-            Text("Ranks dishes using prices visibly printed on the menu. Nutrition remains an AI estimate and should be reviewed.")
-                .appFont(size: 14)
-                .foregroundColor(.secondary)
-
-            HStack(spacing: 12) {
-                Button {
-                    imageSourceType = .camera
-                    showingImagePicker = true
-                } label: {
-                    HStack {
-                        Image(systemName: "camera.fill")
-                        Text("Scan Menu")
-                    }
-                    .font(.subheadline.bold())
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.brandPrimary)
-                    .foregroundColor(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    viewModel.loadDemoMenu()
-                } label: {
-                    HStack {
-                        Image(systemName: "sparkles")
-                        Text("Demo Menu")
-                    }
-                    .font(.subheadline.bold())
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.backgroundSecondary)
-                    .foregroundColor(.brandPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.brandPrimary.opacity(0.3), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.top, 4)
+    private var demoMenuButton: some View {
+        Button {
+            viewModel.loadDemoMenu()
+        } label: {
+            Label("View Demo", systemImage: "sparkles")
         }
-        .asCard()
+        .buttonStyle(AppActionButtonStyle(.secondary))
+        .disabled(viewModel.isAnalyzing)
+        .accessibilityIdentifier("value_radar_demo_button")
     }
 
-    private var citySelectorCard: some View {
-        HStack {
-            Image(systemName: "mappin.and.ellipse")
-                .foregroundColor(.accentProtein)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("City Cost Index")
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(.secondary)
-                Text("Based on local restaurant pricing index (\(viewModel.selectedCity.restaurantMultiplier > 1.0 ? "+" : "")\(Int((viewModel.selectedCity.restaurantMultiplier - 1.0) * 100))% vs national avg)")
-                    .appFont(size: 12)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
+    private var regionSelector: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Demo Pricing Region",
+                subtitle: "Regional adjustments apply only to demo prices. Scans use the price printed on the menu."
+            )
+
             Menu {
                 ForEach(AYCECityIndex.pickerOptions) { city in
                     Button {
                         viewModel.selectCity(city)
                     } label: {
-                        HStack {
-                            Text(city.name)
-                            Spacer()
-                            Text("\(String(format: "%.2fx", city.restaurantMultiplier))")
-                        }
+                        Text(city.name)
                     }
                 }
             } label: {
-                HStack(spacing: 4) {
-                    Text("Change")
-                        .appFont(size: 14, weight: .semibold)
+                AppListRow(
+                    icon: "mappin.and.ellipse",
+                    iconColor: AppPalette.brand,
+                    title: viewModel.selectedCity.name,
+                    subtitle: viewModel.regionComparisonText,
+                    hidesTextFromAccessibility: true
+                ) {
                     Image(systemName: "chevron.up.chevron.down")
-                        .appFont(size: 12, weight: .bold)
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                 }
-                .foregroundColor(.brandPrimary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.brandPrimary.opacity(0.1), in: Capsule())
             }
+            .buttonStyle(.plain)
+            .appSurface(.quiet, padding: 0)
+            .accessibilityLabel("Demo pricing region, \(viewModel.selectedCity.name)")
+            .accessibilityHint("Changes the regional adjustment used for demo prices")
+            .accessibilityIdentifier("value_radar_region")
         }
-        .asCard()
     }
 
-    private var loadingView: some View {
-        VStack(spacing: 16) {
+    @ViewBuilder
+    private var resultContent: some View {
+        if viewModel.isAnalyzing {
+            loadingState
+        } else if let error = viewModel.errorMessage {
+            errorState(error)
+        } else if viewModel.items.isEmpty {
+            emptyState
+        } else {
+            if viewModel.isDemoMode {
+                demoNotice
+            }
+            topValue
+            rankedItems
+        }
+    }
+
+    private var loadingState: some View {
+        VStack(spacing: AppSpacing.group) {
             ProgressView()
-                .scaleEffect(1.3)
-            Text("Analyzing menu & computing local value scores...")
-                .appFont(size: 15, weight: .semibold)
-                .foregroundColor(.secondary)
+                .controlSize(.large)
+                .tint(AppPalette.brand)
+            Text("Reading Menu")
+                .appTextRole(.control)
+            Text("Matching visible prices with estimated nutrition.")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .asCard()
+        .padding(.vertical, 56)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("value_radar_loading")
     }
 
-    private var emptyStateView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "doc.text.viewfinder")
-                .appFont(size: 40)
-                .foregroundColor(.secondary.opacity(0.6))
-            Text("No Menu Analyzed Yet")
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.textPrimary)
-            Text("Tap 'Scan Menu' to photograph a restaurant menu or try 'Demo Menu' to see instant AI value rankings.")
-                .appFont(size: 13)
-                .foregroundColor(.secondary)
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: AppSpacing.group) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .appFont(size: 30, weight: .semibold)
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            Text("Menu Could Not Be Ranked")
+                .appTextRole(.sectionTitle)
+            Text(message)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 30)
-        .asCard()
+        .padding(.vertical, AppSpacing.section)
+        .appSurface(.emphasized)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("value_radar_error")
     }
 
-    private var topValueHighlight: some View {
-        Group {
-            if let topDish = viewModel.items.first {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("👑 TOP VALUE RECOMMENDATION")
-                            .appFont(size: 12, weight: .heavy)
-                            .foregroundColor(.accentCarbs)
-                        Spacer()
-                        Text(topDish.tierBadge)
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(topDish.tierColor.opacity(0.2))
-                            .foregroundColor(topDish.tierColor)
-                            .clipShape(Capsule())
-                    }
-
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(topDish.food.name)
-                                .appFont(size: 20, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                            Text("\(Int(topDish.food.calories)) cal • \(Int(topDish.food.protein))g P • \(Int(topDish.food.carbs))g C • \(Int(topDish.food.fats))g F")
-                                .appFont(size: 14)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text(String(format: "$%.2f", topDish.adjustedPrice))
-                                .appFont(size: 20, weight: .heavy)
-                                .foregroundColor(.brandPrimary)
-                            Text("\(String(format: "%.1f", topDish.proteinPerDollar))g P / $")
-                                .appFont(size: 12, weight: .bold)
-                                .foregroundColor(.accentProtein)
-                        }
-                    }
-
-                    if topDish.canLog {
-                        Button {
-                            logDish(topDish.food)
-                        } label: {
-                            HStack {
-                                Image(systemName: "plus.circle.fill")
-                                Text("Review & Log Top Pick")
-                            }
-                            .font(.subheadline.bold())
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.brandPrimary)
-                            .foregroundColor(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.top, 4)
-                    } else {
-                        Label("Demo only", systemImage: "eye.fill")
-                            .font(.subheadline.bold())
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(16)
+    private var emptyState: some View {
+        VStack(spacing: AppSpacing.group) {
+            Image(systemName: "doc.text.viewfinder")
+                .appFont(size: 34, weight: .semibold)
+                .foregroundStyle(AppPalette.brand)
+                .frame(width: 64, height: 64)
                 .background(
-                    LinearGradient(colors: [Color.brandPrimary.opacity(0.15), Color.backgroundSecondary], startPoint: .topLeading, endPoint: .bottomTrailing),
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    AppPalette.brand.opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: AppRadius.surface)
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.brandPrimary.opacity(0.4), lineWidth: 1.5)
-                )
-            }
+                .accessibilityHidden(true)
+            Text("Scan a Restaurant Menu")
+                .appTextRole(.sectionTitle)
+            Text("Printed prices stay exact. Calories and macros remain estimates until you review them.")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, AppSpacing.section)
+        .appSurface(.emphasized)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("value_radar_empty_state")
     }
 
-    private var rankedListSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("All Menu Items Ranked by Protein / Dollar")
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.textPrimary)
-
-            ForEach(viewModel.items) { item in
-                dishRowCard(item)
-            }
-        }
+    private var demoNotice: some View {
+        AppListRow(
+            icon: "eye.fill",
+            iconColor: .orange,
+            title: "Demo Results",
+            subtitle: "Prices and nutrition are fictional examples. Demo dishes cannot be logged."
+        )
+        .appSurface(.quiet, padding: 0)
+        .accessibilityIdentifier("value_radar_demo_notice")
     }
 
-    private func dishRowCard(_ item: RestaurantValueRadarItem) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack {
-                        Text(item.food.name)
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                        Spacer()
-                        Text(item.tierBadge)
-                            .font(.system(size: 10, weight: .bold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(item.tierColor.opacity(0.15))
-                            .foregroundColor(item.tierColor)
-                            .clipShape(Capsule())
-                    }
-                    Text("\(Int(item.food.calories)) kcal • \(Int(item.food.protein))g P • $\(String(format: "%.2f", item.adjustedPrice))")
-                        .appFont(size: 13)
-                        .foregroundColor(.secondary)
+    @ViewBuilder
+    private var topValue: some View {
+        if let item = viewModel.items.first {
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                AppSectionHeader(
+                    title: "Top Protein Value",
+                    subtitle: item.tier.label
+                ) {
+                    Image(systemName: "medal.fill")
+                        .appFont(size: 20, weight: .semibold)
+                        .foregroundStyle(item.tierColor)
+                        .accessibilityHidden(true)
                 }
-            }
 
-            HStack {
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Value Score")
-                        .appFont(size: 11)
-                        .foregroundColor(.secondary)
-                    Text("\(String(format: "%.1f", item.proteinPerDollar))g P / $")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(item.tierColor)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.food.name)
+                        .appTextRole(.sectionTitle)
+                        .foregroundStyle(AppPalette.text)
+                    Text(item.nutritionSummary)
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+
+                AppMetricStrip(items: item.metricItems)
 
                 if item.canLog {
                     Button {
-                        logDish(item.food)
+                        beginReview(item)
                     } label: {
-                        Text("Review")
-                            .font(.subheadline.bold())
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(Color.brandPrimary)
-                            .foregroundColor(.white)
-                            .clipShape(Capsule())
+                        Label("Review Before Logging", systemImage: "square.and.pencil")
                     }
-                    .buttonStyle(.plain)
-                    .padding(.leading, 8)
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .accessibilityIdentifier("value_radar_top_review")
+                } else {
+                    Label("Demo only", systemImage: "eye.fill")
+                        .appTextRole(.control)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .appSurface(.emphasized)
+            .accessibilityIdentifier("value_radar_summary")
+        }
+    }
+
+    private var rankedItems: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Menu Ranking",
+                subtitle: "Sorted by estimated grams of protein per printed-price dollar"
+            )
+
+            VStack(spacing: 0) {
+                ForEach(Array(viewModel.items.enumerated()), id: \.element.id) { index, item in
+                    RestaurantValueRadarRow(item: item, onReview: { beginReview(item) })
+                    if index < viewModel.items.count - 1 {
+                        Divider().padding(.leading, 68)
+                    }
+                }
+            }
+            .appSurface(.quiet, padding: 0)
+        }
+        .accessibilityIdentifier("value_radar_ranked_list")
+    }
+
+    private func beginReview(_ item: RestaurantValueRadarItem) {
+        guard DIContainer.shared.authService.currentUserID != nil else {
+            ToastManager.shared.showToast(
+                message: "Sign in before reviewing this estimate for your diary."
+            )
+            return
+        }
+        itemToReview = item
+    }
+}
+
+private struct RestaurantValueRadarRow: View {
+    let item: RestaurantValueRadarItem
+    let onReview: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    identity
+                    metrics
+                    reviewControl
+                }
+            } else {
+                HStack(alignment: .center, spacing: AppSpacing.row) {
+                    identity
+                    Spacer(minLength: AppSpacing.compact)
+                    metrics
+                    reviewControl
                 }
             }
         }
-        .asCard()
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
+        .accessibilityIdentifier("value_radar_item_\(item.id)")
     }
 
-    private func logDish(_ food: FoodItem) {
-        guard let userID = DIContainer.shared.authService.currentUserID else {
-            viewModel.errorMessage = "Sign in again before logging this item."
-            return
+    private var identity: some View {
+        HStack(spacing: AppSpacing.row) {
+            Image(systemName: item.tierIcon)
+                .appFont(size: 18, weight: .semibold)
+                .foregroundStyle(item.tierColor)
+                .frame(width: 40, height: 40)
+                .background(
+                    item.tierColor.opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: AppRadius.control)
+                )
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.food.name)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(item.nutritionSummary)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        viewModel.logDish(food, service: dailyLogService, userID: userID)
-        presentationMode.wrappedValue.dismiss()
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var metrics: some View {
+        VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
+            Text(AYCERules.money(item.adjustedPrice))
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .monospacedDigit()
+            Text("\(item.proteinPerDollar.formatted(.number.precision(.fractionLength(1)))) g protein / $1")
+                .appTextRole(.caption)
+                .foregroundStyle(item.tierColor)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var reviewControl: some View {
+        if item.canLog {
+            Button(action: onReview) {
+                Image(systemName: "square.and.pencil")
+            }
+            .buttonStyle(AppIconButtonStyle(.brand))
+            .accessibilityLabel("Review \(item.food.name)")
+            .accessibilityHint("Edit the nutrition estimate before logging")
+        } else if dynamicTypeSize.isAccessibilitySize {
+            Text("Demo only")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
 struct RestaurantValueRadarItem: Identifiable {
-    let id = UUID()
+    let id: String
     let food: FoodItem
     let basePrice: Double
     let cityMultiplier: Double
     let appliesCityMultiplier: Bool
     let canLog: Bool
+    let score: RestaurantValueRadarRules.Score
 
-    var adjustedPrice: Double {
-        max(1.0, basePrice * (appliesCityMultiplier ? cityMultiplier : 1))
+    init?(
+        food: FoodItem,
+        basePrice: Double,
+        cityMultiplier: Double,
+        appliesCityMultiplier: Bool,
+        canLog: Bool
+    ) {
+        let multiplier = appliesCityMultiplier ? cityMultiplier : 1
+        guard let score = RestaurantValueRadarRules.score(
+            protein: food.protein,
+            calories: food.calories,
+            listedPrice: basePrice,
+            priceMultiplier: multiplier
+        ) else {
+            return nil
+        }
+
+        self.id = food.id
+        self.food = food
+        self.basePrice = basePrice
+        self.cityMultiplier = cityMultiplier
+        self.appliesCityMultiplier = appliesCityMultiplier
+        self.canLog = canLog
+        self.score = score
     }
 
-    var proteinPerDollar: Double {
-        food.protein / adjustedPrice
-    }
-
-    var tierBadge: String {
-        if proteinPerDollar >= 2.2 { return "🔥 Elite Anabolic" }
-        if proteinPerDollar >= 1.5 { return "✅ Great Balance" }
-        return "🍝 Low Protein / $"
-    }
+    var adjustedPrice: Double { score.adjustedPrice }
+    var proteinPerDollar: Double { score.proteinPerDollar }
+    var proteinPer100Calories: Double { score.proteinPer100Calories }
+    var tier: RestaurantValueRadarRules.Tier { score.tier }
 
     var tierColor: Color {
-        if proteinPerDollar >= 2.2 { return .brandPrimary }
-        if proteinPerDollar >= 1.5 { return .accentProtein }
-        return .accentSignal
+        switch tier {
+        case .highProteinValue: AppPalette.brand
+        case .balancedValue: .blue
+        case .lowerProteinValue: .orange
+        }
+    }
+
+    var tierIcon: String {
+        switch tier {
+        case .highProteinValue: "chart.line.uptrend.xyaxis"
+        case .balancedValue: "equal.circle.fill"
+        case .lowerProteinValue: "info.circle.fill"
+        }
+    }
+
+    var nutritionSummary: String {
+        "\(Int(food.calories.rounded()).formatted()) cal · "
+            + "\(Int(food.protein.rounded()).formatted()) g protein"
+    }
+
+    var metricItems: [AppMetricItem] {
+        [
+            AppMetricItem(label: "Printed Price", value: AYCERules.money(adjustedPrice), accent: AppPalette.brand),
+            AppMetricItem(
+                label: "Protein / $1",
+                value: "\(proteinPerDollar.formatted(.number.precision(.fractionLength(1)))) g",
+                accent: tierColor
+            ),
+            AppMetricItem(
+                label: "Protein / 100 Cal",
+                value: "\(proteinPer100Calories.formatted(.number.precision(.fractionLength(1)))) g",
+                accent: .orange
+            )
+        ]
     }
 }
 
+protocol RestaurantMenuAnalyzing {
+    func estimateMenuItemsWithListedPrices(
+        image: UIImage,
+        completion: @escaping (Result<[ScannedMenuValueItem], Error>) -> Void
+    )
+}
+
+extension MLImageModel: RestaurantMenuAnalyzing {}
+
 @MainActor
-class RestaurantValueRadarViewModel: ObservableObject {
-    @Published var items: [RestaurantValueRadarItem] = []
+final class RestaurantValueRadarViewModel: ObservableObject {
+    @Published var items: [RestaurantValueRadarItem]
     @Published var isAnalyzing = false
     @Published var errorMessage: String?
-    @Published var selectedCity: AYCECity = AYCECityIndex.national
-    @Published var isDemoMode = false
+    @Published var selectedCity: AYCECity
+    @Published var isDemoMode: Bool
 
-    private let imageModel = MLImageModel()
+    private let imageModel: RestaurantMenuAnalyzing
+    private var activeRequestID: UUID?
 
-    init() {
-        let savedSlug = UserDefaults.standard.string(forKey: "ayceCitySlug") ?? "us_average"
-        self.selectedCity = AYCECityIndex.city(slug: savedSlug)
+    init(
+        imageModel: RestaurantMenuAnalyzing = MLImageModel(),
+        initialItems: [RestaurantValueRadarItem] = [],
+        selectedCity: AYCECity? = nil,
+        isDemoMode: Bool = false
+    ) {
+        let savedSlug = UserDefaults.standard.string(forKey: "ayceCitySlug")
+            ?? AYCECityIndex.national.slug
+        self.imageModel = imageModel
+        self.selectedCity = selectedCity ?? AYCECityIndex.city(slug: savedSlug)
+        self.items = initialItems
+        self.isDemoMode = isDemoMode
+    }
+
+    var regionComparisonText: String {
+        let percentage = Int(((selectedCity.restaurantMultiplier - 1) * 100).rounded())
+        if percentage == 0 { return "National mid-range baseline" }
+        return "\(percentage > 0 ? "+" : "")\(percentage)% vs. national demo pricing"
     }
 
     func selectCity(_ city: AYCECity) {
-        self.selectedCity = city
+        selectedCity = city
         UserDefaults.standard.set(city.slug, forKey: "ayceCitySlug")
         recomputePrices()
     }
 
-    private func recomputePrices() {
-        self.items = self.items.map { item in
-            RestaurantValueRadarItem(
-                food: item.food,
-                basePrice: item.basePrice,
-                cityMultiplier: selectedCity.restaurantMultiplier,
-                appliesCityMultiplier: item.appliesCityMultiplier,
-                canLog: item.canLog
-            )
-        }.sorted(by: { $0.proteinPerDollar > $1.proteinPerDollar })
-    }
+    func loadDemoMenu(delay: TimeInterval = 0.35) {
+        let requestID = UUID()
+        activeRequestID = requestID
+        errorMessage = nil
+        isDemoMode = true
+        isAnalyzing = true
 
-    func loadDemoMenu() {
-        self.errorMessage = nil
-        self.isDemoMode = true
-        self.isAnalyzing = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            struct DemoDish {
-                let name: String
-                let cal: Double
-                let p: Double
-                let c: Double
-                let f: Double
-                let price: Double
-            }
-
-            let demoDishes: [DemoDish] = [
-                DemoDish(name: "12oz Ribeye Steak & Asparagus", cal: 680, p: 62, c: 8, f: 44, price: 32.0),
-                DemoDish(name: "Grilled Salmon & Quinoa", cal: 540, p: 46, c: 32, f: 24, price: 26.0),
-                DemoDish(name: "Chicken Breast Piccata", cal: 480, p: 52, c: 12, f: 22, price: 22.0),
-                DemoDish(name: "Spaghetti Carbonara", cal: 820, p: 24, c: 88, f: 42, price: 21.0),
-                DemoDish(name: "Caesar Salad with Grilled Shrimp", cal: 420, p: 34, c: 14, f: 26, price: 18.0),
-                DemoDish(name: "Margherita Pizza (1/2 Pie)", cal: 650, p: 22, c: 74, f: 28, price: 17.0)
-            ]
-
-            let newItems = demoDishes.map { dish in
-                let food = FoodItem(name: dish.name, calories: dish.cal, protein: dish.p, carbs: dish.c, fats: dish.f, servingSize: "1 entree")
-                return RestaurantValueRadarItem(
-                    food: food,
-                    basePrice: dish.price,
-                    cityMultiplier: self.selectedCity.restaurantMultiplier,
-                    appliesCityMultiplier: true,
-                    canLog: false
-                )
-            }.sorted(by: { $0.proteinPerDollar > $1.proteinPerDollar })
-
-            self.items = newItems
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.activeRequestID == requestID else { return }
+            self.items = Self.makeDemoItems(city: self.selectedCity)
             self.isAnalyzing = false
+            self.activeRequestID = nil
         }
     }
 
     func analyzeMenuImage(_ image: UIImage) {
-        self.isAnalyzing = true
-        self.errorMessage = nil
-        self.isDemoMode = false
+        let requestID = UUID()
+        activeRequestID = requestID
+        isAnalyzing = true
+        errorMessage = nil
+        isDemoMode = false
+
         imageModel.estimateMenuItemsWithListedPrices(image: image) { [weak self] result in
             DispatchQueue.main.async {
-                guard let self = self else { return }
+                guard let self, self.activeRequestID == requestID else { return }
                 self.isAnalyzing = false
+                self.activeRequestID = nil
+
                 switch result {
                 case .success(let scannedItems) where !scannedItems.isEmpty:
-                    let newItems = scannedItems.map { item in
+                    self.items = scannedItems.compactMap { item in
                         RestaurantValueRadarItem(
                             food: item.food,
                             basePrice: item.listedPrice,
@@ -474,26 +555,131 @@ class RestaurantValueRadarViewModel: ObservableObject {
                             appliesCityMultiplier: false,
                             canLog: true
                         )
-                    }.sorted(by: { $0.proteinPerDollar > $1.proteinPerDollar })
-                    self.items = newItems
+                    }
+                    .sorted { $0.proteinPerDollar > $1.proteinPerDollar }
                 case .success:
-                    // Never substitute fabricated demo dishes for a real scan — the user
-                    // could log food they never ate. Be honest that nothing was read.
-                    self.errorMessage = "Couldn't read dishes with visible prices. Try a clearer photo that includes item names and printed prices."
+                    self.items = []
+                    self.errorMessage = "No dishes with visible prices were found. Try a clearer photo that includes names and printed prices."
                 case .failure:
-                    self.errorMessage = "Menu scan didn't go through. Check your connection and try again."
+                    self.items = []
+                    self.errorMessage = "The menu scan did not go through. Check your connection and try again."
                 }
             }
         }
     }
 
-    func logDish(_ food: FoodItem, service: DailyLogService, userID: String) {
-        service.addFoodToLog(
-            for: userID,
-            date: Date(),
-            mealName: DailyLogRules.determineMealType(),
-            foodItem: food,
-            source: "value_radar"
+    static func makeDemoItems(city: AYCECity) -> [RestaurantValueRadarItem] {
+        demoDishes.compactMap { dish in
+            let food = FoodItem(
+                id: dish.id,
+                name: dish.name,
+                calories: dish.calories,
+                protein: dish.protein,
+                carbs: dish.carbs,
+                fats: dish.fats,
+                servingSize: "1 entree"
+            ).withAIEstimateSource(.aiMenu, sourceName: "Value Radar Demo")
+            return RestaurantValueRadarItem(
+                food: food,
+                basePrice: dish.price,
+                cityMultiplier: city.restaurantMultiplier,
+                appliesCityMultiplier: true,
+                canLog: false
+            )
+        }
+        .sorted { $0.proteinPerDollar > $1.proteinPerDollar }
+    }
+
+    private func recomputePrices() {
+        items = items.compactMap { item in
+            RestaurantValueRadarItem(
+                food: item.food,
+                basePrice: item.basePrice,
+                cityMultiplier: selectedCity.restaurantMultiplier,
+                appliesCityMultiplier: item.appliesCityMultiplier,
+                canLog: item.canLog
+            )
+        }
+        .sorted { $0.proteinPerDollar > $1.proteinPerDollar }
+    }
+
+    private struct DemoDish {
+        let id: String
+        let name: String
+        let calories: Double
+        let protein: Double
+        let carbs: Double
+        let fats: Double
+        let price: Double
+    }
+
+    private static let demoDishes: [DemoDish] = [
+        DemoDish(
+            id: "value-demo-ribeye",
+            name: "Ribeye Steak and Asparagus",
+            calories: 680,
+            protein: 62,
+            carbs: 8,
+            fats: 44,
+            price: 32
+        ),
+        DemoDish(
+            id: "value-demo-salmon",
+            name: "Grilled Salmon and Quinoa",
+            calories: 540,
+            protein: 46,
+            carbs: 32,
+            fats: 24,
+            price: 26
+        ),
+        DemoDish(
+            id: "value-demo-chicken",
+            name: "Chicken Breast Piccata",
+            calories: 480,
+            protein: 52,
+            carbs: 12,
+            fats: 22,
+            price: 22
+        ),
+        DemoDish(
+            id: "value-demo-carbonara",
+            name: "Spaghetti Carbonara",
+            calories: 820,
+            protein: 24,
+            carbs: 88,
+            fats: 42,
+            price: 21
+        ),
+        DemoDish(
+            id: "value-demo-shrimp",
+            name: "Caesar Salad with Grilled Shrimp",
+            calories: 420,
+            protein: 34,
+            carbs: 14,
+            fats: 26,
+            price: 18
+        )
+    ]
+}
+
+#if DEBUG
+@MainActor
+struct RestaurantValueRadarDemoView: View {
+    @StateObject private var viewModel: RestaurantValueRadarViewModel
+
+    init() {
+        let city = AYCECityIndex.city(slug: "nyc")
+        _viewModel = StateObject(
+            wrappedValue: RestaurantValueRadarViewModel(
+                initialItems: RestaurantValueRadarViewModel.makeDemoItems(city: city),
+                selectedCity: city,
+                isDemoMode: true
+            )
         )
     }
+
+    var body: some View {
+        RestaurantValueRadarView(viewModel: viewModel)
+    }
 }
+#endif

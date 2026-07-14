@@ -442,12 +442,11 @@ public struct AppMetricStrip: View {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(spacing: 0) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                        VStack(alignment: .leading, spacing: 4) {
                             metricLabel(item)
-                            Spacer(minLength: AppSpacing.group)
                             metricValue(item)
-                                .multilineTextAlignment(.trailing)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, AppSpacing.compact)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("\(item.label), \(item.value)")

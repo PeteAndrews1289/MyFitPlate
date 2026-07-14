@@ -2759,6 +2759,130 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testRestaurantValueFamilyUsesUnifiedHierarchy() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "AYCE Start", route: "ayce-start", title: "Beat the Buffet", action: "Start Session"),
+            (name: "AYCE Live", route: "ayce-live", title: "Sushi", action: "End Session"),
+            (name: "AYCE Review", route: "ayce-review", title: "Review Plate Estimate", action: "Add 2 Items"),
+            (name: "AYCE Summary", route: "ayce-summary", title: "Buffet Summary", action: "Add to Today's Diary"),
+            (name: "Value Radar", route: "value-radar", title: "Value Radar", action: "Scan Another Menu")
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route
+            ]
+            app.launch()
+
+            let title = app.staticTexts
+                .matching(NSPredicate(format: "label == %@", screen.title))
+                .firstMatch
+            let action = app.buttons[screen.action]
+            let closeButton = app.buttons["Close"]
+
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(action.waitForExistence(timeout: 5), "\(screen.name) should retain its primary action")
+            XCTAssertTrue(closeButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(closeButton.isHittable)
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - unified restaurant value hierarchy"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testRestaurantValueFamilySupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "AYCE Start", route: "ayce-start", title: "Beat the Buffet", action: "Start Session"),
+            (name: "AYCE Live", route: "ayce-live", title: "Sushi", action: "End Session"),
+            (name: "AYCE Review", route: "ayce-review", title: "Review Plate Estimate", action: "Add 2 Items"),
+            (name: "AYCE Summary", route: "ayce-summary", title: "Buffet Summary", action: "Add to Today's Diary"),
+            (name: "Value Radar", route: "value-radar", title: "Value Radar", action: "Scan Another Menu")
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let title = app.staticTexts
+                .matching(NSPredicate(format: "label == %@", screen.title))
+                .firstMatch
+            let action = app.buttons[screen.action]
+            let closeButton = app.buttons["Close"]
+
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(action.waitForExistence(timeout: 5))
+            XCTAssertTrue(closeButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(closeButton.isHittable)
+            XCTAssertGreaterThanOrEqual(closeButton.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(closeButton.frame.maxX, app.frame.maxX + 1)
+            XCTAssertGreaterThanOrEqual(title.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX + 1)
+            XCTAssertGreaterThanOrEqual(action.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(action.frame.maxX, app.frame.maxX + 1)
+
+            let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testCelebrationOverlaySupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "celebration",
+            "-screenshot-dark-mode",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let title = app.staticTexts
+            .matching(NSPredicate(format: "label == %@", "Buffet Beaten"))
+            .firstMatch
+        let continueButton = app.buttons["Continue"]
+
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 5))
+        for _ in 0..<4 where !continueButton.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(continueButton.isHittable)
+        XCTAssertGreaterThanOrEqual(continueButton.frame.minX, app.frame.minX - 1)
+        XCTAssertLessThanOrEqual(continueButton.frame.maxX, app.frame.maxX + 1)
+        XCTAssertGreaterThanOrEqual(continueButton.frame.minY, app.frame.minY - 1)
+        XCTAssertLessThanOrEqual(continueButton.frame.maxY, app.frame.maxY + 1)
+
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "Celebration - dark accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testCustomProductPageDeepLinksOpenExactDestinations() throws {
         let app = XCUIApplication()
         let destinations = [

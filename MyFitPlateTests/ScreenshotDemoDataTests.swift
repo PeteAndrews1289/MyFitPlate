@@ -95,6 +95,18 @@ final class ScreenshotDemoDataTests: XCTestCase {
         XCTAssertEqual(repository.mockActiveChallenges.count, 3)
     }
 
+    func testAYCEFixturesCoverLiveReviewAndWinningSummaryStates() {
+        let live = ScreenshotDemoData.ayceLiveSession
+        let summary = ScreenshotDemoData.ayceSummarySession
+
+        XCTAssertEqual(live.id, "screenshot-ayce-live")
+        XCTAssertGreaterThanOrEqual(live.entries.count, 3)
+        XCTAssertTrue(live.entries.contains { $0.item.isAIEstimated })
+        XCTAssertGreaterThan(summary.entries.count, live.entries.count)
+        XCTAssertGreaterThan(AYCERules.beatByAmount(session: summary), 0)
+        XCTAssertGreaterThan(AYCERules.totals(for: summary).calories, 0)
+    }
+
     func testLivingDayFoodTransitionTargetsPersistedMealNode() {
         let mealID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
         let food = FoodItem(id: "logged-food", name: "Chicken bowl", calories: 520)

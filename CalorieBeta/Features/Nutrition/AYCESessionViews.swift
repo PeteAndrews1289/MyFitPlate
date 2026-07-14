@@ -1,12 +1,9 @@
-import SwiftUI
 import MyFitPlateCore
+import SwiftUI
+import UIKit
 #if canImport(ActivityKit)
 import ActivityKit
 #endif
-
-// "Beat the buffet": log an all-you-can-eat session and watch the à-la-carte value climb
-// past what you paid. All math lives in AYCERules (Core, tested); prices are typical US
-// menu estimates and every screen says so.
 
 @MainActor
 final class AYCESessionManager: ObservableObject {
@@ -17,16 +14,33 @@ final class AYCESessionManager: ObservableObject {
     @AppStorage("ayceSessionDraft") private var draftData: Data = Data()
     @AppStorage("ayceScoreboard") private var scoreboardData: Data = Data()
 
+    private let managesLiveActivity: Bool
+
     #if canImport(ActivityKit)
     private var liveActivity: Activity<AYCEActivityAttributes>?
     #endif
 
-    init() {
-        restoreDraft()
+    init(
+        initialSession: AYCESession? = nil,
+        restoresDraft: Bool = true,
+        managesLiveActivity: Bool = true
+    ) {
+        self.managesLiveActivity = managesLiveActivity
+
+        if let initialSession {
+            session = initialSession
+            hasCelebratedBreakEven = AYCERules.breakEvenProgress(session: initialSession) >= 1
+            hasCelebratedKitchenWin = AYCERules.hasBeatenKitchen(session: initialSession)
+        } else if restoresDraft {
+            restoreDraft()
+        }
+
         #if canImport(ActivityKit)
-        if session != nil {
-            if let activity = Activity<AYCEActivityAttributes>.activities.first(where: { $0.activityState == .active }) {
-                self.liveActivity = activity
+        if managesLiveActivity, session != nil {
+            if let activity = Activity<AYCEActivityAttributes>.activities.first(where: {
+                $0.activityState == .active
+            }) {
+                liveActivity = activity
             } else {
                 startLiveActivity()
             }
@@ -50,13 +64,14 @@ final class AYCESessionManager: ObservableObject {
             session.entries.append(AYCESessionEntry(item: item, count: 1))
         }
         self.session = session
-        celebrateIfJustBrokeEven()
-        persistDraft()
-        updateLiveActivity()
+        completeSessionMutation()
     }
 
     func remove(_ item: AYCECatalogItem) {
-        guard var session, let index = session.entries.firstIndex(where: { $0.item.id == item.id }) else { return }
+        guard var session,
+              let index = session.entries.firstIndex(where: { $0.item.id == item.id }) else {
+            return
+        }
         let remaining = session.entries[index].count - 1
         if remaining >= 1 {
             session.entries[index].count = remaining
@@ -72,39 +87,48 @@ final class AYCESessionManager: ObservableObject {
         session?.entries.first(where: { $0.item.id == item.id })?.count ?? 0
     }
 
-    /// Plate-scanned items join as their own one-count entries (unique ids, no merging).
-    func addScanned(_ items: [AYCECatalogItem]) {
+    func addReviewed(_ items: [AYCECatalogItem]) {
         guard var session else { return }
         for item in items {
             session.entries.append(AYCESessionEntry(item: item, count: 1))
         }
         self.session = session
-        celebrateIfJustBrokeEven()
-        persistDraft()
-        updateLiveActivity()
+        completeSessionMutation()
     }
 
-    /// Scanned entries appear at the top of a scanned-items strip; catalog tiles keep
-    /// their grid. Sorted newest-last so the strip reads in eating order.
-    var scannedEntries: [AYCESessionEntry] {
-        session?.entries.filter { $0.item.isAIEstimated } ?? []
+    var reviewedEntries: [AYCESessionEntry] {
+        session?.entries.filter(\.item.isLocallyPriced) ?? []
+    }
+
+    func replaceEntry(_ entryID: String, with item: AYCECatalogItem) {
+        guard var session,
+              let index = session.entries.firstIndex(where: { $0.id == entryID }) else {
+            return
+        }
+        session.entries[index].item = item
+        self.session = session
+        completeSessionMutation()
     }
 
     func removeEntry(_ entry: AYCESessionEntry) {
-        guard var session, let index = session.entries.firstIndex(where: { $0.id == entry.id }) else { return }
+        guard var session,
+              let index = session.entries.firstIndex(where: { $0.id == entry.id }) else {
+            return
+        }
         session.entries.remove(at: index)
         self.session = session
         persistDraft()
         updateLiveActivity()
     }
 
-    /// Ends the session and returns it for the summary; the draft is cleared and the
-    /// result joins the lifetime scoreboard (empty sessions are ignored by the rules).
     func end() -> AYCESession? {
         endLiveActivity()
         let finished = session
         if let finished {
-            let updated = AYCEScoreboard.appending(AYCESessionRecord(session: finished), to: loadScoreboard())
+            let updated = AYCEScoreboard.appending(
+                AYCESessionRecord(session: finished),
+                to: loadScoreboard()
+            )
             if let encoded = try? JSONEncoder().encode(updated) {
                 scoreboardData = encoded
             }
@@ -118,22 +142,25 @@ final class AYCESessionManager: ObservableObject {
         AYCEScoreboard.recordLine(summary: AYCEScoreboard.summary(of: loadScoreboard()))
     }
 
-    private func loadScoreboard() -> [AYCESessionRecord] {
-        (try? JSONDecoder().decode([AYCESessionRecord].self, from: scoreboardData)) ?? []
-    }
-
     func discard() {
         endLiveActivity()
         session = nil
         draftData = Data()
     }
 
-    private func celebrateIfJustBrokeEven() {
+    private func completeSessionMutation() {
+        celebrateIfNeeded()
+        persistDraft()
+        updateLiveActivity()
+    }
+
+    private func loadScoreboard() -> [AYCESessionRecord] {
+        (try? JSONDecoder().decode([AYCESessionRecord].self, from: scoreboardData)) ?? []
+    }
+
+    private func celebrateIfNeeded() {
         guard let session else { return }
-        // Two one-time moments, in escalating order: beating the menu, then the rare
-        // true win of out-eating the kitchen's own ingredient budget (DESIGN.md 7 —
-        // celebrate once, at the moment of reveal).
-        if !hasCelebratedBreakEven, AYCERules.breakEvenProgress(session: session) >= 1.0 {
+        if !hasCelebratedBreakEven, AYCERules.breakEvenProgress(session: session) >= 1 {
             hasCelebratedBreakEven = true
             HapticManager.instance.notification(.success)
         }
@@ -149,15 +176,16 @@ final class AYCESessionManager: ObservableObject {
 
     private func restoreDraft() {
         guard !draftData.isEmpty,
-              let restored = try? JSONDecoder().decode(AYCESession.self, from: draftData) else { return }
+              let restored = try? JSONDecoder().decode(AYCESession.self, from: draftData) else {
+            return
+        }
         session = restored
-        hasCelebratedBreakEven = AYCERules.breakEvenProgress(session: restored) >= 1.0
+        hasCelebratedBreakEven = AYCERules.breakEvenProgress(session: restored) >= 1
         hasCelebratedKitchenWin = AYCERules.hasBeatenKitchen(session: restored)
     }
 
-    // MARK: - Live Activity
-
     private func startLiveActivity() {
+        guard managesLiveActivity else { return }
         #if canImport(ActivityKit)
         guard ActivityAuthorizationInfo().areActivitiesEnabled, let session else { return }
         do {
@@ -166,12 +194,15 @@ final class AYCESessionManager: ObservableObject {
                 content: .init(state: activityState(), staleDate: nil)
             )
         } catch {
-            print("AYCE Live Activity failed to start: \(error.localizedDescription)")
+            AppLog.liveActivity.error(
+                "AYCE Live Activity failed to start: \(error.localizedDescription, privacy: .public)"
+            )
         }
         #endif
     }
 
     private func updateLiveActivity() {
+        guard managesLiveActivity else { return }
         #if canImport(ActivityKit)
         guard let liveActivity else { return }
         let state = activityState()
@@ -182,6 +213,7 @@ final class AYCESessionManager: ObservableObject {
     }
 
     private func endLiveActivity() {
+        guard managesLiveActivity else { return }
         #if canImport(ActivityKit)
         guard let liveActivity else { return }
         let state = activityState()
@@ -194,19 +226,18 @@ final class AYCESessionManager: ObservableObject {
 
     #if canImport(ActivityKit)
     private func activityState() -> AYCEActivityAttributes.ContentState {
-        let value = session != nil ? AYCERules.totals(for: session!).restaurantValue : 0
+        let value = session.map { AYCERules.totals(for: $0).restaurantValue } ?? 0
         let buffetPrice = session?.buffetPrice ?? 0
-        let isBeaten = value >= buffetPrice
-        let itemsCount = session?.entries.reduce(0) { $0 + $1.count } ?? 0
-        
-        let buffetPriceText = String(format: "$%.2f", buffetPrice)
-        let currentValueText = String(format: "$%.2f", value)
-        let statusText = isBeaten ? "🔥 Buffet Beaten!" : String(format: "$%.2f to go", buffetPrice - value)
-        
+        let isBeaten = buffetPrice > 0 && value >= buffetPrice
+        let itemCount = session?.entries.reduce(0) { $0 + $1.count } ?? 0
+        let statusText = isBeaten
+            ? "Buffet beaten"
+            : "\(AYCERules.money(max(0, buffetPrice - value))) to go"
+
         return AYCEActivityAttributes.ContentState(
-            buffetPriceText: buffetPriceText,
-            currentValueText: currentValueText,
-            itemsCount: itemsCount,
+            buffetPriceText: AYCERules.money(buffetPrice),
+            currentValueText: AYCERules.money(value),
+            itemsCount: itemCount,
             statusText: statusText,
             isBeaten: isBeaten
         )
@@ -214,201 +245,603 @@ final class AYCESessionManager: ObservableObject {
     #endif
 }
 
+@MainActor
 struct AYCEFlowView: View {
-    @EnvironmentObject var dailyLogService: DailyLogService
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var manager = AYCESessionManager()
+    @StateObject private var manager: AYCESessionManager
     @State private var finishedSession: AYCESession?
 
+    init(
+        initialSession: AYCESession? = nil,
+        finishedSession: AYCESession? = nil,
+        restoresDraft: Bool = true,
+        managesLiveActivity: Bool = true
+    ) {
+        _manager = StateObject(
+            wrappedValue: AYCESessionManager(
+                initialSession: initialSession,
+                restoresDraft: restoresDraft,
+                managesLiveActivity: managesLiveActivity
+            )
+        )
+        _finishedSession = State(initialValue: finishedSession)
+    }
+
     var body: some View {
-        NavigationStack {
-            Group {
-                if let finished = finishedSession {
-                    AYCESummaryView(session: finished, onDone: { logged in
-                        if logged {
-                            ToastManager.shared.showToast(message: "Buffet session added to your diary.")
-                        }
-                        dismiss()
-                    })
-                } else if manager.session != nil {
-                    AYCELiveSessionView(manager: manager, onEnd: {
-                        finishedSession = manager.end()
-                    })
-                } else {
-                    AYCEStartView(recordLine: manager.scoreboardRecordLine, onStart: { cuisine, price, citySlug in
-                        manager.start(cuisine: cuisine, buffetPrice: price, citySlug: citySlug)
-                    })
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+        AppSheetScaffold(
+            title: screenTitle,
+            subtitle: screenSubtitle,
+            dismiss: { dismiss() }
+        ) {
+            if let finishedSession {
+                AYCESummaryView(
+                    session: finishedSession,
+                    showsCelebration: !ScreenshotDemoMode.isEnabled
+                ) { logged in
+                    if logged {
+                        ToastManager.shared.showToast(
+                            message: "Buffet session added to your diary."
+                        )
                     }
-                    .accessibilityLabel("Close")
+                    dismiss()
+                }
+            } else if manager.session != nil {
+                AYCELiveSessionView(manager: manager) {
+                    finishedSession = manager.end()
+                }
+            } else {
+                AYCEStartView(recordLine: manager.scoreboardRecordLine) { cuisine, price, citySlug in
+                    manager.start(cuisine: cuisine, buffetPrice: price, citySlug: citySlug)
                 }
             }
         }
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .tint(AppPalette.brand)
+        .accessibilityIdentifier("ayce_flow")
+    }
+
+    private var screenTitle: String {
+        if finishedSession != nil { return "Buffet Summary" }
+        if let session = manager.session { return session.cuisine.displayName }
+        return "Beat the Buffet"
+    }
+
+    private var screenSubtitle: String {
+        if finishedSession != nil {
+            return "Review the session before adding it to your diary"
+        }
+        if let session = manager.session {
+            return "\(session.city.name) mid-range value estimates"
+        }
+        return "Track estimated menu value as you eat"
     }
 }
-
-// MARK: - Start
 
 private struct AYCEStartView: View {
     let recordLine: String?
     let onStart: (AYCECuisine, Double, String?) -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var cuisine: AYCECuisine = .sushi
     @State private var priceText = ""
-    @AppStorage("ayceCitySlug") private var citySlug: String = AYCECityIndex.national.slug
-    @FocusState private var priceFocused: Bool
+    @AppStorage("ayceCitySlug") private var citySlug = AYCECityIndex.national.slug
 
     private var price: Double? {
-        Double(priceText.replacingOccurrences(of: ",", with: "."))
+        AYCESessionInputRules.buffetPrice(from: priceText)
     }
 
-    private var selectedCity: AYCECity { AYCECityIndex.city(slug: citySlug) }
-    private let cuisineColumns = [GridItem(.adaptive(minimum: 104), spacing: 10)]
+    private var selectedCity: AYCECity {
+        AYCECityIndex.city(slug: citySlug)
+    }
+
+    private var cuisineColumns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.flexible()), GridItem(.flexible())]
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Beat the buffet")
-                        .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    Text("Log what you eat and see when you've out-eaten the price of admission.")
-                        .appFont(size: 14)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                    if let recordLine {
-                        Text("Your record: \(recordLine)")
-                            .appFont(size: 12, weight: .semibold)
-                            .foregroundColor(.brandPrimary)
-                            .padding(.top, 2)
-                    }
+            LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                if let recordLine {
+                    AppListRow(
+                        icon: "trophy.fill",
+                        iconColor: .orange,
+                        title: "Personal Record",
+                        subtitle: recordLine
+                    )
+                    .appSurface(.quiet, padding: 0)
+                    .accessibilityIdentifier("ayce_record")
                 }
 
-                LazyVGrid(columns: cuisineColumns, spacing: 10) {
-                    ForEach(AYCECuisine.allCases, id: \.self) { option in
-                        Button {
-                            cuisine = option
-                            HapticsService.shared.playImpact(style: .light)
-                        } label: {
-                            VStack(spacing: 6) {
-                                Text(option.emoji)
-                                    .font(.system(size: 30))
-                                    .accessibilityHidden(true)
-                                Text(option.displayName)
-                                    .appFont(size: 12, weight: .semibold)
-                                    .foregroundColor(.textPrimary)
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(2)
-                                    .minimumScaleFactor(0.8)
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 74)
-                            .padding(.vertical, 14)
-                            .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(cuisine == option ? Color.brandPrimary : .clear, lineWidth: 2)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(option.displayName)
-                        .accessibilityAddTraits(cuisine == option ? .isSelected : [])
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("What does the buffet cost?")
-                        .appFont(size: 14, weight: .semibold)
-                        .foregroundColor(.textPrimary)
-                    HStack(spacing: 6) {
-                        Text("$")
-                            .appFont(size: 22, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                        TextField("32.99", text: $priceText)
-                            .keyboardType(.decimalPad)
-                            .focused($priceFocused)
-                            .appFont(size: 22, weight: .bold)
-                    }
-                    .padding(14)
-                    .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Pricing region")
-                            .appFont(size: 14, weight: .semibold)
-                            .foregroundColor(.textPrimary)
-                        Text("Mid-range spots for that market, never the premium ones.")
-                            .appFont(size: 11)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-                    Spacer()
-                    Menu {
-                        ForEach(AYCECityIndex.pickerOptions) { option in
-                            Button(option.name) { citySlug = option.slug }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(selectedCity.name)
-                                .appFont(size: 13, weight: .semibold)
-                            Image(systemName: "chevron.up.chevron.down")
-                                .appFont(size: 10, weight: .bold)
-                        }
-                        .foregroundColor(.textPrimary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.backgroundSecondary, in: Capsule())
-                    }
-                    .accessibilityLabel("Pricing region: \(selectedCity.name)")
-                }
-
-                Button {
-                    if let price, price > 0 {
-                        HapticsService.shared.playImpact(style: .medium)
-                        onStart(cuisine, price, citySlug == AYCECityIndex.national.slug ? nil : citySlug)
-                    }
-                } label: {
-                    Text("Start eating")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background((price ?? 0) > 0 ? Color.brandPrimary : Color(UIColor.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .disabled((price ?? 0) <= 0)
-
-                Text("Menu prices are typical mid-range estimates for \(selectedCity.name), not your restaurant's exact menu.")
-                    .appFont(size: 11)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                cuisinePicker
+                sessionDetails
+                estimateNotice
             }
-            .padding()
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.section)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
-        .onAppear { priceFocused = true }
+        .background(AppPalette.canvas)
+        .safeAreaInset(edge: .bottom) {
+            AYCEBottomActionBar {
+                Button {
+                    guard let price else { return }
+                    HapticsService.shared.playImpact(style: .medium)
+                    onStart(
+                        cuisine,
+                        price,
+                        citySlug == AYCECityIndex.national.slug ? nil : citySlug
+                    )
+                } label: {
+                    Label("Start Session", systemImage: "play.fill")
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(price == nil)
+                .accessibilityIdentifier("ayce_start_button")
+            }
+        }
+        .accessibilityIdentifier("ayce_start_screen")
+    }
+
+    private var cuisinePicker: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Choose Cuisine",
+                subtitle: "The catalog and menu-value estimates adapt to this choice"
+            )
+
+            LazyVGrid(columns: cuisineColumns, spacing: AppSpacing.row) {
+                ForEach(AYCECuisine.allCases, id: \.self) { option in
+                    Button {
+                        cuisine = option
+                        HapticsService.shared.playImpact(style: .light)
+                    } label: {
+                        HStack(spacing: AppSpacing.row) {
+                            Text(option.emoji)
+                                .font(.system(size: 26))
+                                .accessibilityHidden(true)
+                            Text(option.displayName)
+                                .appTextRole(.control)
+                                .foregroundStyle(AppPalette.text)
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                            Image(systemName: cuisine == option ? "checkmark.circle.fill" : "circle")
+                                .appFont(size: 18, weight: .semibold)
+                                .foregroundStyle(cuisine == option ? AppPalette.brand : .secondary)
+                                .accessibilityHidden(true)
+                        }
+                        .padding(.horizontal, AppSpacing.group)
+                        .frame(maxWidth: .infinity, minHeight: 62)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: AppRadius.control)
+                                .stroke(
+                                    cuisine == option ? AppPalette.brand : AppPalette.separator,
+                                    lineWidth: cuisine == option ? 2 : 1
+                                )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(option.displayName)
+                    .accessibilityAddTraits(cuisine == option ? .isSelected : [])
+                }
+            }
+        }
+    }
+
+    private var sessionDetails: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Session Details",
+                subtitle: "Enter the total price you paid before tax and tip"
+            )
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Buffet Price")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: AppSpacing.compact) {
+                    Text("$")
+                        .appTextRole(.metric)
+                        .foregroundStyle(.secondary)
+                    TextField("0.00", text: $priceText)
+                        .keyboardType(.decimalPad)
+                        .appTextRole(.metric)
+                        .foregroundStyle(AppPalette.text)
+                        .accessibilityLabel("Buffet price")
+                        .accessibilityIdentifier("ayce_price_field")
+                }
+                .padding(.horizontal, AppSpacing.group)
+                .frame(minHeight: 64)
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.control)
+                        .stroke(AppPalette.separator, lineWidth: 1)
+                }
+            }
+
+            Menu {
+                ForEach(AYCECityIndex.pickerOptions) { city in
+                    Button(city.name) { citySlug = city.slug }
+                }
+            } label: {
+                AppListRow(
+                    icon: "mappin.and.ellipse",
+                    iconColor: AppPalette.brand,
+                    title: "Pricing Region",
+                    subtitle: selectedCity.name,
+                    hidesTextFromAccessibility: true
+                ) {
+                    Image(systemName: "chevron.up.chevron.down")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .buttonStyle(.plain)
+            .appSurface(.quiet, padding: 0)
+            .accessibilityLabel("Pricing region, \(selectedCity.name)")
+            .accessibilityHint("Changes regional menu-value estimates")
+        }
+    }
+
+    private var estimateNotice: some View {
+        AppListRow(
+            icon: "info.circle.fill",
+            iconColor: .orange,
+            title: "Estimated Value",
+            subtitle: "Catalog prices represent typical mid-range spots in \(selectedCity.name), not this restaurant's exact menu."
+        )
+        .appSurface(.quiet, padding: 0)
     }
 }
 
-// MARK: - Live session
+private enum AYCEPlateReviewSource {
+    case plateScan
+    case manual
+
+    var title: String {
+        switch self {
+        case .plateScan: "Review Plate Estimate"
+        case .manual: "Add Custom Item"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .plateScan: "Nothing joins the session until you confirm every item"
+        case .manual: "Enter one local item that is missing from the catalog"
+        }
+    }
+
+    var isAIEstimated: Bool { self == .plateScan }
+}
+
+struct AYCEPlateDraft: Identifiable, Equatable {
+    let id: String
+    var name: String
+    var unit: String
+    var calories: String
+    var protein: String
+    var carbs: String
+    var fats: String
+    var restaurantPrice: String
+    var homeCost: String
+
+    init(item: AYCECatalogItem) {
+        id = item.id
+        name = item.name
+        unit = item.unit
+        calories = Self.numberText(item.calories)
+        protein = Self.numberText(item.protein)
+        carbs = Self.numberText(item.carbs)
+        fats = Self.numberText(item.fats)
+        restaurantPrice = String(format: "%.2f", item.restaurantPrice)
+        homeCost = String(format: "%.2f", item.homeCost)
+    }
+
+    init(
+        id: String = "manual_\(UUID().uuidString)",
+        name: String = "",
+        unit: String = "serving",
+        calories: String = "",
+        protein: String = "",
+        carbs: String = "",
+        fats: String = "",
+        restaurantPrice: String = "",
+        homeCost: String = ""
+    ) {
+        self.id = id
+        self.name = name
+        self.unit = unit
+        self.calories = calories
+        self.protein = protein
+        self.carbs = carbs
+        self.fats = fats
+        self.restaurantPrice = restaurantPrice
+        self.homeCost = homeCost
+    }
+
+    func reviewedItem(cuisine: AYCECuisine, isAIEstimated: Bool) -> AYCECatalogItem? {
+        guard let calories = Self.number(from: calories),
+              let protein = Self.number(from: protein),
+              let carbs = Self.number(from: carbs),
+              let fats = Self.number(from: fats),
+              let restaurantPrice = Self.number(from: restaurantPrice),
+              let homeCost = Self.number(from: homeCost) else {
+            return nil
+        }
+        return AYCEPricingRules.reviewedCatalogItem(
+            name: name,
+            unit: unit,
+            cuisine: cuisine,
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fats: fats,
+            restaurantPrice: restaurantPrice,
+            homeCost: homeCost,
+            isAIEstimated: isAIEstimated
+        )
+    }
+
+    private static func number(from text: String) -> Double? {
+        AYCESessionInputRules.decimal(from: text)
+    }
+
+    private static func numberText(_ value: Double) -> String {
+        if abs(value.rounded() - value) < 0.001 {
+            return String(Int(value.rounded()))
+        }
+        return String(format: "%.1f", value)
+    }
+}
 
 private struct AYCELiveSessionView: View {
     @ObservedObject var manager: AYCESessionManager
     let onEnd: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showingScanner = false
     @State private var isPricingScan = false
+    @State private var showingPlateReview = false
+    @State private var plateDrafts: [AYCEPlateDraft] = []
+    @State private var reviewSource: AYCEPlateReviewSource = .plateScan
+    @State private var editingEntryID: String?
+
     private let imageModel = MLImageModel()
 
-    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+    var body: some View {
+        Group {
+            if let session = manager.session {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                        valueStatus(session)
+                        captureActions
 
-    private func handleScannedImage(_ image: UIImage, cuisine: AYCECuisine) {
+                        if !manager.reviewedEntries.isEmpty {
+                            reviewedItems
+                        }
+
+                        catalog(session)
+                        estimateFooter(session)
+                    }
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.vertical, AppSpacing.section)
+                }
+                .background(AppPalette.canvas)
+                .safeAreaInset(edge: .bottom) {
+                    AYCEBottomActionBar {
+                        Button {
+                            HapticsService.shared.playImpact(style: .medium)
+                            onEnd()
+                        } label: {
+                            Label("End Session", systemImage: "checkmark.circle.fill")
+                        }
+                        .buttonStyle(AppActionButtonStyle(.primary))
+                        .accessibilityIdentifier("ayce_end_button")
+                    }
+                }
+                .sheet(isPresented: $showingScanner) {
+                    ImagePicker(
+                        sourceType: UIImagePickerController.isSourceTypeAvailable(.camera)
+                            ? .camera
+                            : .photoLibrary
+                    ) { image in
+                        scanPlate(image, cuisine: session.cuisine)
+                    }
+                    .ignoresSafeArea()
+                }
+                .sheet(isPresented: $showingPlateReview) {
+                    AYCEPlateReviewView(
+                        drafts: $plateDrafts,
+                        cuisine: session.cuisine,
+                        source: reviewSource,
+                        onCancel: { showingPlateReview = false },
+                        onAdd: finishReview
+                    )
+                }
+            }
+        }
+        .accessibilityIdentifier("ayce_live_screen")
+    }
+
+    private func valueStatus(_ session: AYCESession) -> some View {
+        let totals = AYCERules.totals(for: session)
+        let menuProgress = AYCERules.breakEvenProgress(session: session)
+        let kitchenProgress = totals.restaurantFoodCost / session.buffetPrice
+
+        return VStack(alignment: .leading, spacing: AppSpacing.group) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(AYCERules.statusLine(session: session))
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
+                    .contentTransition(.numericText())
+                Text(AYCERules.kitchenLine(session: session))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(
+                        AYCERules.hasBeatenKitchen(session: session)
+                            ? AppPalette.brand
+                            : .secondary
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            AppMetricStrip(items: [
+                AppMetricItem(
+                    label: "Menu Value",
+                    value: AYCERules.money(totals.restaurantValue),
+                    accent: AppPalette.brand
+                ),
+                AppMetricItem(
+                    label: "You Paid",
+                    value: AYCERules.money(session.buffetPrice),
+                    accent: .orange
+                ),
+                AppMetricItem(
+                    label: "Calories",
+                    value: "\(Int(totals.calories.rounded()).formatted()) cal",
+                    accent: .blue
+                )
+            ])
+
+            VStack(spacing: AppSpacing.row) {
+                AYCEProgressRow(
+                    label: "Menu break-even",
+                    value: menuProgress,
+                    trailing: "\(Int((max(menuProgress, 0) * 100).rounded()))%"
+                )
+                AYCEProgressRow(
+                    label: "Estimated kitchen spend",
+                    value: kitchenProgress,
+                    trailing: AYCERules.money(totals.restaurantFoodCost)
+                )
+            }
+        }
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("ayce_live_summary")
+    }
+
+    @ViewBuilder
+    private var captureActions: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: AppSpacing.row) {
+                scanButton
+                customItemButton
+            }
+        } else {
+            HStack(spacing: AppSpacing.row) {
+                scanButton
+                customItemButton
+            }
+        }
+    }
+
+    private var scanButton: some View {
+        Button {
+            showingScanner = true
+        } label: {
+            if isPricingScan {
+                HStack(spacing: AppSpacing.compact) {
+                    ProgressView().controlSize(.small)
+                    Text("Reading Plate")
+                }
+            } else {
+                Label("Scan Plate", systemImage: "camera.viewfinder")
+            }
+        }
+        .buttonStyle(AppActionButtonStyle(.secondary))
+        .disabled(isPricingScan)
+        .accessibilityIdentifier("ayce_scan_plate_button")
+    }
+
+    private var customItemButton: some View {
+        Button {
+            reviewSource = .manual
+            editingEntryID = nil
+            plateDrafts = [AYCEPlateDraft()]
+            showingPlateReview = true
+        } label: {
+            Label("Custom Item", systemImage: "plus")
+        }
+        .buttonStyle(AppActionButtonStyle(.secondary))
+        .disabled(isPricingScan)
+        .accessibilityIdentifier("ayce_custom_item_button")
+    }
+
+    private var reviewedItems: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Reviewed Items",
+                subtitle: "Scanned and custom entries use the values you confirmed"
+            )
+
+            VStack(spacing: 0) {
+                ForEach(Array(manager.reviewedEntries.enumerated()), id: \.element.id) { index, entry in
+                    AYCEReviewedEntryRow(
+                        entry: entry,
+                        onEdit: { edit(entry) },
+                        onRemove: { manager.removeEntry(entry) }
+                    )
+                    if index < manager.reviewedEntries.count - 1 {
+                        Divider().padding(.leading, 68)
+                    }
+                }
+            }
+            .appSurface(.quiet, padding: 0)
+        }
+    }
+
+    private func catalog(_ session: AYCESession) -> some View {
+        LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+            ForEach(AYCECatalog.sections(for: session.cuisine)) { section in
+                VStack(alignment: .leading, spacing: AppSpacing.group) {
+                    AppSectionHeader(
+                        title: section.title.isEmpty ? "Menu" : section.title,
+                        subtitle: "Typical \(session.city.name) mid-range estimates"
+                    )
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(section.items.enumerated()), id: \.element.id) { index, item in
+                            AYCECatalogItemRow(
+                                item: item,
+                                displayPrice: AYCERules.unitPrices(for: item, in: session).restaurant,
+                                logged: manager.count(for: item),
+                                onAdd: {
+                                    HapticsService.shared.playImpact(style: .light)
+                                    manager.add(item)
+                                },
+                                onRemove: { manager.remove(item) }
+                            )
+                            if index < section.items.count - 1 {
+                                Divider().padding(.leading, 68)
+                            }
+                        }
+                    }
+                    .appSurface(.quiet, padding: 0)
+                }
+            }
+        }
+    }
+
+    private func estimateFooter(_ session: AYCESession) -> some View {
+        AppListRow(
+            icon: "info.circle.fill",
+            iconColor: .orange,
+            title: "Value Estimates",
+            subtitle: "Catalog prices represent typical mid-range spots in \(session.city.name). Plate estimates stay marked until logged."
+        )
+        .appSurface(.quiet, padding: 0)
+    }
+
+    private func scanPlate(_ image: UIImage, cuisine: AYCECuisine) {
         isPricingScan = true
         imageModel.estimateNutritionFromImage(image: image) { result in
             Task { @MainActor in
@@ -419,287 +852,470 @@ private struct AYCELiveSessionView: View {
                         cuisine: cuisine,
                         city: manager.session?.city ?? AYCECityIndex.national
                     )
-                    manager.addScanned(items)
-                    let value = items.reduce(0) { $0 + $1.restaurantPrice }
-                    ToastManager.shared.showToast(message: "Added \(items.count) from your plate · about \(AYCERules.money(value))")
+                    guard !items.isEmpty else {
+                        ToastManager.shared.showToast(
+                            message: "No reviewable food was found in that photo."
+                        )
+                        isPricingScan = false
+                        return
+                    }
+                    reviewSource = .plateScan
+                    editingEntryID = nil
+                    plateDrafts = items.map(AYCEPlateDraft.init)
+                    showingPlateReview = true
                 case .success:
-                    ToastManager.shared.showToast(message: "Couldn't spot any food in that photo.")
+                    ToastManager.shared.showToast(
+                        message: "No food was found in that photo. Try a clearer angle."
+                    )
                 case .failure:
-                    ToastManager.shared.showToast(message: "Plate scan didn't go through. Try the tiles instead.")
+                    ToastManager.shared.showToast(
+                        message: "The plate scan did not go through. Try again or add a custom item."
+                    )
                 }
                 isPricingScan = false
             }
         }
     }
 
-    var body: some View {
-        guard let session = manager.session else { return AnyView(EmptyView()) }
-        let totals = AYCERules.totals(for: session)
-        let progress = AYCERules.breakEvenProgress(session: session)
-        let kitchenProgress = session.buffetPrice > 0 ? totals.restaurantFoodCost / session.buffetPrice : 0
-
-        return AnyView(
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        // Hero: the one question — am I winning yet?
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(AYCERules.statusLine(session: session))
-                                .appFont(size: 20, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                                .contentTransition(.numericText())
-
-                            Text(AYCERules.kitchenLine(session: session))
-                                .appFont(size: 13, weight: AYCERules.hasBeatenKitchen(session: session) ? .bold : .semibold)
-                                .foregroundColor(AYCERules.hasBeatenKitchen(session: session) ? .brandPrimary : Color(UIColor.secondaryLabel))
-
-                            VStack(spacing: 7) {
-                                progressRow(
-                                    label: "Menu value",
-                                    value: progress,
-                                    trailing: "\(Int((min(progress, 1) * 100).rounded()))%"
-                                )
-                                progressRow(
-                                    label: "Kitchen spend",
-                                    value: kitchenProgress,
-                                    trailing: AYCERules.money(totals.restaurantFoodCost)
-                                )
-                            }
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel("Break-even progress")
-                            .accessibilityValue("Menu \(Int((min(progress, 1) * 100).rounded())) percent. Kitchen spend \(AYCERules.money(totals.restaurantFoodCost)).")
-
-                            Text("\(AYCERules.money(totals.restaurantValue)) of the \(AYCERules.money(session.buffetPrice)) you paid · \(Int(totals.calories.rounded()).formatted()) cal")
-                                .appFont(size: 12)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .monospacedDigit()
-                        }
-                        .asCard()
-
-                        Button {
-                            showingScanner = true
-                        } label: {
-                            HStack(spacing: 8) {
-                                if isPricingScan {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                    Text("Pricing your plate")
-                                        .appFont(size: 14, weight: .semibold)
-                                } else {
-                                    Image(systemName: "camera.fill")
-                                        .appFont(size: 14, weight: .semibold)
-                                    Text("Scan your plate")
-                                        .appFont(size: 14, weight: .semibold)
-                                }
-                            }
-                            .foregroundColor(.textPrimary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isPricingScan)
-                        .accessibilityLabel("Scan your plate with the camera")
-
-                        if !manager.scannedEntries.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("From your plate")
-                                    .appFont(size: 12, weight: .semibold)
-                                    .foregroundColor(Color(UIColor.secondaryLabel))
-                                ForEach(manager.scannedEntries) { entry in
-                                    HStack(spacing: 8) {
-                                        Text(entry.item.emoji)
-                                            .font(.system(size: 16))
-                                            .accessibilityHidden(true)
-                                        Text(entry.item.name)
-                                            .appFont(size: 13, weight: .semibold)
-                                            .foregroundColor(.textPrimary)
-                                            .lineLimit(1)
-                                        Spacer()
-                                        Text("~\(AYCERules.money(entry.item.restaurantPrice))")
-                                            .appFont(size: 12)
-                                            .foregroundColor(Color(UIColor.secondaryLabel))
-                                            .monospacedDigit()
-                                        Button {
-                                            manager.removeEntry(entry)
-                                        } label: {
-                                            Image(systemName: "minus.circle.fill")
-                                                .appFont(size: 15)
-                                                .foregroundColor(Color(UIColor.tertiaryLabel))
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("Remove \(entry.item.name)")
-                                    }
-                                }
-                            }
-                            .asCard()
-                        }
-
-                        ForEach(AYCECatalog.sections(for: session.cuisine)) { section in
-                            VStack(alignment: .leading, spacing: 8) {
-                                if !section.title.isEmpty {
-                                    Text(section.title)
-                                        .appFont(size: 13, weight: .bold)
-                                        .foregroundColor(Color(UIColor.secondaryLabel))
-                                        .padding(.top, 2)
-                                }
-
-                                LazyVGrid(columns: columns, spacing: 10) {
-                                    ForEach(section.items) { item in
-                                        AYCEItemTile(
-                                            item: item,
-                                            displayPrice: AYCERules.unitPrices(for: item, in: session).restaurant,
-                                            logged: manager.count(for: item),
-                                            onAdd: {
-                                                HapticsService.shared.playImpact(style: .light)
-                                                manager.add(item)
-                                            },
-                                            onRemove: { manager.remove(item) }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Text("Prices are typical mid-range estimates for \(session.city.name).")
-                            .appFont(size: 11)
-                            .foregroundColor(Color(UIColor.tertiaryLabel))
-                            .frame(maxWidth: .infinity, alignment: .center)
-                    }
-                    .padding()
-                    .padding(.bottom, 8)
-                }
-
-                Button {
-                    HapticsService.shared.playImpact(style: .medium)
-                    onEnd()
-                } label: {
-                    Text("End session")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal)
-                .padding(.bottom, 10)
-            }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("\(session.cuisine.emoji) \(session.cuisine.displayName)")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showingScanner) {
-                ImagePicker(
-                    sourceType: UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary,
-                    onImagePicked: { image in
-                        handleScannedImage(image, cuisine: session.cuisine)
-                    }
-                )
-                .ignoresSafeArea()
-            }
-        )
+    private func edit(_ entry: AYCESessionEntry) {
+        editingEntryID = entry.id
+        reviewSource = entry.item.isAIEstimated ? .plateScan : .manual
+        plateDrafts = [AYCEPlateDraft(item: entry.item)]
+        showingPlateReview = true
     }
 
-    private func progressRow(label: String, value: Double, trailing: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label)
-                    .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                Spacer()
-                Text(trailing)
-                    .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(.textPrimary)
-                    .monospacedDigit()
-            }
-
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color(UIColor.secondarySystemFill))
-                    Capsule()
-                        .fill(Color.brandPrimary)
-                        .frame(width: geometry.size.width * CGFloat(min(max(value, 0), 1)))
-                        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: value)
-                }
-            }
-            .frame(height: 7)
+    private func finishReview(_ items: [AYCECatalogItem]) {
+        if let editingEntryID, let item = items.first {
+            manager.replaceEntry(editingEntryID, with: item)
+            ToastManager.shared.showToast(message: "Reviewed item updated.")
+        } else {
+            manager.addReviewed(items)
+            let value = items.reduce(0) { $0 + $1.restaurantPrice }
+            ToastManager.shared.showToast(
+                message: "Added \(items.count) reviewed \(items.count == 1 ? "item" : "items") · est. \(AYCERules.money(value))"
+            )
         }
+        self.editingEntryID = nil
+        plateDrafts = []
+        showingPlateReview = false
     }
 }
 
-private struct AYCEItemTile: View {
+private struct AYCEProgressRow: View {
+    let label: String
+    let value: Double
+    let trailing: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(label)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(trailing)
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.text)
+                    .monospacedDigit()
+            }
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(AppPalette.control)
+                    Capsule()
+                        .fill(AppPalette.brand)
+                        .frame(
+                            width: geometry.size.width * CGFloat(min(max(value, 0), 1))
+                        )
+                        .animation(AppMotion.standard, value: value)
+                }
+            }
+            .frame(height: 8)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label), \(trailing)")
+    }
+}
+
+private struct AYCECatalogItemRow: View {
     let item: AYCECatalogItem
     let displayPrice: Double
     let logged: Int
     let onAdd: () -> Void
     let onRemove: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        Button(action: onAdd) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .top) {
-                    Text(item.emoji)
-                        .font(.system(size: 26))
-                        .frame(width: 40, height: 40)
-                        .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .accessibilityHidden(true)
-
-                    Spacer(minLength: 4)
-
-                    if logged >= 1 {
-                        Text("×\(logged)")
-                            .appFont(size: 13, weight: .bold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.brandPrimary, in: Capsule())
-                            .contentTransition(.numericText())
-                    }
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    identity
+                    countControl
                 }
-
-                Text(item.name)
-                    .appFont(size: 13, weight: .semibold)
-                    .foregroundColor(.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-
-                HStack {
-                    Text("~\(AYCERules.money(displayPrice)) · \(Int(item.calories)) cal")
-                        .appFont(size: 11)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(1)
-
-                    Spacer(minLength: 2)
-
-                    if logged >= 1 {
-                        Button(action: onRemove) {
-                            Image(systemName: "minus.circle.fill")
-                                .appFont(size: 16)
-                                .foregroundColor(Color(UIColor.tertiaryLabel))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Remove one \(item.name)")
-                    }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    identity
+                    Spacer(minLength: AppSpacing.compact)
+                    countControl
                 }
             }
-            .padding(10)
-            .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.name), about \(AYCERules.money(displayPrice)), \(Int(item.calories)) calories")
-        .accessibilityValue(logged >= 1 ? "\(logged) logged" : "")
-        .accessibilityHint("Adds one")
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
+        .accessibilityIdentifier("ayce_catalog_item_\(item.id)")
+    }
+
+    private var identity: some View {
+        HStack(spacing: AppSpacing.row) {
+            Text(item.emoji)
+                .font(.system(size: 22))
+                .frame(width: 40, height: 40)
+                .background(
+                    AppPalette.surface,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control)
+                )
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.name)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Est. \(AYCERules.money(displayPrice)) · \(Int(item.calories.rounded())) cal")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var countControl: some View {
+        HStack(spacing: 2) {
+            Button(action: onRemove) {
+                Image(systemName: "minus")
+            }
+            .buttonStyle(AppIconButtonStyle(.plain))
+            .disabled(logged == 0)
+            .accessibilityLabel("Remove one \(item.name)")
+
+            Text(logged.formatted())
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .monospacedDigit()
+                .frame(minWidth: 28)
+                .accessibilityHidden(true)
+
+            Button(action: onAdd) {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(AppIconButtonStyle(.brand))
+            .accessibilityLabel("Add one \(item.name)")
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(item.name), \(logged) logged")
     }
 }
 
-// MARK: - Summary
+private struct AYCEReviewedEntryRow: View {
+    let entry: AYCESessionEntry
+    let onEdit: () -> Void
+    let onRemove: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    identity
+                    controls
+                }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    identity
+                    Spacer(minLength: AppSpacing.compact)
+                    controls
+                }
+            }
+        }
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
+    }
+
+    private var identity: some View {
+        HStack(spacing: AppSpacing.row) {
+            Text(entry.item.emoji)
+                .font(.system(size: 22))
+                .frame(width: 40, height: 40)
+                .background(
+                    AppPalette.surface,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control)
+                )
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(entry.item.name)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                Text(
+                    "\(entry.item.isAIEstimated ? "Reviewed AI estimate" : "User entered") · "
+                        + "\(AYCERules.money(entry.item.restaurantPrice))"
+                )
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var controls: some View {
+        HStack(spacing: AppSpacing.compact) {
+            Button(action: onEdit) {
+                Image(systemName: "square.and.pencil")
+            }
+            .buttonStyle(AppIconButtonStyle(.brand))
+            .accessibilityLabel("Edit \(entry.item.name)")
+
+            Button(action: onRemove) {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(AppIconButtonStyle(.neutral))
+            .accessibilityLabel("Remove \(entry.item.name)")
+        }
+    }
+}
+
+private struct AYCEPlateReviewView: View {
+    @Binding var drafts: [AYCEPlateDraft]
+    let cuisine: AYCECuisine
+    let source: AYCEPlateReviewSource
+    let onCancel: () -> Void
+    let onAdd: ([AYCECatalogItem]) -> Void
+
+    private var reviewedItems: [AYCECatalogItem] {
+        drafts.compactMap {
+            $0.reviewedItem(cuisine: cuisine, isAIEstimated: source.isAIEstimated)
+        }
+    }
+
+    private var canAdd: Bool {
+        !drafts.isEmpty && reviewedItems.count == drafts.count
+    }
+
+    var body: some View {
+        AppSheetScaffold(
+            title: source.title,
+            subtitle: source.subtitle,
+            dismiss: onCancel
+        ) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                    reviewNotice
+
+                    AppMetricStrip(items: [
+                        AppMetricItem(
+                            label: "Detected",
+                            value: drafts.count.formatted(),
+                            accent: AppPalette.brand
+                        ),
+                        AppMetricItem(
+                            label: "Ready",
+                            value: reviewedItems.count.formatted(),
+                            accent: .blue
+                        ),
+                        AppMetricItem(
+                            label: "Est. Value",
+                            value: AYCERules.money(
+                                reviewedItems.reduce(0) { $0 + $1.restaurantPrice }
+                            ),
+                            accent: .orange
+                        )
+                    ])
+                    .appSurface(.emphasized)
+                    .accessibilityIdentifier("ayce_review_summary")
+
+                    if !canAdd {
+                        AppListRow(
+                            icon: "exclamationmark.triangle.fill",
+                            iconColor: .orange,
+                            title: "Complete Every Item",
+                            subtitle: "Add a name, non-negative nutrition, and a restaurant price above zero."
+                        )
+                        .appSurface(.quiet, padding: 0)
+                        .accessibilityIdentifier("ayce_review_validation")
+                    }
+
+                    ForEach($drafts) { $draft in
+                        AYCEPlateDraftEditor(
+                            draft: $draft,
+                            canDelete: drafts.count > 1,
+                            onDelete: { drafts.removeAll { $0.id == draft.id } }
+                        )
+                    }
+                }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.section)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(AppPalette.canvas)
+            .safeAreaInset(edge: .bottom) {
+                AYCEBottomActionBar {
+                    Button {
+                        onAdd(reviewedItems)
+                    } label: {
+                        Label(
+                            "Add \(reviewedItems.count.formatted()) "
+                                + "\(reviewedItems.count == 1 ? "Item" : "Items")",
+                            systemImage: "checkmark.circle.fill"
+                        )
+                    }
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .disabled(!canAdd)
+                    .accessibilityIdentifier("ayce_review_add_button")
+                }
+            }
+        }
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .accessibilityIdentifier("ayce_review_screen")
+    }
+
+    private var reviewNotice: some View {
+        AppListRow(
+            icon: source.isAIEstimated ? "wand.and.stars" : "square.and.pencil",
+            iconColor: .orange,
+            title: source.isAIEstimated ? "AI Estimate" : "Custom Entry",
+            subtitle: source.isAIEstimated
+                ? "Check serving, nutrition, and both value estimates. Photos can miss oils, sauces, or overlapping foods."
+                : "These values will be treated as user-entered. Restaurant and home prices still appear as estimates."
+        )
+        .appSurface(.quiet, padding: 0)
+    }
+}
+
+private struct AYCEPlateDraftEditor: View {
+    @Binding var draft: AYCEPlateDraft
+    let canDelete: Bool
+    let onDelete: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var columns: [GridItem] {
+        dynamicTypeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.flexible()), GridItem(.flexible())]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            HStack(alignment: .center) {
+                AppSectionHeader(title: draft.name.isEmpty ? "New Item" : draft.name)
+                if canDelete {
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(AppIconButtonStyle(.plain))
+                    .accessibilityLabel("Remove item")
+                }
+            }
+
+            AYCEReviewTextField(title: "Food Name", text: $draft.name)
+            AYCEReviewTextField(title: "Serving Unit", text: $draft.unit)
+
+            AppSectionHeader(
+                title: "Estimated Nutrition",
+                subtitle: "Values are for one serving"
+            )
+            LazyVGrid(columns: columns, spacing: AppSpacing.row) {
+                AYCEReviewNumberField(title: "Calories", text: $draft.calories, unit: "cal")
+                AYCEReviewNumberField(title: "Protein", text: $draft.protein, unit: "g")
+                AYCEReviewNumberField(title: "Carbs", text: $draft.carbs, unit: "g")
+                AYCEReviewNumberField(title: "Fat", text: $draft.fats, unit: "g")
+            }
+
+            AppSectionHeader(
+                title: "Estimated Value",
+                subtitle: "Restaurant price and approximate grocery cost per serving"
+            )
+            LazyVGrid(columns: columns, spacing: AppSpacing.row) {
+                AYCEReviewNumberField(
+                    title: "Restaurant Price",
+                    text: $draft.restaurantPrice,
+                    prefix: "$"
+                )
+                AYCEReviewNumberField(
+                    title: "Home Cost",
+                    text: $draft.homeCost,
+                    prefix: "$"
+                )
+            }
+        }
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("ayce_review_item_\(draft.id)")
+    }
+}
+
+private struct AYCEReviewTextField: View {
+    let title: String
+    @Binding var text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+            TextField(title, text: $text)
+                .appTextRole(.body)
+                .textInputAutocapitalization(.words)
+                .padding(.horizontal, AppSpacing.row)
+                .frame(minHeight: 48)
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control)
+                )
+        }
+    }
+}
+
+private struct AYCEReviewNumberField: View {
+    let title: String
+    @Binding var text: String
+    var prefix: String?
+    var unit: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 5) {
+                if let prefix {
+                    Text(prefix)
+                        .appTextRole(.body)
+                        .foregroundStyle(.secondary)
+                }
+                TextField("0", text: $text)
+                    .keyboardType(.decimalPad)
+                    .appTextRole(.body)
+                if let unit {
+                    Text(unit)
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, AppSpacing.row)
+            .frame(minHeight: 48)
+            .background(
+                AppPalette.control,
+                in: RoundedRectangle(cornerRadius: AppRadius.control)
+            )
+        }
+    }
+}
 
 private struct AYCESummaryView: View {
     let session: AYCESession
+    let showsCelebration: Bool
     let onDone: (_ logged: Bool) -> Void
 
-    @EnvironmentObject var dailyLogService: DailyLogService
+    @EnvironmentObject private var dailyLogService: DailyLogService
     @State private var hasAppeared = false
     @State private var isLogging = false
     @State private var showingCelebration = false
@@ -709,103 +1325,170 @@ private struct AYCESummaryView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(won ? "🏆" : "🍽️")
-                        .font(.system(size: 44))
-                        .accessibilityHidden(true)
-                    Text(AYCERules.verdictHeadline(session: session))
-                        .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    if let kitchenWin = AYCERules.kitchenWinLine(session: session) {
-                        Text(kitchenWin)
-                            .appFont(size: 13, weight: .bold)
-                            .foregroundColor(.brandPrimary)
-                    }
-                    Text(AYCERules.homeCostLine(session: session))
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                    Text(AYCERules.ingredientCostLine(session: session))
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-                .scaleEffect(hasAppeared ? 1 : 0.92)
-                .opacity(hasAppeared ? 1 : 0)
-
-                VStack(spacing: 0) {
-                    summaryRow("You paid", AYCERules.money(session.buffetPrice))
-                    Divider()
-                    summaryRow("À-la-carte value", AYCERules.money(totals.restaurantValue))
-                    Divider()
-                    summaryRow("Items", "\(totals.itemCount)")
-                    Divider()
-                    summaryRow("Calories", "\(Int(totals.calories.rounded()).formatted()) cal")
-                    Divider()
-                    summaryRow("Protein", "\(Int(totals.protein.rounded())) g")
-                }
-                .asCard()
-
-                Button {
-                    logToDiary()
-                } label: {
-                    Text(isLogging ? "Adding…" : "Add to today's diary")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .disabled(isLogging || session.entries.isEmpty)
+            LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                verdict
+                totalsSummary
+                costComparison
+                sessionItems
 
                 Button {
                     onDone(false)
                 } label: {
-                    Text("Discard session")
-                        .appFont(size: 14, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(maxWidth: .infinity)
+                    Label("Discard Session", systemImage: "trash")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppActionButtonStyle(.ghost))
 
-                Text("Values are mid-range estimates for \(session.city.name).")
-                    .appFont(size: 11)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                Text("All values are mid-range estimates for \(session.city.name).")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
-            .padding()
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.section)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Session over")
-        .navigationBarTitleDisplayMode(.inline)
+        .background(AppPalette.canvas)
+        .safeAreaInset(edge: .bottom) {
+            AYCEBottomActionBar {
+                Button(action: logToDiary) {
+                    Label(
+                        isLogging ? "Adding to Diary" : "Add to Today's Diary",
+                        systemImage: "checkmark.circle.fill"
+                    )
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(isLogging || session.entries.isEmpty)
+                .accessibilityIdentifier("ayce_log_diary_button")
+            }
+        }
         .onAppear {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            withAnimation(AppMotion.standard) {
                 hasAppeared = true
             }
-            if won {
+            if won, showsCelebration {
                 HapticManager.instance.notification(.success)
-                if AYCERules.kitchenWinLine(session: session) != nil || won {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        showingCelebration = true
-                    }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    showingCelebration = true
                 }
             }
         }
         .celebrationOverlay(type: .ayceWin, isPresented: $showingCelebration)
+        .accessibilityIdentifier("ayce_summary_screen")
     }
 
-    private func summaryRow(_ label: String, _ value: String) -> some View {
-        HStack {
-            Text(label)
-                .appFont(size: 14)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-            Spacer()
+    private var verdict: some View {
+        HStack(alignment: .top, spacing: AppSpacing.group) {
+            Image(systemName: won ? "trophy.fill" : "fork.knife")
+                .appFont(size: 26, weight: .semibold)
+                .foregroundStyle(won ? Color.orange : AppPalette.brand)
+                .frame(width: 56, height: 56)
+                .background(
+                    (won ? Color.orange : AppPalette.brand).opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: AppRadius.surface)
+                )
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(AYCERules.verdictHeadline(session: session))
+                    .appTextRole(.screenTitle)
+                    .foregroundStyle(AppPalette.text)
+                if let kitchenWin = AYCERules.kitchenWinLine(session: session) {
+                    Text(kitchenWin)
+                        .appTextRole(.secondary)
+                        .foregroundStyle(AppPalette.brand)
+                }
+            }
+        }
+        .scaleEffect(hasAppeared ? 1 : 0.96)
+        .opacity(hasAppeared ? 1 : 0)
+    }
+
+    private var totalsSummary: some View {
+        AppMetricStrip(items: [
+            AppMetricItem(
+                label: "Items",
+                value: totals.itemCount.formatted(),
+                accent: AppPalette.brand
+            ),
+            AppMetricItem(
+                label: "Calories",
+                value: "\(Int(totals.calories.rounded()).formatted()) cal",
+                accent: .orange
+            ),
+            AppMetricItem(
+                label: "Protein",
+                value: "\(Int(totals.protein.rounded()).formatted()) g",
+                accent: .blue
+            )
+        ])
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("ayce_summary_metrics")
+    }
+
+    private var costComparison: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Value Comparison",
+                subtitle: "Three different ways to estimate the same meal"
+            )
+            VStack(spacing: 0) {
+                summaryRow("You Paid", AYCERules.money(session.buffetPrice), icon: "creditcard.fill")
+                Divider().padding(.leading, 68)
+                summaryRow(
+                    "Menu Value",
+                    AYCERules.money(totals.restaurantValue),
+                    icon: "menucard.fill"
+                )
+                Divider().padding(.leading, 68)
+                summaryRow("Home Cost", AYCERules.money(totals.homeCost), icon: "house.fill")
+                Divider().padding(.leading, 68)
+                summaryRow(
+                    "Kitchen Spend",
+                    AYCERules.money(totals.restaurantFoodCost),
+                    icon: "takeoutbag.and.cup.and.straw.fill"
+                )
+            }
+            .appSurface(.quiet, padding: 0)
+        }
+    }
+
+    private var sessionItems: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Diary Items",
+                subtitle: "These entries will be added together as one meal"
+            )
+            VStack(spacing: 0) {
+                ForEach(Array(session.entries.enumerated()), id: \.element.id) { index, entry in
+                    AppListRow(
+                        icon: entry.item.isAIEstimated ? "wand.and.stars" : "fork.knife",
+                        iconColor: entry.item.isAIEstimated ? .orange : AppPalette.brand,
+                        title: entry.count > 1
+                            ? "\(entry.item.name) ×\(entry.count)"
+                            : entry.item.name,
+                        subtitle: "\(Int(entry.calories.rounded()).formatted()) cal"
+                    ) {
+                        if entry.item.isAIEstimated {
+                            Text("Estimate")
+                                .appTextRole(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    if index < session.entries.count - 1 {
+                        Divider().padding(.leading, 68)
+                    }
+                }
+            }
+            .appSurface(.quiet, padding: 0)
+        }
+    }
+
+    private func summaryRow(_ title: String, _ value: String, icon: String) -> some View {
+        AppListRow(icon: icon, iconColor: AppPalette.brand, title: title) {
             Text(value)
-                .appFont(size: 14, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
                 .monospacedDigit()
         }
-        .padding(.vertical, 10)
     }
 
     private func logToDiary() {
@@ -814,8 +1497,6 @@ private struct AYCESummaryView: View {
             return
         }
         isLogging = true
-        // One batched write. Looping addFoodToLog races itself (each call fetches the
-        // same original log, last save wins) and exactly one buffet item survived.
         dailyLogService.addMealToLog(
             for: userID,
             date: session.startedAt,
@@ -826,3 +1507,63 @@ private struct AYCESummaryView: View {
         onDone(true)
     }
 }
+
+private struct AYCEBottomActionBar<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider()
+            content
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.row)
+                .padding(.bottom, AppSpacing.compact)
+                .dynamicTypeSize(.xSmall ... .accessibility1)
+        }
+        .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+    }
+}
+
+#if DEBUG
+@MainActor
+struct AYCEPlateReviewDemoView: View {
+    @State private var drafts = [
+        AYCEPlateDraft(
+            id: "ayce-review-dragon-roll",
+            name: "Dragon Roll",
+            unit: "roll",
+            calories: "480",
+            protein: "18",
+            carbs: "62",
+            fats: "18",
+            restaurantPrice: "13.50",
+            homeCost: "4.25"
+        ),
+        AYCEPlateDraft(
+            id: "ayce-review-miso-soup",
+            name: "Miso Soup",
+            unit: "bowl",
+            calories: "60",
+            protein: "4",
+            carbs: "7",
+            fats: "2",
+            restaurantPrice: "4.50",
+            homeCost: "0.85"
+        )
+    ]
+
+    var body: some View {
+        AYCEPlateReviewView(
+            drafts: $drafts,
+            cuisine: .sushi,
+            source: .plateScan,
+            onCancel: {},
+            onAdd: { _ in }
+        )
+    }
+}
+#endif

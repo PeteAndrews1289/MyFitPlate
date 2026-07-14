@@ -594,6 +594,45 @@ enum ScreenshotDemoData {
         ]
     }
 
+    static var ayceLiveSession: AYCESession {
+        let nigiri = AYCECatalog.item(id: "sushi_salmon_nigiri") ?? AYCECatalog.all[0]
+        let roll = AYCECatalog.item(id: "sushi_california_roll") ?? AYCECatalog.all[0]
+        let scanned = AYCEPricingRules.reviewedCatalogItem(
+            name: "Dragon Roll",
+            unit: "roll",
+            cuisine: .sushi,
+            calories: 480,
+            protein: 18,
+            carbs: 62,
+            fats: 18,
+            restaurantPrice: 13.50,
+            homeCost: 4.25
+        ) ?? nigiri
+
+        return AYCESession(
+            id: "screenshot-ayce-live",
+            cuisine: .sushi,
+            buffetPrice: 34.99,
+            startedAt: Date(timeIntervalSince1970: 1_780_000_000),
+            entries: [
+                AYCESessionEntry(id: "ayce-live-nigiri", item: nigiri, count: 4),
+                AYCESessionEntry(id: "ayce-live-roll", item: roll, count: 1),
+                AYCESessionEntry(id: "ayce-live-scan", item: scanned, count: 1)
+            ],
+            citySlug: "nyc"
+        )
+    }
+
+    static var ayceSummarySession: AYCESession {
+        var session = ayceLiveSession
+        if let soup = AYCECatalog.item(id: "sushi_miso_soup") {
+            session.entries.append(
+                AYCESessionEntry(id: "ayce-summary-soup", item: soup, count: 2)
+            )
+        }
+        return session
+    }
+
     static var pantryRecipeDrafts: [Recipe] {
         recipeDemoRecipes.prefix(2).map { recipe in
             var draft = recipe

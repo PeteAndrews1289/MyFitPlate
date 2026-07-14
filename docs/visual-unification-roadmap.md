@@ -348,14 +348,37 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   app/UI result passed 10/10; final standard and delayed direct dark captures were reviewed; and
   the complete simulator target compiled with the embedded Watch app, widgets, and Live Activity.
 
+### Batch 19 - AYCE and Restaurant Value Radar (complete)
+
+- Rebuilt the complete Beat the Buffet family around the shared operational hierarchy: responsive
+  cuisine and session setup, a live value summary with continuous menu rows, editable reviewed
+  items, and a final diary summary with literal value comparisons.
+- Plate scans now open review instead of adding food immediately. Every detected item can be edited
+  for identity, serving, nutrition, restaurant price, and home cost; off-catalog manual items use
+  the same editor; reviewed entries remain editable and removable during the session. AI and manual
+  sources stay distinct, and locally entered prices are never multiplied by the selected city.
+- Rebuilt Value Radar around exact printed scan prices, neutral protein-value tiers, a labeled
+  fictional demo, and editable AI review before logging. Regional pricing applies only to demo
+  data. A latest-request contract prevents an older scan or delayed demo from replacing newer
+  results, and camera-unavailable devices fall back to photo selection.
+- Hardened shared and feature math against zero, negative, NaN, and infinite values while retaining
+  old saved-session compatibility. Accessibility metric strips now stack labels and values rather
+  than breaking digits across columns; AYCE's pinned actions remain compact at the largest text
+  sizes while preserving their VoiceOver labels.
+- Focused Core coverage passed 52/52 and focused app coverage passed 13/13. The five-screen standard
+  AYCE/Value Radar journey and five-screen dark accessibility-XXXL journey passed with reviewed
+  captures; a dedicated dark accessibility-XXXL celebration journey and the visual-system gallery
+  regression passed; strict lint and the complete simulator build also passed.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
 review family now join that system, along with wellness, weight, fasting, and cycle tracking. The
 first-run and account-access family now joins them, as do the live progress, achievement, and
-weekly-challenge surfaces. Smart Pantry, pantry recipe drafts, and receipt review now join them.
-The active migration queue is the remaining specialty nutrition tools; unfinished public social
-surfaces remain explicitly gated rather than being polished into accidental release scope.
+weekly-challenge surfaces. Smart Pantry, pantry recipe drafts, receipt review, AYCE, and Restaurant
+Value Radar now join them. The active migration queue is the remaining reachable planning,
+cooking, calculator, and long-tail report surfaces; unfinished public social surfaces remain
+explicitly gated rather than being polished into accidental release scope.
 
 ## Product Direction
 
@@ -588,7 +611,8 @@ start. Editorial composition must not leak into repeated workflows.
 - Dormant group/post social prototype (not release eligible; keep inaccessible until its safety
   and privacy product contracts exist)
 - Smart Pantry, pantry recipe drafts, and receipt review (Batch 18 complete)
-- Remaining specialty nutrition tools, beginning with AYCE and Value Radar
+- AYCE and Restaurant Value Radar (Batch 19 complete)
+- Remaining reachable planning, cooking, calculator, and long-tail report surfaces
 
 Migrate by feature family so each batch can be reviewed and reverted independently.
 

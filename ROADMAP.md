@@ -556,9 +556,17 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   IDs. Receipt parsing is review-first, keeps every detected field editable, filters blank and
   non-finite/non-positive rows before saving, and never exposes raw backend errors. Deterministic
   standard and dark accessibility-XXXL journeys are captured across all three surfaces.
+- [x] Migrate AYCE and Restaurant Value Radar without changing the buffet scoreboard or turning
+  estimates into facts. AYCE now has a responsive start, live, editable scan/custom-item review,
+  and diary summary flow; scanned food never joins a session before confirmation, reviewed items
+  remain editable/removable, and local prices are not region-adjusted again. Value Radar keeps
+  printed scan prices exact, limits regional adjustments to the labeled fictional demo, uses
+  neutral value tiers, and opens editable AI review before any diary write. Finite-input guards,
+  stale-request ownership, old-draft compatibility, deterministic fixtures, and standard plus dark
+  accessibility-XXXL journeys are covered by focused tests.
 - [ ] Migrate the remaining specialty nutrition tools without turning the dormant social prototype
-  into 2.3 release scope. The next family is AYCE/Value Radar, followed by the remaining planning,
-  cooking, calculator, and long-tail report surfaces that are still reachable in the live app.
+  into 2.3 release scope. Continue with reachable planning, cooking, calculator, and long-tail
+  report surfaces.
 - [ ] Retire legacy Home after rollout proof, remove the remaining legacy glass aliases, enforce
   the new rules in source checks, and complete the full 2.3 regression/release pass.
 
@@ -684,7 +692,10 @@ Goal: add memorable features only after the core competitive loop is strong.
 - [x] **Training fuel planner**: confirmed pre/post carb and protein allocations now stay inside
   the user's live target, distinguish planned timing from diary intake, reconcile explicit
   workout outcomes, and become neutral when the budget is exhausted or over target.
-- [ ] **Beat the buffet 2.0**: manual off-catalog entries, scanned item review, better city pricing confidence, and a clear "estimate" trust label on every price.
+- [x] **Beat the buffet 2.0**: manual off-catalog entries and plate scans now share an editable
+  review before joining the session; reviewed entries remain editable and removable. Regional
+  catalog values use an explicit mid-range city selector, locally reviewed prices are never scaled
+  again, and every catalog, AI, or user-entered price is labeled as an estimate rather than fact.
 
 ### Platform Expansion & Community
 - [ ] **Social AYCE & Step Challenges**: Friend scoreboards, shared buffet challenges, and weekly running/step competitions.
