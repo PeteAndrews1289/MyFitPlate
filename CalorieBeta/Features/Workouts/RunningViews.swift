@@ -69,30 +69,19 @@ struct RunHistoryView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
                 Button {
                     showingRunStartSheet = true
                 } label: {
                     Label("Start run", systemImage: "figure.run")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .accessibilityIdentifier("run_history_start")
 
                 if !viewModel.runs.isEmpty {
                     weekHero
                     RunRecordsCard(records: viewModel.records, metric: useMetric)
-                    LazyVStack(spacing: 10) {
-                        ForEach(viewModel.runs) { run in
-                            NavigationLink(destination: RunDetailView(run: run)) {
-                                RunRow(run: run, metric: useMetric)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+                    recentRuns
                 } else if viewModel.isLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity)
@@ -101,9 +90,11 @@ struct RunHistoryView: View {
                     emptyState
                 }
             }
-            .padding()
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.group)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .accessibilityIdentifier("run_history_screen")
         .navigationTitle("Running")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -159,36 +150,64 @@ struct RunHistoryView: View {
 
     // DESIGN.md rule 1: the question is "how is my running week going?"
     private var weekHero: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("This week")
-                .appFont(size: 12, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(RunFormat.distanceText(meters: viewModel.thisWeekMeters, metric: useMetric))
-                    .appFont(size: 28, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .contentTransition(.numericText())
-                Text(viewModel.thisWeekCount == 1 ? "1 run" : "\(viewModel.thisWeekCount) runs")
-                    .appFont(size: 14, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "This week")
+            AppMetricStrip(items: [
+                AppMetricItem(
+                    id: "weekly-distance",
+                    label: "Distance",
+                    value: RunFormat.distanceText(meters: viewModel.thisWeekMeters, metric: useMetric),
+                    accent: AppPalette.brand
+                ),
+                AppMetricItem(
+                    id: "weekly-runs",
+                    label: "Runs",
+                    value: viewModel.thisWeekCount.formatted(),
+                    accent: .blue
+                )
+            ])
+        }
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("run_history_week_summary")
+    }
+
+    private var recentRuns: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            AppSectionHeader(title: "Recent runs")
+                .padding(AppSpacing.group)
+
+            Divider()
+
+            ForEach(Array(viewModel.runs.enumerated()), id: \.element.id) { index, run in
+                NavigationLink(destination: RunDetailView(run: run)) {
+                    RunRow(run: run, metric: useMetric)
+                }
+                .buttonStyle(.plain)
+
+                if index < viewModel.runs.count - 1 {
+                    Divider()
+                        .padding(.leading, 68)
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .asCard()
+        .appSurface(.quiet, padding: 0)
+        .accessibilityIdentifier("run_history_list")
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Text("🏃")
-                .font(.system(size: 42))
+        VStack(spacing: AppSpacing.compact) {
+            Image(systemName: "figure.run")
+                .appFont(size: 34, weight: .semibold)
+                .foregroundStyle(AppPalette.brand)
                 .accessibilityHidden(true)
             Text("No runs yet")
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
             Text("Record one right here with Start run, or finish a run on any watch that syncs to Apple Health — Apple Watch, Garmin, Polar, Coros — and it shows up automatically.")
-                .appFont(size: 13)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
@@ -917,6 +936,7 @@ private struct RunWorkoutStepDraft: Identifiable, Equatable {
 private struct RunRow: View {
     let run: Run
     let metric: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var subtitle: String {
         var parts = [RunFormat.distanceText(meters: run.distanceMeters, metric: metric)]
@@ -928,34 +948,57 @@ private struct RunRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(run.isIndoor ? "🏃‍♂️" : "🏃")
-                .font(.system(size: 22))
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    runIdentity
+                    sourceLabel
+                        .padding(.leading, 52)
+                }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    runIdentity
+                    Spacer(minLength: AppSpacing.compact)
+                    sourceLabel
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private var runIdentity: some View {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
+            Image(systemName: run.isIndoor ? "figure.run.treadmill" : "figure.run")
+                .appFont(size: 18, weight: .semibold)
+                .foregroundStyle(AppPalette.brand)
                 .frame(width: 40, height: 40)
-                .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(run.startDate.formatted(date: .abbreviated, time: .shortened))
-                    .appFont(size: 14, weight: .semibold)
-                    .foregroundColor(.textPrimary)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)
-                    .appFont(size: 12)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
                     .monospacedDigit()
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            Spacer(minLength: 8)
-
-            Text(run.source.displayName)
-                .appFont(size: 10, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(UIColor.secondarySystemFill), in: Capsule())
         }
-        .asCard()
-        .accessibilityElement(children: .combine)
+    }
+
+    private var sourceLabel: some View {
+        Label(run.source.displayName, systemImage: "heart.text.clipboard")
+            .appTextRole(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -1033,25 +1076,24 @@ struct RunDetailView: View {
     @StateObject private var viewModel = RunDetailViewModel()
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @EnvironmentObject private var dailyLogService: DailyLogService
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var mapDisplayMode: MapDisplayMode = .standard
     @State private var showingStoryPoster = false
     @State private var showingRecoveryFoodSearch = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
                 if !viewModel.routeCoordinates.isEmpty {
                     routeMap
                 } else if run.isIndoor {
-                    Text("Indoor run")
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color(UIColor.secondarySystemFill), in: Capsule())
+                    Label("Indoor run", systemImage: "figure.run.treadmill")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .appSurface(.quiet, padding: AppSpacing.compact, radius: AppRadius.control)
                 }
 
-                statsGrid
+                statsSummary
 
                 if let zones = viewModel.heartRateZoneSeconds {
                     heartRateZonesCard(zones)
@@ -1072,14 +1114,18 @@ struct RunDetailView: View {
                 }
 
                 shoeTagCard
-                
-                Text("Recorded with \(run.source.displayName)")
-                    .appFont(size: 12)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+
+                Label("Recorded with \(run.source.displayName)", systemImage: "heart.text.clipboard")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("run_detail_source")
             }
-            .padding()
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.group)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .accessibilityIdentifier("run_detail_screen")
         .navigationTitle(run.startDate.formatted(date: .abbreviated, time: .omitted))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -1116,95 +1162,149 @@ struct RunDetailView: View {
     private var shoeTagCard: some View {
         let store = RunningShoeStore()
         let currentShoe = store.shoeID(forRunID: run.id).flatMap { store.shoe(for: $0) } ?? store.defaultShoe()
-        return HStack {
+        return Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    shoeIdentity(currentShoe)
+                    shoeSelectionMenu(store: store, currentShoe: currentShoe)
+                        .padding(.leading, 50)
+                }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    shoeIdentity(currentShoe)
+                    Spacer(minLength: AppSpacing.compact)
+                    shoeSelectionMenu(store: store, currentShoe: currentShoe)
+                }
+            }
+        }
+        .appSurface(.quiet)
+        .accessibilityIdentifier("run_detail_gear")
+    }
+
+    private func shoeIdentity(_ currentShoe: RunningShoe?) -> some View {
+        HStack(spacing: AppSpacing.row) {
             Image(systemName: "shoeprints.fill")
-                .foregroundColor(.accentProtein)
-                .font(.system(size: 20))
-                .frame(width: 38, height: 38)
-                .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .appFont(size: 18, weight: .semibold)
+                .foregroundStyle(Color.accentProtein)
+                .frame(width: 40, height: 40)
+                .background(Color.accentProtein.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Gear Tagged")
-                    .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                Text(currentShoe.map { "\($0.brand) · \($0.name)" } ?? "Select Shoe")
-                    .appFont(size: 15, weight: .bold)
-                    .foregroundColor(.textPrimary)
+                Text("Gear tagged")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                Text(currentShoe.map { "\($0.brand) · \($0.name)" } ?? "Select shoe")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
 
-            Spacer()
-
-            Menu {
-                ForEach(store.shoes.filter { !$0.isRetired }) { shoe in
-                    Button {
-                        HapticManager.instance.feedback(.light)
-                        store.tagRun(runID: run.id, withShoeID: shoe.id)
-                    } label: {
-                        HStack {
-                            Text("\(shoe.brand) · \(shoe.name)")
-                            if currentShoe?.id == shoe.id {
-                                Image(systemName: "checkmark")
-                            }
+    private func shoeSelectionMenu(store: RunningShoeStore, currentShoe: RunningShoe?) -> some View {
+        Menu {
+            ForEach(store.shoes.filter { !$0.isRetired }) { shoe in
+                Button {
+                    HapticManager.instance.feedback(.light)
+                    store.tagRun(runID: run.id, withShoeID: shoe.id)
+                } label: {
+                    HStack {
+                        Text("\(shoe.brand) · \(shoe.name)")
+                        if currentShoe?.id == shoe.id {
+                            Image(systemName: "checkmark")
                         }
                     }
                 }
-            } label: {
-                Text("Change")
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.brandPrimary.opacity(0.12), in: Capsule())
             }
+        } label: {
+            Label("Change", systemImage: "chevron.up.chevron.down")
+                .appTextRole(.caption)
+                .foregroundStyle(AppPalette.brand)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .asCard()
+        .accessibilityLabel("Change running shoe")
     }
 
     private func ghostPaceCard(_ comparison: RunStats.GhostPaceComparison) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: comparison.isPR ? "trophy.fill" : "ghost.fill")
-                .foregroundColor(comparison.isPR ? .yellow : .brandPrimary)
-                .font(.system(size: 22))
-                .frame(width: 42, height: 42)
-                .background(
-                    (comparison.isPR ? Color.yellow : Color.brandPrimary).opacity(0.15),
-                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                )
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    HStack(alignment: .top, spacing: AppSpacing.row) {
+                        ghostPaceIcon(comparison)
+                        ghostPaceCopy(comparison)
+                    }
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(comparison.isPR ? "🏆 New Route PR!" : "Ghost Pace Loop")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    if !comparison.isPR {
-                        Text("vs \(comparison.matchingRunsCount) similar runs")
-                            .appFont(size: 11, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+                    if let prPace = RunFormat.paceText(secondsPerKm: comparison.prPaceSecondsPerKm, metric: useMetric) {
+                        Divider()
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("Loop best")
+                                .appTextRole(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer(minLength: AppSpacing.group)
+                            Text(prPace)
+                                .appTextRole(.control)
+                                .foregroundStyle(AppPalette.brand)
+                                .monospacedDigit()
+                        }
                     }
                 }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    ghostPaceIcon(comparison)
+                    ghostPaceCopy(comparison)
+                    Spacer(minLength: AppSpacing.compact)
 
-                let diffText = RunFormat.paceDiffText(secondsPerKmDiff: comparison.paceDifferenceVsAverage, metric: useMetric)
-                Text("\(diffText) vs average on this loop")
-                    .appFont(size: 13, weight: .semibold)
-                    .foregroundColor(comparison.paceDifferenceVsAverage < 0 ? .green : .textPrimary)
-            }
-
-            Spacer()
-
-            if let prPace = RunFormat.paceText(secondsPerKm: comparison.prPaceSecondsPerKm, metric: useMetric) {
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Loop Best")
-                        .appFont(size: 10, weight: .bold)
-                        .foregroundColor(Color(UIColor.tertiaryLabel))
-                    Text(prPace)
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(.brandPrimary)
-                        .monospacedDigit()
+                    if let prPace = RunFormat.paceText(secondsPerKm: comparison.prPaceSecondsPerKm, metric: useMetric) {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Loop best")
+                                .appTextRole(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(prPace)
+                                .appTextRole(.control)
+                                .foregroundStyle(AppPalette.brand)
+                                .monospacedDigit()
+                        }
+                    }
                 }
             }
         }
-        .asCard()
+        .appSurface(.quiet)
+        .accessibilityIdentifier("run_detail_ghost_pace")
+    }
+
+    private func ghostPaceIcon(_ comparison: RunStats.GhostPaceComparison) -> some View {
+        Image(systemName: comparison.isPR ? "trophy.fill" : "ghost.fill")
+            .appFont(size: 20, weight: .semibold)
+            .foregroundStyle(comparison.isPR ? Color.yellow : AppPalette.brand)
+            .frame(width: 42, height: 42)
+            .background(
+                (comparison.isPR ? Color.yellow : AppPalette.brand).opacity(0.12),
+                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+            )
+            .accessibilityHidden(true)
+    }
+
+    private func ghostPaceCopy(_ comparison: RunStats.GhostPaceComparison) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(comparison.isPR ? "New route PR" : "Ghost pace loop")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !comparison.isPR {
+                Text("Compared with \(comparison.matchingRunsCount) similar runs")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            let diffText = RunFormat.paceDiffText(secondsPerKmDiff: comparison.paceDifferenceVsAverage, metric: useMetric)
+            Text("\(diffText) vs average on this loop")
+                .appTextRole(.secondary)
+                .foregroundStyle(comparison.paceDifferenceVsAverage < 0 ? Color.green : AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var routeMap: some View {
@@ -1226,8 +1326,9 @@ struct RunDetailView: View {
                 }
             }
             .frame(height: 220)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
             .accessibilityLabel("Route map of this run")
+            .accessibilityIdentifier("run_detail_route")
         }
     }
 
@@ -1241,23 +1342,59 @@ struct RunDetailView: View {
         return "Z\(zone.number) · \(zone.name)"
     }
 
-    private var statsGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            RunStatTile(label: "Distance", value: RunFormat.distanceText(meters: run.distanceMeters, metric: useMetric))
-            RunStatTile(label: "Time", value: RunFormat.durationText(seconds: run.movingSeconds))
-            if let pace = RunFormat.paceText(secondsPerKm: run.averagePaceSecondsPerKm, metric: useMetric) {
-                RunStatTile(label: "Avg pace", value: pace)
-            }
-            if let bpm = viewModel.averageHeartRate {
-                RunStatTile(label: "Avg heart rate", value: "\(Int(bpm.rounded())) bpm")
-                if let zone = hrZoneText {
-                    RunStatTile(label: "HR zone (avg)", value: zone)
-                }
-            }
-            if let calories = run.activeCalories {
-                RunStatTile(label: "Calories", value: "\(Int(calories.rounded()).formatted()) cal")
+    private var statsSummary: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Run summary")
+            AppMetricStrip(items: statItems)
+        }
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("run_detail_metrics")
+    }
+
+    private var statItems: [AppMetricItem] {
+        var items = [
+            AppMetricItem(
+                id: "distance",
+                label: "Distance",
+                value: RunFormat.distanceText(meters: run.distanceMeters, metric: useMetric),
+                accent: AppPalette.brand
+            ),
+            AppMetricItem(
+                id: "time",
+                label: "Time",
+                value: RunFormat.durationText(seconds: run.movingSeconds),
+                accent: .blue
+            )
+        ]
+
+        if let pace = RunFormat.paceText(secondsPerKm: run.averagePaceSecondsPerKm, metric: useMetric) {
+            items.append(AppMetricItem(id: "pace", label: "Avg pace", value: pace, accent: .cyan))
+        }
+        if let bpm = viewModel.averageHeartRate {
+            items.append(
+                AppMetricItem(
+                    id: "heart-rate",
+                    label: "Avg heart rate",
+                    value: "\(Int(bpm.rounded())) bpm",
+                    accent: .red
+                )
+            )
+            if let zone = hrZoneText {
+                items.append(AppMetricItem(id: "heart-rate-zone", label: "Avg HR zone", value: zone, accent: .orange))
             }
         }
+        if let calories = run.activeCalories {
+            items.append(
+                AppMetricItem(
+                    id: "calories",
+                    label: "Calories",
+                    value: "\(Int(calories.rounded()).formatted()) cal",
+                    accent: .pink
+                )
+            )
+        }
+
+        return items
     }
 
     /// Time-in-zone distribution. Uses the conventional HR heat gradient (cool→hot) rather
@@ -1266,94 +1403,122 @@ struct RunDetailView: View {
     private func heartRateZonesCard(_ seconds: [Double]) -> some View {
         let total = max(seconds.reduce(0, +), 1)
         let colors: [Color] = [.blue, .green, .yellow, .orange, .red]
-        return VStack(alignment: .leading, spacing: 10) {
+        return VStack(alignment: .leading, spacing: AppSpacing.row) {
             Text("Heart-rate zones")
-                .appFont(size: 15, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
 
             ForEach(Array(HeartRateZones.zones.enumerated()), id: \.offset) { index, zone in
                 let secs = index < seconds.count ? seconds[index] : 0
+                heartRateZoneRow(
+                    zone: zone,
+                    seconds: secs,
+                    total: total,
+                    color: colors[index]
+                )
+            }
+        }
+        .appSurface(.quiet)
+        .accessibilityIdentifier("run_detail_heart_rate_zones")
+    }
+
+    private func heartRateZoneRow(
+        zone: HeartRateZone,
+        seconds: Double,
+        total: Double,
+        color: Color
+    ) -> some View {
+        let duration = seconds > 0 ? RunFormat.durationText(seconds: seconds) : "–"
+        let ratio = max(0, min(1, seconds / total))
+
+        return Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                        Text("Z\(zone.number)")
+                            .appTextRole(.caption)
+                            .foregroundStyle(color)
+                        Text(zone.name)
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: AppSpacing.compact)
+                        Text(duration)
+                            .appTextRole(.secondary)
+                            .foregroundStyle(seconds > 0 ? AppPalette.text : Color.secondary)
+                            .monospacedDigit()
+                    }
+                    zoneProgress(ratio: ratio, color: color)
+                }
+            } else {
                 HStack(spacing: 10) {
                     Text("Z\(zone.number)")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(colors[index])
+                        .appTextRole(.caption)
+                        .foregroundStyle(color)
                         .frame(width: 24, alignment: .leading)
                     Text(zone.name)
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
                         .frame(width: 76, alignment: .leading)
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(colors[index].opacity(0.14))
-                            Capsule().fill(colors[index])
-                                .frame(width: max(0, geo.size.width * CGFloat(secs / total)))
-                        }
-                    }
-                    .frame(height: 8)
-                    Text(secs > 0 ? RunFormat.durationText(seconds: secs) : "–")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(secs > 0 ? .textPrimary : Color(UIColor.tertiaryLabel))
-                        .frame(width: 52, alignment: .trailing)
+                    zoneProgress(ratio: ratio, color: color)
+                    Text(duration)
+                        .appTextRole(.caption)
+                        .foregroundStyle(seconds > 0 ? AppPalette.text : Color.secondary)
+                        .monospacedDigit()
+                        .frame(width: 58, alignment: .trailing)
                 }
             }
         }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.6), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Zone \(zone.number), \(zone.name), \(duration)")
+    }
+
+    private func zoneProgress(ratio: Double, color: Color) -> some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule().fill(color.opacity(0.14))
+                Capsule().fill(color)
+                    .frame(width: geometry.size.width * ratio)
+            }
+        }
+        .frame(height: 8)
+        .accessibilityHidden(true)
     }
 
     private var glycogenImpactCard: some View {
         let carbsBurned = Int((run.activeCalories ?? (run.distanceMeters * 0.063)) * 0.65 / 4.0)
         let sweatMl = Int(run.distanceMeters * 0.08)
         let recovery = RunRecoveryRules.calculateTarget(for: run) ?? RunRecoveryTarget(targetCarbGrams: carbsBurned, targetProteinGrams: 25, rehydrateMilliLiters: sweatMl, runDistanceMeters: run.distanceMeters, activeCalories: run.activeCalories ?? 0, runID: run.id)
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack {
+        return VStack(alignment: .leading, spacing: AppSpacing.row) {
+            HStack(spacing: AppSpacing.compact) {
                 Image(systemName: "bolt.batteryblock.fill")
-                    .foregroundColor(.yellow)
-                    .font(.system(size: 18))
-                Text("Glycogen & Fuel Impact")
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.textPrimary)
+                    .appFont(size: 17, weight: .semibold)
+                    .foregroundStyle(Color.yellow)
+                    .accessibilityHidden(true)
+                Text("Fuel and recovery")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
             }
 
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Carbs Depleted")
-                        .appFont(size: 11, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                    Text("~\(carbsBurned)g")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.yellow)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Est. Sweat Loss")
-                        .appFont(size: 11, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                    Text("~\(sweatMl) ml")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.blue)
-                }
-            }
+            AppMetricStrip(items: [
+                AppMetricItem(id: "carbs-used", label: "Est. carbs used", value: "~\(carbsBurned) g", accent: .yellow),
+                AppMetricItem(id: "sweat-loss", label: "Est. sweat loss", value: "~\(sweatMl) ml", accent: .blue)
+            ])
 
-            Text("Target: Eat \(recovery.targetCarbGrams)g Carbs + \(recovery.targetProteinGrams)g Protein within 45m for glycogen supercompensation.")
-                .appFont(size: 12)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+            Text("Aim for \(recovery.targetCarbGrams) g carbs and \(recovery.targetProteinGrams) g protein within 45 minutes to support recovery.")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Button {
                 showingRecoveryFoodSearch = true
             } label: {
-                HStack {
-                    Image(systemName: "bolt.fill")
-                    Text("Log Recovery Meal Now")
-                }
-                .appFont(size: 14, weight: .bold)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(Color.accentProtein, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                Label("Log recovery meal", systemImage: "bolt.fill")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .accessibilityIdentifier("run_detail_recovery_action")
         }
-        .asCard()
+        .appSurface(.quiet)
+        .accessibilityIdentifier("run_detail_recovery")
     }
 
     private var splitsCard: some View {
@@ -1361,86 +1526,93 @@ struct RunDetailView: View {
         let maxPace = viewModel.splits.compactMap { $0.paceSecondsPerKm }.max() ?? 300
         let minPace = viewModel.splits.compactMap { $0.paceSecondsPerKm }.min() ?? 240
 
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Splits")
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Spacer()
+        return VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Splits") {
                 if RunStats.isNegativeSplit(splits: viewModel.splits),
                    let delta = RunStats.negativeSplitDeltaSecondsPerKm(splits: viewModel.splits) {
-                    HStack(spacing: 4) {
+                    Label {
+                        Text("Negative split (−\(Int(delta.rounded())) s/km)")
+                    } icon: {
                         Image(systemName: "flame.fill")
-                        Text("Negative Split! (-\(Int(delta.rounded()))s/km)")
                     }
-                    .appFont(size: 11, weight: .bold)
-                    .foregroundColor(.orange)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.12), in: Capsule())
+                    .appTextRole(.caption)
+                    .foregroundStyle(Color.orange)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
             ForEach(viewModel.splits, id: \.index) { split in
                 let isBest = split.index == bestSplit?.index
-                let barRatio = maxPace > 0 && split.paceSecondsPerKm != nil ? min(1.0, max(0.15, 1.0 - ((split.paceSecondsPerKm! - minPace) / (max(1, maxPace - minPace) * 1.5)))) : 0.5
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("\(split.index)")
-                            .appFont(size: 13, weight: .semibold)
-                            .foregroundColor(isBest ? .yellow : Color(UIColor.secondaryLabel))
-                            .frame(width: 24, alignment: .leading)
-                        Text(split.distanceMeters + 1 < (useMetric ? 1000 : RunFormat.metersPerMile)
-                             ? RunFormat.distanceText(meters: split.distanceMeters, metric: useMetric)
-                             : (useMetric ? "1 km" : "1 mi"))
-                            .appFont(size: 13)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                        if isBest {
-                            Text("🏅 Fastest")
-                                .appFont(size: 10, weight: .bold)
-                                .foregroundColor(.yellow)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.yellow.opacity(0.15), in: Capsule())
-                        }
-                        Spacer()
-                        Text(RunFormat.paceText(secondsPerKm: split.paceSecondsPerKm, metric: useMetric) ?? RunFormat.durationText(seconds: split.seconds))
-                            .appFont(size: 13, weight: .semibold)
-                            .foregroundColor(isBest ? .yellow : .textPrimary)
-                            .monospacedDigit()
-                    }
-
-                    GeometryReader { geo in
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(isBest ? Color.yellow : Color.brandPrimary.opacity(0.6))
-                            .frame(width: geo.size.width * barRatio, height: 4)
-                    }
-                    .frame(height: 4)
-                }
-                .padding(.vertical, 2)
+                let pace = split.paceSecondsPerKm
+                let barRatio = pace.map {
+                    min(1.0, max(0.15, 1.0 - (($0 - minPace) / (max(1, maxPace - minPace) * 1.5))))
+                } ?? 0.5
+                splitRow(split, isBest: isBest, barRatio: barRatio)
             }
         }
-        .asCard()
+        .appSurface(.quiet)
+        .accessibilityIdentifier("run_detail_splits")
     }
-}
 
-private struct RunStatTile: View {
-    let label: String
-    let value: String
+    private func splitRow(_ split: RunSplit, isBest: Bool, barRatio: Double) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        splitIdentity(split, isBest: isBest)
+                        splitPace(split, isBest: isBest)
+                    }
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                        splitIdentity(split, isBest: isBest)
+                        Spacer(minLength: AppSpacing.compact)
+                        splitPace(split, isBest: isBest)
+                    }
+                }
+            }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(label)
-                .appFont(size: 11, weight: .medium)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-            Text(value)
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .monospacedDigit()
+            GeometryReader { geometry in
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(isBest ? Color.yellow : AppPalette.brand.opacity(0.60))
+                    .frame(width: geometry.size.width * barRatio, height: 4)
+            }
+            .frame(height: 4)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .asCard()
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func splitIdentity(_ split: RunSplit, isBest: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+            Text("\(split.index)")
+                .appTextRole(.secondary)
+                .foregroundStyle(isBest ? Color.yellow : Color.secondary)
+                .frame(minWidth: 24, alignment: .leading)
+            Text(splitDistanceText(split))
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+            if isBest {
+                Label("Fastest", systemImage: "medal.fill")
+                    .appTextRole(.caption)
+                    .foregroundStyle(Color.yellow)
+            }
+        }
+    }
+
+    private func splitPace(_ split: RunSplit, isBest: Bool) -> some View {
+        Text(RunFormat.paceText(secondsPerKm: split.paceSecondsPerKm, metric: useMetric) ?? RunFormat.durationText(seconds: split.seconds))
+            .appTextRole(.secondary)
+            .foregroundStyle(isBest ? Color.yellow : AppPalette.text)
+            .monospacedDigit()
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func splitDistanceText(_ split: RunSplit) -> String {
+        let fullSplitDistance = useMetric ? 1_000 : RunFormat.metersPerMile
+        if split.distanceMeters + 1 < fullSplitDistance {
+            return RunFormat.distanceText(meters: split.distanceMeters, metric: useMetric)
+        }
+        return useMetric ? "1 km" : "1 mi"
     }
 }
 
@@ -1449,6 +1621,7 @@ private struct RunStatTile: View {
 struct RunRecordsCard: View {
     let records: RunStats.PersonalRecords
     let metric: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var hasAnything: Bool {
         records.longestRun != nil || records.best5KSeconds != nil || records.best10KSeconds != nil
@@ -1456,10 +1629,8 @@ struct RunRecordsCard: View {
 
     var body: some View {
         if hasAnything {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Records")
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.textPrimary)
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                AppSectionHeader(title: "Records")
 
                 if let longest = records.longestRun {
                     recordRow("Longest run", RunFormat.distanceText(meters: longest.distanceMeters, metric: metric))
@@ -1472,27 +1643,48 @@ struct RunRecordsCard: View {
                 }
 
                 Text("5K and 10K times are estimated from each run's average pace.")
-                    .appFont(size: 10)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .asCard()
+            .appSurface(.quiet)
+            .accessibilityIdentifier("run_history_records")
         }
     }
 
     private func recordRow(_ label: String, _ value: String) -> some View {
-        HStack {
-            Text("🏅")
-                .font(.system(size: 14))
-                .accessibilityHidden(true)
-            Text(label)
-                .appFont(size: 13)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-            Spacer()
-            Text(value)
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .monospacedDigit()
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 3) {
+                    recordLabel(label)
+                    recordValue(value)
+                        .padding(.leading, 32)
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                    recordLabel(label)
+                    Spacer(minLength: AppSpacing.compact)
+                    recordValue(value)
+                }
+            }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label), \(value)")
+    }
+
+    private func recordLabel(_ label: String) -> some View {
+        Label(label, systemImage: "medal.fill")
+            .appTextRole(.secondary)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func recordValue(_ value: String) -> some View {
+        Text(value)
+            .appTextRole(.secondary)
+            .foregroundStyle(AppPalette.text)
+            .monospacedDigit()
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

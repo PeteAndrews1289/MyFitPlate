@@ -656,87 +656,90 @@ private struct RunWorkoutGuidanceCard: View {
 struct RunWorkoutResultCard: View {
     let result: RunWorkoutResult
     let metric: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Workout steps")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    Text(result.planName)
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-                Spacer()
-                Text("\(result.steps.filter(\.isComplete).count)/\(result.steps.count)")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Workout steps", subtitle: result.planName) {
+                Text("\(result.steps.filter(\.isComplete).count) of \(result.steps.count) complete")
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.brand)
                     .monospacedDigit()
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Color.brandPrimary.opacity(0.12), in: Capsule())
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             ForEach(result.steps) { stepResult in
                 stepRow(stepResult)
             }
         }
-        .asCard()
+        .appSurface(.quiet)
+        .accessibilityIdentifier("run_detail_workout_steps")
     }
 
     private func stepRow(_ stepResult: RunWorkoutStepResult) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text("\(stepResult.stepIndex + 1)")
-                .appFont(size: 12, weight: .bold)
-                .foregroundColor(accentColor(for: stepResult.step.kind))
-                .frame(width: 28, height: 28)
-                .background(accentColor(for: stepResult.step.kind).opacity(0.14), in: Circle())
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text("\(stepResult.step.kind.displayName) · \(stepResult.step.title)")
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                    if !stepResult.isComplete {
-                        Text("Partial")
-                            .appFont(size: 10, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color(UIColor.secondarySystemFill), in: Capsule())
-                    }
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    stepIdentity(stepResult)
+                    stepMetrics(stepResult)
+                        .padding(.leading, 38)
                 }
-
-                Text(planText(for: stepResult.step))
-                    .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 8)
-
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(RunFormat.durationText(seconds: stepResult.elapsedSeconds))
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .monospacedDigit()
-                Text(RunFormat.distanceText(meters: stepResult.distanceMeters, metric: metric))
-                    .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .monospacedDigit()
-                if let pace = RunFormat.paceText(secondsPerKm: stepResult.paceSecondsPerKm, metric: metric) {
-                    Text(pace)
-                        .appFont(size: 11, weight: .semibold)
-                        .foregroundColor(accentColor(for: stepResult.step.kind))
-                        .monospacedDigit()
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    stepIdentity(stepResult)
+                    Spacer(minLength: AppSpacing.compact)
+                    stepMetrics(stepResult)
                 }
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private func stepIdentity(_ stepResult: RunWorkoutStepResult) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(stepResult.stepIndex + 1)")
+                .appTextRole(.caption)
+                .foregroundStyle(accentColor(for: stepResult.step.kind))
+                .frame(width: 28, height: 28)
+                .background(accentColor(for: stepResult.step.kind).opacity(0.14), in: Circle())
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(stepResult.step.kind.displayName) · \(stepResult.step.title)")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !stepResult.isComplete {
+                    Label("Partial", systemImage: "circle.lefthalf.filled")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(planText(for: stepResult.step))
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func stepMetrics(_ stepResult: RunWorkoutStepResult) -> some View {
+        VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 3) {
+            Text(RunFormat.durationText(seconds: stepResult.elapsedSeconds))
+                .appTextRole(.secondary)
+                .foregroundStyle(AppPalette.text)
+                .monospacedDigit()
+            Text(RunFormat.distanceText(meters: stepResult.distanceMeters, metric: metric))
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+            if let pace = RunFormat.paceText(secondsPerKm: stepResult.paceSecondsPerKm, metric: metric) {
+                Text(pace)
+                    .appTextRole(.caption)
+                    .foregroundStyle(accentColor(for: stepResult.step.kind))
+                    .monospacedDigit()
+            }
+        }
     }
 
     private func planText(for step: RunWorkoutStep) -> String {

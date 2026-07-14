@@ -125,9 +125,24 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   final focused run passed 2/2, its largest-text clipping audit passed unfiltered, full SwiftLint
   reported zero violations, and the standard and dark captures were reviewed.
 
-All five primary tabs, the two highest-frequency nutrition entry workflows, and Food Detail now
-share one visual grammar. The active queue moves to Running history/detail and the remaining
-repeated logging tools.
+### Batch 7 - Running History and Detail (complete)
+
+- Preserved the direct Start action while replacing the legacy dashboard tiles with one emphasized
+  weekly metric strip, one quiet records surface, and one continuous source-labeled run list.
+- Made history rows, record values, heart-rate zones, splits, gear, and guided-workout results
+  responsive instead of relying on single-line compression at accessibility sizes.
+- Rebuilt Run Detail around one responsive summary, quiet recovery evidence with one direct action,
+  readable splits and gear, and explicit recording-source attribution. Recovery copy now says the
+  target supports recovery rather than promising glycogen supercompensation.
+- Kept route, HealthKit import/write, run calculations, workout guidance, and recorder behavior
+  unchanged. The recorder's saved workout-result card only adopted the shared surface grammar.
+- Added deterministic history-to-detail and dark accessibility-XXXL coverage. The final standard
+  journey and corrected dark artifact run passed, clipping audits passed, the full simulator build
+  passed with the embedded Watch app, and final light/dark captures were reviewed.
+
+All five primary tabs, the two highest-frequency nutrition entry workflows, Food Detail, Trust,
+and Running now share one visual grammar. The active queue moves to the remaining repeated logging
+tools before Settings and the long-tail feature families.
 
 ## Product Direction
 
@@ -197,7 +212,7 @@ Current source indicators:
 | Week in Motion | North star, Batch 3 retained | Keep the rhythm/evidence structure as the Reports lead story |
 | Reports detail | Batch 3 migrated | Quiet trend controls, responsive evidence, and flat report surfaces |
 | Trust Receipt | Batch 6 migrated | Unframed evidence path, visible score, neutral macro summary, flat logging action |
-| Running | Strong utility | Keep density; adopt shared header, rows, and surfaces |
+| Running | Batch 7 migrated | Direct Start, responsive weekly/detail metrics, grouped source rows, quiet recovery and split evidence |
 | Food Search | Batch 5 migrated | Search-first hierarchy, neutral repeat/result surfaces, adaptive meal selection |
 | Fast Food Builder | Batch 5 migrated | Dense direct selection, persistent summary, tint reserved for brand and state |
 | Settings | Orderly but generic | Use a native grouped configuration pattern; remove the dashboard hero |
@@ -336,7 +351,7 @@ weight, and nested-surface debt. Living Day itself changes last and only at the 
 1. Food Search and its empty/history states (Batch 5 complete)
 2. Fast Food Builder (Batch 5 complete)
 3. Food Detail below Trust Receipt (Batch 6 complete)
-4. Running history and run detail
+4. Running history and run detail (Batch 7 complete)
 5. My Foods, recipes, grocery, and logging confirmation sheets
 
 This phase must preserve or improve time to successful food log, item selection, and workout/run
@@ -405,10 +420,11 @@ Migrate by feature family so each batch can be reviewed and reverted independent
 
 ### Running
 
-- Preserve its direct hierarchy and large Start action.
-- Adopt the shared screen header and quiet list-row treatment.
-- Keep source labels and exercise identity; remove unnecessary card shadows.
-- Reuse the path/evidence language only in run detail and post-run interpretation, not recording.
+- Batch 7 preserves the direct hierarchy and large Start action.
+- History now uses the shared quiet grouped-row treatment while retaining source and exercise
+  identity.
+- Run Detail uses responsive evidence and metric surfaces without changing recording behavior.
+- Path/evidence language remains confined to post-run interpretation rather than the live recorder.
 
 ### Settings
 

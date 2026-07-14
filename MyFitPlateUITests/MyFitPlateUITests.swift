@@ -361,6 +361,169 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testRunningHistoryAndDetailUseUnifiedHierarchy() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "runs"
+        ]
+        app.launch()
+
+        let start = app.buttons["run_history_start"]
+        let week = app.descendants(matching: .any)
+            .matching(identifier: "run_history_week_summary")
+            .firstMatch
+        let records = app.descendants(matching: .any)
+            .matching(identifier: "run_history_records")
+            .firstMatch
+        let history = app.descendants(matching: .any)
+            .matching(identifier: "run_history_list")
+            .firstMatch
+        let firstRun = app.buttons
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label CONTAINS %@",
+                "run_history_list",
+                "6.21 mi"
+            ))
+            .firstMatch
+
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        XCTAssertTrue(week.waitForExistence(timeout: 5))
+        XCTAssertTrue(records.waitForExistence(timeout: 5))
+        XCTAssertTrue(history.waitForExistence(timeout: 5))
+        XCTAssertTrue(firstRun.waitForExistence(timeout: 5))
+        XCTAssertTrue(start.isHittable)
+        XCTAssertLessThan(start.frame.minY, week.frame.minY)
+        XCTAssertLessThan(week.frame.minY, records.frame.minY)
+        XCTAssertLessThan(records.frame.minY, history.frame.minY)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let historyScreenshot = XCTAttachment(screenshot: app.screenshot())
+        historyScreenshot.name = "Running - unified history"
+        historyScreenshot.lifetime = .keepAlways
+        add(historyScreenshot)
+
+        for _ in 0..<4 where !firstRun.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(firstRun.isHittable)
+        let detailScreen = app.descendants(matching: .any)
+            .matching(identifier: "run_detail_screen")
+            .firstMatch
+        for _ in 0..<2 where !detailScreen.exists {
+            firstRun.tap()
+            if detailScreen.waitForExistence(timeout: 3) {
+                break
+            }
+        }
+        XCTAssertTrue(detailScreen.waitForExistence(timeout: 8))
+
+        let metrics = app.descendants(matching: .any)
+            .matching(identifier: "run_detail_metrics")
+            .firstMatch
+        let recovery = app.descendants(matching: .any)
+            .matching(identifier: "run_detail_recovery")
+            .firstMatch
+        let splits = app.descendants(matching: .any)
+            .matching(identifier: "run_detail_splits")
+            .firstMatch
+        let gear = app.descendants(matching: .any)
+            .matching(identifier: "run_detail_gear")
+            .firstMatch
+        let source = app.descendants(matching: .any)
+            .matching(identifier: "run_detail_source")
+            .firstMatch
+        XCTAssertTrue(metrics.waitForExistence(timeout: 8))
+        XCTAssertTrue(recovery.waitForExistence(timeout: 5))
+        XCTAssertTrue(splits.waitForExistence(timeout: 5))
+        XCTAssertTrue(gear.waitForExistence(timeout: 5))
+        XCTAssertTrue(source.waitForExistence(timeout: 5))
+        XCTAssertLessThan(metrics.frame.minY, recovery.frame.minY)
+        XCTAssertLessThan(recovery.frame.minY, splits.frame.minY)
+
+        let detailScreenshot = XCTAttachment(screenshot: app.screenshot())
+        detailScreenshot.name = "Running - unified detail summary"
+        detailScreenshot.lifetime = .keepAlways
+        add(detailScreenshot)
+
+        let recoveryAction = app.buttons["Log recovery meal"]
+        for _ in 0..<6 where !recoveryAction.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(recoveryAction.isHittable)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let recoveryScreenshot = XCTAttachment(screenshot: app.screenshot())
+        recoveryScreenshot.name = "Running - recovery and splits"
+        recoveryScreenshot.lifetime = .keepAlways
+        add(recoveryScreenshot)
+    }
+
+    @MainActor
+    func testRunningHistorySupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "runs",
+            "-screenshot-dark-mode",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let start = app.buttons["run_history_start"]
+        let week = app.descendants(matching: .any)
+            .matching(identifier: "run_history_week_summary")
+            .firstMatch
+        let firstRun = app.buttons
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label CONTAINS %@",
+                "run_history_list",
+                "6.21 mi"
+            ))
+            .firstMatch
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        XCTAssertTrue(week.waitForExistence(timeout: 5))
+        XCTAssertLessThanOrEqual(start.frame.maxX, app.frame.maxX + 1)
+        XCTAssertGreaterThanOrEqual(start.frame.minX, app.frame.minX - 1)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let topScreenshot = XCTAttachment(screenshot: app.screenshot())
+        topScreenshot.name = "Running - dark accessibility XXXL summary"
+        topScreenshot.lifetime = .keepAlways
+        add(topScreenshot)
+
+        for _ in 0..<8 {
+            let rowIsVisible = firstRun.exists
+                && firstRun.frame.minY >= app.frame.minY
+                && firstRun.frame.maxY <= app.frame.maxY - 20
+            if rowIsVisible {
+                break
+            }
+            app.swipeUp()
+        }
+        XCTAssertTrue(firstRun.waitForExistence(timeout: 5))
+        XCTAssertTrue(firstRun.isHittable)
+        XCTAssertLessThanOrEqual(firstRun.frame.maxX, app.frame.maxX + 1)
+        XCTAssertGreaterThanOrEqual(firstRun.frame.minX, app.frame.minX - 1)
+        XCTAssertLessThanOrEqual(firstRun.frame.maxY, app.frame.maxY - 20)
+        sleep(1)
+        XCTAssertLessThanOrEqual(firstRun.frame.maxY, app.frame.maxY - 20)
+
+        let historyScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        historyScreenshot.name = "Running - dark accessibility XXXL history"
+        historyScreenshot.lifetime = .keepAlways
+        add(historyScreenshot)
+        try app.performAccessibilityAudit(for: [.textClipped])
+    }
+
+    @MainActor
     func testHomeDarkAccessibilityTextIsNotClipped() throws {
         let app = XCUIApplication()
         app.terminate()

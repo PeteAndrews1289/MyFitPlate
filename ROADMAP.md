@@ -496,8 +496,13 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
 - [x] Migrate Food Detail below Trust Receipt without adding taps or editorial friction. Food
   identity is neutral, Trust owns semantic state color, the 98/99 score is visible and accessible,
   macros use one responsive summary, and the logging footer uses the shared flat primary action.
-- [ ] Migrate Running history/detail and the remaining repeated logging tools without adding taps
-  or editorial friction.
+- [x] Migrate Running history/detail without adding taps or editorial friction. History keeps its
+  direct Start action, uses one responsive weekly summary, one quiet records surface, and one
+  grouped source-labeled run list. Run Detail now uses a responsive summary, restrained recovery
+  evidence/action, readable splits/gear/source sections, and the same shared visual grammar as the
+  primary tabs. Recorder and HealthKit behavior are unchanged; standard plus dark accessibility-
+  XXXL fixture journeys are captured and pass clipping audits.
+- [ ] Migrate the remaining repeated logging tools without adding taps or editorial friction.
 - [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,
   remove legacy glass aliases, and enforce the new rules in source checks.
 
