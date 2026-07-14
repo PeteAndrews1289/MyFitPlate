@@ -74,7 +74,20 @@ struct MainTabView: View {
         ScreenshotDemoMode.isEnabled || ProcessInfo.processInfo.arguments.contains("-ui-testing")
     }
 
+    private var isDirectScreenshotSurface: Bool {
+        #if DEBUG
+        ScreenshotDemoMode.isEnabled && [
+            "weight-detail", "wellness-detail", "fasting-detail", "cycle-detail"
+        ].contains(ScreenshotDemoData.requestedScreen)
+        #else
+        false
+        #endif
+    }
+
     private func contentBottomInset(for width: CGFloat) -> CGFloat {
+        if isDirectScreenshotSurface {
+            return 0
+        }
         if dynamicTypeSize.isAccessibilitySize {
             return 148
         }
@@ -152,18 +165,20 @@ struct MainTabView: View {
                     .padding(.bottom, contentBottomInset(for: geometry.size.width))
                 }
 
-                CustomTabBar(
-                    selectedIndex: $appState.selectedTab,
-                    showingAddOptions: $showingAddOptions,
-                    centerButtonAction: {
-                        guard !showingAddOptions else { return }
-                        HapticsService.shared.playImpact(style: .light)
-                        withAnimation(AppMotion.standard) {
-                            showingAddOptions = true
+                if !isDirectScreenshotSurface {
+                    CustomTabBar(
+                        selectedIndex: $appState.selectedTab,
+                        showingAddOptions: $showingAddOptions,
+                        centerButtonAction: {
+                            guard !showingAddOptions else { return }
+                            HapticsService.shared.playImpact(style: .light)
+                            withAnimation(AppMotion.standard) {
+                                showingAddOptions = true
+                            }
                         }
-                    }
-                )
-                .zIndex(showingAddOptions ? 0 : 1)
+                    )
+                    .zIndex(showingAddOptions ? 0 : 1)
+                }
                 
                 if isSearchingAfterScan {
                     Color.black.opacity(0.5).edgesIgnoringSafeArea(.all)
@@ -327,6 +342,9 @@ struct MainTabView: View {
            ScreenshotDemoData.requestedScreen == "visual-system" {
             NavigationStack { AppVisualSystemGallery() }
         } else if ScreenshotDemoMode.isEnabled,
+                  isDirectScreenshotSurface {
+            directScreenshotContent
+        } else if ScreenshotDemoMode.isEnabled,
            ScreenshotDemoData.requestedScreen.hasPrefix("living-day") {
             NavigationStack {
                 LivingDayPrototypeGallery(
@@ -340,6 +358,36 @@ struct MainTabView: View {
         standardHomeContent
         #endif
     }
+
+    #if DEBUG
+    @ViewBuilder
+    private var directScreenshotContent: some View {
+        switch ScreenshotDemoData.requestedScreen {
+        case "weight-detail":
+            NavigationStack { WeightTrackingView() }
+        case "wellness-detail":
+            WellnessScoreDetailView(
+                wellnessScore: ScreenshotDemoData.wellnessDemoScore,
+                mealScore: ScreenshotDemoData.wellnessDemoMealScore,
+                sleepReport: ScreenshotDemoData.wellnessDemoSleepReport
+            )
+        case "fasting-detail":
+            NavigationStack {
+                ScrollView {
+                    FastingTrackerCard()
+                        .padding(.horizontal, AppSpacing.screenHorizontal)
+                        .padding(.vertical, AppSpacing.group)
+                }
+                .accessibilityIdentifier("fasting_tracker_screen")
+                .background(AppPalette.canvas.ignoresSafeArea())
+            }
+        case "cycle-detail":
+            NavigationStack { CycleTrackingView() }
+        default:
+            standardHomeContent
+        }
+    }
+    #endif
 
     private var standardHomeContent: some View {
         NavigationStack {

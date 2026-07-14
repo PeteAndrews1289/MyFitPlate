@@ -266,11 +266,32 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   checks. Sixty-six focused workout analytics/model/rules/service tests pass, the full simulator
   build and strict lint pass, and all final captures were reviewed.
 
+### Batch 15 - Wellness, Weight, Fasting, and Cycle (complete)
+
+- Rebuilt Weight Progress, current-weight logging, goal editing, and milestone history around one
+  body-trend hierarchy while preserving HealthKit writes, chart calculations, unit conversion, and
+  direct logging. The chart's trend area now stays inside its intended plot bounds.
+- Rebuilt the Wellness Score debrief around the score, contributing signals, and practical next
+  steps. Its largest-accessibility layout replaces the fixed score ring with a readable linear
+  treatment rather than compressing or colliding with the score label.
+- Unified Apple Health activity and fasting surfaces with source-aware language. Fasting guidance
+  now uses broad timing estimates and a clear informational disclaimer instead of unsupported
+  metabolic-state claims.
+- Unified cycle overview, settings, phase map, and Maia guidance. The experience now states that
+  phases are calendar estimates, not measurements of fertility, ovulation, or hormone levels, and
+  identifies Maia guidance as AI-generated.
+- Added deterministic Weight, Wellness Score, Fasting, and Cycle routes. The standard journey and
+  dark accessibility-XXXL bounds/hittability journey pass and their final captures were reviewed.
+  Ten focused cycle/milestone rule tests and the app wellness-score tests pass. On iOS 26.5,
+  SwiftUI's automated text-clipping audit reported false positives for visibly complete text, so
+  maximum-size verification uses reviewed screenshots plus explicit bounds and action checks.
+  Ten design-system tests, strict lint, and the complete simulator build also pass.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
-review family now join that system. The active queue moves to wellness and weight, onboarding and
-authentication, community, and the remaining specialty tools.
+review family now join that system, along with wellness, weight, fasting, and cycle tracking. The
+active queue moves to onboarding and authentication, community, and the remaining specialty tools.
 
 ## Product Direction
 
@@ -495,9 +516,9 @@ start. Editorial composition must not leak into repeated workflows.
 
 ### Phase 4 - Configuration and long tail
 
-- Settings and account/legal surfaces
-- Workout program/routine editors and analytics
-- Wellness and weight surfaces
+- Settings and account/legal surfaces (Batch 12 complete)
+- Workout program/routine editors and analytics (Batches 13-14 complete)
+- Wellness, weight, fasting, and cycle surfaces (Batch 15 complete)
 - Onboarding/authentication
 - Community surfaces
 - Remaining pantry and specialty nutrition tools

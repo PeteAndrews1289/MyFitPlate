@@ -440,6 +440,7 @@ struct CalorieBetaApp: App {
                 goalSettings: goalsSvc,
                 dailyLogService: logService,
                 healthKitViewModel: hkViewModel,
+                cycleTrackingService: cycleSvc,
                 appState: applicationState
             )
         }

@@ -536,8 +536,12 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   routine rotation, breakdowns, and Maia insights now use the shared evidence hierarchy.
   Deterministic standard and dark accessibility-XXXL journeys are captured and pass clipping and
   persistent-action checks.
-- [ ] Migrate the remaining long-tail feature families, beginning with wellness and weight, then
-  onboarding/authentication, community, and specialty nutrition tools.
+- [x] Migrate wellness, weight, fasting, and cycle tracking without changing HealthKit writes,
+  chart calculations, direct logging, or cycle-date rules. These surfaces now share the evidence
+  hierarchy, use cautious source-aware health language, and include deterministic standard and
+  dark accessibility-XXXL journeys with reviewed captures and explicit bounds/action checks.
+- [ ] Migrate the remaining long-tail feature families: onboarding/authentication, community, and
+  specialty nutrition tools.
 - [ ] Retire legacy Home after rollout proof, remove the remaining legacy glass aliases, enforce
   the new rules in source checks, and complete the full 2.3 regression/release pass.
 

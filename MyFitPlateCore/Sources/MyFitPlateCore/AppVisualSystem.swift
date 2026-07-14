@@ -38,26 +38,32 @@ public enum AppTextRole: CaseIterable, Sendable {
     fileprivate var relativeTextStyle: Font.TextStyle {
         switch self {
         case .display: .largeTitle
-        case .screenTitle, .metric: .title2
+        case .screenTitle, .metric: .title
         case .sectionTitle: .title3
-        case .control, .body: .body
-        case .secondary: .subheadline
-        case .caption: .caption
+        case .control: .body
+        case .body: .subheadline
+        case .secondary: .footnote
+        case .caption: .caption2
         }
     }
 }
 
 public struct AppTextRoleModifier: ViewModifier {
     public let role: AppTextRole
-    @ScaledMetric private var scaledSize: CGFloat
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     public init(role: AppTextRole) {
         self.role = role
-        _scaledSize = ScaledMetric(wrappedValue: role.pointSize, relativeTo: role.relativeTextStyle)
     }
 
     public func body(content: Content) -> some View {
-        content.font(.system(size: scaledSize, weight: role.weight, design: .rounded))
+        content.font(
+            .system(
+                role.relativeTextStyle,
+                design: dynamicTypeSize.isAccessibilitySize ? .default : .rounded,
+                weight: role.weight
+            )
+        )
     }
 }
 
@@ -299,6 +305,7 @@ public struct AppScreenHeader<Trailing: View>: View {
             } else {
                 HStack(alignment: .top, spacing: AppSpacing.group) {
                     textBlock
+                        .layoutPriority(1)
                     Spacer(minLength: 0)
                     trailing
                 }
@@ -309,21 +316,34 @@ public struct AppScreenHeader<Trailing: View>: View {
 
     private var textBlock: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if let eyebrow {
+            if let eyebrow, !dynamicTypeSize.isAccessibilitySize {
                 Text(eyebrow.uppercased())
                     .appTextRole(.caption)
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityHidden(true)
             }
 
             Text(title)
                 .appTextRole(.screenTitle)
                 .foregroundStyle(AppPalette.text)
+                .multilineTextAlignment(.leading)
+                .lineLimit(nil)
+                .padding(.trailing, dynamicTypeSize.isAccessibilitySize ? AppSpacing.compact : 0)
+                .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 2 : 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             if let subtitle {
                 Text(subtitle)
                     .appTextRole(.secondary)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(nil)
+                    .padding(.trailing, dynamicTypeSize.isAccessibilitySize ? AppSpacing.compact : 0)
+                    .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 2 : 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

@@ -1,5 +1,6 @@
 import Foundation
 import MyFitPlateCore
+import SwiftUI
 
 enum ScreenshotDemoMode {
     static var isEnabled: Bool {
@@ -52,6 +53,111 @@ enum ScreenshotDemoData {
             return canonicalScreenName(arguments[flagIndex + 1])
         }
         return "home"
+    }
+
+    static var wellnessDemoScore: WellnessScore {
+        WellnessScore(
+            overallScore: 84,
+            nutritionScore: 82,
+            sleepScore: 86,
+            recoveryScore: 85,
+            summary: "Your signals support a steady, productive day.",
+            color: AppPalette.brand
+        )
+    }
+
+    static var wellnessDemoMealScore: MealScore {
+        MealScore(
+            grade: "B+",
+            summary: "Strong protein and calorie consistency with room for more fiber.",
+            color: AppPalette.brand,
+            calorieScore: 88,
+            macroScore: 84,
+            qualityScore: 74,
+            overallScore: 82,
+            personalizedAISummary: "Yesterday supported your goals with a reliable protein base.",
+            improvementTips: [
+                ImprovementTip(
+                    category: "Fiber",
+                    advice: "Add fruit, beans, or vegetables to close the remaining fiber gap.",
+                    icon: "leaf",
+                    color: AppPalette.brand
+                ),
+                ImprovementTip(
+                    category: "Sodium",
+                    advice: "Balance the higher-sodium meal with minimally processed foods today.",
+                    icon: "drop",
+                    color: .blue
+                )
+            ],
+            actualCalories: 2_040,
+            goalCalories: 2_100,
+            actualProtein: 156,
+            goalProtein: 160,
+            actualCarbs: 218,
+            goalCarbs: 230,
+            actualFats: 62,
+            goalFats: 60,
+            actualFiber: 24,
+            goalFiber: 30,
+            actualSaturatedFat: 15,
+            goalSaturatedFat: 20,
+            actualSodium: 2_460,
+            goalSodium: 2_300
+        )
+    }
+
+    static var wellnessDemoSleepReport: EnhancedSleepReport {
+        var dailyData: [EnhancedSleepReport.DailySleepStageData] = []
+        for offset in 0..<7 {
+            let date = calendar.date(byAdding: .day, value: -offset, to: today) ?? today
+            let timeInBed = (7.7 + Double(offset % 3) * 0.12) * 3_600
+            let timeAsleep = (7.1 + Double(offset % 2) * 0.18) * 3_600
+            let timeDeep = (1.0 + Double(offset % 2) * 0.12) * 3_600
+            let day = EnhancedSleepReport.DailySleepStageData(
+                date: date,
+                timeInBed: timeInBed,
+                timeAsleep: timeAsleep,
+                timeCore: 4.2 * 3_600,
+                timeDeep: timeDeep,
+                timeREM: 1.8 * 3_600,
+                timeAwake: 0.45 * 3_600
+            )
+            dailyData.append(day)
+        }
+
+        return EnhancedSleepReport(
+            dateRange: "Last 7 nights",
+            averageSleepScore: 86,
+            averageTimeInBed: 7.9 * 3_600,
+            averageTimeAsleep: 7.3 * 3_600,
+            averageTimeInCore: 4.2 * 3_600,
+            averageTimeInDeep: 1.1 * 3_600,
+            averageTimeInREM: 1.8 * 3_600,
+            averageTimeAwake: 0.5 * 3_600,
+            sleepConsistencyScore: 88,
+            sleepConsistencyMessage: "Bedtime and wake time stayed within a consistent range.",
+            dailySleepData: dailyData
+        )
+    }
+
+    static var cycleDemoDay: CycleDay {
+        CycleDay(date: today, cycleDayNumber: 17, phase: .luteal)
+    }
+
+    static var cycleDemoInsight: AIInsight {
+        AIInsight(
+            phaseTitle: "Protect Your Baseline",
+            phaseDescription: "Energy and appetite can shift during the luteal phase. Treat the pattern as context, then respond to how you actually feel today.",
+            trainingFocus: AIInsight.TrainingFocus(
+                title: "Keep Quality High",
+                description: "Use your planned loads, but leave room to reduce volume if recovery feels lower than usual."
+            ),
+            hormonalState: "Typical luteal pattern",
+            energyLevel: "Moderate",
+            nutritionTip: "Keep protein steady and plan a satisfying high-fiber snack before hunger becomes distracting.",
+            symptomTip: "Hydration, sleep consistency, and a lighter session can help when symptoms are more noticeable."
+        )
     }
 
     static func canonicalScreenName(_ name: String) -> String {
@@ -668,6 +774,7 @@ enum ScreenshotDemoData {
         goalSettings: GoalSettings,
         dailyLogService: DailyLogService,
         healthKitViewModel: HealthKitViewModel,
+        cycleTrackingService: CycleTrackingService,
         appState: AppState
     ) {
         applyGoals(to: goalSettings)
@@ -683,6 +790,10 @@ enum ScreenshotDemoData {
         healthKitViewModel.weeklyActiveEnergy = [510, 430, 615, 472, 688, 390, 486]
         healthKitViewModel.weeklyRestingHeartRate = [61, 60, 60, 59, 60, 62, 60]
         healthKitViewModel.weeklyHRV = [48, 52, 55, 51, 58, 46, 54]
+
+        cycleTrackingService.cycleSettings = CycleSettings(typicalCycleLength: 28, typicalPeriodLength: 5)
+        cycleTrackingService.cycleDay = cycleDemoDay
+        cycleTrackingService.aiInsight = cycleDemoInsight
 
         switch requestedScreen {
         case "maia": appState.selectedTab = 1

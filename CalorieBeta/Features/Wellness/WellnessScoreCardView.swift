@@ -7,8 +7,20 @@ struct WellnessScoreCardView: View {
     let mealScore: MealScore?
     let sleepReport: EnhancedSleepReport?
     
-    @State private var showDetail = false
+    @State private var showDetail: Bool
     @State private var animatedScore: Double = 0
+
+    init(
+        wellnessScore: WellnessScore,
+        mealScore: MealScore?,
+        sleepReport: EnhancedSleepReport?,
+        initiallyShowsDetail: Bool = false
+    ) {
+        self.wellnessScore = wellnessScore
+        self.mealScore = mealScore
+        self.sleepReport = sleepReport
+        _showDetail = State(initialValue: initiallyShowsDetail)
+    }
 
     var body: some View {
         Button(action: { showDetail = true }) {
@@ -64,7 +76,8 @@ struct WellnessScoreCardView: View {
             }
             .appSurface(.quiet)
         }
-        .buttonStyle(AnimatedCardButtonStyle())
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("wellness_score_card")
         .sheet(isPresented: $showDetail) {
             WellnessScoreDetailView(
                 wellnessScore: wellnessScore,

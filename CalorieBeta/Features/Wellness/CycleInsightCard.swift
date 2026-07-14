@@ -1,82 +1,79 @@
+import MyFitPlateCore
 import SwiftUI
 
 struct MaiaCycleInsightCard: View {
     let insight: AIInsight
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "brain.head.profile")
-                    .appFont(size: 20, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-                Text("Maia's Phase Guide")
-                    .appFont(size: 18, weight: .bold)
-                Spacer()
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            AppSectionHeader(
+                title: "Maia Phase Guide",
+                subtitle: "AI guidance from your estimated phase and recent logs"
+            ) {
+                Image(systemName: "sparkles")
+                    .appFont(size: 18, weight: .semibold)
+                    .foregroundStyle(AppPalette.brand)
+                    .accessibilityHidden(true)
             }
-            .padding(.bottom, 4)
 
-            Text(insight.phaseTitle)
-                .appFont(size: 20, weight: .semibold)
-                .foregroundColor(.accentPositive)
-            Text(insight.phaseDescription)
-                .appFont(size: 14)
-            
-            Divider()
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                Text(insight.phaseTitle)
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
 
-            VStack(alignment: .leading) {
-                Text("Training Focus")
-                    .appFont(size: 12).foregroundColor(.secondary)
-                Text(insight.trainingFocus.title)
-                    .appFont(size: 16, weight: .medium)
-                Text(insight.trainingFocus.description)
-                    .appFont(size: 14)
+                Text(insight.phaseDescription)
+                    .appTextRole(.body)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            
-            Divider()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .appSurface(.emphasized)
 
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Hormonal State")
-                        .appFont(size: 12).foregroundColor(.secondary)
-                    Text(insight.hormonalState)
-                        .appFont(size: 16, weight: .medium)
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Estimated Pattern", value: insight.hormonalState, accent: .pink),
+                AppMetricItem(label: "Energy Cue", value: insight.energyLevel, accent: .blue)
+            ])
+            .appSurface(.quiet)
+
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                AppSectionHeader(title: "Suggested Focus")
+
+                VStack(spacing: 0) {
+                    AppListRow(
+                        icon: "figure.strengthtraining.traditional",
+                        iconColor: AppPalette.brand,
+                        title: insight.trainingFocus.title,
+                        subtitle: insight.trainingFocus.description
+                    )
+
+                    Divider()
+                        .padding(.leading, 60)
+
+                    AppListRow(
+                        icon: "fork.knife",
+                        iconColor: .orange,
+                        title: "Nutrition",
+                        subtitle: insight.nutritionTip
+                    )
+
+                    Divider()
+                        .padding(.leading, 60)
+
+                    AppListRow(
+                        icon: "heart.text.square",
+                        iconColor: .blue,
+                        title: "Symptoms",
+                        subtitle: insight.symptomTip
+                    )
                 }
-                Spacer()
-                VStack(alignment: .trailing) {
-                    Text("Energy Level")
-                        .appFont(size: 12).foregroundColor(.secondary)
-                    Text(insight.energyLevel)
-                        .appFont(size: 16, weight: .medium)
-                        .foregroundColor(.brandPrimary)
-                }
-            }
-            
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Nutrition Tip")
-                    .appFont(size: 12).foregroundColor(.secondary)
-                Text(insight.nutritionTip)
-                    .appFont(size: 14)
+                .appSurface(.quiet, padding: 0)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Symptom Tip")
-                    .appFont(size: 12).foregroundColor(.secondary)
-                Text(insight.symptomTip)
-                    .appFont(size: 14)
-            }
-            
-            Text("Cycle phases are estimates and should not be used as a form of birth control or medical advice.")
-                .appFont(size: 10)
-                .foregroundColor(.secondary)
-                .padding(.top, 8)
+            Text("Calendar phases and AI guidance are estimates. They do not measure hormones, predict fertility, or replace medical advice.")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(20)
-        .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.brandPrimary.opacity(0.3), lineWidth: 1)
-        )
+        .accessibilityIdentifier("maia_cycle_insight")
     }
 }

@@ -391,10 +391,11 @@ struct HomeView: View {
               NavigationStack {
                   ScrollView {
                       FastingTrackerCard()
-                          .padding()
+                          .padding(.horizontal, AppSpacing.screenHorizontal)
+                          .padding(.vertical, AppSpacing.group)
                   }
                   .background(Color.backgroundPrimary.ignoresSafeArea())
-                  .navigationTitle("Fasting")
+                  .navigationTitle("")
                   .navigationBarTitleDisplayMode(.inline)
                   .toolbar {
                       ToolbarItem(placement: .cancellationAction) {

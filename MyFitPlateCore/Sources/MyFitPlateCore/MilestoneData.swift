@@ -113,6 +113,7 @@ public struct MilestoneView: View {
     public let currentWeight: Double
     public let targetWeight: Double
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     public let numberOfMilestonesToShow: Int = 5
 
     public init(initialWeight: Double, currentWeight: Double, targetWeight: Double) {
@@ -140,75 +141,108 @@ public struct MilestoneView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Milestones")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Milestones",
+                subtitle: milestones.isEmpty
+                    ? "Set an initial and target weight to create checkpoints."
+                    : "\(completedMilestonesCount) of \(totalMilestones) checkpoints reached."
+            )
             
             if milestones.isEmpty {
-                Text("Set an initial and target weight to see milestones.")
-                    .font(.caption)
-                    .foregroundColor(.gray)
+                Text("Your checkpoints will appear here once the goal has enough distance to measure.")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical)
+                    .padding(.vertical, AppSpacing.group)
             } else {
-                Text("\(completedMilestonesCount)/\(totalMilestones) Milestones Completed")
-                    .font(.subheadline)
-                    .foregroundColor(completedMilestonesCount == totalMilestones && totalMilestones > 0 ? .green : .gray)
-                    .padding(.bottom, 10)
-
-                GeometryReader { geometry in
-                    HStack(alignment: .bottom, spacing: 0) {
-                        ForEach(milestones.indices, id: \.self) { index in
-                            let milestone = milestones[index]
-                            VStack(spacing: 5) {
-                                Image(systemName: milestone.isCompleted ? "checkmark.circle.fill" : (milestone.progressToNextMilestone > 0 && milestone.progressToNextMilestone < 1 && !milestone.isCompleted ? "figure.walk" : "circle.dashed"))
-                                    .font(milestone.isCompleted ? .title2 : .title3)
-                                    .foregroundColor(milestone.isCompleted ? .green : (milestone.progressToNextMilestone > 0 && !milestone.isCompleted ? Color.accentColor.opacity(0.8) : .gray.opacity(0.5)))
-                                    .frame(height: 30)
-
-                                Text(milestone.displayLabel)
-                                    .font(.caption2)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.8)
-                                    .foregroundColor(milestone.isCompleted ? .primary.opacity(0.8) : .gray)
-                                
-                                Capsule()
-                                    .fill(Color.gray.opacity(0.2))
-                                    .frame(width: (geometry.size.width - CGFloat(milestones.count - 1) * 10 - CGFloat(milestones.count * 10) ) / CGFloat(milestones.count) , height: 10)
-                                    .overlay(
-                                        GeometryReader { capsuleGeo in
-                                            Capsule()
-                                                .fill(LinearGradient(gradient: Gradient(colors: [Color.accentColor.opacity(0.6), Color.accentColor]), startPoint: .leading, endPoint: .trailing))
-                                                .frame(width: capsuleGeo.size.width * CGFloat(milestone.progressToNextMilestone))
-                                        }
-                                        , alignment: .leading
-                                    )
-                                    .animation(.easeInOut, value: milestone.progressToNextMilestone)
-                                    .padding(.top, 2)
-                            }
-                            .frame(width: (geometry.size.width - CGFloat(milestones.count - 1) * 10) / CGFloat(milestones.count))
-
-                            if index < milestones.count - 1 {
-                                Spacer().frame(width: 10)
-                            }
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: 0) {
+                        ForEach(Array(milestones.enumerated()), id: \.offset) { index, milestone in
+                            milestoneRow(index: index, milestone: milestone)
+                            if index < milestones.count - 1 { Divider() }
+                        }
+                    }
+                } else {
+                    HStack(alignment: .top, spacing: AppSpacing.compact) {
+                        ForEach(Array(milestones.enumerated()), id: \.offset) { index, milestone in
+                            milestoneColumn(index: index, milestone: milestone)
                         }
                     }
                 }
-                .frame(height: 80)
 
-                HStack {
-                    Text("Initial: \(BodyUnits.weightString(lbs: initialWeight, metric: useMetric))")
-                    Spacer()
-                    Text("Goal: \(BodyUnits.weightString(lbs: targetWeight, metric: useMetric))")
-                }
-                .font(.caption)
-                .foregroundColor(.gray)
-                .padding(.top, 5)
+                AppMetricStrip(items: [
+                    AppMetricItem(
+                        label: "Starting Weight",
+                        value: BodyUnits.weightString(lbs: initialWeight, metric: useMetric),
+                        accent: .secondary
+                    ),
+                    AppMetricItem(
+                        label: "Target Weight",
+                        value: BodyUnits.weightString(lbs: targetWeight, metric: useMetric)
+                    )
+                ])
             }
         }
-        .padding()
-        .background(Color.gray.opacity(0.15))
-        .cornerRadius(15)
-        .padding(.horizontal)
+        .appSurface(.quiet)
+        .accessibilityIdentifier("weight_milestones")
+    }
+
+    private func milestoneColumn(index: Int, milestone: MilestoneData) -> some View {
+        VStack(spacing: AppSpacing.compact) {
+            Image(systemName: milestoneIcon(milestone))
+                .appFont(size: 18, weight: .semibold)
+                .foregroundStyle(milestoneColor(milestone))
+
+            Text(milestone.displayLabel)
+                .appTextRole(.caption)
+                .foregroundStyle(milestone.isCompleted ? AppPalette.text : .secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            ProgressView(value: milestone.progressToNextMilestone)
+                .tint(milestoneColor(milestone))
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Checkpoint \(index + 1), \(milestone.displayLabel)")
+        .accessibilityValue(milestone.isCompleted ? "Complete" : "\(Int((milestone.progressToNextMilestone * 100).rounded())) percent")
+    }
+
+    private func milestoneRow(index: Int, milestone: MilestoneData) -> some View {
+        HStack(spacing: AppSpacing.row) {
+            Image(systemName: milestoneIcon(milestone))
+                .appFont(size: 18, weight: .semibold)
+                .foregroundStyle(milestoneColor(milestone))
+                .frame(width: 36, height: 36)
+                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Checkpoint \(index + 1)")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                Text(milestone.displayLabel)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                ProgressView(value: milestone.progressToNextMilestone)
+                    .tint(milestoneColor(milestone))
+            }
+        }
+        .padding(.vertical, AppSpacing.compact)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Checkpoint \(index + 1), \(milestone.displayLabel)")
+        .accessibilityValue(milestone.isCompleted ? "Complete" : "\(Int((milestone.progressToNextMilestone * 100).rounded())) percent")
+    }
+
+    private func milestoneIcon(_ milestone: MilestoneData) -> String {
+        if milestone.isCompleted { return "checkmark.circle.fill" }
+        if milestone.progressToNextMilestone > 0 { return "figure.walk" }
+        return "circle.dashed"
+    }
+
+    private func milestoneColor(_ milestone: MilestoneData) -> Color {
+        if milestone.isCompleted { return .green }
+        if milestone.progressToNextMilestone > 0 { return AppPalette.brand }
+        return .secondary
     }
 }

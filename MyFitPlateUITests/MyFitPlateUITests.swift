@@ -2362,6 +2362,111 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testWellnessFamilyUsesUnifiedEvidenceHierarchy() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "Weight Progress", route: "weight-detail", container: "weight_tracking_screen", title: "Weight Progress"),
+            (name: "Wellness Debrief", route: "wellness-detail", container: "wellness_detail_screen", title: "Wellness Debrief"),
+            (name: "Fasting", route: "fasting-detail", container: "fasting_tracker_screen", title: "Plan a Fast"),
+            (name: "Cycle Phase", route: "cycle-detail", container: "cycle_tracking_screen", title: "Cycle Phase")
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route
+            ]
+            app.launch()
+
+            let container = app.descendants(matching: .any)
+                .matching(identifier: screen.container)
+                .firstMatch
+            XCTAssertTrue(container.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(app.staticTexts[screen.title].waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+
+            if screen.route == "weight-detail" {
+                let logWeight = app.buttons["weight_log_button"]
+                XCTAssertTrue(logWeight.waitForExistence(timeout: 5))
+                XCTAssertTrue(logWeight.isHittable)
+            } else if screen.route == "fasting-detail" {
+                XCTAssertTrue(app.buttons["fasting_schedule_picker"].waitForExistence(timeout: 5))
+            } else if screen.route == "cycle-detail" {
+                XCTAssertTrue(app.buttons["cycle_options_button"].waitForExistence(timeout: 5))
+            }
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - unified wellness hierarchy"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testWellnessFamilySupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "Weight Progress", route: "weight-detail", container: "weight_tracking_screen"),
+            (name: "Wellness Debrief", route: "wellness-detail", container: "wellness_detail_screen"),
+            (name: "Fasting", route: "fasting-detail", container: "fasting_tracker_screen"),
+            (name: "Cycle Phase", route: "cycle-detail", container: "cycle_tracking_screen")
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let container = app.descendants(matching: .any)
+                .matching(identifier: screen.container)
+                .firstMatch
+            XCTAssertTrue(container.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+
+            switch screen.route {
+            case "weight-detail":
+                let logWeight = app.buttons["weight_log_button"]
+                XCTAssertTrue(logWeight.waitForExistence(timeout: 5))
+                XCTAssertTrue(logWeight.isHittable)
+            case "wellness-detail":
+                let overview = app.descendants(matching: .any)
+                    .matching(identifier: "wellness_score_overview")
+                    .firstMatch
+                XCTAssertTrue(overview.waitForExistence(timeout: 5))
+                XCTAssertLessThanOrEqual(overview.frame.maxX, app.frame.maxX + 1)
+            case "fasting-detail":
+                let schedule = app.buttons["fasting_schedule_picker"]
+                XCTAssertTrue(schedule.waitForExistence(timeout: 5))
+                XCTAssertTrue(schedule.isHittable)
+            case "cycle-detail":
+                let options = app.buttons["cycle_options_button"]
+                XCTAssertTrue(options.waitForExistence(timeout: 5))
+                XCTAssertTrue(options.isHittable)
+            default:
+                XCTFail("Unknown wellness route \(screen.route)")
+            }
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testCustomProductPageDeepLinksOpenExactDestinations() throws {
         let app = XCUIApplication()
         let destinations = [

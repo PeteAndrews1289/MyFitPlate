@@ -1,13 +1,11 @@
 import SwiftUI
 
-// DESIGN.md: one hero (the weight you're entering, big), one filled CTA (Save weight),
-// context instead of chrome (your last entry, right where you're typing the new one).
 struct CurrentWeightView: View {
-    @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject private var goalSettings: GoalSettings
+    @Environment(\.dismiss) private var dismiss
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @State private var weight = ""
     @State private var entryDate = Date()
-    @Environment(\.dismiss) var dismiss
     @FocusState private var weightFieldFocused: Bool
 
     private var unit: String { BodyUnits.weightUnit(metric: useMetric) }
@@ -30,79 +28,139 @@ struct CurrentWeightView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
-                    VStack(spacing: 10) {
-                        Text("Today's weight")
-                            .appFont(size: 13, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    AppScreenHeader(
+                        eyebrow: "Body Trend",
+                        title: "Log Weight",
+                        subtitle: "Use the same conditions when possible so the long-term trend stays meaningful."
+                    )
 
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        AppSectionHeader(
+                            title: "Measurement",
+                            subtitle: lastEntryDescription
+                        )
+
+                        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
                             TextField("0.0", text: $weight)
                                 .keyboardType(.decimalPad)
                                 .focused($weightFieldFocused)
-                                .appFont(size: 44, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                                .multilineTextAlignment(.center)
-                                .fixedSize()
+                                .appTextRole(.display)
+                                .foregroundStyle(AppPalette.text)
                                 .monospacedDigit()
                                 .accessibilityLabel("Weight in \(unit)")
 
                             Text(unit)
-                                .appFont(size: 17, weight: .semibold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
+                                .appTextRole(.control)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                                .stroke(AppPalette.separator, lineWidth: 1)
                         }
 
-                        if let change = changeFromLastEntry, abs(change) >= 0.05 {
-                            let down = change < 0
-                            HStack(spacing: 4) {
-                                Image(systemName: down ? "arrow.down.right" : "arrow.up.right")
-                                    .appFont(size: 11, weight: .bold)
-                                Text("\(String(format: "%.1f", abs(BodyUnits.weightDisplayValue(lbs: change, metric: useMetric)))) \(unit) since your last entry")
-                                    .appFont(size: 12, weight: .semibold)
-                            }
-                            .foregroundColor(down ? .accentPositive : .orange)
-                        } else if let last = lastEntry {
-                            Text("Last entry \(String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: last.weight, metric: useMetric))) \(unit) · \(last.date.formatted(.dateTime.month(.abbreviated).day()))")
-                                .appFont(size: 12, weight: .medium)
-                                .foregroundColor(Color(UIColor.tertiaryLabel))
-                        }
+                        changeContext
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 22)
-                    .asCard()
+                    .appSurface(.emphasized)
 
-                    DatePicker("Date", selection: $entryDate, in: ...Date(), displayedComponents: .date)
-                        .appFont(size: 15, weight: .semibold)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .asCard()
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        AppSectionHeader(
+                            title: "Entry Date",
+                            subtitle: "Backdate the measurement when you are adding it later."
+                        )
 
-                    Button("Save weight") {
-                        saveWeight()
-                        dismiss()
+                        DatePicker(
+                            "Measurement date",
+                            selection: $entryDate,
+                            in: ...Date(),
+                            displayedComponents: .date
+                        )
+                        .appTextRole(.control)
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        )
                     }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(enteredValue == nil)
                 }
-                .padding()
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Log weight")
+            .scrollDismissesKeyboard(.interactively)
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Log Weight")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { weightFieldFocused = false }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button("Save Weight") {
+                    saveWeight()
+                    dismiss()
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(enteredValue == nil)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.row)
+                .padding(.bottom, AppSpacing.compact)
+                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    Rectangle().fill(AppPalette.separator).frame(height: 1)
+                }
+                .accessibilityIdentifier("weight_entry_save")
             }
             .onAppear {
-                weight = String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: goalSettings.weight, metric: useMetric))
+                weight = String(
+                    format: "%.1f",
+                    BodyUnits.weightDisplayValue(lbs: goalSettings.weight, metric: useMetric)
+                )
                 weightFieldFocused = true
             }
+        }
+        .tint(AppPalette.brand)
+        .accessibilityIdentifier("weight_entry_screen")
+    }
+
+    private var lastEntryDescription: String {
+        guard let lastEntry else { return "Your first entry becomes the start of the trend." }
+        let value = BodyUnits.weightDisplayValue(lbs: lastEntry.weight, metric: useMetric)
+        return "Last logged \(String(format: "%.1f", value)) \(unit) on \(lastEntry.date.formatted(.dateTime.month(.abbreviated).day()))."
+    }
+
+    @ViewBuilder
+    private var changeContext: some View {
+        if let change = changeFromLastEntry, abs(change) >= 0.05 {
+            let isDown = change < 0
+            Label(
+                "\(String(format: "%.1f", abs(BodyUnits.weightDisplayValue(lbs: change, metric: useMetric)))) \(unit) since the last entry",
+                systemImage: isDown ? "arrow.down.right" : "arrow.up.right"
+            )
+            .appTextRole(.secondary)
+            .foregroundStyle(isDown ? Color.accentPositive : Color.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        } else if enteredValue != nil {
+            Label("In line with your last entry", systemImage: "equal")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 
     private func saveWeight() {
         guard let value = enteredValue else { return }
-        goalSettings.updateUserWeight(BodyUnits.weightToLbs(value, metric: useMetric), date: entryDate)
+        goalSettings.updateUserWeight(
+            BodyUnits.weightToLbs(value, metric: useMetric),
+            date: entryDate
+        )
     }
 }
