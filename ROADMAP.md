@@ -544,7 +544,13 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   Setup, and the feature tour now use the shared hierarchy; required setup cannot be bypassed by
   swiping or by a partially provisioned profile. Standard and dark accessibility-XXXL journeys are
   captured and pass focused coverage.
-- [ ] Migrate the remaining long-tail feature families: community and specialty nutrition tools.
+- [x] Migrate the live progress family. Profile, achievements, and Weekly Challenges now use one
+  responsive evidence hierarchy with correct level-threshold math, deterministic fixtures, and
+  standard plus dark accessibility-XXXL coverage. Placeholder identity and gender-derived labels
+  are removed, BMI language is cautious, and sharing remains explicit. The dormant group/post
+  prototype and public barcode consensus remain inaccessible behind their safety/rollout gates.
+- [ ] Migrate the remaining pantry and specialty nutrition tools without turning the dormant social
+  prototype into 2.3 release scope.
 - [ ] Retire legacy Home after rollout proof, remove the remaining legacy glass aliases, enforce
   the new rules in source checks, and complete the full 2.3 regression/release pass.
 

@@ -101,17 +101,30 @@ public final class MockAchievementRepository: AchievementRepositoryProtocol {
     private let lock = NSLock()
     
     public var mockProfilePublisher = PassthroughSubject<(points: Int, level: Int)?, Never>()
+    public var mockUserProfile: (points: Int, level: Int)?
     public func userProfilePublisher(userID: String) -> AnyPublisher<(points: Int, level: Int)?, Never> {
+        if let mockUserProfile {
+            let profile: (points: Int, level: Int)? = mockUserProfile
+            return Just(profile).eraseToAnyPublisher()
+        }
         return mockProfilePublisher.eraseToAnyPublisher()
     }
     
     public var mockStatusesPublisher = PassthroughSubject<[UserAchievementStatus], Error>()
+    public var mockUserStatuses: [UserAchievementStatus]?
     public func userStatusesPublisher(userID: String) -> AnyPublisher<[UserAchievementStatus], Error> {
+        if let mockUserStatuses {
+            return Just(mockUserStatuses).setFailureType(to: Error.self).eraseToAnyPublisher()
+        }
         return mockStatusesPublisher.eraseToAnyPublisher()
     }
     
     public var mockChallengesPublisher = PassthroughSubject<[Challenge], Error>()
+    public var mockChallenges: [Challenge]?
     public func activeChallengesPublisher(userID: String) -> AnyPublisher<[Challenge], Error> {
+        if let mockChallenges {
+            return Just(mockChallenges).setFailureType(to: Error.self).eraseToAnyPublisher()
+        }
         return mockChallengesPublisher.eraseToAnyPublisher()
     }
     

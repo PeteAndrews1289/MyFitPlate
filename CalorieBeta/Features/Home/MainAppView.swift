@@ -327,6 +327,7 @@ struct CalorieBetaApp: App {
             let mockNutrition = MockNutritionRepository()
             let mockWorkout = MockWorkoutRepository()
             let mockSettings = MockSettingsRepository()
+            let mockAchievements = MockAchievementRepository()
             #if DEBUG
             if isScreenshotMode {
                 ScreenshotDemoData.prepareUserDefaults()
@@ -335,6 +336,7 @@ struct CalorieBetaApp: App {
                     workout: mockWorkout,
                     settings: mockSettings
                 )
+                ScreenshotDemoData.configureAchievementRepository(mockAchievements)
             }
             #endif
             DIContainer.shared.configure(
@@ -343,7 +345,7 @@ struct CalorieBetaApp: App {
                 nutritionRepository: mockNutrition,
                 workoutRepository: mockWorkout,
                 groupRepository: MockGroupRepository(),
-                achievementRepository: MockAchievementRepository(),
+                achievementRepository: mockAchievements,
                 settingsRepository: mockSettings,
                 reportsRepository: MockReportsRepository(),
                 postRepository: MockPostRepository(),
@@ -439,6 +441,7 @@ struct CalorieBetaApp: App {
             ScreenshotDemoData.configureServices(
                 goalSettings: goalsSvc,
                 dailyLogService: logService,
+                achievementService: achieveService,
                 healthKitViewModel: hkViewModel,
                 cycleTrackingService: cycleSvc,
                 appState: applicationState

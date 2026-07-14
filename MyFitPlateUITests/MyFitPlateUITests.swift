@@ -2546,6 +2546,101 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testProgressFamilyUsesUnifiedHierarchy() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "Profile", route: "profile", title: "Your Progress", summary: "profile_progress_summary"),
+            (name: "Challenges", route: "challenges", title: "Weekly Challenges", summary: "challenges_summary")
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route
+            ]
+            app.launch()
+
+            let title = app.staticTexts[screen.title]
+            let summary = app.descendants(matching: .any)
+                .matching(identifier: screen.summary)
+                .firstMatch
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(summary.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(summary.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.maxX + 1)
+
+            if screen.route == "profile" {
+                let challengeButton = app.buttons["profile_weekly_challenges_button"]
+                for _ in 0..<4 where !challengeButton.exists || !challengeButton.isHittable {
+                    app.swipeUp()
+                }
+                XCTAssertTrue(challengeButton.waitForExistence(timeout: 5))
+                XCTAssertTrue(challengeButton.isHittable)
+
+                let achievementList = app.descendants(matching: .any)
+                    .matching(identifier: "profile_achievement_list")
+                    .firstMatch
+                for _ in 0..<3 where !achievementList.exists {
+                    app.swipeUp()
+                }
+                XCTAssertTrue(achievementList.waitForExistence(timeout: 5))
+            } else {
+                let challengeList = app.descendants(matching: .any)
+                    .matching(identifier: "challenge_list")
+                    .firstMatch
+                XCTAssertTrue(challengeList.waitForExistence(timeout: 5))
+            }
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - unified progress hierarchy"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testProgressFamilySupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "Profile", route: "profile", title: "Your Progress", summary: "profile_progress_summary"),
+            (name: "Challenges", route: "challenges", title: "Weekly Challenges", summary: "challenges_summary")
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let title = app.staticTexts[screen.title]
+            let summary = app.descendants(matching: .any)
+                .matching(identifier: screen.summary)
+                .firstMatch
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(summary.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(title.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX + 1)
+            XCTAssertGreaterThanOrEqual(summary.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.maxX + 1)
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testCustomProductPageDeepLinksOpenExactDestinations() throws {
         let app = XCUIApplication()
         let destinations = [

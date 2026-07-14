@@ -64,6 +64,19 @@ final class ScreenshotDemoDataTests: XCTestCase {
         XCTAssertEqual(items.reduce(0) { $0 + $1.calories }, 870, accuracy: 0.01)
     }
 
+    func testAchievementFixtureStartsAtAStableProgressState() {
+        let repository = MockAchievementRepository()
+
+        ScreenshotDemoData.configureAchievementRepository(repository)
+
+        XCTAssertEqual(repository.mockUserProfile?.points, 780)
+        XCTAssertEqual(repository.mockUserProfile?.level, 4)
+        XCTAssertEqual(repository.mockUserStatuses?.filter(\.isUnlocked).count, 4)
+        XCTAssertEqual(repository.mockChallenges?.count, 3)
+        XCTAssertEqual(repository.mockChallenges?.filter(\.isCompleted).count, 1)
+        XCTAssertEqual(repository.mockActiveChallenges.count, 3)
+    }
+
     func testLivingDayFoodTransitionTargetsPersistedMealNode() {
         let mealID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
         let food = FoodItem(id: "logged-food", name: "Chicken bowl", calories: 520)

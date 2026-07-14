@@ -306,12 +306,35 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   reviewed captures, visible and hittable actions, and explicit horizontal-bound checks. Strict
   lint and the complete simulator build pass.
 
+### Batch 17 - Progress, Achievements, and Weekly Challenges (complete)
+
+- Rebuilt Profile as `Your Progress`: one level/points/unlocked summary, correct threshold-relative
+  level progress, one direct Weekly Challenges route, a restrained current-targets section, and a
+  continuous achievement list instead of a dashboard of independent cards.
+- Rebuilt Weekly Challenges around an Open/Complete/Points Left summary and one responsive list.
+  In-progress, completed, and ended states now use literal status language and remain readable at
+  the largest accessibility text size.
+- Removed placeholder identity and gender-derived journey labels. BMI is identified as a general
+  screening estimate rather than a diagnosis or complete health measure. Sharing remains an
+  explicit user action and only appears for unlocked achievements.
+- Added a tested level-progress contract that handles threshold spans and the maximum level, plus
+  deterministic achievement and challenge repository fixtures so late subscriptions cannot replace
+  screenshot state with a loading placeholder.
+- Audited the older group/post prototype and kept it inaccessible. It lacks the identity,
+  reporting, blocking, moderation, and privacy contracts required for a public social surface.
+  Community barcode consensus also remains behind its existing default-off rollout gate.
+- Four final standard/dark accessibility captures were reviewed. Focused Core rules passed 14/14,
+  app fixture tests passed 6/6, both end-to-end progress-family journeys passed, strict lint passed,
+  and the complete simulator target compiled with Watch, widgets, and Live Activity.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
 review family now join that system, along with wellness, weight, fasting, and cycle tracking. The
-first-run and account-access family now joins them. The active queue moves to community and the
-remaining specialty nutrition tools.
+first-run and account-access family now joins them, as do the live progress, achievement, and
+weekly-challenge surfaces. The active migration queue is now the remaining specialty nutrition
+tools; unfinished public social surfaces remain explicitly gated rather than being polished into
+accidental release scope.
 
 ## Product Direction
 
@@ -539,8 +562,10 @@ start. Editorial composition must not leak into repeated workflows.
 - Settings and account/legal surfaces (Batch 12 complete)
 - Workout program/routine editors and analytics (Batches 13-14 complete)
 - Wellness, weight, fasting, and cycle surfaces (Batch 15 complete)
-- Onboarding/authentication
-- Community surfaces
+- Onboarding/authentication (Batch 16 complete)
+- Profile, achievements, and weekly challenges (Batch 17 complete)
+- Dormant group/post social prototype (not release eligible; keep inaccessible until its safety
+  and privacy product contracts exist)
 - Remaining pantry and specialty nutrition tools
 
 Migrate by feature family so each batch can be reviewed and reverted independently.
@@ -629,6 +654,16 @@ Migrate by feature family so each batch can be reviewed and reverted independent
 - Use a compact Goals summary row followed by native grouped sections.
 - Reserve semantic colors for the data they represent; configuration icons stay mostly neutral.
 - Use the standard app tint for Done and switches rather than a separate blue configuration theme.
+
+### Profile, Achievements, and Weekly Challenges
+
+- Treat Profile as a progress record, not a social identity card. Lead with level, earned points,
+  unlocked milestones, and the exact distance to the next threshold.
+- Keep current nutrition targets secondary and label BMI cautiously as a screening estimate.
+- Present achievements and challenges as continuous operational lists with literal progress,
+  completion, expiry, and point states rather than nested cards or celebratory decoration.
+- Keep sharing opt-in and limited to earned achievements. Do not expose the dormant public group or
+  post feed without identity, reporting, blocking, moderation, and privacy review.
 
 ## Acceptance Gates
 

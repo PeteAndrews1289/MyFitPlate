@@ -38,6 +38,13 @@ enum ScreenshotDemoData {
         let source: Run.Source
     }
 
+    private struct AchievementProgressFixture {
+        let statuses: [String: UserAchievementStatus]
+        let points: Int
+        let level: Int
+        let challenges: [Challenge]
+    }
+
     private static let calendar = Calendar.current
     private static var today: Date { calendar.startOfDay(for: Date()) }
 
@@ -770,9 +777,24 @@ enum ScreenshotDemoData {
         settings.mockWeightHistory = weightHistory()
     }
 
+    static func configureAchievementRepository(_ repository: MockAchievementRepository) {
+        let fixture = achievementProgressFixture(
+            definitions: AchievementRules.defaultDefinitions(),
+            thresholds: AchievementRules.defaultLevelThresholds
+        )
+
+        repository.mockUserProfile = (points: fixture.points, level: fixture.level)
+        repository.mockUserStatuses = fixture.statuses.values.sorted {
+            $0.achievementID < $1.achievementID
+        }
+        repository.mockChallenges = fixture.challenges
+        repository.mockActiveChallenges = fixture.challenges
+    }
+
     static func configureServices(
         goalSettings: GoalSettings,
         dailyLogService: DailyLogService,
+        achievementService: AchievementService,
         healthKitViewModel: HealthKitViewModel,
         cycleTrackingService: CycleTrackingService,
         appState: AppState
@@ -781,6 +803,7 @@ enum ScreenshotDemoData {
         goalSettings.weightHistory = weightHistory()
         dailyLogService.activelyViewedDate = today
         dailyLogService.publishCurrentDailyLog(nutritionHistory()[0])
+        applyAchievementProgress(to: achievementService)
 
         healthKitViewModel.isAuthorized = false
         healthKitViewModel.lastSyncedAt = Date().addingTimeInterval(-8 * 60)
@@ -806,6 +829,80 @@ enum ScreenshotDemoData {
         }
         appState.isDarkModeEnabled = ProcessInfo.processInfo.arguments.contains("-screenshot-dark-mode")
         appState.isUserLoggedIn = true
+    }
+
+    private static func applyAchievementProgress(to service: AchievementService) {
+        let fixture = achievementProgressFixture(
+            definitions: service.achievementDefinitions,
+            thresholds: service.levelThresholds
+        )
+
+        service.userStatuses = fixture.statuses
+        service.unlockedAchievementsCount = fixture.statuses.values.filter(\.isUnlocked).count
+        service.userTotalAchievementPoints = fixture.points
+        service.userAchievementLevel = fixture.level
+        service.userXp = fixture.points
+        service.activeChallenges = fixture.challenges
+        service.isLoading = false
+    }
+
+    private static func achievementProgressFixture(
+        definitions: [AchievementDefinition],
+        thresholds: [Int]
+    ) -> AchievementProgressFixture {
+        var statuses = AchievementRules.mergedStatuses(
+            definitions: definitions,
+            fetchedStatuses: []
+        )
+
+        func updateStatus(
+            _ id: String,
+            progress: Double,
+            unlockedDaysAgo: Int? = nil
+        ) {
+            guard var status = statuses[id] else { return }
+            status.currentProgress = progress
+            status.lastProgressUpdate = calendar.date(byAdding: .day, value: -1, to: today)
+            if let unlockedDaysAgo {
+                status.isUnlocked = true
+                status.unlockedDate = calendar.date(byAdding: .day, value: -unlockedDaysAgo, to: today)
+            }
+            statuses[id] = status
+        }
+
+        updateStatus("first_workout", progress: 1, unlockedDaysAgo: 2)
+        updateStatus("on_the_weigh", progress: 1, unlockedDaysAgo: 5)
+        updateStatus("goal_setter", progress: 1, unlockedDaysAgo: 9)
+        updateStatus("first_log", progress: 1, unlockedDaysAgo: 12)
+        updateStatus("workout_streak_7", progress: 4)
+        updateStatus("apprentice_chef", progress: 6)
+        updateStatus("log_streak_7", progress: 5)
+
+        var challenges = AchievementRules.potentialWeeklyChallenges(currentDate: today)
+            .filter { ["Workout Warrior", "Protein Power", "Dedicated Dieter"].contains($0.title) }
+        for index in challenges.indices {
+            challenges[index].id = "demo-challenge-\(index)"
+            challenges[index].expiresAt = calendar.date(byAdding: .day, value: 3, to: today) ?? today
+            switch challenges[index].title {
+            case "Workout Warrior":
+                challenges[index].progress = 2
+            case "Protein Power":
+                challenges[index].progress = 4
+                challenges[index].isCompleted = true
+            case "Dedicated Dieter":
+                challenges[index].progress = 5
+            default:
+                break
+            }
+        }
+
+        let points = 780
+        return AchievementProgressFixture(
+            statuses: statuses,
+            points: points,
+            level: AchievementRules.level(for: points, thresholds: thresholds),
+            challenges: challenges
+        )
     }
 
     private static func applyGoals(to goals: GoalSettings) {

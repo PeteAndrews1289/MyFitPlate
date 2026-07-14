@@ -77,7 +77,8 @@ struct MainTabView: View {
     private var isDirectScreenshotSurface: Bool {
         #if DEBUG
         ScreenshotDemoMode.isEnabled && [
-            "weight-detail", "wellness-detail", "fasting-detail", "cycle-detail"
+            "weight-detail", "wellness-detail", "fasting-detail", "cycle-detail",
+            "profile", "challenges"
         ].contains(ScreenshotDemoData.requestedScreen)
         #else
         false
@@ -383,6 +384,10 @@ struct MainTabView: View {
             }
         case "cycle-detail":
             NavigationStack { CycleTrackingView() }
+        case "profile":
+            NavigationStack { UserProfileView() }
+        case "challenges":
+            NavigationStack { ChallengesView() }
         default:
             standardHomeContent
         }
