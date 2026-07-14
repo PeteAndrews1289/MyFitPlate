@@ -100,12 +100,17 @@ struct MainTabView: View {
         _showSettings = State(initialValue: screenshotScreen == "settings")
         _showingAddOptions = State(initialValue: screenshotScreen == "quick-log")
         _showingFoodSearch = State(
-            initialValue: ["food-search", "builder", "trust", "my-foods", "add-food"].contains(screenshotScreen)
+            initialValue: [
+                "food-search", "builder", "trust", "my-foods", "add-food", "quick-add-macros"
+            ].contains(screenshotScreen)
         )
         _showingRecipeListView = State(initialValue: screenshotScreen == "recipes")
         _showingGroceryList = State(initialValue: screenshotScreen == "grocery")
         _showingRunHistory = State(initialValue: screenshotScreen == "runs")
         _showingWeeklyReport = State(initialValue: screenshotScreen == "weekly-report")
+        _showingAITextLog = State(
+            initialValue: ["ai-text-log", "ai-text-results"].contains(screenshotScreen)
+        )
         #endif
     }
 
@@ -215,7 +220,7 @@ struct MainTabView: View {
                 }
             }
             .sheet(item: $estimatedFoodItemsWrapper) { wrapper in
-                 AISummaryView(estimatedItems: .constant(wrapper.items))
+                 AISummaryView(estimatedItems: wrapper.items)
             }
             .sheet(isPresented: $showingBarcodeScanner) {
                 BarcodeScannerView { barcode in

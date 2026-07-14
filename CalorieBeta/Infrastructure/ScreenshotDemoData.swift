@@ -93,6 +93,65 @@ enum ScreenshotDemoData {
         )
     }
 
+    static var aiTextDemoFoods: [FoodItem] {
+        [
+            FoodItem(
+                id: "demo-ai-text-bowl",
+                name: "Chicken Burrito Bowl",
+                calories: 620,
+                protein: 42,
+                carbs: 70,
+                fats: 20,
+                saturatedFat: 5,
+                fiber: 13,
+                servingSize: "1 bowl",
+                servingWeight: 510,
+                sourceMetadata: FoodSourceMetadata(
+                    sourceType: .aiText,
+                    confidence: .needsReview,
+                    reviewStatus: .unreviewed,
+                    sourceName: "Maia text estimate"
+                )
+            ),
+            FoodItem(
+                id: "demo-ai-text-guacamole",
+                name: "Guacamole",
+                calories: 110,
+                protein: 2,
+                carbs: 6,
+                fats: 10,
+                saturatedFat: 1.5,
+                fiber: 4,
+                servingSize: "1/4 cup",
+                servingWeight: 60,
+                sourceMetadata: FoodSourceMetadata(
+                    sourceType: .aiText,
+                    confidence: .needsReview,
+                    reviewStatus: .unreviewed,
+                    sourceName: "Maia text estimate"
+                )
+            ),
+            FoodItem(
+                id: "demo-ai-text-chips",
+                name: "Tortilla Chips",
+                calories: 140,
+                protein: 2,
+                carbs: 19,
+                fats: 7,
+                saturatedFat: 1,
+                fiber: 2,
+                servingSize: "1 small handful",
+                servingWeight: 28,
+                sourceMetadata: FoodSourceMetadata(
+                    sourceType: .aiText,
+                    confidence: .needsReview,
+                    reviewStatus: .unreviewed,
+                    sourceName: "Maia text estimate"
+                )
+            )
+        ]
+    }
+
     static var myFoodsDemoFoods: [FoodItem] {
         let oats = FoodItem(
             id: "demo-library-oats",

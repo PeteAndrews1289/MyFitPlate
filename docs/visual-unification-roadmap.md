@@ -193,10 +193,25 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   the full simulator build, and the final corrected UI executions passed; SwiftLint reported zero
   violations across 232 files and the final captures were reviewed.
 
+### Batch 11 - Nutrition Confirmation Workflows (complete)
+
+- Rebuilt Quick Add around responsive nutrition inputs, a live entry summary, automatic
+  macro-derived calories when calories are left blank, and one stable Add to Meal action.
+- Unified Maia text entry, text results, photo estimates, and rapid-barcode estimates around one
+  explicit review model. Source/review status, nutrition totals, edit affordances, swipe removal,
+  and final confirmation now follow the same hierarchy.
+- Fixed a pre-existing state defect in Maia result sheets: callers previously supplied immutable
+  bindings, so an apparent edit or deletion could fail to persist in the confirmation list. Each
+  review now owns its working item state and recomputes its total and action label immediately.
+- Added a deterministic Maia meal fixture and four focused UI scenarios covering Quick Add, Maia
+  input, editable removal, and dark accessibility-XXXL layouts. The final run passed 4/4, the
+  fixture test and full simulator build passed, SwiftLint reported zero violations across 232
+  files, and all retained light/dark captures were reviewed.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
-Grocery now joins that system. The active queue moves to the remaining logging confirmation sheets
-before Settings and the long-tail feature families.
+Grocery and the remaining confirmation workflows now join that system. The active queue moves to
+Settings and the long-tail feature families.
 
 ## Product Direction
 

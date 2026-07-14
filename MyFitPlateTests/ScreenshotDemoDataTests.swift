@@ -53,6 +53,17 @@ final class ScreenshotDemoDataTests: XCTestCase {
         XCTAssertTrue(items.contains { $0.category == "Pantry & Oils" })
     }
 
+    func testAITextFixtureSupportsEditableReview() {
+        let items = ScreenshotDemoData.aiTextDemoFoods
+
+        XCTAssertEqual(items.count, 3)
+        XCTAssertEqual(Set(items.map(\.id)).count, items.count)
+        XCTAssertTrue(items.allSatisfy { $0.sourceMetadata?.sourceType == .aiText })
+        XCTAssertTrue(items.allSatisfy { $0.sourceMetadata?.reviewStatus == .unreviewed })
+        XCTAssertTrue(items.allSatisfy { !$0.servingSize.isEmpty })
+        XCTAssertEqual(items.reduce(0) { $0 + $1.calories }, 870, accuracy: 0.01)
+    }
+
     func testLivingDayFoodTransitionTargetsPersistedMealNode() {
         let mealID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
         let food = FoodItem(id: "logged-food", name: "Chicken bowl", calories: 520)

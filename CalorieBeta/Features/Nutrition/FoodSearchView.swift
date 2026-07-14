@@ -74,6 +74,7 @@ struct FoodSearchView: View {
             initialValue: initialPresentation == .chainBuilder || screenshotScreen == "builder"
         )
         _showingAddFoodManually = State(initialValue: screenshotScreen == "add-food")
+        _showingQuickAddMacros = State(initialValue: screenshotScreen == "quick-add-macros")
         _showingMyFoodsLibrary = State(initialValue: screenshotScreen == "my-foods")
         _selectedFoodItem = State(
             initialValue: screenshotScreen == "trust" ? ScreenshotDemoData.trustDemoFood : nil
@@ -254,11 +255,11 @@ struct FoodSearchView: View {
                     )
                 }
                 .sheet(item: $estimatedFoodItemsWrapper) { wrapper in
-                     AISummaryView(estimatedItems: .constant(wrapper.items))
+                     AISummaryView(estimatedItems: wrapper.items)
                 }
                 .sheet(item: $scannedBarcodeItemsWrapper) { wrapper in
                      AISummaryView(
-                        estimatedItems: .constant(wrapper.items),
+                        estimatedItems: wrapper.items,
                         mealName: viewModel.selectedMeal,
                         source: "barcode",
                         isAIEstimate: false,

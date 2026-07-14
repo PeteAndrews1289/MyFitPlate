@@ -1,114 +1,153 @@
 import SwiftUI
 
 struct AISummaryView: View {
-    @EnvironmentObject var dailyLogService: DailyLogService
-    @Binding var estimatedItems: [FoodItem]?
-    // Defaults preserve the AI meal-estimate behavior. Barcode rapid-scan reuses this screen but
-    // logs each scanned product as its own entry into the user's selected meal (they're exact
-    // database lookups, not AI guesses), so it overrides the meal name, source, and copy.
-    var mealName: String = "AI Logged Meal"
-    var source: String = "ai_image"
-    var isAIEstimate: Bool = true
-    var reviewTitle: String = "Confirm Meal"
-    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject private var dailyLogService: DailyLogService
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var estimatedItems: [FoodItem]
+
+    private let mealName: String
+    private let source: String
+    private let isAIEstimate: Bool
+    private let reviewTitle: String
+
+    init(
+        estimatedItems: [FoodItem],
+        mealName: String = "AI Logged Meal",
+        source: String = "ai_image",
+        isAIEstimate: Bool = true,
+        reviewTitle: String = "Review Meal"
+    ) {
+        _estimatedItems = State(initialValue: estimatedItems)
+        self.mealName = mealName
+        self.source = source
+        self.isAIEstimate = isAIEstimate
+        self.reviewTitle = reviewTitle
+    }
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                if isAIEstimate {
-                    AIEstimateReviewBanner(
-                        title: "AI Estimate",
-                        message: "Check servings and macros before logging. For best accuracy next time, include the whole plate and a clear size reference."
+        NavigationStack {
+            List {
+                Section {
+                    AIReviewOverview(
+                        eyebrow: isAIEstimate ? "Maia Photo Estimate" : "Matched Products",
+                        title: isAIEstimate ? "Review Your Meal" : "Review Scanned Items",
+                        subtitle: isAIEstimate
+                            ? "Maia separated the photo into foods. Nothing is logged until you confirm this list."
+                            : "Each matched product will log as its own entry after you confirm this list.",
+                        reviewTitle: isAIEstimate ? "Review Needed" : "Serving Check",
+                        reviewMessage: isAIEstimate
+                            ? "Check servings and macros, especially for sauces, oils, and foods that overlap in the photo."
+                            : "Database matches can still use a different serving than the amount you ate.",
+                        items: estimatedItems
                     )
-                    .padding([.horizontal, .top])
+                    .accessibilityIdentifier("ai_summary_overview")
                 }
+                .listRowInsets(
+                    EdgeInsets(
+                        top: AppSpacing.group,
+                        leading: AppSpacing.screenHorizontal,
+                        bottom: AppSpacing.section,
+                        trailing: AppSpacing.screenHorizontal
+                    )
+                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
 
-                List {
-                    Section(header: Text("Review Items")) {
-                        ForEach(Binding($estimatedItems) ?? .constant([])) { $item in
-                            NavigationLink(destination: foodDetailDestination(for: $item)) {
-                                itemRow(for: item)
+                Section {
+                    ForEach($estimatedItems) { $item in
+                        NavigationLink {
+                            foodDetailDestination(for: $item)
+                        } label: {
+                            AIReviewItemRow(item: item, showsEditIndicator: false)
+                        }
+                        .accessibilityIdentifier("ai_review_item_\(item.id)")
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                delete(item)
+                            } label: {
+                                Label("Remove", systemImage: "trash")
                             }
                         }
-                        .onDelete(perform: deleteItem)
                     }
+                } header: {
+                    AppSectionHeader(
+                        title: "Items to Log",
+                        subtitle: "Tap an item to edit it, or swipe to remove it."
+                    )
+                    .textCase(nil)
+                    .padding(.bottom, AppSpacing.compact)
                 }
-
-                Text(isAIEstimate
-                     ? "Tap any item to edit it, or swipe to remove anything Maia guessed incorrectly."
-                     : "Each scanned product logs as its own entry. Tap to edit a serving, or swipe to remove one.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-
-                Button("Log All Items") {
-                    logAllItems()
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .padding()
-                .disabled(estimatedItems?.isEmpty ?? true)
+                .listRowInsets(
+                    EdgeInsets(
+                        top: AppSpacing.row,
+                        leading: AppSpacing.screenHorizontal,
+                        bottom: AppSpacing.row,
+                        trailing: AppSpacing.screenHorizontal
+                    )
+                )
+                .listRowBackground(AppPalette.control)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(AppPalette.canvas.ignoresSafeArea())
             .navigationTitle(reviewTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        estimatedItems = nil
-                        dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
+                        .tint(AppPalette.brand)
                 }
             }
-        }
-    }
-    
-    @ViewBuilder
-    private func itemRow(for item: FoodItem) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text(item.name)
-                    .appFont(size: 17, weight: .semibold)
-                    .lineLimit(2)
-                AIReviewStatusPill(item: item)
+            .safeAreaInset(edge: .bottom) {
+                Button(action: logAllItems) {
+                    Label(logButtonTitle, systemImage: "checkmark.circle.fill")
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(estimatedItems.isEmpty)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.row)
+                .padding(.bottom, AppSpacing.compact)
+                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AppPalette.separator)
+                        .frame(height: 1)
+                }
+                .accessibilityIdentifier("ai_summary_log_action")
             }
-            Text("Serving: \(item.servingSize)")
-                .appFont(size: 14)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-            Text("Est: \(Int(item.calories)) cal, P:\(Int(item.protein))g, C:\(Int(item.carbs))g, F:\(Int(item.fats))g")
-                .appFont(size: 12)
-                .foregroundColor(Color(UIColor.tertiaryLabel))
-            AIItemTrustNotes(item: item)
         }
-        .padding(.vertical, 4)
+        .accessibilityIdentifier("ai_summary_review")
     }
-    
-    @ViewBuilder
+
+    private var logButtonTitle: String {
+        let noun = estimatedItems.count == 1 ? "Item" : "Items"
+        return "Log \(estimatedItems.count.formatted()) \(noun)"
+    }
+
     private func foodDetailDestination(for item: Binding<FoodItem>) -> some View {
         FoodDetailView(
             initialFoodItem: item.wrappedValue,
             dailyLog: .constant(nil),
             date: dailyLogService.activelyViewedDate,
             source: "image_result_edit",
-            onLogUpdated: { },
+            onLogUpdated: {},
             onUpdate: { updatedItem in
-                if let index = estimatedItems?.firstIndex(where: { $0.id == updatedItem.id }) {
-                    estimatedItems?[index] = updatedItem
-                }
+                item.wrappedValue = updatedItem
             }
         )
     }
-    
-    private func deleteItem(at offsets: IndexSet) {
-        estimatedItems?.remove(atOffsets: offsets)
-    }
-    
-    private func logAllItems() {
-        guard let userID = DIContainer.shared.authService.currentUserID, let items = estimatedItems, !items.isEmpty else { return }
 
-        // Barcode items already carry their matched database source (USDA / FatSecret / OFF);
-        // only fall back for AI estimates, where .aiImage is the right default.
+    private func delete(_ item: FoodItem) {
+        estimatedItems.removeAll { $0.id == item.id }
+        HapticManager.instance.feedback(.light)
+    }
+
+    private func logAllItems() {
+        guard let userID = DIContainer.shared.authService.currentUserID, !estimatedItems.isEmpty else { return }
+
         let fallbackSourceType: FoodSourceType = isAIEstimate ? .aiImage : .unknown
-        let reviewedItems = items.map { item in
+        let reviewedItems = estimatedItems.map { item in
             item.markedUserConfirmed(sourceType: item.sourceMetadata?.sourceType ?? fallbackSourceType)
         }
         dailyLogService.addMealToLog(
@@ -119,13 +158,141 @@ struct AISummaryView: View {
             source: source
         )
 
-        estimatedItems = nil
         dismiss()
+    }
+}
+
+struct AIReviewOverview: View {
+    let eyebrow: String
+    let title: String
+    let subtitle: String
+    var reviewTitle: String = "Review Needed"
+    let reviewMessage: String
+    let items: [FoodItem]
+
+    private var totalCalories: Double {
+        items.reduce(0) { $0 + $1.calories }
+    }
+
+    private var totalProtein: Double {
+        items.reduce(0) { $0 + $1.protein }
+    }
+
+    private var totalCarbs: Double {
+        items.reduce(0) { $0 + $1.carbs }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            AppScreenHeader(eyebrow: eyebrow, title: title, subtitle: subtitle)
+
+            AIEstimateReviewBanner(title: reviewTitle, message: reviewMessage)
+
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                AppSectionHeader(
+                    title: "Estimated Nutrition",
+                    subtitle: "Totals update as you edit or remove items."
+                )
+
+                AppMetricStrip(items: [
+                    AppMetricItem(
+                        label: "Items",
+                        value: items.count.formatted(),
+                        accent: AppPalette.brand
+                    ),
+                    AppMetricItem(
+                        label: "Calories",
+                        value: "\(Int(totalCalories.rounded()).formatted()) cal",
+                        accent: .orange
+                    ),
+                    AppMetricItem(
+                        label: "Protein",
+                        value: "\(Int(totalProtein.rounded()).formatted()) g",
+                        accent: .accentProtein
+                    ),
+                    AppMetricItem(
+                        label: "Carbs",
+                        value: "\(Int(totalCarbs.rounded()).formatted()) g",
+                        accent: .accentCarbs
+                    )
+                ])
+            }
+            .appSurface(.emphasized)
+        }
+    }
+}
+
+struct AIReviewItemRow: View {
+    let item: FoodItem
+    let showsEditIndicator: Bool
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 5) {
+                        itemName
+                        AIReviewStatusPill(item: item)
+                    }
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                        itemName
+                        AIReviewStatusPill(item: item)
+                    }
+                }
+
+                Text(item.servingSize.isEmpty ? "Serving needs review" : item.servingSize)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("\(Int(item.calories.rounded()).formatted()) calories")
+                        Text(
+                            "Protein \(Int(item.protein.rounded()).formatted()) g, carbs \(Int(item.carbs.rounded()).formatted()) g, fat \(Int(item.fats.rounded()).formatted()) g"
+                        )
+                    }
+                    .appTextRole(.secondary)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(
+                        "\(Int(item.calories.rounded()).formatted()) cal  |  P \(Int(item.protein.rounded()).formatted()) g  |  C \(Int(item.carbs.rounded()).formatted()) g  |  F \(Int(item.fats.rounded()).formatted()) g"
+                    )
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                AIItemTrustNotes(item: item)
+            }
+
+            if showsEditIndicator {
+                Spacer(minLength: AppSpacing.compact)
+                Image(systemName: "pencil")
+                    .foregroundStyle(AppPalette.brand)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var itemName: some View {
+        Text(item.name)
+            .appTextRole(.control)
+            .foregroundStyle(AppPalette.text)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
 struct AIReviewStatusPill: View {
     let item: FoodItem
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var statusText: String {
         switch item.sourceMetadata?.reviewStatus {
@@ -149,11 +316,16 @@ struct AIReviewStatusPill: View {
 
     var body: some View {
         Text(statusText)
-            .appFont(size: 10, weight: .bold)
-            .foregroundColor(tint)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(tint.opacity(0.10), in: Capsule())
+            .appTextRole(.caption)
+            .foregroundStyle(tint)
+            .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 0 : AppSpacing.compact)
+            .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 0 : 3)
+            .background {
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Capsule().fill(tint.opacity(0.10))
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -163,9 +335,9 @@ struct AIItemTrustNotes: View {
     var body: some View {
         if item.hasMeaningfulCalorieMacroMismatch {
             Label("Calories and macros need review", systemImage: "exclamationmark.triangle.fill")
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(.orange)
-                .labelStyle(.titleAndIcon)
+                .appTextRole(.caption)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -175,39 +347,31 @@ struct AIEstimateReviewBanner: View {
     let message: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "sparkles")
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.orange)
+        HStack(alignment: .top, spacing: AppSpacing.row) {
+            Image(systemName: "checkmark.shield")
+                .appFont(size: 18, weight: .semibold)
+                .foregroundStyle(.orange)
                 .frame(width: 40, height: 40)
-                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(
+                    Color.orange.opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Text(title)
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    Text("Needs Review")
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundColor(.orange)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.orange.opacity(0.10), in: Capsule())
-                }
+                Text(title)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
 
                 Text(message)
-                    .appFont(size: 12)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 0)
         }
-        .padding(14)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.orange.opacity(0.18), lineWidth: 1)
-        )
+        .appSurface(.quiet)
+        .accessibilityElement(children: .combine)
     }
 }

@@ -516,7 +516,11 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   and discoverable item editing. Unit-system changes immediately convert the visible list and
   legacy category names normalize without losing items. Standard, checked/hidden, editor, and dark
   accessibility-XXXL journeys are captured.
-- [ ] Migrate the remaining logging confirmation sheets without adding taps or editorial friction.
+- [x] Migrate the remaining logging confirmation sheets without adding taps or editorial friction.
+  Quick Add now has responsive nutrition entry and a live summary with one stable meal action.
+  Maia text/photo/barcode estimates use the same review-first hierarchy, own their editable item
+  state, update totals after edits or removals, and keep confirmation explicit. Standard, editable,
+  and dark accessibility-XXXL journeys are captured and pass focused UI coverage.
 - [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,
   remove legacy glass aliases, and enforce the new rules in source checks.
 

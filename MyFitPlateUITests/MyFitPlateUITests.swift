@@ -1864,6 +1864,166 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testQuickAddMacrosUsesUnifiedPreviewAndDirectAction() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "quick-add-macros"
+        ]
+        app.launch()
+
+        let screen = app.descendants(matching: .any)["quick_add_macros"]
+        let headerTitle = app.staticTexts
+            .matching(NSPredicate(format: "label == %@", "Quick Add"))
+            .firstMatch
+        let nutrition = app.descendants(matching: .any)["quick_add_nutrition"]
+        let summary = app.descendants(matching: .any)["quick_add_summary"]
+        let calories = app.textFields["quick_add_calories"]
+        let action = app.buttons["quick_add_action"]
+
+        XCTAssertTrue(screen.waitForExistence(timeout: 10))
+        XCTAssertTrue(headerTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(nutrition.waitForExistence(timeout: 5))
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertEqual(calories.value as? String, "485")
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertTrue(action.isHittable)
+        XCTAssertTrue(action.label.contains("Add to Dinner"))
+        XCTAssertLessThan(headerTitle.frame.minY, nutrition.frame.minY)
+        XCTAssertLessThan(nutrition.frame.minY, summary.frame.minY)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Quick Add - unified entry preview"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testMaiaTextLogUsesReviewFirstHierarchy() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "ai-text-log"
+        ]
+        app.launch()
+
+        let screen = app.descendants(matching: .any)["ai_text_log"]
+        let headerTitle = app.staticTexts["Describe a Meal"]
+        let description = app.textViews["ai_text_description"]
+        let guidance = app.descendants(matching: .any)["ai_text_guidance"]
+        let action = app.buttons["ai_text_review_action"]
+
+        XCTAssertTrue(screen.waitForExistence(timeout: 10))
+        XCTAssertTrue(headerTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(description.waitForExistence(timeout: 5))
+        XCTAssertTrue((description.value as? String)?.contains("chicken burrito bowl") == true)
+        XCTAssertTrue(guidance.waitForExistence(timeout: 5))
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertTrue(action.isHittable)
+        XCTAssertEqual(action.label, "Review Estimate")
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Maia Text Log - review-first input"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testMaiaTextReviewRemovalUpdatesTheConfirmation() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "ai-text-results"
+        ]
+        app.launch()
+
+        let screen = app.descendants(matching: .any)["ai_text_results"]
+        let overview = app.descendants(matching: .any)["ai_text_results_overview"]
+        let chips = screen.descendants(matching: .button)
+            .matching(identifier: "ai_review_item_demo-ai-text-chips")
+            .firstMatch
+        let action = screen.descendants(matching: .button)["ai_text_log_action"]
+
+        XCTAssertTrue(screen.waitForExistence(timeout: 10))
+        XCTAssertTrue(overview.waitForExistence(timeout: 5))
+        XCTAssertTrue(chips.waitForExistence(timeout: 5))
+        for _ in 0..<2 where !chips.isHittable {
+            screen.swipeUp()
+        }
+        XCTAssertTrue(chips.isHittable)
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertEqual(action.label, "Log 3 Items")
+
+        let beforeScreenshot = XCTAttachment(screenshot: app.screenshot())
+        beforeScreenshot.name = "Maia Text Review - editable estimate"
+        beforeScreenshot.lifetime = .keepAlways
+        add(beforeScreenshot)
+
+        chips.swipeLeft()
+        let reducedAction = app.buttons["Log 2 Items"]
+        if !reducedAction.waitForExistence(timeout: 2) {
+            let remove = app.buttons["Remove"]
+            XCTAssertTrue(remove.waitForExistence(timeout: 5))
+            remove.tap()
+        }
+
+        XCTAssertFalse(chips.waitForExistence(timeout: 2))
+        XCTAssertTrue(reducedAction.waitForExistence(timeout: 5))
+
+        let afterScreenshot = XCTAttachment(screenshot: app.screenshot())
+        afterScreenshot.name = "Maia Text Review - item removed"
+        afterScreenshot.lifetime = .keepAlways
+        add(afterScreenshot)
+    }
+
+    @MainActor
+    func testQuickAddAndMaiaReviewSupportDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "Quick Add", route: "quick-add-macros", container: "quick_add_macros", action: "quick_add_action"),
+            (name: "Maia Text Review", route: "ai-text-results", container: "ai_text_results", action: "ai_text_log_action")
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let container = app.descendants(matching: .any)[screen.container]
+            let action = app.buttons[screen.action]
+            XCTAssertTrue(container.waitForExistence(timeout: 10))
+            XCTAssertTrue(action.waitForExistence(timeout: 5))
+            XCTAssertTrue(action.isHittable)
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+
+            try app.performAccessibilityAudit(for: [.textClipped])
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testCustomProductPageDeepLinksOpenExactDestinations() throws {
         let app = XCUIApplication()
         let destinations = [
