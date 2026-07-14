@@ -121,6 +121,27 @@ final class GroceryListBuilderTests: XCTestCase {
         XCTAssertEqual(milk.unit, "fl oz")
     }
 
+    func testCurrentListCanConvertBetweenUnitSystems() {
+        let metric = GroceryListBuilder.applyUnitSystem(
+            GroceryListItem(name: "Chicken Breast", quantity: 2, unit: "lb"),
+            system: .metric
+        )
+        XCTAssertEqual(metric.quantity, 907.184, accuracy: 0.01)
+        XCTAssertEqual(metric.unit, "g")
+
+        let imperial = GroceryListBuilder.applyUnitSystem(metric, system: .imperial)
+        XCTAssertEqual(imperial.quantity, 2, accuracy: 0.01)
+        XCTAssertEqual(imperial.unit, "lbs")
+    }
+
+    func testNormalizesLegacyManualCategoriesToGeneratedCategories() {
+        XCTAssertEqual(GroceryListBuilder.normalizedCategory("Protein"), "Meat & Seafood")
+        XCTAssertEqual(GroceryListBuilder.normalizedCategory("Dairy"), "Dairy & Eggs")
+        XCTAssertEqual(GroceryListBuilder.normalizedCategory("Grains"), "Carbohydrates")
+        XCTAssertEqual(GroceryListBuilder.normalizedCategory("Pantry"), "Pantry & Oils")
+        XCTAssertEqual(GroceryListBuilder.normalizedCategory("Custom aisle"), "Custom aisle")
+    }
+
     private func makeDay(ingredients: [String]) -> MealPlanDay {
         MealPlanDay(
             id: "plan1",

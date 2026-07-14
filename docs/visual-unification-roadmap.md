@@ -179,10 +179,24 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   Watch, widgets, and Live Activity; SwiftLint reported zero violations across 232 files; and all
   final light and dark accessibility captures were reviewed.
 
+### Batch 10 - Grocery List (complete)
+
+- Rebuilt Grocery around one responsive shopping summary, direct Add and Scan actions, a compact
+  checked-item control, and canonical aisle groups that stay easy to scan during a shopping run.
+- Made row editing discoverable through a visible item menu while preserving one-tap checking,
+  swipe actions, clear-list confirmation, and the existing manual editor workflow.
+- Applying Imperial or Metric now converts the current visible list immediately instead of only
+  affecting future lists. Legacy Protein, Grains, Dairy, and Other categories normalize into the
+  current aisle vocabulary without dropping or duplicating items.
+- Added an eight-item deterministic grocery fixture plus standard hierarchy/editor, check-and-hide,
+  and dark accessibility-XXXL UI scenarios. Thirteen focused Core grocery tests, the fixture test,
+  the full simulator build, and the final corrected UI executions passed; SwiftLint reported zero
+  violations across 232 files and the final captures were reviewed.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
-The active queue moves to grocery and the remaining logging confirmation sheets before Settings
-and the long-tail feature families.
+Grocery now joins that system. The active queue moves to the remaining logging confirmation sheets
+before Settings and the long-tail feature families.
 
 ## Product Direction
 

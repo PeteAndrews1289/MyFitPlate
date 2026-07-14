@@ -1736,6 +1736,134 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testGroceryListUsesUnifiedHierarchyAndDiscoverableEditing() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "grocery"
+        ]
+        app.launch()
+
+        let list = app.descendants(matching: .any)["grocery_list"]
+        let summary = app.descendants(matching: .any)["grocery_summary"]
+        let metrics = app.descendants(matching: .any)["grocery_summary_metrics"]
+        let controls = app.descendants(matching: .any)["grocery_display_controls"]
+        let produce = app.descendants(matching: .any)["grocery_category_Produce"]
+        let chicken = app.buttons["grocery_item_00000000-0000-0000-0000-000000000103"]
+
+        XCTAssertTrue(list.waitForExistence(timeout: 10))
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertTrue(metrics.waitForExistence(timeout: 5))
+        XCTAssertTrue(controls.waitForExistence(timeout: 5))
+        XCTAssertTrue(produce.waitForExistence(timeout: 5))
+        XCTAssertTrue(chicken.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["grocery_add_item"].isHittable)
+        XCTAssertTrue(app.buttons["grocery_scan_item"].isHittable)
+        XCTAssertLessThan(summary.frame.minY, controls.frame.minY)
+        XCTAssertLessThan(controls.frame.minY, produce.frame.minY)
+        XCTAssertTrue(chicken.value as? String == "3 lb - Meal plan, not checked")
+
+        let listScreenshot = XCTAttachment(screenshot: app.screenshot())
+        listScreenshot.name = "Grocery List - unified shopping run"
+        listScreenshot.lifetime = .keepAlways
+        add(listScreenshot)
+
+        let options = app.buttons["More options for Chicken breast"]
+        XCTAssertTrue(options.waitForExistence(timeout: 5))
+        options.tap()
+
+        let edit = app.buttons["Edit Item"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+
+        let editor = app.descendants(matching: .any)["grocery_manual_editor"]
+        let name = app.textFields["grocery_manual_name"]
+        let save = app.buttons["grocery_manual_action"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertEqual(name.value as? String, "Chicken breast")
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        XCTAssertTrue(save.isEnabled)
+
+        let editorScreenshot = XCTAttachment(screenshot: app.screenshot())
+        editorScreenshot.name = "Grocery List - direct item editor"
+        editorScreenshot.lifetime = .keepAlways
+        add(editorScreenshot)
+    }
+
+    @MainActor
+    func testGroceryListCheckAndHideWorkflow() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "grocery"
+        ]
+        app.launch()
+
+        let chicken = app.buttons["grocery_item_00000000-0000-0000-0000-000000000103"]
+        XCTAssertTrue(chicken.waitForExistence(timeout: 10))
+        XCTAssertTrue((chicken.value as? String)?.hasSuffix("not checked") == true)
+        chicken.tap()
+        XCTAssertTrue(app.staticTexts["3 checked items visible."].waitForExistence(timeout: 5))
+
+        let hideChecked = app.switches["grocery_display_controls"]
+        XCTAssertTrue(hideChecked.waitForExistence(timeout: 5))
+        XCTAssertTrue(hideChecked.isEnabled)
+        hideChecked.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        let switchedOn = expectation(
+            for: NSPredicate(format: "value == %@", "1"),
+            evaluatedWith: hideChecked
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [switchedOn], timeout: 5), .completed)
+        XCTAssertTrue(app.staticTexts["3 checked items hidden."].waitForExistence(timeout: 5))
+
+        let hiddenScreenshot = XCTAttachment(screenshot: app.screenshot())
+        hiddenScreenshot.name = "Grocery List - checked items hidden"
+        hiddenScreenshot.lifetime = .keepAlways
+        add(hiddenScreenshot)
+    }
+
+    @MainActor
+    func testGroceryListSupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "grocery",
+            "-screenshot-dark-mode",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let summary = app.descendants(matching: .any)["grocery_summary"]
+        let controls = app.descendants(matching: .any)["grocery_display_controls"]
+        let addButton = app.buttons["grocery_add_item"]
+        let scan = app.buttons["grocery_scan_item"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 10))
+        XCTAssertTrue(controls.waitForExistence(timeout: 5))
+        XCTAssertTrue(addButton.isHittable)
+        XCTAssertTrue(scan.isHittable)
+        XCTAssertGreaterThanOrEqual(summary.frame.minX, app.frame.minX - 1)
+        XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.maxX + 1)
+
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Grocery List - dark accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testCustomProductPageDeepLinksOpenExactDestinations() throws {
         let app = XCUIApplication()
         let destinations = [

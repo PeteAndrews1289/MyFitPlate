@@ -4,31 +4,44 @@ struct GroceryListDisplayControls: View {
     let completedCount: Int
     @Binding var hideCompletedItems: Bool
 
-    var body: some View {
-        HStack(spacing: 10) {
-            Button {
-                hideCompletedItems.toggle()
-                HapticManager.instance.feedback(.light)
-            } label: {
-                Label(
-                    hideCompletedItems ? "Show done" : "Hide done",
-                    systemImage: hideCompletedItems ? "eye.fill" : "eye.slash.fill"
-                )
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(completedCount == 0 ? Color(UIColor.tertiaryLabel) : .blue)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .disabled(completedCount == 0)
-
-            Text("\(completedCount.formatted()) checked")
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(Color.backgroundSecondary.opacity(0.76), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+    private var detail: String {
+        if completedCount == 0 {
+            return "No checked items yet."
         }
+        return hideCompletedItems
+            ? "\(completedCount.formatted()) checked item\(completedCount == 1 ? "" : "s") hidden."
+            : "\(completedCount.formatted()) checked item\(completedCount == 1 ? "" : "s") visible."
+    }
+
+    var body: some View {
+        Toggle(isOn: $hideCompletedItems) {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                Image(systemName: hideCompletedItems ? "eye.slash.fill" : "eye.fill")
+                    .appTextRole(.control)
+                    .foregroundStyle(completedCount == 0 ? Color.secondary : AppPalette.brand)
+                    .frame(width: 28, height: 28)
+                    .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Hide Checked Items")
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
+
+                    Text(detail)
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .toggleStyle(.switch)
+        .tint(AppPalette.brand)
+        .disabled(completedCount == 0)
+        .onChange(of: hideCompletedItems) { _, _ in
+            HapticManager.instance.feedback(.light)
+        }
+        .appSurface(.quiet)
+        .accessibilityIdentifier("grocery_display_controls")
     }
 }

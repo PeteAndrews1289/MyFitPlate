@@ -458,6 +458,7 @@ enum ScreenshotDemoData {
         defaults.set(programID, forKey: "activeWorkoutProgramID")
         defaults.set(false, forKey: "activeWorkoutProgramCleared")
         defaults.set(false, forKey: "useMetricBodyUnits")
+        defaults.set(GroceryUnitSystem.imperial.rawValue, forKey: "groceryUnitSystem")
         defaults.set(false, forKey: "hasRequestedAppleHealthAccess")
         defaults.set(true, forKey: "firstSessionChoiceCompleted")
         defaults.set(false, forKey: "firstSessionChoicePending")
@@ -518,11 +519,72 @@ enum ScreenshotDemoData {
             uniqueKeysWithValues: plans.map { (dateString($0.date), $0) }
         )
         nutrition.mockFetchGroceryListResult = [
-            GroceryListItem(name: "Salmon fillets", quantity: 4, unit: "fillets", category: "Protein", source: "Meal plan"),
-            GroceryListItem(name: "Chicken breast", quantity: 3, unit: "lb", category: "Protein", source: "Meal plan"),
-            GroceryListItem(name: "Greek yogurt", quantity: 2, unit: "tubs", category: "Dairy", source: "Meal plan"),
-            GroceryListItem(name: "Jasmine rice", quantity: 2, unit: "lb", category: "Grains", source: "Meal plan"),
-            GroceryListItem(name: "Mixed vegetables", quantity: 3, unit: "bags", category: "Produce", source: "Meal plan")
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000101") ?? UUID(),
+                name: "Blueberries",
+                quantity: 2,
+                unit: "pints",
+                isCompleted: true,
+                category: "Produce",
+                source: "mealPlan"
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000102") ?? UUID(),
+                name: "Avocados",
+                quantity: 4,
+                unit: "item",
+                category: "Produce",
+                source: "mealPlan"
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000103") ?? UUID(),
+                name: "Chicken breast",
+                quantity: 3,
+                unit: "lb",
+                category: "Meat & Seafood",
+                source: "mealPlan"
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000104") ?? UUID(),
+                name: "Salmon fillets",
+                quantity: 4,
+                unit: "fillets",
+                category: "Meat & Seafood",
+                source: "mealPlan"
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000105") ?? UUID(),
+                name: "Greek yogurt",
+                quantity: 2,
+                unit: "tubs",
+                isCompleted: true,
+                category: "Dairy & Eggs",
+                source: "mealPlan"
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000106") ?? UUID(),
+                name: "Jasmine rice",
+                quantity: 2,
+                unit: "lb",
+                category: "Carbohydrates",
+                source: "mealPlan"
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000107") ?? UUID(),
+                name: "Extra virgin olive oil",
+                quantity: 1,
+                unit: "bottle",
+                category: "Pantry & Oils",
+                source: "mealPlan"
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000108") ?? UUID(),
+                name: "Electrolyte packets",
+                quantity: 6,
+                unit: "item",
+                category: "Misc",
+                source: "manual"
+            )
         ]
 
         let program = strengthProgram()

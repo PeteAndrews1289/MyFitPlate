@@ -511,8 +511,12 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   Detail, Create/Edit, and Logging now share one responsive operational hierarchy, retain direct
   meal-plan and log actions, and prevent an emptied detailed recipe from restoring stale totals or
   enabling an invalid log.
-- [ ] Migrate grocery and the remaining logging confirmation sheets without adding taps or
-  editorial friction.
+- [x] Migrate Grocery without adding taps or editorial friction. The list now uses one responsive
+  shopping summary, compact display controls, canonical aisle groups, direct Add/Scan actions,
+  and discoverable item editing. Unit-system changes immediately convert the visible list and
+  legacy category names normalize without losing items. Standard, checked/hidden, editor, and dark
+  accessibility-XXXL journeys are captured.
+- [ ] Migrate the remaining logging confirmation sheets without adding taps or editorial friction.
 - [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,
   remove legacy glass aliases, and enforce the new rules in source checks.
 

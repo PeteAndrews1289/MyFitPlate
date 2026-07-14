@@ -37,6 +37,7 @@ struct MainTabView: View {
     @State private var showingBarcodeScanner = false
     @State private var showingAddExerciseView = false
     @State private var showingRecipeListView = false
+    @State private var showingGroceryList = false
     @State private var showingAITextLog = false
     @State private var showingAddFoodManually = false
     
@@ -102,6 +103,7 @@ struct MainTabView: View {
             initialValue: ["food-search", "builder", "trust", "my-foods", "add-food"].contains(screenshotScreen)
         )
         _showingRecipeListView = State(initialValue: screenshotScreen == "recipes")
+        _showingGroceryList = State(initialValue: screenshotScreen == "grocery")
         _showingRunHistory = State(initialValue: screenshotScreen == "runs")
         _showingWeeklyReport = State(initialValue: screenshotScreen == "weekly-report")
         #endif
@@ -268,6 +270,9 @@ struct MainTabView: View {
             }
             .sheet(isPresented: $showingRecipeListView) {
                 RecipeListView().environmentObject(recipeService)
+            }
+            .sheet(isPresented: $showingGroceryList) {
+                NavigationStack { GroceryListView() }
             }
             .sheet(isPresented: $showingBarcodeRecovery, onDismiss: handleBarcodeRecoveryDismissed) {
                 BarcodeMissRecoveryView(

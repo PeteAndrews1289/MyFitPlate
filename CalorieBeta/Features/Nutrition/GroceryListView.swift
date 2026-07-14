@@ -48,17 +48,8 @@ struct GroceryListView: View {
     }
     
     private var sortedCategories: [String] {
-        let customOrder = [
-            "Produce",
-            "Meat & Seafood",
-            "Dairy & Eggs",
-            "Carbohydrates",
-            "Pantry & Oils",
-            "Spices & Seasonings",
-            "Bakery",
-            "Misc"
-        ]
-        
+        let customOrder = GroceryListBuilder.standardCategories
+
         return groupedList.keys.sorted { first, second in
             let index1 = customOrder.firstIndex(of: first) ?? 99
             let index2 = customOrder.firstIndex(of: second) ?? 99
@@ -73,18 +64,22 @@ struct GroceryListView: View {
     var body: some View {
         ZStack {
             ScrollView {
-                VStack(spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
                     mainContent
                 }
-                .padding(16)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.section)
                 .frame(maxWidth: .infinity)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Grocery list")
+            .accessibilityIdentifier("grocery_list")
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Grocery List")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Done") { dismiss() }
+                        .tint(AppPalette.brand)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     trailingToolbarItems
@@ -148,33 +143,36 @@ struct GroceryListView: View {
             } message: {
                 Text("This removes every item currently on your grocery list.")
             }
-            .onAppear {
-                Task {
-                    await loadList()
-                }
+            .refreshable {
+                await loadList()
             }
-            
+            .task {
+                await loadList()
+            }
+            .onChange(of: unitSystem) { _, newSystem in
+                convertList(to: newSystem)
+            }
+
             if isFetchingItemName {
                 Color.black.opacity(0.36)
                     .ignoresSafeArea()
 
-                VStack(spacing: 12) {
+                VStack(spacing: AppSpacing.row) {
                     ProgressView()
-                        .tint(.blue)
+                        .tint(AppPalette.brand)
 
                     VStack(spacing: 3) {
-                        Text("Finding item")
-                            .appFont(size: 17, weight: .bold)
-                            .foregroundColor(.textPrimary)
+                        Text("Finding Item")
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.text)
 
                         Text("Looking up that barcode")
-                            .appFont(size: 13, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .padding(24)
-                .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .shadow(color: .black.opacity(0.16), radius: 18, x: 0, y: 10)
+                .appSurface(.emphasized)
+                .accessibilityIdentifier("grocery_barcode_loading")
             }
         }
     }
@@ -217,14 +215,16 @@ struct GroceryListView: View {
 
     private func addManualItem(_ item: GroceryListItem) {
         pendingMissedBarcode = nil
+        var normalizedItem = item
+        normalizedItem.category = GroceryListBuilder.normalizedCategory(item.category)
         if let existingIndex = groceryList.firstIndex(where: {
-            $0.name.caseInsensitiveCompare(item.name) == .orderedSame &&
-            $0.unit.caseInsensitiveCompare(item.unit) == .orderedSame
+            $0.name.caseInsensitiveCompare(normalizedItem.name) == .orderedSame &&
+            $0.unit.caseInsensitiveCompare(normalizedItem.unit) == .orderedSame
         }) {
-            groceryList[existingIndex].quantity += item.quantity
+            groceryList[existingIndex].quantity += normalizedItem.quantity
             groceryList[existingIndex].isCompleted = false
         } else {
-            groceryList.append(item)
+            groceryList.append(normalizedItem)
         }
         saveList()
         HapticManager.instance.feedback(.medium)
@@ -232,7 +232,9 @@ struct GroceryListView: View {
 
     private func updateManualItem(_ item: GroceryListItem) {
         if let existingIndex = groceryList.firstIndex(where: { $0.id == item.id }) {
-            groceryList[existingIndex] = item
+            var normalizedItem = item
+            normalizedItem.category = GroceryListBuilder.normalizedCategory(item.category)
+            groceryList[existingIndex] = normalizedItem
             saveList()
             HapticManager.instance.feedback(.medium)
         }
@@ -243,8 +245,17 @@ struct GroceryListView: View {
             self.isLoading = false
             return
         }
-        self.groceryList = await mealPlannerService.fetchGroceryList(for: userID)
+        let fetchedList = await mealPlannerService.fetchGroceryList(for: userID)
+        let preparedList = fetchedList.map { item -> GroceryListItem in
+            var prepared = GroceryListBuilder.applyUnitSystem(item, system: unitSystem)
+            prepared.category = GroceryListBuilder.normalizedCategory(prepared.category)
+            return prepared
+        }
+        self.groceryList = preparedList
         self.isLoading = false
+        if preparedList != fetchedList {
+            saveList()
+        }
     }
     
     private func saveList() {
@@ -266,41 +277,30 @@ struct GroceryListView: View {
 
     @ViewBuilder
     private var trailingToolbarItems: some View {
-        HStack(spacing: 16) {
-            Button(action: { showingBarcodeScanner = true }) {
-                Image(systemName: "barcode.viewfinder")
-            }
-            .accessibilityLabel("Scan barcode")
-            
-            Button(action: { showingManualItemSheet = true }) {
-                Image(systemName: "plus")
-            }
-            .accessibilityLabel("Add grocery item")
-
-            if !groceryList.isEmpty {
-                Menu {
-                    ShareLink(item: shareText) {
-                        Label("Share list", systemImage: "square.and.arrow.up")
-                    }
-                    
-                    Picker(selection: $unitSystem, label: Text("Units")) {
-                        Text("Imperial (lbs, oz)").tag(GroceryUnitSystem.imperial)
-                        Text("Metric (kg, g)").tag(GroceryUnitSystem.metric)
-                    }
-                    
-                    if groceryList.contains(where: \.isCompleted) {
-                        Button(role: .destructive, action: clearCompleted) {
-                            Label("Clear completed", systemImage: "checkmark.circle.badge.xmark")
-                        }
-                    }
-                    
-                    Button(role: .destructive, action: { showingClearConfirmation = true }) {
-                        Label("Clear all", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+        if !groceryList.isEmpty {
+            Menu {
+                ShareLink(item: shareText) {
+                    Label("Share List", systemImage: "square.and.arrow.up")
                 }
+
+                Picker(selection: $unitSystem, label: Text("Units")) {
+                    Text("Imperial (lb, oz)").tag(GroceryUnitSystem.imperial)
+                    Text("Metric (kg, g)").tag(GroceryUnitSystem.metric)
+                }
+
+                if groceryList.contains(where: \.isCompleted) {
+                    Button(role: .destructive, action: clearCompleted) {
+                        Label("Clear Checked", systemImage: "checkmark.circle.badge.xmark")
+                    }
+                }
+
+                Button(role: .destructive, action: { showingClearConfirmation = true }) {
+                    Label("Clear All", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
             }
+            .accessibilityLabel("Grocery list options")
         }
     }
 
@@ -342,5 +342,16 @@ struct GroceryListView: View {
                 onAddManual: { showingManualItemSheet = true }
             )
         }
+    }
+
+    private func convertList(to system: GroceryUnitSystem) {
+        guard !groceryList.isEmpty else { return }
+        let converted = groceryList.map {
+            GroceryListBuilder.applyUnitSystem($0, system: system)
+        }
+        guard converted != groceryList else { return }
+        groceryList = converted
+        saveList()
+        HapticManager.instance.feedback(.light)
     }
 }

@@ -30,6 +30,29 @@ final class ScreenshotDemoDataTests: XCTestCase {
         XCTAssertTrue(runs.allSatisfy(\.hasRoute))
     }
 
+    func testGroceryFixtureCoversARealShoppingRun() {
+        let nutrition = MockNutritionRepository()
+        let workout = MockWorkoutRepository()
+        let settings = MockSettingsRepository()
+
+        ScreenshotDemoData.configureRepositories(
+            nutrition: nutrition,
+            workout: workout,
+            settings: settings
+        )
+
+        let items = nutrition.mockFetchGroceryListResult
+        XCTAssertEqual(items.count, 8)
+        XCTAssertEqual(Set(items.map(\.id)).count, items.count)
+        XCTAssertEqual(items.filter(\.isCompleted).count, 2)
+        XCTAssertTrue(items.allSatisfy {
+            GroceryListBuilder.standardCategories.contains($0.category)
+        })
+        XCTAssertTrue(items.contains { $0.source == "manual" })
+        XCTAssertTrue(items.contains { $0.category == "Meat & Seafood" })
+        XCTAssertTrue(items.contains { $0.category == "Pantry & Oils" })
+    }
+
     func testLivingDayFoodTransitionTargetsPersistedMealNode() {
         let mealID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
         let food = FoodItem(id: "logged-food", name: "Chicken bowl", calories: 520)

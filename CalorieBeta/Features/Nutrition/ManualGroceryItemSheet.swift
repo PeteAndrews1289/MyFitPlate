@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ManualGroceryItemSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @State private var name = ""
     @State private var quantity = "1"
     @State private var unit = "item"
@@ -10,8 +12,21 @@ struct ManualGroceryItemSheet: View {
     var initialItem: GroceryListItem?
     let onAdd: (GroceryListItem) -> Void
 
-    private let categories = ["Produce", "Protein", "Carbohydrates", "Dairy", "Pantry", "Misc"]
-    private let units = ["item", "meal use", "oz", "lb", "g", "cup", "tbsp", "tsp", "serving"]
+    private let commonUnits = [
+        "item", "meal use", "oz", "lb", "g", "kg", "ml", "L", "fl oz",
+        "cup", "tbsp", "tsp", "serving", "clove", "fillet", "tub", "bag", "bottle"
+    ]
+
+    private var availableCategories: [String] {
+        let normalized = GroceryListBuilder.normalizedCategory(category)
+        return GroceryListBuilder.standardCategories.contains(normalized)
+            ? GroceryListBuilder.standardCategories
+            : [normalized] + GroceryListBuilder.standardCategories
+    }
+
+    private var availableUnits: [String] {
+        commonUnits.contains(unit) ? commonUnits : [unit] + commonUnits
+    }
 
     private var trimmedName: String {
         name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -26,154 +41,184 @@ struct ManualGroceryItemSheet: View {
         !trimmedName.isEmpty
     }
 
+    private var screenTitle: String {
+        initialItem == nil ? "Add Grocery Item" : "Edit Grocery Item"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
-                    headerCard
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    AppScreenHeader(
+                        eyebrow: "Grocery List",
+                        title: screenTitle,
+                        subtitle: initialItem == nil
+                            ? "Add something outside the current meal plan."
+                            : "Update the name, amount, or shopping category."
+                    )
 
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("Item")
-                            .appFont(size: 15, weight: .bold)
-                            .foregroundColor(.textPrimary)
-
-                        TextField("Chicken breast, blueberries, paper towels", text: $name)
-                            .textInputAutocapitalization(.words)
-                            .padding(14)
-                            .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                        HStack(spacing: 10) {
-                            TextField("Qty", text: $quantity)
-                                .keyboardType(.decimalPad)
-                                .padding(14)
-                                .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                .frame(maxWidth: 100)
-
-                            Picker("Unit", selection: $unit) {
-                                ForEach(units, id: \.self) { unit in
-                                    Text(unit).tag(unit)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
-                            .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                    }
-                    .padding(16)
-                    .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Category")
-                            .appFont(size: 15, weight: .bold)
-                            .foregroundColor(.textPrimary)
-
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                            ForEach(categories, id: \.self) { option in
-                                categoryButton(for: option)
-                            }
-                        }
-                    }
-                    .padding(16)
-                    .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    itemDetailsSection
+                    categorySection
                 }
-                .padding(16)
-                .padding(.bottom, 86)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.group)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Manual item")
+            .scrollDismissesKeyboard(.interactively)
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Grocery Item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .tint(AppPalette.brand)
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Button(initialItem == nil ? "Add item" : "Save changes") {
-                    var newItem = initialItem ?? GroceryListItem(
-                        name: trimmedName,
-                        quantity: quantityValue,
-                        unit: unit,
-                        category: category,
-                        source: "manual"
-                    )
-                    if initialItem != nil {
-                        newItem.name = trimmedName
-                        newItem.quantity = quantityValue
-                        newItem.unit = unit
-                        newItem.category = category
-                    }
-                    onAdd(newItem)
-                    dismiss()
+                Button(action: saveItem) {
+                    Label(initialItem == nil ? "Add Item" : "Save Changes", systemImage: "checkmark")
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
                 .disabled(!canSave)
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 12)
-                .background(Color.backgroundPrimary.opacity(0.98).ignoresSafeArea(edges: .bottom))
-            }
-        }
-        .onAppear {
-            if let item = initialItem {
-                name = item.name
-                let formatter = NumberFormatter()
-                formatter.maximumFractionDigits = 2
-                if item.quantity == floor(item.quantity) {
-                    formatter.maximumFractionDigits = 0
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.row)
+                .padding(.bottom, AppSpacing.compact)
+                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AppPalette.separator)
+                        .frame(height: 1)
                 }
-                quantity = formatter.string(from: NSNumber(value: item.quantity)) ?? "\(item.quantity)"
-                unit = item.unit
-                category = item.category
+                .accessibilityIdentifier("grocery_manual_action")
             }
         }
+        .accessibilityIdentifier("grocery_manual_editor")
+        .onAppear(perform: loadInitialItem)
     }
 
-    @ViewBuilder
-    private func categoryButton(for option: String) -> some View {
-        let isSelected = (category == option)
-        let fgColor: Color = isSelected ? Color.blue : Color(UIColor.secondaryLabel)
-        let bgSelection = Color.blue.opacity(0.14)
-        let bgDefault = Color.backgroundPrimary.opacity(0.58)
-        let bgColor: Color = isSelected ? bgSelection : bgDefault
-        
-        Button {
-            category = option
-            HapticManager.instance.feedback(.light)
-        } label: {
-            Text(option)
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(fgColor)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(bgColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
+    private var itemDetailsSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Item Details",
+                subtitle: "Use the amount you expect to buy."
+            )
 
-    @ViewBuilder
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Image(systemName: "cart.badge.plus")
-                    .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.blue)
-                    .frame(width: 42, height: 42)
-                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            GroceryFormField(title: "Name") {
+                TextField("Chicken breast, blueberries, paper towels", text: $name)
+                    .textInputAutocapitalization(.words)
+                    .accessibilityIdentifier("grocery_manual_name")
+            }
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(initialItem == nil ? "Add grocery item" : "Edit grocery item")
-                        .appFont(size: 21, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text(initialItem == nil ? "Add anything you need outside the generated meal plan." : "Update this item's details.")
-                        .appFont(size: 13, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: AppSpacing.row) {
+                    quantityField
+                    unitField
+                }
+            } else {
+                HStack(alignment: .top, spacing: AppSpacing.row) {
+                    quantityField
+                    unitField
                 }
             }
         }
-        .padding(18)
-        .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .appSurface(.quiet)
+    }
+
+    private var quantityField: some View {
+        GroceryFormField(title: "Quantity") {
+            TextField("1", text: $quantity)
+                .keyboardType(.decimalPad)
+                .accessibilityIdentifier("grocery_manual_quantity")
+        }
+    }
+
+    private var unitField: some View {
+        GroceryFormField(title: "Unit") {
+            Picker("Unit", selection: $unit) {
+                ForEach(availableUnits, id: \.self) { option in
+                    Text(option).tag(option)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(AppPalette.text)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("grocery_manual_unit")
+        }
+    }
+
+    private var categorySection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Shopping Category",
+                subtitle: "Items are grouped by aisle in your list."
+            )
+
+            Picker("Category", selection: $category) {
+                ForEach(availableCategories, id: \.self) { option in
+                    Text(option).tag(option)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(AppPalette.text)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .accessibilityIdentifier("grocery_manual_category")
+        }
+        .appSurface(.quiet)
+    }
+
+    private func loadInitialItem() {
+        guard let item = initialItem else { return }
+        name = item.name
+        let formatter = NumberFormatter()
+        formatter.maximumFractionDigits = item.quantity == floor(item.quantity) ? 0 : 2
+        quantity = formatter.string(from: NSNumber(value: item.quantity)) ?? "\(item.quantity)"
+        unit = item.unit
+        category = GroceryListBuilder.normalizedCategory(item.category)
+    }
+
+    private func saveItem() {
+        var newItem = initialItem ?? GroceryListItem(
+            name: trimmedName,
+            quantity: quantityValue,
+            unit: unit,
+            category: GroceryListBuilder.normalizedCategory(category),
+            source: "manual"
+        )
+        newItem.name = trimmedName
+        newItem.quantity = quantityValue
+        newItem.unit = unit
+        newItem.category = GroceryListBuilder.normalizedCategory(category)
+        onAdd(newItem)
+        dismiss()
+    }
+}
+
+private struct GroceryFormField<Content: View>: View {
+    let title: String
+    private let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text(title)
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+
+            content
+                .appTextRole(.body)
+                .foregroundStyle(AppPalette.text)
+                .padding(.horizontal, AppSpacing.row)
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        .stroke(AppPalette.separator, lineWidth: 1)
+                }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

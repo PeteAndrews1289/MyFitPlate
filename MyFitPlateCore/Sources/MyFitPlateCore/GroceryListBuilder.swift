@@ -1,6 +1,17 @@
 import Foundation
 
 public enum GroceryListBuilder {
+    public static let standardCategories = [
+        "Produce",
+        "Meat & Seafood",
+        "Dairy & Eggs",
+        "Carbohydrates",
+        "Pantry & Oils",
+        "Spices & Seasonings",
+        "Bakery",
+        "Misc"
+    ]
+
     public static func makeGroceryList(
         from days: [MealPlanDay],
         unitSystem: GroceryUnitSystem = currentUnitSystem()
@@ -48,7 +59,7 @@ public enum GroceryListBuilder {
         IngredientNameMatcher.normalized(name)
     }
 
-    static func applyUnitSystem(_ item: GroceryListItem, system: GroceryUnitSystem) -> GroceryListItem {
+    public static func applyUnitSystem(_ item: GroceryListItem, system: GroceryUnitSystem) -> GroceryListItem {
         var newItem = item
 
         if system == .imperial {
@@ -95,6 +106,20 @@ public enum GroceryListBuilder {
         }
 
         return newItem
+    }
+
+    public static func normalizedCategory(_ category: String) -> String {
+        switch category.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "produce": "Produce"
+        case "protein", "meat", "meat & seafood": "Meat & Seafood"
+        case "dairy", "dairy & eggs", "dairy & misc": "Dairy & Eggs"
+        case "carbohydrates", "carbs", "grains": "Carbohydrates"
+        case "pantry", "pantry & oils": "Pantry & Oils"
+        case "spices", "seasonings", "spices & seasonings": "Spices & Seasonings"
+        case "bakery": "Bakery"
+        case "misc", "miscellaneous", "": "Misc"
+        default: category.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
     }
 
     public static func currentUnitSystem() -> GroceryUnitSystem {
