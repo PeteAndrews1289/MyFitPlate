@@ -81,7 +81,8 @@ struct MainTabView: View {
             "weight-detail", "wellness-detail", "fasting-detail", "cycle-detail",
             "profile", "challenges", "pantry", "pantry-recipes", "receipt-review",
             "ayce-start", "ayce-live", "ayce-review", "ayce-summary", "value-radar",
-            "celebration"
+            "celebration", "meal-plan-survey", "meal-plan-survey-cooking", "meal-prep",
+            "meal-prep-steps", "meal-suggestion"
         ].contains(ScreenshotDemoData.requestedScreen)
         #else
         false
@@ -420,6 +421,25 @@ struct MainTabView: View {
             RestaurantValueRadarDemoView()
         case "celebration":
             CelebrationOverlayDemoView()
+        case "meal-plan-survey":
+            MealPlanSurveyView()
+        case "meal-plan-survey-cooking":
+            MealPlanSurveyView(initialStep: 5)
+        case "meal-prep":
+            MealPrepCookingView(days: ScreenshotDemoData.mealPrepDemoDays)
+        case "meal-prep-steps":
+            MealPrepCookingView(days: ScreenshotDemoData.mealPrepDemoDays, initialTab: 1)
+        case "meal-suggestion":
+            MealSuggestionDetailView(
+                suggestion: ScreenshotDemoData.mealSuggestionDemo,
+                pantryItemNames: ScreenshotDemoData.mealSuggestionDemoPantry,
+                remainingCalories: 670,
+                remainingProtein: 58,
+                remainingCarbs: 72,
+                remainingFats: 22,
+                onLog: { _ in },
+                onRegenerate: {}
+            )
         default:
             standardHomeContent
         }

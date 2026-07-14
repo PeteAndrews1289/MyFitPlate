@@ -2883,6 +2883,153 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testMealPlanningSupportFamilyUsesUnifiedHierarchy() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (
+                name: "Meal Plan Survey",
+                route: "meal-plan-survey",
+                title: "Generate a Meal Plan",
+                summary: "Step 1 of 6",
+                action: "Next"
+            ),
+            (
+                name: "Meal Plan Cooking Style",
+                route: "meal-plan-survey-cooking",
+                title: "Generate a Meal Plan",
+                summary: "Step 6 of 6",
+                action: "Generate Seven-Day Plan"
+            ),
+            (
+                name: "Meal Prep Ingredients",
+                route: "meal-prep",
+                title: "Meal Prep",
+                summary: "Bulk Ingredients",
+                action: "Start Cooking Timer"
+            ),
+            (
+                name: "Meal Prep Steps",
+                route: "meal-prep-steps",
+                title: "Meal Prep",
+                summary: "Prep Steps",
+                action: "Start Cooking Timer"
+            ),
+            (
+                name: "Meal Suggestion",
+                route: "meal-suggestion",
+                title: "Meal Suggestion",
+                summary: "Macro Fit",
+                action: "Log Estimate"
+            )
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route
+            ]
+            app.launch()
+
+            let title = app.staticTexts
+                .matching(NSPredicate(format: "label == %@", screen.title))
+                .firstMatch
+            let summary = app.staticTexts[screen.summary]
+            let action = app.buttons[screen.action]
+            let closeButton = app.buttons["Close"]
+
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(summary.waitForExistence(timeout: 5))
+            XCTAssertTrue(action.waitForExistence(timeout: 5))
+            XCTAssertTrue(action.isHittable)
+            XCTAssertTrue(closeButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(closeButton.isHittable)
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - unified planning hierarchy"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testMealPlanningSupportFamilySupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (
+                name: "Meal Plan Survey",
+                route: "meal-plan-survey",
+                title: "Generate a Meal Plan",
+                action: "Next"
+            ),
+            (
+                name: "Meal Plan Cooking Style",
+                route: "meal-plan-survey-cooking",
+                title: "Generate a Meal Plan",
+                action: "Generate Seven-Day Plan"
+            ),
+            (
+                name: "Meal Prep Ingredients",
+                route: "meal-prep",
+                title: "Meal Prep",
+                action: "Start Cooking Timer"
+            ),
+            (
+                name: "Meal Prep Steps",
+                route: "meal-prep-steps",
+                title: "Meal Prep",
+                action: "Start Cooking Timer"
+            ),
+            (
+                name: "Meal Suggestion",
+                route: "meal-suggestion",
+                title: "Meal Suggestion",
+                action: "Log Estimate"
+            )
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let title = app.staticTexts
+                .matching(NSPredicate(format: "label == %@", screen.title))
+                .firstMatch
+            let action = app.buttons[screen.action]
+            let closeButtons = app.buttons
+                .matching(NSPredicate(format: "label == %@", "Close"))
+
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(action.waitForExistence(timeout: 5))
+            XCTAssertTrue(action.isHittable)
+            XCTAssertTrue(closeButtons.firstMatch.waitForExistence(timeout: 5))
+            XCTAssertTrue(closeButtons.allElementsBoundByIndex.contains { $0.isHittable })
+            XCTAssertGreaterThanOrEqual(title.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX + 1)
+            XCTAssertGreaterThanOrEqual(action.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(action.frame.maxX, app.frame.maxX + 1)
+            XCTAssertGreaterThanOrEqual(action.frame.minY, app.frame.minY - 1)
+            XCTAssertLessThanOrEqual(action.frame.maxY, app.frame.maxY + 1)
+
+            let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testCustomProductPageDeepLinksOpenExactDestinations() throws {
         let app = XCUIApplication()
         let destinations = [

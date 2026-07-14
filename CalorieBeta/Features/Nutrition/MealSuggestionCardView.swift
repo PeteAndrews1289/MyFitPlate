@@ -1,6 +1,5 @@
-import SwiftUI
-
 import MyFitPlateCore
+import SwiftUI
 
 struct MealSuggestionCardView: View {
     let suggestion: MealSuggestion?
@@ -10,63 +9,84 @@ struct MealSuggestionCardView: View {
     let isLoading: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Maia suggestions")
-                    .appFont(size: 17, weight: .semibold)
-                Spacer()
-                Button(action: onPrefs) {
-                    Image(systemName: "slider.horizontal.3")
+        VStack(spacing: 0) {
+            AppSectionHeader(
+                title: "Maia Suggestion",
+                subtitle: "An estimated meal shaped around today's remaining targets."
+            ) {
+                HStack(spacing: AppSpacing.compact) {
+                    Button(action: onPrefs) {
+                        Image(systemName: "slider.horizontal.3")
+                    }
+                    .buttonStyle(AppIconButtonStyle(.neutral))
+                    .disabled(isLoading)
+                    .accessibilityLabel("Meal suggestion preferences")
+
+                    Button(action: onGenerate) {
+                        Image(systemName: "sparkles")
+                    }
+                    .buttonStyle(AppIconButtonStyle(.brand))
+                    .disabled(isLoading)
+                    .accessibilityLabel("Generate meal suggestion")
                 }
-                .disabled(isLoading)
-                .accessibilityLabel("Meal suggestion preferences")
-                
-                Button(action: onGenerate) {
-                    Image(systemName: "sparkles")
-                }
-                .disabled(isLoading)
-                .accessibilityLabel("Generate meal suggestion")
             }
-            .tint(.blue)
+            .padding(AppSpacing.group)
 
             Divider()
-            
+
+            suggestionContent
+        }
+        .appSurface(.emphasized, padding: 0)
+        .accessibilityIdentifier("meal_suggestion_card")
+    }
+
+    @ViewBuilder
+    private var suggestionContent: some View {
+        if isLoading {
+            HStack(spacing: AppSpacing.row) {
+                ProgressView()
+                    .tint(AppPalette.brand)
+                Text("Finding a Meal")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+            }
+            .frame(maxWidth: .infinity, minHeight: 84, alignment: .center)
+            .padding(AppSpacing.group)
+            .accessibilityElement(children: .combine)
+        } else if let suggestion {
             Button(action: onTap) {
-                if isLoading {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                        Spacer()
-                    }
-                    .frame(minHeight: 60)
-                } else if let suggestion = suggestion {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(suggestion.mealName)
-                            .appFont(size: 16, weight: .bold)
-                        
-                        Text("Estimate: \(formatted(suggestion.calories)) cal, P \(formatted(suggestion.protein)) g, C \(formatted(suggestion.carbs)) g, F \(formatted(suggestion.fats)) g")
-                            .appFont(size: 14)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                        
-                        Text("Tap to see recipe")
-                            .appFont(size: 12, weight: .semibold)
-                            .foregroundColor(.blue)
-                            .padding(.top, 4)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    Text("Use sparkles to get a meal idea that fits your remaining goals for today.")
-                        .appFont(size: 14)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(minHeight: 60)
+                AppListRow(
+                    icon: "fork.knife",
+                    iconColor: .orange,
+                    title: suggestion.mealName,
+                    subtitle: nutritionLine(for: suggestion)
+                ) {
+                    Image(systemName: "chevron.right")
+                        .appFont(size: 14, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityHint("Opens the estimated recipe and macro fit")
+        } else {
+            AppListRow(
+                icon: "sparkles",
+                iconColor: AppPalette.brand,
+                title: "No Suggestion Yet",
+                subtitle: "Generate an idea when you want help using today's remaining targets."
+            )
         }
-        .asCard()
+    }
+
+    private func nutritionLine(for suggestion: MealSuggestion) -> String {
+        "AI estimate · \(formatted(suggestion.calories)) cal · "
+            + "P \(formatted(suggestion.protein)) g · "
+            + "C \(formatted(suggestion.carbs)) g · "
+            + "F \(formatted(suggestion.fats)) g"
     }
 
     private func formatted(_ value: Double) -> String {
-        Int(value.rounded()).formatted()
+        Int(MealSuggestionReviewRules.safeValue(value).rounded()).formatted()
     }
 }

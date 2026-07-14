@@ -1,235 +1,526 @@
+import Combine
+import MyFitPlateCore
 import SwiftUI
+import UIKit
 
 struct MealPrepCookingView: View {
     @StateObject private var mealPrepService = MealPrepService()
-    let days: [MealPlanDay]
-    
-    @State private var keepScreenOn: Bool = true
-    @State private var selectedTab: Int = 0
 
-    @State private var timerDuration: TimeInterval = 0
+    let days: [MealPlanDay]
+
+    @State private var keepScreenOn = true
+    @State private var selectedTab: Int
+    @State private var completedStepIndexes: Set<Int> = []
     @State private var timerRemaining: TimeInterval = 0
+    @State private var timerEndDate: Date?
     @State private var isTimerRunning = false
     @State private var showTimerSheet = false
-    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-    
-    @Environment(\.dismiss) var dismiss
-    
+    @State private var lastTimerMinutes = 10
+    @State private var idleTimerStateBeforePresentation: Bool?
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    init(days: [MealPlanDay], initialTab: Int = 0) {
+        self.days = days
+        _selectedTab = State(initialValue: min(max(initialTab, 0), 1))
+    }
+
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                Picker("Prep mode", selection: $selectedTab) {
-                    Text("Bulk ingredients").tag(0)
-                    Text("Prep steps").tag(1)
-                }
-                .pickerStyle(.segmented)
-                .padding()
-                
-                if selectedTab == 0 {
-                    ingredientsView
-                } else {
-                    stepsView
-                }
-            }
-            .navigationTitle("Meal prep mode")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Close") {
-                        dismiss()
+        AppSheetScaffold(
+            title: "Meal Prep",
+            subtitle: "Turn the planned week into one cooking session.",
+            dismiss: { dismiss() }
+        ) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    prepSummary
+                    screenAwakeControl
+                    modePicker
+
+                    if selectedTab == 0 {
+                        ingredientsContent
+                    } else {
+                        stepsContent
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        keepScreenOn.toggle()
-                        UIApplication.shared.isIdleTimerDisabled = keepScreenOn
-                    }) {
-                        Image(systemName: keepScreenOn ? "lightbulb.fill" : "lightbulb.slash")
-                            .foregroundColor(keepScreenOn ? .yellow : .gray)
-                    }
-                    .accessibilityLabel(keepScreenOn ? "Allow screen to sleep" : "Keep screen awake")
-                }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.section)
             }
-            .onAppear {
-                mealPrepService.aggregate(days: days)
-                UIApplication.shared.isIdleTimerDisabled = keepScreenOn
-            }
-            .onDisappear {
-                UIApplication.shared.isIdleTimerDisabled = false
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if isTimerRunning || timerRemaining > 0 {
-                    timerOverlay
-                        .padding()
-                } else {
-                    Button(action: { showTimerSheet = true }) {
-                        Image(systemName: "timer")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Color.blue)
-                            .clipShape(Circle())
-                            .shadow(radius: 4)
-                    }
-                    .accessibilityLabel("Start cooking timer")
-                    .padding()
-                }
-            }
-            .sheet(isPresented: $showTimerSheet) {
-                TimerSetupView(duration: $timerDuration) {
-                    timerRemaining = timerDuration
-                    isTimerRunning = true
-                    showTimerSheet = false
-                }
+            .safeAreaInset(edge: .bottom) {
+                timerBar
+                    .dynamicTypeSize(.xSmall ... .accessibility1)
             }
         }
-        .onReceive(timer) { _ in
-            if isTimerRunning && timerRemaining > 0 {
-                timerRemaining -= 1
-            } else if isTimerRunning && timerRemaining == 0 {
-                isTimerRunning = false
-                HapticManager.instance.notification(.success)
-                // You could play a sound here
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .sheet(isPresented: $showTimerSheet) {
+            TimerSetupView(initialMinutes: lastTimerMinutes) { minutes in
+                startTimer(minutes: minutes)
+                showTimerSheet = false
+            }
+        }
+        .onAppear {
+            mealPrepService.aggregate(days: days)
+            if idleTimerStateBeforePresentation == nil {
+                idleTimerStateBeforePresentation = UIApplication.shared.isIdleTimerDisabled
+            }
+            applyIdleTimerPreference()
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = idleTimerStateBeforePresentation ?? false
+            idleTimerStateBeforePresentation = nil
+        }
+        .onChange(of: keepScreenOn) {
+            applyIdleTimerPreference()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                updateTimer()
+                applyIdleTimerPreference()
+            }
+        }
+        .onReceive(timer) { date in
+            updateTimer(now: date)
+        }
+        .accessibilityIdentifier("meal_prep_screen")
+    }
+
+    private var prepSummary: some View {
+        AppMetricStrip(items: [
+            AppMetricItem(label: "Ingredients", value: ingredientCount.formatted()),
+            AppMetricItem(label: "Recipes", value: recipeCount.formatted()),
+            AppMetricItem(
+                label: "Steps",
+                value: "\(completedStepIndexes.count)/\(mealPrepService.prepSteps.count)",
+                accent: completedStepIndexes.count == mealPrepService.prepSteps.count
+                    && !mealPrepService.prepSteps.isEmpty ? .accentPositive : AppPalette.brand
+            )
+        ])
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("meal_prep_summary")
+    }
+
+    private var screenAwakeControl: some View {
+        HStack(spacing: AppSpacing.row) {
+            Image(systemName: keepScreenOn ? "lightbulb.fill" : "lightbulb.slash")
+                .appFont(size: 18, weight: .semibold)
+                .foregroundStyle(keepScreenOn ? AppPalette.brand : .secondary)
+                .frame(width: 40, height: 40)
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Keep Screen Awake")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                Text("Prevent Auto-Lock during prep")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: AppSpacing.compact)
+            Toggle("Keep Screen Awake", isOn: $keepScreenOn)
+                .labelsHidden()
+                .tint(AppPalette.brand)
+        }
+        .padding(AppSpacing.group)
+        .background(
+            AppPalette.control,
+            in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                .stroke(AppPalette.separator, lineWidth: 1)
+        }
+    }
+
+    private var modePicker: some View {
+        Picker("Prep Mode", selection: $selectedTab) {
+            Text("Ingredients").tag(0)
+            Text("Steps").tag(1)
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("meal_prep_mode_picker")
+    }
+
+    @ViewBuilder
+    private var ingredientsContent: some View {
+        if ingredientCount == 0 {
+            MealPrepEmptyState(
+                icon: "basket",
+                title: "No Ingredients Yet",
+                message: "Add ingredients to planned meals before opening meal prep."
+            )
+        } else {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                AppSectionHeader(
+                    title: "Bulk Ingredients",
+                    subtitle: "Combined quantities across the visible week."
+                )
+
+                ForEach(categoryNames, id: \.self) { category in
+                    if let items = mealPrepService.bulkIngredients[category], !items.isEmpty {
+                        ingredientSection(category: category, items: items)
+                    }
+                }
+            }
+            .accessibilityIdentifier("meal_prep_ingredients")
+        }
+    }
+
+    private func ingredientSection(category: String, items: [BulkIngredient]) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: category,
+                subtitle: "\(items.count) item\(items.count == 1 ? "" : "s")"
+            )
+
+            VStack(spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    AppListRow(
+                        title: item.name,
+                        subtitle: recipeUsageText(for: item),
+                        hidesTextFromAccessibility: true
+                    ) {
+                        Text(quantityText(for: item))
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.text)
+                            .monospacedDigit()
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        "\(item.name), \(quantityText(for: item)), \(recipeUsageText(for: item))"
+                    )
+
+                    if index < items.count - 1 {
+                        Divider()
+                            .padding(.leading, AppSpacing.group)
+                    }
+                }
+            }
+            .background(
+                AppPalette.control,
+                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                    .stroke(AppPalette.separator, lineWidth: 1)
             }
         }
     }
-    
-    private var ingredientsView: some View {
-        List {
-            ForEach(Array(mealPrepService.bulkIngredients.keys.sorted()), id: \.self) { category in
-                Section(header: Text(category)) {
-                    if let items = mealPrepService.bulkIngredients[category] {
-                        ForEach(items) { item in
-                            HStack {
-                                Text(item.name)
-                                    .font(.body)
-                                Spacer()
-                                Text("\(formatQuantity(item.quantity)) \(item.unit == "item" ? "" : item.unit)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.vertical, 4)
+
+    @ViewBuilder
+    private var stepsContent: some View {
+        if mealPrepService.prepSteps.isEmpty {
+            MealPrepEmptyState(
+                icon: "list.number",
+                title: "No Prep Steps Yet",
+                message: "Add instructions to planned meals before opening meal prep."
+            )
+        } else {
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                AppSectionHeader(
+                    title: "Prep Steps",
+                    subtitle: "\(completedStepIndexes.count) of \(mealPrepService.prepSteps.count) complete"
+                )
+
+                VStack(spacing: 0) {
+                    ForEach(mealPrepService.prepSteps.indices, id: \.self) { index in
+                        prepStepRow(index: index)
+
+                        if index < mealPrepService.prepSteps.count - 1 {
+                            Divider()
+                                .padding(.leading, 52)
                         }
                     }
                 }
-            }
-        }
-        .listStyle(.insetGrouped)
-    }
-    
-    private var stepsView: some View {
-        List {
-            ForEach(mealPrepService.prepSteps.indices, id: \.self) { index in
-                let stepInfo = mealPrepService.prepSteps[index]
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(stepInfo.recipeName)
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.blue)
-                    
-                    Text(stepInfo.step)
-                        .font(.body)
-                        .fixedSize(horizontal: false, vertical: true)
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                        .stroke(AppPalette.separator, lineWidth: 1)
                 }
-                .padding(.vertical, 6)
             }
+            .accessibilityIdentifier("meal_prep_steps")
         }
-        .listStyle(.plain)
-    }
-    
-    private var timerOverlay: some View {
-        HStack {
-            VStack(alignment: .leading) {
-                Text("Timer")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.8))
-                Text(timeString(from: timerRemaining))
-                    .font(.system(.title3, design: .monospaced).weight(.bold))
-                    .foregroundColor(.white)
-            }
-            Spacer()
-            Button(action: {
-                if timerRemaining > 0 {
-                    isTimerRunning.toggle()
-                } else {
-                    timerRemaining = 0
-                }
-            }) {
-                Image(systemName: isTimerRunning ? "pause.fill" : (timerRemaining > 0 ? "play.fill" : "xmark"))
-                    .foregroundColor(.white)
-            }
-            .accessibilityLabel(timerControlLabel)
-            if !isTimerRunning && timerRemaining > 0 {
-                Button(action: {
-                    timerRemaining = 0
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.white)
-                }
-                .accessibilityLabel("Clear timer")
-            }
-        }
-        .padding()
-        .background(Color.black.opacity(0.75))
-        .cornerRadius(12)
-        .frame(width: 200)
-    }
-    
-    private func formatQuantity(_ q: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: q)) ?? "\(q)"
-    }
-    
-    private func timeString(from interval: TimeInterval) -> String {
-        let minutes = Int(interval) / 60
-        let seconds = Int(interval) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
     }
 
-    private var timerControlLabel: String {
-        if isTimerRunning {
-            return "Pause timer"
+    private func prepStepRow(index: Int) -> some View {
+        let step = mealPrepService.prepSteps[index]
+        let isComplete = completedStepIndexes.contains(index)
+
+        return Button {
+            HapticManager.instance.feedback(.light)
+            if isComplete {
+                completedStepIndexes.remove(index)
+            } else {
+                completedStepIndexes.insert(index)
+            }
+        } label: {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                Image(systemName: isComplete ? "checkmark.circle.fill" : "circle")
+                    .appFont(size: 20, weight: .semibold)
+                    .foregroundStyle(isComplete ? Color.accentPositive : AppPalette.brand)
+                    .frame(width: 28)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(step.recipeName)
+                        .appTextRole(.caption)
+                        .foregroundStyle(isComplete ? Color.accentPositive : AppPalette.brand)
+                    Text(step.step)
+                        .appTextRole(.body)
+                        .foregroundStyle(AppPalette.text)
+                        .strikethrough(isComplete, color: .secondary)
+                        .opacity(isComplete ? 0.65 : 1)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, AppSpacing.group)
+            .padding(.vertical, AppSpacing.row)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        return timerRemaining > 0 ? "Resume timer" : "Close timer"
+        .buttonStyle(.plain)
+        .accessibilityLabel("Step \(index + 1), \(step.recipeName), \(step.step)")
+        .accessibilityValue(isComplete ? "Complete" : "Not complete")
+        .accessibilityHint(isComplete ? "Marks this step incomplete" : "Marks this step complete")
+    }
+
+    @ViewBuilder
+    private var timerBar: some View {
+        if timerRemaining > 0 {
+            HStack(spacing: AppSpacing.row) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(isTimerRunning ? "Cooking Timer" : "Timer Paused")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(MealPrepTimerRules.display(timerRemaining))
+                        .appTextRole(.metric)
+                        .foregroundStyle(AppPalette.text)
+                        .monospacedDigit()
+                }
+
+                Spacer(minLength: AppSpacing.compact)
+
+                Button {
+                    isTimerRunning ? pauseTimer() : resumeTimer()
+                } label: {
+                    Image(systemName: isTimerRunning ? "pause.fill" : "play.fill")
+                }
+                .buttonStyle(AppIconButtonStyle(.brand))
+                .accessibilityLabel(isTimerRunning ? "Pause timer" : "Resume timer")
+
+                Button(action: clearTimer) {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(AppIconButtonStyle(.neutral))
+                .accessibilityLabel("Clear timer")
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.compact)
+            .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(AppPalette.separator)
+                    .frame(height: 1)
+            }
+            .accessibilityIdentifier("meal_prep_active_timer")
+        } else {
+            Button {
+                showTimerSheet = true
+            } label: {
+                Label("Start Cooking Timer", systemImage: "timer")
+            }
+            .buttonStyle(AppActionButtonStyle(.secondary))
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.compact)
+            .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(AppPalette.separator)
+                    .frame(height: 1)
+            }
+            .accessibilityIdentifier("meal_prep_start_timer")
+        }
+    }
+
+    private var categoryNames: [String] {
+        mealPrepService.bulkIngredients.keys.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
+
+    private var ingredientCount: Int {
+        mealPrepService.bulkIngredients.values.reduce(0) { $0 + $1.count }
+    }
+
+    private var recipeCount: Int {
+        Set(days.flatMap(\.meals).compactMap { meal in
+            let name = meal.foodItem?.name ?? meal.mealType
+            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmedName.isEmpty ? nil : trimmedName
+        }).count
+    }
+
+    private func recipeUsageText(for item: BulkIngredient) -> String {
+        let recipes = item.originalRecipes
+        if recipes.count == 1 {
+            return recipes[0]
+        }
+        return "Used in \(recipes.count) planned meals"
+    }
+
+    private func quantityText(for item: BulkIngredient) -> String {
+        let safeQuantity = item.quantity.isFinite ? max(0, item.quantity) : 0
+        let quantity = safeQuantity.formatted(.number.precision(.fractionLength(0...2)))
+        let unit = MealPrepQuantityRules.displayUnit(item.unit, quantity: safeQuantity)
+        return unit.isEmpty ? quantity : "\(quantity) \(unit)"
+    }
+
+    private func applyIdleTimerPreference() {
+        UIApplication.shared.isIdleTimerDisabled = keepScreenOn
+    }
+
+    private func startTimer(minutes: Int) {
+        let safeMinutes = MealPrepTimerRules.clampedMinutes(minutes)
+        lastTimerMinutes = safeMinutes
+        timerRemaining = MealPrepTimerRules.duration(minutes: safeMinutes)
+        timerEndDate = Date().addingTimeInterval(timerRemaining)
+        isTimerRunning = true
+    }
+
+    private func updateTimer(now: Date = Date()) {
+        guard isTimerRunning, let timerEndDate else { return }
+        let updatedRemaining = MealPrepTimerRules.remaining(until: timerEndDate, now: now)
+        timerRemaining = updatedRemaining
+        if updatedRemaining <= 0 {
+            isTimerRunning = false
+            self.timerEndDate = nil
+            HapticManager.instance.notification(.success)
+        }
+    }
+
+    private func pauseTimer() {
+        updateTimer()
+        isTimerRunning = false
+        timerEndDate = nil
+    }
+
+    private func resumeTimer() {
+        guard timerRemaining > 0 else { return }
+        timerEndDate = Date().addingTimeInterval(timerRemaining)
+        isTimerRunning = true
+    }
+
+    private func clearTimer() {
+        timerRemaining = 0
+        timerEndDate = nil
+        isTimerRunning = false
+    }
+}
+
+private struct MealPrepEmptyState: View {
+    let icon: String
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: AppSpacing.row) {
+            Image(systemName: icon)
+                .appFont(size: 24, weight: .semibold)
+                .foregroundStyle(AppPalette.brand)
+                .accessibilityHidden(true)
+            Text(title)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+            Text(message)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .appSurface(.emphasized)
     }
 }
 
 struct TimerSetupView: View {
-    @Binding var duration: TimeInterval
-    var onStart: () -> Void
-    
-    @State private var minutes: Int = 10
-    @Environment(\.dismiss) var dismiss
-    
+    var onStart: (Int) -> Void
+
+    @State private var minutes: Int
+    @Environment(\.dismiss) private var dismiss
+
+    init(initialMinutes: Int = 10, onStart: @escaping (Int) -> Void) {
+        self.onStart = onStart
+        _minutes = State(initialValue: MealPrepTimerRules.clampedMinutes(initialMinutes))
+    }
+
     var body: some View {
-        NavigationView {
-            Form {
-                Section(header: Text("Set timer")) {
-                    Stepper("\(minutes) minutes", value: $minutes, in: 1...120)
+        AppSheetScaffold(
+            title: "Cooking Timer",
+            subtitle: "Choose a duration for the next prep task.",
+            dismiss: { dismiss() }
+        ) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        Text("Duration")
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("\(minutes) min")
+                            .appTextRole(.metric)
+                            .foregroundStyle(AppPalette.text)
+                            .monospacedDigit()
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .appSurface(.emphasized)
+
+                    Stepper("Timer Minutes", value: $minutes, in: 1...120, step: 1)
+                        .appTextRole(.control)
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                                .stroke(AppPalette.separator, lineWidth: 1)
+                        }
                 }
-                
-                Button(action: {
-                    duration = TimeInterval(minutes * 60)
-                    onStart()
-                }) {
-                    Text("Start timer")
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.blue)
-                        .cornerRadius(8)
-                }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.section)
             }
-            .navigationTitle("Cooking timer")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    onStart(MealPrepTimerRules.clampedMinutes(minutes))
+                } label: {
+                    Label("Start Timer", systemImage: "timer")
                 }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.compact)
+                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AppPalette.separator)
+                        .frame(height: 1)
+                }
+                .dynamicTypeSize(.xSmall ... .accessibility1)
+                .accessibilityIdentifier("meal_prep_timer_start")
             }
         }
+        .accessibilityIdentifier("meal_prep_timer_setup")
     }
 }

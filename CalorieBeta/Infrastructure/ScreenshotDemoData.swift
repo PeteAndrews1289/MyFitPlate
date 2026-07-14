@@ -594,6 +594,126 @@ enum ScreenshotDemoData {
         ]
     }
 
+    static var mealSuggestionDemo: MealSuggestion {
+        MealSuggestion(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000301")!,
+            title: "Lemon Herb Chicken Grain Bowl",
+            calories: 615,
+            mealName: "Lemon Herb Chicken Grain Bowl",
+            protein: 52,
+            carbs: 64,
+            fats: 17,
+            ingredients: [
+                "6 oz lemon herb chicken breast",
+                "1 cup cooked quinoa",
+                "2 cups baby spinach",
+                "1/2 cup cherry tomatoes",
+                "2 tbsp tzatziki"
+            ],
+            instructions: """
+            1. Season the chicken and cook until it reaches a safe internal temperature.
+            2. Warm the quinoa and wilt the spinach.
+            3. Add the tomatoes, slice the chicken, and finish with tzatziki.
+            """
+        )
+    }
+
+    static var mealSuggestionDemoPantry: [String] {
+        ["Chicken breast", "Quinoa", "Baby spinach", "Greek yogurt"]
+    }
+
+    static var mealPrepDemoDays: [MealPlanDay] {
+        let chicken = trustedFood(
+            id: "meal-prep-chicken",
+            name: "Ginger Chicken Rice Bowls",
+            calories: 610,
+            protein: 51,
+            carbs: 72,
+            fats: 14,
+            fiber: 9,
+            servingSize: "1 bowl"
+        )
+        let salmon = trustedFood(
+            id: "meal-prep-salmon",
+            name: "Lemon Salmon Quinoa",
+            calories: 680,
+            protein: 47,
+            carbs: 61,
+            fats: 27,
+            fiber: 8,
+            servingSize: "1 plate"
+        )
+        let oats = trustedFood(
+            id: "meal-prep-oats",
+            name: "Blueberry Protein Oats",
+            calories: 460,
+            protein: 34,
+            carbs: 58,
+            fats: 11,
+            fiber: 10,
+            servingSize: "1 jar"
+        )
+
+        return [
+            MealPlanDay(
+                id: "meal-prep-day-one",
+                date: day(offset: 0),
+                meals: [
+                    PlannedMeal(
+                        id: "meal-prep-chicken-one",
+                        mealType: "Lunch",
+                        foodItem: chicken,
+                        ingredients: [
+                            "680 g chicken breast",
+                            "2 cup jasmine rice",
+                            "3 cup broccoli",
+                            "2 tbsp low-sodium soy sauce"
+                        ],
+                        instructions: """
+                        1. Start the rice and divide it between containers.
+                        2. Cook the chicken with ginger and soy sauce.
+                        3. Steam the broccoli and portion everything together.
+                        """
+                    ),
+                    PlannedMeal(
+                        id: "meal-prep-oats-one",
+                        mealType: "Breakfast",
+                        foodItem: oats,
+                        ingredients: [
+                            "2 cup rolled oats",
+                            "2 cup Greek yogurt",
+                            "1 cup blueberries"
+                        ],
+                        instructions: "Mix the oats and yogurt, then chill overnight."
+                    )
+                ]
+            ),
+            MealPlanDay(
+                id: "meal-prep-day-two",
+                date: day(offset: 1),
+                meals: [
+                    PlannedMeal(
+                        id: "meal-prep-salmon-one",
+                        mealType: "Dinner",
+                        foodItem: salmon,
+                        ingredients: [
+                            "450 g Atlantic salmon",
+                            "2 cup cooked quinoa",
+                            "2 tbsp olive oil",
+                            "1 item lemon",
+                            "2 cup spinach"
+                        ],
+                        instructions: """
+                        1. Roast the salmon with lemon until safely cooked.
+                        2. Warm the quinoa and wilt the spinach.
+                        3. Portion the salmon over the quinoa and vegetables.
+                        """
+                    )
+                ]
+            )
+        ]
+    }
+
     static var ayceLiveSession: AYCESession {
         let nigiri = AYCECatalog.item(id: "sushi_salmon_nigiri") ?? AYCECatalog.all[0]
         let roll = AYCECatalog.item(id: "sushi_california_roll") ?? AYCECatalog.all[0]

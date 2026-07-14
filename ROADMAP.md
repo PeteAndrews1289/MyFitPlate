@@ -564,9 +564,14 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   neutral value tiers, and opens editable AI review before any diary write. Finite-input guards,
   stale-request ownership, old-draft compatibility, deterministic fixtures, and standard plus dark
   accessibility-XXXL journeys are covered by focused tests.
+- [x] Migrate the meal-planning support family without changing generation or diary behavior. The
+  setup survey, bulk meal-prep workspace, AI suggestion card, and suggestion review now share one
+  responsive operational hierarchy, explicit estimate language, stable actions, and deterministic
+  standard plus dark accessibility-XXXL coverage. Preference normalization, pantry matching,
+  suggestion sanitization, instruction parsing, timer end dates, and quantity wording are covered
+  by focused rules rather than view-local assumptions.
 - [ ] Migrate the remaining specialty nutrition tools without turning the dormant social prototype
-  into 2.3 release scope. Continue with reachable planning, cooking, calculator, and long-tail
-  report surfaces.
+  into 2.3 release scope. Continue with reachable calculators and long-tail report surfaces.
 - [ ] Retire legacy Home after rollout proof, remove the remaining legacy glass aliases, enforce
   the new rules in source checks, and complete the full 2.3 regression/release pass.
 

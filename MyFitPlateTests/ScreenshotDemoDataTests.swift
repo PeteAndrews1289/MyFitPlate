@@ -107,6 +107,26 @@ final class ScreenshotDemoDataTests: XCTestCase {
         XCTAssertGreaterThan(AYCERules.totals(for: summary).calories, 0)
     }
 
+    func testMealPlanningFixturesCoverPrepAndPantryReview() {
+        let service = MealPrepService()
+        service.aggregate(days: ScreenshotDemoData.mealPrepDemoDays)
+
+        XCTAssertGreaterThanOrEqual(service.bulkIngredients.values.flatMap { $0 }.count, 8)
+        XCTAssertGreaterThanOrEqual(service.prepSteps.count, 7)
+
+        let suggestion = ScreenshotDemoData.mealSuggestionDemo
+        let pantry = ScreenshotDemoData.mealSuggestionDemoPantry
+        let matches = MealSuggestionReviewRules.matchedIngredients(
+            ingredients: suggestion.ingredients,
+            pantryNames: pantry
+        )
+        XCTAssertEqual(matches.count, 3)
+        XCTAssertEqual(
+            MealSuggestionReviewRules.instructionSteps(suggestion.instructions).count,
+            3
+        )
+    }
+
     func testLivingDayFoodTransitionTargetsPersistedMealNode() {
         let mealID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
         let food = FoodItem(id: "logged-food", name: "Chicken bowl", calories: 520)

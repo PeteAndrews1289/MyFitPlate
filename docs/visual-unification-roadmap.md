@@ -370,15 +370,35 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   captures; a dedicated dark accessibility-XXXL celebration journey and the visual-system gallery
   regression passed; strict lint and the complete simulator build also passed.
 
+### Batch 20 - Meal Planning Support (complete)
+
+- Rebuilt the meal-plan setup survey as one six-step workflow with responsive selection surfaces,
+  literal progress, and one stable action. Cuisine preferences now normalize consistently and keep
+  `Any cuisine` mutually exclusive without changing the generated-plan request contract.
+- Rebuilt bulk meal prep around one day/recipe/ingredient summary, a continuous ingredient list,
+  checkable numbered preparation steps, an optional end-date timer, and an explicit keep-awake
+  control. The prior idle-timer state is restored on exit, instruction numbering accepts both
+  `2.` and `2)`, and quantities use sensible singular/plural units.
+- Rebuilt AI meal suggestion cards and detail review around explicit estimate language, remaining-
+  target fit, pantry evidence, substitutions, numbered preparation, and one review/logging action.
+  Non-finite or negative estimates are sanitized, pantry matches respect phrase boundaries, and
+  generation, editing, and logging behavior remains unchanged.
+- Added deterministic routes and rich fixtures for survey setup, meal-prep ingredients and steps,
+  and meal-suggestion review. Standard and dark accessibility-XXXL five-screen journeys passed;
+  final captures were reviewed for action reachability, hierarchy, dark mode, and text bounds.
+- Focused Core rules and parsing passed 16/16, app fixture coverage passed 10/10, strict lint and
+  `git diff --check` passed, and the complete simulator build passed with the embedded Watch app,
+  widgets, and Live Activity.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
 review family now join that system, along with wellness, weight, fasting, and cycle tracking. The
 first-run and account-access family now joins them, as do the live progress, achievement, and
-weekly-challenge surfaces. Smart Pantry, pantry recipe drafts, receipt review, AYCE, and Restaurant
-Value Radar now join them. The active migration queue is the remaining reachable planning,
-cooking, calculator, and long-tail report surfaces; unfinished public social surfaces remain
-explicitly gated rather than being polished into accidental release scope.
+weekly-challenge surfaces. Smart Pantry, pantry recipe drafts, receipt review, AYCE, Restaurant
+Value Radar, and the meal-planning support family now join them. The active migration queue is the
+remaining reachable calculators and long-tail report surfaces; unfinished public social surfaces
+remain explicitly gated rather than being polished into accidental release scope.
 
 ## Product Direction
 
@@ -612,7 +632,8 @@ start. Editorial composition must not leak into repeated workflows.
   and privacy product contracts exist)
 - Smart Pantry, pantry recipe drafts, and receipt review (Batch 18 complete)
 - AYCE and Restaurant Value Radar (Batch 19 complete)
-- Remaining reachable planning, cooking, calculator, and long-tail report surfaces
+- Meal-plan setup, meal-prep cooking, and AI meal-suggestion review (Batch 20 complete)
+- Remaining reachable calculator and long-tail report surfaces
 
 Migrate by feature family so each batch can be reviewed and reverted independently.
 
