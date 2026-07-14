@@ -530,9 +530,14 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   templates, and schedule selection now use the shared operational hierarchy and stable actions.
   Standard and dark accessibility-XXXL journeys are captured, including explicit close/save
   reachability and text-clipping audits.
-- [ ] Migrate the remaining long-tail feature families, beginning with program detail, workout
-  history and analytics, then wellness and weight, onboarding/authentication, community, and
-  specialty nutrition tools.
+- [x] Migrate program detail, workout history, completed-session review, manual-history fallback,
+  and training analytics without changing program progress, session calculations, personal
+  records, recovery handoff, or editing behavior. Their summaries, filters, schedule, calendar,
+  routine rotation, breakdowns, and Maia insights now use the shared evidence hierarchy.
+  Deterministic standard and dark accessibility-XXXL journeys are captured and pass clipping and
+  persistent-action checks.
+- [ ] Migrate the remaining long-tail feature families, beginning with wellness and weight, then
+  onboarding/authentication, community, and specialty nutrition tools.
 - [ ] Retire legacy Home after rollout proof, remove the remaining legacy glass aliases, enforce
   the new rules in source checks, and complete the full 2.3 regression/release pass.
 
@@ -680,4 +685,4 @@ Success signal: users can name a MyFitPlate feature they cannot get from MyFitne
   rollback/feature-flag plan for risky launches. The Living Day release has all three documented.
 
 ---
-_Living document — Single Point of Truth. Last updated: 2026-07-13._
+_Living document — Single Point of Truth. Last updated: 2026-07-14._

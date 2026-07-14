@@ -2267,6 +2267,101 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testTrainingEvidenceUsesUnifiedHierarchy() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (
+                name: "Program Detail",
+                route: "program-detail",
+                container: "program_detail",
+                title: "Dumbbell Strength & Hypertrophy"
+            ),
+            (
+                name: "Workout History",
+                route: "workout-history",
+                container: "workout_history_screen",
+                title: "Workout History"
+            ),
+            (
+                name: "Session Review",
+                route: "workout-summary",
+                container: "workout_summary",
+                title: "Session Review"
+            )
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route
+            ]
+            app.launch()
+
+            let container = app.descendants(matching: .any)[screen.container]
+            XCTAssertTrue(container.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(app.staticTexts[screen.title].waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+
+            if screen.route == "workout-summary" {
+                let done = app.buttons["workout_summary_done"]
+                XCTAssertTrue(done.waitForExistence(timeout: 5))
+                XCTAssertTrue(done.isHittable)
+            }
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - unified evidence hierarchy"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testTrainingEvidenceSupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "Program Detail", route: "program-detail", container: "program_detail"),
+            (name: "Workout History", route: "workout-history", container: "workout_history_screen"),
+            (name: "Session Review", route: "workout-summary", container: "workout_summary")
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let container = app.descendants(matching: .any)[screen.container]
+            XCTAssertTrue(container.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+
+            if screen.route == "workout-summary" {
+                let done = app.buttons["workout_summary_done"]
+                XCTAssertTrue(done.waitForExistence(timeout: 5))
+                XCTAssertTrue(done.isHittable)
+            }
+
+            try app.performAccessibilityAudit(for: [.textClipped])
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testCustomProductPageDeepLinksOpenExactDestinations() throws {
         let app = XCUIApplication()
         let destinations = [

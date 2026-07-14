@@ -17,6 +17,10 @@ struct WorkoutRoutinesView: View {
     @State private var showingProgramBuilder = false
     @State private var showingSavedPrograms = false
     @State private var screenshotProgramToEdit: WorkoutProgram?
+    @State private var showingScreenshotProgramDetail = false
+    @State private var showingScreenshotWorkoutHistory = false
+    @State private var screenshotProgramDetail: WorkoutProgram?
+    @State private var screenshotHistoryLogs: [WorkoutSessionLog]?
 
     @StateObject private var viewModel = WorkoutDashboardViewModel()
 
@@ -32,6 +36,17 @@ struct WorkoutRoutinesView: View {
         )
         _routineToEdit = State(
             initialValue: screen == "routine-builder" ? ScreenshotDemoData.routineBuilderRoutine : nil
+        )
+        _showingScreenshotProgramDetail = State(initialValue: screen == "program-detail")
+        _showingScreenshotWorkoutHistory = State(initialValue: screen == "workout-history")
+        _screenshotProgramDetail = State(
+            initialValue: screen == "program-detail" ? ScreenshotDemoData.programDetailProgram : nil
+        )
+        _screenshotHistoryLogs = State(
+            initialValue: screen == "workout-history" ? ScreenshotDemoData.workoutHistoryLogs : nil
+        )
+        _reviewLog = State(
+            initialValue: screen == "workout-summary" ? ScreenshotDemoData.workoutSummaryLog : nil
         )
     }
     #endif
@@ -255,6 +270,14 @@ struct WorkoutRoutinesView: View {
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $showingScreenshotProgramDetail) {
+                if let screenshotProgramDetail {
+                    ProgramDetailView(program: screenshotProgramDetail)
+                }
+            }
+            .navigationDestination(isPresented: $showingScreenshotWorkoutHistory) {
+                WorkoutHistoryView(fixtureLogs: screenshotHistoryLogs)
+            }
             .alert("Delete Current Program?", isPresented: $showingDeleteCurrentProgramAlert) {
                 Button("Delete Program", role: .destructive) {
                     if let program = workoutService.activeProgram {
@@ -339,11 +362,6 @@ struct WorkoutRoutinesView: View {
                     WorkoutCompleteAnalyticsView(log: log)
                         .navigationTitle("Session Review")
                         .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarTrailing) {
-                                Button("Done") { reviewLog = nil }
-                            }
-                        }
                 }
             }
         }

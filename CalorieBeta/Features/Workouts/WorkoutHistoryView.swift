@@ -10,6 +10,13 @@ struct WorkoutHistoryView: View {
     @State private var searchText = ""
     @State private var selectedRange: WorkoutHistoryRange = .all
     @State private var selectedExercise: String?
+    private let fixtureLogs: [WorkoutSessionLog]?
+
+    init(fixtureLogs: [WorkoutSessionLog]? = nil) {
+        self.fixtureLogs = fixtureLogs
+        _logs = State(initialValue: fixtureLogs ?? [])
+        _isLoading = State(initialValue: fixtureLogs == nil)
+    }
 
     private var rangeFilteredLogs: [WorkoutSessionLog] {
         logs.filter { selectedRange.contains($0.date) }
@@ -35,7 +42,7 @@ struct WorkoutHistoryView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
                 if isLoading {
                     WorkoutHistoryLoadingState()
                         .padding(.top, 60)
@@ -77,24 +84,37 @@ struct WorkoutHistoryView: View {
                             subtitle: "\(filteredLogs.count) \(filteredLogs.count == 1 ? "session" : "sessions")"
                         )
 
-                        ForEach(Array(filteredLogs.enumerated()), id: \.offset) { _, log in
-                            NavigationLink(destination: WorkoutCompleteAnalyticsView(log: log)) {
-                                WorkoutHistoryRow(
-                                    log: log,
-                                    personalRecordCount: WorkoutHistoryInsights.personalRecordCount(for: log, allLogs: logs)
-                                )
+                        VStack(spacing: 0) {
+                            ForEach(Array(filteredLogs.enumerated()), id: \.offset) { index, log in
+                                NavigationLink(destination: WorkoutCompleteAnalyticsView(log: log)) {
+                                    WorkoutHistoryRow(
+                                        log: log,
+                                        personalRecordCount: WorkoutHistoryInsights.personalRecordCount(for: log, allLogs: logs)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+
+                                if index < filteredLogs.count - 1 {
+                                    Divider()
+                                        .padding(.leading, 76)
+                                }
                             }
-                            .buttonStyle(.plain)
                         }
+                        .appSurface(.quiet, padding: 0)
+                        .accessibilityIdentifier("workout_history_list")
                     }
 
                     Color.clear
                         .frame(height: 104)
                 }
             }
-            .padding()
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.section)
         }
-        .navigationTitle("Workout History")
+        .accessibilityIdentifier("workout_history_screen")
+        .navigationTitle("History")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
@@ -109,7 +129,7 @@ struct WorkoutHistoryView: View {
         .refreshable {
             await loadHistory(force: true)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .background(AppPalette.canvas.ignoresSafeArea())
         .task {
             await loadHistory(force: false)
         }
@@ -135,6 +155,10 @@ struct WorkoutHistoryView: View {
 
     @MainActor
     private func loadHistory(force: Bool) async {
+        guard fixtureLogs == nil else {
+            isLoading = false
+            return
+        }
         guard force || logs.isEmpty else { return }
         guard let uid = DIContainer.shared.authService.currentUserID else {
             isLoading = false
@@ -357,39 +381,37 @@ private struct WorkoutHistoryHeaderCard: View {
     let latestDate: Date?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Training Log")
-                        .appFont(size: 24, weight: .black)
-                        .foregroundColor(.textPrimary)
-
-                    Text(latestDate.map { "Last workout: \($0.formatted(date: .abbreviated, time: .omitted))" } ?? "No matching workouts")
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
-                VStack(spacing: 0) {
-                    Text("\(sessionCount)")
-                        .appFont(size: 18, weight: .black)
-                        .foregroundColor(.brandPrimary)
-                    Text(totalSessionCount == sessionCount ? "shown" : "of \(totalSessionCount)")
-                        .appFont(size: 9, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-                .frame(width: 48, height: 48)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppScreenHeader(
+                eyebrow: "Training Log",
+                title: "Workout History",
+                subtitle: latestDate.map {
+                    "Last workout: \($0.formatted(date: .abbreviated, time: .omitted))"
+                } ?? "No sessions match the current filters."
+            ) {
+                Text(totalSessionCount == sessionCount ? "\(sessionCount) shown" : "\(sessionCount) of \(totalSessionCount)")
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.brand)
+                    .padding(.horizontal, AppSpacing.row)
+                    .frame(minHeight: 36)
+                    .background(
+                        AppPalette.brand.opacity(0.10),
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
             }
 
-            HStack(spacing: 10) {
-                WorkoutHistoryMetric(title: "Sessions", value: "\(sessionCount)", color: .brandPrimary)
-                WorkoutHistoryMetric(title: "Sets", value: "\(totalSets)", color: .accentPositive)
-                WorkoutHistoryMetric(title: "Volume", value: totalVolume > 0 ? totalVolume.formattedWorkoutVolume : "0", color: .orange)
-            }
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Sessions", value: sessionCount.formatted()),
+                AppMetricItem(label: "Sets", value: totalSets.formatted(), accent: .accentPositive),
+                AppMetricItem(
+                    label: "Volume",
+                    value: totalVolume > 0 ? totalVolume.formattedWorkoutVolume : "0",
+                    accent: .orange
+                )
+            ])
+            .appSurface(.emphasized)
         }
-        .asCard()
+        .accessibilityIdentifier("workout_history_header")
     }
 }
 
@@ -398,41 +420,50 @@ private struct WorkoutHistoryFilterCard: View {
     @Binding var selectedRange: WorkoutHistoryRange
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Find Sessions",
+                subtitle: "Search by movement or date, then narrow the time range."
+            )
 
-                TextField("Search exercise or date", text: $searchText)
-                    .appFont(size: 14, weight: .semibold)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                HStack(spacing: AppSpacing.compact) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
 
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .appFont(size: 14, weight: .bold)
-                            .foregroundColor(Color(UIColor.tertiaryLabel))
+                    TextField("Search exercise or date", text: $searchText)
+                        .appTextRole(.body)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear workout history search")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Clear workout history search")
                 }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 11)
-            .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .padding(.horizontal, AppSpacing.row)
+                .frame(minHeight: 48)
+                .background(
+                    AppPalette.canvas,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
 
-            Picker("Range", selection: $selectedRange) {
-                ForEach(WorkoutHistoryRange.allCases) { range in
-                    Text(range.rawValue).tag(range)
+                Picker("Range", selection: $selectedRange) {
+                    ForEach(WorkoutHistoryRange.allCases) { range in
+                        Text(range.rawValue).tag(range)
+                    }
                 }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
+            .appSurface(.quiet)
         }
-        .asCard()
+        .accessibilityIdentifier("workout_history_filters")
     }
 }
 
@@ -478,24 +509,29 @@ private struct WorkoutExerciseFilterChip: View {
     let subtitle: String
     let isSelected: Bool
     let action: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .appFont(size: 13, weight: .bold)
-                    .lineLimit(1)
+                    .appTextRole(.control)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 Text(subtitle)
-                    .appFont(size: 10, weight: .semibold)
-                    .lineLimit(1)
+                    .appTextRole(.caption)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
             }
-            .foregroundColor(isSelected ? .white : .textPrimary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(width: title == "All" ? 92 : 142, alignment: .leading)
+            .foregroundStyle(isSelected ? Color.white : AppPalette.text)
+            .padding(.horizontal, AppSpacing.row)
+            .padding(.vertical, AppSpacing.compact)
+            .frame(
+                width: dynamicTypeSize.isAccessibilitySize ? 220 : (title == "All" ? 92 : 196),
+                alignment: .leading
+            )
+            .frame(minHeight: 52)
             .background(
-                isSelected ? Color.brandPrimary : Color.backgroundSecondary,
-                in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+                isSelected ? AppPalette.brand : AppPalette.control,
+                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
             )
         }
         .buttonStyle(.plain)
@@ -505,94 +541,46 @@ private struct WorkoutExerciseFilterChip: View {
 private struct WorkoutHistoryHighlightsCard: View {
     let highlights: WorkoutHistoryHighlights
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10)
-    ]
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            WorkoutHistorySectionHeader(
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
                 title: "Highlights",
                 subtitle: "\(highlights.sessionCount) \(highlights.sessionCount == 1 ? "session" : "sessions") in view"
             )
 
-            LazyVGrid(columns: columns, spacing: 10) {
-                WorkoutHistoryHighlightTile(
-                    title: "Best Set",
+            AppMetricStrip(items: [
+                AppMetricItem(
+                    label: "Best set · \(highlights.bestSetSubtitle)",
                     value: highlights.bestSetTitle,
-                    subtitle: highlights.bestSetSubtitle,
-                    icon: "bolt.fill",
-                    color: .orange
+                    accent: .orange
+                ),
+                AppMetricItem(
+                    label: "Top move · \(highlights.topExerciseSubtitle)",
+                    value: highlights.topExerciseTitle
+                ),
+                AppMetricItem(
+                    label: highlights.personalRecordCount == 1 ? "New high" : "New highs",
+                    value: highlights.personalRecordCount.formatted(),
+                    accent: .accentPositive
+                ),
+                AppMetricItem(
+                    label: "Average sets / session",
+                    value: highlights.sessionCount == 0
+                        ? "0"
+                        : (highlights.totalSets / max(highlights.sessionCount, 1)).formatted(),
+                    accent: .blue
                 )
-                WorkoutHistoryHighlightTile(
-                    title: "Top Move",
-                    value: highlights.topExerciseTitle,
-                    subtitle: highlights.topExerciseSubtitle,
-                    icon: "figure.strengthtraining.traditional",
-                    color: .brandPrimary
-                )
-                WorkoutHistoryHighlightTile(
-                    title: "PR Signals",
-                    value: "\(highlights.personalRecordCount)",
-                    subtitle: highlights.personalRecordCount == 1 ? "new high" : "new highs",
-                    icon: "rosette",
-                    color: .accentPositive
-                )
-                WorkoutHistoryHighlightTile(
-                    title: "Avg Sets",
-                    value: highlights.sessionCount == 0 ? "0" : "\(highlights.totalSets / max(highlights.sessionCount, 1))",
-                    subtitle: "per session",
-                    icon: "checklist.checked",
-                    color: .blue
-                )
-            }
+            ])
+            .appSurface(.quiet)
         }
-    }
-}
-
-private struct WorkoutHistoryHighlightTile: View {
-    let title: String
-    let value: String
-    let subtitle: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .appFont(size: 11, weight: .bold)
-                    .foregroundColor(color)
-                    .frame(width: 24, height: 24)
-                    .background(color.opacity(0.12), in: Circle())
-
-                Text(title)
-                    .appFont(size: 11, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(1)
-            }
-
-            Text(value)
-                .appFont(size: 16, weight: .black)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-
-            Text(subtitle)
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-        }
-        .padding(12)
-        .background(Color.backgroundSecondary.opacity(0.74), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
 struct WorkoutHistoryRow: View {
     let log: WorkoutSessionLog
     let personalRecordCount: Int
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var totalVolume: Double {
         log.completedExercises.reduce(0) { exerciseSum, exercise in
@@ -626,69 +614,90 @@ struct WorkoutHistoryRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 14) {
-                VStack(spacing: 3) {
-                    Text(log.date.formatted(.dateTime.day()))
-                        .appFont(size: 21, weight: .black)
-                        .foregroundColor(.brandPrimary)
-                    Text(log.date.formatted(.dateTime.month(.abbreviated)))
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .textCase(.uppercase)
-                }
-                .frame(width: 48, height: 56)
-                .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(exercisePreview)
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
-
-                    HStack(spacing: 8) {
-                        Text(log.date.formatted(date: .omitted, time: .shortened))
-                        if let topSetText {
-                            Text(topSetText)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        HStack(alignment: .top, spacing: AppSpacing.row) {
+                            dateBadge
+                            sessionIdentity
                         }
+                        recordBadge
                     }
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(1)
-                }
+                } else {
+                    HStack(alignment: .top, spacing: AppSpacing.row) {
+                        dateBadge
+                        sessionIdentity
+                        Spacer(minLength: AppSpacing.compact)
+                        recordBadge
 
-                Spacer(minLength: 0)
-
-                if personalRecordCount > 0 {
-                    Text("PR")
-                        .appFont(size: 11, weight: .black)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 6)
-                        .background(Color.accentPositive, in: Capsule())
-                }
-
-                Image(systemName: "chevron.right")
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
-                    .padding(.top, 4)
-            }
-
-            HStack(spacing: 8) {
-                WorkoutHistoryPill(title: "\(log.completedExercises.count)", subtitle: "exercises", icon: "dumbbell.fill", color: .brandPrimary)
-                WorkoutHistoryPill(title: "\(completedSetCount)", subtitle: "sets", icon: "checkmark.seal.fill", color: .accentPositive)
-
-                if totalVolume > 0 {
-                    WorkoutHistoryPill(title: totalVolume.formattedWorkoutVolume, subtitle: "lbs", icon: "chart.bar.fill", color: .orange)
-                }
-
-                if personalRecordCount > 1 {
-                    WorkoutHistoryPill(title: "\(personalRecordCount)", subtitle: "PRs", icon: "rosette", color: .accentPositive)
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
+                    }
                 }
             }
+
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Exercises", value: log.completedExercises.count.formatted()),
+                AppMetricItem(label: "Sets", value: completedSetCount.formatted(), accent: .accentPositive),
+                AppMetricItem(
+                    label: totalVolume > 0 ? "Volume (lb)" : "PR signals",
+                    value: totalVolume > 0 ? totalVolume.formattedWorkoutVolume : personalRecordCount.formatted(),
+                    accent: totalVolume > 0 ? .orange : .accentPositive
+                )
+            ])
         }
-        .padding()
-        .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(AppSpacing.group)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var dateBadge: some View {
+        VStack(spacing: 2) {
+            Text(log.date.formatted(.dateTime.day()))
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.brand)
+            Text(log.date.formatted(.dateTime.month(.abbreviated)))
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(width: 52)
+        .frame(minHeight: 56)
+        .background(
+            AppPalette.brand.opacity(0.10),
+            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+        )
+        .accessibilityHidden(true)
+    }
+
+    private var sessionIdentity: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(exercisePreview)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+
+            Text(
+                [log.date.formatted(date: .omitted, time: .shortened), topSetText]
+                    .compactMap { $0 }
+                    .joined(separator: " · ")
+            )
+            .appTextRole(.secondary)
+            .foregroundStyle(.secondary)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+        }
+    }
+
+    @ViewBuilder
+    private var recordBadge: some View {
+        if personalRecordCount > 0 {
+            Label(
+                personalRecordCount == 1 ? "PR" : "\(personalRecordCount) PRs",
+                systemImage: "rosette"
+            )
+            .appTextRole(.caption)
+            .foregroundStyle(Color.accentPositive)
+        }
     }
 }
 
@@ -697,67 +706,7 @@ private struct WorkoutHistorySectionHeader: View {
     let subtitle: String
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-
-            Spacer()
-
-            Text(subtitle)
-                .appFont(size: 12, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .lineLimit(1)
-        }
-    }
-}
-
-private struct WorkoutHistoryMetric: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .appFont(size: 10, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-            Text(value)
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(color)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-    }
-}
-
-private struct WorkoutHistoryPill: View {
-    let title: String
-    let subtitle: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .appFont(size: 9, weight: .bold)
-            Text(title)
-                .appFont(size: 11, weight: .bold)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-            Text(subtitle)
-                .appFont(size: 10, weight: .semibold)
-                .lineLimit(1)
-        }
-        .foregroundColor(color)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(color.opacity(0.10), in: Capsule())
+        AppSectionHeader(title: title, subtitle: subtitle)
     }
 }
 
@@ -765,46 +714,46 @@ private struct WorkoutHistoryNoMatchesState: View {
     let onClear: () -> Void
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: AppSpacing.row) {
             Image(systemName: "line.3.horizontal.decrease.circle")
-                .appFont(size: 34, weight: .bold)
-                .foregroundColor(.brandPrimary)
-                .frame(width: 64, height: 64)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .appFont(size: 34, weight: .semibold)
+                .foregroundStyle(AppPalette.brand)
+                .accessibilityHidden(true)
 
             Text("No Matches")
-                .appFont(size: 20, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
 
-            Button("Clear Filters", action: onClear)
-                .appFont(size: 14, weight: .bold)
-                .foregroundColor(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.brandPrimary, in: Capsule())
+            Text("Try a different movement, date, or time range.")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            Button(action: onClear) {
+                Label("Clear Filters", systemImage: "arrow.counterclockwise")
+            }
+            .buttonStyle(AppActionButtonStyle(.secondary, fillsWidth: false))
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 34)
-        .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
 private struct WorkoutHistoryEmptyState: View {
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: AppSpacing.row) {
             Image(systemName: "clock.arrow.circlepath")
-                .appFont(size: 42, weight: .bold)
-                .foregroundColor(.brandPrimary)
-                .frame(width: 74, height: 74)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .appFont(size: 40, weight: .semibold)
+                .foregroundStyle(AppPalette.brand)
+                .accessibilityHidden(true)
 
             Text("No Workout History")
-                .appFont(size: 22, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
 
             Text("Finish a routine and your training log will start filling in here.")
-                .appFont(size: 14, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 28)
         }

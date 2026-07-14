@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 /// This is the new "Fitness Analytics" page.
@@ -7,36 +9,39 @@ struct WorkoutAnalyticsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                
-                Text("Your fitness deep-dive. See how your workouts, nutrition, and recovery all work together.")
-                    .appFont(size: 15)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .padding(.bottom, 10)
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                AppScreenHeader(
+                    eyebrow: "Training Evidence",
+                    title: "Fitness Analytics",
+                    subtitle: "See how completed workouts, nutrition, and recovery fit together."
+                )
 
-                // 1. The Workout Analytics Card
-                // This now checks if analytics are available
                 if let analytics = viewModel.workoutAnalytics {
                     WorkoutAnalyticsCardView(analytics: analytics)
                 } else {
-                    // This is the new loading cue
-                    VStack(spacing: 12) {
-                        ProgressView("Analyzing your performance...")
-                        Text("This may take a moment...")
-                            .appFont(size: 12)
-                            .foregroundColor(.secondary)
+                    HStack(spacing: AppSpacing.row) {
+                        ProgressView()
+                            .tint(AppPalette.brand)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Analyzing Your Performance")
+                                .appTextRole(.control)
+                                .foregroundStyle(AppPalette.text)
+                            Text("Your saved totals remain available while deeper insights load.")
+                                .appTextRole(.secondary)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .frame(maxWidth: .infinity, minHeight: 200)
-                    .background(Color.backgroundSecondary)
-                    .cornerRadius(15)
+                    .appSurface(.quiet)
                 }
-                
-                Spacer()
             }
-            .padding()
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.section)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Fitness Analytics")
+        .accessibilityIdentifier("fitness_analytics")
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .navigationTitle("Analytics")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

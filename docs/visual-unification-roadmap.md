@@ -246,10 +246,30 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   text clipping. Twenty-eight focused routine/program rule tests and both final UI journeys pass;
   the full simulator target compiles including Watch, widgets, and Live Activity.
 
+### Batch 14 - Training Evidence and Review (complete)
+
+- Rebuilt Program Detail around one program identity, progress and workload summary, a responsive
+  schedule editor, the existing next-step control, a quiet training calendar, and one routine
+  rotation. Program scheduling, progression, skipping, editing, and session review behavior remain
+  unchanged.
+- Rebuilt Workout History around one training summary, compact search/range controls, readable
+  movement filters, highlights, and a continuous session list. Manual history entries now have an
+  explicit simple-log fallback rather than an unrelated empty state.
+- Consolidated Session Review into one completion summary and one continuous exercise breakdown,
+  followed by records, trends, recovery, Maia analysis, edit/share controls, and one persistent
+  Done action. Screenshot mode uses immediate local analytics instead of waiting on live AI data.
+- Unified the Reports fitness-analytics summary and Maia workout-insight rows with the same metric,
+  section, and quiet-surface grammar. Removed the remaining legacy card treatments in the migrated
+  training views.
+- Added deterministic Program Detail, Workout History, and Session Review routes. Standard and
+  dark accessibility-XXXL journeys pass hierarchy, bounds, persistent-action, and text-clipping
+  checks. Sixty-six focused workout analytics/model/rules/service tests pass, the full simulator
+  build and strict lint pass, and all final captures were reviewed.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
-Grocery, the remaining confirmation workflows, and Settings now join that system. The active queue
-moves to program detail, workout history and analytics, wellness and weight, onboarding and
+Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
+review family now join that system. The active queue moves to wellness and weight, onboarding and
 authentication, community, and the remaining specialty tools.
 
 ## Product Direction

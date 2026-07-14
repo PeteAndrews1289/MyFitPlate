@@ -3,8 +3,8 @@ import MyFitPlateCore
 import SwiftUI
 
 struct PastWorkoutDetailView: View {
-    let exercise: LoggedExercise // The entry point from history/log
-    
+    let exercise: LoggedExercise
+
     @StateObject private var workoutService = WorkoutService()
     @State private var sessionLog: WorkoutSessionLog?
     @State private var isLoading = true
@@ -12,40 +12,64 @@ struct PastWorkoutDetailView: View {
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
-        ZStack {
+        Group {
             if isLoading {
-                VStack(spacing: 20) {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                    Text("Retrieving full workout details...")
-                        .foregroundColor(.secondary)
-                        .appFont(size: 16)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.section) {
+                        AppScreenHeader(
+                            eyebrow: "Training Evidence",
+                            title: "Workout Details",
+                            subtitle: "Retrieving the completed session."
+                        )
+
+                        HStack(spacing: AppSpacing.row) {
+                            ProgressView()
+                                .tint(AppPalette.brand)
+
+                            Text("Loading set history and performance details")
+                                .appTextRole(.secondary)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .appSurface(.quiet)
+                    }
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.group)
                 }
             } else if let log = sessionLog {
-                // SUCCESS: Pass the fetched log to the analytics view
                 WorkoutCompleteAnalyticsView(log: log)
             } else {
-                // FAILURE: Could not find the detailed session log (maybe it was a manual entry)
-                VStack(spacing: 20) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .appFont(size: 60)
-                        .foregroundColor(.orange)
-                    Text("Simple Log Entry")
-                        .appFont(size: 24, weight: .bold)
-                    Text("This exercise was logged manually, so detailed set analytics and trends aren't available.")
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.secondary)
-                        .appFont(size: 16)
-                        .padding(.horizontal)
-                    
-                    Button("Edit Entry") {
-                        showingEditSheet = true
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.section) {
+                        AppScreenHeader(
+                            eyebrow: "Manual Entry",
+                            title: "Simple Workout Log",
+                            subtitle: "This entry has exercise totals but no recorded set-by-set session."
+                        )
+
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            AppSectionHeader(
+                                title: exercise.name,
+                                subtitle: "Detailed trends become available when a workout is completed through the session player."
+                            )
+
+                            Button("Edit Entry") {
+                                showingEditSheet = true
+                            }
+                            .buttonStyle(PrimaryButtonStyle())
+                            .accessibilityIdentifier("past_workout_edit_entry")
+                        }
+                        .appSurface(.quiet)
                     }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .padding()
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.group)
+                    .padding(.bottom, AppSpacing.section)
                 }
             }
         }
+        .accessibilityIdentifier("past_workout_detail")
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .navigationTitle("Workout")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -57,24 +81,22 @@ struct PastWorkoutDetailView: View {
                 // Callback handling if needed
             }
         }
-        .onAppear {
-            loadSessionLog()
+        .task {
+            await loadSessionLog()
         }
     }
-    
-    private func loadSessionLog() {
+
+    @MainActor
+    private func loadSessionLog() async {
         guard let sessionID = exercise.sessionID, let workoutID = exercise.workoutID else {
-            // No IDs means it was a manual "quick add"
             isLoading = false
             return
         }
-        
-        Task {
-            let result = await workoutService.fetchWorkoutSessionLog(workoutID: workoutID, sessionID: sessionID)
-            if case .success(let log) = result {
-                self.sessionLog = log
-            }
-            self.isLoading = false
+
+        let result = await workoutService.fetchWorkoutSessionLog(workoutID: workoutID, sessionID: sessionID)
+        if case .success(let log) = result {
+            sessionLog = log
         }
+        isLoading = false
     }
 }

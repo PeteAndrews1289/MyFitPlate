@@ -686,7 +686,8 @@ enum ScreenshotDemoData {
 
         switch requestedScreen {
         case "maia": appState.selectedTab = 1
-        case "train", "runs", "saved-programs", "program-builder", "routine-builder":
+        case "train", "runs", "saved-programs", "program-builder", "routine-builder",
+             "program-detail", "workout-history", "workout-summary":
             appState.selectedTab = 2
         case "meal-plan": appState.selectedTab = 3
         case "reports": appState.selectedTab = 4
@@ -966,6 +967,18 @@ enum ScreenshotDemoData {
             name: "Upper Strength",
             dateCreated: today
         )
+    }
+
+    static var programDetailProgram: WorkoutProgram {
+        strengthProgram()
+    }
+
+    static var workoutHistoryLogs: [WorkoutSessionLog] {
+        workoutLogs(for: strengthProgram()).sorted { $0.date > $1.date }
+    }
+
+    static var workoutSummaryLog: WorkoutSessionLog? {
+        workoutHistoryLogs.first
     }
 
     private static func workoutLogs(for program: WorkoutProgram) -> [WorkoutSessionLog] {
