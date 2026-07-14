@@ -136,7 +136,6 @@ struct QuickActionButton: View {
     let label: String
     let subtitle: String
     let color: Color
-    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -167,15 +166,14 @@ struct QuickActionButton: View {
         }
         .padding(12)
         .frame(width: 136, height: 136, alignment: .topLeading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .background(
-            colorScheme == .dark ? Color.backgroundPrimary.opacity(0.76) : Color.backgroundSecondary.opacity(0.62),
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            AppPalette.control,
+            in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                .stroke(AppPalette.separator, lineWidth: 1)
         )
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
     }
 }

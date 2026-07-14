@@ -828,7 +828,7 @@ private struct RunRecorderSummary: View {
                             }
                         }
                     }
-                    .asCard()
+                    .appSurface(.emphasized)
                 }
 
                 Button {
@@ -869,7 +869,7 @@ private struct RunRecorderSummary: View {
                 .foregroundColor(Color(UIColor.secondaryLabel))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .asCard()
+        .appSurface(.emphasized)
     }
 }
 

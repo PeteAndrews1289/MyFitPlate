@@ -36,20 +36,30 @@ struct HomeDashboardHeader: View {
             )
         }
         .frame(maxWidth: 520)
-        .asCard()
+        .appSurface(.emphasized)
         .featureSpotlight(isActive: isHeaderSpotlightActive)
     }
 }
 
 struct HomeDailyLogSummaryStrip: View {
     var log: DailyLog
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible()),
+            count: dynamicTypeSize.isAccessibilitySize ? 1 : 2
+        )
+    }
+
     var body: some View {
         let foodItems = log.meals.flatMap(\.foodItems)
         let exercises = (log.exercises ?? []).dedupedAgainstHealthKit()
         let calories = log.totalCalories()
         let exerciseCalories = exercises.reduce(0) { $0 + $1.caloriesBurned }
 
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+        LazyVGrid(columns: columns, spacing: 10) {
             DiaryMetricPill(
                 title: "Food",
                 value: foodItems.count.formatted(),
@@ -300,23 +310,30 @@ struct DiaryMetricPill: View {
     let icon: String
     let color: Color
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center, spacing: 10) {
             Image(systemName: icon)
                 .appFont(size: 13, weight: .bold)
                 .foregroundColor(color)
-                .frame(width: 30, height: 30)
+                .frame(
+                    width: dynamicTypeSize.isAccessibilitySize ? 44 : 30,
+                    height: dynamicTypeSize.isAccessibilitySize ? 44 : 30
+                )
                 .background(color.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .appFont(size: 11, weight: .semibold)
                     .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("\(value) \(subtitle)")
                     .appFont(size: 14, weight: .bold)
                     .foregroundColor(.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.75)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 0)

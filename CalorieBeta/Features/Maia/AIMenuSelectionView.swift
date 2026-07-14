@@ -44,7 +44,7 @@ struct AIMenuSelectionView: View {
                 Button("Log Selected Items") {
                     logSelectedItems()
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
                 .padding()
                 .disabled(selectedItemIDs.isEmpty)
             }

@@ -353,11 +353,13 @@ public struct ChainMealBuilderView: View {
                 toggleIngredient(ingredient)
             } label: {
                 ingredientSummary(ingredient, isSelected: isSelected)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(ingredient.name)
             .accessibilityValue(isSelected ? "Selected" : "Not selected")
+            .accessibilityIdentifier("chain_builder_ingredient_\(ingredient.id)")
 
             if isSelected {
                 switch ingredient.controlStyle {
@@ -388,7 +390,6 @@ public struct ChainMealBuilderView: View {
                     lineWidth: isSelected ? 1.5 : 0.5
                 )
         }
-        .accessibilityIdentifier("chain_builder_ingredient_\(ingredient.id)")
     }
 
     @ViewBuilder

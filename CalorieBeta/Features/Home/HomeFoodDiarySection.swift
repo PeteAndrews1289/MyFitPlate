@@ -94,7 +94,7 @@ struct HomeFoodDiarySection: View {
             }
         }
         .frame(maxWidth: 520)
-        .asCard()
+        .appSurface(.emphasized)
         .featureSpotlight(isActive: isDailyLogSpotlightActive)
     }
 }

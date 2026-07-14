@@ -44,6 +44,9 @@ jobs:
       - name: Run SwiftLint
         run: swiftlint lint --strict --quiet
 
+      - name: Enforce visual-system boundaries
+        run: ./scripts/check_visual_system.sh
+
       - name: Resolve Swift packages
         run: |
           xcodebuild -resolvePackageDependencies \

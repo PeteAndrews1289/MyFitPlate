@@ -956,7 +956,7 @@ public class AdaptiveGoalService: ObservableObject {
         )
     }
 
-    /// Calculate the true TDEE based on weight changes and caloric intake over the last 21 days.
+    /// Estimate TDEE from weight changes and logged caloric intake over the last 21 days.
     public func calculateExpenditure(weightHistory: [(id: String, date: Date, weight: Double)], dailyLogs: [DailyLog]) {
         guard let snapshot = Self.expenditureSnapshot(weightHistory: weightHistory, dailyLogs: dailyLogs) else { return }
 

@@ -273,6 +273,7 @@ struct HomeView: View {
                         .clipped()
                         .padding(.bottom, 128)
                     }
+                    .accessibilityIdentifier("home_scroll")
                     .scrollBounceBehavior(.basedOnSize, axes: .vertical)
                     .onAppear {
                         if let userId = DIContainer.shared.authService.currentUserID {
@@ -1346,10 +1347,9 @@ struct HomeView: View {
             }
             .padding(16)
             .frame(maxWidth: 520, alignment: .leading)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
                     .stroke(icon.color.opacity(0.16), lineWidth: 1)
             )
         }
@@ -1562,8 +1562,11 @@ struct HomeView: View {
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(16)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .background(Color.backgroundSecondary.opacity(0.70), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                    .stroke(AppPalette.separator, lineWidth: 1)
+            }
         }
         .buttonStyle(.plain)
     }

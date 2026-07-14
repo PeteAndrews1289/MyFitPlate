@@ -14,16 +14,6 @@ final class DesignSystemTests: XCTestCase {
         XCTAssertNotNil(extensionView)
     }
     
-    func testPrimaryButtonStyle() {
-        let view = Button("Test") { }.buttonStyle(PrimaryButtonStyle())
-        XCTAssertNotNil(view)
-    }
-    
-    func testSecondaryButtonStyle() {
-        let view = Button("Test") { }.buttonStyle(SecondaryButtonStyle())
-        XCTAssertNotNil(view)
-    }
-    
     func testAnimatedCardButtonStyle() {
         let view = Button("Test") { }.buttonStyle(AnimatedCardButtonStyle())
         XCTAssertNotNil(view)
@@ -32,15 +22,6 @@ final class DesignSystemTests: XCTestCase {
     func testAppTextFieldStyle() {
         let view = TextField("Test", text: .constant("")).textFieldStyle(AppTextFieldStyle())
         XCTAssertNotNil(view)
-    }
-    
-    func testGlassCardModifier() {
-        let modifier = GlassCardModifier()
-        let view = EmptyView().modifier(modifier)
-        XCTAssertNotNil(view)
-        
-        let extView = EmptyView().glassCard()
-        XCTAssertNotNil(extView)
     }
     
     func testGuidanceEmptyState() {

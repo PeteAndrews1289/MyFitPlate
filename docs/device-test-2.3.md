@@ -1,9 +1,10 @@
-# Replacement Version 2.2 Release Closure
+# Live 2.2 Observation and Version 2.3 Device Closure
 
-The first uploaded 2.2 build was withdrawn before publication. Build 2 was rejected during
-App Store processing because the embedded Watch app lacked `NSHealthShareUsageDescription` and
-`NSHealthUpdateUsageDescription`. This checklist now closes the integrated replacement 2.2
-candidate, which must use build 3 or later. This filename retains
+Version 2.2 went live on 2026-07-14. The first uploaded build was withdrawn before publication,
+and build 2 was rejected during App Store processing because the embedded Watch app lacked
+`NSHealthShareUsageDescription` and `NSHealthUpdateUsageDescription`; the corrected replacement
+passed processing. This checklist now tracks post-release observation and the physical gates for
+version 2.3. The filename retains
 the internal 2.3 milestone label so existing roadmap links and evidence remain stable. The
 older 2.2 checklist is release history; do not rerun all of it unless a touched shared surface
 regresses.
@@ -28,6 +29,15 @@ HealthKit purpose strings, and arm64_32 plus arm64 architectures. Xcode's Watch/
 embedded-binary validation passed. The main privacy manifest parses. App result:
 `.codex_xcode/TestResults-2.2b2-app-final.xcresult`. UI result:
 `.codex_xcode/TestResults-2.2b2-ui-final.xcresult`.
+
+Latest version 2.3 local closure evidence on 2026-07-14: Core passed 1,099/1,099 at 84.24%
+line coverage and the app target passed 110/110. The broad UI run passed 76/77 executions; its
+single two-second legacy Workout Dashboard timeout passed 5/5 immediate repetitions, and a
+final-source focused pass then passed 4/4. Strict lint, visual-system, diff, plist, project, and
+privacy checks passed, as did the unsigned generic physical-iOS Release build. The packaged app,
+widget, Live Activity, and Watch products are version 2.3 build 1. The Watch app contains both
+HealthKit purpose strings and arm64_32 plus arm64, and the main privacy manifest parses. Physical
+experience judgments and the signed archive remain open below.
 
 ## Version 2.3 Living Day owner gates
 
@@ -66,6 +76,31 @@ signed production console and must remain open until they are directly observed:
 - [ ] For release, archive the intended 2.3 commit, validate the signed archive, inspect the
   embedded phone/widget/Watch versions and privacy manifests, then upload that exact build.
 
+### Version 2.3 visual-unification acceptance
+
+These checks cover the remaining behavior that simulator snapshots and automation cannot judge
+well. They replace a screen-by-screen manual retest:
+
+- [ ] Confirm the centered Quick Log control is comfortable to reach, opens on the first tap, and
+  never covers or crowds the five tab labels on the smallest supported phone.
+- [ ] In Maia, review one structured food/workout action before confirming it. Confirm the action
+  card reads naturally, the intended values remain editable or clearly disclosed, and no write
+  occurs before confirmation. Complete the separate voice checks below during the same visit.
+- [ ] In Grocery, check an item, hide completed items, restore them, leave the screen, and return.
+  The checked state and visibility choice must remain coherent without a double tap.
+- [ ] Open one saved recipe through detail and logging, then use Fast Food Builder to add and remove
+  an ingredient before reviewing the meal. Confirm the primary actions remain obvious and the
+  totals respond immediately.
+- [ ] Open Adaptive Metabolism with real account data. It must say `Adaptive TDEE estimate`, show
+  plausible finite values and the 21-day evidence requirement, and keep its apply action disabled
+  when there is not enough valid evidence.
+- [ ] Repeat a short Home, Maia, Train, Meal Plan, and Reports sweep in dark mode and at the largest
+  practical text size. Look only for clipped text, unreachable actions, unexpected nested cards,
+  or a page that still feels visually unrelated to the rest of the app.
+- [ ] Refresh the Watch after the phone's Living Day changes, then share one Living Day and one Week
+  in Motion image through a real destination. Confirm the Watch context is current and the exports
+  match their previews without private food, route, account, coordinate, or Health-sample detail.
+
 No Firebase Functions, Rules, index, or data migration deployment is required for the Living Day,
 Maia annotation, share image, widget payload, density work, tab-lifecycle fix, or Reports loading
 stability work. The new Firebase custom definitions
@@ -98,8 +133,9 @@ the current Release product embeds and syncs the companion correctly.
 - [x] Run adjacent supersets through both exercises and confirm rest behavior does not break pairing.
 - [x] Edit warmup/drop/failure set types plus RPE/RIR, finish, reopen history, and confirm values persist while warmups stay out of volume/PR totals.
 
-Peter physically validated the two advanced strength checks on 2026-07-12. Only the three
-running sensor/data paths above remain open in this section.
+Peter physically validated the two advanced strength checks on 2026-07-12. The remaining work in
+this section is limited to the three running sensor/data paths and one corrected stop/weak-GPS
+historical-route replay; none requires stressing an injured knee before it is sensible to do so.
 
 ### Accessibility and resilience
 
@@ -153,12 +189,17 @@ Record findings in `docs/feedback-triage-2.3.md`.
   unlinked diagnostics plus Device ID, and no tracking.
 - [x] Keep the app, widget, Live Activity, and Watch targets on marketing version 2.2 and set
   their build number to 3. Builds 1 and 2 cannot be reused.
-- [ ] Create a signed Archive, run Validate App, inspect the archive for the Watch companion and privacy manifests, then upload.
-- [ ] Complete the replacement 2.2 metadata, screenshots, review notes, phased-release choice,
-  and exact custom-product-page links after binary approval.
+- [x] Create a signed Archive, run Validate App, inspect the archive for the Watch companion and
+  privacy manifests, upload, and pass App Store processing.
+- [ ] Publish and smoke-test the prepared exact custom-product-page links now that version 2.2 is
+  live. The replacement metadata, screenshots, review notes, and release choice are closed.
 
 ## Post-release observation
 
+- [ ] Install or update from the public App Store listing, confirm existing account data appears,
+  open all five tabs, use Quick Log for one disposable entry, remove it again, and confirm the
+  Watch receives a fresh context. This is the only immediate live-2.2 smoke pass; do not repeat the
+  full pre-release matrix.
 - [ ] For the first 24 hours, compare crash-free users, launch failures, diary write failures, provider/callable outcomes, App Check validity, and aggregate AI cost against the previous stable build.
 - [ ] Pause promotion or phased rollout for a new fatal crash, account/data integrity failure, material App Check rejection, or sustained provider/callable regression.
 - [ ] After 7-14 clean days, evaluate activation, weekly loop completion, D1/D7 retention, and notification opt-out against MyFitPlate's own baseline.

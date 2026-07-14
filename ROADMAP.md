@@ -4,15 +4,15 @@ A living, definitive roadmap and product vision for MyFitPlate.
 
 Competitive thesis: MyFitPlate should not try to out-database MyFitnessPal, out-micronutrient Cronometer, or out-algorithm MacroFactor head-on. The wedge is **high-trust nutrition logging for people who train**, with Maia turning food, recovery, lifting, running, and real-world dining into one daily loop.
 
-Current objective: leave the submitted 2.2 binary isolated while App Store review is pending, and
-build version 2.3 on `codex/2.3-visual-unification`. Carry Living Day's evidence-led language across
+Current objective: keep the live 2.2 release stable and isolated on `main`, and build version 2.3 on
+`codex/2.3-visual-unification`. Carry Living Day's evidence-led language across
 the app in reviewable feature batches without adding logging or workout friction. Every sprint
 should preserve fast logging while making Trust, food timing, training, and recovery feel like one
 daily system rather than separate capable tools.
 
 ---
 
-## 🏁 Published Foundation and 2.2 Release Candidate
+## 🏁 Published Foundation and Live 2.2 Release
 - [x] **AYCE Challenge & Scoreboard**: 6-cuisine buffet tracker, sushi roll library (48 items), live value vs. price game, haptic kitchen wins, and persistent lifetime scoreboard ("kitchens defeated").
 - [x] **Apple Health & Running Engine**: Bidirectional workout sync, GPS route mapping, false-start filtering (<100m/<2min), and parallel-watch calorie double-count protection.
 - [x] **High-Trust Nutrition Logging**: GS1 barcode fallback, multi-database cross-verification (USDA, FatSecret, OpenFoodFacts), and 0–99 Trust Cards.
@@ -24,9 +24,9 @@ daily system rather than separate capable tools.
 
 ---
 
-## ✅ Included in Replacement Version 2.2 — Running Superpowers & Friction Killers
+## ✅ Included in Live Version 2.2 — Running Superpowers & Friction Killers
 These items originally carried a 2.3 label while they were being built, but now ship
-inside the larger replacement 2.2 candidate. They are complete release scope, not future work.
+inside the live 2.2 release. They are complete release scope, not future work.
 
 ### Running Engine & Recovery
 - [x] **Shoe Mileage Tracker (Core Engine)**: Added `RunningShoe` struct, `shoeID` tagging on runs, and `RunningShoeStore` for local gear persistence and wear calculations.
@@ -44,11 +44,11 @@ inside the larger replacement 2.2 candidate. They are complete release scope, no
 
 ---
 
-## 🎯 Replacement Version 2.2 — The Daily Training Loop (Release Candidate)
+## 🎯 Version 2.2 — The Daily Training Loop (Live)
 
 **Release numbering:** the first 2.2 build was withdrawn before publication, and build 2 was
 rejected during App Store processing because the embedded Watch plist lacked HealthKit purpose
-strings. The integrated release remains public version 2.2 and must use build 3 or later. Historical `2.3` document
+strings. The corrected integrated release is now live as public version 2.2. Historical `2.3` document
 filenames and analytics schema `2.3.2` stay unchanged so links, dashboards, and event cohorts
 remain traceable; they do not describe the App Store version.
 
@@ -119,15 +119,17 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
   previews, and recipes retain/scale the full panel. Daily and historical reports distinguish
   unavailable data from reported zero and show their food/day coverage instead of false 0% intake.
   The durable provider/unit/presentation contract is `docs/micronutrient-data-2.3.md`.
-- [ ] **Known device closures**: only three running paths remain: one guided interval on real
-  GPS, one Watch-imported run with heart-rate series, and one phone-only run without HR. Watch
+- [ ] **Known device closures**: three running sensor/data paths remain: one guided interval on real
+  GPS, one Watch-imported run with heart-rate series, and one phone-only run without HR, plus one
+  corrected stop/weak-GPS historical-route replay. Watch
   sync/offline replay, workout supersets/rest, RPE/RIR/set types, widgets, notification routing,
   accessibility, appearance, and real connectivity recovery are physically closed. The concise
   remaining sequence and release-stop conditions are in `docs/device-test-2.3.md`; Maia's
   new voice/tone acceptance is tracked there as a separate P2 polish check.
 - [ ] **Organic acquisition follow-through**: submit the 2.2 featuring nomination, publish
-  Trust/Strength/Weight/Dining custom product pages after 2.2 approval, and add exact app
-  routes plus deterministic screenshot fixtures for Food Search, Trust, Fast Food Builder,
+  the prepared Trust/Strength/Weight/Dining/Running/Meal Plan custom product pages now that 2.2 is
+  live, and add exact app routes plus deterministic screenshot fixtures for Food Search, Trust,
+  Fast Food Builder,
   Runs, and Meal Plan. The replacement candidate now queues exact routes through login and
   onboarding, and has deterministic CPP aliases plus a HealthKit-free Running history fixture;
   publication and signed-in/signed-out device checks remain.
@@ -210,8 +212,9 @@ loop, remove logging friction, or make the Trust advantage easier to discover.
 - [x] **Exact deep links**: `food-search`, `trust`, `builder`, `runs`, `meal-plan`, and
   `training-fuel` parse,
   queue through signed-out/onboarding blockers, and present their exact destinations from the
-  stable app shell. Core and cold-launch UI regression tests are green. Keep the 2.2 custom
-  pages link-free until the replacement 2.2 binary is approved.
+  stable app shell. Core and cold-launch UI regression tests are green. The live 2.2 release now
+  permits exact-route links in its custom product pages; signed-in and signed-out device checks
+  remain before those links are promoted broadly.
 
 ### Internal Work — Trust Calibration and Community Safety
 
@@ -435,14 +438,15 @@ Full experience, state, accessibility, rollout, and technical contract:
     links, signed archive validation, and the production Remote Config cohort remain Peter-owned
     rollout checks.
 
-Local closure evidence (2026-07-13): Core passes 1,067/1,067 at 85.08% line coverage, the app unit
-target passes 96/96, and the full UI suite passes 17 test methods / 20 concrete executions. The
-inclusive render matrix, actual Simulator Dark Mode + Increase Contrast, actual Reduce Motion,
-compact share preview, strict SwiftLint, project/catalog/diff checks, privacy sanitizer, CI parse,
-Functions 11/11, Rules 23/23, migration 10/10, and unsigned generic-device Release build pass. The
-phone, widget, Live Activity, and embedded Watch are all version 2.3 build 1; both Watch HealthKit
-purpose strings, required architectures, and privacy manifests are present. Remaining owner gates
-are isolated in [`docs/device-test-2.3.md`](docs/device-test-2.3.md).
+Local closure evidence (2026-07-14): Core passes 1,099/1,099 at 84.24% line coverage and the app
+target passes 110/110. The broad UI pass completed 76/77 executions; the sole two-second legacy
+Workout Dashboard timeout passed 5/5 immediate repetitions, and the final-source focused pass
+passed 4/4. The inclusive render matrix, actual Simulator Dark Mode + Increase Contrast, actual
+Reduce Motion, compact share preview, strict SwiftLint, project/catalog/diff checks, privacy
+sanitizer, CI parse, Functions 11/11, Rules 23/23, migration 10/10, and unsigned generic-device
+Release build pass. The phone, widget, Live Activity, and embedded Watch are all version 2.3 build
+1; both Watch HealthKit purpose strings, required architectures, and privacy manifests are present.
+Remaining owner gates are isolated in [`docs/device-test-2.3.md`](docs/device-test-2.3.md).
 
 ### Success Measures
 
@@ -576,8 +580,17 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   evidence-led report hierarchy, explicit source/goal language, deterministic fixtures, and
   standard plus dark accessibility-XXXL coverage. Dormant social and unlinked legacy log
   prototypes remain inaccessible rather than becoming accidental release scope.
-- [ ] Retire legacy Home after rollout proof, remove the remaining legacy glass aliases, enforce
-  the new rules in source checks, and complete the full 2.3 regression/release pass.
+- [x] Retire the reachable legacy visual generation. All glass-card aliases and old gradient button
+  styles now have zero call sites and have been removed; material, gradient, and shadow use is
+  restricted to explicit chart, shell, overlay, widget, loading, and export exceptions by CI.
+  Maia action cards, the remaining Home surfaces, and Adaptive Metabolism now use the shared flat,
+  responsive, evidence-led system.
+- [x] Complete the clean local 2.3 regression and unsigned Release audit.
+- [ ] Complete Peter's focused physical-device acceptance and the signed archive from the intended
+  commit, following `docs/device-test-2.3.md`.
+- [ ] Delete legacy Home only after Living Day rollout proof and rollback approval.
+- [ ] Expand the source guard to raw type, spacing, and radius token drift as the remaining
+  legitimate exceptions are normalized.
 
 ---
 
@@ -596,12 +609,12 @@ Goal: establish the competitive scoreboard and make the product story sharper be
 - [x] **Refresh App Store story**: created an eight-shot deterministic gallery covering Home, Trust, fast repeat/search, the 25-chain meal builder, Train, Maia action coaching, Meal Plan, and Reports. The first three images carry the positioning and conversion story.
 - [x] **Fix screenshot-visible polish**: corrected clipped Train targets and Reports chart labels, rebuilt the builder's bottom tray, centered a compact outlined Quick Log action above five equal-width destinations, made the expanded action list reachable on compact phones, and visually checked both required phone-size galleries. A final accessibility-size sweep also corrected clipping in Trust details, Food Search, Fast Food Builder, Train, Maia, Meal Plan, and Quick Log, and hardened Trust Hub presentation against asynchronous Home refreshes.
 - [x] **Add a release feedback and referral loop**: Settings now provides a prefilled privacy-safe feedback email and direct App Store sharing; recap, achievement, run-story, and workout-summary shares point back to the live listing; review requests are limited to fresh workout completions after three distinct sessions across at least three days, once per version with a 120-day cooldown.
-- [x] **Local release gate**: Core 1,067/1,067 at 85.08% coverage, app 96/96, UI 17 methods / 20
-  executions, Functions 11/11, Rules 23/23, migrations 10/10, strict lint/catalog/diff/privacy
-  checks, and the unsigned physical-iOS Release build are green. All shipping products are version
-  2.3 build 1. The embedded Watch plist contains both HealthKit purpose strings and its binary has
-  arm64_32 plus arm64. CI uses Node 22 and current Node 24-based action generations and enforces the
-  80% Core floor.
+- [x] **Local release gate**: Core 1,099/1,099 at 84.24% coverage, app 110/110, broad UI 76/77 with
+  the sole timeout passing 5/5 immediate repetitions plus a final-source focused 4/4, Functions
+  11/11, Rules 23/23, migrations 10/10, strict lint/catalog/diff/privacy checks, and the unsigned
+  physical-iOS Release build are green. All shipping products are version 2.3 build 1. The embedded
+  Watch plist contains both HealthKit purpose strings and its binary has arm64_32 plus arm64. CI
+  uses Node 22 and current Node 24-based action generations and enforces the 80% Core floor.
 - [ ] **Signed owner release gate**: complete the physical Living Day/widget/share checks, publish
   the default-off Remote Config key and tester condition, reconcile production App Check/legal/
   privacy state, then validate and upload a signed archive from the intended commit. The exact

@@ -58,7 +58,7 @@ struct AddExerciseView: View {
                 Button(isEditing ? "Update Exercise" : "Log Exercise") {
                     saveExercise()
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
                 .disabled(exerciseName.isEmpty || caloriesBurned.isEmpty)
                 .listRowInsets(EdgeInsets())
                 .padding(.vertical)

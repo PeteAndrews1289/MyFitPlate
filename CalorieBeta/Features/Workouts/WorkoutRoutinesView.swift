@@ -252,7 +252,7 @@ struct WorkoutRoutinesView: View {
                                 } label: {
                                     Label("Create a Routine", systemImage: "plus")
                                 }
-                                .buttonStyle(SecondaryButtonStyle())
+                                .buttonStyle(AppActionButtonStyle(.secondary))
                             } else {
                                 ForEach(workoutService.userRoutines) { routine in
                                     routineRow(routine)

@@ -112,7 +112,7 @@ struct MuscleRecoveryMapView: View {
             }
             .padding(.top, 4)
         }
-        .asCard()
+        .appSurface(.emphasized)
         .onAppear(perform: calculateRecovery)
         .onChange(of: dailyLogService.currentDailyLog) { _, _ in
             calculateRecovery()

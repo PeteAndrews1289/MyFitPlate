@@ -77,7 +77,7 @@ struct HomeWeightTrackingCard: View {
             }
         }
         .buttonStyle(AnimatedCardButtonStyle())
-        .asCard()
+        .appSurface(.emphasized)
 
 }
 }

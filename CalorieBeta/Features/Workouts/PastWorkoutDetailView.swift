@@ -56,7 +56,7 @@ struct PastWorkoutDetailView: View {
                             Button("Edit Entry") {
                                 showingEditSheet = true
                             }
-                            .buttonStyle(PrimaryButtonStyle())
+                            .buttonStyle(AppActionButtonStyle(.primary))
                             .accessibilityIdentifier("past_workout_edit_entry")
                         }
                         .appSurface(.quiet)

@@ -126,7 +126,7 @@ public struct ShoeGearManagerView: View {
                     }
                 }
             }
-            .asCard()
+            .appSurface(.emphasized)
             .padding(.horizontal)
         )
     }
@@ -146,7 +146,7 @@ public struct ShoeGearManagerView: View {
         }
         .padding(32)
         .frame(maxWidth: .infinity)
-        .asCard()
+        .appSurface(.emphasized)
         .padding(.horizontal)
     }
 

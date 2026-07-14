@@ -463,7 +463,7 @@ private struct AddMealToPlanEmptyState: View {
             }
 
             Button("Create recipe", action: onCreate)
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 28)

@@ -392,7 +392,7 @@ struct WeeklyRecapView: View {
             Label("Share report", systemImage: "square.and.arrow.up")
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(PrimaryButtonStyle())
+        .buttonStyle(AppActionButtonStyle(.primary))
         .simultaneousGesture(TapGesture().onEnded {
             DIContainer.shared.analyticsManager?.logEvent(
                 ProductAnalytics.Event.weeklyReportShareOpened.rawValue,
@@ -733,7 +733,7 @@ private struct WeeklyReportEmptyState: View {
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
             Button("Try again", action: retry)
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
         }
         .padding(.top, 80)
     }

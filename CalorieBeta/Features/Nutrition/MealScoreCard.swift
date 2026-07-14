@@ -26,7 +26,7 @@ struct MealScoreCard: View {
                 ScoreRow(title: "Food quality", score: score.qualityScore)
             }
         }
-        .asCard()
+        .appSurface(.emphasized)
     }
 }
 

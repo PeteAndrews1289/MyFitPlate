@@ -306,7 +306,7 @@ struct TrainingDecisionCard: View {
                 }
             }
         }
-        .asCard()
+        .appSurface(.emphasized)
     }
 
     private var decisionText: String {
@@ -391,7 +391,7 @@ struct ProgramCompleteCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .asCard()
+        .appSurface(.emphasized)
     }
 }
 

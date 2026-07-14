@@ -390,7 +390,7 @@ private struct RunWorkoutPickerSheet: View {
                 .appFont(size: 13, weight: .bold)
                 .foregroundColor(Color(UIColor.tertiaryLabel))
         }
-        .asCard()
+        .appSurface(.emphasized)
     }
 
     private func detailText(for plan: RunWorkoutPlan) -> String {
@@ -1804,7 +1804,7 @@ struct RunMileageCard: View {
                     .frame(height: 110)
                     .accessibilityLabel("Weekly running distance, last 8 weeks")
                 }
-                .asCard()
+                .appSurface(.emphasized)
             }
         }
         .onAppear {

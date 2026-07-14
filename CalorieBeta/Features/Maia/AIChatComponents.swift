@@ -347,7 +347,7 @@ private struct MaiaDataChip: View {
 }
 
 struct ChatBubble: View {
-    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let message: ChatMessage
     let onLogRecipe: (String) -> Void
@@ -384,6 +384,10 @@ struct ChatBubble: View {
 
     private var isReadingThisResponse: Bool {
         currentSpokenText == spokenText && !spokenText.isEmpty
+    }
+
+    private var messageMaxWidth: CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? .infinity : 310
     }
 
     private struct ActionPayloadIssue: Identifiable {
@@ -457,23 +461,18 @@ struct ChatBubble: View {
                             .padding(.horizontal, 14)
                             .padding(.vertical, 11)
                             .background(
-                                Group {
-                                    if message.isUser {
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .fill(LinearGradient.brandGradient)
-                                    } else {
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .fill(.ultraThinMaterial)
-                                    }
-                                }
+                                message.isUser ? Color.brandPrimary.opacity(0.12) : AppPalette.control,
+                                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .stroke(message.isUser ? Color.clear : Color.primary.opacity(0.08), lineWidth: 1)
+                                    .stroke(
+                                        message.isUser ? Color.brandPrimary.opacity(0.28) : AppPalette.separator,
+                                        lineWidth: 1
+                                    )
                             )
-                            .shadow(color: message.isUser ? Color.brandPrimary.opacity(0.3) : Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
-                            .foregroundColor(message.isUser ? .white : .textPrimary)
-                            .frame(maxWidth: 310, alignment: message.isUser ? .trailing : .leading)
+                            .foregroundColor(.textPrimary)
+                            .frame(maxWidth: messageMaxWidth, alignment: message.isUser ? .trailing : .leading)
                     }
 
                     if !renderablePayloads.isEmpty && !message.isUser {
@@ -491,43 +490,43 @@ struct ChatBubble: View {
                                         """
                                         onLogRecipe(legacyFormat)
                                     })
-                                    .frame(maxWidth: 310, alignment: .leading)
+                                    .frame(maxWidth: messageMaxWidth, alignment: .leading)
                                 }
                             } else if payload.type == "generate_meal_plan" {
                                 AIChatMealPlanActionCard(onConfirm: {
                                     onAction(.generateMealPlan)
                                 })
-                                .frame(maxWidth: 310, alignment: .leading)
+                                .frame(maxWidth: messageMaxWidth, alignment: .leading)
                             } else if payload.type == "log_workout" {
                                 if let ex = payload.exerciseName, let d = payload.durationMinutes, let c = payload.caloriesBurned {
                                     AIChatWorkoutActionCard(exerciseName: ex, durationMinutes: d, caloriesBurned: c, onConfirm: {
                                         onAction(.logWorkout(exerciseName: ex, durationMinutes: d, caloriesBurned: c))
                                     })
-                                    .frame(maxWidth: 310, alignment: .leading)
+                                    .frame(maxWidth: messageMaxWidth, alignment: .leading)
                                 }
                             } else if payload.type == "log_water" {
                                 if let oz = payload.amountOunces {
                                     AIChatWaterActionCard(amountOunces: oz, onConfirm: {
                                         onAction(.logWater(amountOunces: oz))
                                     })
-                                    .frame(maxWidth: 310, alignment: .leading)
+                                    .frame(maxWidth: messageMaxWidth, alignment: .leading)
                                 }
                             } else if payload.type == "start_fast" {
                                 AIChatFastActionCard(fastHours: payload.fastHours, isStop: false, onConfirm: {
                                     onAction(.startFast(hours: payload.fastHours ?? 16))
                                 })
-                                .frame(maxWidth: 310, alignment: .leading)
+                                .frame(maxWidth: messageMaxWidth, alignment: .leading)
                             } else if payload.type == "stop_fast" {
                                 AIChatFastActionCard(fastHours: nil, isStop: true, onConfirm: {
                                     onAction(.stopFast)
                                 })
-                                .frame(maxWidth: 310, alignment: .leading)
+                                .frame(maxWidth: messageMaxWidth, alignment: .leading)
                             } else if payload.type == "log_weight" {
                                 if let w = payload.weightPounds {
                                     AIChatWeightActionCard(weightPounds: w, onConfirm: {
                                         onAction(.logWeight(weightPounds: w))
                                     })
-                                    .frame(maxWidth: 310, alignment: .leading)
+                                    .frame(maxWidth: messageMaxWidth, alignment: .leading)
                                 }
                             }
                         }
@@ -535,7 +534,7 @@ struct ChatBubble: View {
 
                     if !payloadIssues.isEmpty && !message.isUser {
                         MaiaActionParseFallbackCard(issueCount: payloadIssues.count)
-                            .frame(maxWidth: 310, alignment: .leading)
+                            .frame(maxWidth: messageMaxWidth, alignment: .leading)
                     }
                 }
 
@@ -570,9 +569,8 @@ struct ChatBubble: View {
                             .appFont(size: 12, weight: .semibold)
                             .padding(.vertical, 6)
                             .padding(.horizontal, 12)
-                            .background(LinearGradient.brandGradient, in: Capsule())
+                            .background(Color.brandPrimary, in: Capsule())
                             .foregroundColor(.white)
-                            .shadow(color: Color.brandPrimary.opacity(0.3), radius: 4, x: 0, y: 2)
                     }
                     .buttonStyle(.plain)
                 }
@@ -621,6 +619,55 @@ private struct MaiaActionParseFallbackCard: View {
     }
 }
 
+private struct AIChatActionHeader<Action: View>: View {
+    let title: String
+    let subtitle: String?
+    private let action: Action
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        @ViewBuilder action: () -> Action
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.action = action()
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                textBlock
+                    .layoutPriority(1)
+                Spacer(minLength: AppSpacing.compact)
+                action
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                textBlock
+                action
+            }
+        }
+    }
+
+    private var textBlock: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .appFont(size: 16, weight: .bold)
+                .foregroundColor(.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let subtitle {
+                Text(subtitle)
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
 struct AIChatActionCard: View {
     let mealName: String
     let calories: Double
@@ -628,40 +675,42 @@ struct AIChatActionCard: View {
     let carbs: Double
     let fats: Double
     let onLog: () -> Void
+    @State private var didLog = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text(mealName)
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.white)
-                    .lineLimit(2)
-                Spacer()
-                Button(action: onLog) {
-                    Text("Log Food")
+            AIChatActionHeader(title: mealName) {
+                Button(action: {
+                    guard !didLog else { return }
+                    didLog = true
+                    onLog()
+                }) {
+                    Text(didLog ? "Logged" : "Log Food")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(didLog ? .accentPositive : .white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(Color.white, in: Capsule())
-                        .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 3)
+                        .background(
+                            didLog ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
+                            in: Capsule()
+                        )
                 }
+                .disabled(didLog)
                 .buttonStyle(AnimatedCardButtonStyle())
             }
 
-            HStack(spacing: 12) {
-                MacroLabel(title: "Cal", value: "\(Int(calories.rounded()))", color: .white, bgColor: .white.opacity(0.2))
-                MacroLabel(title: "Pro", value: "\(Int(protein.rounded()))g", color: .white, bgColor: .white.opacity(0.2))
-                MacroLabel(title: "Carb", value: "\(Int(carbs.rounded()))g", color: .white, bgColor: .white.opacity(0.2))
-                MacroLabel(title: "Fat", value: "\(Int(fats.rounded()))g", color: .white, bgColor: .white.opacity(0.2))
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 128), spacing: AppSpacing.compact)],
+                spacing: AppSpacing.compact
+            ) {
+                MacroLabel(title: "Calories", value: "\(Int(calories.rounded()))")
+                MacroLabel(title: "Protein", value: "\(Int(protein.rounded()))g")
+                MacroLabel(title: "Carbs", value: "\(Int(carbs.rounded()))g")
+                MacroLabel(title: "Fat", value: "\(Int(fats.rounded()))g")
             }
         }
-        .padding(16)
-        .background(
-            LinearGradient.brandGradient,
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-        )
-        .shadow(color: Color.brandPrimary.opacity(0.3), radius: 10, x: 0, y: 5)
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("maia_action_meal")
     }
 }
 
@@ -671,39 +720,30 @@ struct AIChatMealPlanActionCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("7-Day Meal Plan")
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                    Text("Includes grocery list generation")
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(.white.opacity(0.8))
-                        .lineLimit(1)
-                }
-                Spacer()
+            AIChatActionHeader(
+                title: "7-Day Meal Plan",
+                subtitle: "Includes grocery list generation"
+            ) {
                 Button(action: {
                     didConfirm = true
                     onConfirm()
                 }) {
                     Text(didConfirm ? "Generated" : "Generate")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .white : .brandPrimary)
+                        .foregroundColor(didConfirm ? .accentPositive : .white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(didConfirm ? Color.white.opacity(0.2) : Color.white, in: Capsule())
+                        .background(
+                            didConfirm ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
+                            in: Capsule()
+                        )
                 }
                 .disabled(didConfirm)
                 .buttonStyle(AnimatedCardButtonStyle())
             }
         }
-        .padding(16)
-        .background(
-            LinearGradient.brandGradient,
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-        )
-        .shadow(color: Color.brandPrimary.opacity(0.3), radius: 10, x: 0, y: 5)
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("maia_action_meal_plan")
     }
 }
 
@@ -716,38 +756,35 @@ struct AIChatWorkoutActionCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text(exerciseName)
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.white)
-                    .lineLimit(2)
-                Spacer()
+            AIChatActionHeader(title: exerciseName) {
                 Button(action: {
                     didConfirm = true
                     onConfirm()
                 }) {
                     Text(didConfirm ? "Logged" : "Log Workout")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .white : .brandPrimary)
+                        .foregroundColor(didConfirm ? .accentPositive : .white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(didConfirm ? Color.white.opacity(0.2) : Color.white, in: Capsule())
+                        .background(
+                            didConfirm ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
+                            in: Capsule()
+                        )
                 }
                 .disabled(didConfirm)
                 .buttonStyle(AnimatedCardButtonStyle())
             }
 
-            HStack(spacing: 12) {
-                MacroLabel(title: "Time", value: "\(durationMinutes)m", color: .white, bgColor: .white.opacity(0.2))
-                MacroLabel(title: "Burn", value: "\(Int(caloriesBurned.rounded())) kcal", color: .white, bgColor: .white.opacity(0.2))
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 128), spacing: AppSpacing.compact)],
+                spacing: AppSpacing.compact
+            ) {
+                MacroLabel(title: "Time", value: "\(durationMinutes)m")
+                MacroLabel(title: "Burn", value: "\(Int(caloriesBurned.rounded())) cal")
             }
         }
-        .padding(16)
-        .background(
-            LinearGradient.brandGradient,
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-        )
-        .shadow(color: Color.brandPrimary.opacity(0.3), radius: 10, x: 0, y: 5)
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("maia_action_workout")
     }
 }
 
@@ -758,36 +795,34 @@ struct AIChatWaterActionCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Log Water")
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.white)
-                Spacer()
+            AIChatActionHeader(title: "Log Water") {
                 Button(action: {
                     didConfirm = true
                     onConfirm()
                 }) {
                     Text(didConfirm ? "Logged" : "Confirm")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .white : .brandPrimary)
+                        .foregroundColor(didConfirm ? .accentPositive : .white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(didConfirm ? Color.white.opacity(0.2) : Color.white, in: Capsule())
+                        .background(
+                            didConfirm ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
+                            in: Capsule()
+                        )
                 }
                 .disabled(didConfirm)
                 .buttonStyle(AnimatedCardButtonStyle())
             }
 
-            HStack(spacing: 12) {
-                MacroLabel(title: "Amount", value: "\(Int(amountOunces.rounded())) oz", color: .white, bgColor: .white.opacity(0.2))
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 128), spacing: AppSpacing.compact)],
+                spacing: AppSpacing.compact
+            ) {
+                MacroLabel(title: "Amount", value: "\(Int(amountOunces.rounded())) oz")
             }
         }
-        .padding(16)
-        .background(
-            LinearGradient.brandGradient,
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-        )
-        .shadow(color: Color.brandPrimary.opacity(0.3), radius: 10, x: 0, y: 5)
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("maia_action_water")
     }
 }
 
@@ -799,38 +834,36 @@ struct AIChatFastActionCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text(isStop ? "End Fast" : "Start Fast")
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.white)
-                Spacer()
+            AIChatActionHeader(title: isStop ? "End Fast" : "Start Fast") {
                 Button(action: {
                     didConfirm = true
                     onConfirm()
                 }) {
                     Text(didConfirm ? "Confirmed" : "Confirm")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .white : .brandPrimary)
+                        .foregroundColor(didConfirm ? .accentPositive : .white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(didConfirm ? Color.white.opacity(0.2) : Color.white, in: Capsule())
+                        .background(
+                            didConfirm ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
+                            in: Capsule()
+                        )
                 }
                 .disabled(didConfirm)
                 .buttonStyle(AnimatedCardButtonStyle())
             }
 
             if let hours = fastHours, !isStop {
-                HStack(spacing: 12) {
-                    MacroLabel(title: "Duration", value: "\(hours) hrs", color: .white, bgColor: .white.opacity(0.2))
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 128), spacing: AppSpacing.compact)],
+                    spacing: AppSpacing.compact
+                ) {
+                    MacroLabel(title: "Duration", value: "\(hours) hrs")
                 }
             }
         }
-        .padding(16)
-        .background(
-            LinearGradient.brandGradient,
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-        )
-        .shadow(color: Color.brandPrimary.opacity(0.3), radius: 10, x: 0, y: 5)
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("maia_action_fast")
     }
 }
 
@@ -842,36 +875,41 @@ struct AIChatWeightActionCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Log Weight")
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.white)
-                Spacer()
+            AIChatActionHeader(title: "Log Weight") {
                 Button(action: {
                     didConfirm = true
                     onConfirm()
                 }) {
                     Text(didConfirm ? "Logged" : "Confirm")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .white : .brandPrimary)
+                        .foregroundColor(didConfirm ? .accentPositive : .white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(didConfirm ? Color.white.opacity(0.2) : Color.white, in: Capsule())
+                        .background(
+                            didConfirm ? Color.accentPositive.opacity(0.12) : Color.brandPrimary,
+                            in: Capsule()
+                        )
                 }
                 .disabled(didConfirm)
                 .buttonStyle(AnimatedCardButtonStyle())
             }
 
-            HStack(spacing: 12) {
-                MacroLabel(title: "Weight", value: String(format: "%.1f %@", BodyUnits.weightDisplayValue(lbs: weightPounds, metric: useMetric), BodyUnits.weightUnit(metric: useMetric)), color: .white, bgColor: .white.opacity(0.2))
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 128), spacing: AppSpacing.compact)],
+                spacing: AppSpacing.compact
+            ) {
+                MacroLabel(
+                    title: "Weight",
+                    value: String(
+                        format: "%.1f %@",
+                        BodyUnits.weightDisplayValue(lbs: weightPounds, metric: useMetric),
+                        BodyUnits.weightUnit(metric: useMetric)
+                    )
+                )
             }
         }
-        .padding(16)
-        .background(
-            LinearGradient.brandGradient,
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-        )
-        .shadow(color: Color.brandPrimary.opacity(0.3), radius: 10, x: 0, y: 5)
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("maia_action_weight")
     }
 }
 
@@ -885,15 +923,61 @@ struct MacroLabel: View {
             Text(title)
                 .appFont(size: 11, weight: .semibold)
                 .foregroundColor(color == .white ? .white.opacity(0.8) : Color(UIColor.secondaryLabel))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Text(value)
                 .appFont(size: 14, weight: .bold)
                 .foregroundColor(color)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(8)
-        .background(bgColor ?? color.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(bgColor ?? AppPalette.control, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
+
+#if DEBUG
+struct MaiaActionCardGalleryView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                AppScreenHeader(
+                    eyebrow: "Maia",
+                    title: "Action Cards",
+                    subtitle: "Review the proposed change before anything is logged."
+                )
+
+                AIChatActionCard(
+                    mealName: "Greek yogurt, berries, and oats",
+                    calories: 430,
+                    protein: 31,
+                    carbs: 55,
+                    fats: 9,
+                    onLog: {}
+                )
+
+                AIChatMealPlanActionCard(onConfirm: {})
+
+                AIChatWorkoutActionCard(
+                    exerciseName: "Full-body strength session",
+                    durationMinutes: 48,
+                    caloriesBurned: 325,
+                    onConfirm: {}
+                )
+
+                AIChatWaterActionCard(amountOunces: 16, onConfirm: {})
+                AIChatFastActionCard(fastHours: 16, isStop: false, onConfirm: {})
+                AIChatWeightActionCard(weightPounds: 184.6, onConfirm: {})
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.group)
+        }
+        .accessibilityIdentifier("maia_action_gallery")
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .navigationTitle("Maia Actions")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+#endif
 
 struct ChatHistoryListView<TopContent: View, BottomContent: View>: View {
     @Binding var chatMessages: [ChatMessage]

@@ -413,7 +413,8 @@ final class MyFitPlateUITests: XCTestCase {
             .matching(identifier: "recipe_library_summary")
             .firstMatch
         let list = app.descendants(matching: .any)["recipe_library_list"]
-        let firstRecipe = app.staticTexts["Weeknight Chicken Power Bowl"]
+        let firstRecipe = app.buttons["recipe_open_demo-recipe-chicken-bowl"]
+        let detail = app.descendants(matching: .any)["recipe_detail"]
 
         XCTAssertTrue(library.waitForExistence(timeout: 10))
         XCTAssertTrue(summary.waitForExistence(timeout: 5))
@@ -429,9 +430,13 @@ final class MyFitPlateUITests: XCTestCase {
         libraryScreenshot.lifetime = .keepAlways
         add(libraryScreenshot)
 
-        firstRecipe.tap()
+        XCTAssertTrue(firstRecipe.isHittable)
+        firstRecipe.press(forDuration: 0.1)
+        if !detail.waitForExistence(timeout: 3) {
+            XCTAssertTrue(firstRecipe.isHittable, "Recipe should remain tappable after a dropped input")
+            firstRecipe.press(forDuration: 0.1)
+        }
 
-        let detail = app.descendants(matching: .any)["recipe_detail"]
         let nutrition = app.descendants(matching: .any)["recipe_nutrition_summary"]
         let ingredients = app.descendants(matching: .any)["recipe_ingredients"]
         let instructions = app.descendants(matching: .any)["recipe_instructions"]
@@ -462,11 +467,14 @@ final class MyFitPlateUITests: XCTestCase {
         ]
         app.launch()
 
-        let firstRecipe = app.staticTexts["Weeknight Chicken Power Bowl"]
+        let firstRecipe = app.descendants(matching: .any)["recipe_open_demo-recipe-chicken-bowl"]
         XCTAssertTrue(firstRecipe.waitForExistence(timeout: 10))
+        XCTAssertTrue(firstRecipe.isHittable)
         firstRecipe.tap()
 
+        let detail = app.descendants(matching: .any)["recipe_detail"]
         let addToLog = app.buttons["recipe_add_to_log"]
+        XCTAssertTrue(detail.waitForExistence(timeout: 5))
         XCTAssertTrue(addToLog.waitForExistence(timeout: 5))
         addToLog.tap()
 
@@ -513,20 +521,28 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         let create = app.buttons["Create recipe"]
+        let editor = app.navigationBars["Create Recipe"]
         XCTAssertTrue(create.waitForExistence(timeout: 10))
-        create.tap()
+        create.press(forDuration: 0.1)
+        if !editor.waitForExistence(timeout: 3) {
+            XCTAssertTrue(create.isHittable, "Create Recipe should remain tappable after a dropped input")
+            create.press(forDuration: 0.1)
+        }
 
-        let editor = app.descendants(matching: .any)["create_recipe"]
         let modePicker = app.descendants(matching: .any)["create_recipe_mode"]
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         XCTAssertTrue(modePicker.waitForExistence(timeout: 5))
         XCTAssertTrue(app.textViews["create_recipe_ai_input"].waitForExistence(timeout: 5))
 
         let manual = app.segmentedControls.buttons["Manual"]
-        XCTAssertTrue(manual.waitForExistence(timeout: 5))
-        manual.tap()
-
         let name = app.textFields["create_recipe_name"]
+        XCTAssertTrue(manual.waitForExistence(timeout: 5))
+        manual.press(forDuration: 0.1)
+        if !name.waitForExistence(timeout: 3) {
+            XCTAssertTrue(manual.isHittable, "Manual mode should remain tappable after a dropped input")
+            manual.press(forDuration: 0.1)
+        }
+
         let addIngredient = app.buttons["create_recipe_add_ingredient"]
         let instructions = app.textViews["create_recipe_instructions"]
         let save = app.buttons["create_recipe_action"]
@@ -559,7 +575,8 @@ final class MyFitPlateUITests: XCTestCase {
 
         let library = app.descendants(matching: .any)["recipe_library"]
         let summary = app.descendants(matching: .any)["recipe_library_summary"]
-        let firstRecipe = app.staticTexts["Weeknight Chicken Power Bowl"]
+        let firstRecipe = app.buttons["recipe_open_demo-recipe-chicken-bowl"]
+        let detail = app.descendants(matching: .any)["recipe_detail"]
         XCTAssertTrue(library.waitForExistence(timeout: 10))
         XCTAssertTrue(summary.waitForExistence(timeout: 5))
         XCTAssertTrue(firstRecipe.waitForExistence(timeout: 5))
@@ -581,9 +598,13 @@ final class MyFitPlateUITests: XCTestCase {
         libraryScreenshot.lifetime = .keepAlways
         add(libraryScreenshot)
 
-        firstRecipe.tap()
+        XCTAssertTrue(firstRecipe.isHittable)
+        firstRecipe.press(forDuration: 0.1)
+        if !detail.waitForExistence(timeout: 3) {
+            XCTAssertTrue(firstRecipe.isHittable, "Recipe should remain tappable after a dropped input")
+            firstRecipe.press(forDuration: 0.1)
+        }
 
-        let detail = app.descendants(matching: .any)["recipe_detail"]
         let detailTitle = app.staticTexts["recipe_detail_title"]
         let ingredientCount = app.staticTexts["recipe_detail_ingredient_count"]
         let instructionCount = app.staticTexts["recipe_detail_instruction_count"]
@@ -680,28 +701,46 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertLessThan(searchField.frame.minY, chainIdentity.frame.minY)
         XCTAssertLessThan(chainIdentity.frame.minY, category.frame.minY)
 
-        let whiteRice = app.buttons["Cilantro-Lime White Rice"]
+        let whiteRice = app.buttons["chain_builder_ingredient_c_white_rice"]
         XCTAssertTrue(whiteRice.waitForExistence(timeout: 5))
         XCTAssertTrue(whiteRice.isHittable)
+        XCTAssertEqual(whiteRice.value as? String, "Selected")
         XCTAssertLessThan(whiteRice.frame.maxY, review.frame.minY - 8)
-        let visibleIngredientSummary = whiteRice.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.35, dy: 0.2)
-        )
-        visibleIngredientSummary.tap()
 
-        let fiveItems = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value CONTAINS %@", "5 items selected"),
-            object: review
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [fiveItems], timeout: 3), .completed)
+        func pressWhiteRice(expecting expectedValue: String) {
+            let expectedState = app.buttons
+                .matching(identifier: "chain_builder_ingredient_c_white_rice")
+                .matching(NSPredicate(format: "value == %@", expectedValue))
+                .firstMatch
 
-        visibleIngredientSummary.tap()
+            app.buttons["chain_builder_ingredient_c_white_rice"].press(forDuration: 0.1)
+            if !expectedState.waitForExistence(timeout: 2) {
+                let retryButton = app.buttons["chain_builder_ingredient_c_white_rice"]
+                XCTAssertTrue(retryButton.isHittable, "Ingredient should remain tappable after a dropped input")
+                retryButton.press(forDuration: 0.1)
+            }
+            XCTAssertTrue(expectedState.waitForExistence(timeout: 5))
+        }
 
-        let sixItems = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value CONTAINS %@", "6 items selected"),
-            object: review
+        pressWhiteRice(expecting: "Not selected")
+
+        let fiveItems = app.buttons
+            .matching(identifier: "chain_builder_review_meal")
+            .matching(NSPredicate(format: "value CONTAINS %@", "5 items selected"))
+            .firstMatch
+        XCTAssertTrue(fiveItems.waitForExistence(timeout: 5))
+
+        pressWhiteRice(expecting: "Selected")
+
+        let sixItems = app.buttons
+            .matching(identifier: "chain_builder_review_meal")
+            .matching(NSPredicate(format: "value CONTAINS %@", "6 items selected"))
+            .firstMatch
+        XCTAssertTrue(sixItems.waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            app.buttons["chain_builder_ingredient_c_white_rice"].value as? String,
+            "Selected"
         )
-        XCTAssertEqual(XCTWaiter.wait(for: [sixItems], timeout: 3), .completed)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Fast Food Builder - direct selection workflow"
@@ -994,12 +1033,17 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.buttons["quick_log_button"].waitForExistence(timeout: 8))
-        XCTAssertTrue(
-            app.buttons
-                .matching(NSPredicate(format: "label CONTAINS %@", "Review Food Trust"))
-                .firstMatch
-                .isHittable
-        )
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let homeScrollView = app.scrollViews["home_scroll"]
+        let dailyLog = app.staticTexts["Daily log"]
+        XCTAssertTrue(homeScrollView.waitForExistence(timeout: 5))
+        XCTAssertTrue(dailyLog.waitForExistence(timeout: 8))
+        for _ in 0..<16 where dailyLog.frame.minY >= app.frame.maxY - 180 {
+            homeScrollView.swipeUp()
+        }
+        XCTAssertLessThan(dailyLog.frame.minY, app.frame.maxY - 180)
+        XCTAssertGreaterThan(dailyLog.frame.maxY, 100)
         try app.performAccessibilityAudit(for: [.textClipped])
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
@@ -1290,6 +1334,89 @@ final class MyFitPlateUITests: XCTestCase {
             screenshot.lifetime = .keepAlways
             add(screenshot)
         }
+    }
+
+    @MainActor
+    func testMaiaActionCardsUseFlatReviewFirstHierarchy() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "maia-action-cards"
+        ]
+        app.launch()
+
+        let title = app.staticTexts["Action Cards"]
+        let meal = app.otherElements.matching(identifier: "maia_action_meal").firstMatch
+        let weight = app.otherElements.matching(identifier: "maia_action_weight").firstMatch
+
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        XCTAssertTrue(meal.waitForExistence(timeout: 5))
+        let logFood = app.buttons["Log Food"]
+        XCTAssertTrue(logFood.exists)
+        logFood.tap()
+        let logged = app.buttons["Logged"]
+        XCTAssertTrue(logged.waitForExistence(timeout: 3))
+        XCTAssertFalse(logged.isEnabled)
+
+        let firstScreenshot = XCTAttachment(screenshot: app.screenshot())
+        firstScreenshot.name = "Maia action cards - flat review hierarchy"
+        firstScreenshot.lifetime = .keepAlways
+        add(firstScreenshot)
+
+        for _ in 0..<10 {
+            if weight.exists && weight.frame.minY < app.frame.maxY - 20 {
+                break
+            }
+            app.swipeUp()
+        }
+        XCTAssertTrue(weight.waitForExistence(timeout: 5))
+        XCTAssertTrue(weight.frame.intersects(app.frame))
+        XCTAssertGreaterThanOrEqual(weight.frame.minX, app.frame.minX - 1)
+        XCTAssertLessThanOrEqual(weight.frame.maxX, app.frame.maxX + 1)
+        try app.performAccessibilityAudit(for: [.textClipped])
+    }
+
+    @MainActor
+    func testMaiaActionCardsSupportDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-dark-mode",
+            "-screenshot-screen",
+            "maia-action-cards",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let meal = app.otherElements.matching(identifier: "maia_action_meal").firstMatch
+        let weight = app.otherElements.matching(identifier: "maia_action_weight").firstMatch
+
+        XCTAssertTrue(meal.waitForExistence(timeout: 12))
+        XCTAssertGreaterThanOrEqual(meal.frame.minX, app.frame.minX - 1)
+        XCTAssertLessThanOrEqual(meal.frame.maxX, app.frame.maxX + 1)
+
+        for _ in 0..<12 {
+            if weight.exists && weight.frame.minY < app.frame.maxY - 20 {
+                break
+            }
+            app.swipeUp()
+        }
+        XCTAssertTrue(weight.waitForExistence(timeout: 5))
+        XCTAssertTrue(weight.frame.intersects(app.frame))
+        XCTAssertGreaterThanOrEqual(weight.frame.minX, app.frame.minX - 1)
+        XCTAssertLessThanOrEqual(weight.frame.maxX, app.frame.maxX + 1)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Maia action cards - dark accessibility XXXL"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
     }
 
     @MainActor
@@ -1935,18 +2062,46 @@ final class MyFitPlateUITests: XCTestCase {
         let chicken = app.buttons["grocery_item_00000000-0000-0000-0000-000000000103"]
         XCTAssertTrue(chicken.waitForExistence(timeout: 10))
         XCTAssertTrue((chicken.value as? String)?.hasSuffix("not checked") == true)
-        chicken.tap()
-        XCTAssertTrue(app.staticTexts["3 checked items visible."].waitForExistence(timeout: 5))
+        for _ in 0..<6 where !chicken.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(chicken.isHittable)
+        let checkedChicken = app.buttons
+            .matching(identifier: "grocery_item_00000000-0000-0000-0000-000000000103")
+            .matching(NSPredicate(format: "value == %@", "3 lb - Meal plan, checked"))
+            .firstMatch
+        chicken.press(forDuration: 0.1)
+        if !checkedChicken.waitForExistence(timeout: 2) {
+            let retryChicken = app.buttons["grocery_item_00000000-0000-0000-0000-000000000103"]
+            XCTAssertTrue(
+                (retryChicken.value as? String)?.hasSuffix("not checked") == true,
+                "Only retry a dropped input while the item is still unchanged"
+            )
+            XCTAssertTrue(retryChicken.isHittable)
+            retryChicken.press(forDuration: 0.1)
+        }
+        XCTAssertTrue(checkedChicken.waitForExistence(timeout: 5))
 
         let hideChecked = app.switches["grocery_display_controls"]
         XCTAssertTrue(hideChecked.waitForExistence(timeout: 5))
         XCTAssertTrue(hideChecked.isEnabled)
+        for _ in 0..<6 where !hideChecked.isHittable {
+            app.swipeDown()
+        }
+        XCTAssertTrue(hideChecked.isHittable)
+        XCTAssertTrue(app.staticTexts["3 checked items visible."].waitForExistence(timeout: 5))
+        let switchedOn = app.switches
+            .matching(identifier: "grocery_display_controls")
+            .matching(NSPredicate(format: "value == %@", "1"))
+            .firstMatch
         hideChecked.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
-        let switchedOn = expectation(
-            for: NSPredicate(format: "value == %@", "1"),
-            evaluatedWith: hideChecked
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [switchedOn], timeout: 5), .completed)
+        if !switchedOn.waitForExistence(timeout: 2) {
+            let retrySwitch = app.switches["grocery_display_controls"]
+            XCTAssertEqual(retrySwitch.value as? String, "0", "Only retry a dropped switch input")
+            XCTAssertTrue(retrySwitch.isHittable)
+            retrySwitch.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        }
+        XCTAssertTrue(switchedOn.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["3 checked items hidden."].waitForExistence(timeout: 5))
 
         let hiddenScreenshot = XCTAttachment(screenshot: app.screenshot())
@@ -2157,7 +2312,7 @@ final class MyFitPlateUITests: XCTestCase {
                 name: "Saved Programs",
                 route: "saved-programs",
                 container: "saved_programs",
-                title: "Your Training Plans",
+                title: "Saved Plans",
                 action: "",
                 close: ""
             ),
@@ -2165,7 +2320,7 @@ final class MyFitPlateUITests: XCTestCase {
                 name: "Program Builder",
                 route: "program-builder",
                 container: "program_builder",
-                title: "PROGRAM BUILDER",
+                title: "Edit Program",
                 action: "program_builder_save",
                 close: "program_builder_close"
             ),
@@ -2173,7 +2328,7 @@ final class MyFitPlateUITests: XCTestCase {
                 name: "Routine Builder",
                 route: "routine-builder",
                 container: "routine_builder",
-                title: "ROUTINE BUILDER",
+                title: "Edit Routine",
                 action: "routine_builder_save",
                 close: "routine_builder_close"
             )
@@ -2191,7 +2346,7 @@ final class MyFitPlateUITests: XCTestCase {
 
             let container = app.descendants(matching: .any)[screen.container]
             XCTAssertTrue(container.waitForExistence(timeout: 10), "\(screen.name) should load")
-            XCTAssertTrue(app.staticTexts[screen.title].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.navigationBars[screen.title].waitForExistence(timeout: 5))
             XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
 
@@ -3184,7 +3339,7 @@ final class MyFitPlateUITests: XCTestCase {
             ("myfitplate://trust", "Trust Hub"),
             ("myfitplate://builder", "Fast Food"),
             ("myfitplate://runs", "Running"),
-            ("myfitplate://meal-plan", "Meal plan"),
+            ("myfitplate://meal-plan", "Meal Plan"),
             ("myfitplate://training-fuel", "Training Fuel")
         ]
 

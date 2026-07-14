@@ -24,8 +24,10 @@ SEARCH_DIRS=()
 PROF=""
 BIN=""
 if (( ${#SEARCH_DIRS[@]} > 0 )); then
-  PROF="$(find "${SEARCH_DIRS[@]}" -name 'default.profdata' -print -quit 2>/dev/null || true)"
-  BIN="$(find "${SEARCH_DIRS[@]}" -type f -name "${PKG}PackageTests" -print -quit 2>/dev/null || true)"
+  # `MyFitPlateCore/.build` may be a symlink to the external developer volume. `-H`
+  # follows command-line symlinks without traversing any unrelated links inside the build tree.
+  PROF="$(find -H "${SEARCH_DIRS[@]}" -name 'default.profdata' -print -quit 2>/dev/null || true)"
+  BIN="$(find -H "${SEARCH_DIRS[@]}" -type f -name "${PKG}PackageTests" -print -quit 2>/dev/null || true)"
 fi
 
 if [[ -z "$PROF" || -z "$BIN" ]]; then

@@ -84,7 +84,7 @@ struct MainTabView: View {
             "ayce-start", "ayce-live", "ayce-review", "ayce-summary", "value-radar",
             "celebration", "meal-plan-survey", "meal-plan-survey-cooking", "meal-prep",
             "meal-prep-steps", "meal-suggestion", "plate-calculator", "plate-math",
-            "nutrition-trends", "maia-insights"
+            "nutrition-trends", "maia-insights", "maia-action-cards"
         ].contains(ScreenshotDemoData.requestedScreen)
         #else
         false
@@ -461,6 +461,8 @@ struct MainTabView: View {
                     initialInsights: ScreenshotDemoData.insightsDemo
                 )
             }
+        case "maia-action-cards":
+            NavigationStack { MaiaActionCardGalleryView() }
         default:
             standardHomeContent
         }

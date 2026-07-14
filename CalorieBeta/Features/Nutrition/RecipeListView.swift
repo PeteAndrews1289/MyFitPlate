@@ -318,6 +318,7 @@ private struct RecipeLibraryRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("recipe_open_\(recipe.id ?? recipe.name)")
             .accessibilityHint("Opens recipe details")
 
             Menu {
@@ -332,7 +333,6 @@ private struct RecipeLibraryRow: View {
         }
         .padding(.horizontal, AppSpacing.group)
         .padding(.vertical, AppSpacing.row)
-        .accessibilityIdentifier("recipe_row_\(recipe.id ?? recipe.name)")
     }
 
     @ViewBuilder

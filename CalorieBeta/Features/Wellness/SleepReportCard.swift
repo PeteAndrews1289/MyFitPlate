@@ -89,7 +89,7 @@ struct SleepReportCard: View {
 
         }
         .padding(.bottom)
-        .asCard()
+        .appSurface(.emphasized)
         .contentShape(Rectangle())
         .onTapGesture { showingDetailSheet = true }
         .sheet(isPresented: $showingDetailSheet) {

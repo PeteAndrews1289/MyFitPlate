@@ -159,6 +159,6 @@ struct WorkoutSessionHeaderCard: View {
                 }
             }
         }
-        .asCard()
+        .appSurface(.emphasized)
     }
 }

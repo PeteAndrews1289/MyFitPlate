@@ -721,7 +721,7 @@ struct VisionRecipeResultsView: View {
                         Text("Log meal")
                     }
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
                 .padding(.horizontal, 20)
                 .padding(.bottom, 30)
             }
@@ -769,7 +769,11 @@ struct VisionRecipeResultsView: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                .stroke(AppPalette.separator, lineWidth: 1)
+        }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
     }

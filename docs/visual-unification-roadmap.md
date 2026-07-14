@@ -1,10 +1,10 @@
 # Whole-App Visual Unification
 
 Status: active for version 2.3 on `codex/2.3-visual-unification`, based on the 2026-07-13
-light/dark simulator audit. Version 2.2 remains pending in App Store review and is untouched by
-this branch; `main` remains the source rollback boundary.
+light/dark simulator audit. Version 2.2 is live and remains untouched by this branch; `main`
+remains the public-release rollback boundary.
 
-This program is version 2.3 and must not be folded into the pending 2.2 submission. It remains a
+This program is version 2.3 and must remain isolated from the live 2.2 release. It remains a
 staged migration so each feature family can be reviewed, tested, and reverted independently.
 
 ## Implementation Progress
@@ -410,17 +410,46 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   simulator build passed with the embedded Watch app, widgets, and Live Activity. Delayed direct
   captures were reviewed for both Plate Loading modes, Nutrition Trends, and Maia Insights.
 
+### Batch 22 - Legacy Visual Retirement and Guardrails (complete)
+
+- Replaced every reachable legacy glass-card alias and the old primary/secondary button styles
+  with the shared flat surface and action components, then removed the aliases and brand-gradient
+  implementation from Core. Remaining material, gradient, and shadow uses are limited to named
+  chart, loading, app-shell, transient-overlay, widget, or exported-artwork exceptions.
+- Rebuilt Maia's structured action cards around a review-first hierarchy, responsive action
+  headers, readable two-column metrics, explicit completed states, and full-width accessibility
+  behavior. User and Maia messages now use semantic flat color instead of gradient or glass
+  bubbles.
+- Flattened the remaining reachable Home, nutrition, workout, wellness, and report utilities. The
+  Daily Log summary becomes one column at accessibility sizes, and Fast Food and Recipe controls
+  now expose their real interactive elements to VoiceOver and UI automation.
+- Reworked Adaptive Metabolism around an explicitly labeled 21-day TDEE estimate, finite positive
+  input requirements, responsive shared metrics, and plain limitations language. It no longer
+  promises a "true," "actual," or "exact" metabolic rate.
+- Added a CI source check that rejects retired aliases and any new material, gradient, or shadow
+  outside the documented exceptions. Maia food actions also lock into one completed state after a
+  successful confirmation so a repeated tap cannot create a duplicate write.
+- The final app suite passed 110/110. The broad UI pass completed 76/77 executions; its only failure
+  was the legacy Workout Dashboard waiting two seconds for a plan button after 42 minutes of UI
+  testing. That exact unchanged workflow passed 5/5 immediate repetitions, its wait was aligned
+  with the rest of the suite, and the final-source focused pass then passed 4/4. Core passed
+  1,099/1,099 at 84.24% line coverage, the unsigned physical-iOS Release build passed, and the
+  packaged phone, widget, Live Activity, and Watch products were verified as version 2.3 build 1.
+  The embedded Watch app contains both HealthKit purpose strings and both required architectures;
+  the privacy manifest parses. Legacy Home remains available solely as a rollout fallback.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
 review family now join that system, along with wellness, weight, fasting, and cycle tracking. The
 first-run and account-access family now joins them, as do the live progress, achievement, and
 weekly-challenge surfaces. Smart Pantry, pantry recipe drafts, receipt review, AYCE, Restaurant
-Value Radar, meal-planning support, Plate Loading, Nutrition Trends, and Maia Insights now join
-them. The reachable migration queue is complete. The active queue moves to retiring proven legacy
-styling, enforcing the shared rules in source checks, and running the complete 2.3 regression and
-release pass; unfinished public social surfaces remain explicitly gated rather than being polished
-into accidental release scope.
+Value Radar, meal-planning support, Plate Loading, Nutrition Trends, Maia Insights, and Maia's
+structured action cards now join them. The reachable migration queue and legacy-surface retirement
+are complete, and the clean local 2.3 release gate is green. The remaining work is Peter's focused
+physical-device acceptance and signed archive, rollout-dependent removal of the fallback Home, and
+gradual expansion of token-drift checks; unfinished public social surfaces remain explicitly gated
+rather than being polished into accidental release scope.
 
 ## Product Direction
 
@@ -661,11 +690,12 @@ Migrate by feature family so each batch can be reviewed and reverted independent
 
 ### Phase 5 - Remove the old generation
 
-- Delete the legacy Home only after Living Day rollout evidence and rollback approval.
-- Remove the legacy glass aliases after their call-site count reaches zero.
-- Remove brand-gradient button behavior and unused inline color paths.
-- Turn the component rules into a lightweight source check so new raw sizes, radii, and forbidden
-  surfaces cannot silently re-enter the app.
+- [ ] Delete the legacy Home only after Living Day rollout evidence and rollback approval.
+- [x] Remove the legacy glass aliases after their call-site count reaches zero.
+- [x] Remove brand-gradient button behavior and unused inline color paths.
+- [x] Enforce retired symbols and material, gradient, and shadow boundaries in CI.
+- [ ] Extend the source check to raw type, spacing, and radius token drift after the remaining
+  legitimate exceptions have been normalized.
 
 ## Screen-Specific Changes
 

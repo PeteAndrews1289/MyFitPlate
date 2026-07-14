@@ -1,8 +1,8 @@
-# Replacement Version 2.2 Feedback Triage
+# Version 2.3 Feedback Triage
 
 This is the single severity-ranked ledger for review feedback, support messages,
-device-only defects, and repeated friction during the replacement 2.2 cycle. The filename
-retains its internal 2.3 milestone label for stable references. Add an item here before
+device-only defects, and repeated friction during the live 2.2 follow-through and version 2.3
+cycle. The filename remains stable for existing references. Add an item here before
 starting a redesign or a release fix. Do not treat one preference as a trend unless it
 also exposes a correctness, accessibility, or workflow failure.
 
@@ -24,12 +24,11 @@ Code complete without required hardware validation is `Ready for device`, not `C
 | ID | Severity | Feedback or risk | State | Owner and next evidence |
 | --- | --- | --- | --- | --- |
 | FB-2302 | P1 | Three running sensor/data paths still need physical validation | Ready for device | Peter: complete one guided GPS interval, inspect one Watch-imported run with HR, and inspect or record one phone-only run without HR using `docs/device-test-2.3.md`. |
-| FB-2303 | P1 | Release console gates cannot be proven from source | Owner action | Peter: verify production Functions/Rules/indexes, then complete the signed archive, validation, upload, and post-upload App Check check using `docs/device-test-2.3.md`. Ruleset, App Attest registration, dashboards, public links, and privacy labels are closed. |
+| FB-2303 | P1 | Release console gates cannot be proven from source | Waiting for production check | Version 2.2 is live. Confirm the live build's Functions/Rules/indexes and App Check traffic using `docs/device-test-2.3.md`; the archive, validation, upload, ruleset, App Attest registration, dashboards, public links, and privacy labels are closed. |
 | FB-2304 | P2 | KPI and launch-health views need real production traffic | Waiting for data | Firebase definitions, key events, explorations, and Crashlytics alerts are configured. Codex analyzes only clean versioned cohorts after 7-14 days; Trust reweighting requires the separate minimums in `docs/trust-calibration-2.3.md`. |
 | FB-2305 | P2 | Community barcode aggregate has not completed an internal abuse/rollback soak | Intentionally gated | Keep `feature_communityBarcodeCorrections=false`. Use disposable accounts and the runbook in `docs/community-barcode-consensus-2.3.md`; this is not a replacement 2.2 public-release requirement. |
-| FB-2306 | P2 | Exact custom-product-page routes cannot be published until the replacement 2.2 binary is approved | App Store follow-up | Peter publishes the prepared Trust, Strength, Weight, Dining, Running, and Meal Plan pages after approval. |
+| FB-2306 | P2 | Exact custom-product-page routes were blocked until the replacement 2.2 binary was approved | Owner action | Version 2.2 is live. Peter can now publish the prepared Trust, Strength, Weight, Dining, Running, and Meal Plan pages and smoke-test their signed-in and signed-out routes. |
 | FB-2309 | P2 | Maia's read-aloud voice and prose sounded robotic | Ready for device | Maia now ranks regular downloaded voices deterministically, uses neutral prosody, strips hidden action payloads and markdown from speech, exposes voice selection/preview, and has explicit natural-conversation rules. Peter completes the three Maia checks in `docs/device-test-2.3.md`. |
-| FB-2310 | P1 | App Store processing rejected build 2 because the embedded Watch plist lacked both HealthKit purpose strings | Ready for upload | Build 3 adds clear read/write purpose strings to both Watch configurations and the source plist. The physical Release product, embedded plist, architectures, and Xcode store validation pass; Peter archives, validates, and uploads build 3. |
 | FB-2311 | P2 | A long supermarket/weak-GPS interval made historical split times total far less than the workout duration and produced a misleading Negative Split badge | Ready for device | Historical route replay now retains elapsed gaps while live pace keeps its signal-loss cap; stop-heavy split variance suppresses the badge. Focused Core tests pass. Peter reopens one comparable route on build 3. |
 | FB-2312 | P2 | Living Day appeared at launch but Home fell back to the 2.2 dashboard after leaving and returning to the tab | Ready for device | The persistent app shell now owns one launch/Remote Config decision and passes it into every Home reconstruction. A Home -> Reports -> Home UI regression passes. Peter repeats the tab cycle on the physical build. |
 | FB-2313 | P2 | Week in Motion inserted about one second after opening Reports and visibly moved the rest of the page | Ready for device | Reports now reuses one account/day-scoped loader across tab reconstruction and holds the complete weekly-story footprint with a redacted loading sequence. A render-height guard and full visual attachment pass. Peter checks first and return visits on the physical build. |
@@ -46,6 +45,7 @@ Code complete without required hardware validation is `Ready for device`, not `C
 | FB-2301 | Watch app said to open the phone but never received context | The companion is embedded, the activation/reachability handshake recovers, and Peter physically validated initial context, current values, offline exactly-once water/meal replay, reconnect, and account-scoped clearing on 2026-07-12. |
 | FB-2307 | Simulator accessibility coverage did not replace physical VoiceOver and device-size checks | Peter physically validated VoiceOver, largest text, dark mode, Increase Contrast, widget destinations, notification routing, and real offline/online Food Search recovery on 2026-07-12. |
 | FB-2308 | Supersets/rest and advanced set effort/type persistence required hardware input | Peter physically validated adjacent supersets, rest behavior, warmup/drop/failure types, RPE/RIR persistence, and warmup exclusion from analytics on 2026-07-12. |
+| FB-2310 | App Store processing rejected build 2 because the embedded Watch plist lacked both HealthKit purpose strings | The corrected Watch purpose strings passed processing and the replacement version 2.2 release went live on 2026-07-14. |
 
 ## Intake template
 

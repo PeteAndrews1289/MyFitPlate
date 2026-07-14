@@ -164,7 +164,7 @@ struct ExerciseCardView: View {
             } label: {
                 Label("Add Set", systemImage: "plus")
             }
-            .buttonStyle(SecondaryButtonStyle())
+            .buttonStyle(AppActionButtonStyle(.secondary))
         }
         .padding()
         .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 20, style: .continuous))

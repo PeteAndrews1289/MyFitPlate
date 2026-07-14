@@ -174,7 +174,7 @@ struct GeneratedProgramPreviewView: View {
                 }
             }
             Button("Save Program", action: onSave)
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
                 .padding()
         }
     }

@@ -21,52 +21,6 @@ public extension View {
     }
 }
 
-public struct PrimaryButtonStyle: ButtonStyle {
-    public init() {}
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .appFont(size: 18, weight: .semibold)
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(LinearGradient.brandGradient)
-            .foregroundColor(Color.white)
-            .cornerRadius(16)
-            .shadow(color: Color.brandPrimary.opacity(0.4), radius: 10, x: 0, y: 5)
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .animation(.interpolatingSpring(stiffness: 300, damping: 20), value: configuration.isPressed)
-            .onChange(of: configuration.isPressed) { _, newValue in
-                if newValue {
-                    HapticManager.instance.feedback(.medium)
-                }
-            }
-    }
-}
-
-public struct SecondaryButtonStyle: ButtonStyle {
-    public init() {}
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .appFont(size: 18, weight: .semibold)
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(Color.backgroundPrimary.opacity(0.5))
-            .background(.ultraThinMaterial)
-            .foregroundColor(.brandPrimary)
-            .cornerRadius(16)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(LinearGradient.brandGradient, lineWidth: 2)
-            )
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .animation(.interpolatingSpring(stiffness: 300, damping: 20), value: configuration.isPressed)
-            .onChange(of: configuration.isPressed) { _, newValue in
-                if newValue {
-                    HapticManager.instance.feedback(.light)
-                }
-            }
-    }
-}
-
 public struct AppTextFieldStyle: TextFieldStyle {
     public let iconName: String?
     
@@ -84,33 +38,11 @@ public struct AppTextFieldStyle: TextFieldStyle {
             configuration
         }
         .padding()
-        .background(Color("ControlBackground").opacity(0.8))
-        .background(.ultraThinMaterial)
-        .cornerRadius(16)
-    }
-}
-
-public struct GlassCardModifier: ViewModifier {
-    @Environment(\.colorScheme) var colorScheme
-    public func body(content: Content) -> some View {
-        content
-            .padding(16)
-            .background(
-                .ultraThinMaterial,
-                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(colorScheme == .dark ? 0.15 : 0.6), Color.white.opacity(0.05)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            )
-            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.08), radius: 15, x: 0, y: 8)
+        .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                .stroke(AppPalette.separator, lineWidth: 1)
+        }
     }
 }
 
@@ -120,17 +52,6 @@ public struct AnimatedCardButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
             .animation(.interpolatingSpring(stiffness: 300, damping: 20), value: configuration.isPressed)
-    }
-}
-
-public extension View {
-    func glassCard() -> some View {
-        self.modifier(GlassCardModifier())
-    }
-    
-    // Legacy support to easily transition
-    func asCard() -> some View {
-        self.modifier(GlassCardModifier())
     }
 }
 
@@ -222,16 +143,6 @@ public struct SkeletonBlock: View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(Color.secondary.opacity(0.3))
             .frame(width: width, height: height)
-    }
-}
-
-public extension LinearGradient {
-    static var brandGradient: LinearGradient {
-        LinearGradient(
-            colors: [Color.brandPrimary, Color.teal],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
     }
 }
 

@@ -124,9 +124,9 @@ struct ContinueProgramCard: View {
             Button(action: onStartWorkout) {
                 Label(nextWorkout.title, systemImage: "play.fill")
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(AppActionButtonStyle(.primary))
         }
-        .asCard()
+        .appSurface(.emphasized)
         .navigationDestination(isPresented: $showingProgramDetail) {
             ProgramDetailView(program: program)
                 .environmentObject(workoutService)

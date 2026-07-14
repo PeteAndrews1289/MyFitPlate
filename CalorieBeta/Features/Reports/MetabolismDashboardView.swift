@@ -1,7 +1,6 @@
 import MyFitPlateCore
 
 import SwiftUI
-import Charts
 
 struct MetabolismDashboardView: View {
     @EnvironmentObject var adaptiveGoalService: AdaptiveGoalService
@@ -41,17 +40,11 @@ struct MetabolismDashboardView: View {
     @ViewBuilder
     private var dashboardContent: some View {
         VStack(alignment: .leading, spacing: 24) {
-            // Header
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Your true TDEE")
-                    .appFont(size: 20, weight: .semibold)
-                    .foregroundColor(.textPrimary)
-                
-                Text("Total Daily Energy Expenditure is the actual number of calories your body burns, calculated by analyzing your weight trend and food intake over the last 3 weeks.")
-                    .appFont(size: 14)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            AppScreenHeader(
+                eyebrow: "21-day evidence",
+                title: "Adaptive TDEE estimate",
+                subtitle: "Estimated from your logged food and weight trend. More consistent data usually produces a steadier estimate."
+            )
 
             if adaptiveGoalService.dataConfidence == .insufficient {
                 let weighInsLeft = max(0, 7 - adaptiveGoalService.recentWeighInCount)
@@ -88,11 +81,9 @@ struct MetabolismDashboardView: View {
                     }
                     .padding(.top, 2)
                 }
-                .padding(20)
-                .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .appSurface(.quiet)
             }
 
-            // Calculation Card
             VStack(spacing: 16) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -103,7 +94,7 @@ struct MetabolismDashboardView: View {
                             .padding(.vertical, 4)
                             .background(Color(adaptiveGoalService.dataConfidence.colorName).opacity(0.1), in: Capsule())
                         
-                        if let tdee = adaptiveGoalService.calculatedTDEE {
+                        if let tdee = validTDEE {
                             HStack(alignment: .firstTextBaseline, spacing: 4) {
                                 Text(Int(tdee.rounded()).formatted())
                                     .appFont(size: 48, weight: .heavy)
@@ -124,38 +115,21 @@ struct MetabolismDashboardView: View {
 
                 Divider()
 
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Avg intake (21d)")
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                        Text(adaptiveGoalService.last21DaysCalorieAverage != nil ? "\(Int(adaptiveGoalService.last21DaysCalorieAverage!.rounded()).formatted()) cal" : "--")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Weight trend")
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                        if let rate = adaptiveGoalService.weightChangeRatePerDay {
-                            let isLosing = rate < 0
-                            Text("\(isLosing ? "" : "+")\(String(format: "%.2f", BodyUnits.weightDisplayValue(lbs: rate * 7, metric: useMetric))) \(BodyUnits.weightUnit(metric: useMetric))/wk")
-                                .appFont(size: 16, weight: .bold)
-                                .foregroundColor(isLosing ? .blue : .orange)
-                        } else {
-                            Text("--")
-                                .appFont(size: 16, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                        }
-                    }
-                }
+                AppMetricStrip(items: [
+                    AppMetricItem(
+                        label: "Average intake (21 days)",
+                        value: averageIntakeText,
+                        accent: .brandPrimary
+                    ),
+                    AppMetricItem(
+                        label: "Weight trend",
+                        value: weightTrendText,
+                        accent: weightTrendAccent
+                    )
+                ])
             }
-            .padding(20)
-            .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 4)
+            .appSurface(.emphasized)
 
-            // Action Button
             Button(action: {
                 HapticManager.instance.feedback(.light)
                 goalSettings.calorieGoalMethod = .dynamicTDEE
@@ -163,33 +137,58 @@ struct MetabolismDashboardView: View {
                 dismiss()
             }) {
                 Text("Use adaptive TDEE")
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        adaptiveGoalService.dataConfidence == .insufficient ? Color.gray : Color.brandPrimary,
-                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    )
             }
-            .disabled(adaptiveGoalService.dataConfidence == .insufficient)
-            .opacity(adaptiveGoalService.dataConfidence == .insufficient ? 0.6 : 1.0)
-            .buttonStyle(.plain)
+            .disabled(!canUseAdaptiveTDEE)
+            .buttonStyle(AppActionButtonStyle(.primary))
 
-            // Explainer
             VStack(alignment: .leading, spacing: 10) {
-                Label("Why is this better?", systemImage: "sparkles")
+                Label("Why use this estimate?", systemImage: "sparkles")
                     .appFont(size: 18, weight: .bold)
                     .foregroundColor(.textPrimary)
                 
-                Text("Standard calculators (like the Mifflin-St Jeor equation) guess your metabolism based on height, weight, and age. \n\nAdaptive TDEE looks at what you actually eat and how your weight actually responds, finding your exact metabolic rate. The more consistently you log, the more accurate this becomes.")
+                Text("Standard equations estimate energy needs from measurements such as height, weight, and age. Adaptive TDEE also considers your logged intake and weight trend, which can make the estimate more personal over time. It is still an estimate, and missing or inconsistent logs can move it.")
                     .appFont(size: 14)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding()
-            .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .appSurface(.quiet)
         }
+    }
+
+    private var validTDEE: Double? {
+        guard let value = adaptiveGoalService.calculatedTDEE, value.isFinite, value > 0 else {
+            return nil
+        }
+        return value
+    }
+
+    private var canUseAdaptiveTDEE: Bool {
+        adaptiveGoalService.dataConfidence != .insufficient && validTDEE != nil
+    }
+
+    private var averageIntakeText: String {
+        guard let value = adaptiveGoalService.last21DaysCalorieAverage,
+              value.isFinite,
+              value >= 0 else {
+            return "--"
+        }
+        return "\(Int(value.rounded()).formatted()) cal"
+    }
+
+    private var weightTrendText: String {
+        guard let rate = adaptiveGoalService.weightChangeRatePerDay, rate.isFinite else {
+            return "--"
+        }
+        let weeklyRate = BodyUnits.weightDisplayValue(lbs: rate * 7, metric: useMetric)
+        let sign = weeklyRate > 0 ? "+" : ""
+        return "\(sign)\(String(format: "%.2f", weeklyRate)) \(BodyUnits.weightUnit(metric: useMetric))/wk"
+    }
+
+    private var weightTrendAccent: Color {
+        guard let rate = adaptiveGoalService.weightChangeRatePerDay, rate.isFinite else {
+            return Color(UIColor.secondaryLabel)
+        }
+        return rate < 0 ? .blue : .orange
     }
 }
 
@@ -237,7 +236,7 @@ struct MetabolismReportCard: View {
                         .foregroundColor(.textPrimary)
                 }
                 
-                Text("Review your true TDEE and metabolism trend.")
+                Text("Review your adaptive TDEE estimate and weight trend.")
                     .appFont(size: 13)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .fixedSize(horizontal: false, vertical: true)

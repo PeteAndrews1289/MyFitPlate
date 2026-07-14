@@ -178,7 +178,7 @@ struct WeeklyCheckInView: View {
             .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .padding(20)
-        .asCard()
+        .appSurface(.emphasized)
     }
     
     private var actionSection: some View {
@@ -244,7 +244,7 @@ struct WeeklyCheckInView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(18)
-        .asCard()
+        .appSurface(.emphasized)
     }
 
     private func proposalDetails(_ proposal: AdaptiveGoalService.WeeklyGoalProposal) -> some View {
@@ -329,7 +329,7 @@ struct WeeklyCheckInView: View {
             .padding(.top, 8)
         }
         .padding(20)
-        .asCard()
+        .appSurface(.emphasized)
     }
     
     private func acceptTargets() {

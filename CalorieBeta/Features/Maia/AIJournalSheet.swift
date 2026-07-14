@@ -63,7 +63,7 @@ struct AIJournalSheet: View {
                         Button("Write First Entry") {
                             showingAddJournalView = true
                         }
-                        .buttonStyle(PrimaryButtonStyle())
+                        .buttonStyle(AppActionButtonStyle(.primary))
                         .padding(.horizontal, 40)
                         Spacer()
                     }

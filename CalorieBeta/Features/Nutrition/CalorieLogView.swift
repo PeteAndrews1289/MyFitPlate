@@ -357,7 +357,7 @@ private struct CalorieLogEmptyState: View {
             }
 
             Button("Add food", action: onAdd)
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AppActionButtonStyle(.primary))
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 22)

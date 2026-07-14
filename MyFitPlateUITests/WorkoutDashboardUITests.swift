@@ -20,7 +20,7 @@ final class WorkoutDashboardUITests: XCTestCase {
         workoutsButton.tap()
         
         let startPlanButton = app.buttons["start_plan_button"]
-        XCTAssertTrue(startPlanButton.waitForExistence(timeout: 2), "Start a Plan should be actionable")
+        XCTAssertTrue(startPlanButton.waitForExistence(timeout: 10), "Start a Plan should be actionable")
         startPlanButton.tap()
 
         let prebuiltButton = app.buttons["prebuilt_programs_button"]

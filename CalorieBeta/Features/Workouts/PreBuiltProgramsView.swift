@@ -43,7 +43,7 @@ struct PreBuiltProgramsView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 44)
-                    .asCard()
+                    .appSurface(.emphasized)
                 } else {
                     if let selectionError {
                         ProgramSelectionErrorCard(message: selectionError)
@@ -172,10 +172,10 @@ struct PreBuiltProgramsView: View {
                         .appFont(size: 12, weight: .bold)
                 }
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(AppActionButtonStyle(.primary))
             .disabled(isSelecting)
         }
-        .asCard()
+        .appSurface(.emphasized)
     }
 
     private func selectPreBuiltProgram(_ program: WorkoutProgram, startDate: Date) {
@@ -483,7 +483,7 @@ private struct ProgramCatalogEmptyState: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
         .padding(.horizontal, 18)
-        .asCard()
+        .appSurface(.emphasized)
     }
 }
 
@@ -556,7 +556,7 @@ private struct PreBuiltProgramStartDateSheet: View {
                         .padding(14)
                         .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .asCard()
+                .appSurface(.emphasized)
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text(program.name)
@@ -574,7 +574,7 @@ private struct PreBuiltProgramStartDateSheet: View {
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .asCard()
+                .appSurface(.emphasized)
 
                 Spacer(minLength: 0)
             }
@@ -658,7 +658,7 @@ private struct PreBuiltProgramsHeader: View {
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
             }
         }
-        .asCard()
+        .appSurface(.emphasized)
     }
 }
 
