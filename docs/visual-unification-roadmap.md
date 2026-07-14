@@ -140,9 +140,29 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   journey and corrected dark artifact run passed, clipping audits passed, the full simulator build
   passed with the embedded Watch app, and final light/dark captures were reviewed.
 
+### Batch 8 - My Foods and Manual Food Editor (complete)
+
+- Rebuilt My Foods around one Saved/Barcode/Review summary, compact filter and sort controls, one
+  grouped duplicate-review surface, and one continuous saved-food list. Search, edit, merge,
+  barcode detachment, deletion, source detail, and review state behavior are unchanged.
+- Rebuilt Add/Edit Food as a responsive operational form with a clear identity, a compact macro
+  section, serving controls, optional nutrition details, preview, and one pinned primary action.
+  Total and saturated fat remain independently editable and label scanning retains its existing
+  correction behavior.
+- Accessibility layouts stack identity, macro, and serving controls and combine field titles with
+  their units so labels can grow naturally. Normal layouts retain the denser two-column form.
+- Fixed a pre-existing presentation defect across Food Search, Quick Log, recipes, and calorie-log
+  entry points: every manual-food sheet now owns a navigation stack, so its title, Cancel action,
+  and saved-food control cannot disappear.
+- Added deterministic My Foods and Add Food routes plus four focused UI scenarios covering visual
+  order, active controls, the restored toolbar, dark mode, scrolling, and accessibility XXXL. All
+  four passed in their final executions; 18 focused library/correction unit and rendering tests
+  passed; the full build linted 232 files with zero violations; and final light/dark captures were
+  reviewed.
+
 All five primary tabs, the two highest-frequency nutrition entry workflows, Food Detail, Trust,
-and Running now share one visual grammar. The active queue moves to the remaining repeated logging
-tools before Settings and the long-tail feature families.
+Running, My Foods, and the manual food editor now share one visual grammar. The active queue moves
+to recipes, grocery, and confirmation sheets before Settings and the long-tail feature families.
 
 ## Product Direction
 
@@ -215,6 +235,8 @@ Current source indicators:
 | Running | Batch 7 migrated | Direct Start, responsive weekly/detail metrics, grouped source rows, quiet recovery and split evidence |
 | Food Search | Batch 5 migrated | Search-first hierarchy, neutral repeat/result surfaces, adaptive meal selection |
 | Fast Food Builder | Batch 5 migrated | Dense direct selection, persistent summary, tint reserved for brand and state |
+| My Foods | Batch 8 migrated | Operational summary, compact controls, grouped duplicate review, continuous saved-food rows |
+| Manual Food Editor | Batch 8 migrated | Responsive identity/nutrition/serving/details form with one pinned action |
 | Settings | Orderly but generic | Use a native grouped configuration pattern; remove the dashboard hero |
 | Quick Log | Polished but over-layered | Use a neutral sheet scaffold and simpler rows |
 | Maia | Batch 3 migrated | One deterministic recommendation, concise context, labeled evidence, pinned composer |
@@ -352,7 +374,8 @@ weight, and nested-surface debt. Living Day itself changes last and only at the 
 2. Fast Food Builder (Batch 5 complete)
 3. Food Detail below Trust Receipt (Batch 6 complete)
 4. Running history and run detail (Batch 7 complete)
-5. My Foods, recipes, grocery, and logging confirmation sheets
+5. My Foods and the manual Add/Edit Food path (Batch 8 complete)
+6. Recipes, grocery, and logging confirmation sheets
 
 This phase must preserve or improve time to successful food log, item selection, and workout/run
 start. Editorial composition must not leak into repeated workflows.
@@ -364,7 +387,7 @@ start. Editorial composition must not leak into repeated workflows.
 - Wellness and weight surfaces
 - Onboarding/authentication
 - Community surfaces
-- Remaining recipe, pantry, and specialty nutrition tools
+- Remaining pantry and specialty nutrition tools
 
 Migrate by feature family so each batch can be reviewed and reverted independently.
 
@@ -425,6 +448,14 @@ Migrate by feature family so each batch can be reviewed and reverted independent
   identity.
 - Run Detail uses responsive evidence and metric surfaces without changing recording behavior.
 - Path/evidence language remains confined to post-run interpretation rather than the live recorder.
+
+### My Foods and Manual Food Editor
+
+- Batch 8 gives the library one summary, one compact control row, and grouped management lists.
+- Duplicate evidence and source/review state remain visible without turning every food into a card.
+- Manual Add/Edit Food uses responsive sections rather than independent macro and serving tiles.
+- Nutrition fields preserve direct editing, label scan, validation, save, and log behavior while
+  presenting one stable action and a complete navigation bar from every entry point.
 
 ### Settings
 

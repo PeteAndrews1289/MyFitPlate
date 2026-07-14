@@ -198,6 +198,7 @@ enum MyFoodsLibraryConfirmation: Identifiable {
 
 struct MyFoodsLibraryView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var dailyLogService: DailyLogService
     @EnvironmentObject private var bannerService: BannerService
     @StateObject private var viewModel: MyFoodsLibraryViewModel
@@ -233,7 +234,7 @@ struct MyFoodsLibraryView: View {
                     libraryContent
                 }
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .background(AppPalette.canvas.ignoresSafeArea())
             .navigationTitle("My Foods")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $viewModel.query, prompt: "Search saved foods")
@@ -270,7 +271,7 @@ struct MyFoodsLibraryView: View {
 
     private var libraryContent: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
                 libraryControls
 
                 if let loadError = viewModel.loadError {
@@ -284,158 +285,206 @@ struct MyFoodsLibraryView: View {
                 if viewModel.visibleEntries.isEmpty {
                     emptyState
                 } else {
-                    ForEach(viewModel.visibleEntries) { entry in
-                        MyFoodsLibraryRow(
-                            entry: entry,
-                            isWorking: viewModel.activeMutationID == entry.id,
-                            editAction: { viewModel.editingFood = entry.item },
-                            removeBarcodeAction: {
-                                viewModel.confirmation = .removeBarcode(entry.item)
-                            },
-                            deleteAction: {
-                                viewModel.confirmation = .delete(entry.item)
-                            }
-                        )
-                        Divider()
-                            .padding(.leading, 62)
-                    }
+                    savedFoodsSection
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 32)
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.section)
         }
+        .accessibilityIdentifier("my_foods_library")
     }
 
     private var libraryControls: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 12) {
-                Label(visibleCountText, systemImage: "folder.fill")
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Saved", value: viewModel.entries.count.formatted()),
+                AppMetricItem(
+                    label: "Barcode",
+                    value: viewModel.count(for: .barcodeCorrections).formatted(),
+                    accent: .blue
+                ),
+                AppMetricItem(
+                    label: "Review",
+                    value: viewModel.count(for: .needsReview).formatted(),
+                    accent: viewModel.count(for: .needsReview) > 0 ? .orange : .accentPositive
+                )
+            ])
+            .appSurface(.emphasized)
 
-                Spacer(minLength: 0)
-
-                Menu {
-                    ForEach(MyFoodsLibraryFilter.allCases, id: \.self) { filter in
-                        Button {
-                            viewModel.filter = filter
-                            logFilterSelected(filter)
-                        } label: {
-                            Label(
-                                "\(filter.title) (\(viewModel.count(for: filter)))",
-                                systemImage: viewModel.filter == filter ? "checkmark" : filter.systemImage
-                            )
-                        }
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        selectionSummary
+                        controlMenus
                     }
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .appFont(size: 19, weight: .semibold)
-                        .frame(width: 38, height: 38)
-                }
-                .accessibilityLabel("Filter My Foods")
-
-                Menu {
-                    ForEach(MyFoodsLibrarySort.allCases, id: \.self) { sort in
-                        Button {
-                            viewModel.sort = sort
-                        } label: {
-                            Label(
-                                sort.title,
-                                systemImage: viewModel.sort == sort ? "checkmark" : sort.systemImage
-                            )
-                        }
+                } else {
+                    HStack(spacing: AppSpacing.row) {
+                        selectionSummary
+                        Spacer(minLength: 0)
+                        controlMenus
                     }
-                } label: {
-                    Image(systemName: "arrow.up.arrow.down.circle")
-                        .appFont(size: 19, weight: .semibold)
-                        .frame(width: 38, height: 38)
                 }
-                .accessibilityLabel("Sort My Foods")
             }
-
-            Text("\(viewModel.filter.title) · Sorted by \(viewModel.sort.title.lowercased())")
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
         }
-        .padding(.top, 12)
-        .padding(.bottom, 10)
+    }
+
+    private var selectionSummary: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(viewModel.filter.title)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+            Text("\(visibleCountText) · \(viewModel.sort.title)")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var controlMenus: some View {
+        HStack(spacing: AppSpacing.compact) {
+            Menu {
+                ForEach(MyFoodsLibraryFilter.allCases, id: \.self) { filter in
+                    Button {
+                        viewModel.filter = filter
+                        logFilterSelected(filter)
+                    } label: {
+                        Label(
+                            "\(filter.title) (\(viewModel.count(for: filter)))",
+                            systemImage: viewModel.filter == filter ? "checkmark" : filter.systemImage
+                        )
+                    }
+                }
+            } label: {
+                Image(systemName: "line.3.horizontal.decrease")
+            }
+            .buttonStyle(AppIconButtonStyle(.neutral))
+            .accessibilityLabel("Filter My Foods")
+            .accessibilityValue(viewModel.filter.title)
+
+            Menu {
+                ForEach(MyFoodsLibrarySort.allCases, id: \.self) { sort in
+                    Button {
+                        viewModel.sort = sort
+                    } label: {
+                        Label(
+                            sort.title,
+                            systemImage: viewModel.sort == sort ? "checkmark" : sort.systemImage
+                        )
+                    }
+                }
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+            }
+            .buttonStyle(AppIconButtonStyle(.neutral))
+            .accessibilityLabel("Sort My Foods")
+            .accessibilityValue(viewModel.sort.title)
+        }
+    }
+
+    private var savedFoodsSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Saved foods",
+                subtitle: viewModel.query.isEmpty ? nil : "Results for \(viewModel.query)"
+            )
+
+            LazyVStack(spacing: 0) {
+                ForEach(Array(viewModel.visibleEntries.enumerated()), id: \.element.id) { index, entry in
+                    MyFoodsLibraryRow(
+                        entry: entry,
+                        isWorking: viewModel.activeMutationID == entry.id,
+                        editAction: { viewModel.editingFood = entry.item },
+                        removeBarcodeAction: {
+                            viewModel.confirmation = .removeBarcode(entry.item)
+                        },
+                        deleteAction: {
+                            viewModel.confirmation = .delete(entry.item)
+                        }
+                    )
+
+                    if index < viewModel.visibleEntries.count - 1 {
+                        Divider()
+                            .padding(.leading, 66)
+                    }
+                }
+            }
+            .appSurface(.quiet, padding: 0)
+            .accessibilityIdentifier("my_foods_list")
+        }
     }
 
     private var duplicateSection: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Label("Duplicate copies", systemImage: "square.on.square")
-                .appFont(size: 14, weight: .bold)
-                .foregroundColor(.orange)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Duplicate copies",
+                subtitle: "\(viewModel.duplicateGroups.count) group\(viewModel.duplicateGroups.count == 1 ? "" : "s") found"
+            )
 
-            ForEach(viewModel.duplicateGroups) { group in
-                Button {
-                    viewModel.confirmation = .merge(group)
-                } label: {
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(group.keeper.item.name)
-                                .appFont(size: 13, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                            Text("\(group.itemCount) identical saved copies")
-                                .appFont(size: 11, weight: .medium)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
+            VStack(spacing: 0) {
+                ForEach(Array(viewModel.duplicateGroups.enumerated()), id: \.element.id) { index, group in
+                    Button {
+                        viewModel.confirmation = .merge(group)
+                    } label: {
+                        AppListRow(
+                            icon: "square.on.square",
+                            iconColor: .orange,
+                            title: group.keeper.item.name,
+                            subtitle: "\(group.itemCount) identical saved copies"
+                        ) {
+                            Text("Review")
+                                .appTextRole(.caption)
+                                .foregroundStyle(.orange)
                         }
-                        Spacer(minLength: 0)
-                        Text("Review")
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(.orange)
                     }
-                    .padding(.vertical, 5)
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.activeMutationID == "merge:\(group.id)")
+
+                    if index < viewModel.duplicateGroups.count - 1 {
+                        Divider()
+                    }
                 }
-                .buttonStyle(.plain)
-                .disabled(viewModel.activeMutationID == "merge:\(group.id)")
             }
-        }
-        .padding(.vertical, 12)
-        .padding(.leading, 12)
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(Color.orange)
-                .frame(width: 3)
+            .appSurface(.quiet, padding: 0)
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: AppSpacing.row) {
             Image(systemName: viewModel.savedFoods.isEmpty ? "folder" : "line.3.horizontal.decrease.circle")
-                .appFont(size: 26, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(.secondary)
             Text(viewModel.savedFoods.isEmpty ? "No saved foods yet" : "No foods match")
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
             Text(viewModel.savedFoods.isEmpty
                  ? "Star a food or save a correction and it will appear here."
                  : "Try another search or filter.")
-                .appFont(size: 13, weight: .medium)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 24)
-        .padding(.vertical, 54)
+        .appSurface(.quiet)
     }
 
     private func inlineError(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 9) {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: "wifi.exclamationmark")
-                .foregroundColor(.orange)
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
             Text(message)
-                .appFont(size: 12, weight: .semibold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.secondary)
+                .foregroundStyle(AppPalette.text)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             if loadsRemoteData {
                 Button("Retry") { viewModel.load(using: dailyLogService) }
-                    .appFont(size: 12, weight: .bold)
+                    .appTextRole(.caption)
             }
         }
-        .padding(.vertical, 10)
+        .appSurface(.quiet)
     }
 
     private func confirmationAlert(_ confirmation: MyFoodsLibraryConfirmation) -> Alert {
@@ -566,31 +615,28 @@ private struct MyFoodsLibraryRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(FoodEmojiMapper.getEmoji(for: entry.item.name))
-                .appFont(size: 23)
-                .frame(width: 42, height: 42)
-                .background(Color(UIColor.secondarySystemFill), in: Circle())
+        HStack(alignment: .top, spacing: AppSpacing.row) {
+            foodGlyph
 
             Button(action: editAction) {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(entry.item.name)
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text(entry.item.servingSize.isEmpty ? "Serving details unavailable" : entry.item.servingSize)
-                        .appFont(size: 11, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(2)
 
                     usageAndTrustMetadata
 
                     if let barcode = normalizedBarcode {
                         Label("Future scans: \(barcode)", systemImage: "barcode")
-                            .appFont(size: 10, weight: .semibold)
-                            .foregroundColor(.blue)
+                            .appTextRole(.caption)
+                            .foregroundStyle(.blue)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -618,13 +664,32 @@ private struct MyFoodsLibraryRow: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .appFont(size: 19, weight: .semibold)
-                        .frame(width: 36, height: 36)
                 }
+                .buttonStyle(AppIconButtonStyle(.plain))
                 .accessibilityLabel("Actions for \(entry.item.name)")
             }
         }
-        .padding(.vertical, 12)
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
+        .accessibilityIdentifier("my_foods_row_\(entry.id)")
+    }
+
+    @ViewBuilder
+    private var foodGlyph: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Image(systemName: "fork.knife")
+                .appTextRole(.control)
+                .foregroundStyle(.secondary)
+                .frame(width: 42, height: 42)
+                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                .accessibilityHidden(true)
+        } else {
+            Text(FoodEmojiMapper.getEmoji(for: entry.item.name))
+                .font(.system(size: 23))
+                .frame(width: 42, height: 42)
+                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                .accessibilityHidden(true)
+        }
     }
 
     private var normalizedBarcode: String? {
@@ -649,8 +714,8 @@ private struct MyFoodsLibraryRow: View {
 
     private var trustLabel: some View {
         Label(entry.trust.label, systemImage: trustIcon)
-            .appFont(size: 10, weight: .bold)
-            .foregroundColor(trustTint)
+            .appTextRole(.caption)
+            .foregroundStyle(trustTint)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -658,13 +723,13 @@ private struct MyFoodsLibraryRow: View {
     private var lastUsedLabel: some View {
         if let lastUsedAt = entry.lastUsedAt {
             Text("Last used \(lastUsedAt.formatted(date: .abbreviated, time: .omitted))")
-                .appFont(size: 10, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
             Text("Not used recently")
-                .appFont(size: 10, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

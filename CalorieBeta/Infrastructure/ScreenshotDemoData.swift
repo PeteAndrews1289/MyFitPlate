@@ -71,6 +71,123 @@ enum ScreenshotDemoData {
         discoveryFoods()[0]
     }
 
+    static var manualFoodDemoFood: FoodItem {
+        FoodItem(
+            id: "demo-manual-power-bowl",
+            name: "Chicken Power Bowl",
+            calories: 540,
+            protein: 46,
+            carbs: 58,
+            fats: 14,
+            saturatedFat: 3.5,
+            fiber: 9,
+            servingSize: "1 bowl",
+            servingWeight: 420,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                originSourceType: .manual,
+                confidence: .userVerified,
+                reviewStatus: .userEdited,
+                sourceName: "My Foods"
+            )
+        )
+    }
+
+    static var myFoodsDemoFoods: [FoodItem] {
+        let oats = FoodItem(
+            id: "demo-library-oats",
+            name: "Power Protein Oats",
+            calories: 445,
+            protein: 34,
+            carbs: 55,
+            fats: 11,
+            saturatedFat: 2,
+            fiber: 9,
+            servingSize: "1 bowl",
+            servingWeight: 360,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                originSourceType: .manual,
+                confidence: .userVerified,
+                reviewStatus: .userEdited,
+                sourceName: "My Foods"
+            )
+        )
+        var duplicateOats = oats
+        duplicateOats.id = "demo-library-oats-copy"
+
+        let shake = FoodItem(
+            id: "demo-library-shake",
+            name: "Post-Workout Shake",
+            calories: 310,
+            protein: 42,
+            carbs: 29,
+            fats: 4,
+            saturatedFat: 1,
+            fiber: 4,
+            servingSize: "20 fl oz",
+            servingWeight: 590,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                originSourceType: .manual,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                sourceName: "Personal barcode correction",
+                barcode: "0044000087579"
+            )
+        )
+
+        let recipe = FoodItem(
+            id: "demo-library-recipe",
+            name: "Weeknight Chicken Bowl",
+            calories: 610,
+            protein: 51,
+            carbs: 68,
+            fats: 18,
+            saturatedFat: 4,
+            fiber: 10,
+            servingSize: "1 recipe serving",
+            servingWeight: 475,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                originSourceType: .recipe,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                sourceName: "My Recipes"
+            )
+        )
+
+        let needsReview = FoodItem(
+            id: "demo-library-review",
+            name: "Granola Label Scan",
+            calories: 260,
+            protein: 8,
+            carbs: 38,
+            fats: 9,
+            saturatedFat: 2,
+            fiber: 5,
+            servingSize: "2/3 cup",
+            servingWeight: 62,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                originSourceType: .aiImage,
+                confidence: .needsReview,
+                reviewStatus: .unreviewed,
+                sourceName: "Nutrition label scan"
+            )
+        )
+
+        return [oats, duplicateOats, shake, recipe, needsReview]
+    }
+
+    static var myFoodsDemoRecentFoods: [FoodItem] {
+        var oats = myFoodsDemoFoods[0]
+        oats.timestamp = Date().addingTimeInterval(-2 * 60 * 60)
+        var shake = myFoodsDemoFoods[2]
+        shake.timestamp = Date().addingTimeInterval(-24 * 60 * 60)
+        return [oats, shake]
+    }
+
     static var runningDemoRuns: [Run] {
         let runs: [RunTemplate] = [
             RunTemplate(

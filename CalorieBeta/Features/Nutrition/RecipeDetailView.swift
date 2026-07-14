@@ -55,15 +55,17 @@ struct RecipeDetailView: View {
                     onLogUpdated: { showingAddToLogSheet = false }
                 )
             } else {
-                AddFoodView(
-                    initialFoodItem: recipeService.recipeToFoodItem(recipe: recipe),
-                    dailyLog: $dailyLogService.currentDailyLog,
-                    date: dailyLogService.activelyViewedDate,
-                    source: "recipe_detail",
-                    onLogUpdated: {
-                        showingAddToLogSheet = false
-                    }
-                )
+                NavigationStack {
+                    AddFoodView(
+                        initialFoodItem: recipeService.recipeToFoodItem(recipe: recipe),
+                        dailyLog: $dailyLogService.currentDailyLog,
+                        date: dailyLogService.activelyViewedDate,
+                        source: "recipe_detail",
+                        onLogUpdated: {
+                            showingAddToLogSheet = false
+                        }
+                    )
+                }
             }
         }
         .sheet(isPresented: $showingAddToPlanSheet) {

@@ -1,3 +1,4 @@
+import MyFitPlateCore
 import SwiftUI
 
 struct AddFoodView: View {
@@ -12,6 +13,7 @@ struct AddFoodView: View {
     var showsSavedControl: Bool
 
     @Environment(\.dismiss) var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var bannerService: BannerService
     private let foodAPIService = FatSecretFoodAPIService()
@@ -203,7 +205,7 @@ struct AddFoodView: View {
         ZStack {
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: AppSpacing.section) {
                         ManualFoodIdentityCard(foodName: $foodName)
 
                         if isBarcodeCorrectionFlow, let correctionBarcode {
@@ -253,9 +255,9 @@ struct AddFoodView: View {
                             )
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.top, AppSpacing.group)
+                    .padding(.bottom, AppSpacing.group)
                 }
                 .scrollDismissesKeyboard(.interactively)
 
@@ -265,6 +267,7 @@ struct AddFoodView: View {
                     action: logAdjustedFood
                 )
             }
+            .accessibilityIdentifier("manual_food_editor")
             .blur(radius: isProcessingLabel ? 3 : 0)
 
             if isProcessingLabel {
@@ -322,153 +325,148 @@ struct AddFoodView: View {
     }
 
     @ViewBuilder private var servingControlsCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Serving")
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.textPrimary)
-
-            HStack(spacing: 12) {
-                ManualFoodTextInput(
-                    title: "Quantity",
-                    placeholder: "1",
-                    text: $quantity,
-                    keyboardType: .decimalPad,
-                    icon: "number",
-                    color: .blue
-                )
-
-                ManualFoodTextInput(
-                    title: "Weight",
-                    placeholder: "grams",
-                    text: $servingWeightText,
-                    keyboardType: .decimalPad,
-                    icon: "scalemass.fill",
-                    color: .blue
-                )
-            }
-
-            ManualFoodTextInput(
-                title: "Serving description",
-                placeholder: "1 cup, 1 bar, 100 g",
-                text: $servingSizeText,
-                keyboardType: .default,
-                icon: "fork.knife",
-                color: .blue
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Serving",
+                subtitle: "Set the amount and description used for this entry."
             )
 
-            if availableServings.count > 1 {
-                Menu {
-                    ForEach(availableServings) { option in
-                        Button(option.description) {
-                            selectedServingID = option.id
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(spacing: AppSpacing.group) {
+                            quantityInput
+                            weightInput
+                        }
+                    } else {
+                        HStack(alignment: .top, spacing: AppSpacing.row) {
+                            quantityInput
+                            weightInput
                         }
                     }
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "list.bullet.rectangle")
-                            .appFont(size: 14, weight: .bold)
-                            .foregroundColor(.blue)
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Detected serving options")
-                                .appFont(size: 13, weight: .semibold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-
-                            Text(selectedServingOption?.description ?? "Choose serving")
-                                .appFont(size: 15, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                                .lineLimit(2)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.up.chevron.down")
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(Color(UIColor.tertiaryLabel))
-                    }
-                    .padding(14)
-                    .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .buttonStyle(.plain)
+
+                ManualFoodTextInput(
+                    title: "Serving description",
+                    placeholder: "1 cup, 1 bar, 100 g",
+                    text: $servingSizeText,
+                    keyboardType: .default,
+                    icon: "fork.knife",
+                    color: AppPalette.brand
+                )
+
+                if availableServings.count > 1 {
+                    Divider()
+
+                    Menu {
+                        ForEach(availableServings) { option in
+                            Button(option.description) {
+                                selectedServingID = option.id
+                            }
+                        }
+                    } label: {
+                        AppListRow(
+                            icon: "list.bullet.rectangle",
+                            iconColor: AppPalette.brand,
+                            title: "Detected serving options",
+                            subtitle: selectedServingOption?.description ?? "Choose serving"
+                        ) {
+                            Image(systemName: "chevron.up.chevron.down")
+                                .appTextRole(.secondary)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, -AppSpacing.group)
+                        .padding(.vertical, -AppSpacing.compact)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Detected serving options")
+                    .accessibilityValue(selectedServingOption?.description ?? "Choose serving")
+                }
             }
+            .appSurface(.quiet)
         }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var quantityInput: some View {
+        ManualFoodTextInput(
+            title: "Quantity",
+            placeholder: "1",
+            text: $quantity,
+            keyboardType: .decimalPad,
+            icon: "number",
+            color: AppPalette.brand
+        )
+    }
+
+    private var weightInput: some View {
+        ManualFoodTextInput(
+            title: "Weight",
+            placeholder: "grams",
+            text: $servingWeightText,
+            keyboardType: .decimalPad,
+            icon: "scalemass.fill",
+            color: AppPalette.brand,
+            unit: "g"
+        )
     }
 
     @ViewBuilder private var detailControlsCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Details")
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.textPrimary)
-
-            ManualFoodTextInput(
-                title: "Saturated fat",
-                placeholder: "optional",
-                text: $saturatedFatText,
-                keyboardType: .decimalPad,
-                icon: "drop.fill",
-                color: .accentFats,
-                unit: "g"
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Nutrition details",
+                subtitle: "Optional values improve totals and the Trust Score."
             )
 
-            if let saturatedFatValidationMessage {
-                Label(saturatedFatValidationMessage, systemImage: "exclamationmark.circle.fill")
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                ManualFoodTextInput(
+                    title: "Saturated fat",
+                    placeholder: "optional",
+                    text: $saturatedFatText,
+                    keyboardType: .decimalPad,
+                    icon: "drop.fill",
+                    color: .accentFats,
+                    unit: "g"
+                )
 
-            ManualFoodTextInput(
-                title: "Fiber",
-                placeholder: "optional",
-                text: $fiberText,
-                keyboardType: .decimalPad,
-                icon: "leaf.fill",
-                color: .accentPositive
-            )
-
-            Button {
-                beginNutritionLabelScan()
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "camera.viewfinder")
-                        .appFont(size: 17, weight: .bold)
-                        .foregroundColor(.blue)
-                        .frame(width: 42, height: 42)
-                        .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Scan nutrition label")
-                            .appFont(size: 15, weight: .bold)
-                            .foregroundColor(.textPrimary)
-
-                        Text("Use a label photo to fill the numbers faster.")
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                if let saturatedFatValidationMessage {
+                    Label(saturatedFatValidationMessage, systemImage: "exclamationmark.circle.fill")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("manual_food_fat_validation")
                 }
-                .padding(14)
-                .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
 
-    private var labelScannerButton: some View {
-        Button { beginNutritionLabelScan() } label: {
-            Label("Scan nutrition label", systemImage: "camera.fill")
+                ManualFoodTextInput(
+                    title: "Fiber",
+                    placeholder: "optional",
+                    text: $fiberText,
+                    keyboardType: .decimalPad,
+                    icon: "leaf.fill",
+                    color: .accentPositive,
+                    unit: "g"
+                )
+
+                Divider()
+
+                Button(action: beginNutritionLabelScan) {
+                    AppListRow(
+                        icon: "camera.viewfinder",
+                        iconColor: AppPalette.brand,
+                        title: "Scan nutrition label",
+                        subtitle: "Use a label photo to fill the numbers faster."
+                    ) {
+                        Image(systemName: "chevron.right")
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, -AppSpacing.group)
+                    .padding(.vertical, -AppSpacing.compact)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the camera to scan a nutrition label.")
+            }
+            .appSurface(.quiet)
         }
-        .tint(.blue)
-        .padding(.top, 5)
     }
 
     private func beginNutritionLabelScan() {
@@ -767,6 +765,7 @@ struct AddFoodView: View {
 
 private struct ManualFoodIdentityCard: View {
     @Binding var foodName: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var displayEmoji: String {
         let trimmed = foodName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -774,29 +773,46 @@ private struct ManualFoodIdentityCard: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Text(displayEmoji)
-                .appFont(size: 34)
-                .frame(width: 62, height: 62)
-                .background(
-                    Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Food name")
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-
-                TextField("Chicken bowl, protein bar, oatmeal", text: $foodName)
-                    .appFont(size: 22, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .textInputAutocapitalization(.words)
-                    .submitLabel(.next)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    foodGlyph
+                    nameField
+                }
+            } else {
+                HStack(alignment: .top, spacing: AppSpacing.group) {
+                    foodGlyph
+                    nameField
+                }
             }
         }
-        .padding(18)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface(.emphasized)
+    }
+
+    private var foodGlyph: some View {
+        Text(displayEmoji)
+            .font(.system(size: 32))
+            .frame(width: 54, height: 54)
+            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+            .accessibilityHidden(true)
+    }
+
+    private var nameField: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text("Food name")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+
+            TextField("Chicken bowl, protein bar, oatmeal", text: $foodName, axis: .vertical)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+                .textInputAutocapitalization(.words)
+                .submitLabel(.next)
+                .lineLimit(1...3)
+                .accessibilityIdentifier("manual_food_name")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -812,62 +828,47 @@ private struct ManualBarcodeCorrectionCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
                 Image(systemName: "barcode.viewfinder")
-                    .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-                    .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.brand)
+                    .frame(width: 40, height: 40)
+                    .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Barcode correction")
-                        .appFont(size: 17, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                        .appTextRole(.sectionTitle)
+                        .foregroundStyle(AppPalette.text)
 
                     Text("Log this food once and future scans for barcode \(barcodeDisplay) will use your saved label.")
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 0)
             }
 
-            HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
                 Label(hasScannedLabel ? "Label scanned" : "Label not scanned", systemImage: hasScannedLabel ? "checkmark.seal.fill" : "camera.viewfinder")
-                    .appFont(size: 11, weight: .bold)
-                    .foregroundColor(hasScannedLabel ? .accentPositive : .orange)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .background((hasScannedLabel ? Color.accentPositive : Color.orange).opacity(0.10), in: Capsule())
+                    .appTextRole(.caption)
+                    .foregroundStyle(hasScannedLabel ? Color.accentPositiveText : Color.orange)
 
                 if communitySharingEnabled {
                     Label("Eligible fixes may help future scans", systemImage: "person.2.fill")
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundColor(.accentProtein)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 6)
-                        .background(Color.accentProtein.opacity(0.10), in: Capsule())
+                        .appTextRole(.caption)
+                        .foregroundStyle(Color.accentProtein)
                 }
             }
 
             Button(action: scanAction) {
                 Label(hasScannedLabel ? "Scan label again" : "Scan nutrition label", systemImage: "camera.fill")
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-                    .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppActionButtonStyle(.secondary))
         }
-        .padding(16)
-        .background(Color.brandPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.brandPrimary.opacity(0.16), lineWidth: 1)
-        )
+        .appSurface(.emphasized)
     }
 }
 
@@ -876,14 +877,31 @@ private struct ManualFoodMacroInputGrid: View {
     @Binding var proteinText: String
     @Binding var carbsText: String
     @Binding var fatsText: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            ManualFoodTextInput(title: "Calories", placeholder: "0", text: $caloriesText, keyboardType: .decimalPad, icon: "flame.fill", color: .orange, unit: "cal")
-            ManualFoodTextInput(title: "Protein", placeholder: "0", text: $proteinText, keyboardType: .decimalPad, icon: "bolt.fill", color: .accentProtein, unit: "g")
-            ManualFoodTextInput(title: "Carbs", placeholder: "0", text: $carbsText, keyboardType: .decimalPad, icon: "leaf.fill", color: .accentCarbs, unit: "g")
-            ManualFoodTextInput(title: "Total fat", placeholder: "0", text: $fatsText, keyboardType: .decimalPad, icon: "drop.fill", color: .accentFats, unit: "g")
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Nutrition",
+                subtitle: "Enter values for one serving."
+            )
+
+            LazyVGrid(columns: columns, alignment: .leading, spacing: AppSpacing.group) {
+                ManualFoodTextInput(title: "Calories", placeholder: "0", text: $caloriesText, keyboardType: .decimalPad, icon: "flame.fill", color: .orange, unit: "cal")
+                ManualFoodTextInput(title: "Protein", placeholder: "0", text: $proteinText, keyboardType: .decimalPad, icon: "bolt.fill", color: .accentProtein, unit: "g")
+                ManualFoodTextInput(title: "Carbs", placeholder: "0", text: $carbsText, keyboardType: .decimalPad, icon: "leaf.fill", color: .accentCarbs, unit: "g")
+                ManualFoodTextInput(title: "Total fat", placeholder: "0", text: $fatsText, keyboardType: .decimalPad, icon: "drop.fill", color: .accentFats, unit: "g")
+            }
+            .appSurface(.quiet)
+            .accessibilityIdentifier("manual_food_nutrition")
         }
+    }
+
+    private var columns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.flexible()), GridItem(.flexible())]
     }
 }
 
@@ -895,40 +913,69 @@ private struct ManualFoodTextInput: View {
     let icon: String
     let color: Color
     var unit: String?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: icon)
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(color)
-                    .frame(width: 30, height: 30)
-                    .background(color.opacity(0.12), in: Circle())
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            fieldLabel
 
-                Spacer()
-
-                if let unit {
-                    Text(unit)
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+            TextField(placeholder, text: $text)
+                .keyboardType(keyboardType)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .submitLabel(.next)
+                .padding(.horizontal, AppSpacing.row)
+                .frame(minHeight: 48)
+                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        .stroke(AppPalette.separator, lineWidth: 0.5)
                 }
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-
-                TextField(placeholder, text: $text)
-                    .keyboardType(keyboardType)
-                    .appFont(size: 22, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .submitLabel(.next)
-            }
+                .accessibilityLabel(title)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    @ViewBuilder private var fieldLabel: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                fieldIcon
+
+                Text(accessibilityTitle)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
+            }
+        } else {
+            HStack(spacing: AppSpacing.compact) {
+                fieldIcon
+
+                Text(title)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let unit {
+                    Spacer(minLength: 0)
+                    Text(unit)
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var fieldIcon: some View {
+        Image(systemName: icon)
+            .appTextRole(.secondary)
+            .foregroundStyle(color)
+            .frame(width: 20)
+            .accessibilityHidden(true)
+    }
+
+    private var accessibilityTitle: String {
+        guard let unit else { return title }
+        return "\(title) (\(unit))"
     }
 }
 
@@ -940,72 +987,32 @@ private struct ManualFoodPreviewCard: View {
     let servingDescription: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Preview")
-                        .appFont(size: 18, weight: .bold)
-                        .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Preview", subtitle: servingDescription)
 
-                    Text(servingDescription)
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .lineLimit(2)
-                }
-
-                Spacer()
-
-                Text(Int(calories.rounded()).formatted())
-                    .appFont(size: 30, weight: .bold)
-                    .foregroundColor(.orange)
-                Text("cal")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
-
-            HStack(spacing: 8) {
-                ManualFoodMacroPill(label: "P", value: protein, color: .accentProtein)
-                ManualFoodMacroPill(label: "C", value: carbs, color: .accentCarbs)
-                ManualFoodMacroPill(label: "F", value: fats, color: .accentFats)
-            }
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Calories", value: "\(Int(calories.rounded()).formatted()) cal", accent: .orange),
+                AppMetricItem(label: "Protein", value: "\(Int(protein.rounded()).formatted()) g", accent: .accentProtein),
+                AppMetricItem(label: "Carbs", value: "\(Int(carbs.rounded()).formatted()) g", accent: .accentCarbs),
+                AppMetricItem(label: "Fat", value: "\(Int(fats.rounded()).formatted()) g", accent: .accentFats)
+            ])
+            .appSurface(.emphasized)
         }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-}
-
-private struct ManualFoodMacroPill: View {
-    let label: String
-    let value: Double
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .appFont(size: 12, weight: .bold)
-            Text("\(Int(value.rounded()).formatted()) g")
-                .appFont(size: 12, weight: .semibold)
-        }
-        .foregroundColor(color)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(color.opacity(0.12), in: Capsule())
     }
 }
 
 private struct ManualFoodLoadingCard: View {
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppSpacing.row) {
             ProgressView()
-                .tint(.blue)
+                .tint(AppPalette.brand)
 
             Text("Loading serving details")
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .appSurface(.quiet)
     }
 }
 
@@ -1016,24 +1023,23 @@ private struct ManualFoodNoticeCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.orange)
-                .frame(width: 34, height: 34)
-                .background(Color.orange.opacity(0.12), in: Circle())
+                .appTextRole(.control)
+                .foregroundStyle(.orange)
+                .frame(width: 32)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.textPrimary)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
 
                 Text(message)
-                    .appFont(size: 12, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(14)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .appSurface(.quiet)
     }
 }
 
@@ -1043,16 +1049,18 @@ private struct ManualFoodActionBar: View {
     let action: () -> Void
 
     var body: some View {
-        Button(title, action: action)
-            .buttonStyle(PrimaryButtonStyle())
+        Button(action: action) {
+            Label(title, systemImage: "checkmark")
+        }
+            .buttonStyle(AppActionButtonStyle(.primary))
             .disabled(!isEnabled)
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 12)
-            .background(Color.backgroundPrimary.opacity(0.98).ignoresSafeArea(edges: .bottom))
+            .accessibilityIdentifier("manual_food_primary_action")
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.row)
+            .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
             .overlay(alignment: .top) {
                 Rectangle()
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(AppPalette.separator)
                     .frame(height: 1)
             }
     }

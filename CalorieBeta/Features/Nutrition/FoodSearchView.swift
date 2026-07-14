@@ -73,6 +73,8 @@ struct FoodSearchView: View {
         _showingChainBuilder = State(
             initialValue: initialPresentation == .chainBuilder || screenshotScreen == "builder"
         )
+        _showingAddFoodManually = State(initialValue: screenshotScreen == "add-food")
+        _showingMyFoodsLibrary = State(initialValue: screenshotScreen == "my-foods")
         _selectedFoodItem = State(
             initialValue: screenshotScreen == "trust" ? ScreenshotDemoData.trustDemoFood : nil
         )
@@ -125,18 +127,20 @@ struct FoodSearchView: View {
                     }
                 }
                 .sheet(isPresented: $showingAddFoodManually, onDismiss: { pendingManualBarcode = nil }) {
-                    AddFoodView(
-                        initialFoodItem: manualFoodSeed(),
-                        dailyLog: $dailyLogService.currentDailyLog,
-                        date: dailyLogService.activelyViewedDate,
-                        source: pendingManualBarcode == nil ? "manual_add" : "manual_barcode_create",
-                        targetMealName: viewModel.selectedMeal,
-                        onLogUpdated: {
-                            showingAddFoodManually = false
-                            pendingManualBarcode = nil
-                            onFoodItemLogged?()
-                        }
-                    )
+                    NavigationStack {
+                        AddFoodView(
+                            initialFoodItem: manualFoodSeed(),
+                            dailyLog: $dailyLogService.currentDailyLog,
+                            date: dailyLogService.activelyViewedDate,
+                            source: pendingManualBarcode == nil ? "manual_add" : "manual_barcode_create",
+                            targetMealName: viewModel.selectedMeal,
+                            onLogUpdated: {
+                                showingAddFoodManually = false
+                                pendingManualBarcode = nil
+                                onFoodItemLogged?()
+                            }
+                        )
+                    }
                 }
                 .sheet(isPresented: $showingQuickAddMacros) {
                     QuickAddMacrosView(
@@ -275,8 +279,9 @@ struct FoodSearchView: View {
                 }
                 .sheet(isPresented: $showingMyFoodsLibrary) {
                     MyFoodsLibraryView(
-                        initialFoods: viewModel.savedFoods,
-                        recentFoods: viewModel.recentFoods,
+                        initialFoods: myFoodsInitialFoods,
+                        recentFoods: myFoodsRecentFoods,
+                        loadsRemoteData: myFoodsLoadsRemoteData,
                         onLibraryChanged: refreshSavedFoods
                     )
                 }
@@ -327,6 +332,12 @@ struct FoodSearchView: View {
     }
 
     private func manualFoodSeed() -> FoodItem {
+        #if DEBUG
+        if ScreenshotDemoMode.isEnabled, ScreenshotDemoData.requestedScreen == "add-food" {
+            return ScreenshotDemoData.manualFoodDemoFood
+        }
+        #endif
+
         let metadata: FoodSourceMetadata?
         if let pendingManualBarcode, !pendingManualBarcode.isEmpty {
             metadata = FoodSourceMetadata(
@@ -352,6 +363,32 @@ struct FoodSearchView: View {
             servingWeight: 0,
             sourceMetadata: metadata
         )
+    }
+
+    private var myFoodsInitialFoods: [FoodItem] {
+        #if DEBUG
+        if ScreenshotDemoMode.isEnabled, ScreenshotDemoData.requestedScreen == "my-foods" {
+            return ScreenshotDemoData.myFoodsDemoFoods
+        }
+        #endif
+        return viewModel.savedFoods
+    }
+
+    private var myFoodsRecentFoods: [FoodItem] {
+        #if DEBUG
+        if ScreenshotDemoMode.isEnabled, ScreenshotDemoData.requestedScreen == "my-foods" {
+            return ScreenshotDemoData.myFoodsDemoRecentFoods
+        }
+        #endif
+        return viewModel.recentFoods
+    }
+
+    private var myFoodsLoadsRemoteData: Bool {
+        #if DEBUG
+        return !(ScreenshotDemoMode.isEnabled && ScreenshotDemoData.requestedScreen == "my-foods")
+        #else
+        return true
+        #endif
     }
 
     @ViewBuilder

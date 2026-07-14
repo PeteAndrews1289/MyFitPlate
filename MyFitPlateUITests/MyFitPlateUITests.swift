@@ -197,6 +197,206 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testMyFoodsLibraryUsesGroupedOperationalHierarchy() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "my-foods"
+        ]
+        app.launch()
+
+        let library = app.descendants(matching: .any)
+            .matching(identifier: "my_foods_library")
+            .firstMatch
+        let list = app.descendants(matching: .any)
+            .matching(identifier: "my_foods_list")
+            .firstMatch
+        let oats = app.descendants(matching: .any)
+            .matching(identifier: "my_foods_row_demo-library-oats")
+            .firstMatch
+        let duplicateSection = app.staticTexts["Duplicate copies"]
+
+        XCTAssertTrue(library.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Barcode"].exists)
+        XCTAssertTrue(app.staticTexts["Review"].exists)
+        XCTAssertTrue(duplicateSection.waitForExistence(timeout: 5))
+        XCTAssertTrue(list.waitForExistence(timeout: 5))
+        XCTAssertTrue(oats.waitForExistence(timeout: 5))
+        XCTAssertLessThan(app.staticTexts["Saved"].frame.minY, duplicateSection.frame.minY)
+        XCTAssertLessThan(duplicateSection.frame.minY, list.frame.minY)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "My Foods - grouped library hierarchy"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testMyFoodsLibrarySupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "my-foods",
+            "-screenshot-dark-mode",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let library = app.descendants(matching: .any)
+            .matching(identifier: "my_foods_library")
+            .firstMatch
+        let oats = app.descendants(matching: .any)
+            .matching(identifier: "my_foods_row_demo-library-oats")
+            .firstMatch
+        XCTAssertTrue(library.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["All foods"].waitForExistence(timeout: 5))
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let topScreenshot = XCTAttachment(screenshot: app.screenshot())
+        topScreenshot.name = "My Foods - dark accessibility XXXL summary"
+        topScreenshot.lifetime = .keepAlways
+        add(topScreenshot)
+
+        for _ in 0..<8 where !oats.exists || !oats.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(oats.waitForExistence(timeout: 5))
+        XCTAssertTrue(oats.isHittable)
+        XCTAssertLessThanOrEqual(oats.frame.maxX, app.frame.maxX + 1)
+        XCTAssertGreaterThanOrEqual(oats.frame.minX, app.frame.minX - 1)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let rowScreenshot = XCTAttachment(screenshot: app.screenshot())
+        rowScreenshot.name = "My Foods - dark accessibility XXXL saved row"
+        rowScreenshot.lifetime = .keepAlways
+        add(rowScreenshot)
+    }
+
+    @MainActor
+    func testManualFoodEditorUsesUnifiedResponsiveForm() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "add-food"
+        ]
+        app.launch()
+
+        let editor = app.descendants(matching: .any)
+            .matching(identifier: "manual_food_editor")
+            .firstMatch
+        let name = app.textFields["manual_food_name"]
+        let nutrition = app.descendants(matching: .any)
+            .matching(identifier: "manual_food_nutrition")
+            .firstMatch
+        let serving = app.staticTexts["Serving"]
+        let details = app.staticTexts["Nutrition details"]
+        let navigationBar = app.navigationBars["Log food"]
+        let cancelButtons = app.buttons
+            .matching(NSPredicate(format: "label == %@", "Cancel"))
+        let primaryAction = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Add to log"))
+            .firstMatch
+
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        XCTAssertTrue(navigationBar.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(cancelButtons.count, 0)
+        let visibleCancel = (0..<cancelButtons.count)
+            .map { cancelButtons.element(boundBy: $0) }
+            .first(where: \.isHittable)
+        XCTAssertNotNil(visibleCancel)
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertTrue(nutrition.waitForExistence(timeout: 5))
+        XCTAssertTrue(serving.waitForExistence(timeout: 5))
+        XCTAssertTrue(details.waitForExistence(timeout: 5))
+        XCTAssertTrue(primaryAction.waitForExistence(timeout: 5))
+        XCTAssertTrue(primaryAction.isHittable)
+        XCTAssertLessThan(name.frame.minY, nutrition.frame.minY)
+        XCTAssertLessThan(nutrition.frame.minY, serving.frame.minY)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Manual Food - unified responsive form"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testManualFoodEditorSupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "add-food",
+            "-screenshot-dark-mode",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let editor = app.descendants(matching: .any)
+            .matching(identifier: "manual_food_editor")
+            .firstMatch
+        let navigationBars = app.navigationBars
+            .matching(identifier: "Log food")
+        let cancelButtons = app.buttons
+            .matching(NSPredicate(format: "label == %@", "Cancel"))
+        let details = app.staticTexts["Nutrition details"]
+        let primaryAction = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Add to log"))
+            .firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        XCTAssertTrue(navigationBars.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["manual_food_name"].waitForExistence(timeout: 5))
+        XCTAssertTrue(primaryAction.waitForExistence(timeout: 5))
+        XCTAssertTrue(primaryAction.isHittable)
+        XCTAssertGreaterThan(cancelButtons.count, 0)
+        let visibleCancel = try XCTUnwrap(
+            (0..<cancelButtons.count)
+                .map { cancelButtons.element(boundBy: $0) }
+                .first(where: \.isHittable)
+        )
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let topScreenshot = XCTAttachment(screenshot: app.screenshot())
+        topScreenshot.name = "Manual Food - dark accessibility XXXL nutrition"
+        topScreenshot.lifetime = .keepAlways
+        add(topScreenshot)
+
+        for _ in 0..<8 {
+            let detailsIsFullyVisible = details.exists
+                && details.frame.minY >= visibleCancel.frame.maxY
+                && details.frame.maxY <= primaryAction.frame.minY
+            if detailsIsFullyVisible {
+                break
+            }
+            app.swipeUp()
+        }
+        XCTAssertTrue(details.waitForExistence(timeout: 5))
+        XCTAssertTrue(details.isHittable)
+        XCTAssertTrue(primaryAction.isHittable)
+        XCTAssertGreaterThanOrEqual(details.frame.minY, visibleCancel.frame.maxY)
+        XCTAssertLessThanOrEqual(details.frame.maxY, primaryAction.frame.minY)
+        try app.performAccessibilityAudit(for: [.textClipped])
+
+        let detailsScreenshot = XCTAttachment(screenshot: app.screenshot())
+        detailsScreenshot.name = "Manual Food - dark accessibility XXXL details"
+        detailsScreenshot.lifetime = .keepAlways
+        add(detailsScreenshot)
+    }
+
+    @MainActor
     func testFastFoodBuilderKeepsSelectionWorkflowDirect() throws {
         let app = XCUIApplication()
         app.terminate()

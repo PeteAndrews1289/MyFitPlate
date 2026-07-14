@@ -39,35 +39,39 @@ struct CalorieLogView: View {
             }
         }
         .sheet(isPresented: $showingAddFoodView) {
-            AddFoodView(
-                initialFoodItem: FoodItem(
-                    id: UUID().uuidString,
-                    name: "",
-                    calories: 0,
-                    protein: 0,
-                    carbs: 0,
-                    fats: 0,
-                    servingSize: "",
-                    servingWeight: 0
-                ),
-                dailyLog: $dailyLogService.currentDailyLog,
-                date: dailyLogService.activelyViewedDate,
-                source: "manual_add",
-                onLogUpdated: {
-                    showingAddFoodView = false
-                }
-            )
+            NavigationStack {
+                AddFoodView(
+                    initialFoodItem: FoodItem(
+                        id: UUID().uuidString,
+                        name: "",
+                        calories: 0,
+                        protein: 0,
+                        carbs: 0,
+                        fats: 0,
+                        servingSize: "",
+                        servingWeight: 0
+                    ),
+                    dailyLog: $dailyLogService.currentDailyLog,
+                    date: dailyLogService.activelyViewedDate,
+                    source: "manual_add",
+                    onLogUpdated: {
+                        showingAddFoodView = false
+                    }
+                )
+            }
         }
         .sheet(item: $foodToEdit) { item in
-            AddFoodView(
-                initialFoodItem: item,
-                dailyLog: $dailyLogService.currentDailyLog,
-                date: dailyLogService.activelyViewedDate,
-                source: "log_edit",
-                onLogUpdated: {
-                    foodToEdit = nil
-                }
-            )
+            NavigationStack {
+                AddFoodView(
+                    initialFoodItem: item,
+                    dailyLog: $dailyLogService.currentDailyLog,
+                    date: dailyLogService.activelyViewedDate,
+                    source: "log_edit",
+                    onLogUpdated: {
+                        foodToEdit = nil
+                    }
+                )
+            }
         }
     }
 

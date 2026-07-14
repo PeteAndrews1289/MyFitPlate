@@ -99,7 +99,7 @@ struct MainTabView: View {
         _showSettings = State(initialValue: screenshotScreen == "settings")
         _showingAddOptions = State(initialValue: screenshotScreen == "quick-log")
         _showingFoodSearch = State(
-            initialValue: ["food-search", "builder", "trust"].contains(screenshotScreen)
+            initialValue: ["food-search", "builder", "trust", "my-foods", "add-food"].contains(screenshotScreen)
         )
         _showingRunHistory = State(initialValue: screenshotScreen == "runs")
         _showingWeeklyReport = State(initialValue: screenshotScreen == "weekly-report")
@@ -187,15 +187,17 @@ struct MainTabView: View {
                 }, searchContext: "general_search")
             }
             .sheet(isPresented: $showingAddFoodManually, onDismiss: { pendingManualBarcode = nil }) {
-                AddFoodView(
-                    initialFoodItem: manualFoodSeed(),
-                    dailyLog: $dailyLogService.currentDailyLog,
-                    source: pendingManualBarcode == nil ? "manual_add" : "manual_barcode_create",
-                    onLogUpdated: {
-                        showingAddFoodManually = false
-                        pendingManualBarcode = nil
-                    }
-                )
+                NavigationStack {
+                    AddFoodView(
+                        initialFoodItem: manualFoodSeed(),
+                        dailyLog: $dailyLogService.currentDailyLog,
+                        source: pendingManualBarcode == nil ? "manual_add" : "manual_barcode_create",
+                        onLogUpdated: {
+                            showingAddFoodManually = false
+                            pendingManualBarcode = nil
+                        }
+                    )
+                }
             }
             .imageSourceDialog(isPresented: $showingImagePicker) { image in
                 self.isProcessingImage = true

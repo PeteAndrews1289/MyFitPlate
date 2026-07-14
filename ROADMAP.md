@@ -502,7 +502,13 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   evidence/action, readable splits/gear/source sections, and the same shared visual grammar as the
   primary tabs. Recorder and HealthKit behavior are unchanged; standard plus dark accessibility-
   XXXL fixture journeys are captured and pass clipping audits.
-- [ ] Migrate the remaining repeated logging tools without adding taps or editorial friction.
+- [x] Migrate My Foods and the manual food editor without adding taps or editorial friction. The
+  library now uses one operational summary, restrained filter/sort controls, grouped duplicate and
+  saved-food rows, and responsive accessibility layouts. Add/Edit Food now uses semantic identity,
+  nutrition, serving, details, and preview sections with a stable logging action; all presentation
+  paths retain their navigation title and Cancel action.
+- [ ] Migrate recipes, grocery, and the remaining logging confirmation sheets without adding taps
+  or editorial friction.
 - [ ] Migrate Settings and the long-tail feature families, retire legacy Home after rollout proof,
   remove legacy glass aliases, and enforce the new rules in source checks.
 
