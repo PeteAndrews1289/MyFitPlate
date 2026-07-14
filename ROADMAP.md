@@ -540,8 +540,11 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   chart calculations, direct logging, or cycle-date rules. These surfaces now share the evidence
   hierarchy, use cautious source-aware health language, and include deterministic standard and
   dark accessibility-XXXL journeys with reviewed captures and explicit bounds/action checks.
-- [ ] Migrate the remaining long-tail feature families: onboarding/authentication, community, and
-  specialty nutrition tools.
+- [x] Migrate onboarding and authentication. Welcome, sign-in, account creation, loading, Personal
+  Setup, and the feature tour now use the shared hierarchy; required setup cannot be bypassed by
+  swiping or by a partially provisioned profile. Standard and dark accessibility-XXXL journeys are
+  captured and pass focused coverage.
+- [ ] Migrate the remaining long-tail feature families: community and specialty nutrition tools.
 - [ ] Retire legacy Home after rollout proof, remove the remaining legacy glass aliases, enforce
   the new rules in source checks, and complete the full 2.3 regression/release pass.
 

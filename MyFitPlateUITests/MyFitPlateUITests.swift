@@ -2467,6 +2467,85 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testOnboardingFamilyUsesUnifiedHierarchy() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_create_account"),
+            (name: "Sign In", route: "login", title: "Welcome back", action: "login_submit"),
+            (name: "Create Account", route: "signup", title: "Create your workspace", action: "signup_submit"),
+            (name: "Personal Setup", route: "onboarding-lifestyle", title: "How active is your life?", action: "onboarding_next"),
+            (name: "Feature Tour", route: "feature-tour", title: "Meet Maia", action: "feature_tour_next")
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route
+            ]
+            app.launch()
+
+            let title = app.staticTexts[screen.title]
+            let action = app.descendants(matching: .any)
+                .matching(identifier: screen.action)
+                .firstMatch
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertTrue(action.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(title.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX + 1)
+            XCTAssertGreaterThanOrEqual(action.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(action.frame.maxX, app.frame.maxX + 1)
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - unified first-run hierarchy"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testOnboardingFamilySupportsDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let screens = [
+            (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_create_account"),
+            (name: "Create Account", route: "signup", title: "Create your workspace", action: "Cancel"),
+            (name: "Personal Setup", route: "onboarding-lifestyle", title: "How active is your life?", action: "onboarding_next"),
+            (name: "Feature Tour", route: "feature-tour", title: "Meet Maia", action: "feature_tour_next")
+        ]
+
+        for screen in screens {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                screen.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let title = app.staticTexts[screen.title]
+            let action = app.descendants(matching: .any)
+                .matching(identifier: screen.action)
+                .firstMatch
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "\(screen.name) should load")
+            XCTAssertGreaterThanOrEqual(title.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX + 1)
+            XCTAssertTrue(action.waitForExistence(timeout: 5), "\(screen.name) should keep its key action")
+            XCTAssertTrue(action.isHittable, "\(screen.name) key action should remain reachable")
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(screen.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testCustomProductPageDeepLinksOpenExactDestinations() throws {
         let app = XCUIApplication()
         let destinations = [

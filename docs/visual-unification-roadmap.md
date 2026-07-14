@@ -287,11 +287,31 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   maximum-size verification uses reviewed screenshots plus explicit bounds and action checks.
   Ten design-system tests, strict lint, and the complete simulator build also pass.
 
+### Batch 16 - Onboarding and Account Access (complete)
+
+- Rebuilt Welcome, Sign In, Create Account, account loading, Personal Setup, and the first-run
+  feature tour around one evidence-led hierarchy with quiet grouped forms and stable actions.
+- Preserved authentication, password reset, profile creation, goal calculation, and completion
+  behavior while removing swipe navigation that could bypass required Personal Setup steps.
+- Added a shared first-login decision rule. Missing or partially provisioned profiles now remain in
+  setup until Firestore explicitly records completion, preventing a new-account timing race from
+  opening the main app before required profile data exists.
+- Reframed the feature tour around inspectable nutrition, cautious estimate language, training,
+  wellness evidence, and editable planning rather than unsupported product claims.
+- Removed screen-level accessibility identifiers that masked their child controls in SwiftUI.
+  Primary actions now expose stable identifiers as actual buttons, and the largest-text feature-
+  tour action retains a visible label.
+- Added deterministic routes for the complete first-run family plus four focused state-rule tests.
+  The standard five-screen journey and dark accessibility-XXXL four-screen journey pass with
+  reviewed captures, visible and hittable actions, and explicit horizontal-bound checks. Strict
+  lint and the complete simulator build pass.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
 review family now join that system, along with wellness, weight, fasting, and cycle tracking. The
-active queue moves to onboarding and authentication, community, and the remaining specialty tools.
+first-run and account-access family now joins them. The active queue moves to community and the
+remaining specialty nutrition tools.
 
 ## Product Direction
 

@@ -1,54 +1,51 @@
 import SwiftUI
 
 struct LandingPageView: View {
-    @EnvironmentObject var appState: AppState
+    @EnvironmentObject private var appState: AppState
     @State private var errorMessage: String?
 
     var body: some View {
-        ZStack {
-            Color.backgroundPrimary.ignoresSafeArea()
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            Spacer()
 
-            VStack(spacing: 20) {
-                Image("mfp logo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 112, height: 112)
-                    .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.10), radius: 16, x: 0, y: 8)
+            Image("mfp logo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 72, height: 72)
+                .clipShape(RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+                .accessibilityHidden(true)
 
-                Text("MyFitPlate")
-                    .appFont(size: 34, weight: .bold)
-                    .foregroundColor(.textPrimary)
+            AppScreenHeader(
+                eyebrow: "MyFitPlate",
+                title: errorMessage == nil ? "Preparing your day" : "We couldn't load your account",
+                subtitle: errorMessage ?? "Loading your goals, recent meals, and training context."
+            )
 
-                if let error = errorMessage {
-                    Text(error)
-                        .appFont(size: 13)
-                        .foregroundColor(.textPrimary)
-                        .multilineTextAlignment(.center)
-                        .padding(14)
-                        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                    Button("Retry") {
-                        loadData()
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                } else {
-                    ProgressView()
-                        .tint(.blue)
-                        .scaleEffect(1.2)
-                }
+            if errorMessage == nil {
+                ProgressView()
+                    .tint(AppPalette.brand)
+                    .accessibilityLabel("Loading account")
+            } else {
+                Button("Try again", action: loadData)
+                    .buttonStyle(AppActionButtonStyle(.secondary))
             }
-            .padding(24)
+
+            Spacer()
         }
-        .onAppear {
-            loadData()
-        }
+        .padding(.horizontal, AppSpacing.screenHorizontal)
+        .padding(.vertical, AppSpacing.section)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .accessibilityIdentifier("account_loading_screen")
+        .onAppear(perform: loadData)
     }
 
     private func loadData() {
         guard DIContainer.shared.authService.currentUserID != nil else {
-            errorMessage = "User not authenticated. Please log in."
+            errorMessage = "Your sign-in is no longer available. Return to sign in and try again."
+            appState.setUserLoggedIn(false)
             return
         }
+        errorMessage = nil
     }
 }

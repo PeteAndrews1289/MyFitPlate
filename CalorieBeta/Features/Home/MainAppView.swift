@@ -515,6 +515,19 @@ struct ContentView: View {
         ScreenshotDemoMode.isEnabled
     }
 
+    #if DEBUG
+    private var isOnboardingScreenshotSurface: Bool {
+        ScreenshotDemoMode.isEnabled && [
+            "welcome",
+            "login",
+            "signup",
+            "onboarding-baseline",
+            "onboarding-lifestyle",
+            "feature-tour"
+        ].contains(ScreenshotDemoData.requestedScreen)
+    }
+    #endif
+
     var body: some View {
         ZStack {
             mainContent
@@ -687,6 +700,19 @@ struct ContentView: View {
 
     @ViewBuilder
     private var mainContent: some View {
+        #if DEBUG
+        if isOnboardingScreenshotSurface {
+            onboardingScreenshotContent
+        } else {
+            standardMainContent
+        }
+        #else
+        standardMainContent
+        #endif
+    }
+
+    @ViewBuilder
+    private var standardMainContent: some View {
         if isLoadingUserState {
             LandingPageView()
         } else if appState.isUserLoggedIn {
@@ -704,6 +730,30 @@ struct ContentView: View {
             WelcomeView()
         }
     }
+
+    #if DEBUG
+    @ViewBuilder
+    private var onboardingScreenshotContent: some View {
+        switch ScreenshotDemoData.requestedScreen {
+        case "welcome":
+            WelcomeView()
+        case "login":
+            LoginView()
+        case "signup":
+            SignUpView()
+        case "onboarding-baseline":
+            OnboardingSurveyView(initialStep: 0, onComplete: { })
+                .environmentObject(goalSettings)
+        case "onboarding-lifestyle":
+            OnboardingSurveyView(initialStep: 3, onComplete: { })
+                .environmentObject(goalSettings)
+        case "feature-tour":
+            FeatureTourView(isPresented: .constant(true))
+        default:
+            WelcomeView()
+        }
+    }
+    #endif
     
     private func sendNutritionToWatchIfNeeded() {
         guard appState.isUserLoggedIn,
@@ -899,11 +949,7 @@ struct ContentView: View {
 
      private func checkFirstLogin(userID: String, completion: @escaping (Bool) -> Void) {
          DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { data in
-             if let data = data, let isFirstLogin = data["isFirstLogin"] as? Bool {
-                 completion(isFirstLogin)
-             } else {
-                 completion(false) // Default if field missing
-             }
+             completion(OnboardingStateRules.requiresSetup(profile: data))
          }
      }
 

@@ -2,100 +2,199 @@ import SwiftUI
 
 struct FeatureTourView: View {
     @Binding var isPresented: Bool
-    @State private var selection = 0
+    @State private var selection: Int
 
     private struct FeatureInfo {
         let iconName: String
+        let eyebrow: String
         let title: String
         let description: String
+        let detail: String
         let color: Color
     }
 
     private let features: [FeatureInfo] = [
         FeatureInfo(
             iconName: "sparkles",
+            eyebrow: "Ask and act",
             title: "Meet Maia",
-            description: "Your personal AI nutrition coach. Ask her anything, log food by chatting, or get smart suggestions for your next meal.",
+            description: "Use AI guidance to ask about your day, log food conversationally, and compare practical next steps.",
+            detail: "Maia uses the context you choose to share and labels estimates for review.",
             color: .purple
         ),
         FeatureInfo(
             iconName: "camera.viewfinder",
+            eyebrow: "Review first",
             title: "Snap and log",
-            description: "No more searching. Just snap a photo of your meal or a nutrition label, and our AI will estimate the calories and macros for you.",
+            description: "Photograph a meal or nutrition label, then review the estimated calories, macros, and serving before logging.",
+            detail: "Image results remain estimates until you confirm them.",
             color: .orange
         ),
         FeatureInfo(
             iconName: "dumbbell.fill",
-            title: "Smart training",
-            description: "Generate custom workout plans with AI, track your sets, and see your rest timers right on your Lock Screen.",
+            eyebrow: "Train with context",
+            title: "Plan the work",
+            description: "Build training programs, track sets, review sessions, and keep the next workout close at hand.",
+            detail: "Nutrition and recovery remain visible beside training progress.",
             color: .blue
         ),
         FeatureInfo(
             iconName: "heart.text.square.fill",
-            title: "Daily wellness",
-            description: "We combine your Nutrition, Sleep, and Recovery data into a single 'Wellness Score' to help you balance effort with rest.",
+            eyebrow: "Read the signals",
+            title: "Debrief your day",
+            description: "Bring nutrition, sleep, and recovery signals into one wellness debrief without hiding where each signal came from.",
+            detail: "Scores summarize available data; they are guidance, not medical advice.",
             color: .accentPositive
         ),
         FeatureInfo(
             iconName: "calendar.badge.clock",
-            title: "Plan ahead",
-            description: "Generate full 7-day meal plans and grocery lists in seconds based on your specific goals and taste preferences.",
-            color: .orange
+            eyebrow: "Look ahead",
+            title: "Plan meals together",
+            description: "Create a seven-day meal plan and turn it into a grocery list shaped around your goals and preferences.",
+            detail: "Every generated plan stays editable before it becomes your week.",
+            color: .accentSignal
         )
     ]
 
+    init(isPresented: Binding<Bool>, initialSelection: Int = 0) {
+        _isPresented = isPresented
+        _selection = State(initialValue: min(max(initialSelection, 0), 4))
+    }
+
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
+        VStack(spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("First look")
+                        .appTextRole(.sectionTitle)
+                        .foregroundStyle(AppPalette.text)
+                    Text("\(selection + 1) of \(features.count)")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+
+                Spacer()
+
+                Button("Skip") { isPresented = false }
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.brand)
+                    .accessibilityIdentifier("feature_tour_skip")
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.row)
+
+            ProgressView(value: Double(selection + 1), total: Double(features.count))
+                .tint(AppPalette.brand)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.bottom, AppSpacing.row)
+
+            Divider()
 
             TabView(selection: $selection) {
                 ForEach(features.indices, id: \.self) { index in
-                    featureCard(for: features[index]).tag(index)
+                    featurePage(features[index])
+                        .tag(index)
                 }
             }
-            .tabViewStyle(PageTabViewStyle())
-            .indexViewStyle(PageIndexViewStyle(backgroundDisplayMode: .always))
-
-            Spacer()
-
-            Button(selection == features.count - 1 ? "Get started" : "Next") {
-                if selection == features.count - 1 {
-                    isPresented = false
-                } else {
-                    withAnimation {
-                        selection += 1
-                    }
-                }
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .padding(.horizontal, 30)
-            .padding(.bottom, 40)
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .animation(AppMotion.standard, value: selection)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom) {
+            FeatureTourActions(
+                selection: $selection,
+                count: features.count,
+                finish: { isPresented = false }
+            )
+        }
+        .background(AppPalette.canvas.ignoresSafeArea())
     }
 
-    @ViewBuilder
-    private func featureCard(for feature: FeatureInfo) -> some View {
-        VStack(spacing: 25) {
-            Spacer()
-            Image(systemName: feature.iconName)
-                .appFont(size: 54, weight: .bold)
-                .foregroundColor(feature.color)
-                .frame(width: 118, height: 118)
-                .background(Color(UIColor.secondarySystemFill), in: Circle())
-            
-            Text(feature.title)
-                .appFont(size: 26, weight: .bold)
-                .multilineTextAlignment(.center)
-            
-            Text(feature.description)
-                .appFont(size: 17, weight: .regular)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 320)
-                .lineSpacing(4)
-            Spacer()
+    private func featurePage(_ feature: FeatureInfo) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                Image(systemName: feature.iconName)
+                    .appTextRole(.display)
+                    .foregroundStyle(feature.color)
+                    .frame(width: 80, height: 80)
+                    .background(feature.color.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.hero, style: .continuous))
+                    .accessibilityHidden(true)
+
+                AppScreenHeader(
+                    eyebrow: feature.eyebrow,
+                    title: feature.title,
+                    subtitle: feature.description
+                )
+
+                HStack(alignment: .top, spacing: AppSpacing.row) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(feature.color)
+                        .accessibilityHidden(true)
+                    Text(feature.detail)
+                        .appTextRole(.body)
+                        .foregroundStyle(AppPalette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .appSurface(.quiet)
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.section)
         }
-        .padding(.horizontal, 20)
+    }
+}
+
+private struct FeatureTourActions: View {
+    @Binding var selection: Int
+    let count: Int
+    let finish: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: AppSpacing.compact) {
+                    nextButton
+                    if selection > 0 { backButton }
+                }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    if selection > 0 { backButton }
+                    nextButton
+                }
+            }
+        }
+        .padding(.horizontal, AppSpacing.screenHorizontal)
+        .padding(.vertical, AppSpacing.row)
+        .background(AppPalette.canvas)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    private var nextButton: some View {
+        Button {
+            if selection == count - 1 {
+                finish()
+            } else {
+                withAnimation(AppMotion.standard) { selection += 1 }
+            }
+        } label: {
+            Text(nextTitle)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(AppActionButtonStyle(.primary))
+        .accessibilityLabel(nextTitle)
+        .accessibilityIdentifier("feature_tour_next")
+    }
+
+    private var nextTitle: String {
+        selection == count - 1 ? "Open MyFitPlate" : "Next"
+    }
+
+    private var backButton: some View {
+        Button("Back") {
+            withAnimation(AppMotion.standard) { selection -= 1 }
+        }
+        .buttonStyle(AppActionButtonStyle(.secondary))
     }
 }
