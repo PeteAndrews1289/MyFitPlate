@@ -21,6 +21,14 @@ public class AIService: AIServiceProtocol {
         requestKind: AIRequestKind = .general,
         retryCount: Int = 1
     ) async -> Result<String, AIError> {
+        if let requiredFlag = requestKind.requiredFeatureFlag {
+            let isEnabled = DIContainer.shared.featureFlagService?.boolValue(for: requiredFlag)
+                ?? requiredFlag.defaultValue
+            guard isEnabled else {
+                return .failure(.featureUnavailable)
+            }
+        }
+
         guard let userID = DIContainer.shared.authService.currentUserID,
               AIDataConsentStore.shared.hasCurrentConsent(for: userID) else {
             NotificationCenter.default.post(name: .aiDataConsentRequired, object: nil)

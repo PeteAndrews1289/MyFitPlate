@@ -4,8 +4,11 @@ public enum FeatureFlag: String, CaseIterable {
     case newMealPlanner
     case newWorkoutRoutine
     case premiumFeatures
+    case mealPhotoLogging
+    case nutritionLabelScanner
     case menuScanner
     case receiptScanner
+    case recipePhotoScanner
     case communityBarcodeCorrections
     case livingDayHome
     case healthCanadaFoodSearch
@@ -19,8 +22,11 @@ public enum FeatureFlag: String, CaseIterable {
         case .newMealPlanner: return false
         case .newWorkoutRoutine: return false
         case .premiumFeatures: return false
+        case .mealPhotoLogging: return true
+        case .nutritionLabelScanner: return true
         case .menuScanner: return true
         case .receiptScanner: return true
+        case .recipePhotoScanner: return true
         // Dark until the extended barcodes rules are deployed and the pool has soaked.
         case .communityBarcodeCorrections: return false
         // Living Day is the 2.3 Home. Remote Config remains available as an emergency kill switch.

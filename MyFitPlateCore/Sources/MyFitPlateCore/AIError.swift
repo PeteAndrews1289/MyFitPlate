@@ -1,5 +1,3 @@
-
-
 import Foundation
 
 public enum AIRequestKind: String, Sendable {
@@ -9,10 +7,22 @@ public enum AIRequestKind: String, Sendable {
     case menuPhoto = "menu_photo"
     case receiptPhoto = "receipt_photo"
     case recipePhoto = "recipe_photo"
+
+    public var requiredFeatureFlag: FeatureFlag? {
+        switch self {
+        case .general: return nil
+        case .mealPhoto: return .mealPhotoLogging
+        case .nutritionLabel: return .nutritionLabelScanner
+        case .menuPhoto: return .menuScanner
+        case .receiptPhoto: return .receiptScanner
+        case .recipePhoto: return .recipePhotoScanner
+        }
+    }
 }
 
 public enum AIError: Error, LocalizedError {
     case consentRequired
+    case featureUnavailable
     case invalidURL
     case noData
     case apiError(String)
@@ -23,6 +33,8 @@ public enum AIError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .consentRequired: return "Review and allow AI data sharing before using Maia."
+        case .featureUnavailable:
+            return "This camera tool is temporarily unavailable. Try another logging method."
         case .invalidURL: return "Invalid API URL."
         case .noData: return "The AI returned no data."
         case .apiError(let msg): return "AI Error: \(msg)"
@@ -32,7 +44,6 @@ public enum AIError: Error, LocalizedError {
         }
     }
 }
-
 
 public protocol AIServiceProtocol {
     func performRequest(
@@ -45,7 +56,6 @@ public protocol AIServiceProtocol {
         retryCount: Int
     ) async -> Result<String, AIError>
 }
-
 
 public extension AIServiceProtocol {
     func performRequest(

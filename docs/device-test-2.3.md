@@ -48,6 +48,13 @@ signed production console and must remain open until they are directly observed:
 - [ ] In Firebase Remote Config, confirm `feature_livingDayHome` evaluates to `true` for the intended
   2.3 audience. Temporarily set it to `false`, relaunch, and confirm the 2.2 Home returns as the
   rollback; restore `true` before archiving or distributing the intended 2.3 experience.
+- [ ] Confirm the five camera Remote Config keys are `true`: `feature_mealPhotoLogging`,
+  `feature_nutritionLabelScanner`, `feature_menuScanner`, `feature_receiptScanner`, and
+  `feature_recipePhotoScanner`. In a non-production test window, set one route to `false` and verify
+  only that workflow returns the temporary-unavailable state while general Maia still works.
+- [ ] Confirm `internalConfig/aiRoutes` is absent or contains no false values for release. Test one
+  server field set to `false`, allow up to 60 seconds for cache expiry, and verify the matching route
+  is blocked without consuming vision quota. Restore or remove the field immediately afterward.
 - [ ] On the smallest supported physical iPhone, enable Living Day and perform a five-second glance.
   Confirm you can identify what happened, what is planned, and the single next action without
   explanatory help. Repeat once in compact and once in detailed density.

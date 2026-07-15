@@ -16,6 +16,8 @@ export interface AIRequestRoute {
   dailyLimit?: number;
 }
 
+export type AIVisionRouteConfiguration = Partial<Record<AIRequestKind, boolean>>;
+
 const GENERAL_MODEL = "gpt-4o-mini";
 const VISION_USAGE_COLLECTION = "aiVisionUsage";
 const VISION_DAILY_LIMIT = 75;
@@ -172,4 +174,16 @@ export function resolveAIRequestRoute(value: unknown): AIRequestRoute {
 
 export function isReasoningRoute(route: AIRequestRoute): boolean {
   return route.model.startsWith("gpt-5.");
+}
+
+/// A missing document or field intentionally means enabled so a deployment does not depend on
+/// operator configuration. Setting one route to false disables only that route.
+export function isAIRequestRouteEnabled(
+  kind: AIRequestKind,
+  configuration: AIVisionRouteConfiguration | undefined
+): boolean {
+  if (kind === "general") {
+    return true;
+  }
+  return configuration?.[kind] !== false;
 }

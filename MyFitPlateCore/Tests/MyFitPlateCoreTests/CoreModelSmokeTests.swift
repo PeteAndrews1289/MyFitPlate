@@ -7,6 +7,10 @@ final class CoreModelSmokeTests: XCTestCase {
         let network = NSError(domain: "network", code: 11, userInfo: [NSLocalizedDescriptionKey: "Offline"])
 
         XCTAssertEqual(AIError.invalidURL.errorDescription, "Invalid API URL.")
+        XCTAssertEqual(
+            AIError.featureUnavailable.errorDescription,
+            "This camera tool is temporarily unavailable. Try another logging method."
+        )
         XCTAssertEqual(AIError.noData.errorDescription, "The AI returned no data.")
         XCTAssertEqual(AIError.apiError("Quota exceeded").errorDescription, "AI Error: Quota exceeded")
         XCTAssertEqual(AIError.decodingError(decoding).errorDescription, "Failed to process AI response: Bad payload")
@@ -19,6 +23,15 @@ final class CoreModelSmokeTests: XCTestCase {
         XCTAssertEqual(APIError.networkError(network).errorDescription, "There was a network error: Offline")
         XCTAssertEqual(APIError.apiError("Server rejected request").errorDescription, "Server rejected request")
         XCTAssertEqual(APIError.unknown.errorDescription, "An unknown error occurred.")
+    }
+
+    func testCameraRequestKindsMapToIndependentFeatureFlags() {
+        XCTAssertNil(AIRequestKind.general.requiredFeatureFlag)
+        XCTAssertEqual(AIRequestKind.mealPhoto.requiredFeatureFlag, .mealPhotoLogging)
+        XCTAssertEqual(AIRequestKind.nutritionLabel.requiredFeatureFlag, .nutritionLabelScanner)
+        XCTAssertEqual(AIRequestKind.menuPhoto.requiredFeatureFlag, .menuScanner)
+        XCTAssertEqual(AIRequestKind.receiptPhoto.requiredFeatureFlag, .receiptScanner)
+        XCTAssertEqual(AIRequestKind.recipePhoto.requiredFeatureFlag, .recipePhotoScanner)
     }
 
     func testAIServiceProtocolDefaultArgumentsDelegateToFullSignature() async {

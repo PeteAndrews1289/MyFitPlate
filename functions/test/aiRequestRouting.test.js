@@ -2,10 +2,26 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  isAIRequestRouteEnabled,
   isReasoningRoute,
   normalizeAIRequestKind,
   resolveAIRequestRoute,
 } = require("../lib/aiRequestRouting.js");
+
+test("vision routes can be disabled independently without affecting general Maia", () => {
+  const config = {
+    meal_photo: false,
+    nutrition_label: true,
+    receipt_photo: false,
+  };
+
+  assert.equal(isAIRequestRouteEnabled("general", config), true);
+  assert.equal(isAIRequestRouteEnabled("meal_photo", config), false);
+  assert.equal(isAIRequestRouteEnabled("nutrition_label", config), true);
+  assert.equal(isAIRequestRouteEnabled("menu_photo", config), true);
+  assert.equal(isAIRequestRouteEnabled("receipt_photo", config), false);
+  assert.equal(isAIRequestRouteEnabled("recipe_photo", undefined), true);
+});
 
 test("unknown request kinds stay on the inexpensive general route", () => {
   assert.equal(normalizeAIRequestKind("made_up"), "general");

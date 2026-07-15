@@ -54,6 +54,9 @@ internal contract filenames and analytics schema remain unchanged for traceabili
 - Vision calls have a separate 75-request daily account limit. Aggregate success, failure, token,
   and latency totals are retained by purpose and model without prompts or responses. A SHA-256
   derivative of the account UID is used only as OpenAI's stable safety identifier.
+- Meal, label, menu, receipt, and recipe camera routes each have an app Remote Config switch and a
+  server-owned `internalConfig/aiRoutes` boolean. The server document is default-denied to clients,
+  does not affect general Maia, and is cached for no more than 60 seconds.
 - App Check client support uses the Debug provider for development and App Attest for release. Backend enforcement remains an owner-controlled rollout after production metrics confirm client readiness.
 - Diary mutations are serialized per user/day to prevent overlapping writes from losing food, water, exercise, or deletion changes.
 - Malformed remote daily logs now surface an error instead of becoming an empty writable replacement.

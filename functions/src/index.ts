@@ -25,6 +25,9 @@ import {
   searchDietarySupplements,
 } from "./dietarySupplementLabels";
 import {
+  AIRequestKind,
+  AIVisionRouteConfiguration,
+  isAIRequestRouteEnabled,
   isReasoningRoute,
   resolveAIRequestRoute,
 } from "./aiRequestRouting";
@@ -56,6 +59,12 @@ const COMMUNITY_BARCODE_MAX_CONTRIBUTIONS = 250;
 const ALLOWED_ROLES = new Set(["system", "user", "assistant"]);
 const ALLOWED_FATSECRET_PARAMS = new Set(["query", "barcode", "food_id", "page", "max_results"]);
 const MAX_PARAM_LENGTH = 200;
+const AI_ROUTE_CONFIG_CACHE_MS = 60_000;
+
+let cachedAIRouteConfiguration: {
+  value: AIVisionRouteConfiguration;
+  expiresAt: number;
+} | undefined;
 
 interface CommunityBarcodeConfig {
   acceptContributions: boolean;
@@ -106,6 +115,51 @@ interface AIUsageResult {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+}
+
+async function ensureAIRequestRouteEnabled(kind: AIRequestKind): Promise<void> {
+  if (kind === "general") {
+    return;
+  }
+
+  const now = Date.now();
+  if (!cachedAIRouteConfiguration || cachedAIRouteConfiguration.expiresAt <= now) {
+    try {
+      const snapshot = await db.collection("internalConfig").doc("aiRoutes").get();
+      const data = snapshot.data() ?? {};
+      const value: AIVisionRouteConfiguration = {};
+      for (const routeKind of [
+        "meal_photo",
+        "nutrition_label",
+        "menu_photo",
+        "receipt_photo",
+        "recipe_photo",
+      ] as const) {
+        if (typeof data[routeKind] === "boolean") {
+          value[routeKind] = data[routeKind];
+        }
+      }
+      cachedAIRouteConfiguration = {
+        value,
+        expiresAt: now + AI_ROUTE_CONFIG_CACHE_MS,
+      };
+    } catch (error) {
+      logger.warn("Could not refresh AI route configuration", {
+        errorType: error instanceof Error ? error.name : "unknown",
+      });
+      cachedAIRouteConfiguration = {
+        value: cachedAIRouteConfiguration?.value ?? {},
+        expiresAt: now + AI_ROUTE_CONFIG_CACHE_MS,
+      };
+    }
+  }
+
+  if (!isAIRequestRouteEnabled(kind, cachedAIRouteConfiguration.value)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "This camera analysis route is temporarily unavailable."
+    );
+  }
 }
 
 /// Stores aggregate billing inputs without prompts, responses, or analytics identifiers.
@@ -463,6 +517,7 @@ export const generateAIResponse = onCall(
     const { messages, maxTokens, temperature, responseFormat, requestKind } = data;
     validateMessages(messages);
     const route = resolveAIRequestRoute(requestKind);
+    await ensureAIRequestRouteEnabled(route.kind);
 
     // 3. Per-user daily rate limit (atomic counter via Admin SDK), only for valid requests.
     await enforceDailyLimit(uid, "aiUsage", DAILY_CALL_LIMIT);

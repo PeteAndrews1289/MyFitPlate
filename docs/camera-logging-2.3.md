@@ -79,6 +79,22 @@ Nothing enters the diary until the user confirms the review screen. The screen e
 After confirmation, the item records user review while retaining its photo-estimate lineage and
 original estimate for Trust history.
 
+## Emergency Controls
+
+Every camera workflow has two independent controls:
+
+- The current app checks Firebase Remote Config before sending the request. The keys are
+  `feature_mealPhotoLogging`, `feature_nutritionLabelScanner`, `feature_menuScanner`,
+  `feature_receiptScanner`, and `feature_recipePhotoScanner`.
+- The callable checks the server-owned Firestore document `internalConfig/aiRoutes`. Boolean fields
+  named `meal_photo`, `nutrition_label`, `menu_photo`, `receipt_photo`, and `recipe_photo` can each
+  be set to `false`. Missing fields default to enabled, general Maia is never affected, and a server
+  change takes effect on warm instances within 60 seconds.
+
+The Firestore document is covered by the default-deny Rules and can be changed only through an
+operator/admin path. Use the server control for a cost, provider, or output-quality incident and
+the matching Remote Config control to remove the unavailable workflow from the current app.
+
 ## Deployment And Acceptance
 
 Deploy the changed callable before testing:
@@ -87,8 +103,9 @@ Deploy the changed callable before testing:
 firebase deploy --only functions
 ```
 
-No new Firebase secret, Firestore Rules, index, or migration is required. Before release, use at
-least 20-30 real photos across simple single foods, mixed plates, bowls/soups, restaurant meals,
+No new Firebase secret, Firestore Rules, index, or migration is required. The optional
+`internalConfig/aiRoutes` document is needed only when an operator wants to disable a route. Before
+release, use at least 20-30 real photos across simple single foods, mixed plates, bowls/soups, restaurant meals,
 visible and hidden sauces/oils, beverages, poor lighting, and missing scale. Record:
 
 - correct item separation and useful generic identity;
@@ -106,6 +123,5 @@ better-sounding answer is not evidence of better nutrition logging.
 
 If production usage grows, first reduce cost with measured routing changes rather than lowering
 trust visibility: evaluate Luna for more menu cases, reduce image dimensions when accuracy holds,
-cache repeated composition searches, tighten the vision quota, or place the route table behind a
-server feature flag. Keep the client unable to select models and preserve the review contract even
-when a cheaper model is used.
+cache repeated composition searches, or tighten the vision quota. Keep the client unable to select
+models and preserve the review contract even when a cheaper model is used.
