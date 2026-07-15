@@ -144,7 +144,7 @@ approved and the five URLs pass signed-in and signed-out physical-device testing
 | Diary write failures | `nonfatal_error_recorded` | `area=nutrition`, `operation=daily_log_mutation`; Crashlytics also carries safe `stage` | Treat repeated persistence failures as data-loss severity even when the UI shows an error. |
 | Barcode lookup health | `barcode_lookup_outcome` | `result`, winning `source`, `duration_ms`, `duration_bucket` | Watch hit rate and p50/p75 latency. A miss represents the complete provider chain, not one provider. |
 | AI response decoding | `nonfatal_error_recorded` | `area=ai`, decode operation | A repeated decoder operation means a feature contract is broken even if the model request succeeded. |
-| AI request success and latency | Server `aiUsage` documents and Functions logs | Day, model, outcome, latency | Investigate failure-rate or latency changes before increasing AI exposure. |
+| AI request success and latency | Server `aiUsage`, `aiUsageBreakdown`, and Functions logs | Day, workflow, model, outcome, latency | Investigate failure-rate or latency changes before increasing AI exposure. |
 | App Check validity | Firebase App Check metrics | Function, app version | Do not enable enforcement until valid 2.2+ traffic is consistently accepted and rollback is ready. |
 | Account deletion | Analytics + Functions logs | Started, completed, failed reason | Any server-data deletion failure is release-critical; never report success before server and Auth deletion finish. |
 | Community consensus health | Private `communityBarcodeMetrics` + Functions logs | Accepted submissions, published/insufficient/conflict/quarantined/disabled aggregate events | Keep public flag off through soak; investigate conflict, rejection, volume-limit, cost, or App Check anomalies before increasing exposure. |
@@ -154,13 +154,21 @@ an owner is actively investigating; it must never mean merely "a number moved."
 
 ## AI cost per active user
 
-The callable Function already keeps a private per-user/day quota document. Schema 1 now adds:
+The callable Function keeps a private per-user/day quota and aggregate document. Schema 3 includes:
 
 - `count`: valid requests admitted by the daily limiter.
 - `successfulCount` and `failedCount`.
 - `inputTokens`, `outputTokens`, and `totalTokens` from successful OpenAI responses.
-- `totalLatencyMs`, `lastLatencyMs`, `lastModel`, and `lastOutcome`.
+- Workflow-specific success, failure, token, and latency counters for general, meal-photo,
+  nutrition-label, menu-photo, receipt-photo, and recipe-photo requests.
+- `totalLatencyMs`, `lastLatencyMs`, `lastModel`, `lastRequestKind`, and `lastOutcome`.
 - `uid`, `day`, and `updatedAt` for quota enforcement and account deletion.
+
+The private `aiUsageBreakdown` collection keeps one schema-1 aggregate per
+account/day/workflow/model combination. It repeats only the safe counters above plus `requestKind`
+and `model`; it does not store an image, prompt, response, food identity, or analytics identifier.
+This split is the comparison source for the fixed camera benchmark because a model change within a
+UTC day cannot contaminate the previous model's totals. Account deletion removes both collections.
 
 Prompts and responses are never written to this document. These documents remain server-owned
 and are deleted by the existing account-deletion Function.

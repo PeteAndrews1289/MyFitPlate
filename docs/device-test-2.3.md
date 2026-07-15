@@ -119,6 +119,9 @@ well. They replace a screen-by-screen manual retest:
   upload without corruption or an unbounded payload; the unusable image must fail cleanly without
   invented food. Also smoke-test nutrition-label, menu, receipt, and recipe-photo extraction after
   the model-routing deployment.
+- [ ] Run each fixed camera comparison with a dedicated temporary account and no unrelated AI
+  calls. In Firestore, filter `aiUsageBreakdown` by that account's UID and UTC day; record workflow,
+  model, success/failure counts, token totals, and mean latency, then delete the account.
 - [ ] Open Settings > Nutrition data sources in light/dark mode and large text. Confirm the Health
   Canada Open Government Licence attribution and NIH explanation are fully reachable.
 - [ ] Open Adaptive Metabolism with real account data. It must say `Adaptive TDEE estimate`, show

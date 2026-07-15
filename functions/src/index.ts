@@ -31,6 +31,11 @@ import {
   isReasoningRoute,
   resolveAIRequestRoute,
 } from "./aiRequestRouting";
+import {
+  aiUsageBreakdownDocumentID,
+  aiUsageRequestPrefix,
+  safeAIUsageCount,
+} from "./aiUsageTelemetry";
 
 initializeApp();
 const db = getFirestore();
@@ -109,7 +114,7 @@ async function enforceDailyLimit(uid: string, collection: string, limit: number)
 
 interface AIUsageResult {
   model: string;
-  requestKind?: string;
+  requestKind?: AIRequestKind;
   durationMs: number;
   succeeded: boolean;
   inputTokens?: number;
@@ -168,27 +173,16 @@ async function ensureAIRequestRouteEnabled(kind: AIRequestKind): Promise<void> {
 async function recordAIUsageResult(uid: string, result: AIUsageResult): Promise<void> {
   const day = new Date().toISOString().slice(0, 10);
   const ref = db.collection("aiUsage").doc(`${uid}_${day}`);
-  const safeCount = (value: number | undefined): number =>
-    Math.max(0, Math.round(typeof value === "number" && Number.isFinite(value) ? value : 0));
-
-  const requestPrefix = (() => {
-    switch (result.requestKind) {
-    case "meal_photo": return "mealPhoto";
-    case "nutrition_label": return "nutritionLabel";
-    case "menu_photo": return "menuPhoto";
-    case "receipt_photo": return "receiptPhoto";
-    case "recipe_photo": return "recipePhoto";
-    default: return "general";
-    }
-  })();
-  const inputTokens = safeCount(result.inputTokens);
-  const outputTokens = safeCount(result.outputTokens);
-  const totalTokens = safeCount(result.totalTokens);
-  const latencyMs = safeCount(result.durationMs);
+  const requestKind = result.requestKind ?? "general";
+  const requestPrefix = aiUsageRequestPrefix(requestKind);
+  const inputTokens = safeAIUsageCount(result.inputTokens);
+  const outputTokens = safeAIUsageCount(result.outputTokens);
+  const totalTokens = safeAIUsageCount(result.totalTokens);
+  const latencyMs = safeAIUsageCount(result.durationMs);
   const data: Record<string, unknown> = {
     uid,
     day,
-    usageSchema: 2,
+    usageSchema: 3,
     successfulCount: FieldValue.increment(result.succeeded ? 1 : 0),
     failedCount: FieldValue.increment(result.succeeded ? 0 : 1),
     inputTokens: FieldValue.increment(inputTokens),
@@ -203,13 +197,34 @@ async function recordAIUsageResult(uid: string, result: AIUsageResult): Promise<
     [`${requestPrefix}TotalLatencyMs`]: FieldValue.increment(latencyMs),
     lastLatencyMs: latencyMs,
     lastModel: result.model,
-    lastRequestKind: result.requestKind ?? "general",
+    lastRequestKind: requestKind,
+    lastOutcome: result.succeeded ? "success" : "failure",
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  const breakdownID = aiUsageBreakdownDocumentID(uid, day, requestKind, result.model);
+  const breakdownRef = db.collection("aiUsageBreakdown").doc(breakdownID);
+  const breakdownData: Record<string, unknown> = {
+    uid,
+    day,
+    usageSchema: 1,
+    requestKind,
+    model: result.model,
+    successfulCount: FieldValue.increment(result.succeeded ? 1 : 0),
+    failedCount: FieldValue.increment(result.succeeded ? 0 : 1),
+    inputTokens: FieldValue.increment(inputTokens),
+    outputTokens: FieldValue.increment(outputTokens),
+    totalTokens: FieldValue.increment(totalTokens),
+    totalLatencyMs: FieldValue.increment(latencyMs),
+    lastLatencyMs: latencyMs,
     lastOutcome: result.succeeded ? "success" : "failure",
     updatedAt: FieldValue.serverTimestamp(),
   };
 
   try {
-    await ref.set(data, { merge: true });
+    const batch = db.batch();
+    batch.set(ref, data, { merge: true });
+    batch.set(breakdownRef, breakdownData, { merge: true });
+    await batch.commit();
   } catch (error) {
     // Telemetry must never turn a successful model response into a user-visible failure.
     logger.warn("Could not persist aggregate AI usage telemetry", {
@@ -883,6 +898,7 @@ export const deleteUserData = onCall(async (request) => {
   // Delete the per-user usage counters stored in top-level collections.
   const usageCollections = [
     "aiUsage",
+    "aiUsageBreakdown",
     "aiVisionUsage",
     "fatSecretUsage",
     "referenceFoodUsage",
@@ -894,9 +910,13 @@ export const deleteUserData = onCall(async (request) => {
     if (snapshot.empty) {
       continue;
     }
-    const batch = db.batch();
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
-    await batch.commit();
+    // Long-lived accounts can exceed Firestore's 500-operation batch ceiling, especially when
+    // one workflow/model aggregate is retained per day. Keep deletion bounded and retryable.
+    for (let index = 0; index < snapshot.docs.length; index += 450) {
+      const batch = db.batch();
+      snapshot.docs.slice(index, index + 450).forEach((doc) => batch.delete(doc.ref));
+      await batch.commit();
+    }
   }
 
   // Delete the login record last. If any prior deletion fails, the account remains available

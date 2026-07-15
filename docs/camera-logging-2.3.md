@@ -36,8 +36,10 @@ pricing guidance is maintained by OpenAI and must be checked before changing the
   requests per account per UTC day in addition to the overall AI limit.
 - A stable SHA-256 value derived from the Firebase UID is sent as the privacy-preserving OpenAI
   safety identifier. Prompts and responses are not written to usage telemetry.
-- Token count, latency, success, and failure totals are recorded by workflow and model. Pricing is
-  deliberately not hardcoded because provider rates can change without an app release.
+- Token count, latency, success, and failure totals are recorded in private daily rollups. The
+  `aiUsage` document carries account/day and workflow totals; `aiUsageBreakdown` keeps a separate
+  aggregate for each account/day/workflow/model combination so model comparisons cannot blend.
+  Pricing is deliberately not hardcoded because provider rates can change without an app release.
 
 ## Meal Photo Contract
 
@@ -114,10 +116,18 @@ visible and hidden sauces/oils, beverages, poor lighting, and missing scale. Rec
 - inappropriate database matches;
 - correction scope before logging;
 - end-to-end latency, malformed responses, and failures; and
-- tokens by request kind in `aiUsage`.
+- tokens by request kind and model in `aiUsageBreakdown`.
+
+Use a dedicated temporary account for each fixed-set comparison and do not make unrelated AI calls
+with that account during the run. In Firestore, filter `aiUsageBreakdown` by its `uid` and `day`,
+then confirm the `requestKind`, `model`, success/failure counts, token totals, and total latency.
+Divide `totalLatencyMs` by successful plus failed calls for the mean server round-trip. Delete the
+temporary account after recording aggregate results; account deletion removes both usage stores.
 
 Compare the same fixed photo set against the previous route before claiming an accuracy gain. A
 better-sounding answer is not evidence of better nutrition logging.
+
+Use [Camera Benchmark 2.3](camera-benchmark-2.3.md) as the fixed manifest and result record.
 
 ## Scale Controls
 

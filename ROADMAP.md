@@ -105,6 +105,10 @@ UPC/EAN variants resolve to one stable food identity, complete document replacem
 optional nutrients, and duplicate legacy corrections are collapsed in the same atomic write. The
 remaining correction work is the physical UI journey and its before/after evidence.
 
+Camera benchmark observability is prepared: private aggregates now separate account, UTC day,
+workflow, and model, and `docs/camera-benchmark-2.3.md` defines the fixed 25-image scorecard. No
+camera accuracy claim is made until that set is physically run and evaluated.
+
 - [ ] Run the fixed camera benchmark in `docs/camera-logging-2.3.md` against 20-30 representative
   meal, label, receipt, recipe, and menu images.
 - [ ] Record correction size, confidence/range usefulness, inappropriate reference matches,
@@ -237,6 +241,7 @@ Metrics are directional until MyFitPlate has enough real users for meaningful co
 - [Trust calibration](docs/trust-calibration-2.3.md)
 - [Food provider strategy](docs/food-data-provider-strategy-2.3.md)
 - [Camera logging contract](docs/camera-logging-2.3.md)
+- [Camera benchmark scorecard](docs/camera-benchmark-2.3.md)
 - [Micronutrient data contract](docs/micronutrient-data-2.3.md)
 - [Analytics and launch health](docs/analytics-dashboard-2.3.md)
 - [Feedback triage](docs/feedback-triage-2.3.md)
