@@ -79,6 +79,9 @@ barcode lookup, never fuzzy-enriches a branded record, and cannot earn cross-dat
 against USDA. CNF can incorporate USDA and other compiled inputs, so counting it as independent
 corroboration would overstate the evidence. The current record-level Trust lineage is deliberately
 the conservative `governmentCompilation`; source summaries remain visible in metadata notes.
+Search matches complete normalized tokens rather than substrings, handles common singular/plural
+forms, and treats a generic `cooked` query as a request for an explicitly cooked preparation. It
+does not silently substitute one specific cooking method for another.
 
 The backend asset is covered by the Open Government Licence - Canada attribution in Settings. It
 adds approximately 3.2 MB to the deployed Functions package, not to the iPhone or Watch bundle.

@@ -109,6 +109,22 @@ const SIMPLE_FORM_TERMS = new Set([
   "stewed",
 ]);
 
+const COOKED_FORM_TERMS = new Set([
+  "baked",
+  "boiled",
+  "braised",
+  "broiled",
+  "cooked",
+  "fried",
+  "grilled",
+  "poached",
+  "roasted",
+  "rotisserie",
+  "sauteed",
+  "steamed",
+  "stewed",
+]);
+
 let cachedDataset: CanadianNutrientDataset | undefined;
 
 export function loadCanadianNutrientDataset(): CanadianNutrientDataset {
@@ -152,16 +168,18 @@ function searchScore(food: CompactCanadianFood, query: string, tokens: string[])
   const name = normalize(food.n);
   const alternate = normalize(food.a ?? "");
   const nameTokens = name.split(" ");
+  const alternateTokens = alternate.split(" ").filter(Boolean);
+  const searchableTokens = [...nameTokens, ...alternateTokens];
   const queryTokenSet = new Set(tokens);
   let score = 0;
 
   if (name === query || alternate === query) {
     score = 10_000;
-  } else if (name.startsWith(query) || alternate.startsWith(query)) {
+  } else if (startsWithPhrase(name, query) || startsWithPhrase(alternate, query)) {
     score = 8_000;
-  } else if (name.includes(query) || alternate.includes(query)) {
+  } else if (containsPhrase(name, query) || containsPhrase(alternate, query)) {
     score = 6_500;
-  } else if (tokens.every((token) => name.includes(token) || alternate.includes(token))) {
+  } else if (tokens.every((token) => matchesSearchToken(token, searchableTokens))) {
     score = 5_500;
   } else {
     return 0;
@@ -173,7 +191,8 @@ function searchScore(food: CompactCanadianFood, query: string, tokens: string[])
     PROCESSED_FORM_TERMS.has(token) && !queryTokenSet.has(token)
   ).length;
   const simpleFormBonus = nameTokens.some((token) => SIMPLE_FORM_TERMS.has(token)) ? 180 : 0;
-  const genericFoodBonus = nameTokens.includes(tokens[0]) && tokens.every((token) => nameTokens.includes(token))
+  const genericFoodBonus = matchesSearchToken(tokens[0], nameTokens) &&
+    tokens.every((token) => matchesSearchToken(token, nameTokens))
     ? 300
     : 0;
 
@@ -183,6 +202,35 @@ function searchScore(food: CompactCanadianFood, query: string, tokens: string[])
     simpleFormBonus +
     genericFoodBonus -
     processedTermsNotRequested * 1_700;
+}
+
+function startsWithPhrase(value: string, phrase: string): boolean {
+  return value === phrase || value.startsWith(`${phrase} `);
+}
+
+function containsPhrase(value: string, phrase: string): boolean {
+  return value === phrase || ` ${value} `.includes(` ${phrase} `);
+}
+
+function matchesSearchToken(queryToken: string, candidateTokens: string[]): boolean {
+  const canonicalQuery = canonicalToken(queryToken);
+  if (canonicalQuery === "cooked") {
+    return candidateTokens.some((token) => COOKED_FORM_TERMS.has(canonicalToken(token)));
+  }
+  return candidateTokens.some((token) => canonicalToken(token) === canonicalQuery);
+}
+
+function canonicalToken(value: string): string {
+  if (value.length > 4 && value.endsWith("ies")) {
+    return `${value.slice(0, -3)}y`;
+  }
+  if (value.length > 4 && /(ches|shes|xes|zes|oes)$/.test(value)) {
+    return value.slice(0, -2);
+  }
+  if (value.length > 3 && value.endsWith("s") && !value.endsWith("ss")) {
+    return value.slice(0, -1);
+  }
+  return value;
 }
 
 function result(food: CompactCanadianFood, release: string): CanadianFoodSearchResult {

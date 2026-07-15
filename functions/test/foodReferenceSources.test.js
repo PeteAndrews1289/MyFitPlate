@@ -39,6 +39,22 @@ test("CNF search is accent and punctuation tolerant", () => {
   assert.equal(results[0].name, "Cheese souffle");
 });
 
+test("CNF search understands ordinary cooked phrasing without returning raw foods", () => {
+  const dataset = loadCanadianNutrientDataset();
+  for (const query of ["salmon cooked", "cooked salmon", "ground beef cooked"]) {
+    const results = searchCanadianNutrientFile(dataset, query, 5);
+    assert.ok(results.length > 0, `Expected a result for ${query}`);
+    assert.doesNotMatch(results[0].name.toLowerCase(), /\braw\b/);
+  }
+});
+
+test("CNF token matching respects word boundaries and common plurals", () => {
+  const dataset = loadCanadianNutrientDataset();
+  const eggs = searchCanadianNutrientFile(dataset, "eggs boiled", 8);
+  assert.ok(eggs.length > 0);
+  assert.ok(eggs.every((result) => !result.name.toLowerCase().includes("eggplant")));
+});
+
 test("DSLD mapping preserves label serving and converts only unambiguous units", () => {
   const supplement = mapDSLDLabel({
     id: 42,
