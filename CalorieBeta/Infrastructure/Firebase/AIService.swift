@@ -18,6 +18,7 @@ public class AIService: AIServiceProtocol {
         maxTokens: Int = 2048,
         temperature: Double = 0.7,
         responseFormat: [String: Any]? = nil,
+        requestKind: AIRequestKind = .general,
         retryCount: Int = 1
     ) async -> Result<String, AIError> {
         guard let userID = DIContainer.shared.authService.currentUserID,
@@ -30,7 +31,8 @@ public class AIService: AIServiceProtocol {
             "model": model,
             "messages": messages,
             "maxTokens": maxTokens,
-            "temperature": temperature
+            "temperature": temperature,
+            "requestKind": requestKind.rawValue
         ]
         
         if let format = responseFormat {
@@ -48,7 +50,15 @@ public class AIService: AIServiceProtocol {
             if retryCount > 0 {
                 AppLog.ai.warning("AI request failed. Retrying: \(error.localizedDescription, privacy: .public)")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
-                return await performRequest(messages: messages, model: model, maxTokens: maxTokens, temperature: temperature, responseFormat: responseFormat, retryCount: retryCount - 1)
+                return await performRequest(
+                    messages: messages,
+                    model: model,
+                    maxTokens: maxTokens,
+                    temperature: temperature,
+                    responseFormat: responseFormat,
+                    requestKind: requestKind,
+                    retryCount: retryCount - 1
+                )
             }
             return .failure(.networkError(error))
         }

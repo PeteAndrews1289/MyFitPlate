@@ -10,6 +10,7 @@ final class USDAFoodAPIServiceTests: XCTestCase {
                     "fdcId": 1234,
                     "description": "APPLE, RAW, WITH SKIN",
                     "dataType": "Foundation",
+                    "publishedDate": "2026-04-01",
                     "servingSize": 150.0,
                     "servingSizeUnit": "g",
                     "householdServingFullText": "1 large",
@@ -40,6 +41,8 @@ final class USDAFoodAPIServiceTests: XCTestCase {
         XCTAssertEqual(apple.carbs, 14.0 * 1.5, accuracy: 0.1)
         XCTAssertEqual(apple.fats, 0.2 * 1.5, accuracy: 0.1)
         XCTAssertEqual(apple.fiber ?? 0, 2.4 * 1.5, accuracy: 0.1)
+        XCTAssertEqual(apple.sourceMetadata?.effectiveEvidenceLineage, .analyticalReference)
+        XCTAssertNotNil(apple.sourceMetadata?.sourceUpdatedAt)
     }
 
     func testParsingDefaultServing() throws {
@@ -99,5 +102,36 @@ final class USDAFoodAPIServiceTests: XCTestCase {
         XCTAssertEqual(banana.copper, 156, "Copper converts USDA mg to the app's mcg unit")
         XCTAssertNotNil(banana.sodium, "A reported zero is different from an unreported nutrient")
         XCTAssertEqual(banana.sodium, 0)
+        XCTAssertEqual(banana.sourceMetadata?.effectiveEvidenceLineage, .analyticalReference)
+    }
+
+    func testBrandedFoodIsManufacturerLabelLineage() throws {
+        let json = """
+        {
+            "foods": [
+                {
+                    "fdcId": 7001,
+                    "description": "BRANDED CEREAL",
+                    "dataType": "Branded",
+                    "gtinUpc": "012345678905",
+                    "modifiedDate": "2025-12-15",
+                    "servingSize": 30,
+                    "servingSizeUnit": "g",
+                    "foodNutrients": [
+                        { "nutrientNumber": "208", "value": 400 },
+                        { "nutrientNumber": "203", "value": 10 },
+                        { "nutrientNumber": "205", "value": 70 },
+                        { "nutrientNumber": "204", "value": 8 }
+                    ]
+                }
+            ]
+        }
+        """
+
+        let cereal = try XCTUnwrap(USDAFoodParser.foodItems(from: Data(json.utf8)).first)
+
+        XCTAssertEqual(cereal.sourceMetadata?.confidence, .databaseMatch)
+        XCTAssertEqual(cereal.sourceMetadata?.effectiveEvidenceLineage, .manufacturerLabel)
+        XCTAssertNotNil(cereal.sourceMetadata?.sourceUpdatedAt)
     }
 }

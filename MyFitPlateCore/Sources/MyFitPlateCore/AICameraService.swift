@@ -35,7 +35,9 @@ public final class AICameraService: AICameraServicing, Sendable {
         if data.count <= maxSizeBytes {
             return data
         }
-        return data.prefix(maxSizeBytes)
+        // Raw byte truncation produces a corrupt JPEG/HEIC. Platform image code must resize or
+        // recompress the decoded image before calling this transport-boundary helper.
+        return nil
     }
 
     public func createAttachment(from data: Data, source: ImageAttachmentSource) -> ImageAttachment? {

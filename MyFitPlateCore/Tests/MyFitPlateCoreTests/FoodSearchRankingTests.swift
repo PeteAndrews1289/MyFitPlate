@@ -173,6 +173,33 @@ final class FoodSearchRankingTests: XCTestCase {
         XCTAssertEqual(merged.map(\.id), ["fs_1", "usda_1", "off_2"])
     }
 
+    func testMergedResultsIncludeHealthCanadaAndPreferItsRicherExactMatch() {
+        let fatSecret = [FoodItem(id: "111", name: "Lentils Cooked", calories: 116)]
+        let canada = [FoodItem(
+            id: "cnf_1",
+            name: "Lentils Cooked",
+            calories: 116,
+            protein: 9,
+            carbs: 20,
+            fats: 0.4,
+            servingSize: "100 g",
+            servingWeight: 100,
+            iron: 3.3,
+            potassium: 369,
+            folate: 181,
+            magnesium: 36
+        )]
+
+        let merged = FoodSearchRanking.mergedSearchResults(
+            fatSecret: fatSecret,
+            usda: [],
+            healthCanada: canada
+        )
+
+        XCTAssertEqual(merged.map(\.id), ["cnf_1"])
+        XCTAssertEqual(merged.first?.reportedMicronutrientCount, 4)
+    }
+
     func testRankedRemoteMatchesPreferPlainQueryBeforeIngredientMatches() {
         let foods = [
             FoodItem(id: "1", name: "Croissants, Apple", calories: 260),

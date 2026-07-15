@@ -1,6 +1,16 @@
 
 
 import Foundation
+
+public enum AIRequestKind: String, Sendable {
+    case general
+    case mealPhoto = "meal_photo"
+    case nutritionLabel = "nutrition_label"
+    case menuPhoto = "menu_photo"
+    case receiptPhoto = "receipt_photo"
+    case recipePhoto = "recipe_photo"
+}
+
 public enum AIError: Error, LocalizedError {
     case consentRequired
     case invalidURL
@@ -31,6 +41,7 @@ public protocol AIServiceProtocol {
         maxTokens: Int,
         temperature: Double,
         responseFormat: [String: Any]?,
+        requestKind: AIRequestKind,
         retryCount: Int
     ) async -> Result<String, AIError>
 }
@@ -43,8 +54,17 @@ public extension AIServiceProtocol {
         maxTokens: Int = 2048,
         temperature: Double = 0.7,
         responseFormat: [String: Any]? = nil,
+        requestKind: AIRequestKind = .general,
         retryCount: Int = 1
     ) async -> Result<String, AIError> {
-        return await performRequest(messages: messages, model: model, maxTokens: maxTokens, temperature: temperature, responseFormat: responseFormat, retryCount: retryCount)
+        return await performRequest(
+            messages: messages,
+            model: model,
+            maxTokens: maxTokens,
+            temperature: temperature,
+            responseFormat: responseFormat,
+            requestKind: requestKind,
+            retryCount: retryCount
+        )
     }
 }

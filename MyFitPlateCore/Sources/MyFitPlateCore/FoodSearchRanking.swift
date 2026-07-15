@@ -158,14 +158,16 @@ public enum FoodSearchRanking {
 
     // MARK: - Search-source merging + quick-log hydration
 
-    /// Combines branded FatSecret results with richer USDA/Open Food Facts records. FatSecret
-    /// keeps its ordering and wins equivalent collisions, but an exact-name record that reports
-    /// more detail nutrients replaces a sparse preview instead of hiding useful data.
+    /// Combines branded FatSecret results with richer USDA, Health Canada, and Open Food Facts
+    /// records. Provider ordering stays stable, but an exact-name record that reports more detail
+    /// nutrients replaces a sparse preview instead of hiding useful data.
     public static func mergedSearchResults(
         fatSecret: [FoodItem],
         usda: [FoodItem],
+        healthCanada: [FoodItem] = [],
         openFoodFacts: [FoodItem] = [],
         usdaLimit: Int = 8,
+        healthCanadaLimit: Int = 8,
         openFoodFactsLimit: Int = 10
     ) -> [FoodItem] {
         var merged = fatSecret
@@ -191,6 +193,7 @@ public enum FoodSearchRanking {
         }
 
         merge(usda, additionLimit: usdaLimit)
+        merge(healthCanada, additionLimit: healthCanadaLimit)
         merge(openFoodFacts, additionLimit: openFoodFactsLimit)
         return merged
     }

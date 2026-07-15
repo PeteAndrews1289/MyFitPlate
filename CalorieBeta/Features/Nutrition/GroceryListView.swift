@@ -112,7 +112,7 @@ struct GroceryListView: View {
                             return
                         }
                         isFetchingItemName = false
-                        fetchError = (true, "No match found in FatSecret, USDA, or Open Food Facts. Add it manually and MyFitPlate will remember it next time.")
+                        fetchError = (true, "No food or supplement label matched this barcode. Add it manually and MyFitPlate will remember it next time.")
                     }
                 }
             }

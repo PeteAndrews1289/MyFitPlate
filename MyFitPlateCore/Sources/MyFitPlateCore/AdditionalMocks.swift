@@ -237,6 +237,7 @@ public final class MockAIService: AIServiceProtocol, @unchecked Sendable {
     public var mockResult: Result<String, AIError> = .success("Mock response")
     public var mockResults: [Result<String, AIError>] = []
     public private(set) var lastMessages: [[String: Any]] = []
+    public private(set) var lastRequestKind: AIRequestKind = .general
     
     public init() {}
     public func performRequest(
@@ -245,9 +246,11 @@ public final class MockAIService: AIServiceProtocol, @unchecked Sendable {
         maxTokens: Int,
         temperature: Double,
         responseFormat: [String: Any]?,
+        requestKind: AIRequestKind,
         retryCount: Int
     ) async -> Result<String, AIError> {
         lastMessages = messages
+        lastRequestKind = requestKind
         if !mockResults.isEmpty {
             return mockResults.removeFirst()
         }

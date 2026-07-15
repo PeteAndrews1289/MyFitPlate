@@ -11,6 +11,7 @@ class FoodSearchViewModel: ObservableObject {
     @Published var selectedMeal: String
     
     @Published var searchResults: [FoodItem] = []
+    @Published var supplementResults: [FoodItem] = []
     @Published var isLoading = false
     @Published var searchErrorMessage: String?
     @Published var activeSearchQuery = ""
@@ -46,6 +47,8 @@ class FoodSearchViewModel: ObservableObject {
 
     private let foodAPIService = FatSecretFoodAPIService()
     private let usdaService = USDAFoodAPIService()
+    private let healthCanadaService = HealthCanadaFoodAPIService()
+    private let supplementService = NIHDietarySupplementAPIService()
     private let openFoodFactsService = OpenFoodFactsAPIService()
     private var cancellables = Set<AnyCancellable>()
     private var dailyLogService: DailyLogService?
@@ -80,6 +83,7 @@ class FoodSearchViewModel: ObservableObject {
         guard !trimmed.isEmpty else {
             activeSearchQuery = ""
             searchResults = []
+            supplementResults = []
             isLoading = false
             searchErrorMessage = nil
             searchTask?.cancel()
@@ -89,6 +93,7 @@ class FoodSearchViewModel: ObservableObject {
         guard trimmed.count >= 2 else {
             activeSearchQuery = ""
             searchResults = []
+            supplementResults = []
             isLoading = false
             searchErrorMessage = nil
             return
@@ -97,6 +102,7 @@ class FoodSearchViewModel: ObservableObject {
         activeSearchQuery = trimmed
         isLoading = true
         searchErrorMessage = nil
+        supplementResults = []
         searchByQuery(query: trimmed, includeOpenFoodFacts: false)
     }
 
@@ -106,6 +112,7 @@ class FoodSearchViewModel: ObservableObject {
         activeSearchQuery = query
         isLoading = true
         searchErrorMessage = nil
+        supplementResults = []
         searchByQuery(query: query, includeOpenFoodFacts: true)
     }
 
@@ -115,6 +122,7 @@ class FoodSearchViewModel: ObservableObject {
         if arguments.contains("-ui-testing-search-failure") {
             searchTask?.cancel()
             searchResults = []
+            supplementResults = []
             isLoading = false
             searchErrorMessage = Self.unavailableMessage
             return
@@ -133,29 +141,41 @@ class FoodSearchViewModel: ObservableObject {
                     servingWeight: 100
                 ).withDatabaseSource(.fatSecret, sourceName: "FatSecret", sourceID: "ui-test-apple")
             ]
+            supplementResults = []
             isLoading = false
             searchErrorMessage = nil
             return
         }
         #endif
 
-        // FatSecret and USDA support the debounced interactive search. Open Food Facts asks
-        // clients not to perform search-as-you-type, so it joins only after an explicit submit.
+        // FatSecret, USDA, and Health Canada support debounced food search. Open Food Facts asks
+        // clients not to search as the user types, and NIH supplement records require label-detail
+        // hydration, so those two sources join only after an explicit submit.
         searchTask?.cancel()
         searchTask = Task { @MainActor [weak self] in
             guard let self else { return }
             async let usdaResults = self.usdaService.searchFoods(query: query)
+            async let canadaResults = self.healthCanadaService.searchFoods(query: query)
+            async let openFoodFactsResults: [FoodItem] = includeOpenFoodFacts
+                ? self.openFoodFactsService.searchFoods(query: query)
+                : []
+            async let nihResults: [FoodItem] = includeOpenFoodFacts
+                ? self.supplementService.searchSupplements(query: query)
+                : []
 
             let fatSecretResult: Result<[FoodItem], Error> = await withCheckedContinuation { continuation in
                 self.foodAPIService.fetchFoodByQuery(query: query) { continuation.resume(returning: $0) }
             }
-            let usda = await usdaResults
-            let off = includeOpenFoodFacts
-                ? await self.openFoodFactsService.searchFoods(query: query)
-                : []
+            let (usda, canada, off, supplements) = await (
+                usdaResults,
+                canadaResults,
+                openFoodFactsResults,
+                nihResults
+            )
 
             guard !Task.isCancelled, query == self.activeSearchQuery else { return }
             self.isLoading = false
+            self.supplementResults = supplements
 
             switch fatSecretResult {
             case .success(let foodItems):
@@ -163,15 +183,17 @@ class FoodSearchViewModel: ObservableObject {
                 self.searchResults = FoodSearchRanking.mergedSearchResults(
                     fatSecret: foodItems,
                     usda: usda,
+                    healthCanada: canada,
                     openFoodFacts: off
                 )
             case .failure:
                 let fallback = FoodSearchRanking.mergedSearchResults(
                     fatSecret: [],
                     usda: usda,
+                    healthCanada: canada,
                     openFoodFacts: off
                 )
-                if fallback.isEmpty {
+                if fallback.isEmpty && supplements.isEmpty {
                     self.searchErrorMessage = Self.unavailableMessage
                     self.searchResults = []
                 } else {

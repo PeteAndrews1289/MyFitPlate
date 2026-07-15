@@ -60,6 +60,10 @@ struct NutritionAuditView: View {
         allFoods.map(NutritionAuditItem.init(food:))
     }
 
+    private var trustCoverage: FoodTrustCoverage {
+        FoodTrustCoverage.evaluate(items: allFoods)
+    }
+
     private var needsReviewItems: [NutritionAuditItem] {
         auditItems
             .filter(\.needsReview)
@@ -90,6 +94,14 @@ struct NutritionAuditView: View {
         auditItems.filter(\.hasCalorieMathFinding).count
     }
 
+    private var calorieCoveragePercent: Int {
+        Int((trustCoverage.calorieFraction * 100).rounded())
+    }
+
+    private var proteinCoveragePercent: Int {
+        Int((trustCoverage.proteinFraction * 100).rounded())
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -98,7 +110,7 @@ struct NutritionAuditView: View {
                         .appFont(size: 28, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("Review sources, cross-checks, and nutrition math for today's logged foods.")
+                    Text("See what supports today's nutrition, then fix the entries with the greatest impact.")
                         .appFont(size: 14, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
@@ -109,8 +121,8 @@ struct NutritionAuditView: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     DiaryMetricPill(title: "Foods", value: "\(totalFoods)", subtitle: "logged", icon: "fork.knife", color: .brandPrimary)
                     DiaryMetricPill(title: "Review", value: "\(needsReviewItems.count)", subtitle: "items", icon: "exclamationmark.triangle.fill", color: AppPalette.caution)
-                    DiaryMetricPill(title: "Cross-Checked", value: "\(crossVerifiedItems.count)", subtitle: "foods", icon: "checkmark.seal.fill", color: .accentPositiveText)
-                    DiaryMetricPill(title: "Reviewed", value: "\(userReviewedItems.count)", subtitle: "by you", icon: "person.crop.circle.badge.checkmark", color: .accentProtein)
+                    DiaryMetricPill(title: "Calories", value: "\(calorieCoveragePercent)%", subtitle: "supported", icon: "flame.fill", color: .accentPositiveText)
+                    DiaryMetricPill(title: "Protein", value: "\(proteinCoveragePercent)%", subtitle: "supported", icon: "bolt.fill", color: .accentProtein)
                 }
 
                 if totalFoods == 0 {
@@ -126,8 +138,8 @@ struct NutritionAuditView: View {
                     )
 
                     auditSection(
-                        title: "Cross-verified",
-                        subtitle: "Calories and macros matched across independent databases.",
+                        title: "Cross-database matches",
+                        subtitle: "Calories and core macros agreed after serving normalization.",
                         items: crossVerifiedItems,
                         emptyMessage: "No cross-verified foods logged today.",
                         tint: .accentPositiveText,
@@ -165,7 +177,9 @@ struct NutritionAuditView: View {
             "cross_verified_count": crossVerifiedItems.count,
             "user_reviewed_count": userReviewedItems.count,
             "suspicious_count": suspiciousItemCount,
-            "mismatch_count": mismatchItemCount
+            "mismatch_count": mismatchItemCount,
+            "supported_calorie_percent": calorieCoveragePercent,
+            "supported_protein_percent": proteinCoveragePercent
         ])
     }
 
@@ -260,15 +274,12 @@ private struct NutritionAuditFoodRow: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(item.evaluation.score)")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(item.tint)
-
-                Text("/99")
-                    .appFont(size: 10, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
+            Image(systemName: item.trailingIcon)
+                .appFont(size: 14, weight: .bold)
+                .foregroundColor(item.tint)
+                .frame(width: 32, height: 32)
+                .background(item.tint.opacity(0.10), in: Circle())
+                .accessibilityHidden(true)
         }
         .padding(12)
         .background(Color.backgroundPrimary.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -319,6 +330,7 @@ private struct NutritionAuditItem: Identifiable {
     let food: FoodItem
     let descriptor: FoodSourceDescriptor
     let evaluation: FoodTrustEvaluation
+    let passport: FoodTrustPassport
     let consistencyStatus: NutritionCalorieConsistency.Status
     let sanityFindings: [FoodDataSanity.Finding]
 
@@ -337,6 +349,11 @@ private struct NutritionAuditItem: Identifiable {
             descriptor: descriptor,
             metadata: food.sourceMetadata
         )
+        self.passport = FoodTrustPassport.evaluate(
+            item: food,
+            descriptor: descriptor,
+            metadata: food.sourceMetadata
+        )
         self.consistencyStatus = food.calorieConsistencyStatus
         self.sanityFindings = FoodDataSanity.findings(for: food)
     }
@@ -348,7 +365,7 @@ private struct NutritionAuditItem: Identifiable {
     }
 
     var isCrossVerified: Bool {
-        food.sourceMetadata?.hasIndependentCrossVerification == true
+        food.sourceMetadata?.hasCrossDatabaseAgreement == true
     }
 
     var isUserReviewed: Bool {
@@ -380,7 +397,13 @@ private struct NutritionAuditItem: Identifiable {
                 levelScore = 1
             }
         }
-        return levelScore * 1_000 + consistencyStatus.mismatchAmount
+        let calories = food.calories.isFinite ? max(0, food.calories) : 0
+        let protein = food.protein.isFinite ? max(0, food.protein) : 0
+        let mismatch = consistencyStatus.mismatchAmount.isFinite
+            ? max(0, consistencyStatus.mismatchAmount)
+            : 0
+        let nutritionImpact = calories + protein * 4
+        return levelScore * 10_000 + mismatch * 10 + nutritionImpact
     }
 
     var tint: Color {
@@ -420,6 +443,18 @@ private struct NutritionAuditItem: Identifiable {
             return "Reviewed by you"
         case .notRequired, .unreviewed, nil:
             return evaluation.summary
+        }
+    }
+
+    var trailingIcon: String {
+        switch passport.coreNutrition.state {
+        case .crossDatabaseAgreement: return "checkmark.seal.fill"
+        case .userReviewed: return "person.crop.circle.badge.checkmark"
+        case .sourceReported: return "doc.text.fill"
+        case .estimated: return "sparkles"
+        case .needsCorrection: return "exclamationmark.triangle.fill"
+        case .unavailable: return "questionmark.circle.fill"
+        case .notChecked: return "minus.circle.fill"
         }
     }
 }

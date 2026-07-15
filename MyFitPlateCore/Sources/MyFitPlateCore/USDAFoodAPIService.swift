@@ -167,6 +167,8 @@ public enum USDAFoodParser {
             barcode: food.gtinUpc
         )
         metadata.confidence = usdaConfidence(for: food.dataType)
+        metadata.evidenceLineage = usdaLineage(for: food.dataType)
+        metadata.sourceUpdatedAt = usdaDate(food.modifiedDate ?? food.publishedDate)
         return item.withSourceMetadata(metadata)
     }
 
@@ -178,6 +180,29 @@ public enum USDAFoodParser {
         // Branded records are manufacturer label submissions hosted by USDA, not an
         // independent laboratory confirmation. Unknown future types stay conservative.
         return .databaseMatch
+    }
+
+    private static func usdaLineage(for dataType: String?) -> FoodEvidenceLineage {
+        let normalized = dataType?.lowercased() ?? ""
+        if normalized.contains("foundation") ||
+            normalized.contains("sr legacy") ||
+            normalized.contains("experimental") {
+            return .analyticalReference
+        }
+        if normalized.contains("survey") || normalized.contains("fndds") {
+            return .governmentCompilation
+        }
+        if normalized.contains("branded") {
+            return .manufacturerLabel
+        }
+        return .unknown
+    }
+
+    private static func usdaDate(_ value: String?) -> Date? {
+        guard let value, !value.isEmpty else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        return formatter.date(from: value)
     }
 }
 
@@ -196,6 +221,8 @@ private struct USDAFood: Decodable {
     public let servingSize: Double?
     public let servingSizeUnit: String?
     public let householdServingFullText: String?
+    public let publishedDate: String?
+    public let modifiedDate: String?
     public let foodNutrients: [USDANutrient]
 }
 

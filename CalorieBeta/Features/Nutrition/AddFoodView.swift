@@ -414,7 +414,7 @@ struct AddFoodView: View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             AppSectionHeader(
                 title: "Nutrition details",
-                subtitle: "Optional values improve totals and the Trust Score."
+                subtitle: "Optional values improve totals and evidence coverage."
             )
 
             VStack(alignment: .leading, spacing: AppSpacing.group) {

@@ -83,7 +83,7 @@ struct AppVisualSystemGallery: View {
                             icon: "checkmark.seal.fill",
                             iconColor: AppPalette.brand,
                             title: "Source verified",
-                            subtitle: "Two independent databases agree"
+                            subtitle: "Two databases agree on core nutrition"
                         ) {
                             Image(systemName: "chevron.right")
                                 .foregroundStyle(.tertiary)

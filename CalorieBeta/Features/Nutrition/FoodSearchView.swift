@@ -168,7 +168,7 @@ struct FoodSearchView: View {
                                 }
                                 self.isSearchingAfterScan = false
                                 self.presentBarcodeRecovery(
-                                    message: "No match found in FatSecret, USDA, or Open Food Facts.",
+                                    message: "No food or supplement label matched this barcode.",
                                     barcode: barcode
                                 )
                             }
@@ -201,11 +201,14 @@ struct FoodSearchView: View {
                 .imageSourceDialog(isPresented: $showingImagePicker) { image in
                     self.isProcessingImage = true
                     DIContainer.shared.analyticsManager.aiFeatureUsed(.mealPhoto)
-                    imageModel.estimateNutritionFromImage(image: image) { result in
+                    imageModel.analyzeNutritionFromImage(image: image) { result in
                         self.isProcessingImage = false
                         switch result {
-                        case .success(let foodItems):
-                            self.estimatedFoodItemsWrapper = IdentifiableFoodItems(items: foodItems)
+                        case .success(let analysis):
+                            self.estimatedFoodItemsWrapper = IdentifiableFoodItems(
+                                items: analysis.items,
+                                photoReview: analysis.reviewContext
+                            )
                         case .failure(let error):
                             self.scanError = (true, "Could not analyze the image. Error: \(error.localizedDescription)")
                         }
@@ -255,7 +258,7 @@ struct FoodSearchView: View {
                     )
                 }
                 .sheet(item: $estimatedFoodItemsWrapper) { wrapper in
-                     AISummaryView(estimatedItems: wrapper.items)
+                     AISummaryView(estimatedItems: wrapper.items, photoReview: wrapper.photoReview)
                 }
                 .sheet(item: $scannedBarcodeItemsWrapper) { wrapper in
                      AISummaryView(
@@ -557,7 +560,9 @@ struct FoodSearchView: View {
 
         if viewModel.isLoading {
             FoodSearchLoadingState(query: viewModel.searchText)
-        } else if let searchErrorMessage = viewModel.searchErrorMessage, viewModel.searchResults.isEmpty {
+        } else if let searchErrorMessage = viewModel.searchErrorMessage,
+                  viewModel.searchResults.isEmpty,
+                  viewModel.supplementResults.isEmpty {
             FoodSearchEmptyState(
                 icon: "wifi.exclamationmark",
                 title: String(localized: "Search could not load"),
@@ -567,7 +572,9 @@ struct FoodSearchView: View {
                 secondaryActionTitle: onFoodItemSelected == nil ? String(localized: "Create food") : nil,
                 secondaryAction: onFoodItemSelected == nil ? { showingAddFoodManually = true } : nil
             )
-        } else if viewModel.searchResults.isEmpty && trustedResults.isEmpty {
+        } else if viewModel.searchResults.isEmpty &&
+                    viewModel.supplementResults.isEmpty &&
+                    trustedResults.isEmpty {
             FoodSearchEmptyState(
                 icon: "magnifyingglass",
                 title: String(localized: "No foods found"),
@@ -587,6 +594,23 @@ struct FoodSearchView: View {
                 onQuickLog: onFoodItemSelected == nil ? { viewModel.quickLog(food: $0, source: "search_result_quick_log") } : nil,
                 onDelete: nil,
                 sourceForFood: { _ in "search_result" }
+            )
+        }
+
+        if !viewModel.isLoading && !viewModel.supplementResults.isEmpty {
+            FoodPickerSection(
+                title: "Supplements",
+                subtitle: "Current manufacturer label records from NIH DSLD. Amounts come from the product label, not laboratory testing.",
+                foods: viewModel.supplementResults,
+                quickLoggedFoodIDs: viewModel.quickLoggedFoodIDs,
+                emptyTitle: "",
+                emptyMessage: "",
+                onSelect: { handleSelection(food: $0, source: "nih_dsld") },
+                onQuickLog: onFoodItemSelected == nil ? {
+                    viewModel.quickLog(food: $0, source: "nih_dsld_quick_log")
+                } : nil,
+                onDelete: nil,
+                sourceForFood: { _ in "nih_dsld" }
             )
         }
     }

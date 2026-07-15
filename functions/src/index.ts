@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
+import { createHash } from "node:crypto";
 import OpenAI from "openai";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp } from "firebase-admin/app";
@@ -15,6 +16,18 @@ import {
   normalizeBarcode,
   parseCommunityBarcodeContribution,
 } from "./communityBarcode";
+import {
+  loadCanadianNutrientDataset,
+  searchCanadianNutrientFile,
+} from "./canadianNutrientFile";
+import {
+  lookupDietarySupplementBarcode,
+  searchDietarySupplements,
+} from "./dietarySupplementLabels";
+import {
+  isReasoningRoute,
+  resolveAIRequestRoute,
+} from "./aiRequestRouting";
 
 initializeApp();
 const db = getFirestore();
@@ -27,16 +40,17 @@ const fatSecretProxyUrl = defineSecret("FATSECRET_PROXY_URL");
 // --- Server-side guardrails ---------------------------------------------------
 // The client used to be trusted to pick the model and token count, which meant a
 // modified client (or a replayed auth token) could request an expensive model in a
-// loop and drain the budget. These limits are enforced here so the client can never
-// escalate cost or send abusive payloads regardless of what it sends.
-const ALLOWED_MODELS = new Set(["gpt-4o-mini"]);
-const DEFAULT_MODEL = "gpt-4o-mini";
+// loop and drain the budget. The server maps a narrow request kind to a fixed model
+// and separate quota; client-provided model names are never authoritative.
 const MAX_OUTPUT_TOKENS = 6000; // 7-day meal plan legitimately requests ~5000; most calls ask far less.
 const MAX_MESSAGES = 50;
 const MAX_CONTENT_CHARS = 50000; // generous: long prompts include the daily context summary
 const MAX_CONTENT_PARTS = 12; // vision messages send a few text / image_url parts
+const MAX_IMAGE_DATA_URL_CHARS = 8_100_000; // just over the app's 6 MB JPEG ceiling after base64 encoding
 const DAILY_CALL_LIMIT = 300; // AI calls, per user, per UTC day
 const FATSECRET_DAILY_LIMIT = 600; // food lookups are cheap + frequent, but still bounded
+const REFERENCE_FOOD_DAILY_LIMIT = 600;
+const SUPPLEMENT_DAILY_LIMIT = 100;
 const COMMUNITY_BARCODE_DAILY_LIMIT = 20;
 const COMMUNITY_BARCODE_MAX_CONTRIBUTIONS = 250;
 const ALLOWED_ROLES = new Set(["system", "user", "assistant"]);
@@ -86,6 +100,7 @@ async function enforceDailyLimit(uid: string, collection: string, limit: number)
 
 interface AIUsageResult {
   model: string;
+  requestKind?: string;
   durationMs: number;
   succeeded: boolean;
   inputTokens?: number;
@@ -102,18 +117,39 @@ async function recordAIUsageResult(uid: string, result: AIUsageResult): Promise<
   const safeCount = (value: number | undefined): number =>
     Math.max(0, Math.round(typeof value === "number" && Number.isFinite(value) ? value : 0));
 
+  const requestPrefix = (() => {
+    switch (result.requestKind) {
+    case "meal_photo": return "mealPhoto";
+    case "nutrition_label": return "nutritionLabel";
+    case "menu_photo": return "menuPhoto";
+    case "receipt_photo": return "receiptPhoto";
+    case "recipe_photo": return "recipePhoto";
+    default: return "general";
+    }
+  })();
+  const inputTokens = safeCount(result.inputTokens);
+  const outputTokens = safeCount(result.outputTokens);
+  const totalTokens = safeCount(result.totalTokens);
+  const latencyMs = safeCount(result.durationMs);
   const data: Record<string, unknown> = {
     uid,
     day,
-    usageSchema: 1,
+    usageSchema: 2,
     successfulCount: FieldValue.increment(result.succeeded ? 1 : 0),
     failedCount: FieldValue.increment(result.succeeded ? 0 : 1),
-    inputTokens: FieldValue.increment(safeCount(result.inputTokens)),
-    outputTokens: FieldValue.increment(safeCount(result.outputTokens)),
-    totalTokens: FieldValue.increment(safeCount(result.totalTokens)),
-    totalLatencyMs: FieldValue.increment(safeCount(result.durationMs)),
-    lastLatencyMs: safeCount(result.durationMs),
+    inputTokens: FieldValue.increment(inputTokens),
+    outputTokens: FieldValue.increment(outputTokens),
+    totalTokens: FieldValue.increment(totalTokens),
+    totalLatencyMs: FieldValue.increment(latencyMs),
+    [`${requestPrefix}SuccessfulCount`]: FieldValue.increment(result.succeeded ? 1 : 0),
+    [`${requestPrefix}FailedCount`]: FieldValue.increment(result.succeeded ? 0 : 1),
+    [`${requestPrefix}InputTokens`]: FieldValue.increment(inputTokens),
+    [`${requestPrefix}OutputTokens`]: FieldValue.increment(outputTokens),
+    [`${requestPrefix}TotalTokens`]: FieldValue.increment(totalTokens),
+    [`${requestPrefix}TotalLatencyMs`]: FieldValue.increment(latencyMs),
+    lastLatencyMs: latencyMs,
     lastModel: result.model,
+    lastRequestKind: result.requestKind ?? "general",
     lastOutcome: result.succeeded ? "success" : "failure",
     updatedAt: FieldValue.serverTimestamp(),
   };
@@ -156,6 +192,28 @@ function validateMessages(messages: unknown): void {
         if (typeof part !== "object" || part === null || typeof part.type !== "string") {
           throw new HttpsError("invalid-argument", "Invalid message content part.");
         }
+        if (part.type === "text") {
+          if (typeof part.text !== "string" || part.text.length > MAX_CONTENT_CHARS) {
+            throw new HttpsError("invalid-argument", "Invalid text content part.");
+          }
+          continue;
+        }
+        if (part.type === "image_url") {
+          const image = part.image_url;
+          const url = typeof image === "object" && image !== null ? image.url : undefined;
+          const detail = typeof image === "object" && image !== null ? image.detail : undefined;
+          if (typeof url !== "string"
+            || !url.startsWith("data:image/jpeg;base64,")
+            || url.length > MAX_IMAGE_DATA_URL_CHARS) {
+            throw new HttpsError("invalid-argument", "Image must be a bounded JPEG data URL.");
+          }
+          if (detail !== undefined
+            && !["auto", "low", "high", "original"].includes(detail)) {
+            throw new HttpsError("invalid-argument", "Unsupported image detail setting.");
+          }
+          continue;
+        }
+        throw new HttpsError("invalid-argument", "Unsupported message content part type.");
       }
     } else {
       throw new HttpsError("invalid-argument", "Message content must be text or content parts.");
@@ -179,6 +237,32 @@ async function loadCommunityBarcodeConfig(): Promise<CommunityBarcodeConfig> {
 
 function finiteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function validatedLookupText(value: unknown, field: string): string {
+  if (typeof value !== "string") {
+    throw new HttpsError("invalid-argument", `A ${field} is required.`);
+  }
+  const trimmed = value.trim();
+  if (trimmed.length < 2 || trimmed.length > 120) {
+    throw new HttpsError(
+      "invalid-argument",
+      `${field[0].toUpperCase()}${field.slice(1)} must be between 2 and 120 characters.`
+    );
+  }
+  return trimmed;
+}
+
+function boundedInteger(
+  value: unknown,
+  fallback: number,
+  minimum: number,
+  maximum: number
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.min(Math.max(Math.floor(value), minimum), maximum);
 }
 
 async function recordCommunityBarcodeMetric(metric: CommunityBarcodeMetric): Promise<void> {
@@ -375,22 +459,25 @@ export const generateAIResponse = onCall(
     const uid = request.auth.uid;
 
     // 2. Validate the payload BEFORE counting usage, so a malformed request can't burn quota.
-    const data = request.data;
-    const { messages, model, maxTokens, temperature, responseFormat } = data;
+    const data = request.data ?? {};
+    const { messages, maxTokens, temperature, responseFormat, requestKind } = data;
     validateMessages(messages);
+    const route = resolveAIRequestRoute(requestKind);
 
     // 3. Per-user daily rate limit (atomic counter via Admin SDK), only for valid requests.
     await enforceDailyLimit(uid, "aiUsage", DAILY_CALL_LIMIT);
+    if (route.usageCollection && route.dailyLimit) {
+      await enforceDailyLimit(uid, route.usageCollection, route.dailyLimit);
+    }
 
-    // 4. Clamp model / tokens / temperature to safe server-side values
-    const safeModel =
-      typeof model === "string" && ALLOWED_MODELS.has(model)
-        ? model
-        : DEFAULT_MODEL;
+    // 4. Clamp model / tokens / temperature to safe server-side values. The request kind,
+    // not a model string supplied by the app, determines any higher-cost route.
+    const safeModel = route.model;
     const safeMaxTokens = Math.min(
       typeof maxTokens === "number" && maxTokens > 0
         ? maxTokens
-        : MAX_OUTPUT_TOKENS,
+        : route.maxOutputTokens,
+      route.maxOutputTokens,
       MAX_OUTPUT_TOKENS
     );
     const safeTemperature =
@@ -398,11 +485,13 @@ export const generateAIResponse = onCall(
         ? temperature
         : 0.7;
 
-    // 5. Only allow the JSON-object response format (or none) — never pass an arbitrary one through.
-    const safeResponseFormat =
+    // 5. Higher-trust camera routes use a server-owned schema. General calls may request only
+    // the legacy JSON-object mode; arbitrary client schemas are never passed through.
+    const safeResponseFormat = route.forcedResponseFormat ?? (
       responseFormat && responseFormat.type === "json_object"
         ? { type: "json_object" as const }
-        : undefined;
+        : undefined
+    );
 
     const requestStartedAt = Date.now();
     try {
@@ -411,9 +500,15 @@ export const generateAIResponse = onCall(
       const params: any = {
         model: safeModel,
         messages: messages,
-        temperature: safeTemperature,
-        max_tokens: safeMaxTokens,
+        safety_identifier: createHash("sha256").update(uid).digest("hex"),
       };
+      if (isReasoningRoute(route)) {
+        params.max_completion_tokens = safeMaxTokens;
+        params.reasoning_effort = route.reasoningEffort ?? "none";
+      } else {
+        params.temperature = safeTemperature;
+        params.max_tokens = safeMaxTokens;
+      }
       if (safeResponseFormat) {
         params.response_format = safeResponseFormat;
       }
@@ -422,6 +517,7 @@ export const generateAIResponse = onCall(
 
       await recordAIUsageResult(uid, {
         model: safeModel,
+        requestKind: route.kind,
         durationMs: Date.now() - requestStartedAt,
         succeeded: true,
         inputTokens: completion.usage?.prompt_tokens,
@@ -436,11 +532,13 @@ export const generateAIResponse = onCall(
       const durationMs = Date.now() - requestStartedAt;
       await recordAIUsageResult(uid, {
         model: safeModel,
+        requestKind: route.kind,
         durationMs,
         succeeded: false,
       });
       logger.error("OpenAI request failed", {
         model: safeModel,
+        requestKind: route.kind,
         durationMs,
         errorType: error instanceof Error ? error.name : "unknown",
         status: typeof error?.status === "number" ? error.status : undefined,
@@ -506,6 +604,80 @@ export const fatSecretProxy = onCall(
     }
   }
 );
+
+// Health Canada's current CNF release is distributed as relational CSV files rather than a
+// production search API. MyFitPlate compiles the supported nutrients into a compact immutable
+// asset and searches it here so neither the iPhone nor Watch bundle carries the full dataset.
+export const healthCanadaFoodSearch = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Authentication required.");
+  }
+  const query = validatedLookupText(request.data?.query, "query");
+  const limit = boundedInteger(request.data?.limit, 12, 1, 20);
+  await enforceDailyLimit(
+    request.auth.uid,
+    "referenceFoodUsage",
+    REFERENCE_FOOD_DAILY_LIMIT
+  );
+
+  try {
+    return searchCanadianNutrientFile(loadCanadianNutrientDataset(), query, limit);
+  } catch (error) {
+    logger.error("healthCanadaFoodSearch error", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    throw new HttpsError("internal", "Canadian food reference search failed.");
+  }
+});
+
+// NIH DSLD is a supplement-label repository, not an analytical food-composition database.
+// Keep it behind a separate callable and response model so the client can present supplements
+// as label evidence instead of silently mixing them into ordinary food matches.
+export const nihSupplementSearch = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Authentication required.");
+  }
+  const query = validatedLookupText(request.data?.query, "query");
+  const limit = boundedInteger(request.data?.limit, 6, 1, 8);
+  await enforceDailyLimit(
+    request.auth.uid,
+    "supplementLookupUsage",
+    SUPPLEMENT_DAILY_LIMIT
+  );
+
+  try {
+    return await searchDietarySupplements(query, limit);
+  } catch (error) {
+    logger.warn("nihSupplementSearch error", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    throw new HttpsError("unavailable", "Supplement label search is temporarily unavailable.");
+  }
+});
+
+export const nihSupplementBarcodeLookup = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Authentication required.");
+  }
+  const barcode = validatedLookupText(request.data?.barcode, "barcode");
+  if (!/^\d{8,14}$/.test(barcode)) {
+    throw new HttpsError("invalid-argument", "A valid numeric barcode is required.");
+  }
+  await enforceDailyLimit(
+    request.auth.uid,
+    "supplementLookupUsage",
+    SUPPLEMENT_DAILY_LIMIT
+  );
+
+  try {
+    return await lookupDietarySupplementBarcode(barcode) ?? null;
+  } catch (error) {
+    logger.warn("nihSupplementBarcodeLookup error", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    throw new HttpsError("unavailable", "Supplement label lookup is temporarily unavailable.");
+  }
+});
 
 // Community submissions are private server-owned documents. The callable is dormant unless the
 // private Firestore config explicitly accepts contributions, and App Check is mandatory because
@@ -612,8 +784,8 @@ function safeEventDate(value: string | undefined): Date {
 }
 
 // Server-owned account deletion. Uses the Admin SDK to remove everything tied to the user —
-// including backend-only metadata (the aiUsage / fatSecretUsage counters) the client can't reach
-// under the security rules — so deletion matches the privacy policy's "all associated data."
+// including backend-only usage counters the client can't reach under the security rules — so
+// deletion matches the privacy policy's "all associated data."
 export const deleteUserData = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Authentication required.");
@@ -654,7 +826,15 @@ export const deleteUserData = onCall(async (request) => {
   await db.recursiveDelete(db.collection("users").doc(uid));
 
   // Delete the per-user usage counters stored in top-level collections.
-  for (const collection of ["aiUsage", "fatSecretUsage", "communityBarcodeUsage"]) {
+  const usageCollections = [
+    "aiUsage",
+    "aiVisionUsage",
+    "fatSecretUsage",
+    "referenceFoodUsage",
+    "supplementLookupUsage",
+    "communityBarcodeUsage",
+  ];
+  for (const collection of usageCollections) {
     const snapshot = await db.collection(collection).where("uid", "==", uid).get();
     if (snapshot.empty) {
       continue;

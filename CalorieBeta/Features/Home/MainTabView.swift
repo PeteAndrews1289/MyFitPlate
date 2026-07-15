@@ -5,6 +5,12 @@ import SwiftUI
 struct IdentifiableFoodItems: Identifiable {
     let id = UUID()
     let items: [FoodItem]
+    let photoReview: MealPhotoReviewContext?
+
+    init(items: [FoodItem], photoReview: MealPhotoReviewContext? = nil) {
+        self.items = items
+        self.photoReview = photoReview
+    }
 }
 
 private struct QuickLogOption: Identifiable {
@@ -68,6 +74,7 @@ struct MainTabView: View {
     @StateObject private var weeklyRecapLoader = WeeklyRecapLoader()
 
     private let forcesLivingDayHome: Bool
+    private let forcesLegacyHome: Bool
 
     private let imageModel = MLImageModel()
     private let barcodeLookupService = BarcodeFoodLookupService()
@@ -105,16 +112,19 @@ struct MainTabView: View {
         #if DEBUG
         // Development builds should exercise the shipping 2.3 Home by default. Use
         // `-legacy-home` only when deliberately validating the rollback path.
-        let forcesLivingDayHome = !ProcessInfo.processInfo.arguments.contains("-legacy-home")
+        let forcesLegacyHome = ProcessInfo.processInfo.arguments.contains("-legacy-home")
+        let forcesLivingDayHome = !forcesLegacyHome
         #else
+        let forcesLegacyHome = false
         let forcesLivingDayHome = false
         #endif
         self.forcesLivingDayHome = forcesLivingDayHome
+        self.forcesLegacyHome = forcesLegacyHome
         _isLivingDayHomeEnabled = State(
-            initialValue: forcesLivingDayHome || (
+            initialValue: !forcesLegacyHome && (forcesLivingDayHome || (
                 DIContainer.shared.featureFlagService?.isFeatureEnabled(.livingDayHome)
                     ?? FeatureFlag.livingDayHome.defaultValue
-            )
+            ))
         )
 
         #if DEBUG
@@ -233,18 +243,21 @@ struct MainTabView: View {
             }
             .imageSourceDialog(isPresented: $showingImagePicker) { image in
                 self.isProcessingImage = true
-                imageModel.estimateNutritionFromImage(image: image) { result in
+                imageModel.analyzeNutritionFromImage(image: image) { result in
                     self.isProcessingImage = false
                     switch result {
-                    case .success(let foodItems):
-                        self.estimatedFoodItemsWrapper = IdentifiableFoodItems(items: foodItems)
+                    case .success(let analysis):
+                        self.estimatedFoodItemsWrapper = IdentifiableFoodItems(
+                            items: analysis.items,
+                            photoReview: analysis.reviewContext
+                        )
                     case .failure(let error):
                         self.scanError = (true, "Could not analyze the image. Error: \(error.localizedDescription)")
                     }
                 }
             }
             .sheet(item: $estimatedFoodItemsWrapper) { wrapper in
-                 AISummaryView(estimatedItems: wrapper.items)
+                 AISummaryView(estimatedItems: wrapper.items, photoReview: wrapper.photoReview)
             }
             .sheet(isPresented: $showingBarcodeScanner) {
                 BarcodeScannerView { barcode in
@@ -264,7 +277,7 @@ struct MainTabView: View {
                         }
                         self.isSearchingAfterScan = false
                         self.presentBarcodeRecovery(
-                            message: "No match found in FatSecret, USDA, or Open Food Facts.",
+                            message: "No food or supplement label matched this barcode.",
                             barcode: barcode
                         )
                     }
@@ -509,6 +522,11 @@ struct MainTabView: View {
     private func refreshLivingDayFeatureFlagIfNeeded() async {
         guard !didRefreshLivingDayFlag else { return }
         didRefreshLivingDayFlag = true
+
+        if forcesLegacyHome {
+            isLivingDayHomeEnabled = false
+            return
+        }
 
         if forcesLivingDayHome {
             isLivingDayHomeEnabled = true

@@ -76,6 +76,12 @@ struct FoodPickerRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var detailText: String {
+        if food.sourceMetadata?.sourceType == .nihDSLD {
+            let count = food.reportedMicronutrientCount
+            let noun = count == 1 ? "label nutrient" : "label nutrients"
+            return "\(count) \(noun)  •  NIH DSLD"
+        }
+
         guard food.calories > 0 || food.protein > 0 || food.carbs > 0 || food.fats > 0 else {
             return "Tap to review nutrition"
         }
@@ -184,7 +190,11 @@ struct FoodPickerRow: View {
     @ViewBuilder
     private var foodGlyph: some View {
         Group {
-            if dynamicTypeSize.isAccessibilitySize {
+            if food.sourceMetadata?.sourceType == .nihDSLD {
+                Image(systemName: "pills.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(AppPalette.brandText)
+            } else if dynamicTypeSize.isAccessibilitySize {
                 Image(systemName: "fork.knife")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.secondary)

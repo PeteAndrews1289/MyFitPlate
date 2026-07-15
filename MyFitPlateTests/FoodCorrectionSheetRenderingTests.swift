@@ -70,6 +70,7 @@ final class FoodCorrectionSheetRenderingTests: XCTestCase {
             metadata: metadata
         )
         let receipt = FoodTrustReceipt(
+            item: item,
             descriptor: descriptor,
             evaluation: FoodTrustEvaluation.evaluate(
                 item: item,
@@ -117,6 +118,7 @@ final class FoodCorrectionSheetRenderingTests: XCTestCase {
             metadata: metadata
         )
         let receipt = FoodTrustReceipt(
+            item: item,
             descriptor: descriptor,
             evaluation: FoodTrustEvaluation.evaluate(
                 item: item,
@@ -164,6 +166,7 @@ final class FoodCorrectionSheetRenderingTests: XCTestCase {
             metadata: metadata
         )
         let receipt = FoodTrustReceipt(
+            item: item,
             descriptor: descriptor,
             evaluation: FoodTrustEvaluation.evaluate(
                 item: item,

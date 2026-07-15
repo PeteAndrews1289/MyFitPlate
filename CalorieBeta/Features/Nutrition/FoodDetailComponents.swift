@@ -222,9 +222,17 @@ struct FoodDetailBarcodeMemoryAction: View {
 }
 
 struct FoodDetailCorrectionSheet: View {
+    private struct CorrectionChange: Identifiable {
+        let id: String
+        let title: String
+        let before: String
+        let after: String
+    }
+
     let serving: ServingSizeOption
     let barcode: String?
     let onSave: (String, ServingSizeOption) -> Void
+    private let originalName: String
 
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
@@ -246,6 +254,7 @@ struct FoodDetailCorrectionSheet: View {
         self.serving = serving
         self.barcode = barcode
         self.onSave = onSave
+        self.originalName = foodName
         self._name = State(initialValue: foodName)
         self._servingDescription = State(initialValue: serving.description)
         self._servingWeight = State(initialValue: Self.text(for: serving.servingWeightGrams))
@@ -285,6 +294,9 @@ struct FoodDetailCorrectionSheet: View {
                     correctionHeader
                     identityFields
                     macroFields
+                    if !correctionChanges.isEmpty {
+                        changeSummary
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
@@ -376,6 +388,94 @@ struct FoodDetailCorrectionSheet: View {
         .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    private var changeSummary: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.left.arrow.right")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.accentProtein)
+                Text("Changes to Save")
+                    .appFont(size: 17, weight: .bold)
+                    .foregroundColor(.textPrimary)
+            }
+
+            ForEach(correctionChanges) { change in
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(change.title)
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(change.before)
+                            .appFont(size: 12, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .lineLimit(2)
+                        Image(systemName: "arrow.right")
+                            .appFont(size: 9, weight: .bold)
+                            .foregroundColor(.accentProtein)
+                            .accessibilityHidden(true)
+                        Text(change.after)
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                            .lineLimit(2)
+                        Spacer(minLength: 0)
+                    }
+                }
+                .padding(.vertical, 3)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(change.title), \(change.before), changed to \(change.after)")
+            }
+        }
+        .padding(16)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var correctionChanges: [CorrectionChange] {
+        var changes: [CorrectionChange] = []
+
+        func addText(_ id: String, _ title: String, original: String, current: String) {
+            let old = original.trimmingCharacters(in: .whitespacesAndNewlines)
+            let new = current.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard old != new, !new.isEmpty else { return }
+            changes.append(CorrectionChange(
+                id: id,
+                title: title,
+                before: old.isEmpty ? "Not reported" : old,
+                after: new
+            ))
+        }
+
+        func addNumber(
+            _ id: String,
+            _ title: String,
+            original: Double?,
+            currentText: String,
+            unit: String
+        ) {
+            let current = doubleValue(currentText)
+            if let original, let current {
+                let tolerance = max(0.0001, abs(original) * 0.00001)
+                guard abs(original - current) > tolerance else { return }
+            } else if original == nil, current == nil {
+                return
+            }
+            let before = original.map { "\(Self.displayNumber($0)) \(unit)" } ?? "Not reported"
+            let after = current.map { "\(Self.displayNumber($0)) \(unit)" } ?? "Not reported"
+            changes.append(CorrectionChange(id: id, title: title, before: before, after: after))
+        }
+
+        addText("name", "Food name", original: originalName, current: name)
+        addText("serving", "Serving", original: serving.description, current: servingDescription)
+        addNumber("weight", "Serving weight", original: serving.servingWeightGrams, currentText: servingWeight, unit: "g")
+        addNumber("calories", "Calories", original: serving.calories, currentText: calories, unit: "cal")
+        addNumber("protein", "Protein", original: serving.protein, currentText: protein, unit: "g")
+        addNumber("carbs", "Carbs", original: serving.carbs, currentText: carbs, unit: "g")
+        addNumber("fat", "Total fat", original: serving.fats, currentText: fats, unit: "g")
+        addNumber("saturated-fat", "Saturated fat", original: serving.saturatedFat, currentText: saturatedFat, unit: "g")
+        addNumber("fiber", "Fiber", original: serving.fiber, currentText: fiber, unit: "g")
+        return changes
+    }
+
     private var correctedServing: ServingSizeOption? {
         guard canSave,
               let caloriesValue = doubleValue(calories),
@@ -456,6 +556,14 @@ struct FoodDetailCorrectionSheet: View {
 
     private static func requiredText(for value: Double) -> String {
         String(format: "%g", max(0, value))
+    }
+
+    private static func displayNumber(_ value: Double) -> String {
+        guard value.isFinite else { return "Invalid" }
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.1f", value)
     }
 
     private func doubleValue(_ text: String) -> Double? {

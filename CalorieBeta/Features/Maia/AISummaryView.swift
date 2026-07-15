@@ -10,9 +10,11 @@ struct AISummaryView: View {
     private let source: String
     private let isAIEstimate: Bool
     private let reviewTitle: String
+    private let photoReview: MealPhotoReviewContext?
 
     init(
         estimatedItems: [FoodItem],
+        photoReview: MealPhotoReviewContext? = nil,
         mealName: String = "AI Logged Meal",
         source: String = "ai_image",
         isAIEstimate: Bool = true,
@@ -23,6 +25,7 @@ struct AISummaryView: View {
         self.source = source
         self.isAIEstimate = isAIEstimate
         self.reviewTitle = reviewTitle
+        self.photoReview = photoReview
     }
 
     var body: some View {
@@ -37,9 +40,10 @@ struct AISummaryView: View {
                             : "Each matched product will log as its own entry after you confirm this list.",
                         reviewTitle: isAIEstimate ? "Review Needed" : "Serving Check",
                         reviewMessage: isAIEstimate
-                            ? "Check servings and macros, especially for sauces, oils, and foods that overlap in the photo."
+                            ? "Confirm the foods and portions, especially oils, sauces, and ingredients the camera cannot measure."
                             : "Database matches can still use a different serving than the amount you ate.",
-                        items: estimatedItems
+                        items: estimatedItems,
+                        photoReview: photoReview
                     )
                     .accessibilityIdentifier("ai_summary_overview")
                 }
@@ -59,7 +63,11 @@ struct AISummaryView: View {
                         NavigationLink {
                             foodDetailDestination(for: $item)
                         } label: {
-                            AIReviewItemRow(item: item, showsEditIndicator: false)
+                            AIReviewItemRow(
+                                item: item,
+                                showsEditIndicator: false,
+                                photoReview: photoReview?.itemReviews[item.id]
+                            )
                         }
                         .accessibilityIdentifier("ai_review_item_\(item.id)")
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -169,6 +177,7 @@ struct AIReviewOverview: View {
     var reviewTitle: String = "Review Needed"
     let reviewMessage: String
     let items: [FoodItem]
+    var photoReview: MealPhotoReviewContext?
 
     private var totalCalories: Double {
         items.reduce(0) { $0 + $1.calories }
@@ -187,6 +196,10 @@ struct AIReviewOverview: View {
             AppScreenHeader(eyebrow: eyebrow, title: title, subtitle: subtitle)
 
             AIEstimateReviewBanner(title: reviewTitle, message: reviewMessage)
+
+            if let photoReview {
+                MealPhotoEvidenceSummary(review: photoReview)
+            }
 
             VStack(alignment: .leading, spacing: AppSpacing.row) {
                 AppSectionHeader(
@@ -225,6 +238,7 @@ struct AIReviewOverview: View {
 struct AIReviewItemRow: View {
     let item: FoodItem
     let showsEditIndicator: Bool
+    var photoReview: MealPhotoItemReview?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -268,6 +282,10 @@ struct AIReviewItemRow: View {
                 }
 
                 AIItemTrustNotes(item: item)
+
+                if let photoReview {
+                    MealPhotoItemEvidence(review: photoReview)
+                }
             }
 
             if showsEditIndicator {
@@ -286,6 +304,128 @@ struct AIReviewItemRow: View {
             .appTextRole(.control)
             .foregroundStyle(AppPalette.text)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct MealPhotoEvidenceSummary: View {
+    let review: MealPhotoReviewContext
+
+    private var confidenceText: String {
+        switch review.overallConfidence {
+        case 0.82...: return "High photo confidence"
+        case 0.62...: return "Moderate photo confidence"
+        default: return "Low photo confidence"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                Label(confidenceText, systemImage: "camera.metering.center.weighted")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+
+                Spacer(minLength: AppSpacing.compact)
+
+                Text("\(Int((review.overallConfidence * 100).rounded()))%")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(evidenceSummary)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !review.analysisNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(review.analysisNotes)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !review.clarificationQuestions.isEmpty {
+                Divider()
+                Text("Before You Log")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+
+                ForEach(Array(review.clarificationQuestions.enumerated()), id: \.offset) { _, question in
+                    Label(question, systemImage: "questionmark.circle")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(AppPalette.caution)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .appSurface(.quiet)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var evidenceSummary: String {
+        let grounded = review.groundedItemCount
+        let confirmation = review.needsConfirmationCount
+        let referenceText = grounded == 0
+            ? "No close food-composition match was found."
+            : "\(grounded) \(grounded == 1 ? "item uses" : "items use") a food-composition reference."
+        let confirmationText = confirmation == 0
+            ? "All items still need a quick serving check."
+            : "\(confirmation) \(confirmation == 1 ? "item needs" : "items need") a closer look."
+        return "\(referenceText) \(confirmationText) Identity and portion remain photo estimates."
+    }
+}
+
+private struct MealPhotoItemEvidence: View {
+    let review: MealPhotoItemReview
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(
+                "Photo confidence: \(Int((min(max(review.confidence, 0), 1) * 100).rounded()))%",
+                systemImage: review.requiresConfirmation ? "exclamationmark.circle" : "camera.metering.center.weighted"
+            )
+            .foregroundStyle(review.requiresConfirmation ? AppPalette.caution : .secondary)
+
+            if let rangeText {
+                Label(rangeText, systemImage: "scalemass")
+                    .foregroundStyle(.secondary)
+            }
+
+            if let source = review.referenceSourceName {
+                Label("Composition scaled from \(source)", systemImage: "books.vertical")
+                    .foregroundStyle(AppPalette.brandText)
+            } else {
+                Label("Nutrition is still a model estimate", systemImage: "sparkles")
+                    .foregroundStyle(AppPalette.caution)
+            }
+
+            if !review.hiddenIngredientRisks.isEmpty {
+                Label(
+                    "Check for \(review.hiddenIngredientRisks.prefix(3).joined(separator: ", "))",
+                    systemImage: "eye.slash"
+                )
+                .foregroundStyle(AppPalette.caution)
+            }
+
+            if let question = review.clarificationQuestion,
+               !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Label(question, systemImage: "questionmark.circle")
+                    .foregroundStyle(AppPalette.caution)
+            }
+        }
+        .appTextRole(.caption)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var rangeText: String? {
+        guard let low = review.portionLowGrams, let high = review.portionHighGrams else { return nil }
+        let orderedLow = Int(min(low, high).rounded())
+        let orderedHigh = Int(max(low, high).rounded())
+        guard orderedLow > 0, orderedHigh > 0 else { return nil }
+        return orderedLow == orderedHigh
+            ? "Photo-estimated portion: \(orderedLow) g"
+            : "Photo-estimated range: \(orderedLow)-\(orderedHigh) g"
     }
 }
 

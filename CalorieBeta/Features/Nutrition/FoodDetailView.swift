@@ -169,9 +169,10 @@ struct FoodDetailView: View {
     private var trustMetadata: FoodSourceMetadata? {
         let trustItem = persistedTrustItem ?? initialFoodItem
         guard var metadata = trustItem.sourceMetadata else { return nil }
-        if metadata.hasIndependentCrossVerification,
+        if metadata.hasCrossDatabaseAgreement,
            !FoodSourceAgreement.preservesAgreementEvidence(sanityCheckItem, initialFoodItem) {
             metadata.crossVerifiedBy = nil
+            metadata.crossVerificationEvidence = nil
         }
         return metadata
     }
@@ -277,6 +278,7 @@ struct FoodDetailView: View {
                         )
 
                         FoodTrustReceipt(
+                            item: persistedTrustItem ?? initialFoodItem,
                             descriptor: sourceDescriptor,
                             evaluation: trustEvaluation,
                             metadata: trustMetadata,
@@ -1031,6 +1033,7 @@ struct FoodDetailView: View {
 }
 
 struct FoodTrustReceipt: View {
+    let item: FoodItem
     let descriptor: FoodSourceDescriptor
     let evaluation: FoodTrustEvaluation
     let metadata: FoodSourceMetadata?
@@ -1059,30 +1062,16 @@ struct FoodTrustReceipt: View {
         metadata?.sourceName ?? descriptor.title
     }
 
-    private var verifiedSources: [String] {
-        metadata?.validatedCrossVerifiedBy ?? []
+    private var passport: FoodTrustPassport {
+        FoodTrustPassport.evaluate(
+            item: item,
+            descriptor: descriptor,
+            metadata: metadata
+        )
     }
 
-    private var crossVerificationText: String {
-        if !verifiedSources.isEmpty {
-            return "Calories + macros matched with \(verifiedSources.prefix(2).joined(separator: ", "))"
-        }
-        if descriptor.sourceKey == "community_barcode" {
-            return "One community submission"
-        }
-        if descriptor.isEstimated {
-            return "No independent database match"
-        }
-        switch descriptor.sourceKey {
-        case "usda", "fatsecret", "open_food_facts":
-            return "One database source"
-        default:
-            return "No independent database match"
-        }
-    }
-
-    private var crossVerificationTint: Color {
-        verifiedSources.isEmpty ? Color(UIColor.secondaryLabel) : .accentPositiveText
+    private var coreScope: FoodTrustEvidenceScope {
+        passport.coreNutrition
     }
 
     private var reviewText: String {
@@ -1145,16 +1134,16 @@ struct FoodTrustReceipt: View {
                     icon: descriptor.systemImage,
                     title: "Source",
                     value: sourceName,
-                    detail: "\(descriptor.confidence). \(descriptor.detail)",
+                    detail: "\(passport.lineage.title). \(descriptor.detail)",
                     rowTint: tint,
                     isLast: false
                 )
                 receiptStep(
                     icon: "checkmark.seal.fill",
-                    title: "Verification",
-                    value: crossVerificationText,
-                    detail: verificationDetail,
-                    rowTint: crossVerificationTint,
+                    title: "Core Nutrition",
+                    value: coreScope.state.label,
+                    detail: coreScope.detail,
+                    rowTint: evidenceTint(coreScope.state),
                     isLast: false
                 )
                 nutritionStep
@@ -1168,6 +1157,8 @@ struct FoodTrustReceipt: View {
                     isEmphasized: presentedResolution != nil
                 )
             }
+
+            evidenceCoverage
 
             scoreDisclosure
 
@@ -1226,18 +1217,64 @@ struct FoodTrustReceipt: View {
     }
 
     private var scoreSummary: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 2) {
-            Text("\(evaluation.score)")
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(tint)
-            Text("/99")
-                .appFont(size: 11, weight: .bold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+        Label(coreScope.state.label, systemImage: evidenceIcon(coreScope.state))
+            .appFont(size: 10, weight: .bold)
+            .foregroundColor(evidenceTint(coreScope.state))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(evidenceTint(coreScope.state).opacity(0.10), in: Capsule())
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("food_trust_score")
+            .accessibilityLabel("Trust rating")
+            .accessibilityValue(
+                "\(evaluation.label). \(coreScope.state.label). Evidence index \(evaluation.score) out of 99"
+            )
+    }
+
+    private var evidenceCoverage: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
+
+            Text("Evidence Coverage")
+                .appFont(size: 12, weight: .bold)
+                .foregroundColor(.textPrimary)
+
+            ForEach(passport.scopes.filter { $0.field != .coreNutrition }) { scope in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: evidenceIcon(scope.state))
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundColor(evidenceTint(scope.state))
+                        .frame(width: 24, height: 24)
+                        .background(evidenceTint(scope.state).opacity(0.10), in: Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(scope.title)
+                                .appFont(size: 11, weight: .bold)
+                                .foregroundColor(.textPrimary)
+                            Spacer(minLength: 4)
+                            Text(scope.state.label)
+                                .appFont(size: 9, weight: .bold)
+                                .foregroundColor(evidenceTint(scope.state))
+                                .multilineTextAlignment(.trailing)
+                        }
+                        Text(scope.detail)
+                            .appFont(size: 10, weight: .medium)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
+
+            Label(freshnessText, systemImage: freshnessIcon)
+                .appFont(size: 10, weight: .semibold)
+                .foregroundColor(freshnessTint)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityIdentifier("food_trust_score")
-        .accessibilityLabel("Trust Score")
-        .accessibilityValue("\(evaluation.score) out of 99, \(evaluation.label)")
+        .padding(.vertical, 2)
     }
 
     private func resolutionNotice(_ resolution: FoodTrustResolution) -> some View {
@@ -1369,7 +1406,7 @@ struct FoodTrustReceipt: View {
                 }
             } label: {
                 HStack(spacing: 8) {
-                    Text("Why this score")
+                    Text("Why this rating")
                         .appFont(size: 12, weight: .bold)
                     Spacer(minLength: 0)
                     Image(systemName: showsScoreDetails ? "chevron.up" : "chevron.down")
@@ -1379,9 +1416,19 @@ struct FoodTrustReceipt: View {
                 .padding(.vertical, 6)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(showsScoreDetails ? "Hide Trust Score details" : "Show Trust Score details")
+            .accessibilityLabel(showsScoreDetails ? "Hide Trust rating details" : "Show Trust rating details")
 
             if showsScoreDetails {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("Evidence index")
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    Spacer(minLength: 4)
+                    Text("\(evaluation.score) / 99")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(tint)
+                }
+
                 Text(evaluation.summary)
                     .appFont(size: 11, weight: .medium)
                     .foregroundColor(Color(UIColor.secondaryLabel))
@@ -1405,29 +1452,16 @@ struct FoodTrustReceipt: View {
                         .foregroundColor(reasonTint(for: reason))
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Text("The evidence index ranks source support and consistency. It is not a probability that every field is correct.")
+                    .appFont(size: 10, weight: .medium)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.vertical, 2)
         .overlay(alignment: .top) {
             Divider()
-        }
-    }
-
-    private var verificationDetail: String {
-        if !verifiedSources.isEmpty {
-            return "Independent sources agreed on calories and macros."
-        }
-        if descriptor.sourceKey == "community_barcode" {
-            return "The published aggregate contains no contributor identity."
-        }
-        if descriptor.isEstimated {
-            return "No database independently verified this estimate."
-        }
-        switch descriptor.sourceKey {
-        case "usda", "fatsecret", "open_food_facts":
-            return "No second source was available for comparison."
-        default:
-            return "No independent match is attached to this entry."
         }
     }
 
@@ -1443,6 +1477,90 @@ struct FoodTrustReceipt: View {
             return descriptor.isEstimated
                 ? "Review the serving before relying on this estimate."
                 : "No personal review is attached."
+        }
+    }
+
+    private func evidenceTint(_ state: FoodTrustEvidenceState) -> Color {
+        switch state {
+        case .crossDatabaseAgreement, .userReviewed:
+            return .accentPositiveText
+        case .sourceReported:
+            return .accentProtein
+        case .estimated:
+            return AppPalette.caution
+        case .needsCorrection:
+            return AppPalette.critical
+        case .unavailable, .notChecked:
+            return Color(UIColor.secondaryLabel)
+        }
+    }
+
+    private func evidenceIcon(_ state: FoodTrustEvidenceState) -> String {
+        switch state {
+        case .crossDatabaseAgreement: return "checkmark.seal.fill"
+        case .userReviewed: return "person.crop.circle.badge.checkmark"
+        case .sourceReported: return "doc.text.fill"
+        case .estimated: return "sparkles"
+        case .needsCorrection: return "exclamationmark.triangle.fill"
+        case .unavailable: return "questionmark.circle.fill"
+        case .notChecked: return "minus.circle.fill"
+        }
+    }
+
+    private var freshnessText: String {
+        let dateText = passport.freshness.date?.formatted(date: .abbreviated, time: .omitted)
+        switch passport.freshness.state {
+        case .current:
+            if passport.lineage == .governmentCompilation {
+                return "Reference dataset released \(dateText ?? "recently")"
+            }
+            return "Source record updated \(dateText ?? "recently")"
+        case .aging:
+            if passport.lineage == .governmentCompilation {
+                return "Reference dataset was released \(dateText ?? "over 18 months ago")"
+            }
+            return "Source record was last updated \(dateText ?? "over 18 months ago")"
+        case .stale:
+            if passport.lineage == .governmentCompilation {
+                return "Reference dataset may be stale; release \(dateText ?? "is over three years old")"
+            }
+            return "Source record may be stale; last update \(dateText ?? "is over three years old")"
+        case .retrieved:
+            switch passport.lineage {
+            case .personalReview:
+                return "Saved \(dateText ?? "previously"); no external formulation date"
+            case .modelEstimate:
+                return "Estimated \(dateText ?? "previously"); no provider formulation date"
+            case .derivedEntry:
+                return "Created \(dateText ?? "previously"); source formulation date unavailable"
+            case .restaurantCatalog:
+                return "Catalog observed \(dateText ?? "previously"); menu update date unavailable"
+            case .manufacturerLabel:
+                return "Label record retrieved \(dateText ?? "previously"); manufacturer update date unavailable"
+            default:
+                return "Retrieved \(dateText ?? "previously"); provider formulation date unavailable"
+            }
+        case .unknown:
+            return "Provider formulation date unavailable"
+        }
+    }
+
+    private var freshnessIcon: String {
+        switch passport.freshness.state {
+        case .current: return "checkmark.circle.fill"
+        case .aging: return "clock.fill"
+        case .stale: return "exclamationmark.arrow.triangle.2.circlepath"
+        case .retrieved: return "tray.and.arrow.down.fill"
+        case .unknown: return "questionmark.circle.fill"
+        }
+    }
+
+    private var freshnessTint: Color {
+        switch passport.freshness.state {
+        case .current: return .accentPositiveText
+        case .aging: return AppPalette.caution
+        case .stale: return AppPalette.critical
+        case .retrieved, .unknown: return Color(UIColor.secondaryLabel)
         }
     }
 

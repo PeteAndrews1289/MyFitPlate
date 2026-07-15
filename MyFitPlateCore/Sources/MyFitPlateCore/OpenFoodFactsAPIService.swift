@@ -116,7 +116,7 @@ public enum OpenFoodFactsParser {
             ? servingDescription!
             : "\(Int(servingWeight.rounded())) g"
 
-        return FoodItem(
+        let item = FoodItem(
             id: "off_\(product.id)",
             name: trimmedName.isEmpty ? "Unknown Product" : trimmedName,
             calories: preferred(n.energyKcalServing, n.energyKcal100g),
@@ -164,12 +164,20 @@ public enum OpenFoodFactsParser {
             vitaminB6: converted(n.vitaminB6Serving, n.vitaminB6100g, multiplier: 1_000),
             vitaminE: converted(n.vitaminEServing, n.vitaminE100g, multiplier: 1_000),
             vitaminK: converted(n.vitaminKServing, n.vitaminK100g, multiplier: 1_000_000)
-        ).withDatabaseSource(
+        )
+        let updatedAt = product.lastModifiedTimestamp.flatMap { timestamp -> Date? in
+            guard timestamp.isFinite, timestamp > 0 else { return nil }
+            return Date(timeIntervalSince1970: timestamp)
+        }
+        let metadata = FoodSourceMetadata.database(
             .openFoodFacts,
             sourceName: "Open Food Facts",
             sourceID: "off_\(product.id)",
-            barcode: product.id
+            barcode: product.id,
+            evidenceLineage: .publicDatabase,
+            sourceUpdatedAt: updatedAt
         )
+        return item.withSourceMetadata(metadata)
     }
 
     private static func resolvedServingWeight(for product: Product) -> Double {
@@ -204,6 +212,7 @@ private struct Product: Codable {
     public let productName: String?
     public let servingSize: String?
     public let servingQuantity: Double?
+    public let lastModifiedTimestamp: Double?
     public let nutriments: Nutriments
 
     public enum CodingKeys: String, CodingKey {
@@ -211,6 +220,7 @@ private struct Product: Codable {
         case productName = "product_name"
         case servingSize = "serving_size"
         case servingQuantity = "serving_quantity"
+        case lastModifiedTimestamp = "last_modified_t"
         case nutriments
     }
 }

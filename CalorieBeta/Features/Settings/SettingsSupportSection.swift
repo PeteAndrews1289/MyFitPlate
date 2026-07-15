@@ -63,6 +63,20 @@ struct SettingsSupportSection: View {
 
                 Divider().padding(.leading, 50)
 
+                NavigationLink {
+                    NutritionDataSourcesView()
+                } label: {
+                    SettingsLabel(
+                        icon: "books.vertical.fill",
+                        title: "Nutrition data sources",
+                        subtitle: "See where food and supplement values come from.",
+                        showsDisclosure: true
+                    )
+                }
+                .padding(AppSpacing.group)
+
+                Divider().padding(.leading, 50)
+
                 Button {
                     openFeedbackEmail()
                 } label: {
@@ -173,6 +187,102 @@ struct SettingsSupportSection: View {
             URLQueryItem(name: "body", value: body)
         ]
         return components?.url
+    }
+}
+
+struct NutritionDataSourcesView: View {
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                AppSectionHeader(
+                    title: "Nutrition Data Sources",
+                    subtitle: "MyFitPlate preserves the source and evidence type on each matched food."
+                )
+
+                sourceGroup(
+                    title: "Health Canada CNF",
+                    icon: "checkmark.seal.fill",
+                    detail: "Generic food composition from the Canadian Nutrient File 2026. Values may combine analysis, calculations, manufacturer data, and other government composition records; they are not treated as exact branded-product labels.",
+                    links: [
+                        ("Canadian Nutrient File", "https://www.canada.ca/en/health-canada/services/food-nutrition/healthy-eating/nutrient-data/canadian-nutrient-file-about-us.html"),
+                        ("Open dataset", "https://open.canada.ca/data/en/dataset/1b6139bd-ed7e-4043-bc28-ff00e10f3109"),
+                        ("Open Government Licence - Canada", "https://open.canada.ca/en/open-government-licence-canada")
+                    ],
+                    attribution: "Contains information licensed under the Open Government Licence - Canada."
+                )
+
+                sourceGroup(
+                    title: "NIH DSLD",
+                    icon: "pills.fill",
+                    detail: "Supplement facts from current manufacturer label records in the NIH Dietary Supplement Label Database. Label amounts are not laboratory verification of product contents.",
+                    links: [
+                        ("Dietary Supplement Label Database", "https://ods.od.nih.gov/Research/Dietary_Supplement_Label_Database.aspx")
+                    ],
+                    attribution: "NIH DSLD data is made available under CC0."
+                )
+
+                sourceGroup(
+                    title: "Other Food Sources",
+                    icon: "fork.knife",
+                    detail: "MyFitPlate also uses USDA FoodData Central, FatSecret, and Open Food Facts. Trust distinguishes analytical references, licensed records, public label data, and manufacturer labels instead of treating every database match as independent proof.",
+                    links: [
+                        ("USDA FoodData Central", "https://fdc.nal.usda.gov/"),
+                        ("Open Food Facts", "https://world.openfoodfacts.org/terms-of-use")
+                    ],
+                    attribution: nil
+                )
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.group)
+        }
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .navigationTitle("Data Sources")
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(AppPalette.brand)
+        .accessibilityIdentifier("nutrition_data_sources_screen")
+    }
+
+    private func sourceGroup(
+        title: String,
+        icon: String,
+        detail: String,
+        links: [(String, String)],
+        attribution: String?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Label(title, systemImage: icon)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+
+            Text(detail)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let attribution {
+                Text(attribution)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                ForEach(links, id: \.0) { label, destination in
+                    if let url = URL(string: destination) {
+                        Link(destination: url) {
+                            HStack {
+                                Text(label)
+                                    .appTextRole(.control)
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .appTextRole(.caption)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .appSurface(.quiet)
     }
 }
 

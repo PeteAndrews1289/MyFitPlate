@@ -1,7 +1,7 @@
 # Micronutrient Data Contract - Version 2.3
 
-The title and filename retain the internal milestone label; this contract ships in replacement
-public version 2.2.
+The original nil-versus-zero integrity contract shipped in public version 2.2. Version 2.3 extends
+that contract with Health Canada generic-food composition and NIH supplement-label data.
 
 ## Product rule
 
@@ -57,6 +57,36 @@ Reference: https://platform.fatsecret.com/docs/v4/food.get
 
 Reference: https://openfoodfacts.github.io/openfoodfacts-server/dev/explain-nutrition-data/
 
+### Health Canada Canadian Nutrient File 2026
+
+- The official 2026 relational release is compiled into a versioned backend-only index containing
+  5,993 generic foods; the older public CNF API is not used as the source of current values.
+- CNF values remain per 100 g and use the same canonical-unit rules as USDA. Copper is converted
+  from mg to mcg, explicit zero remains non-`nil`, and absent values remain absent.
+- Results retain the CNF food code, release date, food revision date, and a conservative source
+  summary. Trust treats the record as a government compilation because one food can combine
+  analyzed, calculated, manufacturer-supplied, and upstream composition values.
+- CNF participates in generic-food search only. It does not answer barcode lookup, enrich a branded
+  product by fuzzy name, or count as independent confirmation of USDA.
+
+Reference: https://www.canada.ca/en/health-canada/services/food-nutrition/healthy-eating/nutrient-data/canadian-nutrient-file-about-us.html
+
+### NIH Dietary Supplement Label Database
+
+- DSLD appears in a separate Supplements section after explicit search and as a final supplement
+  barcode fallback after ordinary food providers miss.
+- Records retain current manufacturer-label provenance, DSLD identifier, barcode when available,
+  product type, entry date, and original label serving. NIH hosting is not laboratory verification.
+- A label serving such as `2 Capsules` is one logging serving. The app does not invent a gram weight
+  or multiply the nutrient panel by the capsule count a second time.
+- Only supported nutrient names and unambiguous units are mapped. Vitamin A IU and Vitamin E IU are
+  omitted because their conversion depends on form; Vitamin D IU converts to mcg; botanicals and
+  proprietary blends do not become nutrition totals.
+- The 2.3 adapter requests current on-market records only. DSLD entry date is retained as context,
+  not mislabeled as a formulation-update date.
+
+Reference: https://api.ods.od.nih.gov/dsld/v9/
+
 ## Exact-product enrichment
 
 Barcode lookup may fill a primary record's missing detail nutrients from USDA or Open Food Facts
@@ -74,6 +104,10 @@ order is deterministic; later records cannot overwrite a value filled by an earl
 Text search does not perform fuzzy nutrient merging. An exact normalized-name collision may select
 the source record that reports more nutrients, but values from different text results are not
 combined.
+
+Health Canada results remain standalone generic-food alternatives, and NIH supplement records
+remain standalone manufacturer-label entries. Neither source enters exact-product micronutrient
+enrichment in 2.3.
 
 ## Recipes and estimates
 
@@ -94,6 +128,8 @@ combined.
 - Food and Recipe detail disclose how many of the 22 vitamins/minerals are reported. A reported
   zero remains visible.
 - Maia coaching context says `not reported` for absent fiber or sodium rather than sending zero.
+- Settings exposes source roles and the required Health Canada open-data attribution. Supplement
+  UI states that DSLD amounts are manufacturer label claims rather than laboratory results.
 
 ## Migration boundary
 
@@ -106,6 +142,10 @@ IU, mg, or unavailable.
 ## Regression gates
 
 - Parser fixtures cover unit conversion, per-serving precedence, aliases, and explicit zero.
+- CNF fixtures cover the complete 5,993-food asset, generic ranking, release freshness, and broad
+  micronutrient preservation.
+- DSLD fixtures cover current/off-market filtering, non-mass label servings, barcode normalization,
+  and refusal of ambiguous IU conversions.
 - Coverage tests distinguish nil, zero, partial, and complete reporting.
 - Exact-product tests cover serving scaling, primary-value preservation, and disagreement refusal.
 - Recipe tests cover full-panel aggregation, scaling, and conversion back to `FoodItem`.

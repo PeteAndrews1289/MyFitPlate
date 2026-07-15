@@ -30,6 +30,7 @@ final class CoreModelSmokeTests: XCTestCase {
         XCTAssertEqual(service.recordedMaxTokens, 2048)
         XCTAssertEqual(service.recordedTemperature, 0.7)
         XCTAssertNil(service.recordedResponseFormat)
+        XCTAssertEqual(service.recordedRequestKind, .general)
         XCTAssertEqual(service.recordedRetryCount, 1)
     }
 
@@ -106,6 +107,7 @@ private final class RecordingAIService: AIServiceProtocol {
     private(set) var recordedMaxTokens: Int?
     private(set) var recordedTemperature: Double?
     private(set) var recordedResponseFormat: [String: Any]?
+    private(set) var recordedRequestKind: AIRequestKind?
     private(set) var recordedRetryCount: Int?
 
     func performRequest(
@@ -114,12 +116,14 @@ private final class RecordingAIService: AIServiceProtocol {
         maxTokens: Int,
         temperature: Double,
         responseFormat: [String: Any]?,
+        requestKind: AIRequestKind,
         retryCount: Int
     ) async -> Result<String, AIError> {
         recordedModel = model
         recordedMaxTokens = maxTokens
         recordedTemperature = temperature
         recordedResponseFormat = responseFormat
+        recordedRequestKind = requestKind
         recordedRetryCount = retryCount
         return .success("ok")
     }

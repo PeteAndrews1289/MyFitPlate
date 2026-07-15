@@ -611,7 +611,7 @@ class PantryVisionService {
     private init() {}
     
     func generateRecipesFromImage(image: UIImage, retryCount: Int = 1, completion: @escaping (Result<[VisionRecipe], Error>) -> Void) {
-        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+        guard let imageData = image.aiPreparedJPEGData() else {
             completion(.failure(ImageRecognitionError.imageProcessingError))
             return
         }
@@ -637,7 +637,7 @@ class PantryVisionService {
                 "role": "user",
                 "content": [
                     ["type": "text", "text": prompt],
-                    ["type": "image_url", "image_url": ["url": base64Image]]
+                    ["type": "image_url", "image_url": ["url": base64Image, "detail": "high"]]
                 ]
             ]
         ]
@@ -645,8 +645,10 @@ class PantryVisionService {
         Task {
             let result = await AIService.shared.performRequest(
                 messages: messages,
-                model: "gpt-4o",
-                maxTokens: 1500,
+                model: "gpt-4o-mini",
+                maxTokens: 2_400,
+                responseFormat: ["type": "json_object"],
+                requestKind: .recipePhoto,
                 retryCount: 0
             )
             

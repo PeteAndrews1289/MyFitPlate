@@ -8,6 +8,8 @@ public enum FeatureFlag: String, CaseIterable {
     case receiptScanner
     case communityBarcodeCorrections
     case livingDayHome
+    case healthCanadaFoodSearch
+    case nihSupplementLabels
 
     /// Value used when neither a local override nor a remote value is present.
     /// New/gated features stay dark until deliberately enabled. Already-shipped, higher-risk
@@ -23,6 +25,9 @@ public enum FeatureFlag: String, CaseIterable {
         case .communityBarcodeCorrections: return false
         // Living Day is the 2.3 Home. Remote Config remains available as an emergency kill switch.
         case .livingDayHome: return true
+        // Specialist reference providers ship on, with Remote Config retained as a kill switch.
+        case .healthCanadaFoodSearch: return true
+        case .nihSupplementLabels: return true
         }
     }
 

@@ -11,6 +11,7 @@ final class OpenFoodFactsAPIServiceTests: XCTestCase {
                 "code": "1234567890",
                 "product_name": "Test Food",
                 "serving_size": "50g",
+                "last_modified_t": 1764547200,
                 "nutriments": {
                     "energy-kcal_100g": 200,
                     "proteins_100g": 10.5,
@@ -47,6 +48,11 @@ final class OpenFoodFactsAPIServiceTests: XCTestCase {
         XCTAssertEqual(item.calcium ?? 0, 50.0, accuracy: 0.1)
         XCTAssertEqual(item.potassium ?? 0, 1000.0, accuracy: 0.1)
         XCTAssertEqual(item.vitaminC ?? 0, 25.0, accuracy: 0.1)
+        XCTAssertEqual(item.sourceMetadata?.effectiveEvidenceLineage, .publicDatabase)
+        XCTAssertEqual(
+            item.sourceMetadata?.sourceUpdatedAt,
+            Date(timeIntervalSince1970: 1_764_547_200)
+        )
     }
     
     func testParsingMissingProduct() throws {
