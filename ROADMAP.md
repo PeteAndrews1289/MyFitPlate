@@ -1,774 +1,227 @@
-# MyFitPlate Roadmap — Single Point of Truth (SPOT)
-
-A living, definitive roadmap and product vision for MyFitPlate.
-
-Competitive thesis: MyFitPlate should not try to out-database MyFitnessPal, out-micronutrient Cronometer, or out-algorithm MacroFactor head-on. The wedge is **high-trust nutrition logging for people who train**, with Maia turning food, recovery, lifting, running, and real-world dining into one daily loop.
-
-Current objective: keep the live 2.2 release stable and isolated on `main`, and build version 2.3 on
-`codex/2.3-visual-unification`. Carry Living Day's evidence-led language across
-the app in reviewable feature batches without adding logging or workout friction. Every sprint
-should preserve fast logging while making Trust, food timing, training, and recovery feel like one
-daily system rather than separate capable tools.
-
----
-
-## 🏁 Published Foundation and Live 2.2 Release
-- [x] **AYCE Challenge & Scoreboard**: 6-cuisine buffet tracker, sushi roll library (48 items), live value vs. price game, haptic kitchen wins, and persistent lifetime scoreboard ("kitchens defeated").
-- [x] **Apple Health & Running Engine**: Bidirectional workout sync, GPS route mapping, false-start filtering (<100m/<2min), and parallel-watch calorie double-count protection.
-- [x] **High-Trust Nutrition Logging**: GS1 barcode fallback, multi-database cross-verification (USDA, FatSecret, OpenFoodFacts), and 0–99 Trust Cards.
-- [x] **Trust Score model v2 hardening**: independently validated source evidence, checksum-valid GTIN matching, exact USDA barcode identity, honest reviewed-estimate states, finite-value and nutrition-plausibility guards, model-versioned analytics, and a documented scoring contract in `docs/trust-score-model.md`.
-- [x] **Maia Adaptive Coaching**: Daily strategy cards linking sleep, recovery, training, and nutrition adjustments.
-- [x] **HealthKit Test Seams**: Protocol-abstracted seam (`HealthStoreScheduling`) with deep unit coverage across health and running services (package line coverage 84%).
-- [x] **2.2 trust and privacy hardening**: explicit per-account AI data consent with optional Apple Health context, server-owned account deletion, privacy-safe analytics, production App Attest client support and entitlement, serialized daily-log writes, and corrected USDA/Open Food Facts routing and serving math.
-- [x] **2.2 activation and organic growth foundation**: elapsed onboarding-to-first-food/workout telemetry, a nutrition-plus-training loop milestone, a conservative StoreKit review request after sustained use, App Store-linked result sharing, and a structured feedback path in Settings.
-
----
-
-## ✅ Included in Live Version 2.2 — Running Superpowers & Friction Killers
-These items originally carried a 2.3 label while they were being built, but now ship
-inside the live 2.2 release. They are complete release scope, not future work.
-
-### Running Engine & Recovery
-- [x] **Shoe Mileage Tracker (Core Engine)**: Added `RunningShoe` struct, `shoeID` tagging on runs, and `RunningShoeStore` for local gear persistence and wear calculations.
-- [x] **Shoe Mileage Tracker (UI)**: Built gear management screens (`ShoeGearManagerView`) and run tagging UI (`RunHistoryView`, `RunDetailView`).
-- [x] **Run-to-Fuel Recovery Prompts (Core Engine)**: Built `RunRecoveryRules` with dynamic carb/protein formula scaling and integrated `currentRunRecoveryPrompt` into `InsightsService`.
-- [x] **Run-to-Fuel Recovery Prompts (UI)**: Display immediate post-run recovery banner cards in Home/Insights views.
-- [x] **Route Personal Records ("Ghost Pace")**: Track and highlight fastest average paces and PRs across familiar GPS routes and loops (`GhostPaceComparison` in `RunStats`, UI card in `RunDetailView`).
-
-### Effortless Logging Polish
-- [x] **1-Tap Quick Logging (Core Engine)**: Implemented `repeatMeal`, `fetchYesterdayMeal`, and `repeatYesterdayMeal` in `DailyLogService` and `DailyLogRules`.
-- [x] **1-Tap Quick Logging (UI)**: Added "Repeat Yesterday" action button in logging screens (`CalorieLogView`).
-- [x] **Photo Library Logging (Core & UI)**: Implemented `AICameraService` for image preparation and payload scaling; `imageSourceDialog` integrated in UI.
-- [x] **"Walk & Talk" Voice Logging (Core Engine)**: Implemented `VoiceLoggingService` async state machine (`idle`, `recording`, `transcribing`, `completed`).
-- [x] **"Walk & Talk" Voice Logging (UI)**: Added mic button and live recording status banner in daily log view (`FoodSearchView`).
-
----
-
-## 🎯 Version 2.2 — The Daily Training Loop (Live)
-
-**Release numbering:** the first 2.2 build was withdrawn before publication, and build 2 was
-rejected during App Store processing because the embedded Watch plist lacked HealthKit purpose
-strings. The corrected integrated release is now live as public version 2.2. Historical `2.3` document
-filenames and analytics schema `2.3.2` stay unchanged so links, dashboards, and event cohorts
-remain traceable; they do not describe the App Store version.
-
-**Release thesis:** the original 2.2 candidate established the moat: food data that shows its
-work, connected to real training. This replacement should turn that advantage into a
-repeatable habit by helping a user decide what to eat before training, what to do after it,
-and whether the plan is working. This is a retention release, not another inventory of
-unrelated features.
-
-**Public promise:** "Know what to eat before and after training without losing sight of
-your daily targets."
-
-**Scope rule:** reserve roughly 25% of the release for candidate feedback, defects, and
-accessibility/device findings. New work must improve the food -> train -> recover -> review
-loop, remove logging friction, or make the Trust advantage easier to discover.
-
-### Must Ship — 2.2 Signal and Release Health
-
-- [x] **KPI contract and instrumentation foundation**: audited activation, Trust, logging,
-  import, training, acquisition, reliability, and AI-cost signals; added schema-versioned
-  analytics, one daily active-logger event, running-aware activation, exact deep-link
-  destinations, barcode outcome latency, private server token totals, and the canonical
-  metric definitions in `docs/analytics-dashboard-2.3.md`.
-- [x] **Competitive KPI dashboard rollout**: Firebase custom definitions/metrics, four completion
-  key events, and the version/schema-aware Activation exploration are configured from the tracked
-  contract. The weekly App Store acquisition join, live cohort interpretation, and final alert
-  thresholds begin after replacement 2.2 has clean production traffic.
-- [x] **Launch-health instrumentation foundation**: operation-tagged serialized diary failures,
-  AI decode failures, account-deletion outcomes, end-to-end barcode latency/misses, build and
-  startup context, and private AI request outcome/token/latency counters are implemented with
-  privacy regression coverage.
-- [x] **Launch-health operating view rollout**: the version/schema-aware operational exploration
-  and Crashlytics email/velocity alerts are configured. Callable/provider trends, AI cost, and
-  App Check validity are reviewed against build 3 after upload; every red metric still needs an
-  owner and rollback path, and enforcement waits for clean production data.
-- [x] **Quick Log first-interaction hardening**: opening is idempotent, the dismissal backdrop
-  cannot consume the opening touch, idle notification UI is not mounted over Home, direct
-  Simulator clicks open on the first attempt, and the complete UI suite is green.
-- [x] **Maia conversation and read-aloud polish**: Maia now answers first, avoids canned praise
-  and dashboard recitation, interprets Balanced/Coach/Analyst as concrete writing styles, and
-  keeps action JSON out of speech. Read Aloud ranks regular US English voices deterministically,
-  prefers downloaded Premium or Enhanced voices, uses the voice's native pitch/rate, expands
-  nutrition shorthand, manages audio in a separate system session, and adds a device-local
-  voice picker with preview. Core and focused UI regressions are green; subjective device
-  acceptance remains in `docs/device-test-2.3.md`.
-- [x] **Structured feedback triage**: `docs/feedback-triage-2.3.md` is the single
-  severity-ranked ledger for review feedback, support messages, device-only defects, and
-  repeated friction. It separates code complete from device validated, names closure evidence,
-  and keeps one preference from becoming a redesign unless it exposes a correctness,
-  accessibility, or workflow fault.
-- [x] **Trust correction-loop feedback closure**: label-photo replacement no longer carries
-  stale saturated fat, optional nutrients, or serving weight from an older combined/barcode
-  item. Label parsing now captures the printed serving description and gram weight. Both food
-  editors expose clearly labeled Total fat and Saturated fat fields, block contradictory saves,
-  and overwrite an existing My Foods barcode correction instead of creating a duplicate.
-- [x] **Watch companion delivery and sync recovery**: the Watch product is now embedded in the
-  iPhone bundle instead of merely building beside it. The phone retains the latest account-scoped
-  context until WatchConnectivity is activated, paired, and installed; activation, reachability,
-  Watch-state changes, and an explicit Watch sync request all replay it. The embedded generic-iOS
-  product and companion identifiers are verified. Peter also physically validated companion
-  installation, initial/current context, account clearing, and offline exactly-once water/meal
-  replay on 2026-07-12.
-- [x] **Micronutrient integrity and coverage closure**: USDA now uses Vitamin A RAE and converts
-  copper to the app's established unit, FNDDS prepared foods join text search, Open Food Facts
-  maps all 22 supported vitamins/minerals with correct per-serving conversions, and FatSecret no
-  longer turns absent detail fields into zero. Agreeing exact-barcode records can fill only a
-  primary record's missing nutrients, richer exact-name search records can replace sparse
-  previews, and recipes retain/scale the full panel. Daily and historical reports distinguish
-  unavailable data from reported zero and show their food/day coverage instead of false 0% intake.
-  The durable provider/unit/presentation contract is `docs/micronutrient-data-2.3.md`.
-- [ ] **Known device closures**: three running sensor/data paths remain: one guided interval on real
-  GPS, one Watch-imported run with heart-rate series, and one phone-only run without HR, plus one
-  corrected stop/weak-GPS historical-route replay. Watch
-  sync/offline replay, workout supersets/rest, RPE/RIR/set types, widgets, notification routing,
-  accessibility, appearance, and real connectivity recovery are physically closed. The concise
-  remaining sequence and release-stop conditions are in `docs/device-test-2.3.md`; Maia's
-  new voice/tone acceptance is tracked there as a separate P2 polish check.
-- [ ] **Organic acquisition follow-through**: submit the 2.2 featuring nomination, publish
-  the prepared Trust/Strength/Weight/Dining/Running/Meal Plan custom product pages now that 2.2 is
-  live, and add exact app routes plus deterministic screenshot fixtures for Food Search, Trust,
-  Fast Food Builder,
-  Runs, and Meal Plan. The replacement candidate now queues exact routes through login and
-  onboarding, and has deterministic CPP aliases plus a HealthKit-free Running history fixture;
-  publication and signed-in/signed-out device checks remain.
-
-### Must Ship — Training Fuel Planner v1
-
-- [x] **Deterministic allocation engine (Core)**: strength/run type, expected duration,
-  intensity, lower/full-body demand, time until training, today's verified log, remaining
-  calorie/macro targets, and pre/post preference now produce bounded allocations. The engine
-  never raises the daily target, spends tomorrow's budget, or turns an overage into a refeed.
-  Its transparent contract is `docs/training-fuel-planner-2.3.md`.
-- [x] **Planned-session adapter**: the Home planner derives the current routine, schedule,
-  estimated duration, effort, and strength focus from the active program; built-in/custom run
-  plans can also be selected. Distance-only run plans and manual sessions require review
-  instead of receiving invented timing.
-- [x] **User control and honest uncertainty**: the review sheet exposes session type, source,
-  start time, duration, effort, strength focus, and independent before/after choices. Estimated
-  inputs are labeled, and optional Maia food ideas remain separate from the deterministic
-  calorie/protein/carb budget.
-- [x] **Actionable handoff**: each phase carries its exact live target into Search and Recent
-  Foods, Fast Food Builder, Meal Plan, or a target-specific Maia idea. The generic whole-day
-  Fill My Macros prompt is suppressed while a confirmed plan exists so the two budgets cannot
-  compete.
-- [x] **Post-session reconciliation**: confirmed plans are account scoped, subtract food logged
-  after confirmation, separate before/after by timestamp, cap every next action to the live
-  daily goals and diary, and become neutral for over-target or invalid data. Recovery now opens
-  only after an explicit completion from the strength player, exact selected run, treadmill run,
-  or manual confirmation; program/manual skips close every target. Unconfirmed elapsed sessions
-  wait for an outcome instead of inferring recovery. Food logged during training consumes the
-  budget without being mislabeled, and sessions that legitimately finish after midnight create
-  a fresh recovery allocation from the next day's real diary and goals before any target appears.
-- [x] **Rules and safety coverage (Core)**: 23 adversarial tests cover hard leg days, easy
-  sessions, long/short runs, late-night training, fasting, missing/defaulted inputs, historical
-  diary state, tiny or exhausted budgets, over-target days, stale/tomorrow workouts, invalid
-  values, extreme finite corruption, and explicit pre/post choices. A 1,344-combination grid
-  also enforces the calorie, macro, phase, and minimum-action invariants. Language remains
-  general fitness coaching. Twenty-nine integration tests now cover active-program/run adapters,
-  exact routine and run-plan identity, explicit completion/skipping, actual finish time,
-  account isolation, diary attribution, live-budget recapping, stale storage, phase timing,
-  overnight recovery, same-plan edits, and fail-closed reconciliation. AI meal ideas also pass
-  a local finite-value, nutrition-consistency, and live-budget gate before they can be shown.
-
-### Must Ship — Training and Fuel Report
-
-- [x] **One weekly story**: Home and Reports now open one deterministic seven-day report answering
-  what the user trained, how consistently it was fueled, and what changed. Sparse data stays
-  explicit, source read failures do not masquerade as an empty week, and every rate shows its
-  eligible denominator.
-- [x] **Running summary**: weekly/prior mileage, distance-weighted pace, running and comparable-
-  distance records, confirmed outdoor routes, real HR-series time in zone, guided step results,
-  shoe wear, and timestamped recovery follow-through now share one surface. An open recovery
-  window remains pending instead of being scored as a miss.
-- [x] **Strength summary**: session frequency, working-set count/volume, prior-history PRs,
-  working-set RPE trend, demanding days, and demanding-day calorie/protein consistency are
-  reported with warmups excluded.
-- [x] **Outcome context**: EMA-smoothed weight trend, nutrition adherence, training-day diary
-  coverage, and Trust review rate sit beside training without an invented composite score.
-  Invalid nutrition or HR values fail closed as unavailable instead of becoming false zeros.
-- [x] **Share/export foundation**: one share menu produces a rendered summary image and a clean,
-  aggregate CSV that excludes account IDs, food/routine names, routes/coordinates, and raw HR
-  samples. Polished PDF export remains a stretch goal rather than a replacement 2.2 requirement.
-
-### Should Ship — Next Action Beyond the Phone App
-
-- [x] **Widget: next move**: shared widget data now carries one deterministic action: pre-workout
-  fuel, recovery meal, protein catch-up, Trust review, or steady day. Small/medium/large and
-  accessory layouts expose it, interactive water remains, and the widget routes directly to
-  Food Search, Trust, Home, or the exact Training Fuel Planner. Historical diary browsing can
-  no longer overwrite today's widget state.
-- [x] **Watch quick actions**: the existing daily glance, water, and weight tools remain. Watch
-  now shows the same next action, a compact training/recovery target review, and a two-step
-  recent-meal repeat. Requests use a durable deduplicated inbox, fresh food identities, random
-  per-account scopes instead of user IDs, success-only acknowledgement, and offline-safe
-  `transferUserInfo`; oversized or invalid meals fail closed. Full Watch food search remains out.
-- [x] **Notifications that earn permission**: Settings has independent opt-in controls for
-  pre-session fuel, explicit-completion recovery, and one meaningful evening protein catch-up,
-  plus quiet hours and the evening time. Deterministic rules cap the day at two, stable IDs and a
-  local ledger prevent stacking/replay, taps open the exact route, and scheduled/opened telemetry
-  carries only reminder type. The old background AI engagement nudge is removed and canceled.
-- [x] **Exact deep links**: `food-search`, `trust`, `builder`, `runs`, `meal-plan`, and
-  `training-fuel` parse,
-  queue through signed-out/onboarding blockers, and present their exact destinations from the
-  stable app shell. Core and cold-launch UI regression tests are green. The live 2.2 release now
-  permits exact-route links in its custom product pages; signed-in and signed-out device checks
-  remain before those links are promoted broadly.
-
-### Internal Work — Trust Calibration and Community Safety
-
-- [ ] **Trust calibration report**: compare score band/provider/evidence with later edits,
-  correction findings, saved-correction reuse, and abandonment. Reweight only after real
-  outcomes show a consistent error, never to make scores look higher. Instrumentation and the
-  reproducible report contract are ready in analytics schema 2.3.2: correction opens,
-  abandonment, submission, persistence success/failure, coarse changed fields, resulting sanity,
-  and cohort-level saved-barcode reuse are measurable without food/account identifiers. The item
-  stays open until at least 14 days of adequately sized production cohorts exist.
-- [x] **Private contribution model**: submissions now use an authenticated App Check callable,
-  live under private per-user ownership, expose no contributor IDs in published data, and have a
-  backup-first migration from the denied legacy pool.
-- [x] **Server-owned aggregate**: Functions now require 3+ distinct contributors and at least
-  two-thirds agreement, resolve conflicts deterministically, recheck the median output, retain
-  private provenance snapshots, and publish aggregate-only records.
-- [x] **Moderation and rollback**: per-user and per-barcode work limits, private aggregate health
-  counters, quarantine/release, strict Rules, and a global kill switch now fail closed. Killing or
-  disabling aggregation also deletes materialized results so stale consensus cannot reappear.
-- [ ] **Internal soak only**: `feature_communityBarcodeCorrections` remains `false` publicly.
-  Public community corrections are explicitly not a replacement 2.2 release requirement.
-
-### Explicit Non-Goals for Replacement 2.2
-
-- Public community barcode data before the server aggregate and moderation gates pass.
-- Social feeds, public challenges, or friend graphs.
-- A broad Maia/chat rewrite, new AI surfaces without a structured user action, or autonomous
-  changes to calories/macros.
-- iPad redesign, Android expansion, a new food provider, or a new subscription system.
-- More running workout types before real-device interval behavior is validated.
-
-### Provisional Success Measures
-
-Set final targets after 7–14 days of clean 2.2 data; compare against MyFitPlate's baseline,
-not an invented industry benchmark.
-
-- Median first food log remains under 60 seconds and completion improves from the 2.2 cohort.
-- Weekly `nutrition_training_loop_completed` rate improves by at least 20% relative.
-- D7 retention improves by at least 15% relative without higher notification opt-out.
-- Training-active users repeatedly act on the fuel plan; views without action are treated as
-  a product failure signal, not engagement.
-- Lower Trust bands predict more later corrections than higher bands; if they do not, the
-  scoring model needs calibration before broader claims.
-- Crash-free use, AI cost per active user, and provider recovery remain within agreed launch
-  guardrails.
-
-### Immediate Build Queue
-
-1. [x] Add exact deep-link routes and custom-product-page screenshot fixtures.
-2. [x] Audit activation/Trust/training events, close the release-health gaps, and define the
-   external KPI dashboard contract.
-3. [x] Build the deterministic fuel-plan model and adversarial Core test matrix.
-4. [x] Add the Home planner/review flow and connect it to existing logging destinations.
-5. [x] Build the unified Training and Fuel report from existing running, lifting, and nutrition
-   engines before adding new data collection.
-6. [x] Extend widget shared data, then deliver the narrow Watch and notification slices.
-7. [x] Develop the community aggregate behind a server-only flag; do not couple it to the 2.2 launch.
-8. [x] Close the Watch companion packaging/sync defect surfaced by physical-device testing.
-9. [x] Make micronutrient ingestion, recipe retention, and report coverage honest end to end.
-10. [x] Close local release-readiness gaps: resilient food-search recovery, accessibility-size
-    Home copy, Node 22 Functions CI, an enforced 80% Core coverage floor, current branch checks,
-    and one feedback/device closure ledger.
-11. [x] Make Maia's prose and on-device Read Aloud path more natural without adding a paid
-    speech provider, new data sharing, or a backend deployment.
-
-### Ownership and Dependencies
-
-**Codex can execute independently:** architecture, deterministic engines, tests, app UI,
-widgets, Watch code, deep links, screenshot fixtures, analytics contracts, Functions/rules
-implementation, accessibility sweeps, docs, and CI verification.
-
-**Peter is required for:** real-user feedback and priority calls, physical iPhone/Watch/GPS
-validation, App Store Connect publishing, production dashboard/console access where login is
-required, notification-policy approval, and any decision to expose community-contributed data.
-
----
-
-## Version 2.3 - The Living Day
-
-**Release thesis:** 2.2 proves that MyFitPlate can cover nutrition, Trust, lifting, running,
-recovery, planning, and coaching. Version 2.3 must make that breadth memorable. It should not be
-an app-wide reskin or another configurable card dashboard; it should introduce one ownable visual
-model that explains how the user's food and training fit together.
-
-**Public promise:** **See how food and training fit together, then act on what matters next.**
-
-**Flagship interaction:** **Fuel Path**, an unframed, time-based Home surface that combines logged
-and planned meals, Trust evidence, workouts, Training Fuel windows, recovery, remaining targets,
-and one deterministic next action. It is a visual index over the app's existing engines, not a
-new readiness score or a second source of truth.
-
-Full experience, state, accessibility, rollout, and technical contract:
-[`docs/living-day-experience-2.3.md`](docs/living-day-experience-2.3.md).
-
-### Must Ship - Product Identity
-
-- [x] **Choose the Fuel Path rendering:** prototype a compressed horizontal rail, vertical living
-  timeline, and plate-clock overview from the same deterministic fixtures. Select by five-second
-  comprehension, compact-phone fit, exact-action discovery, and accessibility rather than novelty.
-  All three run in the Debug screenshot gallery with the same immutable snapshot. The vertical
-  timeline is now the production direction: it is the only direction that exposes
-  chronology, Trust evidence, the current-time break, future training, and the exact action in one
-  scan. The clock remains a strong secondary-summary candidate; the rail is compact but compresses
-  adjacent future events. Physical-device feedback confirmed that hiding it behind the old default
-  made the redesign appear absent, so 2.3 development now opens Living Day by default while the
-  release build retains the Remote Config rollback switch.
-- [x] **Create the 2.3 experience system:** add restrained path, evidence, chart, motion, spacing,
-  stroke, and color primitives. Keep operational screens quiet; remove pale-card and nested-card
-  treatment first from Home, Food Detail/Trust, and the weekly report. Fuel Path, Trust Receipt,
-  My Foods, and Week in Motion now share the restrained path/evidence language while repeated
-  operational screens remain task-focused.
-- [x] **Build `LivingDaySnapshot`:** assemble an immutable, finite-value checked, account-scoped
-  presentation model from the existing diary, goals, Trust, workouts, runs, fuel plan, meal plan,
-  next action, and sync state. No node-level repository fetches and no new backend store. The Core
-  builder now covers logged and planned meals, approximate legacy timing, generic activity/run
-  adapters, exact Training Fuel windows, consumed/planned/remaining budgets, Trust evidence,
-  freshness, path bounds, and the current-time marker. Invalid values fail closed, and warning-level
-  nutrition contradictions now outrank routine macro catch-up in the shared next-action rules.
-- [x] **Ship read-only Fuel Path behind `feature_livingDayHome`:** support logged/planned meal
-  nodes, workout/run nodes, current-time state, approximate timing, unavailable data, over-target,
-  offline, and empty-day states with exact navigation into existing workflows. The compiled 2.3
-  default is on, Debug always shows Living Day unless launched with `-legacy-home`, and Release
-  still honors `feature_livingDayHome` as a remote rollback switch. The flag refreshes once per Home
-  session, applies only to Today, and preserves the 2.2 dashboard as the exact fallback. The first
-  viewport shows the two events nearest now, one reconciled action, and an explicit Show All
-  expansion without displacing Quick Actions.
-- [x] **Connect meaningful transitions:** Quick Log insertion, planned-to-completed state, saved
-  Trust correction, and training-to-recovery handoff use short explanatory motion and haptics.
-  Reduce Motion receives equivalent fades and content updates; motion never delays a write.
-  Persistence-backed Quick Log insertion, planned/training state changes, and the training-to-
-  recovery handoff are complete: the exact affected node is kept visible and emphasized, budget
-  and next-action changes animate from the committed snapshot, and stale cross-tab transitions
-  expire instead of replaying. Trust correction now keeps the prior evidence visible while saving,
-  then resolves Nutrition Check and Your Review only after the custom-food write succeeds.
-- [x] **Build Trust Receipt:** lead Food Detail with a readable source/cross-check/sanity/review
-  trace, place findings beside the values they affect, and make the existing score a summary of
-  evidence rather than the visual starting point. Food Detail now uses one unframed vertical
-  receipt, puts the numeric score behind `Why this score`, removes duplicate AI/sanity panels, and
-  exposes one correction action with standard and largest-Dynamic-Type render coverage.
-- [x] **Build My Foods Library:** search, sort, and filter reusable saved foods; edit reviewed
-  nutrition in place; inspect or remove personal barcode associations; and delete or atomically
-  merge only byte-equivalent nutrition/serving/source copies. Persistence must succeed before the
-  library changes, and dated diary entries are never queried or rewritten. Standard and largest-
-  Dynamic-Type render fixtures plus failure-path tests pin those boundaries. Full contract:
-  [`docs/my-foods-library-2.3.md`](docs/my-foods-library-2.3.md).
-- [x] **Build Week in Motion:** Reports now opens with a full-width seven-day rhythm joining
-  strength, runs, food coverage, recovery timing, and Trust evidence. Exactly one deterministic
-  observation states its denominator and basis without creating a weekly score. The existing
-  detailed Training & Fuel report, charts, aggregate CSV, and privacy-safe share path remain; the
-  share image now carries the same visual story. Full contract:
-  [`docs/week-in-motion-2.3.md`](docs/week-in-motion-2.3.md).
-- [x] **Close the inclusive-quality matrix:** deterministic screenshots for ordinary, empty,
-  training, recovery, over-target, low-Trust, offline, and accessibility states; complete VoiceOver
-  semantic ordering, Dynamic Type, dark mode, Increase Contrast, Reduce Motion, compact-device,
-  privacy, performance, analytics, CI, and rollback checks. The local matrix is complete, including
-  actual simulator accessibility settings. Physical-device comprehension, spoken cadence, tactile
-  motion, widget refresh/deep links, signed archive validation, and production cohort setup remain
-  rollout gates rather than unfinished app implementation.
-- [x] **Use two release slots for confirmed device evidence:** Peter's first physical 2.3 pass
-  exposed two reproducible lifecycle defects rather than speculative feature requests. Living Day
-  now keeps one app-shell-owned feature decision across Home tab reconstruction, and Reports keeps
-  one account/day-scoped Week in Motion loader plus a full-footprint loading sequence so its opening
-  story no longer inserts late and moves the page. Both have focused regression coverage; physical
-  revalidation remains in `docs/device-test-2.3.md`.
-
-### Should Ship - Reach and Cohesion
-
-- [x] Attach one short Maia annotation to the current deterministic action; Maia may explain or
-  personalize the route, but cannot replace its rules or silently change goals.
-- [x] Adapt the current Fuel Path segment to medium and large widgets after Home behavior is stable,
-  while preserving exact rendering for legacy payloads.
-- [x] Add privacy-safe Living Day and Week in Motion share images with explicit visible-content
-  selection and no account IDs, item names, routes, coordinates, or raw Health samples. Aggregate
-  daily nutrition appears only when the user explicitly selects the Nutrition budget section.
-- [x] Offer compact and detailed path density after the default hierarchy passes comprehension;
-  compact remains the persisted default.
-- [x] Move CI actions away from deprecated Node 20 runtimes without coupling that maintenance to
-  the experience rollout.
-
-### Conditional on Production Evidence
-
-- [ ] Reweight Trust only after the minimum cohorts and correction outcomes in
-  `docs/trust-calibration-2.3.md` are satisfied.
-- [ ] Publish community barcode consensus only after private abuse, conflict, cost, moderation,
-  kill-switch, and rollback soak passes.
-- [ ] Add new Training Fuel or Watch actions only when 2.2 telemetry shows a repeated unmet need.
-
-### Explicit Non-Goals
-
-- No generic customizable Home cards, food-morality score, recovery/readiness composite, public
-  social feed, ornamental 3D, decorative animation, or broad Maia rewrite.
-- Do not editorialize Food Search, Fast Food Builder, workout execution, or run recording; those
-  repeated workflows should remain fast, dense, and predictable.
-- No new food provider, running mode, iPad redesign, Android app, or subscription system in 2.3.
-
-### Phased Build Queue
-
-1. [x] Select the vertical timeline as the production direction after comparing all three
-   deterministic prototypes; retain physical-device validation as a rollout gate.
-2. [x] Carry the selected visual token/primitives layer beyond Home into Trust Receipt and Week in
-   Motion without editorializing repeated operational screens.
-3. [x] Implement `LivingDaySnapshot`, the initial adversarial Core matrix, and the Debug-only
-   developer fixture gallery.
-4. [x] Integrate read-only Fuel Path behind the feature flag with the 2.2 Home as fallback.
-5. [x] Add Quick Log insertion and training/recovery transitions. Food insertion begins only from
-   the serialized diary success notification; Training Fuel transitions survive tab changes and
-   distinguish planned, completed/recovery, and skipped outcomes. Reduce Motion uses fades and
-   content updates, VoiceOver announces the persisted result, and exact node/action navigation
-   remains intact.
-6. [x] Ship Trust Receipt and persistence-backed evidence-state updates. The previous receipt stays
-   authoritative until the write succeeds; success then updates provenance, nutrition findings,
-   personal review, VoiceOver, and the short resolution treatment together.
-7. [x] Ship My Foods Library and prove destructive actions cannot alter history. Personal barcode
-   detachment, deletion, and atomic true-duplicate merge touch only `customFoods`; failed writes
-   leave the visible library unchanged, and dated diary records remain outside the mutation path.
-8. [x] Add the selected widget slice plus explicit-section Living Day and Week in Motion sharing,
-   with legacy widget fallback and aggregate-only privacy tests.
-9. [x] Fill the two evidence-reserved slots from live device feedback. The 2026-07-13 phone pass
-   assigned them to Living Day tab-return persistence and Reports first-paint stability. The fixes
-   retain state above disposable tab views, keep recap data account/day scoped, and reserve the
-   complete Week in Motion layout while its first load finishes.
-10. [x] Close local accessibility, privacy, performance, analytics, CI, and rollback gates.
-    Physical iPhone comprehension, spoken VoiceOver cadence, tactile motion, widget refresh/deep
-    links, signed archive validation, and the production Remote Config cohort remain Peter-owned
-    rollout checks.
-
-Local closure evidence (2026-07-14): Core passes 1,099/1,099 at 84.24% line coverage and the app
-target passes 110/110. The broad UI pass completed 76/77 executions; the sole two-second legacy
-Workout Dashboard timeout passed 5/5 immediate repetitions, and the final-source focused pass
-passed 4/4. The inclusive render matrix, actual Simulator Dark Mode + Increase Contrast, actual
-Reduce Motion, compact share preview, strict SwiftLint, project/catalog/diff checks, privacy
-sanitizer, CI parse, Functions 11/11, Rules 23/23, migration 10/10, and unsigned generic-device
-Release build pass. The phone, widget, Live Activity, and embedded Watch are all version 2.3 build
-1; both Watch HealthKit purpose strings, required architectures, and privacy manifests are present.
-Remaining owner gates are isolated in [`docs/device-test-2.3.md`](docs/device-test-2.3.md).
-
-### Success Measures
-
-- More Home sessions produce one meaningful action and more weekly users complete both nutrition
-  and training, without regressing time to a successful food write.
-- More Trust review opens reach a persisted resolution; corrected barcode foods are easy to reuse
-  and manage without duplicate growth.
-- Five-second tests identify what happened, what is planned, and what to do next without color-only
-  meaning or explanatory feature copy.
-- D1/D7 return improves against the clean 2.2 baseline without worse reminder opt-out, crash-free
-  use, diary integrity, startup/scroll performance, AI cost, or support friction.
-
----
-
-## Post-Living Day - Whole-App Visual Unification (Active)
-
-The Living Day pass exposed a stronger design language than several older dashboard and workflow
-surfaces. The next visual program should unify the app without making every workflow editorial.
-The governing principle is **editorial when interpreting, operational when acting, and native when
-configuring**. Full audit, component map, screen order, and acceptance gates:
-[`docs/visual-unification-roadmap.md`](docs/visual-unification-roadmap.md).
-
-- [x] Audit shared styles plus twelve representative light/dark surfaces and identify the three
-  visual generations currently in the app.
-- [x] Define the target surface hierarchy, typography roles, semantic-color rules, navigation
-  shell, component migration map, and screen-by-screen direction.
-- [x] Preserve the current Living Day candidate on `main`, then create a dedicated visual-system
-  branch; do not mix broad design migration with release fixes.
-- [x] Add versioned flat primitives and a Debug component gallery before changing the 120 legacy
-  glass-card call sites or 68 shared button-style call sites.
-- [x] Migrate the tab bar and Quick Log sheet, and add reusable header and modal scaffolds with
-  compact-phone, dark-mode, VoiceOver, and accessibility-size coverage.
-- [x] Apply the shared primary-tab header, responsive metric strip, and flat action/surface grammar
-  to Train and Meal Plan without changing feature behavior or adding workflow steps.
-- [x] Migrate Train and Meal Plan with deterministic standard, dark, largest-text, and compact-
-  phone coverage. Train now has one next-step progression surface and unframed program week; Meal
-  Plan has an unframed week selector, one daily summary band, and quieter meal rows.
-- [x] Apply the shared primary-tab shell to Maia and detailed Reports. Maia now opens with one
-  deterministic best next step, concise day context, labeled evidence, quiet alternatives, and a
-  pinned composer; Reports preserves Week in Motion as its opening story and moves detailed trends
-  into calmer, responsive surfaces below it. Standard, dark largest-text, and compact-phone checks
-  are captured, including a regression for honest zero-of-N recovery copy.
-- [x] Align the Living Day shell boundary so Home now shares the stable primary-screen header,
-  direct profile/settings actions, responsive date navigation, and shared app chrome without
-  changing its evidence-led timeline, actions, sharing, density controls, or rollout fallback.
-  Standard, compact-phone, dark largest-text, previous-day fallback, and Reports round-trip checks
-  are captured.
-- [x] Migrate Food Search and Fast Food Builder without adding taps or editorial friction. Search
-  now leads a neutral, adaptive repeat-and-result workflow; the builder uses dense brand/evidence
-  identity, state-only selection tint, responsive controls, and one persistent review action.
-- [x] Migrate Food Detail below Trust Receipt without adding taps or editorial friction. Food
-  identity is neutral, Trust owns semantic state color, the 98/99 score is visible and accessible,
-  macros use one responsive summary, and the logging footer uses the shared flat primary action.
-- [x] Migrate Running history/detail without adding taps or editorial friction. History keeps its
-  direct Start action, uses one responsive weekly summary, one quiet records surface, and one
-  grouped source-labeled run list. Run Detail now uses a responsive summary, restrained recovery
-  evidence/action, readable splits/gear/source sections, and the same shared visual grammar as the
-  primary tabs. Recorder and HealthKit behavior are unchanged; standard plus dark accessibility-
-  XXXL fixture journeys are captured and pass clipping audits.
-- [x] Migrate My Foods and the manual food editor without adding taps or editorial friction. The
-  library now uses one operational summary, restrained filter/sort controls, grouped duplicate and
-  saved-food rows, and responsive accessibility layouts. Add/Edit Food now uses semantic identity,
-  nutrition, serving, details, and preview sections with a stable logging action; all presentation
-  paths retain their navigation title and Cancel action.
-- [x] Migrate the full recipe family without adding taps or editorial friction. Recipe Library,
-  Detail, Create/Edit, and Logging now share one responsive operational hierarchy, retain direct
-  meal-plan and log actions, and prevent an emptied detailed recipe from restoring stale totals or
-  enabling an invalid log.
-- [x] Migrate Grocery without adding taps or editorial friction. The list now uses one responsive
-  shopping summary, compact display controls, canonical aisle groups, direct Add/Scan actions,
-  and discoverable item editing. Unit-system changes immediately convert the visible list and
-  legacy category names normalize without losing items. Standard, checked/hidden, editor, and dark
-  accessibility-XXXL journeys are captured.
-- [x] Migrate the remaining logging confirmation sheets without adding taps or editorial friction.
-  Quick Add now has responsive nutrition entry and a live summary with one stable meal action.
-  Maia text/photo/barcode estimates use the same review-first hierarchy, own their editable item
-  state, update totals after edits or removals, and keep confirmation explicit. Standard, editable,
-  and dark accessibility-XXXL journeys are captured and pass focused UI coverage.
-- [x] Migrate Settings, account, import, and legal surfaces. Settings now opens with a compact
-  targets summary and native grouped configuration; goals, height, water, AI consent, disclaimer,
-  and MyFitnessPal import use responsive shared surfaces and persistent actions. Standard and dark
-  accessibility-XXXL journeys are captured and pass focused coverage.
-- [x] Migrate workout program and routine management without changing training behavior. Saved
-  plans, program creation/editing, routine creation/editing, exercise selection, set targets,
-  templates, and schedule selection now use the shared operational hierarchy and stable actions.
-  Standard and dark accessibility-XXXL journeys are captured, including explicit close/save
-  reachability and text-clipping audits.
-- [x] Migrate program detail, workout history, completed-session review, manual-history fallback,
-  and training analytics without changing program progress, session calculations, personal
-  records, recovery handoff, or editing behavior. Their summaries, filters, schedule, calendar,
-  routine rotation, breakdowns, and Maia insights now use the shared evidence hierarchy.
-  Deterministic standard and dark accessibility-XXXL journeys are captured and pass clipping and
-  persistent-action checks.
-- [x] Migrate wellness, weight, fasting, and cycle tracking without changing HealthKit writes,
-  chart calculations, direct logging, or cycle-date rules. These surfaces now share the evidence
-  hierarchy, use cautious source-aware health language, and include deterministic standard and
-  dark accessibility-XXXL journeys with reviewed captures and explicit bounds/action checks.
-- [x] Migrate onboarding and authentication. Welcome, sign-in, account creation, loading, Personal
-  Setup, and the feature tour now use the shared hierarchy; required setup cannot be bypassed by
-  swiping or by a partially provisioned profile. Standard and dark accessibility-XXXL journeys are
-  captured and pass focused coverage.
-- [x] Migrate the live progress family. Profile, achievements, and Weekly Challenges now use one
-  responsive evidence hierarchy with correct level-threshold math, deterministic fixtures, and
-  standard plus dark accessibility-XXXL coverage. Placeholder identity and gender-derived labels
-  are removed, BMI language is cautious, and sharing remains explicit. The dormant group/post
-  prototype and public barcode consensus remain inaccessible behind their safety/rollout gates.
-- [x] Migrate Smart Pantry, pantry recipe drafts, and receipt review without adding workflow steps.
-  Pantry now has one ingredient/category summary, grouped management rows, a stable add bar, and a
-  direct recipe action. AI recipe drafts clearly label estimates and separate generation from save
-  errors; multiple unsaved drafts remain independently identifiable even when the AI returns no
-  IDs. Receipt parsing is review-first, keeps every detected field editable, filters blank and
-  non-finite/non-positive rows before saving, and never exposes raw backend errors. Deterministic
-  standard and dark accessibility-XXXL journeys are captured across all three surfaces.
-- [x] Migrate AYCE and Restaurant Value Radar without changing the buffet scoreboard or turning
-  estimates into facts. AYCE now has a responsive start, live, editable scan/custom-item review,
-  and diary summary flow; scanned food never joins a session before confirmation, reviewed items
-  remain editable/removable, and local prices are not region-adjusted again. Value Radar keeps
-  printed scan prices exact, limits regional adjustments to the labeled fictional demo, uses
-  neutral value tiers, and opens editable AI review before any diary write. Finite-input guards,
-  stale-request ownership, old-draft compatibility, deterministic fixtures, and standard plus dark
-  accessibility-XXXL journeys are covered by focused tests.
-- [x] Migrate the meal-planning support family without changing generation or diary behavior. The
-  setup survey, bulk meal-prep workspace, AI suggestion card, and suggestion review now share one
-  responsive operational hierarchy, explicit estimate language, stable actions, and deterministic
-  standard plus dark accessibility-XXXL coverage. Preference normalization, pantry matching,
-  suggestion sanitization, instruction parsing, timer end dates, and quantity wording are covered
-  by focused rules rather than view-local assumptions.
-- [x] Migrate the remaining specialty nutrition tools without turning the dormant social prototype
-  into 2.3 release scope. Plate Loading now uses one tested exact/closest-load contract from both
-  calculator and workout-set entry points. Nutrition Trends and Maia Insights now share the
-  evidence-led report hierarchy, explicit source/goal language, deterministic fixtures, and
-  standard plus dark accessibility-XXXL coverage. Dormant social and unlinked legacy log
-  prototypes remain inaccessible rather than becoming accidental release scope.
-- [x] Retire the reachable legacy visual generation. All glass-card aliases and old gradient button
-  styles now have zero call sites and have been removed; material, gradient, and shadow use is
-  restricted to explicit chart, shell, overlay, widget, loading, and export exceptions by CI.
-  Maia action cards, the remaining Home surfaces, and Adaptive Metabolism now use the shared flat,
-  responsive, evidence-led system.
-- [x] Close the first physical-device feedback round. Living Day is visible by default in 2.3
-  development and survives tab round-trips; startup uses the current code-native mark; Maia offers
-  ranked Enhanced/Premium system voices and French accents; generated grocery lists refresh stale
-  plan items while preserving manual entries and merge singular/plural duplicates; Meal Plan,
-  its six-step generator, and Maia food actions use the flatter operational hierarchy; Adaptive
-  TDEE pauses on sparse,
-  incomplete, or implausible evidence; and Fast Food Builder now provides menu search, official
-  source links, and at least 15 choices across each of its 25 chains.
-- [x] Complete the app-wide semantic signal and training-identity pass. Release-reachable screens
-  now share a closed state and nutrition-data palette enforced by the source guard; live workout,
-  program, history, analytics, and running surfaces use a professional effort/recovery hierarchy;
-  and Recovery Field provides a deterministic interactive muscle map with visible evidence,
-  uncertainty, sleep adjustment, and planning-not-medical language. Its front/back field now uses
-  a lean curved anatomical silhouette, contoured muscle overlays, and shared limb signals while
-  preserving region-to-evidence selection. The competitor review and full visual contract live in
-  `docs/design-direction-2.3.md`.
-- [x] Complete the final cross-target visual quality-control sweep. Add a Saved Recipe, Shoe Gear,
-  and Add New Shoe now share the same responsive operational hierarchy; workout identities use
-  stable professional symbols instead of cartoon emoji; remaining report, banner, milestone,
-  widget, and Live Activity colors use the semantic vocabulary; and the visual guard now covers
-  top-level app, widget, Live Activity, and shared Core presentation paths. Standard and dark
-  accessibility-XXXL captures were reviewed across the touched and representative screen families.
-- [x] Complete the post-QC contrast, motion, and accessibility refinement pass. Phone, widget, and
-  Watch surfaces now share adaptive high-contrast brand foregrounds and dark labels on bright
-  signal fills; shared interactions honor Reduce Motion and Increased Contrast; Home's Daily Log
-  preserves compact visual hierarchy with complete VoiceOver labels and natural wrapping; and the
-  source guard now blocks low-contrast foreground drift. Representative standard and dark
-  accessibility-XXXL captures passed review across Home, Maia, Meal Plan, training, and Recovery.
-- [x] Complete the clean local 2.3 regression and unsigned Release audit.
-- [ ] Complete Peter's focused physical-device acceptance and the signed archive from the intended
-  commit, following `docs/device-test-2.3.md`.
-- [ ] Delete legacy Home only after Living Day rollout proof and rollback approval.
-- [ ] Expand the source guard to raw type, spacing, and radius token drift as the remaining
-  legitimate exceptions are normalized.
-
----
-
-## 🧭 Long-Term Competitive Backlog
-This backlog remains source material after the active 2.3 build queue above. Its earlier sprints
-capture durable conversion and retention work; they do not override The Living Day release order.
-
-### Sprint 0 — Baseline, Positioning, and Release Readiness
-Goal: establish the competitive scoreboard and make the product story sharper before building more.
-
-- [x] **Define the public promise**: "The food log you can trust, built for people who train." The onboarding, Maia entry state, and final App Store gallery now consistently lead with trusted nutrition built for training.
-- [x] **Create a competitive KPI dashboard**: activation and launch-health explorations, custom
-  definitions/metrics, key events, and Crashlytics alerts are configured. App Store acquisition,
-  retention cohorts, and LLM cost joins begin only after clean production traffic exists and remain
-  operating follow-through rather than missing app implementation.
-- [x] **Refresh App Store story**: created an eight-shot deterministic gallery covering Home, Trust, fast repeat/search, the 25-chain meal builder, Train, Maia action coaching, Meal Plan, and Reports. The first three images carry the positioning and conversion story.
-- [x] **Fix screenshot-visible polish**: corrected clipped Train targets and Reports chart labels, rebuilt the builder's bottom tray, centered a compact outlined Quick Log action above five equal-width destinations, made the expanded action list reachable on compact phones, and visually checked both required phone-size galleries. A final accessibility-size sweep also corrected clipping in Trust details, Food Search, Fast Food Builder, Train, Maia, Meal Plan, and Quick Log, and hardened Trust Hub presentation against asynchronous Home refreshes.
-- [x] **Add a release feedback and referral loop**: Settings now provides a prefilled privacy-safe feedback email and direct App Store sharing; recap, achievement, run-story, and workout-summary shares point back to the live listing; review requests are limited to fresh workout completions after three distinct sessions across at least three days, once per version with a 120-day cooldown.
-- [x] **Local release gate**: Core 1,102/1,102 at 84.24% coverage, app 110/110, broad UI 76/77 with
-  the sole timeout passing 5/5 immediate repetitions plus a final-source focused 4/4, Functions
-  11/11, Rules 23/23, migrations 10/10, strict lint/catalog/diff/privacy checks, and the unsigned
-  physical-iOS Release build are green. All shipping products are version 2.3 build 1. The embedded
-  Watch plist contains both HealthKit purpose strings and its binary has arm64_32 plus arm64. CI
-  uses Node 22 and current Node 24-based action generations and enforces the 80% Core floor.
-- [ ] **Signed owner release gate**: complete the physical Living Day/widget/share checks, confirm
-  the Remote Config key is enabled for the intended 2.3 audience while retaining a tested rollback,
-  reconcile production App Check/legal/
-  privacy state, then validate and upload a signed archive from the intended commit. The exact
-  sequence is in `docs/device-test-2.3.md`.
-
-Success signal: a new user can understand why MyFitPlate exists in 10 seconds, and the team has baseline numbers for the conversion funnel.
-
-### Sprint 1 — Switcher and First-Log Conversion
-Goal: beat the biggest incumbent weakness by making migration and first value immediate.
-
-- [x] **Switch from MyFitnessPal entry point**: promote import during onboarding and Settings; include a concise "what imports / what never overwrites" trust explanation. MVP shipped: Welcome positioning, Settings importer, Home empty-day switcher prompt, and first-session import route.
-- [x] **First-session guided path**: after signup, route users to either "Import history" or "Log first meal" with one clear primary action. MVP shipped: post-setup choice sheet opens `MFPImportView` or first-session food search and logs the choice.
-- [x] **Simplify center quick log**: show 3 context-aware actions first (usually Search, Barcode, Describe/Camera) and move the rest behind "More." Keep Beat the buffet and Running discoverable but not competing with the first log. MVP shipped: Search, Scan barcode, and Describe stay primary; camera, exercise, recipes, buffet, and running expand behind More.
-- [x] **Fast repeat loop**: surface Smart history, Yesterday, and saved foods higher once the user has history; optimize for "same breakfast in two taps." MVP shipped: Food Search now promotes Yesterday, Smart history, My foods, and Recent foods above secondary actions whenever history exists, with source-level telemetry for quick-log taps.
-- [x] **Recovery for misses**: barcode miss should offer "Create from label," "Use camera," and "Search by name" with telemetry on which path saves the session. MVP shipped: Food Search and global quick-log scanner now share a guided barcode-miss recovery sheet with action telemetry.
-
-Success signal: median first food log under 60 seconds for new users; MFP import completion rate is measured and improving.
-
-### Sprint 2 — Trust Layer 2.0
-Goal: make "nutrition you can trust" a visible product advantage, not an internal implementation detail.
-
-- [x] **Trust Card redesign**: show source, confidence, cross-verification, sanity checks, and what the user can do next in one compact card. Shipped: the card separates Source, Verification, Your Review, and Nutrition Check; uncertainty is orange, actual correction states are red, resolved reviews do not loop, and VoiceOver retains the action as a separate control.
-- [x] **Trust Hub / audit screen**: give users a daily list of entries that need review, entries that are cross-verified, and entries fixed by them. MVP shipped: the nutrition audit sheet is now a Trust Hub with review, cross-verified, and reviewed-by-you sections, reachable from the nutrition card whenever foods are logged.
-- [ ] **Community barcode public rollout**: the flag, contribution metrics, GTIN/data gates, Firestore validation, conservative Review cap, and final-fallback lookup are implemented. Keep `feature_communityBarcodeCorrections` off until contributions are private, a server-owned aggregate provides consensus/conflict handling, published documents omit contributor IDs, and moderation/abuse rollback has soaked internally.
-- [x] **Label scan correction flow**: after a barcode miss or low-trust result, let users scan a nutrition label, review fields, and save the corrected barcode. MVP shipped: barcode-miss manual creation now shows an explicit correction card, tracks label-scan start/result, saves a private My Foods barcode correction after logging, and evaluates eligible corrections for the community pool.
-- [x] **Trust telemetry**: measure suspicious food rate, correction rate, cross-verified rate, raw barcode miss rate, and saved-correction reuse. MVP shipped: Trust Hub snapshots log review/cross-verified/suspicious counts, food-detail trust cards log score/source/review state, and existing barcode/correction events cover misses and correction reuse.
-
-Success signal: users can see why an entry is trusted or not, and the app improves after every correction.
-
-### Sprint 3 — Maia as Action Cards, Not Chat
-Goal: make Maia feel like a coach that does work, not a general chatbot.
-
-- [x] **Card-based Maia responses**: meal suggestions, recovery prompts, macro fill-ins, and training adjustments should render as auditable cards with "why this," confidence/estimate labels, edit, and log actions. MVP shipped: the Maia tab now opens with action cards for Fill macros, recovery/protein, trust/today read, and hydration; Fill macros uses the existing meal suggestion service and logs AI-estimated meals from the detail sheet, while the other cards route into structured Maia prompts or direct actions with telemetry.
-- [x] **Pantry + remaining macro meal builder**: turn the current suggestion sheet into structured ingredients, substitutions, macro fit, and one-tap logging. MVP shipped: Fill macros now opens a structured review sheet with remaining calorie/macro fit, pantry match vs. optional ingredients, substitution guidance, instructions, and one-tap estimate logging from Home or Maia.
-- [x] **Weekly adaptive goal proposal**: build deterministic rules that compare weight trend, logged intake, adherence, and training load, then propose calorie/macro changes for user approval. MVP shipped: adaptive check-ins now build a deterministic `WeeklyGoalProposal` from 21-day intake, smoothed weight trend, usable log adherence, and workout count; the check-in screen shows hold/raise/lower recommendation, proposed calories, macro impact, reasons, and accept/keep-current telemetry.
-- [x] **Maia memory boundaries**: clearly separate local daily context, imported history, HealthKit signals, and AI-generated estimates. Do not send more data than needed for the task. MVP shipped: Maia now uses a shared `MaiaContextContract` per action type, filters prompt sections to the allowed scopes, includes the context boundary in the system prompt, and logs privacy-safe scope telemetry for action cards and chat requests.
-- [x] **Failure states**: no silent `try?` decode paths; every AI card has a graceful retry or manual fallback. MVP shipped: malformed Maia action-card JSON and decoded-but-incomplete action payloads now remove broken JSON from the visible answer, preserve Maia's readable text, show an "Action needs retry" fallback card, and emit `maia_action_payload_failed`.
-
-Success signal: Maia produces loggable, editable actions that save time weekly and are safer than free-form chat.
-
-### Sprint 4 — Training-to-Nutrition Loop
-Goal: own the daily loop for lifters and runners: train, recover, eat, repeat.
-
-- [x] **Today fuel plan**: Home shows one training-aware nutrition target for the next meaningful event: run recovery, lift recovery, protein catch-up, dinner planning, or a neutral over-target review. MVP shipped: `TodayFuelPlanRules` chooses one priority, clamps recovery macro targets inside remaining calories, routes actions to recovery search / Fill macros / Trust Hub review, and replaces the old standalone run-recovery banner.
-- [x] **Training fuel guardrails**: the confirmed Training Fuel Planner budgets carbs/protein
-  before and after demanding strength or running sessions without raising the chosen calorie
-  target. Live diary reconciliation, explicit completion/skipping, overnight recovery, and
-  neutral over-target states prevent planned fuel from disguising an overage.
-- [x] **Workout completion meal handoff**: after a completed lift/run, present a Maia recovery card with carb/protein targets and a search/quick-log path. MVP shipped: today's workout summary shows a budget-aware recovery handoff with protein/carb targets, "Find food" search, Fill macros meal generation, and over-target Review today fallback.
-- [x] **Lifting workout quality foundation**: bring the workout player closer to Strong/Hevy parity with warmup/drop/failure set types, RPE/RIR effort capture, warmups excluded from volume/1RM analytics, adjacent supersets, and an autoregulated progression coach based on the previous top working set.
-- [x] **Running effort detail**: Run Detail shows average-HR zone plus a real time-in-zone card computed from the HealthKit heart-rate series for the run window. The card only appears when HR data exists and skips long sample gaps instead of fabricating effort.
-- [x] **Indoor / treadmill support**: Apple Health indoor runs already import; MyFitPlate now also has a manual treadmill log path from Start Run that writes an indoor HealthKit run with distance, duration, estimated calories, generated splits, and no route.
-- [x] **Structured interval workouts**: the workout-step model, built-in and saved custom
-  templates, arbitrary step editor, recorder state, live pace/distance/time guidance, haptics,
-  spoken cues, Live Activity state, and persisted plan-vs-actual review are implemented with
-  Core coverage. Real-GPS validation remains explicitly open under Known device closures.
-- [x] **Running recovery polish**: the unified Training & Fuel report now combines weekly mileage,
-  weighted pace, route/distance PRs, shoe wear, real HR time in zone, guided-step results, and
-  timestamped recovery follow-through in one seven-day story.
-- [x] **Strength progression nutrition**: the unified report now shows working sets/volume,
-  prior-history PRs, working-set RPE trend, demanding days, and calorie/protein consistency on
-  those demanding days.
-
-Success signal: MyFitPlate feels more useful after a workout than a generic calorie counter.
-
-### Sprint 5 — Platform Polish and Daily Retention
-Goal: make the Apple ecosystem experience feel first-class and repeatable.
-
-- [x] **Apple Watch standalone quick logging**: water, weight, a two-step recent-meal repeat,
-  and compact training/recovery review are complete with offline-safe delivery. Workout
-  start/finish remains a later Watch expansion and is not required for replacement 2.2. Installation,
-  paired-device context, account clearing, and offline exactly-once replay are physically
-  validated.
-- [x] **Widget and Live Activity refinement**: every widget family now answers "what should I do
-  next?" with the deterministic Training Fuel, Trust, protein, or steady-day action while
-  retaining the calorie glance and interactive water action. Live Activity already carries
-  structured guided-run step/target state.
-- [x] **Notifications that earn trust**: three independently opt-in, deterministic reminder
-  types use quiet hours, a two-per-day cap, stable IDs, exact routes, and privacy-safe outcome
-  telemetry. The generic AI engagement nudge is retired.
-- [x] **Reports and export polish**: the unified report exports a privacy-safe rendered image
-  and aggregate CSV for a selected seven-day period. Polished PDF output and arbitrary date
-  ranges remain later work rather than replacement 2.2 requirements.
-- [x] **Accessibility/device pass**: the complete deterministic UI suite and a light/dark
-  accessibility-XXXL matrix are green; Home support copy grows rather than truncates and Food
-  Search has visible retry/manual recovery during provider outages. Peter physically validated
-  VoiceOver, largest text, dark mode, Increase Contrast, widgets, notification routing, Watch,
-  and offline/online recovery. Running sensor validation remains a separate Known device closure.
-
-Success signal: users can interact with the app without opening the phone every time, and weekly retention has a clear habit loop.
-
-### Sprint 6 — Differentiated Growth Bets
-Goal: add memorable features only after the core competitive loop is strong.
-
-### Gamified Dining & Nutrition
-- [x] **Restaurant Value Radar MVP**: AI menu scanner ranks dishes by Protein-to-Dollar and Protein-to-Calorie using only prices visibly printed on the menu; nutrition remains reviewable AI estimate data, fictional demo data is labeled, and demo logging is disabled. Future work: OCR confidence, multi-page menus, and verified restaurant nutrition sources.
-- [x] **Training fuel planner**: confirmed pre/post carb and protein allocations now stay inside
-  the user's live target, distinguish planned timing from diary intake, reconcile explicit
-  workout outcomes, and become neutral when the budget is exhausted or over target.
-- [x] **Beat the buffet 2.0**: manual off-catalog entries and plate scans now share an editable
-  review before joining the session; reviewed entries remain editable and removable. Regional
-  catalog values use an explicit mid-range city selector, locally reviewed prices are never scaled
-  again, and every catalog, AI, or user-entered price is labeled as an estimate rather than fact.
-
-### Platform Expansion & Community
-- [ ] **Social AYCE & Step Challenges**: Friend scoreboards, shared buffet challenges, and weekly running/step competitions.
-- [ ] **Small-group accountability**: private groups for friends/coaches with opt-in weekly recap sharing.
-- [ ] **Creator/coaching export pack**: weekly nutrition/training summary designed for a coach, dietitian, or accountability partner.
-
-Success signal: users can name a MyFitPlate feature they cannot get from MyFitnessPal, Cronometer, MacroFactor, Lose It, or Noom.
-
----
-
-## 🛠️ Always-On — Ops, Quality & Health
-- [x] Wire release-health instrumentation and Crashlytics/Analytics dashboards.
-- [ ] Monitor LLM / AI call frequencies against cost estimates.
-- [x] Keep package test coverage at 80%+ with behavior tests on every core engine and data
-  calculation path. The enforced floor is 80%; the 2026-07-13 measured baseline is 85.08%.
-- [x] Keep `AGENT_HANDOFF.local.md` updated after meaningful roadmap, architecture, or code changes
-  so future agents know the intent, verification, and risks.
-- [x] Every sprint must include user-facing copy review, privacy review for new data flows, and a
-  rollback/feature-flag plan for risky launches. The Living Day release has all three documented.
-
----
-_Living document — Single Point of Truth. Last updated: 2026-07-15._
+# MyFitPlate 2.3 Roadmap
+
+This file is the release and decision view for MyFitPlate. It intentionally contains only the
+current objective, unresolved work, release gates, and evidence-gated follow-up. Completed
+execution history belongs in Git, `AGENT_HANDOFF.local.md`, and the linked product contracts.
+
+Last updated: 2026-07-15
+
+## Product Direction
+
+**Positioning:** The food log you can trust, built for people who train.
+
+**2.3 promise:** See how food and training fit together, then act on what matters next.
+
+**Product model:** Signal, evidence, action.
+
+- Signal gives one fast interpretation of the current state.
+- Evidence shows the source, amount, trend, uncertainty, or limitation behind it.
+- Action offers one direct next step when an action is useful.
+
+MyFitPlate should not try to beat incumbents through database size alone. Its advantage is the
+combination of transparent food evidence, fast logging, training context, recovery context, and
+reviewable coaching. Version 2.3 should make that advantage coherent and memorable without adding
+friction to logging or workout execution.
+
+## Branch And Release State
+
+| Ref | Purpose | State |
+| --- | --- | --- |
+| `main` | Published product baseline | Live 2.2 code, with the exact release tagged `v2.2` |
+| `codex/2.3-visual-unification` | Version 2.3 development | Active |
+
+No other long-lived branches should exist. Short-lived release or repair branches must be deleted
+after merge.
+
+## Executive Status
+
+| Area | Status | Remaining evidence |
+| --- | --- | --- |
+| Living Day and Week in Motion | Implemented | Final device comprehension, persistence, sharing, and rollout checks |
+| Whole-app visual system | Implemented | Final representative device review and signed-build confirmation |
+| Training and Recovery Field | Implemented | Focused strength, recovery-map, running, and Watch validation |
+| Trust 3.0 | Implemented | Physical correction/source presentation checks and future production calibration |
+| Health Canada and NIH sources | Implemented and deployed | Generic-food and supplement search/barcode acceptance |
+| Trust-aware camera logging | Implemented and deployed | Fixed 20-30 photo benchmark and production cost/latency review |
+| Local quality foundation | Green | Repeat release-only checks against the final committed candidate |
+| App Store release | Candidate packaged | Physical acceptance, signed archive, metadata, screenshots, and submission |
+
+Feature implementation is substantially complete. The critical path is now evidence, correction,
+candidate integrity, and release preparation. New feature work is out of scope unless testing
+reveals a data-integrity, privacy, crash, accessibility, or core-workflow failure.
+
+## Completed 2.3 Foundation
+
+- [x] Living Day is the default 2.3 Home direction with the 2.2 Home retained as a rollback path.
+- [x] Reachable app, Watch, widget, and Live Activity surfaces use the shared visual and semantic
+  signal system, with operational screens kept dense and predictable.
+- [x] Food Detail and Trust Hub lead with field-level evidence, source lineage, findings, and a
+  direct correction path; the numeric Trust index is secondary.
+- [x] Training has a professional shared identity across programs, live workouts, history,
+  analytics, running, Training Fuel, and the interactive Recovery Field.
+- [x] Health Canada CNF and NIH DSLD extend generic-food micronutrients and supplement labels
+  without overstating independence or inventing mass-based servings.
+- [x] Camera logging uses purpose-specific server routing, bounded images, strict structured
+  output, database grounding, visible uncertainty, review-before-write, quotas, and cost telemetry.
+- [x] Home exposes consumed-versus-goal calorie and macro context, first-viewport water progress
+  with a direct 8 oz action, and a goal-aware Daily Log using restrained semantic color roles.
+
+## Definition Of Done
+
+Version 2.3 is ready only when all four gates below are complete.
+
+### Gate 1 - Candidate Integrity - Complete
+
+- [x] Audit the complete 2.3 working tree and classify every modified and untracked file as
+  intended product work, generated data, local-only state, or unrelated user state.
+- [x] Commit the intended Trust, provider, camera, visual, test, documentation, and data-builder
+  work in reviewable commits. Do not sweep unrelated project or localization changes into a commit.
+- [x] Confirm phone, Watch, widget, and Live Activity targets all carry version 2.3, build 1.
+- [x] Review the final diff against `v2.2` for accidental secrets, disabled safeguards, dormant
+  prototypes, unreachable controls, debug fixtures, and release-only behavior changes.
+- [x] Ensure production Functions and data assets match the candidate commit. Redeploy only if the
+  final committed backend differs from what is currently live.
+
+Candidate-integrity evidence: 1,127 Core tests, 109 app XCTest cases plus one Swift Testing smoke
+test, 19 Functions tests, strict lint, the visual-system guard, complete Debug target build, and
+diff checks all pass. The production inventory contains every expected 2.3 Function. The generated
+CNF artifact contains 5,993 foods and is reproducible from its checked-in builder. The existing
+localization catalog, Xcode project ordering change, and shared-scheme launch arguments remain
+deliberately outside the candidate commits because they predated this normalization pass.
+
+### Gate 2 - Trust And Camera Acceptance
+
+- [ ] Run the fixed camera benchmark in `docs/camera-logging-2.3.md` against 20-30 representative
+  meal, label, receipt, recipe, and menu images.
+- [ ] Record correction size, confidence/range usefulness, inappropriate reference matches,
+  malformed responses, latency, and token cost. Do not claim improved accuracy without the result.
+- [ ] Validate ordinary-food searches that should benefit from Health Canada micronutrients and
+  confirm source attribution remains visible.
+- [ ] Validate NIH supplement search plus one real supplement barcode, including non-mass serving
+  language and missing-nutrient behavior.
+- [ ] Recheck the complete correction loop: barcode or photo result, field edit, before/after
+  evidence, save, Trust refresh, and saved-food reuse without duplicates or stale nutrients.
+- [ ] Confirm each new provider and camera route can be disabled independently through its intended
+  rollback or kill switch.
+
+### Gate 3 - Physical Device Acceptance
+
+Use `docs/device-test-2.3.md` as the detailed script. The release decision needs concise evidence
+for these journeys:
+
+- [ ] Living Day appears on launch and after tab round-trips; calorie/protein totals remain clear,
+  water logs from the first viewport, the Daily Log stays readable, and Week in Motion does not
+  insert late or move the Reports layout.
+- [ ] Grocery refreshes stale meal-plan items while preserving manual entries; Meal Plan, its
+  generator, and generated grocery output remain coherent.
+- [ ] Fast Food Builder search, source links, choices, customization, totals, and logging work for
+  representative burger, chicken, coffee, pizza, Mexican, sandwich, and dessert chains.
+- [ ] Adaptive TDEE explains sparse or implausible logging instead of presenting a confident but
+  misleading estimate.
+- [ ] Maia tone, action cards, French/system voice choices, and Read Aloud are understandable and
+  do not speak structured action payloads.
+- [ ] Strength workout controls, progression, supersets, RPE/RIR, rest, completion, and recovery
+  handoff remain fast and stable.
+- [ ] Recovery Field has acceptable proportions, selectable regions, matching evidence, cautious
+  language, dark-mode contrast, and large-text/VoiceOver reachability.
+- [ ] Complete one guided outdoor interval, one Watch-imported run with heart-rate series, one
+  phone-only run without heart rate, and one weak-GPS or corrected historical-route review.
+- [ ] Confirm Watch context sync and offline replay, widgets, Live Activities, notifications,
+  exact deep links, and privacy-safe sharing from the candidate build.
+
+Only P0/P1 correctness, privacy, crash, accessibility, and core-workflow findings block release.
+Cosmetic preferences that do not impair understanding or use move to the post-2.3 queue.
+
+### Gate 4 - Release And Store
+
+- [ ] Run the final Core, app, UI, Functions, Firestore Rules, migration, strict lint, visual guard,
+  privacy, coverage, and Release-build checks against the exact candidate commit.
+- [ ] Create and validate a signed archive from that commit, including the embedded Watch app,
+  HealthKit purpose strings, entitlements, privacy manifests, and required architectures.
+- [ ] Capture the final 2.3 App Store screenshots from deterministic, representative data. The
+  first three should communicate trusted logging, the food-training loop, and the next action.
+- [ ] Update App Store description, promotional text, What's New, review notes, privacy answers,
+  support/legal links, feature nomination, and custom product pages where appropriate.
+- [ ] Confirm launch-health dashboards, Crashlytics alerts, App Check state, provider flags, camera
+  flags, community-consensus kill switch, and rollback ownership.
+- [ ] Upload and submit the exact candidate. After acceptance, merge that source to `main` and tag
+  the published release `v2.3`.
+
+## Ordered Work Queue
+
+1. [x] Normalize and commit the current 2.3 working tree without disturbing unrelated user files.
+2. [ ] Complete the specialist-source and correction-loop physical checks.
+3. [ ] Complete the fixed Trust-aware camera benchmark and evaluate the results.
+4. [ ] Run the focused device checklist, fixing only release-blocking findings.
+5. [ ] Rerun the full quality suite on the final candidate and produce the signed archive.
+6. [ ] Produce screenshots and App Store metadata, then submit 2.3.
+
+This order is deliberate. Screenshots and Store copy should represent the tested candidate, and a
+signed archive should not be made from an uncommitted or differently deployed source state.
+
+## Peter-Owned Actions
+
+Peter is required for:
+
+- physical iPhone, Apple Watch, GPS, heart-rate, speech, haptic, widget, and Live Activity checks;
+- the fixed camera photo set and subjective review of correction burden;
+- App Store Connect metadata, signing, archive upload, and final submission approval;
+- production console decisions that require the owner account;
+- any decision to expose community-contributed barcode data publicly.
+
+Codex can independently handle source audits, implementation fixes, deterministic tests, CI,
+documentation, screenshot fixtures, release diffs, backend verification, and candidate packaging.
+
+## Evidence-Gated Follow-Up
+
+These items are worthwhile, but they do not block 2.3.
+
+- [ ] Calibrate Trust weighting only after at least 14 days of meaningful production correction,
+  abandonment, reuse, provider, and score-band outcomes.
+- [ ] Keep community barcode consensus private until abuse, conflict, moderation, cost, rollback,
+  and aggregate-quality evidence passes an internal soak.
+- [ ] Remove legacy Home only after Living Day has proven stable and its rollback is no longer
+  needed.
+- [ ] Expand the visual source guard to raw type, spacing, and radius drift after legitimate
+  exceptions are normalized.
+- [ ] Evaluate GS1 identity access or another commercial food provider only after measured misses
+  show a specific identity, regional, restaurant, or coverage failure and the contract permits the
+  required saved-food behavior.
+- [ ] Consider richer Watch workout controls, polished PDF/coach export, and arbitrary report date
+  ranges only after production use shows demand.
+
+## Explicit Non-Goals For 2.3
+
+- Public social feeds, friend graphs, public challenges, or coach groups
+- iPad redesign, Android expansion, or a new subscription system
+- A new readiness composite, food-morality score, ornamental 3D body, or decorative animation
+- Autonomous AI changes to calorie or macro goals
+- Another broad food database without measured evidence that it solves a real gap
+- New running modes, workout types, or large feature families before the current candidate ships
+
+## Post-Release Measures
+
+Metrics are directional until MyFitPlate has enough real users for meaningful cohorts.
+
+- Median time to the first successful food log remains under 60 seconds.
+- Trust review opens increasingly reach a persisted correction or explicit acceptance.
+- Lower evidence bands predict more later corrections than higher bands.
+- More active users complete both a nutrition and training action in the same week.
+- Living Day produces useful next actions without slowing successful food writes.
+- Crash-free use, diary integrity, provider recovery, notification opt-out, and AI cost remain
+  inside the documented launch-health guardrails.
+
+## Source Contracts
+
+- [2.3 device acceptance](docs/device-test-2.3.md)
+- [Living Day experience](docs/living-day-experience-2.3.md)
+- [Visual unification](docs/visual-unification-roadmap.md)
+- [Design direction and Recovery Field](docs/design-direction-2.3.md)
+- [Trust Score model](docs/trust-score-model.md)
+- [Trust calibration](docs/trust-calibration-2.3.md)
+- [Food provider strategy](docs/food-data-provider-strategy-2.3.md)
+- [Camera logging contract](docs/camera-logging-2.3.md)
+- [Micronutrient data contract](docs/micronutrient-data-2.3.md)
+- [Analytics and launch health](docs/analytics-dashboard-2.3.md)
+- [Feedback triage](docs/feedback-triage-2.3.md)
+- [Security and privacy review](docs/security-privacy-review.md)

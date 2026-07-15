@@ -31,9 +31,9 @@ struct SwipeableExerciseRowView: View {
                 let exerciseType = RoutineEditorDefaults.inferredType(name: exercise.name, category: nil)
                 Image(systemName: exerciseType.icon)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(exerciseType.color)
+                    .foregroundStyle(AppPalette.effort)
                     .frame(width: 38, height: 38)
-                    .background(exerciseType.color.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .background(AppPalette.effort.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
@@ -61,7 +61,7 @@ struct SwipeableExerciseRowView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(Int(exercise.caloriesBurned.rounded()))")
                         .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.accentPositive)
+                        .foregroundStyle(AppPalette.text)
                     Text("cal")
                         .appFont(size: 11)
                         .foregroundColor(Color(UIColor.secondaryLabel))
@@ -72,8 +72,6 @@ struct SwipeableExerciseRowView: View {
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .contentShape(Rectangle())
             .offset(x: offset)
             .onTapGesture {
@@ -155,10 +153,11 @@ struct SwipeableFoodItemView: View {
             }
 
             HStack(spacing: 12) {
-                Text(FoodEmojiMapper.getEmoji(for: initialFoodItem.name))
-                    .font(.system(size: 20))
+                Image(systemName: "fork.knife")
+                    .appFont(size: 15, weight: .semibold)
+                    .foregroundStyle(AppPalette.brandText)
                     .frame(width: 38, height: 38)
-                    .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -201,8 +200,6 @@ struct SwipeableFoodItemView: View {
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(Color.backgroundSecondary.opacity(0.58), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .contentShape(Rectangle())
             .offset(x: offset)
             .onTapGesture {

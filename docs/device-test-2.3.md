@@ -94,6 +94,26 @@ well. They replace a screen-by-screen manual retest:
   an ingredient before reviewing the meal. Search for a menu item rather than a chain, open several
   chains, and confirm each feels populated, its official nutrition source opens, primary actions
   remain obvious, and totals respond immediately.
+- [ ] After deploying Functions, search `chicken breast` and inspect a Health Canada CNF result.
+  Confirm its 100 g serving, broad micronutrient panel, source/release context, and government-
+  composition Trust wording. It must not claim branded identity or independent USDA verification.
+- [ ] Explicitly submit a multivitamin search. Confirm the separate Supplements section says the
+  values are manufacturer label claims, a serving such as two capsules logs as one label serving,
+  and missing/ambiguous nutrients are not invented. Scan a real supplement UPC when available and
+  confirm NIH is only the fallback after ordinary food providers miss.
+- [ ] After deploying Functions, photograph one simple plate and one mixed plate. Confirm the meal
+  review shows overall and per-item confidence, honest portion ranges, hidden-ingredient risks or
+  useful clarification questions, and whether each composition came from USDA/Health Canada or is
+  still model-estimated. Nothing may enter the diary before the final confirmation.
+- [ ] In the mixed-plate review, edit one item and remove another before logging. Reopen the saved
+  food and confirm Trust retains photo-estimate lineage, the user review, and any secondary
+  composition reference without calling it independent cross-database verification.
+- [ ] Try one large portrait-oriented library photo and a poor/unusable image. The large image must
+  upload without corruption or an unbounded payload; the unusable image must fail cleanly without
+  invented food. Also smoke-test nutrition-label, menu, receipt, and recipe-photo extraction after
+  the model-routing deployment.
+- [ ] Open Settings > Nutrition data sources in light/dark mode and large text. Confirm the Health
+  Canada Open Government Licence attribution and NIH explanation are fully reachable.
 - [ ] Open Adaptive Metabolism with real account data. It must say `Adaptive TDEE estimate`, show
   plausible finite values and the 21-day evidence requirement, and keep its apply action disabled
   when there is not enough valid evidence. If several days are only partially logged, it must say
@@ -108,11 +128,13 @@ well. They replace a screen-by-screen manual retest:
   in Motion image through a real destination. Confirm the Watch context is current and the exports
   match their previews without private food, route, account, coordinate, or Health-sample detail.
 
-No Firebase Functions, Rules, index, or data migration deployment is required for the Living Day,
-Maia annotation, share image, widget payload, density work, tab-lifecycle fix, or Reports loading
-stability work. The new Firebase custom definitions
-in `docs/analytics-dashboard-2.3.md` should be created only after DebugView or signed-build traffic
-confirms their parameters.
+No Firebase deployment is required for the Living Day, Maia annotation, share image, widget
+payload, density work, tab-lifecycle fix, or Reports loading stability work. Health Canada CNF,
+NIH DSLD, and the trust-aware camera model routes are the exceptions: deploy Functions before
+testing them. They use the existing `OPENAI_API_KEY` and require no new Rules, indexes, migrations,
+or API keys. Confirm that the OpenAI project behind the existing key can call the selected models.
+The new Firebase custom definitions in `docs/analytics-dashboard-2.3.md` should be created only
+after DebugView or signed-build traffic confirms their parameters.
 
 ## Peter: physical release blockers
 
@@ -180,9 +202,12 @@ Record findings in `docs/feedback-triage-2.3.md`.
 
 ## Peter: console and App Store gates
 
-- [ ] Verify production Functions, Rules, and indexes match the intended release commit. No
-  backend redeploy is required for Watch, micronutrient, search-recovery, Maia prompt, or
-  on-device Maia voice changes alone.
+- [ ] Deploy and verify production Functions from the intended release commit. This deployment is
+  required for Health Canada CNF, NIH DSLD, and the purpose-routed camera models; Rules and indexes
+  do not change for those features, and the existing OpenAI secret remains sufficient. Watch,
+  existing on-device micronutrient math, search recovery, and Maia voice changes alone still do not
+  require a backend deployment. Run the fixed-photo benchmark in `docs/camera-logging-2.3.md`
+  before treating the stronger model as a measured accuracy improvement.
 - [x] Apply or reconcile `.github/rulesets/main-branch-protection.json` in GitHub so Unit tests, UI smoke tests, Firebase Functions, Firebase Rules, and Data migrations are required on `main`.
 - [x] Register App Attest for the production app. The Release client and production entitlement
   are present.
@@ -195,8 +220,8 @@ Record findings in `docs/feedback-triage-2.3.md`.
 - [x] Reconcile App Store privacy answers with `docs/data-safety.md` and
   `docs/security-privacy-review.md`. The published 13-type summary has linked account/run data,
   unlinked diagnostics plus Device ID, and no tracking.
-- [x] Keep the app, widget, Live Activity, and Watch targets on marketing version 2.2 and set
-  their build number to 3. Builds 1 and 2 cannot be reused.
+- [ ] Confirm the app, widget, Live Activity, and Watch shipping targets all use marketing version
+  2.3 and one unused matching build number before the final archive.
 - [x] Create a signed Archive, run Validate App, inspect the archive for the Watch companion and
   privacy manifests, upload, and pass App Store processing.
 - [ ] Publish and smoke-test the prepared exact custom-product-page links now that version 2.2 is

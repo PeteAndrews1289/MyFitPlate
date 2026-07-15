@@ -819,8 +819,11 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertLessThan(identity.frame.minY, receipt.frame.minY)
         XCTAssertLessThan(receipt.frame.minY, macros.frame.minY)
         XCTAssertTrue(logAction.isHittable)
-        XCTAssertEqual(score.label, "Trust Score")
-        XCTAssertTrue(score.value as? String == "98 out of 99, Excellent trust")
+        XCTAssertEqual(score.label, "Trust rating")
+        XCTAssertEqual(
+            score.value as? String,
+            "Excellent trust. Cross-database match. Evidence index 98 out of 99"
+        )
         // SwiftUI reports one unresolvable decorative node here; the XXXL test below is unfiltered.
         try app.performAccessibilityAudit(for: [.textClipped]) { issue in
             issue.element == nil
@@ -1056,10 +1059,10 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertGreaterThan(dailyLog.frame.maxY, 100)
 
         let expectedDailyMetrics = [
-            ("home_daily_metric_food", "Food: 3 items"),
-            ("home_daily_metric_calories", "Calories: 1,310 cal logged"),
-            ("home_daily_metric_activity", "Activity: 1 session"),
-            ("home_daily_metric_burned", "Burned: 320 cal")
+            ("home_daily_metric_calories", "Calories: 1,310 / 2,100 cal"),
+            ("home_daily_metric_protein", "Protein: 98 / 160 g"),
+            ("home_daily_metric_water", "Water: 72 / 64 oz"),
+            ("home_daily_metric_activity", "Activity: 1 session")
         ]
         for (identifier, label) in expectedDailyMetrics {
             XCTAssertEqual(app.descendants(matching: .any)[identifier].label, label)
@@ -1069,10 +1072,10 @@ final class MyFitPlateUITests: XCTestCase {
         // at their exact rounded-glyph bounds. Filter only those known visual strings; all other
         // visible Home content remains subject to the clipping audit.
         let dailyMetricVisualStrings: Set<String> = [
-            "Food", "3 items", "Food\n3 items",
-            "Calories", "1,310 cal logged", "Calories\n1,310 cal logged",
-            "Activity", "1 session", "Activity\n1 session",
-            "Burned", "320 cal", "Burned\n320 cal"
+            "Calories", "1,310 / 2,100 cal", "Calories\n1,310 / 2,100 cal",
+            "Protein", "98 / 160 g", "Protein\n98 / 160 g",
+            "Water", "72 / 64 oz", "Water\n72 / 64 oz",
+            "Activity", "1 session", "Activity\n1 session"
         ]
         try app.performAccessibilityAudit(for: [.textClipped]) { issue in
             guard let element = issue.element else { return false }
@@ -1521,6 +1524,7 @@ final class MyFitPlateUITests: XCTestCase {
         let firstEvent = app.descendants(matching: .any)
             .matching(identifier: "livingDayEvent")
             .firstMatch
+        let addWater = app.buttons["livingDayAddWaterButton"]
         let share = app.descendants(matching: .any)["livingDayShareButton"]
         let density = app.descendants(matching: .any)["livingDayDensityMenu"]
 
@@ -1528,8 +1532,18 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(action.waitForExistence(timeout: 5))
         XCTAssertTrue(maia.waitForExistence(timeout: 5))
         XCTAssertTrue(firstEvent.waitForExistence(timeout: 5))
+        XCTAssertTrue(addWater.waitForExistence(timeout: 5))
+        XCTAssertTrue(addWater.isHittable)
+        XCTAssertEqual(addWater.value as? String, "72 / 64 oz")
+        addWater.tap()
+        let waterUpdated = expectation(
+            for: NSPredicate(format: "value == %@", "80 / 64 oz"),
+            evaluatedWith: addWater
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [waterUpdated], timeout: 5), .completed)
         XCTAssertTrue(share.isHittable)
         XCTAssertTrue(density.isHittable)
+        XCTAssertLessThan(addWater.frame.minY, action.frame.minY)
         XCTAssertLessThan(action.frame.minY, maia.frame.minY)
         XCTAssertLessThan(maia.frame.minY, firstEvent.frame.minY)
 
@@ -1888,7 +1902,8 @@ final class MyFitPlateUITests: XCTestCase {
             "-ui-testing",
             "-screenshot-mode",
             "-screenshot-screen",
-            "home"
+            "home",
+            "-legacy-home"
         ]
         app.launch()
 

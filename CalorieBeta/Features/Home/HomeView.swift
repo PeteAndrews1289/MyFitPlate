@@ -98,7 +98,7 @@ struct HomeView: View {
         ),
         "quickActions": (
             title: "Quick Actions",
-            text: "Your most-used tools in one tap: start a workout, open Maia's plan, repeat yesterday's meals, scan a menu, log weight, or track a fast."
+            text: "Your most-used tools in one tap: add water, start a workout, open Maia's plan, repeat yesterday's meals, scan a menu, log weight, or track a fast."
         ),
         "menuScanner": (
             title: "Menu Matchmaker",
@@ -106,7 +106,7 @@ struct HomeView: View {
         ),
         "dailyLog": (
             title: "Your Daily Log",
-            text: "Everything you track lands here. Swipe any food or exercise row to delete it, or tap to edit the details."
+            text: "Food, protein, hydration, and activity stay together here. Swipe a food or exercise row to delete it, or tap to edit the details."
         )
     ]
 
@@ -159,11 +159,19 @@ struct HomeView: View {
                                     LivingDayHomeExperience(
                                         snapshot: livingDaySnapshot,
                                         transition: livingDayTransition,
+                                        hydration: LivingDayHydrationState(
+                                            consumed: currentWaterIntake,
+                                            target: goalSettings.waterGoal
+                                        ),
                                         onEventSelected: { event in
                                             handleLivingDayEvent(event, scrollProxy: proxy)
                                         },
                                         onActionSelected: { action in
                                             handleLivingDayAction(action, scrollProxy: proxy)
+                                        },
+                                        onAddWater: {
+                                            HapticManager.instance.feedback(.medium)
+                                            logWaterFromHome(amount: 8)
                                         }
                                     )
                                 } else {
@@ -200,6 +208,10 @@ struct HomeView: View {
                                 showSettings: $showSettings,
                                 isMenuScannerEnabled: isMenuScannerEnabled,
                                 isMenuScannerSpotlightActive: isMenuScannerEnabled && isSpotlightActive(for: "menuScanner"),
+                                waterIntake: currentWaterIntake,
+                                waterGoal: goalSettings.waterGoal,
+                                canLogWater: isToday && !isLivingDayHomeEnabled,
+                                onLogWater: { logWaterFromHome(amount: 8) },
                                 onRepeatYesterdayMeals: { repeatYesterdayMeals() }
                             )
                                 .featureSpotlight(isActive: isSpotlightActive(for: "quickActions"))
@@ -884,6 +896,22 @@ struct HomeView: View {
 
     private var remainingFatsToday: Double {
         max(0, goalSettings.fats - (currentLogForSelectedDate?.totalMacros().fats ?? 0))
+    }
+
+    private var currentWaterIntake: Double {
+        currentLogForSelectedDate?.waterTracker?.totalOunces ?? 0
+    }
+
+    private func logWaterFromHome(amount: Double) {
+        guard isToday,
+              amount > 0,
+              let userID = DIContainer.shared.authService.currentUserID else { return }
+
+        dailyLogService.addWaterToCurrentLog(
+            for: userID,
+            amount: amount,
+            goalOunces: max(1, goalSettings.waterGoal)
+        )
     }
 
     private var trainingFuelGoals: TodayFuelPlanGoals {

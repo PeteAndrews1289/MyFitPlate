@@ -70,11 +70,25 @@ enum LivingDayPathDensity: String, CaseIterable, Identifiable {
     }
 }
 
+struct LivingDayHydrationState: Equatable {
+    let consumed: Double
+    let target: Double
+    let increment: Double
+
+    init(consumed: Double, target: Double, increment: Double = 8) {
+        self.consumed = consumed.isFinite ? max(0, consumed) : 0
+        self.target = target.isFinite ? max(1, target) : 1
+        self.increment = increment.isFinite ? max(1, increment) : 8
+    }
+}
+
 struct LivingDayHomeExperience: View {
     let snapshot: LivingDaySnapshot
     let transition: LivingDayTransition?
+    let hydration: LivingDayHydrationState?
     let onEventSelected: (LivingDaySnapshot.Event) -> Void
     let onActionSelected: (DailyNextAction) -> Void
+    let onAddWater: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -92,14 +106,18 @@ struct LivingDayHomeExperience: View {
     init(
         snapshot: LivingDaySnapshot,
         transition: LivingDayTransition?,
+        hydration: LivingDayHydrationState? = nil,
         density: LivingDayPathDensity? = nil,
         onEventSelected: @escaping (LivingDaySnapshot.Event) -> Void,
-        onActionSelected: @escaping (DailyNextAction) -> Void
+        onActionSelected: @escaping (DailyNextAction) -> Void,
+        onAddWater: @escaping () -> Void = {}
     ) {
         self.snapshot = snapshot
         self.transition = transition
+        self.hydration = hydration
         self.onEventSelected = onEventSelected
         self.onActionSelected = onActionSelected
+        self.onAddWater = onAddWater
         persistsDensity = density == nil
 
         let storedDensity = UserDefaults.standard.string(forKey: LivingDayPathDensity.defaultsKey)
@@ -110,7 +128,11 @@ struct LivingDayHomeExperience: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             header
-            LivingDayBudgetView(budget: snapshot.budget)
+            LivingDayBudgetView(
+                budget: snapshot.budget,
+                hydration: hydration,
+                onAddWater: onAddWater
+            )
             LivingDayActionButton(action: snapshot.nextAction) {
                 onActionSelected(snapshot.nextAction)
             }
@@ -466,6 +488,8 @@ private struct LivingDayMaiaAnnotation: View {
 
 private struct LivingDayBudgetView: View {
     let budget: LivingDaySnapshot.Budget
+    let hydration: LivingDayHydrationState?
+    let onAddWater: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -481,32 +505,132 @@ private struct LivingDayBudgetView: View {
                             Text(nutrient.title)
                                 .foregroundStyle(AppPalette.text)
                             Spacer()
-                            Text(nutrient.remainingText)
+                            Text(nutrient.goalProgressText)
                                 .foregroundStyle(Color.textPrimary)
                                 .monospacedDigit()
                         }
                         .appFont(size: 12, weight: .bold)
+
+                        Text(nutrient.remainingText)
+                            .appFont(size: 11, weight: .medium)
+                            .foregroundStyle(.secondary)
+
                         LivingDayBudgetBar(nutrient: nutrient)
                     }
                 } else {
                     HStack(spacing: 10) {
-                        Text(nutrient.shortTitle)
+                        Text(nutrient.title)
                             .appFont(size: 12, weight: .bold)
                             .foregroundStyle(.secondary)
-                            .frame(width: 28, alignment: .leading)
+                            .frame(width: 54, alignment: .leading)
 
                         LivingDayBudgetBar(nutrient: nutrient)
 
-                        Text(nutrient.remainingText)
-                            .appFont(size: 11, weight: .semibold)
-                            .foregroundStyle(Color.textPrimary)
-                            .frame(width: 76, alignment: .trailing)
-                            .monospacedDigit()
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(nutrient.goalProgressText)
+                                .appFont(size: 11, weight: .bold)
+                                .foregroundStyle(Color.textPrimary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+
+                            Text(nutrient.remainingText)
+                                .appFont(size: 10, weight: .medium)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(width: 112, alignment: .trailing)
+                        .monospacedDigit()
                     }
                 }
             }
+
+            if let hydration {
+                Divider()
+                    .padding(.vertical, 2)
+
+                LivingDayHydrationControl(
+                    hydration: hydration,
+                    onAddWater: onAddWater
+                )
+            }
         }
         .accessibilityElement(children: .contain)
+    }
+}
+
+private struct LivingDayHydrationControl: View {
+    let hydration: LivingDayHydrationState
+    let onAddWater: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var progress: Double {
+        min(1, max(0, hydration.consumed / hydration.target))
+    }
+
+    private var progressText: String {
+        "\(Int(hydration.consumed.rounded()).formatted()) / \(Int(hydration.target.rounded()).formatted()) oz"
+    }
+
+    private var statusText: String {
+        let remaining = hydration.target - hydration.consumed
+        if remaining > 0 {
+            return "\(Int(remaining.rounded()).formatted()) oz left"
+        }
+        if remaining < 0 {
+            return "\(Int(abs(remaining).rounded()).formatted()) oz over goal"
+        }
+        return "Goal reached"
+    }
+
+    var body: some View {
+        HStack(spacing: AppSpacing.row) {
+            Image(systemName: "drop.fill")
+                .appFont(size: 15, weight: .bold)
+                .foregroundStyle(AppPalette.hydration)
+                .frame(width: 36, height: 36)
+                .background(AppPalette.hydration.opacity(0.10), in: Circle())
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                    Text("Water")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundStyle(AppPalette.text)
+
+                    Spacer(minLength: 0)
+
+                    Text(progressText)
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundStyle(AppPalette.text)
+                        .monospacedDigit()
+                }
+
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.secondary.opacity(0.13))
+                        Capsule()
+                            .fill(AppPalette.hydration)
+                            .frame(width: geometry.size.width * progress)
+                    }
+                }
+                .frame(height: 8)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: progress)
+
+                Text(statusText)
+                    .appFont(size: 10, weight: .medium)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Water, \(progressText), \(statusText)")
+
+            Button(action: onAddWater) {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(AppIconButtonStyle(.brand))
+            .accessibilityLabel("Add \(Int(hydration.increment.rounded()).formatted()) ounces of water")
+            .accessibilityValue(progressText)
+            .accessibilityIdentifier("livingDayAddWaterButton")
+        }
     }
 }
 
@@ -870,15 +994,6 @@ private extension LivingDaySnapshot.NutrientBudget {
         }
     }
 
-    var shortTitle: String {
-        switch kind {
-        case .calories: return "Cal"
-        case .protein: return "P"
-        case .carbs: return "C"
-        case .fats: return "F"
-        }
-    }
-
     var color: Color {
         switch kind {
         case .calories: return .brandPrimary
@@ -891,10 +1006,23 @@ private extension LivingDaySnapshot.NutrientBudget {
     var consumedWidth: Double { min(1, consumedFraction ?? 0) }
     var totalWidth: Double { min(1, consumedWidth + (plannedFraction ?? 0)) }
 
+    var goalProgressText: String {
+        guard let consumed, let target else { return "Goal unavailable" }
+        let consumedValue = Int(consumed.rounded()).formatted()
+        let targetValue = Int(target.rounded()).formatted()
+        let suffix = kind == .calories ? "cal" : "g"
+        return "\(consumedValue) / \(targetValue) \(suffix)"
+    }
+
     var remainingText: String {
         guard let remaining else { return "Unavailable" }
-        let value = Int(abs(remaining).rounded())
+        let value = Int(abs(remaining).rounded()).formatted()
         let suffix = kind == .calories ? "cal" : "g"
+        if (planned ?? 0) > 0 {
+            return remaining >= 0
+                ? "\(value) \(suffix) left after plan"
+                : "\(value) \(suffix) over with plan"
+        }
         return remaining >= 0 ? "\(value) \(suffix) left" : "\(value) \(suffix) over"
     }
 

@@ -124,6 +124,7 @@ final class LivingDayInclusiveRenderingTests: XCTestCase {
             LivingDayHomeExperience(
                 snapshot: snapshot,
                 transition: nil,
+                hydration: LivingDayHydrationState(consumed: 72, target: 96),
                 density: density,
                 onEventSelected: { _ in },
                 onActionSelected: { _ in }

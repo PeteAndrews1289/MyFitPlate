@@ -12,6 +12,10 @@ struct HomeQuickActionsView: View {
 
     var isMenuScannerEnabled: Bool
     var isMenuScannerSpotlightActive: Bool
+    var waterIntake: Double
+    var waterGoal: Double
+    var canLogWater: Bool
+    var onLogWater: () -> Void
     var onRepeatYesterdayMeals: () -> Void
 
     var body: some View {
@@ -32,6 +36,23 @@ struct HomeQuickActionsView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
+                    if canLogWater {
+                        Button(action: {
+                            HapticManager.instance.feedback(.medium)
+                            onLogWater()
+                        }) {
+                            QuickActionButton(
+                                icon: "drop.fill",
+                                label: "Add water",
+                                subtitle: "\(Int(waterIntake.rounded()).formatted()) / \(Int(max(1, waterGoal).rounded()).formatted()) oz"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Add 8 ounces of water")
+                        .accessibilityValue("\(Int(waterIntake.rounded()).formatted()) of \(Int(max(1, waterGoal).rounded()).formatted()) ounces")
+                        .accessibilityIdentifier("home_add_water_button")
+                    }
+
                     Button(action: {
                         HapticManager.instance.feedback(.light)
                         showingWorkoutRoutines = true
@@ -39,8 +60,7 @@ struct HomeQuickActionsView: View {
                         QuickActionButton(
                             icon: "dumbbell.fill",
                             label: "Workouts",
-                            subtitle: "Train or resume a plan",
-                            color: AppPalette.effort
+                            subtitle: "Train or resume a plan"
                         )
                     }
                     .buttonStyle(.plain)
@@ -53,8 +73,7 @@ struct HomeQuickActionsView: View {
                         QuickActionButton(
                             icon: "brain.head.profile",
                             label: "Coaching",
-                            subtitle: "Maia's strategy",
-                            color: AppPalette.achievement
+                            subtitle: "Maia's strategy"
                         )
                     }
                     .buttonStyle(.plain)
@@ -66,8 +85,7 @@ struct HomeQuickActionsView: View {
                         QuickActionButton(
                             icon: "clock.arrow.circlepath",
                             label: "Yesterday",
-                            subtitle: "Repeat meals",
-                            color: Color(UIColor.secondaryLabel)
+                            subtitle: "Repeat meals"
                         )
                     }
                     .buttonStyle(.plain)
@@ -80,8 +98,7 @@ struct HomeQuickActionsView: View {
                             QuickActionButton(
                                 icon: "menucard.fill",
                                 label: "Menu Scan",
-                                subtitle: "Find best macros",
-                                color: AppPalette.energy
+                                subtitle: "Find best macros"
                             )
                         }
                         .buttonStyle(.plain)
@@ -95,8 +112,7 @@ struct HomeQuickActionsView: View {
                         QuickActionButton(
                             icon: "scalemass.fill",
                             label: "Log weight",
-                            subtitle: "Track body metrics",
-                            color: AppPalette.effort
+                            subtitle: "Track body metrics"
                         )
                     }
                     .buttonStyle(.plain)
@@ -108,8 +124,7 @@ struct HomeQuickActionsView: View {
                         QuickActionButton(
                             icon: "timer",
                             label: "Fasting",
-                            subtitle: "Start or track a fast",
-                            color: AppPalette.caution
+                            subtitle: "Start or track a fast"
                         )
                     }
                     .buttonStyle(.plain)
@@ -118,8 +133,7 @@ struct HomeQuickActionsView: View {
                         QuickActionButton(
                             icon: "gearshape.fill",
                             label: "Settings",
-                            subtitle: "Manage your goals",
-                            color: .gray
+                            subtitle: "Manage your goals"
                         )
                     }
                     .buttonStyle(.plain)
@@ -135,16 +149,15 @@ struct QuickActionButton: View {
     let icon: String
     let label: String
     let subtitle: String
-    let color: Color
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: icon)
                     .appFont(size: 17, weight: .semibold)
-                    .foregroundColor(color)
+                    .foregroundStyle(AppPalette.brandText)
                     .frame(width: 38, height: 38)
-                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
 
                 Spacer()
 

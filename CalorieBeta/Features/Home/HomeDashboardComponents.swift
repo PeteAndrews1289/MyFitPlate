@@ -44,6 +44,7 @@ struct HomeDashboardHeader: View {
 struct HomeDailyLogSummaryStrip: View {
     var log: DailyLog
 
+    @EnvironmentObject private var goalSettings: GoalSettings
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var columns: [GridItem] {
@@ -54,41 +55,44 @@ struct HomeDailyLogSummaryStrip: View {
     }
 
     var body: some View {
-        let foodItems = log.meals.flatMap(\.foodItems)
         let exercises = (log.exercises ?? []).dedupedAgainstHealthKit()
         let calories = log.totalCalories()
-        let exerciseCalories = exercises.reduce(0) { $0 + $1.caloriesBurned }
+        let protein = log.totalMacros().protein
+        let water = log.waterTracker?.totalOunces ?? 0
 
         LazyVGrid(columns: columns, spacing: 10) {
             DiaryMetricPill(
-                title: "Food",
-                value: foodItems.count.formatted(),
-                subtitle: foodItems.count == 1 ? "item" : "items",
-                icon: "fork.knife",
-                color: Color(UIColor.secondaryLabel)
+                title: "Calories",
+                value: goalProgress(current: calories, goal: goalSettings.calories),
+                subtitle: "cal",
+                icon: "flame.fill"
             )
             DiaryMetricPill(
-                title: "Calories",
-                value: Int(calories.rounded()).formatted(),
-                subtitle: "cal logged",
-                icon: "flame.fill",
-                color: AppPalette.achievement
+                title: "Protein",
+                value: goalProgress(current: protein, goal: goalSettings.protein),
+                subtitle: "g",
+                icon: "bolt.heart.fill"
+            )
+            DiaryMetricPill(
+                title: "Water",
+                value: goalProgress(current: water, goal: goalSettings.waterGoal),
+                subtitle: "oz",
+                icon: "drop.fill"
             )
             DiaryMetricPill(
                 title: "Activity",
                 value: exercises.count.formatted(),
                 subtitle: exercises.count == 1 ? "session" : "sessions",
-                icon: "figure.run",
-                color: AppPalette.effort
-            )
-            DiaryMetricPill(
-                title: "Burned",
-                value: Int(exerciseCalories.rounded()).formatted(),
-                subtitle: "cal",
-                icon: "bolt.fill",
-                color: .accentPositive
+                icon: "figure.run"
             )
         }
+        .accessibilityIdentifier("home_daily_log_summary")
+    }
+
+    private func goalProgress(current: Double, goal: Double?) -> String {
+        let currentValue = Int(current.rounded()).formatted()
+        guard let goal, goal.isFinite, goal > 0 else { return currentValue }
+        return "\(currentValue) / \(Int(goal.rounded()).formatted())"
     }
 }
 
@@ -114,13 +118,15 @@ struct HomeActivityWidget: View {
 
                 Spacer()
 
-                Button("Add") { showingAddExerciseView = true }
-                    .appFont(size: 15, weight: .semibold)
-                    .foregroundColor(.textPrimary)
+                Button { showingAddExerciseView = true } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(AppIconButtonStyle(.plain))
+                .accessibilityLabel("Add activity")
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(exercises) { exercise in
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(exercises.enumerated()), id: \.element.id) { index, exercise in
                     SwipeableExerciseRowView(
                         exercise: exercise,
                         onDelete: { exerciseID in onDeleteExercise(exerciseID) },
@@ -129,6 +135,11 @@ struct HomeActivityWidget: View {
                             showingWorkoutDetail = true
                         }
                     )
+
+                    if index < exercises.count - 1 {
+                        Divider()
+                            .padding(.leading, 50)
+                    }
                 }
             }
         }
@@ -313,18 +324,32 @@ struct DiaryMetricPill: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var scaleReference: CGFloat = 100
 
+    init(
+        title: String,
+        value: String,
+        subtitle: String,
+        icon: String,
+        color: Color = AppPalette.brandText
+    ) {
+        self.title = title
+        self.value = value
+        self.subtitle = subtitle
+        self.icon = icon
+        self.color = color
+    }
+
     var body: some View {
         let fontScale = min(max(scaleReference / 100, 0.95), 1.35)
 
         HStack(alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center, spacing: 10) {
             Image(systemName: icon)
                 .appFont(size: 13, weight: .bold)
-                .foregroundColor(color)
+                .foregroundStyle(color)
                 .frame(
                     width: dynamicTypeSize.isAccessibilitySize ? 44 : 30,
                     height: dynamicTypeSize.isAccessibilitySize ? 44 : 30
                 )
-                .background(color.opacity(0.12), in: Circle())
+                .background(color.opacity(0.10), in: Circle())
                 .accessibilityHidden(true)
 
             (
@@ -340,8 +365,7 @@ struct DiaryMetricPill: View {
             .accessibilityIdentifier("home_daily_metric_visual_\(title.lowercased())")
             .accessibilityHidden(true)
         }
-        .padding(10)
-        .background(Color.backgroundSecondary.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.vertical, 6)
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("home_daily_metric_\(title.lowercased())")
         .accessibilityLabel("\(title): \(value) \(subtitle)")
