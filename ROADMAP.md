@@ -318,8 +318,9 @@ Full experience, state, accessibility, rollout, and technical contract:
   timeline is now the production direction: it is the only direction that exposes
   chronology, Trust evidence, the current-time break, future training, and the exact action in one
   scan. The clock remains a strong secondary-summary candidate; the rail is compact but compresses
-  adjacent future events. The production Home implementation remains default-off until physical-
-  device comprehension and motion checks pass.
+  adjacent future events. Physical-device feedback confirmed that hiding it behind the old default
+  made the redesign appear absent, so 2.3 development now opens Living Day by default while the
+  release build retains the Remote Config rollback switch.
 - [x] **Create the 2.3 experience system:** add restrained path, evidence, chart, motion, spacing,
   stroke, and color primitives. Keep operational screens quiet; remove pale-card and nested-card
   treatment first from Home, Food Detail/Trust, and the weekly report. Fuel Path, Trust Receipt,
@@ -334,10 +335,12 @@ Full experience, state, accessibility, rollout, and technical contract:
   nutrition contradictions now outrank routine macro catch-up in the shared next-action rules.
 - [x] **Ship read-only Fuel Path behind `feature_livingDayHome`:** support logged/planned meal
   nodes, workout/run nodes, current-time state, approximate timing, unavailable data, over-target,
-  offline, and empty-day states with exact navigation into existing workflows. The flag defaults
-  off, refreshes once per Home session, applies only to Today, and preserves the 2.2 dashboard as
-  the exact fallback. The first viewport shows the two events nearest now, one reconciled action,
-  and an explicit Show All expansion without displacing Quick Actions.
+  offline, and empty-day states with exact navigation into existing workflows. The compiled 2.3
+  default is on, Debug always shows Living Day unless launched with `-legacy-home`, and Release
+  still honors `feature_livingDayHome` as a remote rollback switch. The flag refreshes once per Home
+  session, applies only to Today, and preserves the 2.2 dashboard as the exact fallback. The first
+  viewport shows the two events nearest now, one reconciled action, and an explicit Show All
+  expansion without displacing Quick Actions.
 - [x] **Connect meaningful transitions:** Quick Log insertion, planned-to-completed state, saved
   Trust correction, and training-to-recovery handoff use short explanatory motion and haptics.
   Reduce Motion receives equivalent fades and content updates; motion never delays a write.
@@ -585,6 +588,14 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   restricted to explicit chart, shell, overlay, widget, loading, and export exceptions by CI.
   Maia action cards, the remaining Home surfaces, and Adaptive Metabolism now use the shared flat,
   responsive, evidence-led system.
+- [x] Close the first physical-device feedback round. Living Day is visible by default in 2.3
+  development and survives tab round-trips; startup uses the current code-native mark; Maia offers
+  ranked Enhanced/Premium system voices and French accents; generated grocery lists refresh stale
+  plan items while preserving manual entries and merge singular/plural duplicates; Meal Plan,
+  its six-step generator, and Maia food actions use the flatter operational hierarchy; Adaptive
+  TDEE pauses on sparse,
+  incomplete, or implausible evidence; and Fast Food Builder now provides menu search, official
+  source links, and at least 15 choices across each of its 25 chains.
 - [x] Complete the clean local 2.3 regression and unsigned Release audit.
 - [ ] Complete Peter's focused physical-device acceptance and the signed archive from the intended
   commit, following `docs/device-test-2.3.md`.
@@ -609,14 +620,15 @@ Goal: establish the competitive scoreboard and make the product story sharper be
 - [x] **Refresh App Store story**: created an eight-shot deterministic gallery covering Home, Trust, fast repeat/search, the 25-chain meal builder, Train, Maia action coaching, Meal Plan, and Reports. The first three images carry the positioning and conversion story.
 - [x] **Fix screenshot-visible polish**: corrected clipped Train targets and Reports chart labels, rebuilt the builder's bottom tray, centered a compact outlined Quick Log action above five equal-width destinations, made the expanded action list reachable on compact phones, and visually checked both required phone-size galleries. A final accessibility-size sweep also corrected clipping in Trust details, Food Search, Fast Food Builder, Train, Maia, Meal Plan, and Quick Log, and hardened Trust Hub presentation against asynchronous Home refreshes.
 - [x] **Add a release feedback and referral loop**: Settings now provides a prefilled privacy-safe feedback email and direct App Store sharing; recap, achievement, run-story, and workout-summary shares point back to the live listing; review requests are limited to fresh workout completions after three distinct sessions across at least three days, once per version with a 120-day cooldown.
-- [x] **Local release gate**: Core 1,099/1,099 at 84.24% coverage, app 110/110, broad UI 76/77 with
+- [x] **Local release gate**: Core 1,102/1,102 at 84.24% coverage, app 110/110, broad UI 76/77 with
   the sole timeout passing 5/5 immediate repetitions plus a final-source focused 4/4, Functions
   11/11, Rules 23/23, migrations 10/10, strict lint/catalog/diff/privacy checks, and the unsigned
   physical-iOS Release build are green. All shipping products are version 2.3 build 1. The embedded
   Watch plist contains both HealthKit purpose strings and its binary has arm64_32 plus arm64. CI
   uses Node 22 and current Node 24-based action generations and enforces the 80% Core floor.
-- [ ] **Signed owner release gate**: complete the physical Living Day/widget/share checks, publish
-  the default-off Remote Config key and tester condition, reconcile production App Check/legal/
+- [ ] **Signed owner release gate**: complete the physical Living Day/widget/share checks, confirm
+  the Remote Config key is enabled for the intended 2.3 audience while retaining a tested rollback,
+  reconcile production App Check/legal/
   privacy state, then validate and upload a signed archive from the intended commit. The exact
   sequence is in `docs/device-test-2.3.md`.
 

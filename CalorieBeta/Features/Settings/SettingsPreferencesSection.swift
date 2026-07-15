@@ -191,7 +191,7 @@ struct SettingsPreferencesSection: View {
                             )
                         ) {
                             ForEach(ttsManager.availableVoices) { voice in
-                                Text("\(voice.name) (\(voice.quality.label))")
+                                Text(voice.pickerLabel)
                                     .tag(voice.id)
                             }
                         }
@@ -227,12 +227,12 @@ struct SettingsPreferencesSection: View {
 
     private var spokenVoiceSubtitle: String {
         guard let voice = ttsManager.selectedVoiceOption else {
-            return "Uses the best English voice available on this iPhone."
+            return "Uses the best natural voice currently installed on this iPhone."
         }
         if ttsManager.hasNaturalQualityVoice {
-            return "\(voice.name) is a downloaded \(voice.quality.label.lowercased()) voice."
+            return "\(voice.name) · \(voice.accentLabel) · downloaded \(voice.quality.label.lowercased()) quality."
         }
-        return "\(voice.name) is a standard system voice. Enhanced and Premium voices sound more natural."
+        return "\(voice.name) · \(voice.accentLabel). Download an Enhanced or Premium voice in Accessibility > Spoken Content for a more natural result."
     }
 
     @ViewBuilder

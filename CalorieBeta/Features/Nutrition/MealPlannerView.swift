@@ -271,8 +271,8 @@ struct MealPlannerView: View {
 
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             AppSectionHeader(
-                title: selectedPlanTitle,
-                subtitle: "Regenerate individual meals or send them to Maia to log."
+                title: "Meals",
+                subtitle: "\(selectedPlanTitle) · \(plan.meals.count) planned \(plan.meals.count == 1 ? "meal" : "meals")"
             )
 
             planActions(hasLoggableMeals: plan.meals.contains { $0.foodItem != nil })
@@ -341,7 +341,8 @@ struct MealPlannerView: View {
                         .accessibilityHidden(true)
                 }
             }
-            .appSurface(.quiet, padding: 0)
+            .padding(.vertical, AppSpacing.compact)
+            .overlay(alignment: .bottom) { Divider() }
         }
         .buttonStyle(.plain)
         .disabled(isAnalyzingImage)

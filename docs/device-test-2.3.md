@@ -30,7 +30,7 @@ embedded-binary validation passed. The main privacy manifest parses. App result:
 `.codex_xcode/TestResults-2.2b2-app-final.xcresult`. UI result:
 `.codex_xcode/TestResults-2.2b2-ui-final.xcresult`.
 
-Latest version 2.3 local closure evidence on 2026-07-14: Core passed 1,099/1,099 at 84.24%
+Latest version 2.3 local closure evidence on 2026-07-14: Core passed 1,102/1,102 at 84.24%
 line coverage and the app target passed 110/110. The broad UI run passed 76/77 executions; its
 single two-second legacy Workout Dashboard timeout passed 5/5 immediate repetitions, and a
 final-source focused pass then passed 4/4. Strict lint, visual-system, diff, plist, project, and
@@ -45,9 +45,9 @@ The implementation, deterministic rendering, simulator accessibility, privacy, p
 and rollback matrices are automated locally. These checks require Peter's physical device or a
 signed production console and must remain open until they are directly observed:
 
-- [ ] In Firebase Remote Config, create `feature_livingDayHome` with default `false`. Add a tester-
-  only condition before enabling it for any production cohort; confirm the 2.2 Home returns
-  immediately when the condition is removed.
+- [ ] In Firebase Remote Config, confirm `feature_livingDayHome` evaluates to `true` for the intended
+  2.3 audience. Temporarily set it to `false`, relaunch, and confirm the 2.2 Home returns as the
+  rollback; restore `true` before archiving or distributing the intended 2.3 experience.
 - [ ] On the smallest supported physical iPhone, enable Living Day and perform a five-second glance.
   Confirm you can identify what happened, what is planned, and the single next action without
   explanatory help. Repeat once in compact and once in detailed density.
@@ -87,13 +87,20 @@ well. They replace a screen-by-screen manual retest:
   card reads naturally, the intended values remain editable or clearly disclosed, and no write
   occurs before confirmation. Complete the separate voice checks below during the same visit.
 - [ ] In Grocery, check an item, hide completed items, restore them, leave the screen, and return.
-  The checked state and visibility choice must remain coherent without a double tap.
+  The checked state and visibility choice must remain coherent without a double tap. Then refresh
+  or regenerate the current meal plan: old generated items must be replaced, manual items must
+  remain, and singular/plural duplicates such as `Banana`/`Bananas` must collapse into one row.
 - [ ] Open one saved recipe through detail and logging, then use Fast Food Builder to add and remove
-  an ingredient before reviewing the meal. Confirm the primary actions remain obvious and the
-  totals respond immediately.
+  an ingredient before reviewing the meal. Search for a menu item rather than a chain, open several
+  chains, and confirm each feels populated, its official nutrition source opens, primary actions
+  remain obvious, and totals respond immediately.
 - [ ] Open Adaptive Metabolism with real account data. It must say `Adaptive TDEE estimate`, show
   plausible finite values and the 21-day evidence requirement, and keep its apply action disabled
-  when there is not enough valid evidence.
+  when there is not enough valid evidence. If several days are only partially logged, it must say
+  that explicitly instead of presenting the implausible estimate as actionable.
+- [ ] Cold-launch once and confirm the current dark-green/mint MyFitPlate mark appears instead of
+  the retired white wordmark. Open Meal Plan and confirm its summaries, meal rows, pantry access,
+  loading state, empty state, and six-step generator match the flatter 2.3 operational design.
 - [ ] Repeat a short Home, Maia, Train, Meal Plan, and Reports sweep in dark mode and at the largest
   practical text size. Look only for clipped text, unreachable actions, unexpected nested cards,
   or a page that still feels visually unrelated to the rest of the app.
@@ -150,12 +157,13 @@ connectivity recovery checks on 2026-07-12.
 
 ### Maia voice and conversation
 
-- [ ] In Settings > Maia, preview the default spoken voice and at least one alternate if the
-  phone has more than one regular US English voice. Confirm Stop Preview works and other audio
-  resumes afterward.
-- [ ] If the phone offers only Standard voices, download an Enhanced or Premium English voice
-  in the iPhone's Accessibility speech settings, reopen MyFitPlate Settings, and confirm it is
-  available to select and preview. This is optional quality polish, not a release blocker.
+- [ ] In Settings > Maia, preview the default spoken voice and at least one French or French-
+  Canadian alternate. Confirm the displayed accent and quality match the selection, Stop Preview
+  works, and other audio resumes afterward.
+- [ ] If the phone offers only Standard voices, download an Enhanced or Premium French voice in
+  Settings > Accessibility > Spoken Content > Voices, reopen MyFitPlate Settings, and confirm it is
+  available to select and preview. Third-party apps cannot use Siri's private voice; the higher-
+  quality system speech voices are the closest supported option.
 - [ ] Ask one practical nutrition question in Balanced, Coach, and Analyst modes. Confirm Maia
   answers first, avoids canned praise or dashboard recitation, and each tone remains useful
   rather than theatrical.

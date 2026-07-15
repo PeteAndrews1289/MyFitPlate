@@ -8,11 +8,7 @@ struct LandingPageView: View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             Spacer()
 
-            Image("mfp logo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 72, height: 72)
-                .clipShape(RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+            MyFitPlateLaunchMark()
                 .accessibilityHidden(true)
 
             AppScreenHeader(
@@ -47,5 +43,18 @@ struct LandingPageView: View {
             return
         }
         errorMessage = nil
+    }
+}
+
+struct MyFitPlateLaunchMark: View {
+    var body: some View {
+        Text("MFP")
+            .font(.system(size: 25, weight: .bold, design: .rounded))
+            .foregroundStyle(Color(red: 0.66, green: 0.90, blue: 0.77))
+            .frame(width: 76, height: 76)
+            .background(
+                Color(red: 0.07, green: 0.24, blue: 0.18),
+                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+            )
     }
 }

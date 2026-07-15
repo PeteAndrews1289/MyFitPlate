@@ -142,10 +142,6 @@ struct MealPlanSurveyView: View {
                 .appFont(size: 20, weight: .semibold)
                 .foregroundStyle(AppPalette.brand)
                 .frame(width: 44, height: 44)
-                .background(
-                    AppPalette.brand.opacity(0.10),
-                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                )
                 .accessibilityHidden(true)
         }
     }
@@ -401,13 +397,10 @@ private struct SurveySelectionView: View {
         }
         .padding(.horizontal, AppSpacing.group)
         .frame(minHeight: 52)
-        .background(
-            AppPalette.control,
-            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                .stroke(AppPalette.separator, lineWidth: 1)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppPalette.separator)
+                .frame(height: 1)
         }
     }
 }
@@ -440,15 +433,13 @@ private struct SurveyChoiceButton: View {
                     .foregroundStyle(isSelected ? AppPalette.brand : .secondary)
                     .accessibilityHidden(true)
             }
-            .padding(.horizontal, AppSpacing.group)
+            .padding(.horizontal, AppSpacing.compact)
             .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-            .background(
-                isSelected ? AppPalette.brand.opacity(0.08) : AppPalette.control,
-                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                    .stroke(isSelected ? AppPalette.brand : AppPalette.separator, lineWidth: 1)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(AppPalette.separator)
+                    .frame(height: 1)
             }
         }
         .buttonStyle(.plain)
@@ -597,10 +588,6 @@ private struct CookingStyleRow: View {
                 .appFont(size: 18, weight: .semibold)
                 .foregroundStyle(isSelected ? AppPalette.brand : .secondary)
                 .frame(width: 40, height: 40)
-                .background(
-                    isSelected ? AppPalette.brand.opacity(0.10) : AppPalette.control,
-                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                )
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -620,14 +607,12 @@ private struct CookingStyleRow: View {
                 .foregroundStyle(isSelected ? AppPalette.brand : .secondary)
                 .accessibilityHidden(true)
         }
-        .padding(AppSpacing.group)
-        .background(
-            isSelected ? AppPalette.brand.opacity(0.06) : AppPalette.control,
-            in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                .stroke(isSelected ? AppPalette.brand : AppPalette.separator, lineWidth: 1)
+        .padding(.vertical, AppSpacing.compact)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppPalette.separator)
+                .frame(height: 1)
         }
     }
 }

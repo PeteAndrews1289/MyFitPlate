@@ -34,6 +34,24 @@ public struct MaiaVoiceOption: Identifiable, Equatable {
     public let isNovelty: Bool
     public let isPersonal: Bool
 
+    public var accentLabel: String {
+        switch language {
+        case "en-US": return "American English"
+        case "en-GB": return "British English"
+        case "en-IE": return "Irish English"
+        case "en-AU": return "Australian English"
+        case "en-ZA": return "South African English"
+        case "fr-FR": return "French"
+        case "fr-CA": return "French Canadian"
+        default:
+            return Locale.current.localizedString(forIdentifier: language) ?? language
+        }
+    }
+
+    public var pickerLabel: String {
+        "\(name) · \(accentLabel) · \(quality.label)"
+    }
+
     public init(
         id: String,
         name: String,
@@ -107,7 +125,7 @@ public class TTSManager: NSObject, ObservableObject, @preconcurrency AVSpeechSyn
     }
 
     public func previewSelectedVoice() {
-        speak("Hi, I'm Maia. Let's find one practical next step for today.")
+        speak("Hi, I'm Maia. Let's look at your day and choose one practical next step.")
     }
 
     public func speak(_ text: String) {
@@ -119,8 +137,8 @@ public class TTSManager: NSObject, ObservableObject, @preconcurrency AVSpeechSyn
 
         let utterance = AVSpeechUtterance(string: spokenText)
         utterance.voice = selectedVoice
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-        utterance.pitchMultiplier = 1.0
+        utterance.rate = selectedVoiceOption?.language.hasPrefix("fr-") == true ? 0.46 : 0.49
+        utterance.pitchMultiplier = selectedVoiceOption?.gender == .female ? 1.02 : 1.0
         utterance.volume = 1.0
         utterance.preUtteranceDelay = 0.04
         utterance.postUtteranceDelay = 0.08
@@ -160,12 +178,22 @@ public class TTSManager: NSObject, ObservableObject, @preconcurrency AVSpeechSyn
     }
 
     static func rankEligibleVoiceOptions(_ options: [MaiaVoiceOption]) -> [MaiaVoiceOption] {
-        let preferredNames = ["ava", "samantha", "zoe", "nicky", "joelle", "allison", "susan"]
+        let preferredNames = [
+            "ava", "audrey", "amélie", "aurelie", "samantha", "zoe", "nicky", "joelle", "allison", "susan"
+        ]
+        let preferredLanguages = ["en-US", "fr-FR", "en-GB", "en-IE", "en-AU", "en-ZA", "fr-CA"]
         return options
-            .filter { $0.language == "en-US" && !$0.isNovelty && !$0.isPersonal }
+            .filter { preferredLanguages.contains($0.language) && !$0.isNovelty && !$0.isPersonal }
             .sorted { lhs, rhs in
+                let lhsNatural = lhs.quality == .standard ? 0 : 1
+                let rhsNatural = rhs.quality == .standard ? 0 : 1
+                if lhsNatural != rhsNatural { return lhsNatural > rhsNatural }
                 if lhs.quality != rhs.quality { return lhs.quality > rhs.quality }
                 if lhs.gender != rhs.gender { return lhs.gender.rawValue > rhs.gender.rawValue }
+
+                let lhsLanguageRank = preferredLanguages.firstIndex(of: lhs.language) ?? preferredLanguages.count
+                let rhsLanguageRank = preferredLanguages.firstIndex(of: rhs.language) ?? preferredLanguages.count
+                if lhsLanguageRank != rhsLanguageRank { return lhsLanguageRank < rhsLanguageRank }
 
                 let lhsNameRank = preferredNames.firstIndex(of: lhs.name.lowercased()) ?? preferredNames.count
                 let rhsNameRank = preferredNames.firstIndex(of: rhs.name.lowercased()) ?? preferredNames.count

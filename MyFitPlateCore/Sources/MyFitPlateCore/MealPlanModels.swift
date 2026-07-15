@@ -37,8 +37,18 @@ public struct GroceryListItem: Identifiable, Codable, Equatable {
     public var isCompleted: Bool = false
     public var category: String = "Misc"
     public var source: String?
+    public var sourcePlanStart: Date?
 
-    public init(id: UUID = UUID(), name: String, quantity: Double, unit: String, isCompleted: Bool = false, category: String = "Misc", source: String? = nil) {
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        quantity: Double,
+        unit: String,
+        isCompleted: Bool = false,
+        category: String = "Misc",
+        source: String? = nil,
+        sourcePlanStart: Date? = nil
+    ) {
         self.id = id
         self.name = name
         self.quantity = quantity
@@ -46,6 +56,7 @@ public struct GroceryListItem: Identifiable, Codable, Equatable {
         self.isCompleted = isCompleted
         self.category = category
         self.source = source
+        self.sourcePlanStart = sourcePlanStart
     }
 }
 

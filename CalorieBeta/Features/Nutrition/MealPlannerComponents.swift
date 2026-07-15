@@ -25,14 +25,6 @@ struct MealPlanSummaryCard: View {
         foodItems.reduce(0) { $0 + $1.protein }
     }
 
-    private var totalCarbs: Double {
-        foodItems.reduce(0) { $0 + $1.carbs }
-    }
-
-    private var totalFats: Double {
-        foodItems.reduce(0) { $0 + $1.fats }
-    }
-
     private var calorieGoal: Double {
         max(goals.calories ?? 0, 1)
     }
@@ -93,44 +85,16 @@ struct MealPlanSummaryCard: View {
                 )
             ])
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Daily fit")
-                    .appTextRole(.control)
-                    .foregroundStyle(AppPalette.text)
-
-                MealPlanProgressRow(
-                    title: "Calories",
-                    value: totalCalories,
-                    goal: calorieGoal,
-                    unit: "cal",
-                    color: .orange
-                )
-                MealPlanProgressRow(
-                    title: "Protein",
-                    value: totalProtein,
-                    goal: max(goals.protein, 1),
-                    unit: "g",
-                    color: .accentProtein
-                )
-                MealPlanProgressRow(
-                    title: "Carbs",
-                    value: totalCarbs,
-                    goal: max(goals.carbs, 1),
-                    unit: "g",
-                    color: .accentCarbs
-                )
-                MealPlanProgressRow(
-                    title: "Fats",
-                    value: totalFats,
-                    goal: max(goals.fats, 1),
-                    unit: "g",
-                    color: .accentFats
-                )
-            }
+            MealPlanProgressRow(
+                title: "Planned calories",
+                value: totalCalories,
+                goal: calorieGoal,
+                unit: "cal",
+                color: .orange
+            )
         }
-        .appSurface(.emphasized, radius: AppRadius.hero)
+        .padding(.vertical, AppSpacing.compact)
+        .overlay(alignment: .bottom) { Divider() }
         .accessibilityIdentifier("meal_plan_summary")
     }
 }
@@ -250,7 +214,8 @@ struct WeeklyPlanOverviewCard: View {
                 .buttonStyle(AppActionButtonStyle(.secondary))
             }
         }
-        .appSurface(.quiet)
+        .padding(.vertical, AppSpacing.compact)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
@@ -287,7 +252,8 @@ struct MealPlanLoadingState: View {
                 }
             }
         }
-        .appSurface(.quiet)
+        .padding(.vertical, AppSpacing.group)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
@@ -325,7 +291,8 @@ struct MealPlannerEmptyState: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 34)
-        .appSurface(.quiet)
+        .padding(.vertical, AppSpacing.group)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
@@ -410,28 +377,15 @@ struct MealCardView: View {
             }
 
             if let foodItem = meal.foodItem {
-                AppMetricStrip(items: [
-                    AppMetricItem(
-                        label: "Calories",
-                        value: "\(Int(foodItem.calories.rounded()).formatted()) cal",
-                        accent: .orange
-                    ),
-                    AppMetricItem(
-                        label: "Protein",
-                        value: "\(Int(foodItem.protein.rounded()).formatted()) g",
-                        accent: .accentProtein
-                    ),
-                    AppMetricItem(
-                        label: "Carbs",
-                        value: "\(Int(foodItem.carbs.rounded()).formatted()) g",
-                        accent: .accentCarbs
-                    ),
-                    AppMetricItem(
-                        label: "Fats",
-                        value: "\(Int(foodItem.fats.rounded()).formatted()) g",
-                        accent: .accentFats
-                    )
-                ])
+                Text(
+                    "\(Int(foodItem.calories.rounded()).formatted()) cal  ·  " +
+                    "\(Int(foodItem.protein.rounded()).formatted())g protein  ·  " +
+                    "\(Int(foodItem.carbs.rounded()).formatted())g carbs  ·  " +
+                    "\(Int(foodItem.fats.rounded()).formatted())g fat"
+                )
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             if let ingredients = meal.ingredients, let instructions = meal.instructions, !ingredients.isEmpty, !instructions.isEmpty {
@@ -456,7 +410,8 @@ struct MealCardView: View {
             mealActions
 
         }
-        .appSurface(.quiet)
+        .padding(.vertical, AppSpacing.compact)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     @ViewBuilder

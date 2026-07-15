@@ -103,7 +103,9 @@ struct MainTabView: View {
 
     init() {
         #if DEBUG
-        let forcesLivingDayHome = ProcessInfo.processInfo.arguments.contains("-living-day-home")
+        // Development builds should exercise the shipping 2.3 Home by default. Use
+        // `-legacy-home` only when deliberately validating the rollback path.
+        let forcesLivingDayHome = !ProcessInfo.processInfo.arguments.contains("-legacy-home")
         #else
         let forcesLivingDayHome = false
         #endif

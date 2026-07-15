@@ -245,7 +245,7 @@ struct GroceryListView: View {
             self.isLoading = false
             return
         }
-        let fetchedList = await mealPlannerService.fetchGroceryList(for: userID)
+        let fetchedList = await mealPlannerService.fetchSynchronizedGroceryList(for: userID)
         let preparedList = fetchedList.map { item -> GroceryListItem in
             var prepared = GroceryListBuilder.applyUnitSystem(item, system: unitSystem)
             prepared.category = GroceryListBuilder.normalizedCategory(prepared.category)
@@ -314,6 +314,18 @@ struct GroceryListView: View {
                 onScan: { showingBarcodeScanner = true },
                 onAddManual: { showingManualItemSheet = true }
             )
+
+            Label(
+                groceryList.contains(where: { $0.source == "mealPlan" })
+                    ? "Synced to the next seven days of your meal plan"
+                    : "This list contains only items you added",
+                systemImage: groceryList.contains(where: { $0.source == "mealPlan" })
+                    ? "arrow.triangle.2.circlepath"
+                    : "person.fill"
+            )
+            .appTextRole(.secondary)
+            .foregroundStyle(.secondary)
+            .accessibilityIdentifier("grocery_plan_sync_status")
 
             GroceryListDisplayControls(
                 completedCount: groceryList.filter(\.isCompleted).count,

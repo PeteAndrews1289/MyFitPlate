@@ -20,7 +20,6 @@ struct GroceryListDisplayControls: View {
                     .appTextRole(.control)
                     .foregroundStyle(completedCount == 0 ? Color.secondary : AppPalette.brand)
                     .frame(width: 28, height: 28)
-                    .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -41,7 +40,8 @@ struct GroceryListDisplayControls: View {
         .onChange(of: hideCompletedItems) { _, _ in
             HapticManager.instance.feedback(.light)
         }
-        .appSurface(.quiet)
+        .padding(.vertical, AppSpacing.compact)
+        .overlay(alignment: .bottom) { Divider() }
         .accessibilityIdentifier("grocery_display_controls")
     }
 }

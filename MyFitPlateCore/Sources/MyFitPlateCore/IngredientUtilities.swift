@@ -72,6 +72,10 @@ public enum IngredientNameMatcher {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    static func canonical(_ name: String) -> String {
+        singularized(normalized(name))
+    }
+
     private static func singularized(_ value: String) -> String {
         value
             .split(separator: " ")
@@ -83,7 +87,11 @@ public enum IngredientNameMatcher {
                 if text.count > 4, text.hasSuffix("oes") {
                     return String(text.dropLast(2))
                 }
-                if text.count > 3, text.hasSuffix("s") {
+                if text.count > 3,
+                   text.hasSuffix("s"),
+                   !text.hasSuffix("ss"),
+                   !text.hasSuffix("us"),
+                   !text.hasSuffix("is") {
                     return String(text.dropLast())
                 }
                 return text

@@ -47,8 +47,6 @@ public class MealPlannerService: ObservableObject {
         return true
     }
 
-
-
     // MARK: - Grocery List
     public func saveGroceryList(_ list: [GroceryListItem], for userID: String) {
         Task {
@@ -69,7 +67,30 @@ public class MealPlannerService: ObservableObject {
         }
     }
 
-    public func refreshGroceryList(for userID: String, starting startDate: Date = Date()) async {
+    public func fetchSynchronizedGroceryList(
+        for userID: String,
+        starting startDate: Date = Date()
+    ) async -> [GroceryListItem] {
+        let existingItems = await fetchGroceryList(for: userID)
+        guard !existingItems.isEmpty else { return [] }
+
+        let planItems = existingItems.filter { $0.source == "mealPlan" }
+        guard !planItems.isEmpty else { return existingItems }
+
+        let currentStart = Calendar.current.startOfDay(for: startDate)
+        let isCurrentWindow = planItems.allSatisfy { item in
+            guard let sourcePlanStart = item.sourcePlanStart else { return false }
+            return Calendar.current.isDate(sourcePlanStart, inSameDayAs: currentStart)
+        }
+
+        if isCurrentWindow {
+            return existingItems
+        }
+        return await refreshGroceryList(for: userID, starting: currentStart)
+    }
+
+    @discardableResult
+    public func refreshGroceryList(for userID: String, starting startDate: Date = Date()) async -> [GroceryListItem] {
         let startOfDay = Calendar.current.startOfDay(for: startDate)
         var days: [MealPlanDay] = []
 
@@ -83,10 +104,15 @@ public class MealPlannerService: ObservableObject {
         }
 
         let existingItems = await fetchGroceryList(for: userID)
-        let generatedItems = makeGroceryList(from: days)
+        let generatedItems = GroceryListBuilder.makeGroceryList(from: days, starting: startOfDay)
         let mergedItems = GroceryListBuilder.mergeGroceryItems(generatedItems: generatedItems, existingItems: existingItems)
 
-        saveGroceryList(mergedItems, for: userID)
+        do {
+            try await DIContainer.shared.nutritionRepository.saveGroceryList(userID: userID, items: mergedItems)
+        } catch {
+            AppLog.mealPlanner.error("Failed to refresh grocery list: \(error.localizedDescription, privacy: .public)")
+        }
+        return mergedItems
     }
 
     private func generateAndSaveGroceryList(from days: [MealPlanDay], userID: String) {

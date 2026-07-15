@@ -699,15 +699,15 @@ struct AIChatActionCard: View {
                 .buttonStyle(AnimatedCardButtonStyle())
             }
 
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 128), spacing: AppSpacing.compact)],
-                spacing: AppSpacing.compact
-            ) {
-                MacroLabel(title: "Calories", value: "\(Int(calories.rounded()))")
-                MacroLabel(title: "Protein", value: "\(Int(protein.rounded()))g")
-                MacroLabel(title: "Carbs", value: "\(Int(carbs.rounded()))g")
-                MacroLabel(title: "Fat", value: "\(Int(fats.rounded()))g")
-            }
+            Text(
+                "\(Int(calories.rounded())) cal  ·  " +
+                "\(Int(protein.rounded()))g protein  ·  " +
+                "\(Int(carbs.rounded()))g carbs  ·  " +
+                "\(Int(fats.rounded()))g fat"
+            )
+            .appTextRole(.secondary)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .appSurface(.emphasized)
         .accessibilityIdentifier("maia_action_meal")

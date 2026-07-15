@@ -21,8 +21,8 @@ public enum FeatureFlag: String, CaseIterable {
         case .receiptScanner: return true
         // Dark until the extended barcodes rules are deployed and the pool has soaked.
         case .communityBarcodeCorrections: return false
-        // 2.3 Home experience stays behind Remote Config while the existing Home remains available.
-        case .livingDayHome: return false
+        // Living Day is the 2.3 Home. Remote Config remains available as an emergency kill switch.
+        case .livingDayHome: return true
         }
     }
 

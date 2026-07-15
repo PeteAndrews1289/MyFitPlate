@@ -433,10 +433,38 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   was the legacy Workout Dashboard waiting two seconds for a plan button after 42 minutes of UI
   testing. That exact unchanged workflow passed 5/5 immediate repetitions, its wait was aligned
   with the rest of the suite, and the final-source focused pass then passed 4/4. Core passed
-  1,099/1,099 at 84.24% line coverage, the unsigned physical-iOS Release build passed, and the
+  1,102/1,102 at 84.24% line coverage, the unsigned physical-iOS Release build passed, and the
   packaged phone, widget, Live Activity, and Watch products were verified as version 2.3 build 1.
   The embedded Watch app contains both HealthKit purpose strings and both required architectures;
   the privacy manifest parses. Legacy Home remains available solely as a rollout fallback.
+
+### Batch 23 - Physical Feedback Hardening (complete)
+
+- Made Living Day the compiled 2.3 default and forced it in Debug unless `-legacy-home` is supplied.
+  Release continues to honor `feature_livingDayHome`, preserving the exact legacy Home as a remote
+  rollback instead of silently hiding the new experience during development.
+- Replaced the obsolete startup artwork with the current code-native launch mark. Ranked Maia's
+  installed system voices by language, gender, and quality; added French and French-Canadian
+  choices; and surfaced accent plus Standard/Enhanced/Premium quality in Settings. Siri's private
+  voice remains unavailable to third-party apps.
+- Added source-plan dates and synchronized grocery loading so stale generated plan items are
+  rebuilt from the current seven-day plan while manual and barcode items remain intact. Canonical
+  matching merges safe singular/plural duplicates such as `Banana` and `Bananas` without damaging
+  words such as `hummus`.
+- Flattened Meal Plan summaries, meal rows, pantry access, loading, empty states, and the six-step
+  generator's choice/cooking-style rows, and reduced Maia food-action macro repetition without
+  changing generation or write behavior.
+- Added Adaptive TDEE evidence guardrails for partial diary days, sparse weigh-ins, incomplete log
+  coverage, and implausible raw estimates. Apply remains unavailable until the estimate has enough
+  complete, plausible evidence, with a concrete explanation shown to the user.
+- Expanded Fast Food Builder to 25 chains with at least 15 choices and two categories per chain,
+  added item-level search and official nutrition links, kept estimated catalog labeling, and added
+  catalog integrity plus filtered-selection UI coverage.
+- Strict SwiftLint passed with zero violations, the full Release simulator build passed with Watch,
+  widgets, and Live Activity, `git diff --check` passed, focused suites passed, the complete Core
+  suite passed 1,102/1,102, the updated Fast Food Builder UI journey passed end to end, and Meal
+  Plan's standard plus dark accessibility-XXXL planning-family journeys passed. Stable final
+  captures of the protein and cooking-style steps were visually reviewed.
 
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.

@@ -88,7 +88,8 @@ struct GrocerySummaryCard: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Shopping progress, \(progressLabel)")
         }
-        .appSurface(.emphasized)
+        .padding(.vertical, AppSpacing.compact)
+        .overlay(alignment: .bottom) { Divider() }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("grocery_summary")
     }

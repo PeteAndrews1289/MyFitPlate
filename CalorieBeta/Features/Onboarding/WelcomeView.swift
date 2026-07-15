@@ -33,11 +33,7 @@ struct WelcomeView: View {
                     title: "MyFitPlate",
                     subtitle: "A food log you can trust, built for people who train."
                 ) {
-                    Image("mfp logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 76, height: 76)
-                        .clipShape(RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+                    MyFitPlateLaunchMark()
                         .accessibilityHidden(true)
                 }
                 .padding(.top, AppSpacing.section)

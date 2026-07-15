@@ -9,6 +9,7 @@ public struct ChainMealBuilderView: View {
     @State private var selectedChain: ChainRestaurant = ChainRestaurantCatalog.allChains[0]
     @State private var selections: [String: ChainSelectionItem] = [:]
     @State private var chainSearchText = ""
+    @State private var menuSearchText = ""
     @State private var selectedMeal: String
     let trainingFuelTarget: TrainingFuelTarget?
     let onLogMeal: (FoodItem, String) -> Void
@@ -69,6 +70,23 @@ public struct ChainMealBuilderView: View {
         Color(chainHex: selectedChain.brandColorHex)
     }
 
+    private var filteredCategories: [ChainCategory] {
+        let query = menuSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return selectedChain.categories }
+
+        return selectedChain.categories.compactMap { category in
+            let categoryMatches = category.title.localizedCaseInsensitiveContains(query)
+            let matches = categoryMatches
+                ? category.ingredients
+                : category.ingredients.filter { ingredient in
+                    ingredient.name.localizedCaseInsensitiveContains(query) ||
+                        ingredient.servingDescription.localizedCaseInsensitiveContains(query)
+                }
+            guard !matches.isEmpty else { return nil }
+            return ChainCategory(id: category.id, title: category.title, ingredients: matches)
+        }
+    }
+
     private var nutritionTotals: ChainMealNutritionTotals {
         selectedChain.nutritionTotals(for: selections)
     }
@@ -116,9 +134,14 @@ public struct ChainMealBuilderView: View {
                             )
                         }
                         mealSelectorBar
+                        menuSearchBar
 
-                        ForEach(selectedChain.categories) { category in
-                            categorySection(for: category)
+                        if filteredCategories.isEmpty {
+                            noMenuResults
+                        } else {
+                            ForEach(filteredCategories) { category in
+                                categorySection(for: category)
+                            }
                         }
                     }
                     .padding(.horizontal, AppSpacing.screenHorizontal)
@@ -147,6 +170,7 @@ public struct ChainMealBuilderView: View {
             }
             .onChange(of: selectedChain) { _, _ in
                 selections.removeAll()
+                menuSearchText = ""
             }
         }
     }
@@ -247,17 +271,21 @@ public struct ChainMealBuilderView: View {
                 }
             }
 
-            Label {
-                Text("Estimated catalog · Updated \(ChainRestaurantCatalog.lastUpdatedDate) · Review before logging")
-                    .appTextRole(.caption)
-                    .fixedSize(horizontal: false, vertical: true)
-            } icon: {
-                Image(systemName: "checkmark.shield")
-                    .appTextRole(.caption)
+            Group {
+                if usesAccessibilityLayout {
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        catalogDisclosure
+                        officialNutritionSource
+                    }
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                        catalogDisclosure
+                        Spacer(minLength: 0)
+                        officialNutritionSource
+                    }
+                }
             }
-            .foregroundStyle(.secondary)
         }
-        .accessibilityIdentifier("chain_builder_selected_chain")
     }
 
     private var selectedChainIdentity: some View {
@@ -272,6 +300,7 @@ public struct ChainMealBuilderView: View {
                 Text(selectedChain.name)
                     .appTextRole(.sectionTitle)
                     .foregroundStyle(AppPalette.text)
+                    .accessibilityIdentifier("chain_builder_selected_chain")
 
                 Text(selectedChain.subtitle)
                     .appTextRole(.secondary)
@@ -286,6 +315,30 @@ public struct ChainMealBuilderView: View {
             .appTextRole(.secondary)
             .foregroundStyle(brandColor)
             .accessibilityIdentifier("chain_builder_catalog_count")
+    }
+
+    private var catalogDisclosure: some View {
+        Label {
+            Text("Estimated catalog · Updated \(ChainRestaurantCatalog.lastUpdatedDate) · Review before logging")
+                .appTextRole(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "checkmark.shield")
+                .appTextRole(.caption)
+        }
+        .foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder
+    private var officialNutritionSource: some View {
+        if let sourceURL = ChainRestaurantCatalog.officialNutritionURL(for: selectedChain.id) {
+            Link(destination: sourceURL) {
+                Label("Official nutrition", systemImage: "arrow.up.right.square")
+                    .appTextRole(.caption)
+                    .foregroundStyle(brandColor)
+            }
+            .accessibilityLabel("Open \(selectedChain.name) official nutrition source")
+        }
     }
 
     // MARK: - Meal Selector Bar
@@ -327,6 +380,55 @@ public struct ChainMealBuilderView: View {
         }
         .pickerStyle(.menu)
         .tint(AppPalette.brand)
+    }
+
+    private var menuSearchBar: some View {
+        HStack(spacing: AppSpacing.compact) {
+            Image(systemName: "magnifyingglass")
+                .appTextRole(.control)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            TextField("Search \(selectedChain.name) menu", text: $menuSearchText)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .appTextRole(.body)
+                .accessibilityIdentifier("chain_builder_menu_search")
+
+            if !menuSearchText.isEmpty {
+                Button {
+                    menuSearchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .appTextRole(.control)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear menu search")
+            }
+        }
+        .padding(.horizontal, AppSpacing.row)
+        .frame(minHeight: 52)
+        .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                .stroke(AppPalette.separator.opacity(0.7), lineWidth: 0.5)
+        }
+    }
+
+    private var noMenuResults: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Label("No menu matches", systemImage: "magnifyingglass")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+
+            Text("Try a menu item, ingredient, or category name.")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
+        .accessibilityIdentifier("chain_builder_no_menu_results")
     }
 
     // MARK: - Category Section

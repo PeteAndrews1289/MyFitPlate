@@ -14,6 +14,7 @@ public enum GroceryListBuilder {
 
     public static func makeGroceryList(
         from days: [MealPlanDay],
+        starting sourcePlanStart: Date? = nil,
         unitSystem: GroceryUnitSystem = currentUnitSystem()
     ) -> [GroceryListItem] {
         let ingredients = days
@@ -28,7 +29,7 @@ public enum GroceryListBuilder {
 
         for ingredient in ingredients {
             let parsed = IngredientLineParser.normalizedIngredient(from: ingredient)
-            let key = "\(IngredientNameMatcher.normalized(parsed.name))_\(parsed.unit)"
+            let key = "\(IngredientNameMatcher.canonical(parsed.name))_\(parsed.unit)"
             let category = IngredientCategoryMapper.groceryCategory(for: parsed.name)
 
             if var existing = grouped[key] {
@@ -40,7 +41,8 @@ public enum GroceryListBuilder {
                     quantity: parsed.quantity,
                     unit: parsed.unit,
                     category: category,
-                    source: "mealPlan"
+                    source: "mealPlan",
+                    sourcePlanStart: sourcePlanStart ?? days.map(\.date).min()
                 )
             }
         }
@@ -56,7 +58,7 @@ public enum GroceryListBuilder {
     }
 
     static func mergeKey(for name: String) -> String {
-        IngredientNameMatcher.normalized(name)
+        IngredientNameMatcher.canonical(name)
     }
 
     public static func applyUnitSystem(_ item: GroceryListItem, system: GroceryUnitSystem) -> GroceryListItem {
@@ -96,11 +98,11 @@ public enum GroceryListBuilder {
             }
 
             if newItem.unit == "g" && newItem.quantity >= 1000 {
-                newItem.quantity = newItem.quantity / 1000
+                newItem.quantity /= 1000
                 newItem.unit = "kg"
             }
             if newItem.unit == "ml" && newItem.quantity >= 1000 {
-                newItem.quantity = newItem.quantity / 1000
+                newItem.quantity /= 1000
                 newItem.unit = "L"
             }
         }

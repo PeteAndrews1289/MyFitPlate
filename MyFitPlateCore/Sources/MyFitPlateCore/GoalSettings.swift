@@ -486,12 +486,12 @@ public class GoalSettings: ObservableObject {
         guard !userID.isEmpty else { return }
         loadedGoalUserIDs.insert(userID)
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
             self._recalculateCalorieGoal()
             self.calculateMicronutrientGoals()
             self.syncAnalyticsUserProperties()
             let updatedAt = Date()
-            var goalsDict: [String:Any] = [
+            var goalsDict: [String: Any] = [
                 "calories": self.calories ?? 0, "protein": self.protein, "fats": self.fats, "carbs": self.carbs,
                 "proteinPercentage": self.proteinPercentage, "carbsPercentage": self.carbsPercentage, "fatsPercentage": self.fatsPercentage,
                 "activityLevel": self.activityLevel, "goal": self.goal, "targetWeight": self.targetWeight ?? NSNull(),
@@ -507,7 +507,7 @@ public class GoalSettings: ObservableObject {
             if let lastDate = self.lastCheckInDate {
                 goalsDict["lastCheckInDate"] = lastDate
             }
-            let userData:[String:Any] = [
+            let userData: [String: Any] = [
                 "goals": goalsDict, "height": self.height, "weight": self.weight, "age": self.age, "gender": self.gender, "isFirstLogin": false,
                 "calorieGoalMethod": self.calorieGoalMethod.rawValue, "activityLevel": self.activityLevel, "goal": self.goal,
                 "calories": self.calories ?? 0, "goalSettingsUpdatedAt": updatedAt
@@ -596,9 +596,9 @@ public class GoalSettings: ObservableObject {
             return
         }
 
-        healthKitManager.fetchRecentWeightSamples(startDate: startDate, endDate: endDate) { [weak self] samples, error in
+        healthKitManager.fetchRecentWeightSamples(startDate: startDate, endDate: endDate) { [weak self] samples, _ in
             DispatchQueue.main.async {
-                guard let self = self else { return }
+                guard let self else { return }
                 self.isSyncingWeightFromHealthKit = false
                 guard let samples = samples, !samples.isEmpty else { return }
                 
@@ -635,21 +635,24 @@ public class GoalSettings: ObservableObject {
     }
     
     public func deleteWeightEntry(entryID: String, completion: @escaping (Error?) -> Void) {
-    Task { @MainActor in
-        guard let userID = DIContainer.shared.authService.currentUserID else { completion(NSError(domain:"App",code:401)); return }
-        do {
-            try await DIContainer.shared.settingsRepository.deleteWeightEntry(userID: userID, entryID: entryID)
-            completion(nil)
-        } catch {
-            completion(error)
+        Task { @MainActor in
+            guard let userID = DIContainer.shared.authService.currentUserID else {
+                completion(NSError(domain: "App", code: 401))
+                return
+            }
+            do {
+                try await DIContainer.shared.settingsRepository.deleteWeightEntry(userID: userID, entryID: entryID)
+                completion(nil)
+            } catch {
+                completion(error)
+            }
         }
     }
-}
     
     // MARK: - Helpers
     
     public func getHeightInFeetAndInches() -> (feet: Int, inches: Int) {
-        let hCm = self.height; guard hCm > 0 else { return (0,0) }; let totalInches = Int(round(hCm / 2.54))
+        let hCm = self.height; guard hCm > 0 else { return (0, 0) }; let totalInches = Int(round(hCm / 2.54))
         return (totalInches / 12, totalInches % 12)
     }
     
@@ -686,7 +689,7 @@ public class GoalSettings: ObservableObject {
         let sortedData = periodData.sorted { $0.date < $1.date }
         let highest = sortedData.max(by: { $0.weight < $1.weight })?.weight
         let lowest = sortedData.min(by: { $0.weight < $1.weight })?.weight
-        var trend: Double? = nil, dailyRate: Double? = nil
+        var trend: Double?, dailyRate: Double?
         if sortedData.count >= 2, let first = sortedData.first, let last = sortedData.last {
             trend = last.weight - first.weight
             if let days = Calendar.current.dateComponents([.day], from: first.date, to: last.date).day, days > 0 {
@@ -720,6 +723,9 @@ public class AdaptiveGoalService: ObservableObject {
     /// "progress to your first estimate" UI shown before there's enough data for a TDEE.
     @Published public var recentWeighInCount: Int = 0
     @Published public var recentLogCount: Int = 0
+    @Published public var partialLogCount: Int = 0
+    @Published public var isEstimateActionable: Bool = false
+    @Published public var tdeeGuardrailMessage: String?
     @Published public var lastCalculationDate: Date?
     
     public enum DataConfidence: String {
@@ -747,6 +753,9 @@ public class AdaptiveGoalService: ObservableObject {
         public let dataConfidence: DataConfidence
         public let validLogCount: Int
         public let recentWorkoutCount: Int
+        public let partialLogCount: Int
+        public let isActionable: Bool
+        public let guardrailMessage: String?
 
         public init(
             recentWeighInCount: Int,
@@ -756,7 +765,10 @@ public class AdaptiveGoalService: ObservableObject {
             calculatedTDEE: Double?,
             dataConfidence: DataConfidence,
             validLogCount: Int = 0,
-            recentWorkoutCount: Int = 0
+            recentWorkoutCount: Int = 0,
+            partialLogCount: Int = 0,
+            isActionable: Bool = false,
+            guardrailMessage: String? = nil
         ) {
             self.recentWeighInCount = recentWeighInCount
             self.recentLogCount = recentLogCount
@@ -766,6 +778,9 @@ public class AdaptiveGoalService: ObservableObject {
             self.dataConfidence = dataConfidence
             self.validLogCount = validLogCount
             self.recentWorkoutCount = recentWorkoutCount
+            self.partialLogCount = partialLogCount
+            self.isActionable = isActionable
+            self.guardrailMessage = guardrailMessage
         }
     }
 
@@ -797,10 +812,31 @@ public class AdaptiveGoalService: ObservableObject {
         let recentWeighInCount = recentWeights.count
         let recentLogCount = recentLogs.count
 
-        let validLogs = recentLogs.filter { $0.totalCalories() > 500 }
+        let calorieTotals = recentLogs.map { max($0.totalCalories(), 0) }
+        let positiveTotals = calorieTotals.filter { $0 > 0 }.sorted()
+        let medianCalories: Double = {
+            guard !positiveTotals.isEmpty else { return 0 }
+            let middle = positiveTotals.count / 2
+            if positiveTotals.count.isMultiple(of: 2) {
+                return (positiveTotals[middle - 1] + positiveTotals[middle]) / 2
+            }
+            return positiveTotals[middle]
+        }()
+        let completeDayFloor = max(500, medianCalories * 0.5)
+        let validLogs = recentLogs.filter { $0.totalCalories() >= completeDayFloor }
+        let partialLogCount = recentLogs.filter {
+            let calories = $0.totalCalories()
+            return calories > 0 && calories < completeDayFloor
+        }.count
         let recentWorkoutCount = recentLogs.reduce(0) { $0 + ($1.exercises?.count ?? 0) }
 
-        guard recentWeighInCount >= 7, recentLogCount >= 10 else {
+        guard recentWeighInCount >= 7, validLogs.count >= 10 else {
+            let guardrailMessage: String?
+            if partialLogCount > 0 || (recentLogCount >= 10 && validLogs.count < 10) {
+                guardrailMessage = "Some days look only partly logged. Finish logging meals on at least 10 days before MyFitPlate estimates your TDEE."
+            } else {
+                guardrailMessage = nil
+            }
             return ExpenditureSnapshot(
                 recentWeighInCount: recentWeighInCount,
                 recentLogCount: recentLogCount,
@@ -809,7 +845,10 @@ public class AdaptiveGoalService: ObservableObject {
                 calculatedTDEE: nil,
                 dataConfidence: .insufficient,
                 validLogCount: validLogs.count,
-                recentWorkoutCount: recentWorkoutCount
+                recentWorkoutCount: recentWorkoutCount,
+                partialLogCount: partialLogCount,
+                isActionable: false,
+                guardrailMessage: guardrailMessage
             )
         }
 
@@ -849,15 +888,36 @@ public class AdaptiveGoalService: ObservableObject {
             confidence = .medium
         }
 
+        let isWithinSupportedRange = (1000...5000).contains(rawTDEE)
+        let hasTooManyPartialDays = partialLogCount > 3
+        let hasUsableConfidence = confidence == .high || confidence == .medium
+        let isActionable = hasUsableConfidence && isWithinSupportedRange && !hasTooManyPartialDays
+
+        let guardrailMessage: String?
+        if hasTooManyPartialDays {
+            guardrailMessage = "\(partialLogCount) days look only partly logged, so this estimate is paused. Complete those days or build a cleaner 21-day window."
+            confidence = .low
+        } else if !isWithinSupportedRange {
+            guardrailMessage = "The result falls outside MyFitPlate's supported TDEE range. Check for missing food entries or unusual weigh-ins before using it."
+            confidence = .low
+        } else if !hasUsableConfidence {
+            guardrailMessage = "Only \(validLogs.count) complete food-log days are available. Reach at least 13 complete days and 10 weigh-ins before using this estimate."
+        } else {
+            guardrailMessage = nil
+        }
+
         return ExpenditureSnapshot(
             recentWeighInCount: recentWeighInCount,
             recentLogCount: recentLogCount,
             last21DaysCalorieAverage: averageCalories,
             weightChangeRatePerDay: ratePerDay,
-            calculatedTDEE: max(1000, min(rawTDEE, 5000)),
+            calculatedTDEE: isWithinSupportedRange && !hasTooManyPartialDays ? rawTDEE : nil,
             dataConfidence: confidence,
             validLogCount: validLogs.count,
-            recentWorkoutCount: recentWorkoutCount
+            recentWorkoutCount: recentWorkoutCount,
+            partialLogCount: partialLogCount,
+            isActionable: isActionable,
+            guardrailMessage: guardrailMessage
         )
     }
 
@@ -870,7 +930,8 @@ public class AdaptiveGoalService: ObservableObject {
         carbsPercentage: Double,
         fatsPercentage: Double
     ) -> WeeklyGoalProposal? {
-        guard let calculatedTDEE = snapshot.calculatedTDEE,
+        guard snapshot.isActionable,
+              let calculatedTDEE = snapshot.calculatedTDEE,
               snapshot.dataConfidence == .high || snapshot.dataConfidence == .medium else {
             return nil
         }
@@ -943,7 +1004,10 @@ public class AdaptiveGoalService: ObservableObject {
             calculatedTDEE: calculatedTDEE,
             dataConfidence: dataConfidence,
             validLogCount: recentValidLogCount,
-            recentWorkoutCount: recentWorkoutCount
+            recentWorkoutCount: recentWorkoutCount,
+            partialLogCount: partialLogCount,
+            isActionable: isEstimateActionable,
+            guardrailMessage: tdeeGuardrailMessage
         )
         return Self.weeklyGoalProposal(
             snapshot: snapshot,
@@ -965,14 +1029,17 @@ public class AdaptiveGoalService: ObservableObject {
             self.recentLogCount = snapshot.recentLogCount
             self.recentValidLogCount = snapshot.validLogCount
             self.recentWorkoutCount = snapshot.recentWorkoutCount
+            self.partialLogCount = snapshot.partialLogCount
+            self.isEstimateActionable = snapshot.isActionable
+            self.tdeeGuardrailMessage = snapshot.guardrailMessage
+            self.last21DaysCalorieAverage = snapshot.last21DaysCalorieAverage
+            self.weightChangeRatePerDay = snapshot.weightChangeRatePerDay
 
             if let calculatedTDEE = snapshot.calculatedTDEE {
-                self.last21DaysCalorieAverage = snapshot.last21DaysCalorieAverage
-                self.weightChangeRatePerDay = snapshot.weightChangeRatePerDay
                 self.calculatedTDEE = calculatedTDEE
                 self.dataConfidence = snapshot.dataConfidence
             } else {
-                self.dataConfidence = .insufficient
+                self.dataConfidence = snapshot.dataConfidence
                 self.calculatedTDEE = nil
             }
         }
@@ -1018,7 +1085,8 @@ public class AdaptiveGoalService: ObservableObject {
             // calculatedTDEE is assigned on the main queue inside calculateExpenditure, so this
             // main-queue hop is guaranteed to run after that assignment (FIFO ordering).
             await MainActor.run {
-                if goalSettings.calorieGoalMethod == .dynamicTDEE {
+                if goalSettings.calorieGoalMethod == .dynamicTDEE,
+                   self.isEstimateActionable {
                     goalSettings.recalculateAllGoals()
                 }
             }

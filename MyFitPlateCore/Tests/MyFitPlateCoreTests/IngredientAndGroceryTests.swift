@@ -37,6 +37,9 @@ final class IngredientMatchingAndCategoryTests: XCTestCase {
         XCTAssertTrue(IngredientNameMatcher.matches("fresh chopped tomatoes", "tomato"))
         XCTAssertTrue(IngredientNameMatcher.matches("1 lb chicken breasts", "chicken breast"))
         XCTAssertTrue(IngredientNameMatcher.matches("diced red onions", "onion"))
+        XCTAssertEqual(IngredientNameMatcher.canonical("Bananas"), "banana")
+        XCTAssertEqual(IngredientNameMatcher.canonical("Bell Peppers"), "bell pepper")
+        XCTAssertEqual(IngredientNameMatcher.canonical("Hummus"), "hummus")
     }
 
     func testCategoryMappingUsesSharedGroceryCategories() {
@@ -85,6 +88,22 @@ final class GroceryListBuilderTests: XCTestCase {
 
         let yogurt = requireItem(named: "Greek Yogurt", in: list)
         XCTAssertEqual(yogurt.category, "Dairy & Eggs")
+    }
+
+    func testBuildCoalescesSingularAndPluralIngredientNames() {
+        let day = makeDay(ingredients: [
+            "1 banana",
+            "2 bananas",
+            "1 bell pepper",
+            "3 bell peppers"
+        ])
+
+        let list = GroceryListBuilder.makeGroceryList(from: [day], unitSystem: .imperial)
+
+        XCTAssertEqual(list.filter { IngredientNameMatcher.matches($0.name, "banana") }.count, 1)
+        XCTAssertEqual(requireItem(named: "Banana", in: list).quantity, 3, accuracy: 0.001)
+        XCTAssertEqual(list.filter { IngredientNameMatcher.matches($0.name, "bell pepper") }.count, 1)
+        XCTAssertEqual(requireItem(named: "Bell Pepper", in: list).quantity, 4, accuracy: 0.001)
     }
 
     func testMetricUnitConversion() {
@@ -222,6 +241,29 @@ final class GroceryListBuilderTests: XCTestCase {
         XCTAssertTrue(merged[0].isCompleted) // kept from existing
         
         XCTAssertEqual(merged[1].name, "Cookies") // manual is preserved
+    }
+
+    func testRefreshMergeReplacesLegacyPlanItemsAndKeepsManualItems() {
+        let currentStart = Date(timeIntervalSince1970: 1_000_000)
+        let generated = [
+            GroceryListItem(
+                name: "Banana",
+                quantity: 2,
+                unit: "item",
+                category: "Produce",
+                source: "mealPlan",
+                sourcePlanStart: currentStart
+            )
+        ]
+        let existing = [
+            GroceryListItem(name: "Apples", quantity: 8, unit: "item", category: "Produce", source: "mealPlan"),
+            GroceryListItem(name: "Coffee", quantity: 1, unit: "item", category: "Misc", source: "manual")
+        ]
+
+        let merged = GroceryListBuilder.mergeGroceryItems(generatedItems: generated, existingItems: existing)
+
+        XCTAssertEqual(Set(merged.map(\.name)), ["Banana", "Coffee"])
+        XCTAssertEqual(merged.first(where: { $0.name == "Banana" })?.sourcePlanStart, currentStart)
     }
 }
 

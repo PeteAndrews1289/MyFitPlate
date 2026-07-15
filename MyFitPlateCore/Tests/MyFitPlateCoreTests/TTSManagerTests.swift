@@ -164,12 +164,19 @@ final class TTSManagerTests: XCTestCase {
                 language: "en-AU",
                 quality: .premium,
                 gender: .female
+            ),
+            MaiaVoiceOption(
+                id: "french-enhanced",
+                name: "Audrey",
+                language: "fr-FR",
+                quality: .enhanced,
+                gender: .female
             )
         ]
 
         XCTAssertEqual(
             TTSManager.rankEligibleVoiceOptions(options).map(\.id),
-            ["ava-premium", "male-premium", "samantha-enhanced"]
+            ["ava-premium", "australian", "male-premium", "samantha-enhanced", "french-enhanced"]
         )
     }
 

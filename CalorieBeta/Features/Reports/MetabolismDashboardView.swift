@@ -48,27 +48,27 @@ struct MetabolismDashboardView: View {
 
             if adaptiveGoalService.dataConfidence == .insufficient {
                 let weighInsLeft = max(0, 7 - adaptiveGoalService.recentWeighInCount)
-                let logsLeft = max(0, 10 - adaptiveGoalService.recentLogCount)
+                let logsLeft = max(0, 10 - adaptiveGoalService.recentValidLogCount)
                 let daysToGo = max(weighInsLeft, logsLeft)
 
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 8) {
                         Image(systemName: "hourglass")
                             .foregroundColor(.blue)
-                        Text("Building your estimate")
+                        Text(adaptiveGoalService.tdeeGuardrailMessage == nil ? "Building your estimate" : "Check your food logs")
                             .appFont(size: 16, weight: .bold)
                             .foregroundColor(.textPrimary)
                     }
 
-                    Text(daysToGo > 0
-                         ? "About \(daysToGo) more day\(daysToGo == 1 ? "" : "s") of logging until your first estimate appears."
-                         : "Almost there, keep logging to unlock your estimate.")
+                    Text(adaptiveGoalService.tdeeGuardrailMessage ?? (daysToGo > 0
+                         ? "About \(daysToGo) more complete day\(daysToGo == 1 ? "" : "s") of logging until your first estimate appears."
+                         : "Almost there, keep logging to unlock your estimate."))
                         .appFont(size: 14)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
 
                     AdaptiveProgressRow(label: "Weight check-ins", current: adaptiveGoalService.recentWeighInCount, goal: 7, icon: "scalemass.fill")
-                    AdaptiveProgressRow(label: "Days of food logged", current: adaptiveGoalService.recentLogCount, goal: 10, icon: "fork.knife")
+                    AdaptiveProgressRow(label: "Complete food-log days", current: adaptiveGoalService.recentValidLogCount, goal: 10, icon: "fork.knife")
 
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "lightbulb.fill")
@@ -82,6 +82,31 @@ struct MetabolismDashboardView: View {
                     .padding(.top, 2)
                 }
                 .appSurface(.quiet)
+            }
+
+            if let guardrailMessage = adaptiveGoalService.tdeeGuardrailMessage,
+               adaptiveGoalService.dataConfidence != .insufficient {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    Label("Estimate not ready to use", systemImage: "exclamationmark.shield.fill")
+                        .appTextRole(.control)
+                        .foregroundStyle(.orange)
+
+                    Text(guardrailMessage)
+                        .appTextRole(.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: AppSpacing.group) {
+                        Text("\(adaptiveGoalService.recentValidLogCount)/21 complete")
+                        Text("\(adaptiveGoalService.partialLogCount) partial")
+                        Text("\(adaptiveGoalService.recentWeighInCount) weigh-ins")
+                    }
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, AppSpacing.compact)
+                .overlay(alignment: .bottom) { Divider() }
+                .accessibilityIdentifier("adaptive_tdee_guardrail")
             }
 
             VStack(spacing: 16) {
@@ -141,6 +166,13 @@ struct MetabolismDashboardView: View {
             .disabled(!canUseAdaptiveTDEE)
             .buttonStyle(AppActionButtonStyle(.primary))
 
+            if !canUseAdaptiveTDEE {
+                Text("Adaptive TDEE stays unavailable until the food-log and weigh-in evidence is consistent enough to trust.")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             VStack(alignment: .leading, spacing: 10) {
                 Label("Why use this estimate?", systemImage: "sparkles")
                     .appFont(size: 18, weight: .bold)
@@ -163,7 +195,7 @@ struct MetabolismDashboardView: View {
     }
 
     private var canUseAdaptiveTDEE: Bool {
-        adaptiveGoalService.dataConfidence != .insufficient && validTDEE != nil
+        adaptiveGoalService.isEstimateActionable && validTDEE != nil
     }
 
     private var averageIntakeText: String {

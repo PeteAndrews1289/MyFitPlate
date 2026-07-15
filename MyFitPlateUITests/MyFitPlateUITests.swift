@@ -694,12 +694,22 @@ final class MyFitPlateUITests: XCTestCase {
             .firstMatch
         let review = app.buttons["chain_builder_review_meal"]
         let category = app.staticTexts["Bases & Grains"]
+        let menuSearchField = app.textFields["chain_builder_menu_search"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 8))
         XCTAssertTrue(chainIdentity.waitForExistence(timeout: 5))
+        XCTAssertTrue(menuSearchField.waitForExistence(timeout: 5))
         XCTAssertTrue(category.waitForExistence(timeout: 5))
         XCTAssertTrue(review.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["chain_builder_catalog_count"].label, "22 items")
         XCTAssertLessThan(searchField.frame.minY, chainIdentity.frame.minY)
         XCTAssertLessThan(chainIdentity.frame.minY, category.frame.minY)
+
+        menuSearchField.tap()
+        menuSearchField.typeText("Barbacoa")
+        XCTAssertTrue(app.buttons["chain_builder_ingredient_c_barbacoa"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["chain_builder_ingredient_c_white_rice"].exists)
+        app.buttons["Clear menu search"].tap()
+        menuSearchField.typeText("\n")
 
         let whiteRice = app.buttons["chain_builder_ingredient_c_white_rice"]
         XCTAssertTrue(whiteRice.waitForExistence(timeout: 5))
