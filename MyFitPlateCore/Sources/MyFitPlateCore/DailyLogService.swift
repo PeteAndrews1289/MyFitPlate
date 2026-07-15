@@ -118,7 +118,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
             case .failure(let error):
                 AppLog.data.error("Failed to fetch source day for repeat logging: \(error.localizedDescription, privacy: .public)")
                 Task { @MainActor in
-                    self.bannerService?.showBanner(title: "Could not repeat meals", message: "Yesterday's log could not be loaded.", iconName: "xmark.circle.fill", iconColor: .red)
+                    self.bannerService?.showBanner(title: "Could not repeat meals", message: "Yesterday's log could not be loaded.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                 }
             }
         }
@@ -288,7 +288,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                         title: "Error",
                         message: failureMessage,
                         iconName: "xmark.circle.fill",
-                        iconColor: .red
+                        iconColor: AppPalette.critical
                     )
                 }
                 completion?(success)
@@ -299,7 +299,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                     title: "Error",
                     message: failureMessage,
                     iconName: "xmark.circle.fill",
-                    iconColor: .red
+                    iconColor: AppPalette.critical
                 )
                 completion?(false)
             }

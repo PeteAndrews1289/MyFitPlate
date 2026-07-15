@@ -134,7 +134,9 @@ done
 
 # Release-reachable UI uses the shared signal and domain vocabulary. Direct spectrum colors are
 # valid only where the color itself is measured/categorical data, a physical plate standard,
-# celebration/export artwork, or inside the deliberately inaccessible social prototype.
+# celebration/export artwork, inside the deliberately inaccessible social prototype, or where the
+# palette itself defines the semantic critical color. Scan app roots and extensions, not only the
+# feature folder, so top-level screens, widgets, and Live Activities cannot bypass this guard.
 readonly direct_color_pattern='\.(red|orange|yellow|blue|cyan|indigo|purple|pink|green|teal)([^[:alnum:]_]|$)'
 readonly direct_color_allowlist=(
   'CalorieBeta/Features/Home/WeeklyCheckInView.swift'
@@ -151,9 +153,14 @@ readonly direct_color_allowlist=(
   'CalorieBeta/Features/Community/CreatePostView.swift'
   'CalorieBeta/Features/Community/GroupSelectionView.swift'
   'CalorieBeta/Features/Community/JoinGroupConfirmationView.swift'
+  'MyFitPlateCore/Sources/MyFitPlateCore/AppVisualSystem.swift'
 )
 
-direct_color_matches="$(git grep -n -E "$direct_color_pattern" -- 'CalorieBeta/Features' || true)"
+direct_color_matches="$(git grep -n -E "$direct_color_pattern" -- \
+  'CalorieBeta' \
+  'CalorieWidget' \
+  'LiveActivity' \
+  'MyFitPlateCore/Sources/MyFitPlateCore' || true)"
 while IFS= read -r match; do
   [[ -z "$match" ]] && continue
   file="${match%%:*}"

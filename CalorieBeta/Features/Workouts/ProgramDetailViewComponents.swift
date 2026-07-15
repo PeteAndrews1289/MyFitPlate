@@ -159,10 +159,11 @@ struct ProgramExercisePreviewRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                .font(.body)
+            Image(systemName: exercise.type.icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(exercise.type.color)
                 .frame(width: 30, height: 30)
-                .background(Color.brandPrimary.opacity(0.10), in: Circle())
+                .background(exercise.type.color.opacity(0.10), in: Circle())
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(exercise.name)
@@ -256,6 +257,11 @@ struct ProgramRoutineCard: View {
         isExpanded ? routine.exercises.prefix(routine.exercises.count) : routine.exercises.prefix(3)
     }
 
+    private var primaryType: ExerciseType {
+        routine.exercises.first?.type
+            ?? RoutineEditorDefaults.inferredType(name: routine.name, category: nil)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             Group {
@@ -301,11 +307,12 @@ struct ProgramRoutineCard: View {
 
     private var routineIdentity: some View {
         HStack(spacing: AppSpacing.row) {
-            Text(ExerciseEmojiMapper.getEmoji(for: routine.exercises.first?.name ?? routine.name))
-                .font(.title3)
+            Image(systemName: primaryType.icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(primaryType.color)
                 .frame(width: 40, height: 40)
                 .background(
-                    AppPalette.brand.opacity(0.10),
+                    primaryType.color.opacity(0.10),
                     in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                 )
 

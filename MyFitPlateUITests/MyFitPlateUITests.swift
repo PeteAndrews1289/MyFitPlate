@@ -2574,6 +2574,42 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutPlayerAndRecoveryFieldSupportDarkLargestAccessibilityText() throws {
+        let app = XCUIApplication()
+        let configurations = [
+            (name: "Live Workout", route: "workout-player", container: "workout_player"),
+            (name: "Muscle Recovery", route: "muscle-recovery", container: "muscle_recovery_map")
+        ]
+
+        for configuration in configurations {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                configuration.route,
+                "-screenshot-dark-mode",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+            app.launch()
+
+            let container = app.descendants(matching: .any)
+                .matching(identifier: configuration.container)
+                .firstMatch
+            XCTAssertTrue(container.waitForExistence(timeout: 10), "\(configuration.name) should load")
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+            try app.performAccessibilityAudit(for: [.textClipped])
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(configuration.name) - dark accessibility XXXL"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testWellnessFamilyUsesUnifiedEvidenceHierarchy() throws {
         let app = XCUIApplication()
         let screens = [
@@ -3163,6 +3199,104 @@ final class MyFitPlateUITests: XCTestCase {
             screenshot.name = "\(screen.name) - unified planning hierarchy"
             screenshot.lifetime = .keepAlways
             add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testAddSavedRecipeSupportsUnifiedHierarchyAndLargestText() throws {
+        let app = XCUIApplication()
+        let configurations = [
+            (name: "Standard", dark: false, accessibilityText: false),
+            (name: "Dark Accessibility", dark: true, accessibilityText: true)
+        ]
+
+        for configuration in configurations {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                "add-meal-plan"
+            ]
+            if configuration.dark {
+                app.launchArguments.append("-screenshot-dark-mode")
+            }
+            if configuration.accessibilityText {
+                app.launchArguments.append(contentsOf: [
+                    "-UIPreferredContentSizeCategoryName",
+                    "UICTContentSizeCategoryAccessibilityXXXL"
+                ])
+            }
+            app.launch()
+
+            let container = app.descendants(matching: .any)["add_meal_plan_screen"]
+            XCTAssertTrue(container.waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["Add a Saved Recipe"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["Create recipe"].isHittable)
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+
+            if configuration.accessibilityText {
+                try app.performAccessibilityAudit(for: [.textClipped])
+            }
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "Add Saved Recipe - \(configuration.name)"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
+    func testAddShoeSupportsUnifiedHierarchyAndLargestText() throws {
+        let app = XCUIApplication()
+        let configurations = [
+            (name: "Standard", dark: false, accessibilityText: false),
+            (name: "Dark Accessibility", dark: true, accessibilityText: true)
+        ]
+
+        for configuration in configurations {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                "shoe-gear-add"
+            ]
+            if configuration.dark {
+                app.launchArguments.append("-screenshot-dark-mode")
+            }
+            if configuration.accessibilityText {
+                app.launchArguments.append(contentsOf: [
+                    "-UIPreferredContentSizeCategoryName",
+                    "UICTContentSizeCategoryAccessibilityXXXL"
+                ])
+            }
+            app.launch()
+
+            let container = app.descendants(matching: .any)["add_shoe_screen"]
+            XCTAssertTrue(container.waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["Shoe Details"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["Save"].exists)
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "Add Shoe - \(configuration.name)"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+
+            if configuration.accessibilityText {
+                container.swipeUp()
+                // SwiftUI Form reports one unresolvable viewport node after scrolling at XXXL.
+                // Keep every identifiable label and field subject to the clipping audit.
+                try app.performAccessibilityAudit(for: [.textClipped]) { issue in
+                    issue.element == nil
+                }
+
+                let lowerContentScreenshot = XCTAttachment(screenshot: app.screenshot())
+                lowerContentScreenshot.name = "Add Shoe - Dark Accessibility Lower Content"
+                lowerContentScreenshot.lifetime = .keepAlways
+                add(lowerContentScreenshot)
+            }
         }
     }
 

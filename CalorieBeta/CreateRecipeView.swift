@@ -427,7 +427,7 @@ struct CreateRecipeView: View {
                 title: "Sign In Required",
                 message: "Sign in before saving a recipe.",
                 iconName: "person.crop.circle.badge.exclamationmark",
-                iconColor: .orange
+                iconColor: AppPalette.caution
             )
             return
         }
@@ -476,7 +476,7 @@ struct CreateRecipeView: View {
                     title: creationMode == .manual ? "Save Failed" : "Import Failed",
                     message: "Could not parse or save the recipe. Please try again.",
                     iconName: "exclamationmark.triangle.fill",
-                    iconColor: .orange
+                    iconColor: AppPalette.caution
                 )
             }
         }
@@ -576,7 +576,7 @@ private struct CreateRecipeNutritionPreview: View {
                 AppMetricItem(
                     label: "Calories",
                     value: "\(Int(nutrition.calories.rounded()).formatted()) cal",
-                    accent: .orange
+                    accent: AppPalette.energy
                 ),
                 AppMetricItem(
                     label: "Protein",

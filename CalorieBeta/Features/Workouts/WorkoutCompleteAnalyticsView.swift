@@ -1004,11 +1004,12 @@ private struct SessionExerciseRow: View {
 
     private var exerciseIdentity: some View {
         HStack(spacing: AppSpacing.row) {
-            Text(ExerciseEmojiMapper.getEmoji(for: exercise.exerciseName))
-                .font(.title3)
+            Image(systemName: exercise.exercise.type.icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(exercise.exercise.type.color)
                 .frame(width: 40, height: 40)
                 .background(
-                    AppPalette.brand.opacity(0.10),
+                    exercise.exercise.type.color.opacity(0.10),
                     in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                 )
 

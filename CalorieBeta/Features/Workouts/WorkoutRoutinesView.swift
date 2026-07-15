@@ -392,9 +392,12 @@ struct WorkoutRoutinesView: View {
 
     @ViewBuilder
     private func routineRow(_ routine: WorkoutRoutine) -> some View {
+        let primaryType = routine.exercises.first?.type
+            ?? RoutineEditorDefaults.inferredType(name: routine.name, category: nil)
         HStack(spacing: AppSpacing.row) {
-            Text(ExerciseEmojiMapper.getEmoji(for: routine.exercises.first?.name ?? routine.name))
-                .font(.title3)
+            Image(systemName: primaryType.icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(primaryType.color)
                 .frame(width: 40, height: 40)
                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                 .accessibilityHidden(true)

@@ -37,14 +37,14 @@ public class ExerciseLogStore {
                             service.achievementService?.updateChallengeProgress(for: userID, type: .workoutLogged, amount: 1)
                             NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
                         } else {
-                             service.bannerService?.showBanner(title: "Error", message: "Failed to log \(exercise.name).", iconName: "xmark.circle.fill", iconColor: .red)
+                             service.bannerService?.showBanner(title: "Error", message: "Failed to log \(exercise.name).", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                         }
                     }
                 }
             case .failure(let error):
                 AppLog.data.error("Failed to fetch log for adding exercise: \(error.localizedDescription, privacy: .public)")
                 Task { @MainActor in
-                    service.bannerService?.showBanner(title: "Error", message: "Could not fetch log to add exercise.", iconName: "xmark.circle.fill", iconColor: .red)
+                    service.bannerService?.showBanner(title: "Error", message: "Could not fetch log to add exercise.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                 }
             }
         }
@@ -76,7 +76,7 @@ public class ExerciseLogStore {
                                  service.bannerService?.showBanner(title: "Deleted", message: "\(exerciseName ?? "Exercise") removed.")
                                 NotificationCenter.default.post(name: .didUpdateExerciseLog, object: nil)
                              } else {
-                                service.bannerService?.showBanner(title: "Error", message: "Failed to delete exercise.", iconName: "xmark.circle.fill", iconColor: .red)
+                                service.bannerService?.showBanner(title: "Error", message: "Failed to delete exercise.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                             }
                         }
                     }
@@ -84,7 +84,7 @@ public class ExerciseLogStore {
             case .failure(let error):
                 AppLog.data.error("Failed to fetch log for deleting exercise: \(error.localizedDescription, privacy: .public)")
              Task { @MainActor in
-                 service.bannerService?.showBanner(title: "Error", message: "Could not fetch log to delete exercise.", iconName: "xmark.circle.fill", iconColor: .red)
+                 service.bannerService?.showBanner(title: "Error", message: "Could not fetch log to delete exercise.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
              }
             }
         }

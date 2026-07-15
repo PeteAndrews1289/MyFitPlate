@@ -803,10 +803,10 @@ private extension WidgetPathEvent.Kind {
     var color: Color {
         switch self {
         case .meal: return WidgetPalette.brandPrimary
-        case .strength: return .indigo
-        case .run: return .cyan
-        case .activity: return .blue
-        case .recovery: return WidgetPalette.accentSignal
+        case .strength: return WidgetPalette.accentProtein
+        case .run: return WidgetPalette.accentWater
+        case .activity: return WidgetPalette.accentCarbs
+        case .recovery: return WidgetPalette.brandPrimary
         }
     }
 }

@@ -82,9 +82,9 @@ struct MainTabView: View {
             "weight-detail", "wellness-detail", "fasting-detail", "cycle-detail",
             "profile", "challenges", "pantry", "pantry-recipes", "receipt-review",
             "ayce-start", "ayce-live", "ayce-review", "ayce-summary", "value-radar",
-            "celebration", "meal-plan-survey", "meal-plan-survey-cooking", "meal-prep",
+            "celebration", "add-meal-plan", "meal-plan-survey", "meal-plan-survey-cooking", "meal-prep",
             "meal-prep-steps", "meal-suggestion", "plate-calculator", "plate-math",
-            "nutrition-trends", "maia-insights", "maia-action-cards", "muscle-recovery"
+            "nutrition-trends", "maia-insights", "maia-action-cards", "muscle-recovery", "shoe-gear-add"
         ].contains(ScreenshotDemoData.requestedScreen)
         #else
         false
@@ -425,6 +425,8 @@ struct MainTabView: View {
             RestaurantValueRadarDemoView()
         case "celebration":
             CelebrationOverlayDemoView()
+        case "add-meal-plan":
+            AddMealToPlanView(date: Date(), isPresented: .constant(true))
         case "meal-plan-survey":
             MealPlanSurveyView()
         case "meal-plan-survey-cooking":
@@ -483,6 +485,8 @@ struct MainTabView: View {
                 }
                 .background(AppPalette.canvas.ignoresSafeArea())
             }
+        case "shoe-gear-add":
+            ShoeGearManagerView(initiallyShowsAddShoe: true)
         default:
             standardHomeContent
         }

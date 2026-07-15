@@ -241,7 +241,7 @@ public struct MilestoneView: View {
     }
 
     private func milestoneColor(_ milestone: MilestoneData) -> Color {
-        if milestone.isCompleted { return .green }
+        if milestone.isCompleted { return AppPalette.positive }
         if milestone.progressToNextMilestone > 0 { return AppPalette.brand }
         return .secondary
     }

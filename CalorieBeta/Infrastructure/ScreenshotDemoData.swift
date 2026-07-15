@@ -94,7 +94,7 @@ enum ScreenshotDemoData {
                     category: "Sodium",
                     advice: "Balance the higher-sodium meal with minimally processed foods today.",
                     icon: "drop",
-                    color: .blue
+                    color: AppPalette.hydration
                 )
             ],
             actualCalories: 2_040,

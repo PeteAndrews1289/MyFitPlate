@@ -45,7 +45,7 @@ struct ExerciseCardView: View {
         case .strength:
             return ("Strength", "dumbbell.fill", .effort)
         case .cardio:
-            return ("Cardio", "heart.fill", .caution)
+            return ("Cardio", "heart.fill", .effort)
         case .flexibility:
             return ("Mobility", "figure.cooldown", .recovery)
         }
@@ -261,8 +261,9 @@ struct ExerciseCardView: View {
     }
 
     private var exerciseIcon: some View {
-        Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-            .font(.title3)
+        Image(systemName: exercise.type.icon)
+            .font(.system(size: 20, weight: .semibold))
+            .foregroundStyle(exercise.type.color)
             .frame(width: 42, height: 42)
             .background(
                 AppPalette.canvas,

@@ -141,10 +141,11 @@ struct ContinueProgramCard: View {
 
     private func exercisePreviewRow(_ exercise: RoutineExercise) -> some View {
         HStack(spacing: 10) {
-            Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                .font(.body)
+            Image(systemName: exercise.type.icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(exercise.type.color)
                 .frame(width: 30, height: 30)
-                .background(Color.brandPrimary.opacity(0.10), in: Circle())
+                .background(exercise.type.color.opacity(0.10), in: Circle())
 
             Text(exercise.name)
                 .appFont(size: 14, weight: .semibold)

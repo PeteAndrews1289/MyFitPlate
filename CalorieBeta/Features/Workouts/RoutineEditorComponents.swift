@@ -18,6 +18,10 @@ struct RoutineEditorHeaderCard: View {
         return parts.isEmpty ? "Start with an exercise or template" : parts.joined(separator: " / ")
     }
 
+    private var primaryType: ExerciseType {
+        exercises.first?.type ?? RoutineEditorDefaults.inferredType(name: routineName, category: nil)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             AppScreenHeader(
@@ -25,10 +29,11 @@ struct RoutineEditorHeaderCard: View {
                 title: routineName.trimmed.isEmpty ? "Untitled Routine" : routineName,
                 subtitle: balanceText
             ) {
-                Text(ExerciseEmojiMapper.getEmoji(for: exercises.first?.name ?? routineName))
-                    .appFont(size: 28)
+                Image(systemName: primaryType.icon)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(primaryType.color)
                     .frame(width: 52, height: 52)
-                    .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .background(primaryType.color.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                     .accessibilityHidden(true)
             }
 
@@ -78,6 +83,7 @@ struct RoutineBasicsCard: View {
 struct RoutineTemplateStrip: View {
     let templates: [RoutineEditorTemplate]
     let onApply: (RoutineEditorTemplate) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
@@ -112,15 +118,15 @@ struct RoutineTemplateStrip: View {
                                     Text(template.name)
                                         .appTextRole(.control)
                                         .foregroundStyle(AppPalette.text)
-                                        .lineLimit(1)
+                                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                                     Text(template.subtitle)
                                         .appTextRole(.secondary)
                                         .foregroundStyle(.secondary)
-                                        .lineLimit(2)
+                                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
                                 }
                             }
                             .padding(AppSpacing.row)
-                            .frame(width: 184, alignment: .leading)
+                            .frame(width: dynamicTypeSize.isAccessibilitySize ? 244 : 184, alignment: .leading)
                             .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                             .overlay {
                                 RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
@@ -208,8 +214,9 @@ struct RoutineExerciseEditorRow: View {
                         Text("\(index + 1)")
                             .appTextRole(.caption)
                             .foregroundStyle(exercise.type.color)
-                        Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                            .font(.title3)
+                        Image(systemName: exercise.type.icon)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(exercise.type.color)
                     }
                     .frame(width: 42)
                     .frame(minHeight: 50)
@@ -296,8 +303,9 @@ struct ExerciseEditorHero: View {
                 title: exercise.name.trimmed.isEmpty ? "New Exercise" : exercise.name,
                 subtitle: "Set the target, recovery time, cues, and swap options."
             ) {
-                Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                    .appFont(size: 28)
+                Image(systemName: exercise.type.icon)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(exercise.type.color)
                     .frame(width: 52, height: 52)
                     .background(exercise.type.color.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                     .accessibilityHidden(true)
@@ -332,8 +340,9 @@ struct ExercisePickerRow: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: AppSpacing.row) {
-                Text(ExerciseEmojiMapper.getEmoji(for: entry.name))
-                    .font(.title3)
+                Image(systemName: type.icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(type.color)
                     .frame(width: 42, height: 42)
                     .background(type.color.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                     .accessibilityHidden(true)

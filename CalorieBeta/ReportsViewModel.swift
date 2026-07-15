@@ -586,11 +586,11 @@ class ReportsViewModel: ObservableObject {
         
         let grade: String; let color: Color
         switch finalScore {
-        case 90...: grade = "A+"; color = .accentPositive
-        case 80..<90: grade = "A-"; color = .accentPositive
-        case 70..<80: grade = "B"; color = .yellow
-        case 60..<70: grade = "C"; color = .orange
-        default: grade = "D"; color = .red
+        case 90...: grade = "A+"; color = AppPalette.positive
+        case 80..<90: grade = "A-"; color = AppPalette.positive
+        case 70..<80: grade = "B"; color = AppPalette.achievement
+        case 60..<70: grade = "C"; color = AppPalette.caution
+        default: grade = "D"; color = AppPalette.critical
         }
         
         let summary: String

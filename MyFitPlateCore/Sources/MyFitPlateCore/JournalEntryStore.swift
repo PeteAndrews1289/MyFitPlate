@@ -39,7 +39,7 @@ public class JournalEntryStore {
         } catch {
             AppLog.data.error("Failed to update journal entries: \(error.localizedDescription, privacy: .public)")
             await MainActor.run {
-                service.bannerService?.showBanner(title: "Error", message: "Failed to save journal entry.", iconName: "xmark.circle.fill", iconColor: .red)
+                service.bannerService?.showBanner(title: "Error", message: "Failed to save journal entry.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
             }
         }
     }
@@ -62,7 +62,7 @@ public class JournalEntryStore {
                 try await DIContainer.shared.nutritionRepository.saveDailyLog(userID: userID, log: logToSave)
                 AppLog.data.info("Journal entry deleted.")
             } catch {
-                service.bannerService?.showBanner(title: "Error", message: "Failed to delete entry.", iconName: "xmark.circle.fill", iconColor: .red)
+                service.bannerService?.showBanner(title: "Error", message: "Failed to delete entry.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                 AppLog.data.error("Failed to delete journal entry: \(error.localizedDescription, privacy: .public)")
             }
         }

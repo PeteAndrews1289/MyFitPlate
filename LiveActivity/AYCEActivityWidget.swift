@@ -4,9 +4,6 @@ import WidgetKit
 import SwiftUI
 
 struct AYCEActivityWidget: Widget {
-    private let brandOrange = Color(red: 0.95, green: 0.45, blue: 0.2)
-    private let brandGreen = Color(red: 0.26, green: 0.80, blue: 0.45)
-
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: AYCEActivityAttributes.self) { context in
             // Lock Screen UI
@@ -14,7 +11,7 @@ struct AYCEActivityWidget: Widget {
                 HStack {
                     Image(systemName: "fork.knife.circle.fill")
                         .font(.title3)
-                        .foregroundColor(context.state.isBeaten ? brandGreen : brandOrange)
+                        .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.caution)
                     Text(context.attributes.cuisineName)
                         .font(.headline)
                         .foregroundColor(.white)
@@ -22,7 +19,7 @@ struct AYCEActivityWidget: Widget {
                     Text(context.state.statusText)
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundColor(context.state.isBeaten ? brandGreen : .yellow)
+                        .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.achievement)
                 }
 
                 HStack(alignment: .bottom) {
@@ -45,7 +42,7 @@ struct AYCEActivityWidget: Widget {
                         Text("\(context.state.itemsCount)")
                             .font(.system(size: 20, weight: .bold))
                             .monospacedDigit()
-                            .foregroundColor(brandOrange)
+                            .foregroundStyle(LiveActivityPalette.caution)
                     }
 
                     Spacer()
@@ -57,7 +54,7 @@ struct AYCEActivityWidget: Widget {
                         Text(context.state.currentValueText)
                             .font(.system(size: 28, weight: .heavy))
                             .monospacedDigit()
-                            .foregroundColor(context.state.isBeaten ? brandGreen : .orange)
+                            .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.caution)
                     }
                 }
             }
@@ -69,7 +66,7 @@ struct AYCEActivityWidget: Widget {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 4) {
                         Image(systemName: "fork.knife")
-                            .foregroundColor(context.state.isBeaten ? brandGreen : brandOrange)
+                            .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.caution)
                         Text(context.attributes.cuisineName)
                             .font(.headline)
                             .foregroundColor(.white)
@@ -79,26 +76,26 @@ struct AYCEActivityWidget: Widget {
                     Text(context.state.currentValueText)
                         .font(.headline)
                         .monospacedDigit()
-                        .foregroundColor(context.state.isBeaten ? brandGreen : .orange)
+                        .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.caution)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     Text(context.state.statusText)
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(context.state.isBeaten ? brandGreen : .yellow)
+                        .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.achievement)
                 }
             } compactLeading: {
                 Image(systemName: "fork.knife")
-                    .foregroundColor(context.state.isBeaten ? brandGreen : brandOrange)
+                    .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.caution)
             } compactTrailing: {
                 Text(context.state.currentValueText)
                     .font(.caption2)
                     .fontWeight(.bold)
                     .monospacedDigit()
-                    .foregroundColor(context.state.isBeaten ? brandGreen : .orange)
+                    .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.caution)
             } minimal: {
                 Image(systemName: "fork.knife")
-                    .foregroundColor(context.state.isBeaten ? brandGreen : brandOrange)
+                    .foregroundStyle(context.state.isBeaten ? LiveActivityPalette.brand : LiveActivityPalette.caution)
             }
         }
     }

@@ -602,6 +602,12 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   and Recovery Field provides a deterministic interactive muscle map with visible evidence,
   uncertainty, sleep adjustment, and planning-not-medical language. The competitor review and
   full visual contract live in `docs/design-direction-2.3.md`.
+- [x] Complete the final cross-target visual quality-control sweep. Add a Saved Recipe, Shoe Gear,
+  and Add New Shoe now share the same responsive operational hierarchy; workout identities use
+  stable professional symbols instead of cartoon emoji; remaining report, banner, milestone,
+  widget, and Live Activity colors use the semantic vocabulary; and the visual guard now covers
+  top-level app, widget, Live Activity, and shared Core presentation paths. Standard and dark
+  accessibility-XXXL captures were reviewed across the touched and representative screen families.
 - [x] Complete the clean local 2.3 regression and unsigned Release audit.
 - [ ] Complete Peter's focused physical-device acceptance and the signed archive from the intended
   commit, following `docs/device-test-2.3.md`.

@@ -86,7 +86,7 @@ public struct RoutineEditorTemplate: Identifiable {
             name: "Lower Body",
             subtitle: "Squat, hinge, single leg",
             icon: "figure.strengthtraining.traditional",
-            color: .orange,
+            color: AppPalette.achievement,
             exercises: [
                 RoutineEditorExerciseSpec(name: "Barbell Back Squat", category: "Legs", type: .strength),
                 RoutineEditorExerciseSpec(name: "Romanian Deadlift (RDL)", category: "Legs", type: .strength),
@@ -98,7 +98,7 @@ public struct RoutineEditorTemplate: Identifiable {
             name: "Conditioning",
             subtitle: "Short cardio and core finisher",
             icon: "heart.fill",
-            color: .red,
+            color: AppPalette.effort,
             exercises: [
                 RoutineEditorExerciseSpec(name: "Rowing Machine", category: "Cardio", type: .cardio),
                 RoutineEditorExerciseSpec(name: "Jump Rope", category: "Cardio", type: .cardio),
@@ -184,9 +184,8 @@ public extension ExerciseType {
 
     var color: Color {
         switch self {
-        case .strength: return .brandPrimary
-        case .cardio: return .red
-        case .flexibility: return .blue
+        case .strength, .cardio: return AppPalette.effort
+        case .flexibility: return AppPalette.recovery
         }
     }
 

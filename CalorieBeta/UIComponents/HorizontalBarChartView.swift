@@ -53,7 +53,7 @@ struct HorizontalBarChartView: View {
                     value: dailyLog.totalCalories(),
                     goal: goal.calories ?? 1,
                     unit: "cal",
-                    color: .red
+                    color: AppPalette.energy
                 )
                 MacroProgressRow(
                     label: "Protein",

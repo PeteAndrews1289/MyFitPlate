@@ -259,7 +259,7 @@ public class AchievementService: ObservableObject {
             updateStatusInFirestore(userID: userID, status: statusToUpdate)
             awardPointsAndCheckLevel(userID: userID, points: def.pointsValue)
             
-            bannerService?.showBanner(title: "Achievement Unlocked!", message: def.title, iconName: def.iconName, iconColor: .yellow)
+            bannerService?.showBanner(title: "Achievement Unlocked!", message: def.title, iconName: def.iconName, iconColor: AppPalette.achievement)
             HapticManager.instance.notification(.success)
         }
     }
@@ -310,7 +310,7 @@ public class AchievementService: ObservableObject {
                         let challengeTitle = updatedChallenge.title
                         await MainActor.run {
                             self.awardPointsAndCheckLevel(userID: userID, points: pointsValue)
-                            self.bannerService?.showBanner(title: "Challenge Complete!", message: challengeTitle, iconName: "star.fill", iconColor: .yellow)
+                            self.bannerService?.showBanner(title: "Challenge Complete!", message: challengeTitle, iconName: "star.fill", iconColor: AppPalette.achievement)
                         }
                     }
 

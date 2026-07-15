@@ -491,6 +491,29 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   clipped controls; focused Core tests, the visual source guard, SwiftLint, and the full simulator
   build passed.
 
+### Batch 25 - Whole-App Visual Quality Control (complete)
+
+- Re-audited the reachable phone app, widget, Live Activity, and shared Core presentation paths
+  after the feature-family migration. The visual source guard now scans all of those targets so a
+  top-level screen or extension cannot quietly reintroduce arbitrary spectrum colors.
+- Brought Add a Saved Recipe, Shoe Gear, and Add New Shoe into the same operational hierarchy as
+  their parent workflows. Their actions, surfaces, spacing, typography, dark appearance, and
+  accessibility-size layouts now use the shared system without changing recipe placement or shoe
+  persistence behavior.
+- Replaced cartoon workout emoji with stable SF Symbol exercise identities across Home exercise
+  rows, routine and program editors, workout previews, the live player, completion review, and run
+  permission. Strength and cardio use the effort signal, mobility uses recovery, and fixed icon
+  tiles no longer expand at accessibility text sizes.
+- Normalized remaining report, banner, milestone, widget, and Live Activity state colors onto the
+  semantic vocabulary. Energy, hydration, effort, recovery, caution, critical, achievement, and
+  positive states now retain the same meaning across app and extension boundaries.
+- Added deterministic standard and dark accessibility-XXXL coverage for Add a Saved Recipe, Add
+  New Shoe, the live workout player, and Recovery Field. Existing Maia, Reports, report utilities,
+  Nutrition Trends, routine-builder, and training-family captures were also rerun and reviewed.
+- The full simulator build passed with the phone app, Watch app, widget, and Live Activity.
+  MyFitPlateCore passed 1,108/1,108 tests, the app unit suite passed 109/109 XCTest cases plus its
+  Swift Testing case, and the final focused visual regression run passed without failures.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
@@ -499,12 +522,13 @@ first-run and account-access family now joins them, as do the live progress, ach
 weekly-challenge surfaces. Smart Pantry, pantry recipe drafts, receipt review, AYCE, Restaurant
 Value Radar, meal-planning support, Plate Loading, Nutrition Trends, Maia Insights, and Maia's
 structured action cards now join them. The reachable migration queue and legacy-surface retirement
-are complete, and the clean local 2.3 release gate is green. The semantic signal sweep and training
-identity pass close the color-coordination gap across the reachable app, with Recovery Field as the
-clearest expression of signal, evidence, and action. The remaining work is Peter's focused physical-
-device acceptance and signed archive, rollout-dependent removal of the fallback Home, and gradual
-expansion of token-drift checks; unfinished public social surfaces remain explicitly gated rather
-than being polished into accidental release scope.
+are complete, and the clean local 2.3 release gate is green. The semantic signal sweep, training
+identity pass, and final cross-target quality-control sweep close the color-coordination gap across
+the reachable app, with Recovery Field as the clearest expression of signal, evidence, and action.
+The remaining work is Peter's focused physical-device acceptance and signed archive,
+rollout-dependent removal of the fallback Home, and gradual expansion of token-drift checks;
+unfinished public social surfaces remain explicitly gated rather than being polished into
+accidental release scope.
 
 ## Product Direction
 

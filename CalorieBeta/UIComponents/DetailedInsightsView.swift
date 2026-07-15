@@ -106,12 +106,12 @@ struct DetailedInsightsView: View {
             AppMetricItem(
                 label: "Areas",
                 value: categoryCount.formatted(),
-                accent: .blue
+                accent: AppPalette.recovery
             ),
             AppMetricItem(
                 label: "Interpretation",
                 value: "AI Assisted",
-                accent: .orange
+                accent: AppPalette.caution
             )
         ])
         .appSurface(.emphasized)
@@ -433,17 +433,17 @@ private extension UserInsight.InsightCategory {
 
     var tintColor: Color {
         switch self {
-        case .sleep: .indigo
-        case .hydration: .blue
-        case .microNutrient, .fiberIntake, .foodVariety: .accentPositive
-        case .saturatedFat: .pink
-        case .macroBalance: .accentCarbs
-        case .nutritionGeneral: .purple
-        case .consistency, .mealTiming, .weekendTrends: .teal
-        case .postWorkout, .exerciseSynergy: .orange
-        case .positiveReinforcement: .yellow
-        case .sugarAwareness: .red
-        default: .gray
+        case .sleep: AppPalette.recovery
+        case .hydration: AppPalette.hydration
+        case .microNutrient, .fiberIntake, .foodVariety: AppPalette.positive
+        case .saturatedFat: AppPalette.caution
+        case .macroBalance: AppPalette.carbohydrate
+        case .nutritionGeneral: AppPalette.fat
+        case .consistency, .mealTiming, .weekendTrends: AppPalette.recovery
+        case .postWorkout, .exerciseSynergy: AppPalette.effort
+        case .positiveReinforcement: AppPalette.achievement
+        case .sugarAwareness: AppPalette.critical
+        default: AppSignalRole.neutral.color
         }
     }
 }

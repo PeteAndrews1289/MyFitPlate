@@ -252,7 +252,7 @@ struct ReportsView: View {
                 icon: "exclamationmark.triangle.fill",
                 title: "Reports need attention",
                 message: errorMessage,
-                color: .orange
+                color: AppPalette.caution
             )
         } else if hasReportContent {
             reportsContentSection
@@ -464,7 +464,7 @@ struct ReportsView: View {
                     .frame(width: 105, height: 105)
                 Circle()
                     .trim(from: 0, to: progressFraction)
-                    .stroke(progress >= 100 ? Color.accentPositive : Color.blue, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                    .stroke(progress >= 100 ? AppPalette.positive : AppPalette.effort, style: StrokeStyle(lineWidth: 14, lineCap: .round))
                     .rotationEffect(.degrees(120))
                     .frame(width: 105, height: 105)
                     .animation(.easeInOut, value: goalSettings.weight)
@@ -508,9 +508,11 @@ struct ReportsView: View {
                     return totalCals > 0 ? (mealName, totalCals) : nil
                 }
 
-                // Cohesive warm-to-cool palette (replaces the clashing red/blue/green).
                 let mealColors: [String: Color] = [
-                    "Breakfast": .orange, "Lunch": .teal, "Dinner": .blue, "Snacks": .purple
+                    "Breakfast": AppPalette.caution,
+                    "Lunch": AppPalette.recovery,
+                    "Dinner": AppPalette.effort,
+                    "Snacks": AppPalette.fat
                 ]
                 let totalCalories = processedData.reduce(0) { $0 + $1.totalCalories }
 

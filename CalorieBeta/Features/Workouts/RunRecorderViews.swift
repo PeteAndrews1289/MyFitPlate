@@ -419,8 +419,11 @@ struct RunRecorderView: View {
 
     private var permissionView: some View {
         VStack(spacing: 12) {
-            Text("🏃")
-                .font(.system(size: 44))
+            Image(systemName: "figure.run")
+                .font(.system(size: 36, weight: .semibold))
+                .foregroundStyle(AppPalette.effort)
+                .frame(width: 64, height: 64)
+                .background(AppPalette.effort.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
                 .accessibilityHidden(true)
             Text("Location makes this a run tracker")
                 .appFont(size: 18, weight: .bold)

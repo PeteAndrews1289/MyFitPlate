@@ -28,10 +28,12 @@ struct SwipeableExerciseRowView: View {
             }
 
             HStack(spacing: 12) {
-                Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                    .font(.title3)
+                let exerciseType = RoutineEditorDefaults.inferredType(name: exercise.name, category: nil)
+                Image(systemName: exerciseType.icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(exerciseType.color)
                     .frame(width: 38, height: 38)
-                    .background(AppPalette.effort.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(exerciseType.color.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
