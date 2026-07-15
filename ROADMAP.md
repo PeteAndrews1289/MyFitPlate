@@ -107,7 +107,8 @@ remaining correction work is the physical UI journey and its before/after eviden
 
 Camera benchmark observability is prepared: private aggregates now separate account, UTC day,
 workflow, and model, and `docs/camera-benchmark-2.3.md` defines the fixed 25-image scorecard. No
-camera accuracy claim is made until that set is physically run and evaluated.
+camera accuracy claim is made until that set is physically run and evaluated. The telemetry and
+account-deletion Functions are deployed from commit `345d5dfe`.
 
 - [ ] Run the fixed camera benchmark in `docs/camera-logging-2.3.md` against 20-30 representative
   meal, label, receipt, recipe, and menu images.
