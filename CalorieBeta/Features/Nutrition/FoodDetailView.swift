@@ -1529,7 +1529,7 @@ struct FoodTrustReceipt: View {
     }
 
     private var freshnessText: String {
-        let dateText = passport.freshness.date?.formatted(date: .abbreviated, time: .omitted)
+        let dateText = freshnessDateText
         switch passport.freshness.state {
         case .current:
             if passport.lineage == .governmentCompilation {
@@ -1564,6 +1564,23 @@ struct FoodTrustReceipt: View {
         case .unknown:
             return "Provider formulation date unavailable"
         }
+    }
+
+    private var freshnessDateText: String? {
+        guard let date = passport.freshness.date else { return nil }
+        guard passport.lineage == .governmentCompilation else {
+            return date.formatted(date: .abbreviated, time: .omitted)
+        }
+
+        // CNF release values are calendar dates, not local timestamps. Formatting midnight UTC
+        // in a western timezone otherwise shows the previous day.
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = .current
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
     }
 
     private var freshnessIcon: String {

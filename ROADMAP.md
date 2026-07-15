@@ -110,12 +110,18 @@ workflow, and model, and `docs/camera-benchmark-2.3.md` defines the fixed 25-ima
 camera accuracy claim is made until that set is physically run and evaluated. The telemetry and
 account-deletion Functions are deployed from commit `345d5dfe`.
 
+Specialist-source presentation is also protected deterministically from search through Trust:
+Health Canada and NIH carry visible provider badges, CNF's date-only release renders without a
+timezone shift, and NIH preserves label serving language plus its manufacturer-label disclaimer.
+
 - [ ] Run the fixed camera benchmark in `docs/camera-logging-2.3.md` against 20-30 representative
   meal, label, receipt, recipe, and menu images.
 - [ ] Record correction size, confidence/range usefulness, inappropriate reference matches,
   malformed responses, latency, and token cost. Do not claim improved accuracy without the result.
+- [x] Protect specialist-source presentation with deterministic UI coverage for visible provider
+  attribution, CNF release date, NIH label serving, and missing-laboratory-verification language.
 - [ ] Validate ordinary-food searches that should benefit from Health Canada micronutrients and
-  confirm source attribution remains visible.
+  confirm the production result and source attribution on a physical device.
 - [ ] Validate NIH supplement search plus one real supplement barcode, including non-mass serving
   language and missing-nutrient behavior.
 - [x] Harden correction persistence: converge equivalent barcodes on one stable identity, replace

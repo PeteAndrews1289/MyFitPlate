@@ -127,6 +127,14 @@ class FoodSearchViewModel: ObservableObject {
             searchErrorMessage = Self.unavailableMessage
             return
         }
+        if arguments.contains("-ui-testing-specialist-sources") {
+            searchTask?.cancel()
+            searchResults = [Self.healthCanadaTestFood]
+            supplementResults = [Self.nihSupplementTestFood]
+            isLoading = false
+            searchErrorMessage = nil
+            return
+        }
         if arguments.contains("-ui-testing") {
             searchTask?.cancel()
             searchResults = [
@@ -203,6 +211,61 @@ class FoodSearchViewModel: ObservableObject {
             }
         }
     }
+
+    #if DEBUG
+    private static var healthCanadaTestFood: FoodItem {
+        let item = FoodItem(
+            id: "cnf_ui_4700",
+            name: "Salmon, Atlantic, baked",
+            calories: 206,
+            protein: 22.1,
+            carbs: 0,
+            fats: 12.4,
+            saturatedFat: 2.4,
+            servingSize: "100 g",
+            servingWeight: 100,
+            potassium: 384,
+            sodium: 61,
+            vitaminD: 13.1,
+            vitaminB12: 3.2,
+            selenium: 41.4
+        )
+        var metadata = FoodSourceMetadata.database(
+            .healthCanadaCNF,
+            sourceName: "Health Canada CNF",
+            sourceID: item.id,
+            evidenceLineage: .governmentCompilation,
+            sourceUpdatedAt: ISO8601DateFormatter().date(from: "2026-05-14T00:00:00Z")
+        )
+        metadata.notes = "Canadian Nutrient File release 2026-05-14. Food record last revised 2015-11-03."
+        return item.withSourceMetadata(metadata)
+    }
+
+    private static var nihSupplementTestFood: FoodItem {
+        let item = FoodItem(
+            id: "dsld_ui_42",
+            name: "Example Vitamin D3",
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fats: 0,
+            servingSize: "1 Softgel",
+            servingWeight: 0,
+            vitaminD: 25,
+            quantityValue: 1,
+            servingUnit: "serving"
+        )
+        var metadata = FoodSourceMetadata.database(
+            .nihDSLD,
+            sourceName: "NIH DSLD",
+            sourceID: item.id,
+            barcode: "012345678905",
+            evidenceLineage: .manufacturerLabel
+        )
+        metadata.notes = "Current manufacturer supplement label record; not laboratory verification. Label serving: 1 Softgel."
+        return item.withSourceMetadata(metadata)
+    }
+    #endif
 
     func fetchData() {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }

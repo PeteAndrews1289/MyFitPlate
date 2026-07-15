@@ -296,6 +296,15 @@ struct FoodTrustMiniBadge: View {
     }
 
     private var title: String {
+        switch descriptor.sourceKey {
+        case "health_canada_cnf":
+            return "Health Canada"
+        case "nih_dsld":
+            return "NIH label"
+        default:
+            break
+        }
+
         switch evaluation.level {
         case .excellent:
             return "Excellent"
@@ -333,6 +342,7 @@ struct FoodTrustMiniBadge: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(tint.opacity(0.10), in: Capsule())
+            .accessibilityIdentifier("food_source_badge_\(descriptor.sourceKey)")
             .accessibilityLabel("\(evaluation.label), \(descriptor.title)")
     }
 }

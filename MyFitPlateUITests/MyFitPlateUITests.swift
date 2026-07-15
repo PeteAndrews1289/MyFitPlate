@@ -197,6 +197,85 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testSpecialistSourcesRemainVisibleFromSearchThroughTrustReceipt() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-ui-testing-specialist-sources",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "food-search"
+        ]
+        app.launch()
+
+        let searchField = app.textFields["food_search_field"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 8))
+        focusAndType("salmon", into: searchField)
+
+        let canadaRow = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Salmon, Atlantic, baked"))
+            .firstMatch
+        XCTAssertTrue(canadaRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["food_source_badge_health_canada_cnf"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label CONTAINS %@", "Health Canada CNF"))
+                .firstMatch
+                .waitForExistence(timeout: 5)
+        )
+        canadaRow.tap()
+
+        XCTAssertTrue(app.staticTexts["Health Canada CNF"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(
+                    format: "label CONTAINS %@",
+                    "Reference dataset released May 14, 2026"
+                ))
+                .firstMatch
+                .waitForExistence(timeout: 5)
+        )
+        app.terminate()
+        app.launch()
+        let supplementSearchField = app.textFields["food_search_field"]
+        XCTAssertTrue(supplementSearchField.waitForExistence(timeout: 8))
+        focusAndType("vitamin", into: supplementSearchField)
+
+        let supplementRow = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Example Vitamin D3"))
+            .firstMatch
+        for _ in 0..<4 where !supplementRow.exists || !supplementRow.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(supplementRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["food_source_badge_nih_dsld"]
+                .waitForExistence(timeout: 5)
+        )
+        let supplementHittable = expectation(
+            for: NSPredicate(format: "hittable == true"),
+            evaluatedWith: supplementRow
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [supplementHittable], timeout: 5), .completed)
+        XCTAssertTrue(supplementRow.label.contains("NIH"))
+        XCTAssertTrue(supplementRow.label.contains("1 Softgel"))
+        supplementRow.tap()
+
+        XCTAssertTrue(app.staticTexts["NIH DSLD"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["1 Softgel"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label CONTAINS %@", "not laboratory verification"))
+                .firstMatch
+                .waitForExistence(timeout: 5)
+        )
+    }
+
+    @MainActor
     func testMyFoodsLibraryUsesGroupedOperationalHierarchy() throws {
         let app = XCUIApplication()
         app.terminate()
