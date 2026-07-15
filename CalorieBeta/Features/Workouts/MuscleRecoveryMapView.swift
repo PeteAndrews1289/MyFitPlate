@@ -224,7 +224,7 @@ private struct RecoveryBodyField: View {
                     selectedGroup: $selectedGroup
                 )
             }
-            .frame(height: 248)
+            .frame(height: 268)
 
             HStack(spacing: AppSpacing.row) {
                 RecoveryLegendItem(title: "Fatigued", role: .critical)
@@ -267,6 +267,8 @@ private enum RecoveryBodySide: String {
 }
 
 private struct RecoveryBodyFigure: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let side: RecoveryBodySide
     let recoveries: [MuscleRecoveryEstimate]
     @Binding var selectedGroup: RecoveryMuscleGroup
@@ -274,22 +276,32 @@ private struct RecoveryBodyFigure: View {
     private var groups: [RecoveryMuscleGroup] {
         switch side {
         case .front: [.shoulders, .chest, .arms, .core, .legs]
-        case .back: [.back]
+        case .back: [.shoulders, .back, .arms, .legs]
         }
     }
 
     var body: some View {
         GeometryReader { geometry in
+            let anatomyRect = anatomyRect(in: geometry.size)
+
             ZStack {
-                RecoverySilhouetteShape()
-                    .fill(AppPalette.text.opacity(0.07))
+                RecoveryAnatomySilhouette()
+                    .fill(AppPalette.canvas.opacity(0.78))
                     .overlay {
-                        RecoverySilhouetteShape()
-                            .stroke(AppPalette.separator, lineWidth: 1)
+                        RecoveryAnatomySilhouette()
+                            .stroke(AppPalette.text.opacity(0.18), lineWidth: 0.9)
                     }
-                    .padding(.horizontal, geometry.size.width * 0.12)
-                    .padding(.top, 22)
-                    .padding(.bottom, 2)
+                    .frame(width: anatomyRect.width, height: anatomyRect.height)
+                    .position(x: anatomyRect.midX, y: anatomyRect.midY)
+
+                RecoveryAnatomyDetails(side: side)
+                    .stroke(
+                        AppPalette.text.opacity(0.13),
+                        style: StrokeStyle(lineWidth: 0.8, lineCap: .round, lineJoin: .round)
+                    )
+                    .frame(width: anatomyRect.width, height: anatomyRect.height)
+                    .position(x: anatomyRect.midX, y: anatomyRect.midY)
+                    .allowsHitTesting(false)
 
                 ForEach(groups, id: \.self) { group in
                     if let recovery = recoveries.first(where: { $0.group == group }) {
@@ -297,7 +309,14 @@ private struct RecoveryBodyFigure: View {
                             estimate: recovery,
                             side: side,
                             isSelected: selectedGroup == group,
-                            action: { withAnimation(AppMotion.standard) { selectedGroup = group } }
+                            anatomyRect: anatomyRect,
+                            action: {
+                                if reduceMotion {
+                                    selectedGroup = group
+                                } else {
+                                    withAnimation(AppMotion.standard) { selectedGroup = group }
+                                }
+                            }
                         )
                     }
                 }
@@ -309,35 +328,252 @@ private struct RecoveryBodyFigure: View {
             }
         }
     }
+
+    private func anatomyRect(in size: CGSize) -> CGRect {
+        let topInset: CGFloat = 22
+        let availableHeight = max(0, size.height - topInset - 2)
+        let width = min(size.width * 0.84, availableHeight * 0.47)
+        return CGRect(
+            x: (size.width - width) / 2,
+            y: topInset,
+            width: width,
+            height: availableHeight
+        )
+    }
 }
 
-private struct RecoverySilhouetteShape: Shape {
+private struct RecoveryAnatomySilhouette: Shape {
     func path(in rect: CGRect) -> Path {
-        let width = rect.width
-        let height = rect.height
         var path = Path()
+        let point: (CGFloat, CGFloat) -> CGPoint = {
+            CGPoint(x: rect.minX + rect.width * $0, y: rect.minY + rect.height * $1)
+        }
 
-        path.addEllipse(in: CGRect(x: width * 0.40, y: 0, width: width * 0.20, height: height * 0.13))
-        path.addRoundedRect(
-            in: CGRect(x: width * 0.32, y: height * 0.14, width: width * 0.36, height: height * 0.36),
-            cornerSize: CGSize(width: width * 0.11, height: width * 0.11)
+        path.addEllipse(
+            in: CGRect(
+                x: rect.minX + rect.width * 0.405,
+                y: rect.minY + rect.height * 0.01,
+                width: rect.width * 0.19,
+                height: rect.height * 0.105
+            )
         )
-        path.addRoundedRect(
-            in: CGRect(x: width * 0.18, y: height * 0.16, width: width * 0.13, height: height * 0.42),
-            cornerSize: CGSize(width: width * 0.07, height: width * 0.07)
+
+        var torso = Path()
+        torso.move(to: point(0.445, 0.108))
+        torso.addLine(to: point(0.445, 0.145))
+        torso.addCurve(
+            to: point(0.315, 0.194),
+            control1: point(0.405, 0.15),
+            control2: point(0.345, 0.158)
         )
-        path.addRoundedRect(
-            in: CGRect(x: width * 0.69, y: height * 0.16, width: width * 0.13, height: height * 0.42),
-            cornerSize: CGSize(width: width * 0.07, height: width * 0.07)
+        torso.addCurve(
+            to: point(0.345, 0.292),
+            control1: point(0.304, 0.225),
+            control2: point(0.32, 0.263)
         )
-        path.addRoundedRect(
-            in: CGRect(x: width * 0.34, y: height * 0.47, width: width * 0.15, height: height * 0.52),
-            cornerSize: CGSize(width: width * 0.08, height: width * 0.08)
+        torso.addCurve(
+            to: point(0.382, 0.415),
+            control1: point(0.352, 0.333),
+            control2: point(0.36, 0.385)
         )
-        path.addRoundedRect(
-            in: CGRect(x: width * 0.51, y: height * 0.47, width: width * 0.15, height: height * 0.52),
-            cornerSize: CGSize(width: width * 0.08, height: width * 0.08)
+        torso.addCurve(
+            to: point(0.345, 0.505),
+            control1: point(0.385, 0.453),
+            control2: point(0.365, 0.48)
         )
+        torso.addCurve(
+            to: point(0.405, 0.56),
+            control1: point(0.35, 0.535),
+            control2: point(0.375, 0.555)
+        )
+        torso.addLine(to: point(0.595, 0.56))
+        torso.addCurve(
+            to: point(0.655, 0.505),
+            control1: point(0.625, 0.555),
+            control2: point(0.65, 0.535)
+        )
+        torso.addCurve(
+            to: point(0.618, 0.415),
+            control1: point(0.635, 0.48),
+            control2: point(0.615, 0.453)
+        )
+        torso.addCurve(
+            to: point(0.655, 0.292),
+            control1: point(0.64, 0.385),
+            control2: point(0.648, 0.333)
+        )
+        torso.addCurve(
+            to: point(0.685, 0.194),
+            control1: point(0.68, 0.263),
+            control2: point(0.696, 0.225)
+        )
+        torso.addCurve(
+            to: point(0.555, 0.145),
+            control1: point(0.655, 0.158),
+            control2: point(0.595, 0.15)
+        )
+        torso.addLine(to: point(0.555, 0.108))
+        torso.closeSubpath()
+        path.addPath(torso)
+
+        var leftArm = Path()
+        leftArm.move(to: point(0.32, 0.186))
+        leftArm.addCurve(
+            to: point(0.235, 0.226),
+            control1: point(0.285, 0.19),
+            control2: point(0.25, 0.205)
+        )
+        leftArm.addCurve(
+            to: point(0.207, 0.36),
+            control1: point(0.22, 0.27),
+            control2: point(0.218, 0.318)
+        )
+        leftArm.addCurve(
+            to: point(0.19, 0.515),
+            control1: point(0.197, 0.41),
+            control2: point(0.188, 0.47)
+        )
+        leftArm.addCurve(
+            to: point(0.235, 0.522),
+            control1: point(0.198, 0.535),
+            control2: point(0.225, 0.537)
+        )
+        leftArm.addCurve(
+            to: point(0.263, 0.385),
+            control1: point(0.244, 0.474),
+            control2: point(0.252, 0.428)
+        )
+        leftArm.addCurve(
+            to: point(0.35, 0.226),
+            control1: point(0.282, 0.32),
+            control2: point(0.325, 0.265)
+        )
+        leftArm.closeSubpath()
+        path.addPath(leftArm)
+        path.addPath(mirrored(leftArm, in: rect))
+
+        var leftLeg = Path()
+        leftLeg.move(to: point(0.347, 0.52))
+        leftLeg.addCurve(
+            to: point(0.325, 0.71),
+            control1: point(0.333, 0.585),
+            control2: point(0.332, 0.65)
+        )
+        leftLeg.addCurve(
+            to: point(0.305, 0.958),
+            control1: point(0.316, 0.79),
+            control2: point(0.31, 0.89)
+        )
+        leftLeg.addCurve(
+            to: point(0.382, 0.978),
+            control1: point(0.32, 0.98),
+            control2: point(0.355, 0.985)
+        )
+        leftLeg.addCurve(
+            to: point(0.412, 0.815),
+            control1: point(0.393, 0.93),
+            control2: point(0.4, 0.865)
+        )
+        leftLeg.addCurve(
+            to: point(0.485, 0.552),
+            control1: point(0.43, 0.72),
+            control2: point(0.468, 0.625)
+        )
+        leftLeg.closeSubpath()
+        path.addPath(leftLeg)
+        path.addPath(mirrored(leftLeg, in: rect))
+
+        return path
+    }
+
+    private func mirrored(_ path: Path, in rect: CGRect) -> Path {
+        var transform = CGAffineTransform(translationX: rect.midX, y: 0)
+        transform = transform.scaledBy(x: -1, y: 1)
+        transform = transform.translatedBy(x: -rect.midX, y: 0)
+        return path.applying(transform)
+    }
+}
+
+private struct RecoveryAnatomyDetails: Shape {
+    let side: RecoveryBodySide
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let point: (CGFloat, CGFloat) -> CGPoint = {
+            CGPoint(x: rect.minX + rect.width * $0, y: rect.minY + rect.height * $1)
+        }
+
+        switch side {
+        case .front:
+            path.move(to: point(0.5, 0.2))
+            path.addCurve(
+                to: point(0.37, 0.22),
+                control1: point(0.46, 0.205),
+                control2: point(0.415, 0.208)
+            )
+            path.move(to: point(0.5, 0.2))
+            path.addCurve(
+                to: point(0.63, 0.22),
+                control1: point(0.54, 0.205),
+                control2: point(0.585, 0.208)
+            )
+            path.move(to: point(0.5, 0.225))
+            path.addCurve(
+                to: point(0.5, 0.48),
+                control1: point(0.49, 0.31),
+                control2: point(0.49, 0.405)
+            )
+            path.move(to: point(0.395, 0.505))
+            path.addCurve(
+                to: point(0.605, 0.505),
+                control1: point(0.46, 0.53),
+                control2: point(0.54, 0.53)
+            )
+        case .back:
+            path.move(to: point(0.5, 0.16))
+            path.addCurve(
+                to: point(0.5, 0.505),
+                control1: point(0.49, 0.265),
+                control2: point(0.49, 0.405)
+            )
+            path.move(to: point(0.48, 0.22))
+            path.addCurve(
+                to: point(0.35, 0.3),
+                control1: point(0.43, 0.22),
+                control2: point(0.375, 0.25)
+            )
+            path.move(to: point(0.52, 0.22))
+            path.addCurve(
+                to: point(0.65, 0.3),
+                control1: point(0.57, 0.22),
+                control2: point(0.625, 0.25)
+            )
+            path.move(to: point(0.397, 0.505))
+            path.addCurve(
+                to: point(0.5, 0.54),
+                control1: point(0.43, 0.53),
+                control2: point(0.465, 0.54)
+            )
+            path.addCurve(
+                to: point(0.603, 0.505),
+                control1: point(0.535, 0.54),
+                control2: point(0.57, 0.53)
+            )
+        }
+
+        path.move(to: point(0.34, 0.73))
+        path.addCurve(
+            to: point(0.41, 0.735),
+            control1: point(0.36, 0.72),
+            control2: point(0.39, 0.72)
+        )
+        path.move(to: point(0.59, 0.735))
+        path.addCurve(
+            to: point(0.66, 0.73),
+            control1: point(0.61, 0.72),
+            control2: point(0.64, 0.72)
+        )
+
         return path
     }
 }
@@ -346,6 +582,7 @@ private struct RecoveryZoneButton: View {
     let estimate: MuscleRecoveryEstimate
     let side: RecoveryBodySide
     let isSelected: Bool
+    let anatomyRect: CGRect
     let action: () -> Void
 
     private var role: AppSignalRole {
@@ -353,144 +590,338 @@ private struct RecoveryZoneButton: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            Button(action: action) {
-                zoneGlyph
-                    .fill(role.color.opacity(estimate.status == .noRecentSignal ? 0.34 : 0.88))
-                    .overlay {
-                        if isSelected {
-                            zoneGlyph
-                                .stroke(AppPalette.canvas, lineWidth: 4)
+        let zoneRect = layout.frame(in: anatomyRect)
 
-                            zoneGlyph
-                                .stroke(role.color, lineWidth: 1.25)
-                        }
+        Button(action: action) {
+            zoneGlyph
+                .fill(role.color.opacity(fillOpacity))
+                .overlay {
+                    if isSelected {
+                        zoneGlyph
+                            .stroke(AppPalette.canvas, lineWidth: 3.5)
+
+                        zoneGlyph
+                            .stroke(role.color, lineWidth: 1.4)
                     }
-                    .scaleEffect(isSelected ? 1.04 : 1)
-                    .frame(width: zoneSize.width, height: zoneSize.height)
-                    .position(position(in: geometry.size))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(estimate.group.displayName), \(estimate.status.displayName)")
-            .accessibilityValue(
-                estimate.status == .noRecentSignal
-                    ? "No recent training signal"
-                    : "About \(estimate.roundedPercentage) percent recovered"
-            )
+                }
+                .scaleEffect(isSelected ? 1.035 : 1)
+                .contentShape(zoneGlyph)
+                .frame(width: zoneRect.width, height: zoneRect.height)
+                .position(x: zoneRect.midX, y: zoneRect.midY)
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(estimate.group.displayName), \(estimate.status.displayName)")
+        .accessibilityValue(
+            estimate.status == .noRecentSignal
+                ? "No recent training signal"
+                : "About \(estimate.roundedPercentage) percent recovered"
+        )
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("muscle_recovery_zone_\(side.rawValue.lowercased())_\(estimate.group.rawValue)")
+    }
+
+    private var fillOpacity: Double {
+        if estimate.status == .noRecentSignal { return isSelected ? 0.42 : 0.24 }
+        return isSelected ? 0.96 : 0.78
     }
 
     private var zoneGlyph: RecoveryZoneShape {
-        RecoveryZoneShape(group: estimate.group)
+        RecoveryZoneShape(group: estimate.group, side: side)
     }
 
-    private var zoneSize: CGSize {
-        switch estimate.group {
-        case .shoulders: CGSize(width: 86, height: 18)
-        case .chest: CGSize(width: 66, height: 29)
-        case .arms: CGSize(width: 98, height: 62)
-        case .core: CGSize(width: 34, height: 48)
-        case .legs: CGSize(width: 52, height: 90)
-        case .back: CGSize(width: 72, height: 82)
-        }
+    private var layout: RecoveryZoneLayout {
+        RecoveryZoneLayout(group: estimate.group, side: side)
     }
+}
 
-    private func position(in size: CGSize) -> CGPoint {
-        switch estimate.group {
-        case .shoulders: CGPoint(x: size.width * 0.50, y: size.height * 0.26)
-        case .chest: CGPoint(x: size.width * 0.50, y: size.height * 0.34)
-        case .arms: CGPoint(x: size.width * 0.50, y: size.height * 0.43)
-        case .core: CGPoint(x: size.width * 0.50, y: size.height * 0.49)
-        case .legs: CGPoint(x: size.width * 0.50, y: size.height * 0.76)
-        case .back: CGPoint(x: size.width * 0.50, y: size.height * 0.39)
+private struct RecoveryZoneLayout {
+    let group: RecoveryMuscleGroup
+    let side: RecoveryBodySide
+
+    func frame(in anatomyRect: CGRect) -> CGRect {
+        let normalized: CGRect
+        switch (side, group) {
+        case (_, .shoulders): normalized = CGRect(x: 0.235, y: 0.16, width: 0.53, height: 0.115)
+        case (.front, .chest): normalized = CGRect(x: 0.335, y: 0.215, width: 0.33, height: 0.13)
+        case (_, .arms): normalized = CGRect(x: 0.14, y: 0.205, width: 0.72, height: 0.325)
+        case (.front, .core): normalized = CGRect(x: 0.39, y: 0.33, width: 0.22, height: 0.19)
+        case (_, .legs): normalized = CGRect(x: 0.285, y: 0.545, width: 0.43, height: 0.435)
+        case (.back, .back): normalized = CGRect(x: 0.305, y: 0.19, width: 0.39, height: 0.33)
+        default: normalized = .zero
         }
+
+        return CGRect(
+            x: anatomyRect.minX + anatomyRect.width * normalized.minX,
+            y: anatomyRect.minY + anatomyRect.height * normalized.minY,
+            width: anatomyRect.width * normalized.width,
+            height: anatomyRect.height * normalized.height
+        )
     }
 }
 
 private struct RecoveryZoneShape: Shape {
     let group: RecoveryMuscleGroup
+    let side: RecoveryBodySide
 
     func path(in rect: CGRect) -> Path {
         switch group {
         case .shoulders:
-            pairedRoundedRects(in: rect, width: 0.36, height: 0.58, y: 0.21, radius: rect.height * 0.26)
+            shoulderCaps(in: rect, rear: side == .back)
         case .chest:
-            pairedRoundedRects(in: rect, width: 0.46, height: 0.82, y: 0.08, radius: rect.height * 0.24)
+            chestPanels(in: rect)
         case .arms:
-            pairedRoundedRects(in: rect, width: 0.14, height: 0.90, y: 0.05, radius: rect.width * 0.08)
+            armPanels(in: rect, rear: side == .back)
         case .core:
             coreSegments(in: rect)
         case .legs:
-            pairedRoundedRects(in: rect, width: 0.34, height: 0.96, y: 0.02, radius: rect.width * 0.16)
+            legPanels(in: rect, rear: side == .back)
         case .back:
             backPanels(in: rect)
         }
     }
 
-    private func pairedRoundedRects(
-        in rect: CGRect,
-        width: CGFloat,
-        height: CGFloat,
-        y: CGFloat,
-        radius: CGFloat
-    ) -> Path {
-        var path = Path()
-        let panelWidth = rect.width * width
-        let panelHeight = rect.height * height
-        let inset = rect.width * 0.02
-        path.addRoundedRect(
-            in: CGRect(x: inset, y: rect.height * y, width: panelWidth, height: panelHeight),
-            cornerSize: CGSize(width: radius, height: radius)
+    private func shoulderCaps(in rect: CGRect, rear: Bool) -> Path {
+        let point: (CGFloat, CGFloat) -> CGPoint = {
+            CGPoint(x: rect.minX + rect.width * $0, y: rect.minY + rect.height * $1)
+        }
+        var left = Path()
+        left.move(to: point(0.46, rear ? 0.48 : 0.42))
+        left.addCurve(
+            to: point(0.08, rear ? 0.22 : 0.12),
+            control1: point(0.34, 0.14),
+            control2: point(0.19, 0.05)
         )
-        path.addRoundedRect(
-            in: CGRect(x: rect.width - panelWidth - inset, y: rect.height * y, width: panelWidth, height: panelHeight),
-            cornerSize: CGSize(width: radius, height: radius)
+        left.addCurve(
+            to: point(0.12, 0.86),
+            control1: point(0.01, 0.43),
+            control2: point(0.03, 0.72)
         )
+        left.addCurve(
+            to: point(0.42, 0.72),
+            control1: point(0.22, 0.9),
+            control2: point(0.34, 0.82)
+        )
+        left.closeSubpath()
+        return paired(left, in: rect)
+    }
+
+    private func chestPanels(in rect: CGRect) -> Path {
+        let point: (CGFloat, CGFloat) -> CGPoint = {
+            CGPoint(x: rect.minX + rect.width * $0, y: rect.minY + rect.height * $1)
+        }
+        var left = Path()
+        left.move(to: point(0.485, 0.08))
+        left.addCurve(
+            to: point(0.04, 0.24),
+            control1: point(0.34, 0.04),
+            control2: point(0.16, 0.08)
+        )
+        left.addCurve(
+            to: point(0.12, 0.82),
+            control1: point(0.02, 0.5),
+            control2: point(0.04, 0.72)
+        )
+        left.addCurve(
+            to: point(0.485, 0.7),
+            control1: point(0.25, 0.9),
+            control2: point(0.4, 0.84)
+        )
+        left.closeSubpath()
+        return paired(left, in: rect)
+    }
+
+    private func armPanels(in rect: CGRect, rear: Bool) -> Path {
+        let point: (CGFloat, CGFloat) -> CGPoint = {
+            CGPoint(x: rect.minX + rect.width * $0, y: rect.minY + rect.height * $1)
+        }
+        var upperArm = Path()
+        upperArm.move(to: point(0.24, 0.04))
+        upperArm.addCurve(
+            to: point(0.08, 0.18),
+            control1: point(0.18, rear ? 0.03 : 0.07),
+            control2: point(0.11, 0.1)
+        )
+        upperArm.addCurve(
+            to: point(0.12, 0.49),
+            control1: point(0.05, 0.28),
+            control2: point(0.06, 0.4)
+        )
+        upperArm.addCurve(
+            to: point(0.23, 0.43),
+            control1: point(0.16, 0.51),
+            control2: point(0.21, 0.48)
+        )
+        upperArm.addCurve(
+            to: point(0.31, 0.12),
+            control1: point(0.26, 0.33),
+            control2: point(0.29, 0.21)
+        )
+        upperArm.closeSubpath()
+
+        var forearm = Path()
+        forearm.move(to: point(0.115, 0.5))
+        forearm.addCurve(
+            to: point(0.035, 0.94),
+            control1: point(0.075, 0.62),
+            control2: point(0.045, 0.82)
+        )
+        forearm.addCurve(
+            to: point(0.135, 0.98),
+            control1: point(0.065, 1),
+            control2: point(0.105, 1)
+        )
+        forearm.addCurve(
+            to: point(0.225, 0.49),
+            control1: point(0.17, 0.82),
+            control2: point(0.205, 0.62)
+        )
+        forearm.closeSubpath()
+
+        var path = paired(upperArm, in: rect)
+        path.addPath(paired(forearm, in: rect))
         return path
     }
 
     private func coreSegments(in rect: CGRect) -> Path {
         var path = Path()
-        let gap = rect.width * 0.08
-        let segmentWidth = (rect.width - gap) / 2
-        let segmentHeight = rect.height * 0.27
+        let horizontalGap = rect.width * 0.08
+        let verticalGap = rect.height * 0.065
+        let segmentWidth = (rect.width - horizontalGap) / 2
+        let segmentHeight = (rect.height - verticalGap * 2) / 3
+
         for row in 0..<3 {
-            let y = CGFloat(row) * rect.height * 0.34
+            let y = CGFloat(row) * (segmentHeight + verticalGap)
+            let corner = CGSize(width: segmentWidth * 0.34, height: segmentHeight * 0.34)
             path.addRoundedRect(
-                in: CGRect(x: 0, y: y, width: segmentWidth, height: segmentHeight),
-                cornerSize: CGSize(width: 4, height: 4)
+                in: CGRect(x: rect.minX, y: rect.minY + y, width: segmentWidth, height: segmentHeight),
+                cornerSize: corner
             )
             path.addRoundedRect(
-                in: CGRect(x: segmentWidth + gap, y: y, width: segmentWidth, height: segmentHeight),
-                cornerSize: CGSize(width: 4, height: 4)
+                in: CGRect(
+                    x: rect.minX + segmentWidth + horizontalGap,
+                    y: rect.minY + y,
+                    width: segmentWidth,
+                    height: segmentHeight
+                ),
+                cornerSize: corner
             )
         }
         return path
     }
 
+    private func legPanels(in rect: CGRect, rear: Bool) -> Path {
+        let point: (CGFloat, CGFloat) -> CGPoint = {
+            CGPoint(x: rect.minX + rect.width * $0, y: rect.minY + rect.height * $1)
+        }
+        var thigh = Path()
+        thigh.move(to: point(0.43, 0.02))
+        thigh.addCurve(
+            to: point(0.08, 0.08),
+            control1: point(0.31, rear ? 0.08 : 0.01),
+            control2: point(0.16, 0.02)
+        )
+        thigh.addCurve(
+            to: point(0.14, 0.48),
+            control1: point(0.04, 0.2),
+            control2: point(0.06, 0.38)
+        )
+        thigh.addCurve(
+            to: point(0.38, 0.5),
+            control1: point(0.2, 0.54),
+            control2: point(0.31, 0.55)
+        )
+        thigh.addCurve(
+            to: point(0.43, 0.02),
+            control1: point(0.42, 0.35),
+            control2: point(0.44, 0.17)
+        )
+        thigh.closeSubpath()
+
+        var calf = Path()
+        calf.move(to: point(0.14, 0.54))
+        calf.addCurve(
+            to: point(0.065, 0.75),
+            control1: point(0.08, 0.59),
+            control2: point(0.045, 0.68)
+        )
+        calf.addCurve(
+            to: point(0.13, 0.98),
+            control1: point(0.075, 0.84),
+            control2: point(0.09, 0.94)
+        )
+        calf.addCurve(
+            to: point(0.31, 0.71),
+            control1: point(0.19, 0.94),
+            control2: point(0.27, 0.82)
+        )
+        calf.addCurve(
+            to: point(0.35, 0.54),
+            control1: point(0.33, 0.65),
+            control2: point(0.35, 0.59)
+        )
+        calf.closeSubpath()
+
+        var path = paired(thigh, in: rect)
+        path.addPath(paired(calf, in: rect))
+        return path
+    }
+
     private func backPanels(in rect: CGRect) -> Path {
-        var path = Path()
-        let center = rect.midX
-
-        var left = Path()
-        left.move(to: CGPoint(x: center - rect.width * 0.03, y: rect.minY + rect.height * 0.04))
-        left.addCurve(
-            to: CGPoint(x: rect.minX + rect.width * 0.06, y: rect.minY + rect.height * 0.30),
-            control1: CGPoint(x: rect.minX + rect.width * 0.24, y: rect.minY + rect.height * 0.04),
-            control2: CGPoint(x: rect.minX + rect.width * 0.08, y: rect.minY + rect.height * 0.15)
+        let point: (CGFloat, CGFloat) -> CGPoint = {
+            CGPoint(x: rect.minX + rect.width * $0, y: rect.minY + rect.height * $1)
+        }
+        var trapezius = Path()
+        trapezius.move(to: point(0.5, 0.02))
+        trapezius.addLine(to: point(0.18, 0.17))
+        trapezius.addCurve(
+            to: point(0.46, 0.42),
+            control1: point(0.25, 0.24),
+            control2: point(0.36, 0.34)
         )
-        left.addCurve(
-            to: CGPoint(x: center - rect.width * 0.08, y: rect.maxY - rect.height * 0.04),
-            control1: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.minY + rect.height * 0.62),
-            control2: CGPoint(x: center - rect.width * 0.18, y: rect.maxY - rect.height * 0.12)
+        trapezius.addLine(to: point(0.5, 0.52))
+        trapezius.addLine(to: point(0.54, 0.42))
+        trapezius.addCurve(
+            to: point(0.82, 0.17),
+            control1: point(0.64, 0.34),
+            control2: point(0.75, 0.24)
         )
-        left.closeSubpath()
-        path.addPath(left)
+        trapezius.closeSubpath()
 
+        var leftLat = Path()
+        leftLat.move(to: point(0.45, 0.32))
+        leftLat.addCurve(
+            to: point(0.08, 0.24),
+            control1: point(0.33, 0.23),
+            control2: point(0.18, 0.2)
+        )
+        leftLat.addCurve(
+            to: point(0.18, 0.73),
+            control1: point(0.06, 0.4),
+            control2: point(0.1, 0.62)
+        )
+        leftLat.addCurve(
+            to: point(0.43, 0.96),
+            control1: point(0.27, 0.84),
+            control2: point(0.36, 0.91)
+        )
+        leftLat.addCurve(
+            to: point(0.45, 0.32),
+            control1: point(0.45, 0.73),
+            control2: point(0.46, 0.5)
+        )
+        leftLat.closeSubpath()
+
+        var path = trapezius
+        path.addPath(paired(leftLat, in: rect))
+        return path
+    }
+
+    private func paired(_ leftPath: Path, in rect: CGRect) -> Path {
+        var path = leftPath
         var transform = CGAffineTransform(translationX: rect.midX, y: 0)
         transform = transform.scaledBy(x: -1, y: 1)
         transform = transform.translatedBy(x: -rect.midX, y: 0)
-        path.addPath(left.applying(transform))
+        path.addPath(leftPath.applying(transform))
         return path
     }
 }

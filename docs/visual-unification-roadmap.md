@@ -541,6 +541,18 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   player, and Recovery Field. The final generic simulator build passed across phone, Watch, widget,
   and Live Activity targets.
 
+### Batch 27 - Recovery Anatomy Refinement (complete)
+
+- Replaced Recovery Field's capsule-and-rectangle figure with a continuous, tapered front/back
+  anatomy: curved shoulders and limbs, a defined waist and hip transition, restrained joint and
+  spine guides, and muscle-specific pec, core, arm, lat, quad, hamstring, and calf contours.
+- Preserved the useful tap-to-evidence interaction while exposing shoulders, arms, and legs on
+  both views. Selected regions retain a crisp semantic outline, no-signal regions stay quiet, and
+  Reduce Motion removes the selection spring without changing the evidence update.
+- The focused route now verifies that the Core region is hittable and changes the evidence panel.
+  Standard light and dark captures were visually reviewed, the dark accessibility-XXXL route
+  passed, SwiftLint and `git diff --check` passed, and the simulator build remained clean.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
@@ -551,8 +563,8 @@ Value Radar, meal-planning support, Plate Loading, Nutrition Trends, Maia Insigh
 structured action cards now join them. The reachable migration queue and legacy-surface retirement
 are complete, and the clean local 2.3 release gate is green. The semantic signal sweep, training
 identity pass, whole-app quality-control sweep, and final
-contrast/motion/accessibility refinement close the color-coordination gap across the reachable app,
-with Recovery Field as the clearest expression of signal, evidence, and action. The remaining work
+contrast/motion/accessibility and anatomy refinements close the color-coordination gap across the
+reachable app, with Recovery Field as the clearest expression of signal, evidence, and action. The remaining work
 is Peter's focused physical-device acceptance and signed archive,
 rollout-dependent removal of the fallback Home, and gradual expansion of token-drift checks;
 unfinished public social surfaces remain explicitly gated rather than being polished into

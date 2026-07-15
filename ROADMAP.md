@@ -600,8 +600,10 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   now share a closed state and nutrition-data palette enforced by the source guard; live workout,
   program, history, analytics, and running surfaces use a professional effort/recovery hierarchy;
   and Recovery Field provides a deterministic interactive muscle map with visible evidence,
-  uncertainty, sleep adjustment, and planning-not-medical language. The competitor review and
-  full visual contract live in `docs/design-direction-2.3.md`.
+  uncertainty, sleep adjustment, and planning-not-medical language. Its front/back field now uses
+  a lean curved anatomical silhouette, contoured muscle overlays, and shared limb signals while
+  preserving region-to-evidence selection. The competitor review and full visual contract live in
+  `docs/design-direction-2.3.md`.
 - [x] Complete the final cross-target visual quality-control sweep. Add a Saved Recipe, Shoe Gear,
   and Add New Shoe now share the same responsive operational hierarchy; workout identities use
   stable professional symbols instead of cartoon emoji; remaining report, banner, milestone,

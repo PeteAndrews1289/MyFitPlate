@@ -2590,6 +2590,12 @@ final class MyFitPlateUITests: XCTestCase {
                     .firstMatch
                 XCTAssertTrue(bodyField.waitForExistence(timeout: 5))
                 XCTAssertTrue(evidence.waitForExistence(timeout: 5))
+
+                let coreZone = app.buttons["muscle_recovery_zone_front_core"]
+                XCTAssertTrue(coreZone.waitForExistence(timeout: 5))
+                XCTAssertTrue(coreZone.isHittable)
+                coreZone.tap()
+                XCTAssertTrue(app.staticTexts["Core"].waitForExistence(timeout: 5))
             }
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
