@@ -33,7 +33,7 @@ struct ContinueProgramCard: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "figure.strengthtraining.traditional")
                     .appFont(size: 20, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.brandForeground)
                     .frame(width: 46, height: 46)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
@@ -77,7 +77,7 @@ struct ContinueProgramCard: View {
 
                     Text("\(Int((progress * 100).rounded()))%")
                         .appFont(size: 12, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
                 }
 
                 GeometryReader { geometry in
@@ -112,7 +112,7 @@ struct ContinueProgramCard: View {
                     if nextWorkout.routine.exercises.count > 4 {
                         Text("+ \(nextWorkout.routine.exercises.count - 4) more exercises")
                             .appFont(size: 12, weight: .semibold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.brandForeground)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 2)
                     }
@@ -160,7 +160,7 @@ struct ContinueProgramCard: View {
 
             Text(exercise.sets.first?.target ?? "-")
                 .appFont(size: 12, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.brandForeground)
                 .lineLimit(1)
         }
     }

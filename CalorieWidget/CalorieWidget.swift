@@ -31,6 +31,8 @@ struct SimpleEntry: TimelineEntry {
 private enum WidgetPalette {
     // Tuned palette (DESIGN.md 2a) — must stay in sync with the app's colorsets.
     static let brandPrimary = Color(red: 0.263, green: 0.678, blue: 0.435)
+    static let brandForeground = Color("AccentPositiveText")
+    static let onSignal = Color.black.opacity(0.86)
     static let accentProtein = Color(red: 0.310, green: 0.525, blue: 0.749)
     static let accentCarbs = Color(red: 0.839, green: 0.659, blue: 0.243)
     static let accentFats = Color(red: 0.588, green: 0.427, blue: 0.675)
@@ -247,7 +249,7 @@ struct MediumWidgetView: View {
                         .font(.caption.weight(.bold))
                     Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
                         .font(.system(.headline, design: .rounded, weight: .bold))
-                        .foregroundStyle(WidgetPalette.brandPrimary)
+                        .foregroundStyle(WidgetPalette.brandForeground)
                         .lineLimit(1)
                 }
 
@@ -266,7 +268,7 @@ struct MediumWidgetView: View {
                 Button(intent: LogWaterIntent()) {
                     Image(systemName: "drop.fill")
                         .font(.caption.weight(.bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(WidgetPalette.onSignal)
                         .frame(width: 26, height: 26)
                         .background(WidgetPalette.accentWater, in: Circle())
                 }
@@ -290,7 +292,7 @@ struct MediumWidgetView: View {
                     Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted())")
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(WidgetPalette.brandPrimary)
+                        .foregroundColor(WidgetPalette.brandForeground)
                     Text("cal")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -314,7 +316,7 @@ struct MediumWidgetView: View {
                         Button(intent: LogWaterIntent()) {
                             Image(systemName: "drop.fill")
                                 .font(.caption)
-                                .foregroundColor(.white)
+                                .foregroundColor(WidgetPalette.onSignal)
                                 .padding(6)
                                 .background(WidgetPalette.accentWater)
                                 .clipShape(Circle())
@@ -343,7 +345,7 @@ struct SmallWidgetView: View {
                         .foregroundStyle(.secondary)
                     Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted())")
                         .font(.system(.title2, design: .rounded, weight: .bold))
-                        .foregroundStyle(WidgetPalette.brandPrimary)
+                        .foregroundStyle(WidgetPalette.brandForeground)
                         .minimumScaleFactor(0.75)
                         .lineLimit(1)
                 }
@@ -399,7 +401,7 @@ private struct SmallWidgetNextActionRow: View {
         HStack(spacing: 7) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(WidgetPalette.brandPrimary)
+                .foregroundStyle(WidgetPalette.brandForeground)
                 .frame(width: 24, height: 24)
                 .background(
                     WidgetPalette.brandPrimary.opacity(0.12),
@@ -464,7 +466,7 @@ struct LargeWidgetView: View {
 
                 Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
                     .font(.system(.headline, design: .rounded, weight: .bold))
-                    .foregroundStyle(WidgetPalette.brandPrimary)
+                    .foregroundStyle(WidgetPalette.brandForeground)
             }
 
             HStack(spacing: 14) {
@@ -630,7 +632,7 @@ private struct WidgetFuelPathNode: View {
             nodeBackground
             Image(systemName: event.kind.icon)
                 .font(.system(size: size * 0.42, weight: .bold))
-                .foregroundStyle(event.state == .planned ? event.kind.color : .white)
+                .foregroundStyle(event.state == .planned ? event.kind.color : WidgetPalette.onSignal)
         }
         .frame(width: size, height: size)
     }

@@ -360,7 +360,7 @@ struct FoodDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: toggleSavedState) {
                     Image(systemName: isSavedAsCustom ? "star.fill" : "star")
-                        .foregroundColor(isSavedAsCustom ? AppPalette.achievement : AppPalette.brand)
+                        .foregroundColor(isSavedAsCustom ? AppPalette.achievement : AppPalette.brandText)
                 }
             }
         }
@@ -434,7 +434,7 @@ struct FoodDetailView: View {
 
                 Image(systemName: "number")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .frame(width: 42, height: 42)
                     .background(AppPalette.brand.opacity(0.10), in: Circle())
             }
@@ -454,7 +454,7 @@ struct FoodDetailView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "fork.knife")
                                 .appFont(size: 14, weight: .bold)
-                                .foregroundStyle(AppPalette.brand)
+                                .foregroundStyle(AppPalette.brandText)
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Serving size")

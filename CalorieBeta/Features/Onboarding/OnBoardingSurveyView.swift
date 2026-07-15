@@ -187,7 +187,7 @@ struct OnboardingSurveyView: View {
                 AppScreenHeader(eyebrow: eyebrow, title: title, subtitle: subtitle) {
                     Image(systemName: icon)
                         .appTextRole(.sectionTitle)
-                        .foregroundStyle(AppPalette.brand)
+                        .foregroundStyle(AppPalette.brandText)
                         .frame(width: 52, height: 52)
                         .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
                         .accessibilityHidden(true)
@@ -386,7 +386,7 @@ struct OnboardingSurveyView: View {
 
                 Image(systemName: selectedActivityLevelKey == key ? "checkmark.circle.fill" : "circle")
                     .appTextRole(.control)
-                    .foregroundStyle(selectedActivityLevelKey == key ? AppPalette.brand : .secondary)
+                    .foregroundStyle(selectedActivityLevelKey == key ? AppPalette.brandText : .secondary)
                     .accessibilityHidden(true)
             }
             .padding(AppSpacing.group)
@@ -528,7 +528,7 @@ private struct OnboardingMeasurementField: View {
 
                 Text(unit)
                     .appTextRole(.control)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
             }
         }
         .appSurface(.emphasized)
@@ -568,7 +568,7 @@ private struct OnboardingMenuRow: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: icon)
                 .appTextRole(.control)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 40, height: 40)
                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                 .accessibilityHidden(true)

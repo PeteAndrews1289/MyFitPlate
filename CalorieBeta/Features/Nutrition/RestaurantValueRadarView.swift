@@ -200,7 +200,7 @@ struct RestaurantValueRadarView: View {
         VStack(spacing: AppSpacing.group) {
             Image(systemName: "doc.text.viewfinder")
                 .appFont(size: 34, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 64, height: 64)
                 .background(
                     AppPalette.brand.opacity(0.10),

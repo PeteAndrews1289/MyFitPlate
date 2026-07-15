@@ -82,7 +82,7 @@ struct LivingDayShareOptionsView: View {
                         ) {
                             Label("Share Living Day", systemImage: "square.and.arrow.up")
                                 .appFont(size: 16, weight: .bold)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(AppPalette.onBrand)
                                 .frame(maxWidth: .infinity, minHeight: 50)
                                 .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 8))
                         }
@@ -188,7 +188,7 @@ struct LivingDayShareCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("LIVING DAY")
                     .appFont(size: 11, weight: .bold)
-                    .foregroundStyle(Color.brandPrimary)
+                    .foregroundStyle(Color.brandForeground)
                 Text(snapshot.date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
                     .appFont(size: 22, weight: .bold)
                     .foregroundStyle(.black)
@@ -253,7 +253,7 @@ struct LivingDayShareCard: View {
                             event.shareNodeBackground
                             Image(systemName: event.shareIcon)
                                 .appFont(size: 9, weight: .bold)
-                                .foregroundStyle(event.state == .planned ? event.shareColor : .white)
+                                .foregroundStyle(event.state == .planned ? event.shareColor : AppPalette.onSignal)
                         }
                         .frame(width: 24, height: 24)
 
@@ -282,7 +282,7 @@ struct LivingDayShareCard: View {
     private func shareTrust(reviewCount: Int) -> some View {
         HStack(spacing: 9) {
             Image(systemName: reviewCount == 0 ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
-                .foregroundStyle(reviewCount == 0 ? Color.brandPrimary : AppPalette.caution)
+                .foregroundStyle(reviewCount == 0 ? Color.brandForeground : AppPalette.caution)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Trust")
                     .appFont(size: 10, weight: .bold)
@@ -298,13 +298,13 @@ struct LivingDayShareCard: View {
         HStack(spacing: 10) {
             Image(systemName: actionKind.shareIcon)
                 .appFont(size: 12, weight: .bold)
-                .foregroundStyle(Color.brandPrimary)
+                .foregroundStyle(Color.brandForeground)
                 .frame(width: 30, height: 30)
                 .background(Color.brandPrimary.opacity(0.1), in: Circle())
             VStack(alignment: .leading, spacing: 1) {
                 Text("NEXT MOVE")
                     .appFont(size: 8, weight: .bold)
-                    .foregroundStyle(Color.brandPrimary)
+                    .foregroundStyle(Color.brandForeground)
                 Text(actionKind.shareTitle)
                     .appFont(size: 12, weight: .bold)
                     .foregroundStyle(.black)

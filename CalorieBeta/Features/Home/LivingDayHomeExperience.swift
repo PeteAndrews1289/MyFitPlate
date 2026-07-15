@@ -218,7 +218,7 @@ struct LivingDayHomeExperience: View {
                             Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         }
                         .appFont(size: 12, weight: .bold)
-                        .foregroundStyle(Color.brandPrimary)
+                        .foregroundStyle(Color.brandForeground)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(isExpanded ? "Show fewer day events" : "Show all day events")
@@ -303,7 +303,7 @@ struct LivingDayHomeExperience: View {
     private var freshness: (title: String, icon: String, color: Color) {
         switch snapshot.freshness {
         case .current:
-            return ("Current", "checkmark.circle.fill", .brandPrimary)
+            return ("Current", "checkmark.circle.fill", .brandForeground)
         case .stale(let lastUpdated):
             let formatter = RelativeDateTimeFormatter()
             formatter.unitsStyle = .short
@@ -314,8 +314,8 @@ struct LivingDayHomeExperience: View {
         }
     }
 
-    private var eventAnimation: Animation {
-        reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.34, dampingFraction: 0.82)
+    private var eventAnimation: Animation? {
+        reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.82)
     }
 
     private func logExposureIfNeeded() {
@@ -433,14 +433,14 @@ private struct LivingDayMaiaAnnotation: View {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "bubble.left.and.text.bubble.right.fill")
                     .appFont(size: 13, weight: .semibold)
-                    .foregroundStyle(Color.brandPrimary)
+                    .foregroundStyle(Color.brandForeground)
                     .frame(width: 30, height: 30)
                     .background(Color.brandPrimary.opacity(0.1), in: Circle())
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Maia")
                         .appFont(size: 11, weight: .bold)
-                        .foregroundStyle(Color.brandPrimary)
+                        .foregroundStyle(Color.brandForeground)
                     Text(annotation.text)
                         .appFont(size: 12, weight: .medium)
                         .foregroundStyle(Color.textPrimary)
@@ -479,7 +479,7 @@ private struct LivingDayBudgetView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text(nutrient.title)
-                                .foregroundStyle(nutrient.color)
+                                .foregroundStyle(AppPalette.text)
                             Spacer()
                             Text(nutrient.remainingText)
                                 .foregroundStyle(Color.textPrimary)
@@ -492,7 +492,7 @@ private struct LivingDayBudgetView: View {
                     HStack(spacing: 10) {
                         Text(nutrient.shortTitle)
                             .appFont(size: 12, weight: .bold)
-                            .foregroundStyle(nutrient.color)
+                            .foregroundStyle(.secondary)
                             .frame(width: 28, alignment: .leading)
 
                         LivingDayBudgetBar(nutrient: nutrient)
@@ -532,7 +532,7 @@ private struct LivingDayBudgetBar: View {
         }
         .frame(minWidth: 48, minHeight: 8, maxHeight: 8)
         .animation(
-            reduceMotion ? .easeOut(duration: 0.14) : .easeInOut(duration: 0.28),
+            reduceMotion ? nil : .easeInOut(duration: 0.28),
             value: nutrient
         )
         .accessibilityElement(children: .ignore)
@@ -550,9 +550,9 @@ private struct LivingDayActionButton: View {
             HStack(spacing: 12) {
                 Image(systemName: action.icon)
                     .appFont(size: 15, weight: .bold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppPalette.onBrand)
                     .frame(width: 34, height: 34)
-                    .background(Color.white.opacity(0.16), in: Circle())
+                    .background(AppPalette.onBrand.opacity(0.12), in: Circle())
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(action.title)
@@ -567,7 +567,7 @@ private struct LivingDayActionButton: View {
                 Image(systemName: "chevron.right")
                     .appFont(size: 12, weight: .bold)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(AppPalette.onBrand)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(action.color, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -575,7 +575,7 @@ private struct LivingDayActionButton: View {
         .buttonStyle(.plain)
         .contentTransition(.opacity)
         .animation(
-            reduceMotion ? .easeOut(duration: 0.14) : .easeInOut(duration: 0.24),
+            reduceMotion ? nil : .easeInOut(duration: 0.24),
             value: action
         )
         .accessibilityHint(action.accessibilityHint)
@@ -776,7 +776,11 @@ private struct LivingDayEventNode: View {
             nodeBackground
             Image(systemName: event.icon)
                 .appFont(size: 13, weight: .bold)
-                .foregroundStyle(event.state == .planned || event.state == .skipped ? event.color : .white)
+                .foregroundStyle(
+                    event.state == .planned || event.state == .skipped
+                        ? event.color
+                        : AppPalette.onSignal
+                )
         }
         .frame(width: 36, height: 36)
         .overlay {
@@ -786,10 +790,10 @@ private struct LivingDayEventNode: View {
         }
         .scaleEffect(isEmphasized && !reduceMotion ? 1.08 : 1)
         .animation(
-            reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.3, dampingFraction: 0.7),
+            reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7),
             value: isEmphasized
         )
-        .animation(.easeInOut(duration: reduceMotion ? 0.14 : 0.22), value: event.state)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: event.state)
         .accessibilityHidden(true)
     }
 
@@ -824,7 +828,7 @@ private struct LivingDayNowMarker: View {
             HStack(spacing: 12) {
                 Text(currentTime.formatted(date: .omitted, time: .shortened))
                     .appFont(size: 10, weight: .bold)
-                    .foregroundStyle(Color.brandPrimary)
+                    .foregroundStyle(Color.brandForeground)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -835,7 +839,7 @@ private struct LivingDayNowMarker: View {
                     .frame(width: 36)
                 Text("Now")
                     .appFont(size: 11, weight: .bold)
-                    .foregroundStyle(Color.brandPrimary)
+                    .foregroundStyle(Color.brandForeground)
                 Rectangle()
                     .fill(Color.brandPrimary.opacity(0.28))
                     .frame(height: 1)

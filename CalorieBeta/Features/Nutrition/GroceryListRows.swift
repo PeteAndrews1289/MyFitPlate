@@ -122,7 +122,7 @@ struct GroceryItemRow: View {
 
                     Image(systemName: categorySymbol)
                         .appTextRole(.control)
-                        .foregroundStyle(item.isCompleted ? Color.secondary : AppPalette.brand)
+                        .foregroundStyle(item.isCompleted ? Color.secondary : AppPalette.brandText)
                         .frame(width: 40, height: 40)
                         .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                         .accessibilityHidden(true)

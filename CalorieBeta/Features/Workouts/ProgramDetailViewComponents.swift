@@ -21,7 +21,7 @@ struct ProgramDetailHeroCard: View {
             ) {
                 Text("\(Int((progress * 100).rounded()))% complete")
                     .appTextRole(.caption)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .padding(.horizontal, AppSpacing.row)
                     .frame(minHeight: 36)
                     .background(
@@ -297,7 +297,7 @@ struct ProgramRoutineCard: View {
                 } label: {
                     Label(isExpanded ? "Show Less" : "Show All Exercises", systemImage: isExpanded ? "chevron.up" : "chevron.down")
                         .appTextRole(.caption)
-                        .foregroundStyle(AppPalette.brand)
+                        .foregroundStyle(AppPalette.brandText)
                 }
                 .buttonStyle(.plain)
             }

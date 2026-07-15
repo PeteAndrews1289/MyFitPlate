@@ -333,7 +333,7 @@ private struct RecipeLoggingMealPicker: View {
                             .foregroundStyle(AppPalette.text)
                         Spacer(minLength: AppSpacing.compact)
                         Image(systemName: "chevron.up.chevron.down")
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.brandText)
                     }
                     .contentShape(Rectangle())
                 }

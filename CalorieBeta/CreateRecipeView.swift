@@ -308,7 +308,7 @@ struct CreateRecipeView: View {
                     VStack(spacing: AppSpacing.compact) {
                         Image(systemName: "plus.circle")
                             .appTextRole(.sectionTitle)
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.brandText)
                         Text("Add Your First Ingredient")
                             .appTextRole(.control)
                             .foregroundStyle(AppPalette.text)
@@ -535,13 +535,13 @@ private struct CreateRecipeModePicker: View {
                 } label: {
                     HStack(spacing: AppSpacing.row) {
                         Image(systemName: selection.systemImage)
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.brandText)
                         Text(selection.title)
                             .appTextRole(.control)
                             .foregroundStyle(AppPalette.text)
                         Spacer(minLength: AppSpacing.compact)
                         Image(systemName: "chevron.up.chevron.down")
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.brandText)
                     }
                     .contentShape(Rectangle())
                 }

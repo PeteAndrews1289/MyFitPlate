@@ -265,7 +265,7 @@ struct MealPlannerEmptyState: View {
         VStack(spacing: 16) {
             Image(systemName: "wand.and.stars")
                 .appFont(size: 32, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 68, height: 68)
                 .background(AppPalette.control, in: Circle())
 
@@ -509,7 +509,7 @@ struct MealPlanWeekStrip: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(dayOfWeek(for: date))
                         .appTextRole(.control)
-                        .foregroundStyle(isSelected ? AppPalette.brand : Color.secondary)
+                        .foregroundStyle(isSelected ? AppPalette.brandText : Color.secondary)
 
                     Text(monthAndDay(for: date))
                         .appTextRole(.sectionTitle)
@@ -526,7 +526,7 @@ struct MealPlanWeekStrip: View {
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .appTextRole(.control)
-                        .foregroundStyle(AppPalette.brand)
+                        .foregroundStyle(AppPalette.brandText)
                         .accessibilityHidden(true)
                 }
             }
@@ -535,11 +535,11 @@ struct MealPlanWeekStrip: View {
             VStack(spacing: 6) {
                 Text(dayOfWeek(for: date))
                     .appTextRole(.caption)
-                    .foregroundStyle(isSelected ? AppPalette.brand : Color.secondary)
+                    .foregroundStyle(isSelected ? AppPalette.brandText : Color.secondary)
 
                 Text(dayOfMonth(for: date))
                     .appTextRole(.control)
-                    .foregroundStyle(isSelected ? Color.white : AppPalette.text)
+                    .foregroundStyle(isSelected ? AppPalette.onBrand : AppPalette.text)
                     .frame(width: 34, height: 34)
                     .background {
                         if isSelected {

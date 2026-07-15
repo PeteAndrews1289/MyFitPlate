@@ -27,7 +27,7 @@ struct AIMenuSelectionView: View {
                                     Spacer()
                                     if selectedItemIDs.contains(item.id) {
                                         Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.brandPrimary)
+                                            .foregroundColor(.brandForeground)
                                             .appFont(size: 22)
                                     } else {
                                         Image(systemName: "circle")

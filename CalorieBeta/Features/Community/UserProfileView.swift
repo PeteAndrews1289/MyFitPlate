@@ -317,7 +317,7 @@ private struct AchievementProgressRow: View {
             if isUnlocked {
                 Label(unlockedText, systemImage: "checkmark.seal.fill")
                     .appTextRole(.caption)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 VStack(alignment: .leading, spacing: AppSpacing.compact) {
@@ -342,7 +342,7 @@ private struct AchievementProgressRow: View {
         HStack(spacing: AppSpacing.row) {
             Image(systemName: definition.iconName)
                 .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(isUnlocked ? AppPalette.brand : Color.secondary)
+                .foregroundStyle(isUnlocked ? AppPalette.brandText : Color.secondary)
                 .frame(width: 40, height: 40)
                 .background(
                     (isUnlocked ? AppPalette.brand : Color.secondary).opacity(0.10),
@@ -361,7 +361,7 @@ private struct AchievementProgressRow: View {
         HStack(spacing: AppSpacing.compact) {
             Label("\(definition.pointsValue) points", systemImage: "star.fill")
                 .appTextRole(.caption)
-                .foregroundStyle(isUnlocked ? AppPalette.brand : Color.secondary)
+                .foregroundStyle(isUnlocked ? AppPalette.brandText : Color.secondary)
 
             if isUnlocked {
                 ShareLink(

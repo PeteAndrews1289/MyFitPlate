@@ -91,7 +91,7 @@ struct LivingDayPrototypeGallery: View {
 
             Label("Synced", systemImage: "checkmark.icloud.fill")
                 .appFont(size: 12, weight: .semibold)
-                .foregroundStyle(Color.brandPrimary)
+                .foregroundStyle(Color.brandForeground)
                 .accessibilityLabel("Nutrition and training data synced")
         }
     }
@@ -187,7 +187,7 @@ private struct LivingDayRailPrototype: View {
                         VStack(spacing: 3) {
                             Text("NOW")
                                 .appFont(size: 9, weight: .bold)
-                                .foregroundStyle(Color.brandPrimary)
+                                .foregroundStyle(Color.brandForeground)
                             Rectangle().fill(Color.brandPrimary).frame(width: 2, height: 80)
                         }
                         .offset(x: position, y: 4)
@@ -221,7 +221,7 @@ private struct LivingDayRailNode: View {
                     .frame(width: 40, height: 40)
                 Image(systemName: event.icon)
                     .appFont(size: 15, weight: .bold)
-                    .foregroundStyle(event.state == .planned ? event.color : .white)
+                    .foregroundStyle(event.state == .planned ? event.color : AppPalette.onSignal)
             }
             .position(x: 38, y: 60)
 
@@ -258,7 +258,7 @@ private struct LivingDayTimelinePrototype: View {
                     HStack(spacing: 12) {
                         Text(currentTime.formatted(date: .omitted, time: .shortened))
                             .appFont(size: 10, weight: .bold)
-                            .foregroundStyle(Color.brandPrimary)
+                            .foregroundStyle(Color.brandForeground)
                             .monospacedDigit()
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
@@ -269,7 +269,7 @@ private struct LivingDayTimelinePrototype: View {
                             .frame(width: 36)
                         Text("Now")
                             .appFont(size: 11, weight: .bold)
-                            .foregroundStyle(Color.brandPrimary)
+                            .foregroundStyle(Color.brandForeground)
                         Rectangle()
                             .fill(Color.brandPrimary.opacity(0.28))
                             .frame(height: 1)
@@ -295,7 +295,7 @@ private struct LivingDayTimelinePrototype: View {
                                 .frame(width: 36, height: 36)
                             Image(systemName: event.icon)
                                 .appFont(size: 14, weight: .bold)
-                                .foregroundStyle(event.state == .planned ? event.color : .white)
+                                .foregroundStyle(event.state == .planned ? event.color : AppPalette.onSignal)
                         }
                         if index < snapshot.events.count - 1 {
                             Rectangle()
@@ -366,7 +366,7 @@ private struct LivingDayClockPrototype: View {
                 VStack(spacing: 3) {
                     Text("FUEL BEFORE TRAINING")
                         .appFont(size: 9, weight: .bold)
-                        .foregroundStyle(Color.brandPrimary)
+                        .foregroundStyle(Color.brandForeground)
                     Text("22 g protein")
                         .appFont(size: 18, weight: .bold)
                         .foregroundStyle(Color.accentProtein)
@@ -393,7 +393,7 @@ private struct LivingDayClockPrototype: View {
                                 .frame(width: 36, height: 36)
                             Image(systemName: event.icon)
                                 .appFont(size: 13, weight: .bold)
-                                .foregroundStyle(event.state == .planned ? event.color : .white)
+                                .foregroundStyle(event.state == .planned ? event.color : AppPalette.onSignal)
                         }
                         .position(
                             x: geometry.size.width / 2 + CGFloat(cos(angle.radians)) * radius,
@@ -449,7 +449,7 @@ private struct LivingDayCurrentAction: View {
             HStack(spacing: 14) {
                 Image(systemName: "bolt.fill")
                     .appFont(size: 16, weight: .bold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppPalette.onBrand)
                     .frame(width: 36, height: 36)
                     .background(Color.white.opacity(0.16), in: Circle())
 
@@ -465,7 +465,7 @@ private struct LivingDayCurrentAction: View {
                 Image(systemName: "chevron.right")
                     .appFont(size: 13, weight: .bold)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(AppPalette.onBrand)
             .padding(14)
             .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 8))
         }

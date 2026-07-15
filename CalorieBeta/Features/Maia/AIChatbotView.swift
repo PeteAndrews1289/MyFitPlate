@@ -246,7 +246,7 @@ struct AIChatbotView: View {
                 } label: {
                     Image(systemName: "keyboard.chevron.compact.down")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
                 }
                 .accessibilityLabel("Dismiss keyboard")
             }

@@ -18,7 +18,7 @@ struct GroceryListDisplayControls: View {
             HStack(alignment: .top, spacing: AppSpacing.row) {
                 Image(systemName: hideCompletedItems ? "eye.slash.fill" : "eye.fill")
                     .appTextRole(.control)
-                    .foregroundStyle(completedCount == 0 ? Color.secondary : AppPalette.brand)
+                    .foregroundStyle(completedCount == 0 ? Color.secondary : AppPalette.brandText)
                     .frame(width: 28, height: 28)
                     .accessibilityHidden(true)
 

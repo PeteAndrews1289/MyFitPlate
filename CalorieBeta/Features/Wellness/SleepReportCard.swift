@@ -105,7 +105,7 @@ struct SleepReportCard: View {
     @ViewBuilder
     private func sleepStatBox(value: String, label: String) -> some View {
         VStack(spacing: 2) {
-            Text(value).appFont(size: 18, weight: .semibold).foregroundColor(.brandPrimary)
+            Text(value).appFont(size: 18, weight: .semibold).foregroundColor(.brandForeground)
             Text(label).appFont(size: 10).foregroundColor(Color(UIColor.secondaryLabel))
         }
         .frame(maxWidth: .infinity)

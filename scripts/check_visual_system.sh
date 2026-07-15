@@ -177,6 +177,67 @@ while IFS= read -r match; do
   fi
 done <<< "$direct_color_matches"
 
+# BrandPrimary is deliberately vivid for fills, charts, and exported artwork. It is too light to
+# carry small text and symbols on ordinary app surfaces, so foreground content uses the adaptive
+# BrandForeground/AppPalette.brandText role. Keep a tightly counted exception for measured charts
+# and the dark run-story export where the vivid brand color is itself part of the artwork.
+readonly brand_foreground_pattern='foreground(Style|Color).*(brandPrimary|AppPalette\.brand([^[:alnum:]_]|$))'
+readonly brand_foreground_allowlist=(
+  'CalorieBeta/Features/Wellness/WeightChartView.swift:3'
+  'CalorieBeta/Features/Workouts/ExerciseTrendChartView.swift:2'
+  'CalorieBeta/Features/Workouts/WorkoutCompleteAnalyticsView.swift:1'
+  'CalorieBeta/Features/Workouts/RunningViews.swift:1'
+  'CalorieBeta/Features/Workouts/RunStoryPosterView.swift:2'
+)
+
+brand_foreground_matches="$(git grep -n -E "$brand_foreground_pattern" -- \
+  'CalorieBeta' \
+  'CalorieWidget' \
+  'LiveActivity' \
+  'MyFitPlateWatch Watch App' \
+  'MyFitPlateCore/Sources/MyFitPlateCore' || true)"
+
+while IFS= read -r match; do
+  [[ -z "$match" ]] && continue
+  file="${match%%:*}"
+  is_allowed=0
+  for exception in "${brand_foreground_allowlist[@]}"; do
+    allowed_file="${exception%:*}"
+    if [[ "$file" == "$allowed_file" ]]; then
+      is_allowed=1
+      break
+    fi
+  done
+  if (( is_allowed == 0 )); then
+    printf 'Low-contrast brand color used as foreground:\n%s\n' "$match" >&2
+    status=1
+  fi
+done <<< "$brand_foreground_matches"
+
+for exception in "${brand_foreground_allowlist[@]}"; do
+  allowed_file="${exception%:*}"
+  allowed_count="${exception##*:}"
+  count=$(printf '%s\n' "$brand_foreground_matches" | awk -F: -v file="$allowed_file" '$1 == file { count += 1 } END { print count + 0 }')
+  if (( count > allowed_count )); then
+    printf 'Too many vivid-brand foregrounds in allowlisted file %s (%d > %d).\n' \
+      "$allowed_file" "$count" "$allowed_count" >&2
+    status=1
+  fi
+done
+
+# Selected controls, completed timeline nodes, and confirmed actions use bright semantic fills.
+# Their labels and symbols need the dark on-brand/on-signal role; white falls below contrast
+# targets on the current green, blue, aqua, amber, and violet palette.
+readonly conditional_white_pattern='(isSelected|didLog|didConfirm|event\.state|day\.hasTraining).*white'
+if matches=$(git grep -n -E "$conditional_white_pattern" -- \
+  'CalorieBeta' \
+  'CalorieWidget' \
+  'MyFitPlateWatch Watch App' \
+  'MyFitPlateCore/Sources/MyFitPlateCore'); then
+  printf 'White foreground used conditionally on a bright brand or signal fill:\n%s\n' "$matches" >&2
+  status=1
+fi
+
 if (( status != 0 )); then
   printf 'Use shared surfaces, actions, and AppPalette/AppSignalRole semantic colors instead.\n' >&2
   exit "$status"

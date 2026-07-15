@@ -127,6 +127,7 @@ struct SwipeableFoodItemView: View {
     @State private var offset: CGFloat = 0
     @State private var isSwiped: Bool = false
     @State private var showDetailView = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ZStack(alignment: .trailing) {
@@ -155,25 +156,33 @@ struct SwipeableFoodItemView: View {
 
             HStack(spacing: 12) {
                 Text(FoodEmojiMapper.getEmoji(for: initialFoodItem.name))
-                    .font(.title3)
+                    .font(.system(size: 20))
                     .frame(width: 38, height: 38)
                     .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(initialFoodItem.name)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                         .appFont(size: 16, weight: .semibold)
                         .foregroundColor(.textPrimary)
 
-                    HStack(spacing: 6) {
-                        Text(macroSummary)
-                            .appFont(size: 12)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .lineLimit(1)
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 4) {
+                            macroSummaryText
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
 
-                        FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
+                            FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
+                        }
+                    } else {
+                        HStack(spacing: 6) {
+                            macroSummaryText
+
+                            FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
+                        }
+                        .lineLimit(1)
                     }
-                    .lineLimit(1)
                 }
 
                 Spacer()
@@ -242,5 +251,11 @@ struct SwipeableFoodItemView: View {
 
     private var macroSummary: String {
         "P \(Int(initialFoodItem.protein.rounded()))g • C \(Int(initialFoodItem.carbs.rounded()))g • F \(Int(initialFoodItem.fats.rounded()))g"
+    }
+
+    private var macroSummaryText: some View {
+        Text(macroSummary)
+            .appFont(size: 12)
+            .foregroundColor(Color(UIColor.secondaryLabel))
     }
 }

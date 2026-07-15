@@ -302,7 +302,7 @@ private struct DotIndicator: View {
             ForEach(0..<totalDots, id: \.self) { index in
                 Circle()
                     .frame(width: index == goalSettings.nutritionViewIndex ? 10 : 6, height: index == goalSettings.nutritionViewIndex ? 10 : 6)
-                    .foregroundColor(index == goalSettings.nutritionViewIndex ? Color.brandPrimary : Color(UIColor.secondaryLabel).opacity(0.5))
+                    .foregroundColor(index == goalSettings.nutritionViewIndex ? Color.brandForeground : Color(UIColor.secondaryLabel).opacity(0.5))
                     .onTapGesture {
                         withAnimation(.easeInOut) {
                             goalSettings.nutritionViewIndex = index

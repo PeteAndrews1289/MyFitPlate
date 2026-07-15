@@ -65,7 +65,7 @@ struct HomeView: View {
                                 HomeLinkRow(
                                     icon: "arrow.clockwise",
                                     title: "Repeat \(recentMeal.mealName)",
-                                    iconColor: WatchPalette.brandPrimary
+                                    iconColor: WatchPalette.brandForeground
                                 )
                             }
                             .buttonStyle(.plain)
@@ -103,7 +103,7 @@ struct HomeView: View {
         switch kind {
         case .preWorkoutFuel, .recoveryMeal: return WatchPalette.accentSignal
         case .proteinCatchUp: return WatchPalette.accentProtein
-        case .trustReview, .steadyDay: return WatchPalette.brandPrimary
+        case .trustReview, .steadyDay: return WatchPalette.brandForeground
         }
     }
 }
@@ -125,7 +125,7 @@ private struct WatchNextActionView: View {
         switch action.kind {
         case .preWorkoutFuel, .recoveryMeal: return WatchPalette.accentSignal
         case .proteinCatchUp: return WatchPalette.accentProtein
-        case .trustReview, .steadyDay: return WatchPalette.brandPrimary
+        case .trustReview, .steadyDay: return WatchPalette.brandForeground
         }
     }
 

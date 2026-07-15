@@ -153,7 +153,7 @@ struct PantryView: View {
         VStack(spacing: AppSpacing.group) {
             Image(systemName: "cabinet.fill")
                 .appFont(size: 34, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 64, height: 64)
                 .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.surface))
                 .accessibilityHidden(true)
@@ -395,7 +395,7 @@ struct PantryRecipeGenerationView: View {
 
                 HStack(alignment: .top, spacing: AppSpacing.row) {
                     Image(systemName: "info.circle.fill")
-                        .foregroundStyle(AppPalette.brand)
+                        .foregroundStyle(AppPalette.brandText)
                         .accessibilityHidden(true)
                     Text("Nutrition, quantities, and instructions are estimates. Review them before saving or logging a meal.")
                         .appTextRole(.secondary)
@@ -437,7 +437,7 @@ struct PantryRecipeGenerationView: View {
                     HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
                         Image(systemName: "circle.fill")
                             .appFont(size: 6)
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.brandText)
                             .accessibilityHidden(true)
                         Text(ingredient)
                             .appTextRole(.body)
@@ -455,7 +455,7 @@ struct PantryRecipeGenerationView: View {
                     HStack(alignment: .top, spacing: AppSpacing.row) {
                         Text((index + 1).formatted())
                             .appTextRole(.caption)
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.brandText)
                             .frame(width: 24, height: 24)
                             .background(AppPalette.brand.opacity(0.10), in: Circle())
                             .accessibilityHidden(true)
@@ -653,7 +653,7 @@ struct ReceiptScannerView: View {
             VStack(spacing: AppSpacing.section) {
                 Image(systemName: "doc.text.viewfinder")
                     .appFont(size: 38, weight: .semibold)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .frame(width: 72, height: 72)
                     .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.hero))
                     .accessibilityHidden(true)
@@ -717,7 +717,7 @@ struct ReceiptScannerView: View {
 
                 HStack(alignment: .top, spacing: AppSpacing.row) {
                     Image(systemName: "checkmark.circle")
-                        .foregroundStyle(AppPalette.brand)
+                        .foregroundStyle(AppPalette.brandText)
                         .accessibilityHidden(true)
                     Text("Check names, amounts, units, and categories. Remove anything that does not belong.")
                         .appTextRole(.secondary)

@@ -130,7 +130,7 @@ struct MaiaActionBoardView: View {
 
                     Image(systemName: "arrow.right")
                         .appTextRole(.control)
-                        .foregroundStyle(AppPalette.brand)
+                        .foregroundStyle(AppPalette.brandText)
                         .accessibilityHidden(true)
                 }
                 .appSurface(.emphasized, radius: AppRadius.hero)
@@ -559,7 +559,7 @@ struct ChatBubble: View {
                         )
                         .appFont(size: 12, weight: .semibold)
                     }
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.brandForeground)
                     .buttonStyle(.plain)
                     .accessibilityHint("Reads Maia's visible response using the selected voice.")
                 }
@@ -570,7 +570,7 @@ struct ChatBubble: View {
                             .padding(.vertical, 6)
                             .padding(.horizontal, 12)
                             .background(Color.brandPrimary, in: Capsule())
-                            .foregroundColor(.white)
+                            .foregroundColor(AppPalette.onBrand)
                     }
                     .buttonStyle(.plain)
                 }
@@ -687,7 +687,7 @@ struct AIChatActionCard: View {
                 }) {
                     Text(didLog ? "Logged" : "Log Food")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didLog ? .accentPositive : .white)
+                        .foregroundColor(didLog ? .accentPositive : AppPalette.onBrand)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(
@@ -730,7 +730,7 @@ struct AIChatMealPlanActionCard: View {
                 }) {
                     Text(didConfirm ? "Generated" : "Generate")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .accentPositive : .white)
+                        .foregroundColor(didConfirm ? .accentPositive : AppPalette.onBrand)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(
@@ -763,7 +763,7 @@ struct AIChatWorkoutActionCard: View {
                 }) {
                     Text(didConfirm ? "Logged" : "Log Workout")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .accentPositive : .white)
+                        .foregroundColor(didConfirm ? .accentPositive : AppPalette.onBrand)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(
@@ -802,7 +802,7 @@ struct AIChatWaterActionCard: View {
                 }) {
                     Text(didConfirm ? "Logged" : "Confirm")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .accentPositive : .white)
+                        .foregroundColor(didConfirm ? .accentPositive : AppPalette.onBrand)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(
@@ -841,7 +841,7 @@ struct AIChatFastActionCard: View {
                 }) {
                     Text(didConfirm ? "Confirmed" : "Confirm")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .accentPositive : .white)
+                        .foregroundColor(didConfirm ? .accentPositive : AppPalette.onBrand)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(
@@ -882,7 +882,7 @@ struct AIChatWeightActionCard: View {
                 }) {
                     Text(didConfirm ? "Logged" : "Confirm")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(didConfirm ? .accentPositive : .white)
+                        .foregroundColor(didConfirm ? .accentPositive : AppPalette.onBrand)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(
@@ -1158,7 +1158,7 @@ struct MaiaHealthKitContextIndicator: View {
     private var healthLabel: some View {
         Label("Apple Health included", systemImage: "applewatch")
             .appTextRole(.caption)
-            .foregroundStyle(AppPalette.brand)
+            .foregroundStyle(AppPalette.brandText)
     }
 
     private var healthSummaryText: some View {

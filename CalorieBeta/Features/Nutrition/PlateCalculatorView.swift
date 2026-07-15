@@ -226,7 +226,7 @@ struct PlateCalculatorView: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: icon)
                 .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(icon == "exclamationmark.triangle.fill" ? AppPalette.caution : AppPalette.brand)
+                .foregroundStyle(icon == "exclamationmark.triangle.fill" ? AppPalette.caution : AppPalette.brandText)
                 .frame(width: 36, height: 36)
                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
 

@@ -531,7 +531,7 @@ private struct WeeklyReportCardHeader: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .appFont(size: 15, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.brandForeground)
                 .frame(width: 36, height: 36)
                 .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
 
@@ -835,7 +835,7 @@ struct WeeklyRecapShareOptionsView: View {
                         ) {
                             Label("Share Week in Motion", systemImage: "square.and.arrow.up")
                                 .appFont(size: 16, weight: .bold)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(AppPalette.onBrand)
                                 .frame(maxWidth: .infinity, minHeight: 50)
                                 .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 8))
                         }
@@ -953,7 +953,7 @@ struct WeeklyRecapShareCard: View {
                                         .frame(width: 27, height: 27)
                                     Image(systemName: shareTrainingIcon(day))
                                         .font(.system(size: 10, weight: .bold))
-                                        .foregroundColor(day.hasTraining ? .white : Color.black.opacity(0.35))
+                                        .foregroundColor(day.hasTraining ? AppPalette.onSignal : Color.black.opacity(0.35))
                                 }
                                 Circle()
                                     .fill(day.nutritionLogged

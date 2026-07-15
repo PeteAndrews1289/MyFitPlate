@@ -78,7 +78,7 @@ struct FeatureTourView: View {
 
                 Button("Skip") { isPresented = false }
                     .appTextRole(.control)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .accessibilityIdentifier("feature_tour_skip")
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)

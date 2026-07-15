@@ -283,7 +283,7 @@ struct AddFoodView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: toggleSavedState) {
                         Image(systemName: isSavedAsCustom ? "star.fill" : "star")
-                            .foregroundColor(isSavedAsCustom ? AppPalette.achievement : AppPalette.brand)
+                            .foregroundColor(isSavedAsCustom ? AppPalette.achievement : AppPalette.brandText)
                     }
                 }
             }
@@ -832,7 +832,7 @@ private struct ManualBarcodeCorrectionCard: View {
             HStack(alignment: .top, spacing: AppSpacing.row) {
                 Image(systemName: "barcode.viewfinder")
                     .appTextRole(.control)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .frame(width: 40, height: 40)
                     .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                     .accessibilityHidden(true)

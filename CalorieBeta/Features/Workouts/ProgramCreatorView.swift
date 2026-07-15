@@ -206,7 +206,7 @@ private struct RoutineSelectionList: View {
                 VStack(alignment: .leading, spacing: AppSpacing.row) {
                     Image(systemName: "list.number")
                         .appFont(size: 24, weight: .semibold)
-                        .foregroundStyle(AppPalette.brand)
+                        .foregroundStyle(AppPalette.brandText)
                         .accessibilityHidden(true)
 
                     Text("Start the rotation")
@@ -254,7 +254,7 @@ private struct ProgramRoutineRow: View {
             Text("\(position)")
                 .appTextRole(.control)
                 .monospacedDigit()
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 40, height: 40)
                 .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                 .accessibilityHidden(true)

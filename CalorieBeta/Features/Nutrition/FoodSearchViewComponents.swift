@@ -62,7 +62,7 @@ struct FoodSearchRow: View {
                     Button(action: { onQuickLog(food) }) {
                         Image(systemName: isQuickLogged ? "checkmark" : "plus")
                             .appFont(size: 16, weight: .bold)
-                            .foregroundColor(isQuickLogged ? .white : .brandPrimary)
+                            .foregroundColor(isQuickLogged ? AppPalette.onBrand : .brandForeground)
                             .frame(width: 36, height: 36)
                             .background(isQuickLogged ? Color.accentPositive : Color.clear, in: Circle())
                             .overlay(
@@ -141,7 +141,7 @@ struct FoodHorizontalScroller: View {
                 if let headerActionTitle, let headerAction {
                     Button(headerActionTitle, action: headerAction)
                         .appTextRole(.secondary)
-                        .foregroundStyle(AppPalette.brand)
+                        .foregroundStyle(AppPalette.brandText)
                         .buttonStyle(.plain)
                         .frame(minHeight: 44)
                 }
@@ -372,7 +372,7 @@ struct FoodSearchEmptyState: View {
                     if let secondaryActionTitle, let secondaryAction {
                         Button(secondaryActionTitle, action: secondaryAction)
                             .appTextRole(.secondary)
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.brandText)
                             .buttonStyle(.plain)
                             .frame(minHeight: 44)
                     }

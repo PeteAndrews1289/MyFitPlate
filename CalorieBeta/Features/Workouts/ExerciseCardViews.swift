@@ -281,7 +281,7 @@ struct ExerciseCardView: View {
         if supersetPosition.isInSuperset, let label = supersetPosition.groupLabel {
             Label("Superset \(label)", systemImage: "link")
                 .appFont(size: 11, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.brandForeground)
                 .lineLimit(1)
                 .padding(.horizontal, AppSpacing.compact)
                 .padding(.vertical, 4)
@@ -372,7 +372,7 @@ private struct StrengthProgressionCoachCard: View {
                             .foregroundColor(.textPrimary)
                         Text(suggestion.headline)
                             .appFont(size: 12, weight: .bold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.brandForeground)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 2)
                             .background(Color.brandPrimary.opacity(0.12), in: Capsule())

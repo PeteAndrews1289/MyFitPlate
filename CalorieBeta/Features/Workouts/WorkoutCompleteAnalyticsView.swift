@@ -982,7 +982,7 @@ private struct SessionExerciseRow: View {
                     if volume > 0 {
                         Text("\(Int(volume).formatted()) lb volume")
                             .appTextRole(.caption)
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.brandText)
                     }
                 }
             } else {
@@ -993,7 +993,7 @@ private struct SessionExerciseRow: View {
                     if volume > 0 {
                         Text("\(Int(volume).formatted()) lb")
                             .appTextRole(.caption)
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.brandText)
                     }
                 }
             }

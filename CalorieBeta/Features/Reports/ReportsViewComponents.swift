@@ -88,7 +88,7 @@ struct SmartReportInsightCard: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: "sparkles")
                 .appFont(size: 16, weight: .bold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 40, height: 40)
                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
 

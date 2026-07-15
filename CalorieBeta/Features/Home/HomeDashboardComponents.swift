@@ -311,8 +311,11 @@ struct DiaryMetricPill: View {
     let color: Color
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var scaleReference: CGFloat = 100
 
     var body: some View {
+        let fontScale = min(max(scaleReference / 100, 0.95), 1.35)
+
         HStack(alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center, spacing: 10) {
             Image(systemName: icon)
                 .appFont(size: 13, weight: .bold)
@@ -322,25 +325,25 @@ struct DiaryMetricPill: View {
                     height: dynamicTypeSize.isAccessibilitySize ? 44 : 30
                 )
                 .background(color.opacity(0.12), in: Circle())
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .appFont(size: 11, weight: .semibold)
+            (
+                Text(verbatim: "\(title)\n")
+                    .font(.system(size: 11 * fontScale, weight: .semibold, design: .rounded))
                     .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("\(value) \(subtitle)")
-                    .appFont(size: 14, weight: .bold)
+                + Text(verbatim: "\(value) \(subtitle)")
+                    .font(.system(size: 14 * fontScale, weight: .bold, design: .rounded))
                     .foregroundColor(.textPrimary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                    .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.75)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
+            )
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("home_daily_metric_visual_\(title.lowercased())")
+            .accessibilityHidden(true)
         }
         .padding(10)
         .background(Color.backgroundSecondary.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("home_daily_metric_\(title.lowercased())")
         .accessibilityLabel("\(title): \(value) \(subtitle)")
     }
 }

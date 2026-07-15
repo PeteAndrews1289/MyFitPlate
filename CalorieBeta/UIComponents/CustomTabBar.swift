@@ -5,6 +5,7 @@ struct QuickLogActionButton: View {
     let action: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var buttonWidth: CGFloat {
         dynamicTypeSize.isAccessibilitySize ? 150 : 112
@@ -19,12 +20,12 @@ struct QuickLogActionButton: View {
             HStack(spacing: 7) {
                 Image(systemName: "plus")
                     .appFont(size: 15, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.brandForeground)
                     .rotationEffect(Angle(degrees: isActive ? 45 : 0))
                     .frame(width: 24, height: 24)
                     .overlay(
                         Circle()
-                            .stroke(Color.brandPrimary, lineWidth: 1.6)
+                            .stroke(Color.brandForeground, lineWidth: 1.6)
                     )
 
                 Text("Quick Log")
@@ -42,8 +43,8 @@ struct QuickLogActionButton: View {
                     .stroke(AppPalette.separator, lineWidth: 1)
             )
             .contentShape(Capsule())
-            .scaleEffect(isActive ? 0.96 : 1.0)
-            .animation(AppMotion.standard, value: isActive)
+            .scaleEffect(!reduceMotion && isActive ? 0.96 : 1.0)
+            .animation(reduceMotion ? nil : AppMotion.standard, value: isActive)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Quick Log")
@@ -65,6 +66,7 @@ struct CustomTabBar: View {
     ]
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var barHeight: CGFloat {
         dynamicTypeSize.isAccessibilitySize ? 76 : 64
@@ -97,9 +99,11 @@ struct CustomTabBar: View {
                     let isSelected = selectedIndex == index && !showingAddOptions
                     Button {
                         if showingAddOptions {
-                            withAnimation { showingAddOptions = false }
+                            withAnimation(reduceMotion ? nil : AppMotion.visibility) {
+                                showingAddOptions = false
+                            }
                         }
-                        withAnimation(AppMotion.standard) {
+                        withAnimation(reduceMotion ? nil : AppMotion.standard) {
                             self.selectedIndex = index
                         }
                     } label: {
@@ -119,11 +123,13 @@ struct CustomTabBar: View {
                                 .minimumScaleFactor(0.8)
                                 .frame(width: 64)
                         }
-                        .foregroundColor(isSelected ? Color.brandPrimary : Color(UIColor.secondaryLabel))
-                        .animation(AppMotion.visibility, value: isSelected)
+                        .foregroundColor(isSelected ? Color.brandForeground : Color(UIColor.secondaryLabel))
+                        .animation(reduceMotion ? nil : AppMotion.visibility, value: isSelected)
                     }
                     .buttonStyle(.plain)
                     .frame(maxWidth: .infinity)
+                    .accessibilityLabel(item.name)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
                     .accessibilityIdentifier("tab_\(item.name.lowercased().replacingOccurrences(of: " ", with: "_"))")
                 }
             }
@@ -140,6 +146,6 @@ struct CustomTabBar: View {
         // frames are identical and touches cannot fall through to Home content.
         .frame(maxWidth: .infinity)
         .frame(height: totalHeight)
-        .animation(AppMotion.visibility, value: showingAddOptions)
+        .animation(reduceMotion ? nil : AppMotion.visibility, value: showingAddOptions)
     }
 }

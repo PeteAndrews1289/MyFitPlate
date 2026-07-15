@@ -27,7 +27,7 @@ struct RunStoryPosterView: View {
                     ) {
                         Label("Share Story to Instagram / Messages", systemImage: "square.and.arrow.up")
                             .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.white)
+                            .foregroundColor(AppPalette.onBrand)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))

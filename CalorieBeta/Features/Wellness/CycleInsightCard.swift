@@ -12,7 +12,7 @@ struct MaiaCycleInsightCard: View {
             ) {
                 Image(systemName: "sparkles")
                     .appFont(size: 18, weight: .semibold)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .accessibilityHidden(true)
             }
 

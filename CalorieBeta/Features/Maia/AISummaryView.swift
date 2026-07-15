@@ -273,7 +273,7 @@ struct AIReviewItemRow: View {
             if showsEditIndicator {
                 Spacer(minLength: AppSpacing.compact)
                 Image(systemName: "pencil")
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .accessibilityHidden(true)
             }
         }

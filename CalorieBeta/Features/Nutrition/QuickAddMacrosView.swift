@@ -360,7 +360,7 @@ struct MenuScannerView: View {
                         }) {
                             Label("Scan menu", systemImage: "camera")
                                 .font(.headline)
-                                .foregroundColor(.white)
+                                .foregroundColor(AppPalette.onBrand)
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.brandPrimary)
@@ -502,7 +502,7 @@ struct MenuScannerView: View {
 
             Image(systemName: "plus.circle.fill")
                 .appFont(size: 26)
-                .foregroundColor(AppPalette.brand)
+                .foregroundColor(AppPalette.brandText)
         }
         .padding(14)
         .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))

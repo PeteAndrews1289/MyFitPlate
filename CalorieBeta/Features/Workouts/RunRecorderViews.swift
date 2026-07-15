@@ -444,7 +444,7 @@ struct RunRecorderView: View {
                 } label: {
                     Text("Open Settings")
                         .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppPalette.onBrand)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
                         .background(Color.brandPrimary, in: Capsule())
@@ -490,7 +490,7 @@ struct RunRecorderView: View {
                         systemImage: viewModel.audioCoachEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill"
                     )
                     .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(viewModel.audioCoachEnabled ? .brandPrimary : Color(UIColor.secondaryLabel))
+                    .foregroundColor(viewModel.audioCoachEnabled ? .brandForeground : Color(UIColor.secondaryLabel))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
                     .background(Color.backgroundSecondary, in: Capsule())
@@ -524,7 +524,7 @@ struct RunRecorderView: View {
                 } label: {
                     Text("Finish run")
                         .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppPalette.onBrand)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 20)
                         .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -666,7 +666,7 @@ struct RunWorkoutResultCard: View {
             AppSectionHeader(title: "Workout steps", subtitle: result.planName) {
                 Text("\(result.steps.filter(\.isComplete).count) of \(result.steps.count) complete")
                     .appTextRole(.caption)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .monospacedDigit()
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -787,12 +787,12 @@ private struct RunRecorderSummary: View {
                     if setRecord {
                         Text("🏅 New record — see the Records card in your history.")
                             .appFont(size: 13, weight: .semibold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.brandForeground)
                     }
                     if let workoutPlanName {
                         Text(workoutPlanName)
                             .appFont(size: 13, weight: .semibold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.brandForeground)
                     }
                     Text("Saved to Apple Health — it's in your run history now.")
                         .appFont(size: 13)
@@ -839,7 +839,7 @@ private struct RunRecorderSummary: View {
                 } label: {
                     Text("Done")
                         .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppPalette.onBrand)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))

@@ -743,7 +743,7 @@ struct FoodSearchView: View {
     private var voiceRecordingBanner: some View {
         HStack(spacing: 12) {
             Image(systemName: voiceLoggingService.state == .recording ? "waveform.circle.fill" : "sparkles")
-                .foregroundColor(.white)
+                .foregroundColor(AppPalette.onSignal)
                 .font(.system(size: 18, weight: .bold))
                 .frame(width: 36, height: 36)
                 .background(Color.accentProtein, in: Circle())
@@ -766,7 +766,7 @@ struct FoodSearchView: View {
                 } label: {
                     Text("Done")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppPalette.onSignal)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(Color.accentProtein, in: Capsule())
@@ -841,7 +841,7 @@ struct BarcodeMissRecoveryView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Image(systemName: "barcode.viewfinder")
                         .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
                         .frame(width: 54, height: 54)
                         .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 

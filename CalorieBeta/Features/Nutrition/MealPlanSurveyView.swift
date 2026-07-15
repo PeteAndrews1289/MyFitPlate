@@ -105,7 +105,7 @@ struct MealPlanSurveyView: View {
                 Spacer()
                 Text("\(Int(progress * 100))%")
                     .appTextRole(.caption)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .monospacedDigit()
             }
 
@@ -140,7 +140,7 @@ struct MealPlanSurveyView: View {
         return AppScreenHeader(title: step.title, subtitle: step.subtitle) {
             Image(systemName: step.icon)
                 .appFont(size: 20, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 44, height: 44)
                 .accessibilityHidden(true)
         }
@@ -388,7 +388,7 @@ private struct SurveySelectionView: View {
         HStack(spacing: AppSpacing.row) {
             Image(systemName: "plus")
                 .appFont(size: 16, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .accessibilityHidden(true)
             TextField(customPlaceholder, text: $customItem)
                 .appTextRole(.body)
@@ -417,7 +417,7 @@ private struct SurveyChoiceButton: View {
                 if let icon {
                     Image(systemName: icon)
                         .appFont(size: 16, weight: .semibold)
-                        .foregroundStyle(isSelected ? AppPalette.brand : .secondary)
+                        .foregroundStyle(isSelected ? AppPalette.brandText : .secondary)
                         .accessibilityHidden(true)
                 }
 
@@ -430,7 +430,7 @@ private struct SurveyChoiceButton: View {
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .appFont(size: 18, weight: .semibold)
-                    .foregroundStyle(isSelected ? AppPalette.brand : .secondary)
+                    .foregroundStyle(isSelected ? AppPalette.brandText : .secondary)
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, AppSpacing.compact)
@@ -586,7 +586,7 @@ private struct CookingStyleRow: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: style.icon)
                 .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(isSelected ? AppPalette.brand : .secondary)
+                .foregroundStyle(isSelected ? AppPalette.brandText : .secondary)
                 .frame(width: 40, height: 40)
                 .accessibilityHidden(true)
 
@@ -604,7 +604,7 @@ private struct CookingStyleRow: View {
 
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(isSelected ? AppPalette.brand : .secondary)
+                .foregroundStyle(isSelected ? AppPalette.brandText : .secondary)
                 .accessibilityHidden(true)
         }
         .padding(.vertical, AppSpacing.compact)

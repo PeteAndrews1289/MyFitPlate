@@ -608,6 +608,12 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   widget, and Live Activity colors use the semantic vocabulary; and the visual guard now covers
   top-level app, widget, Live Activity, and shared Core presentation paths. Standard and dark
   accessibility-XXXL captures were reviewed across the touched and representative screen families.
+- [x] Complete the post-QC contrast, motion, and accessibility refinement pass. Phone, widget, and
+  Watch surfaces now share adaptive high-contrast brand foregrounds and dark labels on bright
+  signal fills; shared interactions honor Reduce Motion and Increased Contrast; Home's Daily Log
+  preserves compact visual hierarchy with complete VoiceOver labels and natural wrapping; and the
+  source guard now blocks low-contrast foreground drift. Representative standard and dark
+  accessibility-XXXL captures passed review across Home, Maia, Meal Plan, training, and Recovery.
 - [x] Complete the clean local 2.3 regression and unsigned Release audit.
 - [ ] Complete Peter's focused physical-device acceptance and the signed archive from the intended
   commit, following `docs/device-test-2.3.md`.

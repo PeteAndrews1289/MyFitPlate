@@ -109,7 +109,7 @@ private struct DisclaimerRow: View {
                             Text(sourceText)
                         }
                         .appTextRole(.secondary)
-                        .foregroundStyle(AppPalette.brand)
+                        .foregroundStyle(AppPalette.brandText)
                         .padding(.top, 4)
                     }
                 }

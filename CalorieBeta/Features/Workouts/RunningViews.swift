@@ -104,13 +104,13 @@ struct RunHistoryView: View {
                         showingGearManager = true
                     } label: {
                         Image(systemName: "shoeprints.fill")
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.brandForeground)
                     }
                     .accessibilityLabel("Shoe Gear Manager")
 
                     NavigationLink(destination: RunMapView(runs: viewModel.runs)) {
                         Image(systemName: "map")
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.brandForeground)
                     }
                     .accessibilityLabel("Route map")
                 }
@@ -198,7 +198,7 @@ struct RunHistoryView: View {
         VStack(spacing: AppSpacing.compact) {
             Image(systemName: "figure.run")
                 .appFont(size: 34, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .accessibilityHidden(true)
             Text("No runs yet")
                 .appTextRole(.sectionTitle)
@@ -365,7 +365,7 @@ private struct RunWorkoutPickerSheet: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .appFont(size: 18, weight: .bold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.brandForeground)
                 .frame(width: 40, height: 40)
                 .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
@@ -974,7 +974,7 @@ private struct RunRow: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: run.isIndoor ? "figure.run.treadmill" : "figure.run")
                 .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 40, height: 40)
                 .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                 .accessibilityHidden(true)
@@ -1135,7 +1135,7 @@ struct RunDetailView: View {
                     showingStoryPoster = true
                 } label: {
                     Image(systemName: "square.and.arrow.up")
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
                 }
                 .accessibilityLabel("Share Run Story")
             }
@@ -1220,7 +1220,7 @@ struct RunDetailView: View {
         } label: {
             Label("Change", systemImage: "chevron.up.chevron.down")
                 .appTextRole(.caption)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityLabel("Change running shoe")
@@ -1244,7 +1244,7 @@ struct RunDetailView: View {
                             Spacer(minLength: AppSpacing.group)
                             Text(prPace)
                                 .appTextRole(.control)
-                                .foregroundStyle(AppPalette.brand)
+                                .foregroundStyle(AppPalette.brandText)
                                 .monospacedDigit()
                         }
                     }
@@ -1262,7 +1262,7 @@ struct RunDetailView: View {
                                 .foregroundStyle(.secondary)
                             Text(prPace)
                                 .appTextRole(.control)
-                                .foregroundStyle(AppPalette.brand)
+                                .foregroundStyle(AppPalette.brandText)
                                 .monospacedDigit()
                         }
                     }
@@ -1276,7 +1276,7 @@ struct RunDetailView: View {
     private func ghostPaceIcon(_ comparison: RunStats.GhostPaceComparison) -> some View {
         Image(systemName: comparison.isPR ? "trophy.fill" : "ghost.fill")
             .appFont(size: 20, weight: .semibold)
-            .foregroundStyle(comparison.isPR ? AppPalette.achievement : AppPalette.brand)
+            .foregroundStyle(comparison.isPR ? AppPalette.achievement : AppPalette.brandText)
             .frame(width: 42, height: 42)
             .background(
                 (comparison.isPR ? AppPalette.achievement : AppPalette.brand).opacity(0.12),

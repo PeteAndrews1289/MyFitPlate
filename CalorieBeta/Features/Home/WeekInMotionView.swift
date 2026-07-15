@@ -91,7 +91,7 @@ struct WeekInMotionView: View {
                         Image(systemName: "arrow.right")
                             .appFont(size: 13, weight: .bold)
                     }
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.brandForeground)
                     .padding(.vertical, 8)
                     .contentShape(Rectangle())
                 }
@@ -106,7 +106,7 @@ struct WeekInMotionView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Week in Motion")
                     .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.brandForeground)
                     .textCase(.uppercase)
                 Spacer(minLength: 12)
                 Text(weekRangeText)
@@ -164,13 +164,13 @@ struct WeekInMotionView: View {
                     .frame(width: 34, height: 34)
                 Image(systemName: trainingIcon(for: day))
                     .appFont(size: 13, weight: .bold)
-                    .foregroundColor(day.hasTraining ? .white : Color(UIColor.secondaryLabel))
+                    .foregroundColor(day.hasTraining ? AppPalette.onSignal : Color(UIColor.secondaryLabel))
             }
             .overlay(alignment: .topTrailing) {
                 if day.isDemandingStrengthDay {
                     Image(systemName: "flame.fill")
                         .appFont(size: 6, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppPalette.onSignal)
                         .frame(width: 12, height: 12)
                         .background(AppPalette.caution, in: Circle())
                         .offset(x: 3, y: -3)

@@ -20,7 +20,7 @@ struct WorkoutInsightRowView: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: iconName)
                 .font(.body.weight(.semibold))
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 34, height: 34)
                 .background(AppPalette.brand.opacity(0.1), in: Circle())
                 .accessibilityHidden(true)

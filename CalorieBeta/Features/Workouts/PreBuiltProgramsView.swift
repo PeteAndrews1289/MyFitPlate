@@ -432,13 +432,14 @@ private struct ProgramCatalogSearchCard: View {
 
 private struct ProgramCatalogFilterBar: View {
     @Binding var selectedFilter: ProgramCatalogFilter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(ProgramCatalogFilter.allCases) { filter in
                     Button {
-                        withAnimation(.easeInOut(duration: 0.18)) {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
                             selectedFilter = filter
                         }
                     } label: {
@@ -448,7 +449,7 @@ private struct ProgramCatalogFilterBar: View {
                             Text(filter.rawValue)
                                 .appFont(size: 12, weight: .bold)
                         }
-                        .foregroundColor(selectedFilter == filter ? .white : .brandPrimary)
+                        .foregroundColor(selectedFilter == filter ? AppPalette.onBrand : .brandForeground)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         .background(selectedFilter == filter ? Color.brandPrimary : Color.brandPrimary.opacity(0.10), in: Capsule())
@@ -466,7 +467,7 @@ private struct ProgramCatalogEmptyState: View {
         VStack(spacing: 12) {
             Image(systemName: "slider.horizontal.3")
                 .appFont(size: 28, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.brandForeground)
                 .frame(width: 58, height: 58)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
 
@@ -532,7 +533,7 @@ private struct PreBuiltProgramStartDateSheet: View {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: "calendar.badge.clock")
                             .appFont(size: 18, weight: .bold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.brandForeground)
                             .frame(width: 44, height: 44)
                             .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
 
@@ -648,7 +649,7 @@ private struct PreBuiltProgramsHeader: View {
                 VStack(spacing: 0) {
                     Text("\(filteredCount)")
                         .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
 
                     Text("of \(programCount)")
                         .appFont(size: 10, weight: .semibold)

@@ -391,7 +391,7 @@ private struct WorkoutHistoryHeaderCard: View {
             ) {
                 Text(totalSessionCount == sessionCount ? "\(sessionCount) shown" : "\(sessionCount) of \(totalSessionCount)")
                     .appTextRole(.caption)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .padding(.horizontal, AppSpacing.row)
                     .frame(minHeight: 36)
                     .background(
@@ -521,7 +521,7 @@ private struct WorkoutExerciseFilterChip: View {
                     .appTextRole(.caption)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
             }
-            .foregroundStyle(isSelected ? Color.white : AppPalette.text)
+            .foregroundStyle(isSelected ? AppPalette.onBrand : AppPalette.text)
             .padding(.horizontal, AppSpacing.row)
             .padding(.vertical, AppSpacing.compact)
             .frame(
@@ -656,7 +656,7 @@ struct WorkoutHistoryRow: View {
         VStack(spacing: 2) {
             Text(log.date.formatted(.dateTime.day()))
                 .appTextRole(.sectionTitle)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
             Text(log.date.formatted(.dateTime.month(.abbreviated)))
                 .appTextRole(.caption)
                 .foregroundStyle(.secondary)
@@ -717,7 +717,7 @@ private struct WorkoutHistoryNoMatchesState: View {
         VStack(spacing: AppSpacing.row) {
             Image(systemName: "line.3.horizontal.decrease.circle")
                 .appFont(size: 34, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .accessibilityHidden(true)
 
             Text("No Matches")
@@ -744,7 +744,7 @@ private struct WorkoutHistoryEmptyState: View {
         VStack(spacing: AppSpacing.row) {
             Image(systemName: "clock.arrow.circlepath")
                 .appFont(size: 40, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .accessibilityHidden(true)
 
             Text("No Workout History")

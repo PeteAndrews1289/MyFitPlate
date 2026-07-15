@@ -410,7 +410,7 @@ private struct AddMealToPlanEmptyState: View {
         VStack(spacing: 16) {
             Image(systemName: "book.closed.fill")
                 .appFont(size: 40, weight: .bold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 76, height: 76)
                 .background(AppPalette.brand.opacity(0.10), in: Circle())
 

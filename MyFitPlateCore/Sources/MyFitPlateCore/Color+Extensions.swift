@@ -4,6 +4,11 @@ public extension Color {
     static var brandPrimary: Color {
         Color("BrandPrimary", bundle: .main)
     }
+    /// High-contrast brand color for text, symbols, and outlines. Keep `brandPrimary`
+    /// for filled actions, progress, and decorative emphasis.
+    static var brandForeground: Color {
+        Color("AccentPositiveText", bundle: .main)
+    }
     static var accentPositive: Color {
         Color("AccentPositive", bundle: .main)
     }

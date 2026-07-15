@@ -25,7 +25,7 @@ struct TrainingHeroCard: View {
 
                 Image(systemName: "figure.strengthtraining.traditional")
                     .appFont(size: 18, weight: .bold)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .frame(width: 42, height: 42)
                     .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
             }
@@ -219,11 +219,11 @@ struct TrainingWeekDayChip: View {
         VStack(spacing: 5) {
             Text(label)
                 .appTextRole(.caption)
-                .foregroundStyle(isNext ? AppPalette.brand : Color.secondary)
+                .foregroundStyle(isNext ? AppPalette.brandText : Color.secondary)
 
             Text(detail ?? "-")
                 .appFont(size: 11, weight: .bold)
-                .foregroundStyle(isNext ? AppPalette.brand : (isActive ? AppPalette.text : Color.secondary))
+                .foregroundStyle(isNext ? AppPalette.brandText : (isActive ? AppPalette.text : Color.secondary))
                 .frame(width: 30, height: 30)
                 .background(
                     Circle()
@@ -252,7 +252,7 @@ struct TrainingDecisionCard: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: nextWorkout == nil ? "point.topleft.down.curvedto.point.bottomright.up" : "play.circle.fill")
                     .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.brandForeground)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
@@ -286,7 +286,7 @@ struct TrainingDecisionCard: View {
 
                         Label("Start", systemImage: "play.fill")
                             .appFont(size: 14, weight: .bold)
-                            .foregroundColor(.white)
+                            .foregroundColor(AppPalette.onBrand)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
                             .background(Color.brandPrimary, in: Capsule())
@@ -417,7 +417,7 @@ struct ActiveProgramManagementCard<Destination: View>: View {
             AppSectionHeader(title: "Current Program", subtitle: program.name) {
                 Text(progressText)
                     .appTextRole(.caption)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(AppPalette.brand.opacity(0.10), in: Capsule())
@@ -492,7 +492,7 @@ struct RoutineEmptyState: View {
         VStack(spacing: 12) {
             Image(systemName: "plus.square.dashed")
                 .appFont(size: 30, weight: .semibold)
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.brandForeground)
                 .frame(width: 60, height: 60)
                 .background(Color.brandPrimary.opacity(0.12), in: Circle())
 

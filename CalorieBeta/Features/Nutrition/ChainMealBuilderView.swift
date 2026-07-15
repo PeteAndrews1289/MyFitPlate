@@ -164,7 +164,7 @@ public struct ChainMealBuilderView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Reset") { selections.removeAll() }
                         .appFont(size: 14, weight: .semibold)
-                        .foregroundColor(selections.isEmpty ? .secondary : .brandPrimary)
+                        .foregroundColor(selections.isEmpty ? .secondary : .brandForeground)
                         .disabled(selections.isEmpty)
                 }
             }
@@ -514,7 +514,7 @@ public struct ChainMealBuilderView: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .appTextRole(.sectionTitle)
-                .foregroundStyle(isSelected ? AppPalette.brand : Color.secondary)
+                .foregroundStyle(isSelected ? AppPalette.brandText : Color.secondary)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(ingredient.name)
@@ -604,7 +604,7 @@ public struct ChainMealBuilderView: View {
                                 : AppPalette.canvas,
                                 in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                             )
-                            .foregroundStyle(currentPortion == portion ? AppPalette.brand : AppPalette.text)
+                            .foregroundStyle(currentPortion == portion ? AppPalette.brandText : AppPalette.text)
                     }
                     .buttonStyle(.plain)
                 }

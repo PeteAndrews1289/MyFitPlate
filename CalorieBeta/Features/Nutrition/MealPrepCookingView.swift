@@ -107,7 +107,7 @@ struct MealPrepCookingView: View {
         HStack(spacing: AppSpacing.row) {
             Image(systemName: keepScreenOn ? "lightbulb.fill" : "lightbulb.slash")
                 .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(keepScreenOn ? AppPalette.brand : .secondary)
+                .foregroundStyle(keepScreenOn ? AppPalette.brandText : .secondary)
                 .frame(width: 40, height: 40)
                 .background(
                     AppPalette.control,
@@ -269,14 +269,14 @@ struct MealPrepCookingView: View {
             HStack(alignment: .top, spacing: AppSpacing.row) {
                 Image(systemName: isComplete ? "checkmark.circle.fill" : "circle")
                     .appFont(size: 20, weight: .semibold)
-                    .foregroundStyle(isComplete ? Color.accentPositive : AppPalette.brand)
+                    .foregroundStyle(isComplete ? Color.accentPositive : AppPalette.brandText)
                     .frame(width: 28)
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(step.recipeName)
                         .appTextRole(.caption)
-                        .foregroundStyle(isComplete ? Color.accentPositive : AppPalette.brand)
+                        .foregroundStyle(isComplete ? Color.accentPositive : AppPalette.brandText)
                     Text(step.step)
                         .appTextRole(.body)
                         .foregroundStyle(AppPalette.text)
@@ -440,7 +440,7 @@ private struct MealPrepEmptyState: View {
         VStack(spacing: AppSpacing.row) {
             Image(systemName: icon)
                 .appFont(size: 24, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .accessibilityHidden(true)
             Text(title)
                 .appTextRole(.sectionTitle)

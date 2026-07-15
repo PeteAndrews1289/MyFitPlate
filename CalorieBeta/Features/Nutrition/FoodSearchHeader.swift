@@ -41,7 +41,7 @@ struct FoodSearchHeader: View {
                 Button(action: onMic) {
                     Image(systemName: isRecording ? "mic.fill" : "mic")
                         .appTextRole(.control)
-                        .foregroundStyle(isRecording ? Color.accentProtein : AppPalette.brand)
+                        .foregroundStyle(isRecording ? Color.accentProtein : AppPalette.brandText)
                         .frame(width: 36, height: 36)
                         .background(isRecording ? Color.accentProtein.opacity(0.15) : Color.clear, in: Circle())
                 }

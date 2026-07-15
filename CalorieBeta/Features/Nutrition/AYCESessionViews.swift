@@ -408,7 +408,7 @@ private struct AYCEStartView: View {
                             Spacer(minLength: 0)
                             Image(systemName: cuisine == option ? "checkmark.circle.fill" : "circle")
                                 .appFont(size: 18, weight: .semibold)
-                                .foregroundStyle(cuisine == option ? AppPalette.brand : .secondary)
+                                .foregroundStyle(cuisine == option ? AppPalette.brandText : .secondary)
                                 .accessibilityHidden(true)
                         }
                         .padding(.horizontal, AppSpacing.group)
@@ -1379,7 +1379,7 @@ private struct AYCESummaryView: View {
         HStack(alignment: .top, spacing: AppSpacing.group) {
             Image(systemName: won ? "trophy.fill" : "fork.knife")
                 .appFont(size: 26, weight: .semibold)
-                .foregroundStyle(won ? AppPalette.achievement : AppPalette.brand)
+                .foregroundStyle(won ? AppPalette.achievement : AppPalette.brandText)
                 .frame(width: 56, height: 56)
                 .background(
                     (won ? AppPalette.achievement : AppPalette.brand).opacity(0.10),
@@ -1394,7 +1394,7 @@ private struct AYCESummaryView: View {
                 if let kitchenWin = AYCERules.kitchenWinLine(session: session) {
                     Text(kitchenWin)
                         .appTextRole(.secondary)
-                        .foregroundStyle(AppPalette.brand)
+                        .foregroundStyle(AppPalette.brandText)
                 }
             }
         }

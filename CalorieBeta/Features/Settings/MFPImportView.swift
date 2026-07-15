@@ -255,7 +255,7 @@ struct MFPImportView: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Text("\(number)")
                 .appTextRole(.caption)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 28, height: 28)
                 .background(AppPalette.brand.opacity(0.10), in: Circle())
             Text(text)
@@ -349,7 +349,7 @@ struct MFPImportView: View {
             ) {
                 Image(systemName: "checkmark.circle.fill")
                     .appTextRole(.screenTitle)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .accessibilityHidden(true)
             }
 

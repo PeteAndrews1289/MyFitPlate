@@ -272,7 +272,7 @@ struct RoutineEmptyBuilderCard: View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             Image(systemName: "figure.strengthtraining.traditional")
                 .appFont(size: 28, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .accessibilityHidden(true)
 
             Text("Build the first block")
@@ -362,7 +362,7 @@ struct ExercisePickerRow: View {
 
                 Image(systemName: "plus")
                     .appFont(size: 14, weight: .semibold)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
                     .accessibilityHidden(true)
             }
             .padding(AppSpacing.row)
@@ -381,7 +381,7 @@ struct SectionLabel: View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .appFont(size: 13, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .accessibilityHidden(true)
             Text(title)
                 .appTextRole(.sectionTitle)
@@ -508,7 +508,7 @@ struct ExerciseSetEditorView: View {
                                 applyTargetToAllSets()
                             }
                             .appTextRole(.secondary)
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.brandText)
                         }
 
                         VStack(spacing: AppSpacing.compact) {

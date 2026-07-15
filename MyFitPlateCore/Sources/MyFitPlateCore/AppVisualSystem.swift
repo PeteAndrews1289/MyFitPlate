@@ -102,6 +102,9 @@ public enum AppPalette {
     public static var surface: Color { Color("BackgroundSecondary", bundle: .main) }
     public static var control: Color { Color("ControlBackground", bundle: .main) }
     public static var brand: Color { Color("BrandPrimary", bundle: .main) }
+    public static var brandText: Color { Color("AccentPositiveText", bundle: .main) }
+    public static var onSignal: Color { Color.black.opacity(0.86) }
+    public static var onBrand: Color { onSignal }
     public static var text: Color { Color("TextPrimary", bundle: .main) }
     public static var separator: Color { Color.primary.opacity(0.10) }
 
@@ -222,6 +225,7 @@ public struct AppActionButtonStyle: ButtonStyle {
     public let fillsWidth: Bool
 
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(_ role: AppActionRole = .primary, fillsWidth: Bool = true) {
         self.role = role
@@ -245,15 +249,16 @@ public struct AppActionButtonStyle: ButtonStyle {
             }
             .contentShape(RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
             .opacity(isEnabled ? 1 : 0.45)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(AppMotion.standard, value: configuration.isPressed)
+            .scaleEffect(!reduceMotion && configuration.isPressed ? 0.98 : 1)
+            .animation(reduceMotion ? nil : AppMotion.standard, value: configuration.isPressed)
     }
 
     private var foregroundColor: Color {
         switch role {
-        case .primary, .destructive: .white
+        case .primary: AppPalette.onBrand
+        case .destructive: .white
         case .secondary: AppPalette.text
-        case .ghost: AppPalette.brand
+        case .ghost: AppPalette.brandText
         }
     }
 
@@ -270,7 +275,7 @@ public struct AppActionButtonStyle: ButtonStyle {
         switch role {
         case .primary, .destructive: .clear
         case .secondary: AppPalette.separator
-        case .ghost: AppPalette.brand.opacity(0.45)
+        case .ghost: AppPalette.brandText.opacity(0.55)
         }
     }
 
@@ -290,6 +295,7 @@ public enum AppIconButtonRole: Sendable {
 
 public struct AppIconButtonStyle: ButtonStyle {
     public let role: AppIconButtonRole
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(_ role: AppIconButtonRole = .neutral) {
         self.role = role
@@ -302,12 +308,12 @@ public struct AppIconButtonStyle: ButtonStyle {
             .foregroundStyle(foregroundColor)
             .background(backgroundColor, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
             .contentShape(Rectangle())
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(AppMotion.standard, value: configuration.isPressed)
+            .scaleEffect(!reduceMotion && configuration.isPressed ? 0.96 : 1)
+            .animation(reduceMotion ? nil : AppMotion.standard, value: configuration.isPressed)
     }
 
     private var foregroundColor: Color {
-        role == .brand ? AppPalette.brand : AppPalette.text
+        role == .brand ? AppPalette.brandText : AppPalette.text
     }
 
     private var backgroundColor: Color {
@@ -477,6 +483,9 @@ public struct AppStatusBadge: View {
     public let icon: String?
     public let role: AppSignalRole
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+
     public init(_ title: String, icon: String? = nil, role: AppSignalRole) {
         self.title = title
         self.icon = icon
@@ -487,25 +496,39 @@ public struct AppStatusBadge: View {
         HStack(spacing: 5) {
             if let icon {
                 Image(systemName: icon)
-                    .foregroundStyle(role.color)
+                    .foregroundStyle(accentColor)
                     .accessibilityHidden(true)
             }
 
             Text(title)
                 .foregroundStyle(AppPalette.text)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.82)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .appFont(size: 11, weight: .semibold)
         .padding(.horizontal, AppSpacing.compact)
         .padding(.vertical, 5)
-        .background(role.color.opacity(0.12), in: Capsule())
+        .background(
+            role.color.opacity(colorSchemeContrast == .increased ? 0.20 : 0.12),
+            in: Capsule()
+        )
         .overlay {
             Capsule()
-                .stroke(role.color.opacity(0.28), lineWidth: 0.5)
+                .stroke(
+                    accentColor.opacity(colorSchemeContrast == .increased ? 0.70 : 0.35),
+                    lineWidth: colorSchemeContrast == .increased ? 1 : 0.5
+                )
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
+    }
+
+    private var accentColor: Color {
+        switch role {
+        case .current: AppPalette.brandText
+        default: role.color
+        }
     }
 }
 
@@ -515,6 +538,9 @@ public struct AppProgressTrack: View {
     public let progress: Double
     public let role: AppSignalRole
     public let height: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     public init(progress: Double, role: AppSignalRole = .current, height: CGFloat = 6) {
         self.progress = progress
@@ -526,7 +552,7 @@ public struct AppProgressTrack: View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(role.color.opacity(0.14))
+                    .fill(role.color.opacity(colorSchemeContrast == .increased ? 0.25 : 0.14))
 
                 Capsule()
                     .fill(role.color)
@@ -534,7 +560,7 @@ public struct AppProgressTrack: View {
             }
         }
         .frame(height: height)
-        .animation(AppMotion.standard, value: progress)
+        .animation(reduceMotion ? nil : AppMotion.standard, value: progress)
         .accessibilityHidden(true)
     }
 }

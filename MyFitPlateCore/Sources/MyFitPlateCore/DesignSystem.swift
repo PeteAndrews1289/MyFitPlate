@@ -47,11 +47,16 @@ public struct AppTextFieldStyle: TextFieldStyle {
 }
 
 public struct AnimatedCardButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .animation(.interpolatingSpring(stiffness: 300, damping: 20), value: configuration.isPressed)
+            .scaleEffect(!reduceMotion && configuration.isPressed ? 0.96 : 1.0)
+            .animation(
+                reduceMotion ? nil : .interpolatingSpring(stiffness: 300, damping: 20),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -77,7 +82,7 @@ public struct GuidanceEmptyState: View {
         VStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundColor(.brandPrimary)
+                .foregroundColor(.brandForeground)
                 .frame(width: 58, height: 58)
                 .background(Color.brandPrimary.opacity(0.10), in: Circle())
 
@@ -96,7 +101,7 @@ public struct GuidanceEmptyState: View {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundColor(AppPalette.onBrand)
                     .padding(.horizontal, 22)
                     .padding(.vertical, 11)
                     .background(Color.brandPrimary, in: Capsule())
@@ -111,10 +116,13 @@ public struct GuidanceEmptyState: View {
 
 public struct SkeletonModifier: ViewModifier {
     @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public func body(content: Content) -> some View {
         content
-            .opacity(pulse ? 0.4 : 0.85)
+            .opacity(reduceMotion ? 0.68 : (pulse ? 0.4 : 0.85))
             .onAppear {
+                guard !reduceMotion else { return }
                 withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
                     pulse = true
                 }
@@ -148,20 +156,26 @@ public struct SkeletonBlock: View {
 
 public struct ShimmerEffect: ViewModifier {
     @State private var isInitialState = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    @ViewBuilder
     public func body(content: Content) -> some View {
-        content
-            .mask(
-                LinearGradient(
-                    gradient: Gradient(colors: [.black.opacity(0.4), .black, .black.opacity(0.4)]),
-                    startPoint: (isInitialState ? .init(x: -0.3, y: -0.3) : .init(x: 1, y: 1)),
-                    endPoint: (isInitialState ? .init(x: 0, y: 0) : .init(x: 1.3, y: 1.3))
+        if reduceMotion {
+            content.opacity(0.72)
+        } else {
+            content
+                .mask(
+                    LinearGradient(
+                        gradient: Gradient(colors: [.black.opacity(0.4), .black, .black.opacity(0.4)]),
+                        startPoint: (isInitialState ? .init(x: -0.3, y: -0.3) : .init(x: 1, y: 1)),
+                        endPoint: (isInitialState ? .init(x: 0, y: 0) : .init(x: 1.3, y: 1.3))
+                    )
                 )
-            )
-            .animation(.linear(duration: 1.5).delay(0.25).repeatForever(autoreverses: false), value: isInitialState)
-            .onAppear {
-                isInitialState = false
-            }
+                .animation(.linear(duration: 1.5).delay(0.25).repeatForever(autoreverses: false), value: isInitialState)
+                .onAppear {
+                    isInitialState = false
+                }
+        }
     }
 }
 

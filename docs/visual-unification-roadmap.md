@@ -514,6 +514,33 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   MyFitPlateCore passed 1,108/1,108 tests, the app unit suite passed 109/109 XCTest cases plus its
   Swift Testing case, and the final focused visual regression run passed without failures.
 
+### Batch 26 - Contrast, Motion, and Accessibility Refinement (complete)
+
+- Added adaptive `brandText`, `onBrand`, and `onSignal` roles so green and bright semantic fills use
+  a deliberately dark foreground while standalone brand-colored text remains legible in light,
+  dark, and Increased Contrast appearances. The same contract now exists in the phone app, widget,
+  and Watch assets rather than relying on extension-local approximations.
+- Migrated remaining direct brand foregrounds and bright-fill white labels onto the shared roles.
+  Chart marks and exported data art retain their measured colors; actions, selected controls,
+  timeline nodes, status symbols, and completion states no longer depend on low-contrast pairings.
+- Updated shared buttons, cards, tab interactions, scanner feedback, progress surfaces, and Living
+  Day transitions to honor Reduce Motion. Increased Contrast receives stronger borders, tracks,
+  and status fills without changing the underlying information hierarchy.
+- Refined Home's accessibility-size food rows and Daily Log metrics. Macro/trust context stacks when
+  space is constrained, emoji identity stays at a stable decorative size, and each Daily Log metric
+  exposes one explicit VoiceOver label while its visual text wraps naturally. The iOS 26 audit's
+  verified hidden-child false positives are filtered only for those exact visual strings, following
+  Apple's supported issue-filter callback; every other visible Home element remains audited.
+- Stabilized screenshot fixtures for grocery plan provenance and made Meal Plan and Maia selectors
+  depend on their semantic identifiers rather than transient automation element types. The source
+  guard now scans phone, widget, Watch, Live Activity, and Core for vivid foreground and conditional
+  white-label regressions.
+- The visual source guard, SwiftLint, and `git diff --check` passed. MyFitPlateCore passed
+  1,108/1,108 tests, the app suite passed 110/110, Home passed its dark Accessibility XXXL audit,
+  and standard captures passed for Living Day, Meal Plan, Maia action cards, the live workout
+  player, and Recovery Field. The final generic simulator build passed across phone, Watch, widget,
+  and Live Activity targets.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
@@ -523,9 +550,10 @@ weekly-challenge surfaces. Smart Pantry, pantry recipe drafts, receipt review, A
 Value Radar, meal-planning support, Plate Loading, Nutrition Trends, Maia Insights, and Maia's
 structured action cards now join them. The reachable migration queue and legacy-surface retirement
 are complete, and the clean local 2.3 release gate is green. The semantic signal sweep, training
-identity pass, and final cross-target quality-control sweep close the color-coordination gap across
-the reachable app, with Recovery Field as the clearest expression of signal, evidence, and action.
-The remaining work is Peter's focused physical-device acceptance and signed archive,
+identity pass, whole-app quality-control sweep, and final
+contrast/motion/accessibility refinement close the color-coordination gap across the reachable app,
+with Recovery Field as the clearest expression of signal, evidence, and action. The remaining work
+is Peter's focused physical-device acceptance and signed archive,
 rollout-dependent removal of the fallback Home, and gradual expansion of token-drift checks;
 unfinished public social surfaces remain explicitly gated rather than being polished into
 accidental release scope.

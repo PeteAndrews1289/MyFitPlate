@@ -235,7 +235,7 @@ struct WeekDaySelector: View {
                 .appTextRole(usesFullName ? .secondary : .control)
                 .frame(width: usesFullName ? nil : 42)
                 .frame(maxWidth: usesFullName ? .infinity : nil, minHeight: 42)
-                .foregroundStyle(isSelected ? Color.white : AppPalette.text)
+                .foregroundStyle(isSelected ? AppPalette.onBrand : AppPalette.text)
                 .background(
                     isSelected ? AppPalette.brand : AppPalette.control,
                     in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)

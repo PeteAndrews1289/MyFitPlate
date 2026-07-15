@@ -152,7 +152,7 @@ struct AuthIntro: View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             Image(systemName: icon)
                 .appTextRole(.sectionTitle)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 48, height: 48)
                 .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                 .accessibilityHidden(true)
@@ -239,7 +239,7 @@ private struct AuthFieldShell<Content: View>: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: icon)
                 .appTextRole(.control)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 40, height: 40)
                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                 .accessibilityHidden(true)

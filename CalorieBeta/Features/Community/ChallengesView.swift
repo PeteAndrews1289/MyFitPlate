@@ -159,7 +159,7 @@ private struct ChallengeProgressRow: View {
         HStack(spacing: AppSpacing.row) {
             Image(systemName: challenge.isCompleted ? "checkmark" : "flag.fill")
                 .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(challenge.isCompleted ? AppPalette.brand : AppPalette.effort)
+                .foregroundStyle(challenge.isCompleted ? AppPalette.brandText : AppPalette.effort)
                 .frame(width: 40, height: 40)
                 .background(
                     (challenge.isCompleted ? AppPalette.brand : AppPalette.effort).opacity(0.10),
@@ -177,7 +177,7 @@ private struct ChallengeProgressRow: View {
     private var pointsLabel: some View {
         Label("\(challenge.pointsValue) points", systemImage: "star.fill")
             .appTextRole(.caption)
-            .foregroundStyle(challenge.isCompleted ? AppPalette.brand : Color.secondary)
+            .foregroundStyle(challenge.isCompleted ? AppPalette.brandText : Color.secondary)
     }
 
     private var progressLabel: some View {
@@ -190,7 +190,7 @@ private struct ChallengeProgressRow: View {
     private var statusLabel: some View {
         Text(statusText)
             .appTextRole(.caption)
-            .foregroundStyle(challenge.isCompleted ? AppPalette.brand : Color.secondary)
+            .foregroundStyle(challenge.isCompleted ? AppPalette.brandText : Color.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
 

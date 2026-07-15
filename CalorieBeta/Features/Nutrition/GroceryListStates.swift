@@ -60,7 +60,7 @@ struct GroceryListEmptyState: View {
         VStack(spacing: AppSpacing.group) {
             Image(systemName: "cart")
                 .appTextRole(.screenTitle)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 64, height: 64)
                 .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
 

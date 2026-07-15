@@ -181,7 +181,7 @@ public struct ShoeGearManagerView: View {
                         if shoe.isDefault && !shoe.isRetired {
                             Text("Default")
                                 .appTextRole(.caption)
-                                .foregroundColor(AppPalette.brand)
+                                .foregroundColor(AppPalette.brandText)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(AppPalette.brand.opacity(0.12), in: Capsule())

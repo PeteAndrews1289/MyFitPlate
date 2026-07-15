@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CircularWeightDisplayView: View {
     @EnvironmentObject var goalSettings: GoalSettings
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
 
     var currentWeight: Double
@@ -28,21 +29,21 @@ struct CircularWeightDisplayView: View {
         VStack(spacing: 4) {
             ZStack {
                 Circle()
-                    .stroke(lineWidth: 16)
-                    .opacity(0.15)
-                    .foregroundColor(Color.brandPrimary)
+                    .stroke(Color.brandPrimary.opacity(0.15), lineWidth: 16)
 
                 Circle()
                     .trim(from: 0.0, to: CGFloat(min(self.progress, 1.0)))
-                    .stroke(style: StrokeStyle(lineWidth: 16, lineCap: .round, lineJoin: .round))
-                    .foregroundColor(Color.brandPrimary)
+                    .stroke(
+                        Color.brandPrimary,
+                        style: StrokeStyle(lineWidth: 16, lineCap: .round, lineJoin: .round)
+                    )
                     .rotationEffect(Angle(degrees: 270.0))
-                    .animation(.linear(duration: 0.75), value: progress)
+                    .animation(reduceMotion ? nil : .linear(duration: 0.75), value: progress)
 
                 VStack {
                     Text(weightString)
                         .appFont(size: 50, weight: .bold)
-                        .foregroundColor(Color.brandPrimary)
+                        .foregroundColor(Color.brandForeground)
                     Text(BodyUnits.weightUnit(metric: useMetric))
                         .appFont(size: 20)
                         .foregroundColor(Color(UIColor.secondaryLabel))

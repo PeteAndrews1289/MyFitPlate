@@ -222,7 +222,7 @@ struct FoodPickerRow: View {
                 Button(action: { onQuickLog(food) }) {
                     Image(systemName: isQuickLogged ? "checkmark" : "plus")
                         .appTextRole(.control)
-                        .foregroundStyle(isQuickLogged ? Color.white : AppPalette.brand)
+                        .foregroundStyle(isQuickLogged ? AppPalette.onBrand : AppPalette.brandText)
                         .frame(width: 40, height: 40)
                         .background(isQuickLogged ? Color.accentPositive : Color.clear, in: Circle())
                         .overlay {

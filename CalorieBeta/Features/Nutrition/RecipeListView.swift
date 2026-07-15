@@ -127,7 +127,7 @@ struct RecipeListView: View {
         VStack(spacing: AppSpacing.group) {
             Image(systemName: "book.closed")
                 .appTextRole(.screenTitle)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 64, height: 64)
                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
 

@@ -186,7 +186,7 @@ struct WeeklyCheckInView: View {
             Button(action: acceptTargets) {
                 Text("Use adaptive targets")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundColor(AppPalette.onBrand)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
                     .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -256,7 +256,7 @@ struct WeeklyCheckInView: View {
                         .foregroundColor(.textPrimary)
                     Text("\(Int(proposal.proposedCalories.rounded()).formatted()) cal/day")
                         .appFont(size: 28, weight: .heavy)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
                 }
 
                 Spacer()

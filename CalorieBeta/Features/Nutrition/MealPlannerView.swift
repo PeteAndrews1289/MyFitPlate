@@ -732,7 +732,7 @@ struct VisionRecipeResultsView: View {
                     Spacer()
                     Text("Meal logged")
                         .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppPalette.onSignal)
                         .padding()
                         .background(Color.accentPositive)
                         .cornerRadius(12)

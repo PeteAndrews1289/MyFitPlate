@@ -108,7 +108,7 @@ struct SavedProgramsHeader: View {
             VStack(spacing: 0) {
                 Text("\(programCount)")
                     .appTextRole(.sectionTitle)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.brandText)
 
                 Text(programCount == 1 ? "plan" : "plans")
                     .appTextRole(.caption)
@@ -129,7 +129,7 @@ struct SavedProgramsEmptyState: View {
         VStack(alignment: .leading, spacing: AppSpacing.row) {
             Image(systemName: "folder.badge.plus")
                 .appFont(size: 26, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
                 .accessibilityHidden(true)
 
             Text("No saved plans yet")

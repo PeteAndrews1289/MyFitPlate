@@ -254,7 +254,7 @@ struct MealSuggestionDetailView: View {
                         HStack(alignment: .top, spacing: AppSpacing.row) {
                             Text((index + 1).formatted())
                                 .appTextRole(.caption)
-                                .foregroundStyle(AppPalette.brand)
+                                .foregroundStyle(AppPalette.brandText)
                                 .frame(width: 28, height: 28)
                                 .background(
                                     AppPalette.brand.opacity(0.10),

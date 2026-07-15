@@ -4,6 +4,7 @@ import AVFoundation
 
 struct BarcodeScannerView: View {
     @Environment(\.presentationMode) var presentationMode
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var onBarcodeDetected: (String) -> Void
     var onBarcodesDetected: (([String]) -> Void)?
 
@@ -68,16 +69,16 @@ struct BarcodeScannerView: View {
             Spacer()
 
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7)) {
                     isRapidMode.toggle()
                 }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: isRapidMode ? "bolt.badge.clock.fill" : "bolt.slash.fill")
-                        .foregroundColor(isRapidMode ? AppPalette.achievement : .white)
+                        .foregroundColor(isRapidMode ? AppPalette.onBrand : .white)
                     Text(isRapidMode ? "Rapid Scan ON" : "Rapid Scan OFF")
                         .font(.subheadline.bold())
-                        .foregroundColor(.white)
+                        .foregroundColor(isRapidMode ? AppPalette.onBrand : .white)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -124,7 +125,7 @@ struct BarcodeScannerView: View {
             VStack(spacing: 12) {
                 HStack {
                     Image(systemName: "tray.full.fill")
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
                     Text("Staging Tray (\(scannedBarcodes.count) items)")
                         .font(.headline.bold())
                         .foregroundColor(.white)
@@ -156,7 +157,7 @@ struct BarcodeScannerView: View {
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
                                 .background(Color.brandPrimary.opacity(0.8), in: Capsule())
-                                .foregroundColor(.white)
+                                .foregroundColor(AppPalette.onBrand)
                             }
                         }
                     }
@@ -180,7 +181,7 @@ struct BarcodeScannerView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(scannedBarcodes.isEmpty ? Color.gray.opacity(0.6) : Color.brandPrimary)
-                    .foregroundColor(.white)
+                    .foregroundColor(scannedBarcodes.isEmpty ? .white : AppPalette.onBrand)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .disabled(scannedBarcodes.isEmpty)

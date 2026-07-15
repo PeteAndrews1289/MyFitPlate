@@ -985,6 +985,7 @@ enum ScreenshotDemoData {
         nutrition.mockMealPlansByDateString = Dictionary(
             uniqueKeysWithValues: plans.map { (dateString($0.date), $0) }
         )
+        let groceryPlanStart = Calendar.current.startOfDay(for: Date())
         nutrition.mockFetchGroceryListResult = [
             GroceryListItem(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000101") ?? UUID(),
@@ -993,7 +994,8 @@ enum ScreenshotDemoData {
                 unit: "pints",
                 isCompleted: true,
                 category: "Produce",
-                source: "mealPlan"
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
             ),
             GroceryListItem(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000102") ?? UUID(),
@@ -1001,7 +1003,8 @@ enum ScreenshotDemoData {
                 quantity: 4,
                 unit: "item",
                 category: "Produce",
-                source: "mealPlan"
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
             ),
             GroceryListItem(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000103") ?? UUID(),
@@ -1009,7 +1012,8 @@ enum ScreenshotDemoData {
                 quantity: 3,
                 unit: "lb",
                 category: "Meat & Seafood",
-                source: "mealPlan"
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
             ),
             GroceryListItem(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000104") ?? UUID(),
@@ -1017,7 +1021,8 @@ enum ScreenshotDemoData {
                 quantity: 4,
                 unit: "fillets",
                 category: "Meat & Seafood",
-                source: "mealPlan"
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
             ),
             GroceryListItem(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000105") ?? UUID(),
@@ -1026,7 +1031,8 @@ enum ScreenshotDemoData {
                 unit: "tubs",
                 isCompleted: true,
                 category: "Dairy & Eggs",
-                source: "mealPlan"
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
             ),
             GroceryListItem(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000106") ?? UUID(),
@@ -1034,7 +1040,8 @@ enum ScreenshotDemoData {
                 quantity: 2,
                 unit: "lb",
                 category: "Carbohydrates",
-                source: "mealPlan"
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
             ),
             GroceryListItem(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000107") ?? UUID(),
@@ -1042,7 +1049,8 @@ enum ScreenshotDemoData {
                 quantity: 1,
                 unit: "bottle",
                 category: "Pantry & Oils",
-                source: "mealPlan"
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
             ),
             GroceryListItem(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000108") ?? UUID(),

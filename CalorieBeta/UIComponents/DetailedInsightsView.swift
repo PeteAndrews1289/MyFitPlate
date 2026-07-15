@@ -231,7 +231,7 @@ private struct LeadInsightView: View {
         } label: {
             Label("Source Data", systemImage: "doc.text.magnifyingglass")
                 .appTextRole(.control)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
         }
     }
 }
@@ -277,7 +277,7 @@ private struct InsightEvidenceRow: View {
                 } label: {
                     Text("Source Data")
                         .appTextRole(.control)
-                        .foregroundStyle(AppPalette.brand)
+                        .foregroundStyle(AppPalette.brandText)
                 }
             }
         }
@@ -311,7 +311,7 @@ private struct InsightsEmptyState: View {
         VStack(spacing: AppSpacing.row) {
             Image(systemName: "chart.line.text.clipboard")
                 .appFont(size: 28, weight: .semibold)
-                .foregroundStyle(AppPalette.brand)
+                .foregroundStyle(AppPalette.brandText)
             Text("Not Enough Signal Yet")
                 .appTextRole(.sectionTitle)
                 .foregroundStyle(AppPalette.text)

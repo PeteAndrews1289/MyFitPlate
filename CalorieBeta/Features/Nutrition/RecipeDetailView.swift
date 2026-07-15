@@ -273,7 +273,7 @@ private struct RecipeInstructionsSection: View {
                         HStack(alignment: .top, spacing: AppSpacing.row) {
                             Text((index + 1).formatted())
                                 .appTextRole(.caption)
-                                .foregroundStyle(AppPalette.brand)
+                                .foregroundStyle(AppPalette.brandText)
                                 .frame(width: 28, height: 28)
                                 .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                                 .accessibilityHidden(true)
@@ -676,7 +676,7 @@ private struct AddRecipeMealTypePicker: View {
                         }
                         Spacer(minLength: AppSpacing.compact)
                         Image(systemName: "chevron.up.chevron.down")
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.brandText)
                     }
                     .contentShape(Rectangle())
                 }

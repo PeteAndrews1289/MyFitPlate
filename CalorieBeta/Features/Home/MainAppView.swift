@@ -1081,7 +1081,7 @@ private struct FirstSessionChoiceView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "checkmark.seal.fill")
                         .appFont(size: 28, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
                         .frame(width: 62, height: 62)
                         .background(Color.brandPrimary.opacity(0.12), in: Circle())
 

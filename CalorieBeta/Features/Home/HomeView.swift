@@ -769,7 +769,7 @@ struct HomeView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "square.and.arrow.down")
                     .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.brandForeground)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
@@ -795,7 +795,7 @@ struct HomeView: View {
                         Text("Import history")
                             .appFont(size: 14, weight: .bold)
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(AppPalette.onBrand)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 11)
                     .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
