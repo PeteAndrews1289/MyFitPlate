@@ -86,13 +86,19 @@ Version 2.3 is ready only when all four gates below are complete.
   final committed backend differs from what is currently live.
 
 Candidate-integrity evidence: 1,128 Core tests, 109 app XCTest cases plus one Swift Testing smoke
-test, 20 Functions tests, strict lint, the visual-system guard, complete Debug target build, and
+test, 22 Functions tests, strict lint, the visual-system guard, complete Debug target build, and
 diff checks all pass. The production inventory contains every expected 2.3 Function. The generated
 CNF artifact contains 5,993 foods and is reproducible from its checked-in builder. The existing
 localization catalog, Xcode project ordering change, and shared-scheme launch arguments remain
 deliberately outside the candidate commits because they predated this normalization pass.
 
 ### Gate 2 - Trust And Camera Acceptance
+
+Live backend preflight is green for current NIH supplement search and an ordinary-food CNF matrix
+covering cooked salmon in either word order, cooked ground beef, and boiled eggs. CNF results carry
+25-26 detailed nutrients and the 2026 release. Temporary authenticated test accounts were deleted.
+Visible in-app attribution, a real supplement barcode, physical correction reuse, and the fixed
+camera set remain open below.
 
 - [ ] Run the fixed camera benchmark in `docs/camera-logging-2.3.md` against 20-30 representative
   meal, label, receipt, recipe, and menu images.
