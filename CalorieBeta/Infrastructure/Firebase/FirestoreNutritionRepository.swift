@@ -302,6 +302,32 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
         // such as saturated fat or barcode associations when Firestore.Encoder omits nil values.
         try ref.setData(from: foodItem, merge: false)
     }
+
+    func saveCustomFoodReplacingDuplicates(
+        userID: String,
+        foodItem: FoodItem,
+        removingFoodIDs: [String]
+    ) async throws {
+        let uniqueIDs = Array(Set(removingFoodIDs)).filter { $0 != foodItem.id }
+        guard uniqueIDs.count <= 498 else {
+            throw NSError(
+                domain: "MyFoodsLibrary",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Too many barcode corrections to replace at once."]
+            )
+        }
+
+        let collection = db.collection(FirestoreCollection.users)
+            .document(userID)
+            .collection("customFoods")
+        let batch = db.batch()
+        // The encoded set is a complete replacement so cleared optional nutrients do not survive.
+        try batch.setData(from: foodItem, forDocument: collection.document(foodItem.id))
+        for foodID in uniqueIDs {
+            batch.deleteDocument(collection.document(foodID))
+        }
+        try await batch.commit()
+    }
     
     func deleteCustomFood(userID: String, foodItemID: String) async throws {
         try await db.collection(FirestoreCollection.users).document(userID).collection("customFoods").document(foodItemID).delete()

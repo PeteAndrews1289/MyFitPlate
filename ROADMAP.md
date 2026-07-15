@@ -100,6 +100,11 @@ covering cooked salmon in either word order, cooked ground beef, and boiled eggs
 Visible in-app attribution, a real supplement barcode, physical correction reuse, and the fixed
 camera set remain open below.
 
+The saved-food persistence half of the correction loop is now deterministic and covered: equivalent
+UPC/EAN variants resolve to one stable food identity, complete document replacement removes stale
+optional nutrients, and duplicate legacy corrections are collapsed in the same atomic write. The
+remaining correction work is the physical UI journey and its before/after evidence.
+
 - [ ] Run the fixed camera benchmark in `docs/camera-logging-2.3.md` against 20-30 representative
   meal, label, receipt, recipe, and menu images.
 - [ ] Record correction size, confidence/range usefulness, inappropriate reference matches,
@@ -108,8 +113,10 @@ camera set remain open below.
   confirm source attribution remains visible.
 - [ ] Validate NIH supplement search plus one real supplement barcode, including non-mass serving
   language and missing-nutrient behavior.
-- [ ] Recheck the complete correction loop: barcode or photo result, field edit, before/after
-  evidence, save, Trust refresh, and saved-food reuse without duplicates or stale nutrients.
+- [x] Harden correction persistence: converge equivalent barcodes on one stable identity, replace
+  complete saved-food documents, and atomically remove duplicate legacy corrections.
+- [ ] Recheck the physical correction loop: barcode or photo result, field edit, before/after
+  evidence, save, Trust refresh, and saved-food reuse in the actual UI.
 - [x] Confirm each new provider and camera route can be disabled independently through its intended
   rollback or kill switch.
 

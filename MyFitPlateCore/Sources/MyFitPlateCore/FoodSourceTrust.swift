@@ -1893,7 +1893,7 @@ public enum BarcodeCorrectionRules {
             .sorted { lhs, rhs in
                 let lhsScore = correctionScore(for: lhs, candidates: candidates)
                 let rhsScore = correctionScore(for: rhs, candidates: candidates)
-                return lhsScore > rhsScore
+                return lhsScore == rhsScore ? lhs.id < rhs.id : lhsScore > rhsScore
             }
             .first
             .map { correctedFood(from: $0, barcode: candidates[0]) }

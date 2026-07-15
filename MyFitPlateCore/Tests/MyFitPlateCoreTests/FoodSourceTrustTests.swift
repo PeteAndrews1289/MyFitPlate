@@ -212,6 +212,37 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(FoodSourceClassifier.descriptor(for: match!.sourceMetadata!).title, "My Foods Match")
     }
 
+    func testBarcodeCorrectionRulesBreakEqualEvidenceTiesByStableIdentity() {
+        let barcode = "000777"
+        let laterID = FoodItem(
+            id: "z-entry",
+            name: "Later ID",
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                barcode: barcode
+            )
+        )
+        let earlierID = FoodItem(
+            id: "a-entry",
+            name: "Earlier ID",
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                barcode: barcode
+            )
+        )
+
+        let match = BarcodeCorrectionRules.bestCorrectedFood(
+            in: [laterID, earlierID],
+            barcode: barcode
+        )
+
+        XCTAssertEqual(match?.id, "a-entry")
+    }
+
     func testBarcodeLookupCandidatesBridgeUPCAAndEAN13() {
         XCTAssertEqual(
             BarcodeCorrectionRules.lookupCandidates(for: "012345678905"),

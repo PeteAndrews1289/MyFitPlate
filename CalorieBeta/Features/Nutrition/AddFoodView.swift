@@ -625,20 +625,20 @@ struct AddFoodView: View {
         if hasScannedNutritionLabel {
             correction.sourceMetadata?.notes = "Created from a scanned nutrition label after a barcode lookup miss."
         }
-        dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: correction) { success in
+        dailyLogService.customFoodStore.saveBarcodeCorrection(for: userID, foodItem: correction) { result in
             Task { @MainActor in
                 let parameters: [String: Any] = [
                     "barcode_length": correctionBarcode.count,
                     "used_label_scan": hasScannedNutritionLabel,
                     "community_flag_enabled": communityCorrectionSharingEnabled
                 ]
-                if success {
-                    DIContainer.shared.analyticsManager.barcodeMissRecovery(.manualFoodCreated(correction))
+                if case .success(let persistedCorrection) = result {
+                    DIContainer.shared.analyticsManager.barcodeMissRecovery(.manualFoodCreated(persistedCorrection))
                     DIContainer.shared.analyticsManager?.logEvent(
                         "barcode_label_correction_saved",
                         parameters: parameters
                     )
-                    contributeToCommunityPoolIfEligible(correction)
+                    contributeToCommunityPoolIfEligible(persistedCorrection)
                 } else {
                     DIContainer.shared.analyticsManager?.logEvent(
                         "barcode_label_correction_save_failed",
@@ -725,12 +725,24 @@ struct AddFoodView: View {
         if hasScannedNutritionLabel {
             itemToSave.sourceMetadata?.notes = "Created from a scanned nutrition label."
         }
-        dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
-            if success {
+        let finishSave: (FoodItem?) -> Void = { persistedItem in
+            if let persistedItem {
                 isSavedAsCustom = true
-                customFoodForAction = itemToSave
+                customFoodForAction = persistedItem
                 bannerService.showBanner(title: "Saved", message: "Saved to My Foods")
-                contributeToCommunityPoolIfEligible(itemToSave)
+                contributeToCommunityPoolIfEligible(persistedItem)
+            }
+        }
+        if itemToSave.sourceMetadata?.barcode?.isEmpty == false {
+            dailyLogService.customFoodStore.saveBarcodeCorrection(
+                for: userID,
+                foodItem: itemToSave
+            ) { result in
+                finishSave(try? result.get())
+            }
+        } else {
+            dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
+                finishSave(success ? itemToSave : nil)
             }
         }
     }
@@ -744,8 +756,13 @@ struct AddFoodView: View {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
         dailyLogService.customFoodStore.fetchMyFoodItems(for: userID) { result in
             DispatchQueue.main.async {
-                if case .success(let items) = result, let match = items.first(where: { $0.name == foodName }) {
-                    isSavedAsCustom = true; customFoodForAction = match
+                guard case .success(let items) = result else { return }
+                let barcodeMatch = correctionBarcode.flatMap {
+                    BarcodeCorrectionRules.bestCorrectedFood(in: items, barcode: $0)
+                }
+                if let match = barcodeMatch ?? items.first(where: { $0.name == foodName }) {
+                    isSavedAsCustom = true
+                    customFoodForAction = match
                 }
             }
         }

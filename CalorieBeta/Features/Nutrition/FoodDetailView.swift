@@ -728,20 +728,20 @@ struct FoodDetailView: View {
                 originalItem: initialFoodItem
             )
 
-        dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
+        let finishSave: (Bool, FoodItem?) -> Void = { success, persistedItem in
             Task { @MainActor in
-                if success {
+                if success, let persistedItem {
                     self.isSavedAsCustom = true
-                    self.hasSavedBarcodeCorrection = itemToSave.sourceMetadata?.barcode?.isEmpty == false
-                    self.customFoodForAction = itemToSave
+                    self.hasSavedBarcodeCorrection = persistedItem.sourceMetadata?.barcode?.isEmpty == false
+                    self.customFoodForAction = persistedItem
                     withAnimation(.easeInOut(duration: 0.22)) {
-                        self.persistedTrustItem = itemToSave
+                        self.persistedTrustItem = persistedItem
                     }
                     let message = self.hasSavedBarcodeCorrection
                         ? "\(foodName) will be used for future scans of this barcode."
                         : "\(foodName) added to My Foods."
                     bannerService.showBanner(title: "Saved", message: message)
-                    self.contributeToCommunityPoolIfEligible(itemToSave)
+                    self.contributeToCommunityPoolIfEligible(persistedItem)
                 } else {
                     bannerService.showBanner(title: "Error", message: "Could not save custom food.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                 }
@@ -749,11 +749,29 @@ struct FoodDetailView: View {
                     self.logCorrectionAction(
                         success ? "correction_saved" : "correction_save_failed",
                         correctionScope: correctionScope,
-                        resultingItem: success ? itemToSave : nil,
+                        resultingItem: persistedItem,
                         context: calibrationContext
                     )
                 }
-                completion?(success, success ? itemToSave : nil)
+                completion?(success, persistedItem)
+            }
+        }
+
+        if itemToSave.sourceMetadata?.barcode?.isEmpty == false {
+            dailyLogService.customFoodStore.saveBarcodeCorrection(
+                for: userID,
+                foodItem: itemToSave
+            ) { result in
+                switch result {
+                case .success(let persistedItem):
+                    finishSave(true, persistedItem)
+                case .failure:
+                    finishSave(false, nil)
+                }
+            }
+        } else {
+            dailyLogService.customFoodStore.saveCustomFood(for: userID, foodItem: itemToSave) { success in
+                finishSave(success, success ? itemToSave : nil)
             }
         }
     }
@@ -846,7 +864,10 @@ struct FoodDetailView: View {
                 guard case .success(let items) = result else { return }
 
                 if let barcode = self.barcodeForCorrection,
-                   let savedBarcodeItem = items.first(where: { BarcodeCorrectionRules.matches($0, barcode: barcode) }) {
+                   let savedBarcodeItem = BarcodeCorrectionRules.bestCorrectedFood(
+                       in: items,
+                       barcode: barcode
+                   ) {
                     self.isSavedAsCustom = true
                     self.hasSavedBarcodeCorrection = true
                     self.customFoodForAction = savedBarcodeItem
