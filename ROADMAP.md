@@ -63,6 +63,9 @@ reveals a data-integrity, privacy, crash, accessibility, or core-workflow failur
   without overstating independence or inventing mass-based servings.
 - [x] Camera logging uses purpose-specific server routing, bounded images, strict structured
   output, database grounding, visible uncertainty, review-before-write, quotas, and cost telemetry.
+- [x] Health Canada, NIH, and all five camera routes have independent rollback controls. Camera
+  requests are guarded in the current app and by a deployed server-side backstop that leaves
+  general Maia available.
 - [x] Home exposes consumed-versus-goal calorie and macro context, first-viewport water progress
   with a direct 8 oz action, and a goal-aware Daily Log using restrained semantic color roles.
 
@@ -82,8 +85,8 @@ Version 2.3 is ready only when all four gates below are complete.
 - [x] Ensure production Functions and data assets match the candidate commit. Redeploy only if the
   final committed backend differs from what is currently live.
 
-Candidate-integrity evidence: 1,127 Core tests, 109 app XCTest cases plus one Swift Testing smoke
-test, 19 Functions tests, strict lint, the visual-system guard, complete Debug target build, and
+Candidate-integrity evidence: 1,128 Core tests, 109 app XCTest cases plus one Swift Testing smoke
+test, 20 Functions tests, strict lint, the visual-system guard, complete Debug target build, and
 diff checks all pass. The production inventory contains every expected 2.3 Function. The generated
 CNF artifact contains 5,993 foods and is reproducible from its checked-in builder. The existing
 localization catalog, Xcode project ordering change, and shared-scheme launch arguments remain
@@ -101,7 +104,7 @@ deliberately outside the candidate commits because they predated this normalizat
   language and missing-nutrient behavior.
 - [ ] Recheck the complete correction loop: barcode or photo result, field edit, before/after
   evidence, save, Trust refresh, and saved-food reuse without duplicates or stale nutrients.
-- [ ] Confirm each new provider and camera route can be disabled independently through its intended
+- [x] Confirm each new provider and camera route can be disabled independently through its intended
   rollback or kill switch.
 
 ### Gate 3 - Physical Device Acceptance
