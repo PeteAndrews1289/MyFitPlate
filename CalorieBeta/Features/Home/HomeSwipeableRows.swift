@@ -21,7 +21,7 @@ struct SwipeableExerciseRowView: View {
                     } label: {
                         Image(systemName: "trash").foregroundColor(.white).frame(width: 60, height: 40, alignment: .center)
                     }
-                    .buttonStyle(PlainButtonStyle()).background(Color.red).contentShape(Rectangle()).cornerRadius(8)
+                    .buttonStyle(PlainButtonStyle()).background(AppPalette.critical).contentShape(Rectangle()).cornerRadius(8)
                 }
                 .padding(.vertical, 4)
                 .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -31,7 +31,7 @@ struct SwipeableExerciseRowView: View {
                 Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
                     .font(.title3)
                     .frame(width: 38, height: 38)
-                    .background(Color.blue.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(AppPalette.effort.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
@@ -143,7 +143,7 @@ struct SwipeableFoodItemView: View {
                             .frame(width: 60, height: 58, alignment: .center)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .background(Color.red)
+                    .background(AppPalette.critical)
                     .contentShape(Rectangle())
                     .cornerRadius(12)
                 }

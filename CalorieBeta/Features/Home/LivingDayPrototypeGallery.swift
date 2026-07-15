@@ -164,8 +164,8 @@ private struct LivingDayRailPrototype: View {
                         let start = snapshot.pathWindow.position(for: training.windowStart)
                         let end = snapshot.pathWindow.position(for: training.windowEnd)
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.indigo.opacity(0.12))
-                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.indigo.opacity(0.45), lineWidth: 1))
+                            .fill(AppPalette.effort.opacity(0.12))
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(AppPalette.effort.opacity(0.45), lineWidth: 1))
                             .frame(width: max(34, geometry.size.width * (end - start)), height: 54)
                             .offset(x: geometry.size.width * start, y: 34)
                             .accessibilityHidden(true)
@@ -618,11 +618,11 @@ private extension LivingDaySnapshot.Event {
         switch kind {
         case .meal: return .brandPrimary
         case .plannedMeal: return .accentCarbs
-        case .strength: return .indigo
-        case .run: return .cyan
-        case .walk: return .blue
-        case .recovery: return .orange
-        case .activity: return .purple
+        case .strength: return AppPalette.effort
+        case .run: return AppPalette.effort
+        case .walk: return AppPalette.positive
+        case .recovery: return AppPalette.recovery
+        case .activity: return AppPalette.achievement
         }
     }
 
@@ -682,8 +682,8 @@ private extension LivingDaySnapshot.Evidence {
     var color: Color {
         switch self {
         case .excellent, .supported: return .brandPrimary
-        case .review: return .orange
-        case .correction: return .red
+        case .review: return AppPalette.caution
+        case .correction: return AppPalette.critical
         case .unavailable, .notApplicable: return .secondary
         }
     }

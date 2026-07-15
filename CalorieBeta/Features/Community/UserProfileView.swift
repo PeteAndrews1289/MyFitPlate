@@ -86,12 +86,12 @@ struct UserProfileView: View {
             AppMetricItem(
                 label: "Points",
                 value: achievementService.userTotalAchievementPoints.formatted(),
-                accent: .orange
+                accent: AppPalette.achievement
             ),
             AppMetricItem(
                 label: "Unlocked",
                 value: "\(achievementService.unlockedAchievementsCount)/\(achievementService.achievementDefinitions.count)",
-                accent: .blue
+                accent: AppPalette.effort
             )
         ])
         .appSurface(.emphasized)
@@ -135,7 +135,7 @@ struct UserProfileView: View {
         } label: {
             AppListRow(
                 icon: "flag.checkered",
-                iconColor: .orange,
+                iconColor: AppPalette.achievement,
                 title: "Weekly Challenges",
                 subtitle: weeklyChallengeSummary
             ) {
@@ -161,12 +161,12 @@ struct UserProfileView: View {
                 AppMetricItem(
                     label: "Calorie Target",
                     value: calorieGoalText,
-                    accent: .orange
+                    accent: AppPalette.energy
                 ),
                 AppMetricItem(
                     label: "BMI Estimate",
                     value: bmiText,
-                    accent: .blue
+                    accent: AppPalette.effort
                 )
             ])
 

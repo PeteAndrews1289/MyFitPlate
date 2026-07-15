@@ -106,7 +106,13 @@ struct TodaysNextStepSlider: View {
 
             positionBar
         }
-        .appSurface(.emphasized, radius: AppRadius.hero)
+        .appSurface(.quiet, radius: AppRadius.hero)
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(AppPalette.effort)
+                .frame(width: 4)
+                .padding(.vertical, AppSpacing.group)
+        }
         .accessibilityIdentifier("train_next_step")
         .onChange(of: currentIndex) { _, newValue in
             withAnimation(AppMotion.standard) { viewedIndex = min(max(newValue, 0), totalSlots - 1) }
@@ -184,7 +190,7 @@ struct TodaysNextStepSlider: View {
             HStack(spacing: 10) {
                 Image(systemName: "figure.strengthtraining.traditional")
                     .appFont(size: 18, weight: .semibold)
-                    .foregroundStyle(AppPalette.brand)
+                    .foregroundStyle(AppPalette.effort)
                     .frame(width: 44, height: 44)
                     .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
 
@@ -210,7 +216,7 @@ struct TodaysNextStepSlider: View {
                     if routine.exercises.count > visibleExerciseLimit {
                         Text("+ \(routine.exercises.count - visibleExerciseLimit) more")
                             .appTextRole(.caption)
-                            .foregroundStyle(AppPalette.brand)
+                            .foregroundStyle(AppPalette.effort)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
@@ -302,23 +308,14 @@ struct TodaysNextStepSlider: View {
     private func stateChip(for state: SlotState) -> some View {
         switch state {
         case .completed, .completedNoDetail:
-            chip(text: "Completed", icon: "checkmark.circle.fill", color: .accentPositive)
+            AppStatusBadge("Completed", icon: "checkmark.circle.fill", role: .positive)
         case .skipped:
-            chip(text: "Skipped", icon: "forward.end.fill", color: Color(UIColor.secondaryLabel))
+            AppStatusBadge("Skipped", icon: "forward.end.fill", role: .neutral)
         case .current:
-            chip(text: "Next Up", icon: "play.circle.fill", color: .brandPrimary)
+            AppStatusBadge("Next Up", icon: "play.circle.fill", role: .current)
         case .upcoming:
-            chip(text: "Upcoming", icon: "calendar", color: .blue)
+            AppStatusBadge("Upcoming", icon: "calendar", role: .effort)
         }
-    }
-
-    private func chip(text: String, icon: String, color: Color) -> some View {
-        Label(text, systemImage: icon)
-            .appFont(size: 11, weight: .bold)
-            .foregroundColor(color)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
-            .background(color.opacity(0.12), in: Capsule())
     }
 
     @ViewBuilder
@@ -430,14 +427,15 @@ struct TodaysNextStepSlider: View {
         VStack(spacing: 6) {
             // Decorative: the "Slot X of Y" text below carries the same info for VoiceOver.
             GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(AppPalette.brand.opacity(0.12))
-                    Capsule()
-                        .fill(AppPalette.brand)
-                        .frame(width: geo.size.width * CGFloat(Double(currentIndex) / Double(totalSlots)))
+                AppProgressTrack(
+                    progress: Double(min(currentIndex + 1, totalSlots)) / Double(totalSlots),
+                    role: .effort,
+                    height: 8
+                )
+                .overlay(alignment: .leading) {
                     // Marker for where the user is currently scrubbed.
                     Circle()
-                        .fill(AppPalette.brand)
+                        .fill(AppPalette.effort)
                         .frame(width: 10, height: 10)
                         .overlay(Circle().stroke(AppPalette.canvas, lineWidth: 2))
                         .offset(x: max(0, geo.size.width * CGFloat(Double(viewedIndex) / Double(max(totalSlots - 1, 1))) - 5))

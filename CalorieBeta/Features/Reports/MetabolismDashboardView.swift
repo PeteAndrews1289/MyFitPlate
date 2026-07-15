@@ -54,7 +54,7 @@ struct MetabolismDashboardView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 8) {
                         Image(systemName: "hourglass")
-                            .foregroundColor(.blue)
+                            .foregroundColor(AppPalette.effort)
                         Text(adaptiveGoalService.tdeeGuardrailMessage == nil ? "Building your estimate" : "Check your food logs")
                             .appFont(size: 16, weight: .bold)
                             .foregroundColor(.textPrimary)
@@ -73,7 +73,7 @@ struct MetabolismDashboardView: View {
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "lightbulb.fill")
                             .appFont(size: 12)
-                            .foregroundColor(.orange)
+                            .foregroundColor(AppPalette.caution)
                         Text("Weigh in regularly (ideally daily, around the same time) and log your food honestly. Your estimate is only as accurate as the data you give it.")
                             .appFont(size: 13)
                             .foregroundColor(Color(UIColor.secondaryLabel))
@@ -89,7 +89,7 @@ struct MetabolismDashboardView: View {
                 VStack(alignment: .leading, spacing: AppSpacing.compact) {
                     Label("Estimate not ready to use", systemImage: "exclamationmark.shield.fill")
                         .appTextRole(.control)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(AppPalette.caution)
 
                     Text(guardrailMessage)
                         .appTextRole(.body)
@@ -220,7 +220,7 @@ struct MetabolismDashboardView: View {
         guard let rate = adaptiveGoalService.weightChangeRatePerDay, rate.isFinite else {
             return Color(UIColor.secondaryLabel)
         }
-        return rate < 0 ? .blue : .orange
+        return AppPalette.effort
     }
 }
 
@@ -235,7 +235,7 @@ struct AdaptiveProgressRow: View {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.blue)
+                    .foregroundColor(AppPalette.effort)
                 Text(label)
                     .appFont(size: 13, weight: .semibold)
                     .foregroundColor(.textPrimary)
@@ -247,7 +247,7 @@ struct AdaptiveProgressRow: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color(UIColor.secondarySystemFill))
-                    Capsule().fill(current >= goal ? Color.accentPositive : Color.blue)
+                    Capsule().fill(current >= goal ? AppPalette.positive : AppPalette.effort)
                         .frame(width: geo.size.width * CGFloat(min(Double(current) / Double(max(goal, 1)), 1.0)))
                 }
             }
@@ -262,7 +262,7 @@ struct MetabolismReportCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Image(systemName: "flame.fill")
-                        .foregroundColor(.orange)
+                        .foregroundColor(AppPalette.effort)
                     Text("Adaptive metabolism")
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)

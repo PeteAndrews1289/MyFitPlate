@@ -180,7 +180,7 @@ struct RestaurantValueRadarView: View {
         VStack(spacing: AppSpacing.group) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .appFont(size: 30, weight: .semibold)
-                .foregroundStyle(.orange)
+                .foregroundStyle(AppPalette.caution)
                 .accessibilityHidden(true)
             Text("Menu Could Not Be Ranked")
                 .appTextRole(.sectionTitle)
@@ -224,7 +224,7 @@ struct RestaurantValueRadarView: View {
     private var demoNotice: some View {
         AppListRow(
             icon: "eye.fill",
-            iconColor: .orange,
+            iconColor: AppPalette.caution,
             title: "Demo Results",
             subtitle: "Prices and nutrition are fictional examples. Demo dishes cannot be logged."
         )
@@ -436,8 +436,8 @@ struct RestaurantValueRadarItem: Identifiable {
     var tierColor: Color {
         switch tier {
         case .highProteinValue: AppPalette.brand
-        case .balancedValue: .blue
-        case .lowerProteinValue: .orange
+        case .balancedValue: AppPalette.effort
+        case .lowerProteinValue: AppPalette.caution
         }
     }
 
@@ -465,7 +465,7 @@ struct RestaurantValueRadarItem: Identifiable {
             AppMetricItem(
                 label: "Protein / 100 Cal",
                 value: "\(proteinPer100Calories.formatted(.number.precision(.fractionLength(1)))) g",
-                accent: .orange
+                accent: AppPalette.protein
             )
         ]
     }

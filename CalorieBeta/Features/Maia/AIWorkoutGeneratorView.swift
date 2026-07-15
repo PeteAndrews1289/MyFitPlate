@@ -57,7 +57,7 @@ struct AIWorkoutGeneratorView: View {
                         if let errorMessage = errorMessage {
                             Section {
                                 Text(errorMessage)
-                                    .foregroundColor(.red)
+                                    .foregroundColor(AppPalette.critical)
                             }
                         }
 

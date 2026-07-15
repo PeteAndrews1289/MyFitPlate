@@ -270,7 +270,7 @@ struct LivingDayShareCard: View {
                             .foregroundStyle(.black)
                         Text(event.shareStateTitle)
                             .appFont(size: 8, weight: .semibold)
-                            .foregroundStyle(event.needsTrustReview ? .orange : .secondary)
+                            .foregroundStyle(event.needsTrustReview ? AppPalette.caution : .secondary)
                     }
                     Spacer()
                 }
@@ -282,7 +282,7 @@ struct LivingDayShareCard: View {
     private func shareTrust(reviewCount: Int) -> some View {
         HStack(spacing: 9) {
             Image(systemName: reviewCount == 0 ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
-                .foregroundStyle(reviewCount == 0 ? Color.brandPrimary : .orange)
+                .foregroundStyle(reviewCount == 0 ? Color.brandPrimary : AppPalette.caution)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Trust")
                     .appFont(size: 10, weight: .bold)
@@ -409,10 +409,10 @@ private extension LivingDayShareSnapshot.Event {
     var shareColor: Color {
         switch kind {
         case .meal: return .brandPrimary
-        case .strength: return .indigo
-        case .run: return .cyan
-        case .activity: return .blue
-        case .recovery: return .orange
+        case .strength: return AppPalette.effort
+        case .run: return AppPalette.effort
+        case .activity: return AppPalette.achievement
+        case .recovery: return AppPalette.recovery
         }
     }
 

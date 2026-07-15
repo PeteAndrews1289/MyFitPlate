@@ -44,6 +44,7 @@ final class DesignSystemTests: XCTestCase {
 
     func testVisualSystemTokensRemainFiniteAndOrdered() {
         XCTAssertEqual(AppTextRole.allCases.count, 8)
+        XCTAssertEqual(AppSignalRole.allCases.count, 8)
         XCTAssertGreaterThan(AppTextRole.display.pointSize, AppTextRole.screenTitle.pointSize)
         XCTAssertGreaterThan(AppTextRole.screenTitle.pointSize, AppTextRole.sectionTitle.pointSize)
         XCTAssertGreaterThan(AppSpacing.section, AppSpacing.group)
@@ -61,11 +62,13 @@ final class DesignSystemTests: XCTestCase {
         let header = AppScreenHeader(title: "Living Day", subtitle: "Current")
         let section = AppSectionHeader(title: "Your day")
         let metrics = AppMetricStrip(items: [
-            AppMetricItem(label: "Calories", value: "1,805 cal", accent: .orange),
-            AppMetricItem(label: "Protein", value: "135 g", accent: .blue)
+            AppMetricItem(label: "Calories", value: "1,805 cal", accent: AppPalette.energy),
+            AppMetricItem(label: "Protein", value: "135 g", accent: AppPalette.protein)
         ])
         let row = AppListRow(icon: "magnifyingglass", title: "Search food", subtitle: "Find from the food database")
         let sheet = AppSheetScaffold(title: "Quick Log", dismiss: {}) { EmptyView() }
+        let badge = AppStatusBadge("Recovering", icon: "clock", role: .recovery)
+        let progress = AppProgressTrack(progress: 0.64, role: .effort)
 
         XCTAssertNotNil(text)
         XCTAssertNotNil(surface)
@@ -77,5 +80,7 @@ final class DesignSystemTests: XCTestCase {
         XCTAssertNotNil(metrics.body)
         XCTAssertNotNil(row.body)
         XCTAssertNotNil(sheet.body)
+        XCTAssertNotNil(badge.body)
+        XCTAssertNotNil(progress.body)
     }
 }

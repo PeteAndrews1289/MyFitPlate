@@ -52,8 +52,8 @@ struct AppVisualSystemGallery: View {
 
                     AppMetricStrip(items: [
                         AppMetricItem(label: "Meals", value: "3", accent: AppPalette.brand),
-                        AppMetricItem(label: "Calories", value: "1,805 cal", accent: .orange),
-                        AppMetricItem(label: "Protein", value: "135 g", accent: .blue)
+                        AppMetricItem(label: "Calories", value: "1,805 cal", accent: AppPalette.energy),
+                        AppMetricItem(label: "Protein", value: "135 g", accent: AppPalette.protein)
                     ])
                     .appSurface(.quiet)
                 }

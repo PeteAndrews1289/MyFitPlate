@@ -276,7 +276,7 @@ struct WeightTrackingView: View {
                 systemImage: isDown ? "arrow.down.right" : "arrow.up.right"
             )
             .appTextRole(.caption)
-            .foregroundStyle(isDown ? Color.accentPositive : Color.orange)
+            .foregroundStyle(isDown ? Color.accentPositive : AppPalette.caution)
             .padding(.horizontal, AppSpacing.row)
             .padding(.vertical, AppSpacing.compact)
             .background(AppPalette.control, in: Capsule())
@@ -394,12 +394,12 @@ struct WeightTrackingView: View {
                 AppMetricItem(
                     label: "Highest",
                     value: chartStats.highest.map { "\(display($0)) \(unit)" } ?? "--",
-                    accent: .orange
+                    accent: AppPalette.caution
                 ),
                 AppMetricItem(
                     label: "Lowest",
                     value: chartStats.lowest.map { "\(display($0)) \(unit)" } ?? "--",
-                    accent: .blue
+                    accent: AppPalette.effort
                 )
             ])
             .appSurface(.quiet)
@@ -410,7 +410,7 @@ struct WeightTrackingView: View {
     private func trendColor(_ value: Double?) -> Color {
         guard let value else { return Color(UIColor.secondaryLabel) }
         if value < 0 { return .accentPositive }
-        if value > 0 { return .orange }
+        if value > 0 { return AppPalette.caution }
         return Color(UIColor.secondaryLabel)
     }
 

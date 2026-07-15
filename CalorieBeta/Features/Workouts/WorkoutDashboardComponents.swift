@@ -32,11 +32,11 @@ struct TrainingHeroCard: View {
 
             AppMetricStrip(items: [
                 AppMetricItem(label: "Programs", value: "\(programCount)", accent: AppPalette.brand),
-                AppMetricItem(label: "Routines", value: "\(routineCount)", accent: .blue),
+                AppMetricItem(label: "Routines", value: "\(routineCount)", accent: AppPalette.effort),
                 AppMetricItem(
                     label: "Status",
                     value: activeProgramName == nil ? "Open" : "Active",
-                    accent: .accentPositive
+                    accent: AppPalette.positive
                 )
             ])
         }
@@ -49,12 +49,17 @@ struct TrainingReadinessCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
-            AppSectionHeader(title: brief.status, subtitle: brief.message) {
+            AppSectionHeader(title: "Training Readiness", subtitle: brief.message) {
                 Text("\(brief.score)%")
                     .appTextRole(.control)
-                    .foregroundStyle(brief.color)
+                    .foregroundStyle(brief.role.color)
                     .monospacedDigit()
                     .accessibilityLabel("Readiness score \(brief.score) out of 100")
+            }
+
+            HStack(spacing: AppSpacing.row) {
+                AppStatusBadge(brief.status, icon: brief.icon, role: brief.role)
+                AppProgressTrack(progress: Double(brief.score) / 100, role: brief.role, height: 7)
             }
 
             VStack(spacing: 0) {
@@ -79,7 +84,7 @@ struct TrainingSignalPill: View {
         HStack(spacing: AppSpacing.row) {
             Image(systemName: signal.icon)
                 .appFont(size: 15, weight: .semibold)
-                .foregroundStyle(signal.color)
+                .foregroundStyle(signal.role.color)
                 .frame(width: 32, height: 32)
                 .accessibilityHidden(true)
 
@@ -293,13 +298,13 @@ struct TrainingDecisionCard: View {
             } else {
                 HStack(spacing: 10) {
                     Button(action: onChoosePlan) {
-                        TrainingPathPill(title: "Start a Plan", subtitle: "Use Plan Library", icon: "rectangle.stack.fill", color: .orange)
+                        TrainingPathPill(title: "Start a Plan", subtitle: "Use Plan Library", icon: "rectangle.stack.fill", color: AppPalette.achievement)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("start_plan_button")
 
                     Button(action: onChooseOneOff) {
-                        TrainingPathPill(title: "One-off", subtitle: "\(routineCount) saved", icon: "bolt.fill", color: .blue)
+                        TrainingPathPill(title: "One-off", subtitle: "\(routineCount) saved", icon: "bolt.fill", color: AppPalette.effort)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("one_off_workouts_button")

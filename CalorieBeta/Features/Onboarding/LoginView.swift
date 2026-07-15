@@ -263,7 +263,7 @@ struct AuthErrorBanner: View {
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(AppPalette.caution)
                 .accessibilityHidden(true)
             Text(message)
                 .appTextRole(.secondary)
@@ -272,10 +272,10 @@ struct AuthErrorBanner: View {
         }
         .padding(AppSpacing.group)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+        .background(AppPalette.caution.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                .stroke(Color.orange.opacity(0.35), lineWidth: 1)
+                .stroke(AppPalette.caution.opacity(0.35), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
     }

@@ -104,6 +104,47 @@ public enum AppPalette {
     public static var brand: Color { Color("BrandPrimary", bundle: .main) }
     public static var text: Color { Color("TextPrimary", bundle: .main) }
     public static var separator: Color { Color.primary.opacity(0.10) }
+
+    // Signal colors keep one meaning throughout the app. Brand green is reserved for actions,
+    // selection, and ready states; it should not stand in for every kind of positive data.
+    public static var positive: Color { Color("AccentPositive", bundle: .main) }
+    public static var effort: Color { Color("AccentProtein", bundle: .main) }
+    public static var recovery: Color { Color("AccentWater", bundle: .main) }
+    public static var caution: Color { Color("AccentSignal", bundle: .main) }
+    public static var achievement: Color { Color("AccentCarbs", bundle: .main) }
+    public static var critical: Color { Color.red }
+
+    // Stable domain colors make nutrition and hydration data recognizable without
+    // borrowing the signal colors used for warnings, readiness, or completion.
+    public static var energy: Color { Color("AccentEnergy", bundle: .main) }
+    public static var protein: Color { effort }
+    public static var carbohydrate: Color { achievement }
+    public static var fat: Color { Color("AccentFats", bundle: .main) }
+    public static var hydration: Color { recovery }
+}
+
+public enum AppSignalRole: CaseIterable, Sendable {
+    case current
+    case positive
+    case effort
+    case recovery
+    case caution
+    case critical
+    case achievement
+    case neutral
+
+    public var color: Color {
+        switch self {
+        case .current: AppPalette.brand
+        case .positive: AppPalette.positive
+        case .effort: AppPalette.effort
+        case .recovery: AppPalette.recovery
+        case .caution: AppPalette.caution
+        case .critical: AppPalette.critical
+        case .achievement: AppPalette.achievement
+        case .neutral: Color.secondary
+        }
+    }
 }
 
 public enum AppSurfaceRole: Sendable {
@@ -189,7 +230,10 @@ public struct AppActionButtonStyle: ButtonStyle {
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .appTextRole(.control)
+            .appFont(size: 17, weight: .semibold)
+            .lineLimit(2)
+            .minimumScaleFactor(0.85)
+            .multilineTextAlignment(.center)
             .padding(.horizontal, AppSpacing.group)
             .frame(maxWidth: fillsWidth ? .infinity : nil)
             .frame(minHeight: 50)
@@ -217,7 +261,7 @@ public struct AppActionButtonStyle: ButtonStyle {
         switch role {
         case .primary: AppPalette.brand
         case .secondary: AppPalette.control
-        case .destructive: .red
+        case .destructive: AppPalette.critical
         case .ghost: .clear
         }
     }
@@ -423,6 +467,75 @@ public struct AppMetricItem: Identifiable {
         self.label = label
         self.value = value
         self.accent = accent
+    }
+}
+
+/// Compact, text-first state treatment. Color supports the label and icon but never carries the
+/// state by itself, so the component remains legible with color filters and increased contrast.
+public struct AppStatusBadge: View {
+    public let title: String
+    public let icon: String?
+    public let role: AppSignalRole
+
+    public init(_ title: String, icon: String? = nil, role: AppSignalRole) {
+        self.title = title
+        self.icon = icon
+        self.role = role
+    }
+
+    public var body: some View {
+        HStack(spacing: 5) {
+            if let icon {
+                Image(systemName: icon)
+                    .foregroundStyle(role.color)
+                    .accessibilityHidden(true)
+            }
+
+            Text(title)
+                .foregroundStyle(AppPalette.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .appFont(size: 11, weight: .semibold)
+        .padding(.horizontal, AppSpacing.compact)
+        .padding(.vertical, 5)
+        .background(role.color.opacity(0.12), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(role.color.opacity(0.28), lineWidth: 0.5)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+    }
+}
+
+/// A shared progress treatment for plans, live work, and estimated recovery. Callers provide the
+/// words around the value; the bar itself stays visually consistent across feature families.
+public struct AppProgressTrack: View {
+    public let progress: Double
+    public let role: AppSignalRole
+    public let height: CGFloat
+
+    public init(progress: Double, role: AppSignalRole = .current, height: CGFloat = 6) {
+        self.progress = progress
+        self.role = role
+        self.height = height
+    }
+
+    public var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(role.color.opacity(0.14))
+
+                Capsule()
+                    .fill(role.color)
+                    .frame(width: geometry.size.width * min(max(progress, 0), 1))
+            }
+        }
+        .frame(height: height)
+        .animation(AppMotion.standard, value: progress)
+        .accessibilityHidden(true)
     }
 }
 

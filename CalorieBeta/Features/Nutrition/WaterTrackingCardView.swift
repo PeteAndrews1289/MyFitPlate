@@ -30,9 +30,9 @@ struct WaterTrackingCardView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "drop.fill")
                             .appFont(size: 14, weight: .bold)
-                            .foregroundColor(.cyan)
+                            .foregroundColor(AppPalette.hydration)
                             .frame(width: 30, height: 30)
-                            .background(Color.cyan.opacity(0.12), in: Circle())
+                            .background(AppPalette.hydration.opacity(0.12), in: Circle())
 
                         Text("Hydration")
                             .appFont(size: 21, weight: .bold)
@@ -50,7 +50,7 @@ struct WaterTrackingCardView: View {
                                     .fill(Color(UIColor.secondarySystemFill))
 
                                 Capsule()
-                                    .fill(Color.cyan)
+                                    .fill(AppPalette.hydration)
                                     .frame(width: geometry.size.width * CGFloat(progress))
                                     .animation(.easeInOut(duration: 0.45), value: progress)
                             }
@@ -66,7 +66,7 @@ struct WaterTrackingCardView: View {
 
                             Text("\(Int((progress * 100).rounded()).formatted())%")
                                 .appFont(size: 12, weight: .semibold)
-                                .foregroundColor(.cyan)
+                                .foregroundColor(AppPalette.hydration)
                         }
                     }
 
@@ -89,7 +89,7 @@ struct WaterTrackingCardView: View {
                     ZStack(alignment: .bottom) {
                         Rectangle()
                             .fill(
-                                Color.cyan
+                                AppPalette.hydration
                             )
                             .frame(height: geometry.size.height * CGFloat(progress))
                             .animation(.easeInOut(duration: 0.5), value: progress)
@@ -107,9 +107,9 @@ struct WaterTrackingCardView: View {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "lightbulb.fill")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(.yellow)
+                        .foregroundColor(AppPalette.achievement)
                         .frame(width: 28, height: 28)
-                        .background(Color.yellow.opacity(0.14), in: Circle())
+                        .background(AppPalette.achievement.opacity(0.14), in: Circle())
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(insight.title)
@@ -155,7 +155,7 @@ private struct WaterAdjustButton: View {
                 Text(title)
                     .appFont(size: 12, weight: .semibold)
             }
-            .foregroundColor(.cyan)
+            .foregroundColor(AppPalette.hydration)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(Color(UIColor.secondarySystemFill), in: Capsule())

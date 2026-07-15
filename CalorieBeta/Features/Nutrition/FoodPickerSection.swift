@@ -211,7 +211,7 @@ struct FoodPickerRow: View {
         if FoodDataSanity.isSuspicious(food) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .appTextRole(.caption)
-                .foregroundStyle(.orange)
+                .foregroundStyle(AppPalette.caution)
                 .accessibilityLabel("Nutrition data looks off")
         }
     }
@@ -279,9 +279,9 @@ struct FoodTrustMiniBadge: View {
         case .excellent, .strong:
             return .accentPositiveText
         case .review:
-            return .orange
+            return AppPalette.caution
         case .low:
-            return evaluation.requiresCorrection ? .red : .orange
+            return evaluation.requiresCorrection ? AppPalette.critical : AppPalette.caution
         }
     }
 

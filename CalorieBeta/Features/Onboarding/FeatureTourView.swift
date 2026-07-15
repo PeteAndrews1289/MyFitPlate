@@ -20,7 +20,7 @@ struct FeatureTourView: View {
             title: "Meet Maia",
             description: "Use AI guidance to ask about your day, log food conversationally, and compare practical next steps.",
             detail: "Maia uses the context you choose to share and labels estimates for review.",
-            color: .purple
+            color: AppPalette.achievement
         ),
         FeatureInfo(
             iconName: "camera.viewfinder",
@@ -28,7 +28,7 @@ struct FeatureTourView: View {
             title: "Snap and log",
             description: "Photograph a meal or nutrition label, then review the estimated calories, macros, and serving before logging.",
             detail: "Image results remain estimates until you confirm them.",
-            color: .orange
+            color: AppPalette.caution
         ),
         FeatureInfo(
             iconName: "dumbbell.fill",
@@ -36,7 +36,7 @@ struct FeatureTourView: View {
             title: "Plan the work",
             description: "Build training programs, track sets, review sessions, and keep the next workout close at hand.",
             detail: "Nutrition and recovery remain visible beside training progress.",
-            color: .blue
+            color: AppPalette.effort
         ),
         FeatureInfo(
             iconName: "heart.text.square.fill",

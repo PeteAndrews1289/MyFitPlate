@@ -596,6 +596,12 @@ configuring**. Full audit, component map, screen order, and acceptance gates:
   TDEE pauses on sparse,
   incomplete, or implausible evidence; and Fast Food Builder now provides menu search, official
   source links, and at least 15 choices across each of its 25 chains.
+- [x] Complete the app-wide semantic signal and training-identity pass. Release-reachable screens
+  now share a closed state and nutrition-data palette enforced by the source guard; live workout,
+  program, history, analytics, and running surfaces use a professional effort/recovery hierarchy;
+  and Recovery Field provides a deterministic interactive muscle map with visible evidence,
+  uncertainty, sleep adjustment, and planning-not-medical language. The competitor review and
+  full visual contract live in `docs/design-direction-2.3.md`.
 - [x] Complete the clean local 2.3 regression and unsigned Release audit.
 - [ ] Complete Peter's focused physical-device acceptance and the signed archive from the intended
   commit, following `docs/device-test-2.3.md`.
@@ -751,4 +757,4 @@ Success signal: users can name a MyFitPlate feature they cannot get from MyFitne
   rollback/feature-flag plan for risky launches. The Living Day release has all three documented.
 
 ---
-_Living document — Single Point of Truth. Last updated: 2026-07-14._
+_Living document — Single Point of Truth. Last updated: 2026-07-15._

@@ -12,12 +12,12 @@ struct CycleTrackingCard: View {
                 // Icon
                 ZStack {
                     Circle()
-                        .fill(Color.pink.opacity(0.15))
+                        .fill(AppPalette.recovery.opacity(0.15))
                         .frame(width: 50, height: 50)
                     
                     Image(systemName: "drop.fill")
                         .appFont(size: 20, weight: .semibold)
-                        .foregroundColor(.pink)
+                        .foregroundColor(AppPalette.recovery)
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
@@ -65,7 +65,7 @@ struct ComprehensiveHealthCard: View {
             VStack(spacing: 12) {
                 healthRow(
                     icon: "shoeprints.fill",
-                    color: .blue,
+                    color: AppPalette.effort,
                     title: "Steps",
                     value: formattedWholeNumber(weeklySteps.last ?? 0),
                     unit: "steps",
@@ -76,7 +76,7 @@ struct ComprehensiveHealthCard: View {
                 
                 healthRow(
                     icon: "flame.fill",
-                    color: .orange,
+                    color: AppPalette.achievement,
                     title: "Active energy",
                     value: formattedWholeNumber(weeklyActiveEnergy.last ?? 0),
                     unit: "cal",
@@ -87,7 +87,7 @@ struct ComprehensiveHealthCard: View {
                 
                 healthRow(
                     icon: "heart.fill",
-                    color: .red,
+                    color: AppPalette.recovery,
                     title: "Resting heart rate",
                     value: formattedWholeNumber(weeklyRestingHeartRate.last ?? 0),
                     unit: "bpm",
@@ -98,7 +98,7 @@ struct ComprehensiveHealthCard: View {
                 
                 healthRow(
                     icon: "waveform.path.ecg",
-                    color: .purple,
+                    color: AppPalette.positive,
                     title: "Heart rate variability",
                     value: formattedWholeNumber(weeklyHRV.last ?? 0),
                     unit: "ms",
@@ -164,7 +164,7 @@ struct ComprehensiveHealthCard: View {
         var color: Color {
             switch self {
             case .up: return .accentPositive
-            case .down: return .red
+            case .down: return AppPalette.caution
             case .neutral: return .secondary
             }
         }

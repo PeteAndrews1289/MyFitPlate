@@ -155,12 +155,12 @@ struct PlateCalculatorView: View {
                 AppMetricItem(
                     label: "Loaded",
                     value: "\(Self.weightText(loadout.loadedWeight)) lb",
-                    accent: .blue
+                    accent: AppPalette.effort
                 ),
                 AppMetricItem(
                     label: "Fit",
                     value: loadout.isExact ? "Exact" : "\(Self.weightText(loadout.difference)) lb under",
-                    accent: loadout.isExact ? .accentPositive : .orange
+                    accent: loadout.isExact ? .accentPositive : AppPalette.caution
                 )
             ])
             .appSurface(.emphasized)
@@ -226,7 +226,7 @@ struct PlateCalculatorView: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: icon)
                 .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(icon == "exclamationmark.triangle.fill" ? Color.orange : AppPalette.brand)
+                .foregroundStyle(icon == "exclamationmark.triangle.fill" ? AppPalette.caution : AppPalette.brand)
                 .frame(width: 36, height: 36)
                 .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control))
 

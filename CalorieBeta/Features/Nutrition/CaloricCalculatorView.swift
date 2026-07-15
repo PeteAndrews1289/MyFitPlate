@@ -82,7 +82,7 @@ struct CaloricCalculatorView: View {
                         TextField("Calories", text: $calorieInput)
                             .keyboardType(.numberPad)
                             .appTextRole(.metric)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(AppPalette.energy)
                             .monospacedDigit()
                             .focused($numericFieldIsFocused)
 

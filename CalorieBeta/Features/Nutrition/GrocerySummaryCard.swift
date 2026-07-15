@@ -63,7 +63,7 @@ struct GrocerySummaryCard: View {
             AppMetricStrip(items: [
                 AppMetricItem(label: "Items", value: totalCount.formatted()),
                 AppMetricItem(label: "Checked", value: completedCount.formatted(), accent: .accentPositive),
-                AppMetricItem(label: "Left", value: remainingCount.formatted(), accent: .orange)
+                AppMetricItem(label: "Left", value: remainingCount.formatted(), accent: AppPalette.caution)
             ])
             .accessibilityIdentifier("grocery_summary_metrics")
 

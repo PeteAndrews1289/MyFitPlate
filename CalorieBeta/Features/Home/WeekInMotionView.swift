@@ -172,7 +172,7 @@ struct WeekInMotionView: View {
                         .appFont(size: 6, weight: .bold)
                         .foregroundColor(.white)
                         .frame(width: 12, height: 12)
-                        .background(Color.orange, in: Circle())
+                        .background(AppPalette.caution, in: Circle())
                         .offset(x: 3, y: -3)
                         .accessibilityHidden(true)
                 }
@@ -298,7 +298,7 @@ struct WeekInMotionView: View {
         switch motion.observation.tone {
         case .neutral: return Color(UIColor.secondaryLabel)
         case .positive: return .accentPositiveText
-        case .attention: return .orange
+        case .attention: return AppPalette.caution
         }
     }
 
@@ -316,8 +316,8 @@ struct WeekInMotionView: View {
     private func trainingColor(for day: WeeklyRecapDay) -> Color {
         switch day.trainingKind {
         case .rest: return Color(UIColor.tertiarySystemFill)
-        case .strength: return day.isDemandingStrengthDay ? .orange : .brandPrimary
-        case .run: return .blue
+        case .strength: return day.isDemandingStrengthDay ? AppPalette.caution : AppPalette.effort
+        case .run: return AppPalette.effort
         case .mixed: return .accentCarbs
         }
     }

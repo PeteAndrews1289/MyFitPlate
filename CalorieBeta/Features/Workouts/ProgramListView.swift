@@ -185,7 +185,7 @@ struct SavedProgramCard<Destination: View>: View {
 
     private var statusColor: Color {
         if isActive { return .accentPositive }
-        return program.startDate == nil ? .orange : .brandPrimary
+        return program.startDate == nil ? AppPalette.caution : AppPalette.brand
     }
 
     private var scheduleText: String {
@@ -239,7 +239,7 @@ struct SavedProgramCard<Destination: View>: View {
 
             AppMetricStrip(items: [
                 AppMetricItem(label: "Progress", value: progressText, accent: AppPalette.brand),
-                AppMetricItem(label: "Days / week", value: trainingDays == 0 ? "Unset" : "\(trainingDays)", accent: .blue),
+                AppMetricItem(label: "Days / week", value: trainingDays == 0 ? "Unset" : "\(trainingDays)", accent: AppPalette.effort),
                 AppMetricItem(label: "Sets", value: "\(totalSetCount)", accent: .accentPositive)
             ])
 
@@ -283,24 +283,5 @@ struct SavedProgramStatusPill: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
             .background(color.opacity(0.10), in: Capsule())
-    }
-}
-enum MuscleGroup: String, CaseIterable {
-    case chest = "Chest"
-    case back = "Back"
-    case legs = "Legs"
-    case arms = "Arms"
-    case core = "Core"
-    case shoulders = "Shoulders"
-    
-    var icon: String {
-        switch self {
-        case .chest: return "shield.fill" // Or figure.strengthtraining.traditional
-        case .back: return "figure.flexibility"
-        case .legs: return "figure.walk"
-        case .arms: return "figure.arms.open"
-        case .core: return "circle.grid.2x2.fill"
-        case .shoulders: return "figure.stand"
-        }
     }
 }

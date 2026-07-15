@@ -174,7 +174,7 @@ struct WellnessScoreDetailView: View {
                     description: wellnessScore.sleepScore == nil
                         ? "No recent Apple Health sleep result is available."
                         : "Most recent sleep duration, timing, and interruptions.",
-                    color: .blue
+                    color: AppPalette.recovery
                 )
 
                 Divider().padding(.leading, 64)
@@ -186,7 +186,7 @@ struct WellnessScoreDetailView: View {
                     description: wellnessScore.recoveryScore == nil
                         ? "No recent resting heart rate or HRV signal is available."
                         : "Readiness estimated from available resting heart rate and HRV.",
-                    color: .purple
+                    color: AppPalette.positive
                 )
             }
             .appSurface(.quiet, padding: 0)
@@ -286,7 +286,7 @@ private struct NutritionEvidenceSection: View {
                score.personalizedAISummary != "No data available." {
                 AppListRow(
                     icon: "sparkles",
-                    iconColor: .purple,
+                    iconColor: AppPalette.achievement,
                     title: "Maia's Read",
                     subtitle: score.personalizedAISummary
                 )
@@ -299,7 +299,7 @@ private struct NutritionEvidenceSection: View {
                     actual: score.actualCalories,
                     goal: score.goalCalories,
                     unit: "cal",
-                    color: .orange
+                    color: AppPalette.energy
                 )
                 EvidenceProgressRow(
                     title: "Protein",
@@ -327,7 +327,7 @@ private struct NutritionEvidenceSection: View {
                     actual: score.actualFiber,
                     goal: score.goalFiber,
                     unit: "g",
-                    color: .green
+                    color: AppPalette.positive
                 )
             }
             .appSurface(.quiet)
@@ -463,12 +463,12 @@ private struct SleepEvidenceSection: View {
                 AppMetricItem(
                     label: "Time Asleep",
                     value: formatDuration(report.averageTimeAsleep),
-                    accent: .blue
+                    accent: AppPalette.recovery
                 ),
                 AppMetricItem(
                     label: "Consistency",
                     value: "\(report.sleepConsistencyScore)/100",
-                    accent: .indigo
+                    accent: AppPalette.effort
                 )
             ])
 
@@ -492,8 +492,8 @@ private struct SleepEvidenceSection: View {
     private func lastNightContent(_ data: EnhancedSleepReport.DailySleepStageData) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             AppMetricStrip(items: [
-                AppMetricItem(label: "Time Asleep", value: formatDuration(data.timeAsleep), accent: .blue),
-                AppMetricItem(label: "Time in Bed", value: formatDuration(data.timeInBed), accent: .indigo),
+                AppMetricItem(label: "Time Asleep", value: formatDuration(data.timeAsleep), accent: AppPalette.recovery),
+                AppMetricItem(label: "Time in Bed", value: formatDuration(data.timeInBed), accent: AppPalette.effort),
                 AppMetricItem(label: "Awake", value: formatDuration(data.timeAwake), accent: .gray)
             ])
 
@@ -519,10 +519,10 @@ private struct SleepEvidenceSection: View {
 
     private func sleepScoreColor(_ score: Int) -> Color {
         switch score {
-        case 85...: return .green
-        case 70..<85: return .yellow
-        case 50..<70: return .orange
-        default: return .red
+        case 85...: return AppPalette.positive
+        case 70..<85: return AppPalette.achievement
+        case 50..<70: return AppPalette.caution
+        default: return AppPalette.critical
         }
     }
 }

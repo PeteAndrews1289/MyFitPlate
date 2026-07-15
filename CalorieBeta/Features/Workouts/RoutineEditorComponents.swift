@@ -35,7 +35,7 @@ struct RoutineEditorHeaderCard: View {
             AppMetricStrip(items: [
                 AppMetricItem(label: "Exercises", value: "\(exerciseCount)", accent: AppPalette.brand),
                 AppMetricItem(label: "Sets", value: "\(setCount)", accent: .accentPositive),
-                AppMetricItem(label: "Estimated", value: estimatedMinutes > 0 ? "\(estimatedMinutes) min" : "-", accent: .orange)
+                AppMetricItem(label: "Estimated", value: estimatedMinutes > 0 ? "\(estimatedMinutes) min" : "-", accent: AppPalette.caution)
             ])
             .appSurface(.quiet)
         }
@@ -313,7 +313,7 @@ struct ExerciseEditorHero: View {
                 AppMetricItem(
                     label: "Rest",
                     value: RoutineEditorDefaults.restLabel(exercise.restTimeInSeconds),
-                    accent: .orange
+                    accent: AppPalette.caution
                 )
             ])
             .appSurface(.quiet)

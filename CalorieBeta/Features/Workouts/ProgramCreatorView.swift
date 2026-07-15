@@ -44,7 +44,7 @@ struct ProgramCreatorView: View {
 
                 AppMetricStrip(items: [
                     AppMetricItem(label: "Routines", value: "\(routines.count)", accent: AppPalette.brand),
-                    AppMetricItem(label: "Exercises", value: "\(exerciseCount)", accent: .blue),
+                    AppMetricItem(label: "Exercises", value: "\(exerciseCount)", accent: AppPalette.effort),
                     AppMetricItem(label: "Sets", value: "\(totalSetCount)", accent: .accentPositive)
                 ])
                 .appSurface(.quiet)

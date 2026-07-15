@@ -52,8 +52,8 @@ struct ProgramDetailHeroCard: View {
 
                 AppMetricStrip(items: [
                     AppMetricItem(label: "Routines", value: routineCount.formatted()),
-                    AppMetricItem(label: "Days / week", value: trainingDays.formatted(), accent: .blue),
-                    AppMetricItem(label: "Exercises", value: exerciseCount.formatted(), accent: .orange),
+                    AppMetricItem(label: "Days / week", value: trainingDays.formatted(), accent: AppPalette.effort),
+                    AppMetricItem(label: "Exercises", value: exerciseCount.formatted(), accent: AppPalette.achievement),
                     AppMetricItem(label: "Working sets", value: setCount.formatted(), accent: .accentPositive)
                 ])
             }
@@ -76,7 +76,7 @@ struct ProgramPreviewActionCard: View {
             )
 
             AppMetricStrip(items: [
-                AppMetricItem(label: "Suggested days", value: "\(daysPerWeek) / week", accent: .blue),
+                AppMetricItem(label: "Suggested days", value: "\(daysPerWeek) / week", accent: AppPalette.effort),
                 AppMetricItem(label: "Routine rotation", value: routineCount.formatted())
             ])
 

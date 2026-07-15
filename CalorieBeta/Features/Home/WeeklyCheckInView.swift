@@ -107,7 +107,7 @@ struct WeeklyCheckInView: View {
         VStack(spacing: 12) {
             Image(systemName: "sparkles")
                 .appFont(size: 32, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .padding()
                 .background(Color(UIColor.secondarySystemFill), in: Circle())
             
@@ -145,7 +145,7 @@ struct WeeklyCheckInView: View {
                     value: averageIntakeText,
                     subtitle: "last 21 days",
                     icon: "fork.knife",
-                    color: .orange
+                    color: AppPalette.energy
                 )
                 
                 WeeklyCheckInStatCard(
@@ -153,7 +153,7 @@ struct WeeklyCheckInView: View {
                     value: weightTrendValueText,
                     subtitle: weightTrendUnitText,
                     icon: "scalemass.fill",
-                    color: .teal
+                    color: AppPalette.effort
                 )
             }
             
@@ -210,7 +210,7 @@ struct WeeklyCheckInView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "target")
                     .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppPalette.caution)
                     .frame(width: 42, height: 42)
                     .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
@@ -228,11 +228,11 @@ struct WeeklyCheckInView: View {
 
             Text(targetDeltaText)
                 .appFont(size: 13, weight: .semibold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(AppPalette.caution.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             if let goalProposal {
                 proposalDetails(goalProposal)
@@ -263,10 +263,10 @@ struct WeeklyCheckInView: View {
 
                 Text(deltaText(for: proposal.calorieDelta))
                     .appFont(size: 12, weight: .bold)
-                    .foregroundColor(proposal.shouldAdjust ? .orange : .accentPositive)
+                    .foregroundColor(proposal.shouldAdjust ? AppPalette.caution : .accentPositive)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 6)
-                    .background((proposal.shouldAdjust ? Color.orange : Color.accentPositive).opacity(0.10), in: Capsule())
+                    .background((proposal.shouldAdjust ? AppPalette.caution : AppPalette.positive).opacity(0.10), in: Capsule())
             }
 
             HStack(spacing: 8) {

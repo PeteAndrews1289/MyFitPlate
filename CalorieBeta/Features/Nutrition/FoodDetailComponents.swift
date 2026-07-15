@@ -68,7 +68,7 @@ struct FoodDetailMacroGrid: View {
             AppMetricItem(
                 label: "Calories",
                 value: "\(Int(calories.rounded()).formatted()) cal",
-                accent: .orange
+                accent: AppPalette.energy
             ),
             AppMetricItem(
                 label: "Protein",
@@ -103,7 +103,7 @@ struct FoodDetailLoadingCard: View {
     var body: some View {
         VStack(spacing: 13) {
             ProgressView()
-                .tint(.blue)
+                .tint(AppPalette.effort)
 
             Text("Loading serving options")
                 .appFont(size: 17, weight: .bold)
@@ -129,9 +129,9 @@ struct FoodDetailNoticeCard: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .appFont(size: 16, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .frame(width: 34, height: 34)
-                .background(Color.orange.opacity(0.12), in: Circle())
+                .background(AppPalette.caution.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -145,7 +145,7 @@ struct FoodDetailNoticeCard: View {
             }
         }
         .padding(14)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(AppPalette.caution.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -157,9 +157,9 @@ struct FoodDetailLabelScanCard: View {
             HStack(spacing: 12) {
                 Image(systemName: "camera.viewfinder")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.blue)
+                    .foregroundColor(AppPalette.effort)
                     .frame(width: 42, height: 42)
-                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(AppPalette.effort.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Nutrition label looks different?")
@@ -192,9 +192,9 @@ struct FoodDetailBarcodeMemoryAction: View {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "barcode.viewfinder")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.blue)
+                    .foregroundColor(AppPalette.effort)
                     .frame(width: 38, height: 38)
-                    .background(Color.blue.opacity(0.10), in: Circle())
+                    .background(AppPalette.effort.opacity(0.10), in: Circle())
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Use for future scans")
@@ -210,7 +210,7 @@ struct FoodDetailBarcodeMemoryAction: View {
                 Spacer(minLength: 0)
                 Image(systemName: "bookmark")
                     .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.blue)
+                    .foregroundColor(AppPalette.effort)
             }
             .padding(.vertical, 10)
         }
@@ -314,9 +314,9 @@ struct FoodDetailCorrectionSheet: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "pencil.and.scribble")
                 .appFont(size: 18, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .frame(width: 42, height: 42)
-                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(AppPalette.caution.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Correct barcode match")
@@ -368,7 +368,7 @@ struct FoodDetailCorrectionSheet: View {
             if let saturatedFatValidationMessage {
                 Label(saturatedFatValidationMessage, systemImage: "exclamationmark.circle.fill")
                     .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(.red)
+                    .foregroundColor(AppPalette.critical)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

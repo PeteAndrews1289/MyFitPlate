@@ -220,7 +220,7 @@ private struct RecipeLibrarySummary: View {
                         label: "Avg Ingredients",
                         spokenLabel: "Average ingredients",
                         value: Int(averageIngredientCount.rounded()).formatted(),
-                        accent: .blue
+                        accent: AppPalette.effort
                     )
                     Divider()
                     RecipeLibraryAccessibilityMetric(
@@ -228,7 +228,7 @@ private struct RecipeLibrarySummary: View {
                         label: "Avg Calories",
                         spokenLabel: "Average calories",
                         value: "\(Int(averageCalories.rounded()).formatted()) cal",
-                        accent: .orange
+                        accent: AppPalette.energy
                     )
                 }
             } else {
@@ -237,12 +237,12 @@ private struct RecipeLibrarySummary: View {
                     AppMetricItem(
                         label: "Avg Ingredients",
                         value: Int(averageIngredientCount.rounded()).formatted(),
-                        accent: .blue
+                        accent: AppPalette.effort
                     ),
                     AppMetricItem(
                         label: "Avg Calories",
                         value: "\(Int(averageCalories.rounded()).formatted()) cal",
-                        accent: .orange
+                        accent: AppPalette.energy
                     )
                 ])
             }

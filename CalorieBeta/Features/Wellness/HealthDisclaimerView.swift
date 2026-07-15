@@ -16,7 +16,7 @@ struct HealthDisclaimerView: View {
                     VStack(spacing: 0) {
                         DisclaimerRow(
                             icon: "exclamationmark.triangle.fill",
-                            color: .orange,
+                            color: AppPalette.caution,
                             title: "General Guidance",
                             description: "The information and recommendations provided by this application are for general informational and educational purposes only. They are not a substitute for the advice of a qualified healthcare professional. Always consult with your doctor or a registered dietitian before making significant changes to your diet or exercise routine."
                         )
@@ -36,7 +36,7 @@ struct HealthDisclaimerView: View {
 
                         DisclaimerRow(
                             icon: "leaf.fill",
-                            color: .green,
+                            color: AppPalette.positive,
                             title: "Micronutrient Goals",
                             description: "Daily goals for micronutrients (e.g., calcium, iron, vitamins) are based on the Dietary Reference Intakes (DRIs) established by the Health and Medicine Division of the National Academies of Sciences, Engineering, and Medicine.",
                             sourceText: "Source: USDA Dietary Reference Intakes (DRIs)",

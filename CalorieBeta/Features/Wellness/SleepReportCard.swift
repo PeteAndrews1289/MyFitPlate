@@ -124,10 +124,10 @@ struct SleepReportCard: View {
 
     private func sleepScoreColor(_ score: Int) -> Color {
         switch score {
-        case 85...: return .green
-        case 70..<85: return .yellow
-        case 50..<70: return .orange
-        default: return .red
+        case 85...: return AppPalette.positive
+        case 70..<85: return AppPalette.achievement
+        case 50..<70: return AppPalette.caution
+        default: return AppPalette.critical
         }
     }
 }
@@ -186,10 +186,10 @@ struct SleepDetailView: View {
 
     private func sleepScoreColor(_ score: Int) -> Color {
         switch score {
-        case 85...: return .green
-        case 70..<85: return .yellow
-        case 50..<70: return .orange
-        default: return .red
+        case 85...: return AppPalette.positive
+        case 70..<85: return AppPalette.achievement
+        case 50..<70: return AppPalette.caution
+        default: return AppPalette.critical
         }
     }
 }

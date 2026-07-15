@@ -37,9 +37,9 @@ private struct ScoreRow: View {
     private var scoreColor: Color {
         switch score {
         case 90...: return .accentPositive
-        case 70..<90: return .yellow
-        case 50..<70: return .orange
-        default: return .red
+        case 70..<90: return AppPalette.achievement
+        case 50..<70: return AppPalette.caution
+        default: return AppPalette.critical
         }
     }
     

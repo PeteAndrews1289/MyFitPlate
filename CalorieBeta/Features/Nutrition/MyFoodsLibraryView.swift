@@ -302,12 +302,12 @@ struct MyFoodsLibraryView: View {
                 AppMetricItem(
                     label: "Barcode",
                     value: viewModel.count(for: .barcodeCorrections).formatted(),
-                    accent: .blue
+                    accent: AppPalette.effort
                 ),
                 AppMetricItem(
                     label: "Review",
                     value: viewModel.count(for: .needsReview).formatted(),
-                    accent: viewModel.count(for: .needsReview) > 0 ? .orange : .accentPositive
+                    accent: viewModel.count(for: .needsReview) > 0 ? AppPalette.caution : .accentPositive
                 )
             ])
             .appSurface(.emphasized)
@@ -428,13 +428,13 @@ struct MyFoodsLibraryView: View {
                     } label: {
                         AppListRow(
                             icon: "square.on.square",
-                            iconColor: .orange,
+                            iconColor: AppPalette.caution,
                             title: group.keeper.item.name,
                             subtitle: "\(group.itemCount) identical saved copies"
                         ) {
                             Text("Review")
                                 .appTextRole(.caption)
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(AppPalette.caution)
                         }
                     }
                     .buttonStyle(.plain)
@@ -472,7 +472,7 @@ struct MyFoodsLibraryView: View {
     private func inlineError(_ message: String) -> some View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: "wifi.exclamationmark")
-                .foregroundStyle(.orange)
+                .foregroundStyle(AppPalette.caution)
                 .accessibilityHidden(true)
             Text(message)
                 .appTextRole(.secondary)
@@ -568,7 +568,7 @@ struct MyFoodsLibraryView: View {
                 title: title,
                 message: message,
                 iconName: "xmark.circle.fill",
-                iconColor: .red
+                iconColor: AppPalette.critical
             )
         }
     }
@@ -636,7 +636,7 @@ private struct MyFoodsLibraryRow: View {
                     if let barcode = normalizedBarcode {
                         Label("Future scans: \(barcode)", systemImage: "barcode")
                             .appTextRole(.caption)
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(AppPalette.effort)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -745,8 +745,8 @@ private struct MyFoodsLibraryRow: View {
     private var trustTint: Color {
         switch entry.trust.level {
         case .excellent, .strong: return .accentPositiveText
-        case .review: return .orange
-        case .low: return entry.trust.requiresCorrection ? .red : .orange
+        case .review: return AppPalette.caution
+        case .low: return entry.trust.requiresCorrection ? AppPalette.critical : AppPalette.caution
         }
     }
 }

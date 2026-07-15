@@ -642,13 +642,13 @@ private struct RunWorkoutGuidanceCard: View {
     private var accentColor: Color {
         switch progress.currentStep?.kind {
         case .hard:
-            return .orange
+            return AppPalette.caution
         case .recovery:
-            return .blue
+            return AppPalette.recovery
         case .cooldown:
-            return .green
+            return AppPalette.positive
         case .warmup, .none:
-            return .brandPrimary
+            return AppPalette.brand
         }
     }
 }
@@ -753,13 +753,13 @@ struct RunWorkoutResultCard: View {
     private func accentColor(for kind: RunWorkoutStep.Kind) -> Color {
         switch kind {
         case .hard:
-            return .orange
+            return AppPalette.caution
         case .recovery:
-            return .blue
+            return AppPalette.recovery
         case .cooldown:
-            return .green
+            return AppPalette.positive
         case .warmup:
-            return .brandPrimary
+            return AppPalette.brand
         }
     }
 }

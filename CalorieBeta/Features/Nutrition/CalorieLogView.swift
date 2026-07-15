@@ -130,7 +130,7 @@ private struct CalorieLogSummaryCard: View {
 
                 Image(systemName: "fork.knife.circle.fill")
                     .appFont(size: 28, weight: .bold)
-                    .foregroundColor(.blue)
+                    .foregroundColor(AppPalette.effort)
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
@@ -138,7 +138,7 @@ private struct CalorieLogSummaryCard: View {
                     title: "Calories",
                     value: Int(log.totalCalories().rounded()).formatted(),
                     unit: "cal",
-                    color: .orange
+                    color: AppPalette.energy
                 )
                 CalorieLogMetric(
                     title: "Protein",
@@ -303,7 +303,7 @@ private struct CalorieLogFoodRow: View {
 
                     Text(Int(foodItem.calories.rounded()).formatted())
                         .appFont(size: 17, weight: .bold)
-                        .foregroundColor(.orange)
+                        .foregroundColor(AppPalette.caution)
                 }
                 .contentShape(Rectangle())
             }
@@ -342,7 +342,7 @@ private struct CalorieLogEmptyState: View {
         VStack(spacing: 16) {
             Image(systemName: "fork.knife.circle.fill")
                 .appFont(size: 42, weight: .bold)
-                .foregroundColor(.blue)
+                .foregroundColor(AppPalette.effort)
 
             VStack(spacing: 5) {
                 Text("No foods logged yet")

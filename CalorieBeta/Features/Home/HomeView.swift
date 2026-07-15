@@ -699,10 +699,10 @@ struct HomeView: View {
                 HStack(spacing: 3) {
                     Image(systemName: "flame.fill")
                         .appTextRole(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(AppPalette.caution)
                     Text(streakOnGrace ? "\(streakDays)-day streak — log to keep it" : "\(streakDays)-day streak")
                         .appTextRole(.caption)
-                        .foregroundStyle(streakOnGrace ? .orange : Color(UIColor.secondaryLabel))
+                        .foregroundStyle(streakOnGrace ? AppPalette.caution : Color(UIColor.secondaryLabel))
                         .contentTransition(.numericText())
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -1311,7 +1311,7 @@ struct HomeView: View {
                         todayFuelPlanMetricPill(
                             title: plan.remainingCalories >= 0 ? "Budget" : "Over",
                             value: "\(Int(abs(plan.remainingCalories).rounded()).formatted()) cal",
-                            color: plan.remainingCalories >= 0 ? .brandPrimary : .orange
+                            color: plan.remainingCalories >= 0 ? .brandPrimary : AppPalette.caution
                         )
 
                         if let protein = plan.targetProteinGrams {
@@ -1388,7 +1388,7 @@ struct HomeView: View {
         case .planDinner:
             return ("moon.stars.fill", .accentCarbs)
         case .overTargetReview:
-            return ("exclamationmark.triangle.fill", .orange)
+            return ("exclamationmark.triangle.fill", AppPalette.caution)
         case .steadyDay:
             return ("checkmark.circle.fill", .accentPositive)
         }

@@ -98,12 +98,12 @@ struct SettingsHeaderCard: View {
                 AppMetricItem(
                     label: "Calories",
                     value: calorieGoal.map { "\(Int($0.rounded()).formatted()) cal" } ?? "--",
-                    accent: .orange
+                    accent: AppPalette.energy
                 ),
                 AppMetricItem(
                     label: "Water",
                     value: "\(Int(waterGoal.rounded()).formatted()) oz",
-                    accent: .cyan
+                    accent: AppPalette.hydration
                 ),
                 AppMetricItem(label: "Height", value: heightText, accent: AppPalette.brand)
             ])

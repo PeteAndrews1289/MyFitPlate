@@ -203,7 +203,7 @@ struct AIReviewOverview: View {
                     AppMetricItem(
                         label: "Calories",
                         value: "\(Int(totalCalories.rounded()).formatted()) cal",
-                        accent: .orange
+                        accent: AppPalette.energy
                     ),
                     AppMetricItem(
                         label: "Protein",
@@ -310,7 +310,7 @@ struct AIReviewStatusPill: View {
         case .userEdited, .userConfirmed:
             return .accentPositive
         default:
-            return .orange
+            return AppPalette.caution
         }
     }
 
@@ -336,7 +336,7 @@ struct AIItemTrustNotes: View {
         if item.hasMeaningfulCalorieMacroMismatch {
             Label("Calories and macros need review", systemImage: "exclamationmark.triangle.fill")
                 .appTextRole(.caption)
-                .foregroundStyle(.orange)
+                .foregroundStyle(AppPalette.caution)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -350,10 +350,10 @@ struct AIEstimateReviewBanner: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: "checkmark.shield")
                 .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(.orange)
+                .foregroundStyle(AppPalette.caution)
                 .frame(width: 40, height: 40)
                 .background(
-                    Color.orange.opacity(0.10),
+                    AppPalette.caution.opacity(0.10),
                     in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                 )
                 .accessibilityHidden(true)

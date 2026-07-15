@@ -40,7 +40,7 @@ struct HomeQuickActionsView: View {
                             icon: "dumbbell.fill",
                             label: "Workouts",
                             subtitle: "Train or resume a plan",
-                            color: .blue
+                            color: AppPalette.effort
                         )
                     }
                     .buttonStyle(.plain)
@@ -54,7 +54,7 @@ struct HomeQuickActionsView: View {
                             icon: "brain.head.profile",
                             label: "Coaching",
                             subtitle: "Maia's strategy",
-                            color: .indigo
+                            color: AppPalette.achievement
                         )
                     }
                     .buttonStyle(.plain)
@@ -81,7 +81,7 @@ struct HomeQuickActionsView: View {
                                 icon: "menucard.fill",
                                 label: "Menu Scan",
                                 subtitle: "Find best macros",
-                                color: .orange
+                                color: AppPalette.energy
                             )
                         }
                         .buttonStyle(.plain)
@@ -96,7 +96,7 @@ struct HomeQuickActionsView: View {
                             icon: "scalemass.fill",
                             label: "Log weight",
                             subtitle: "Track body metrics",
-                            color: .teal
+                            color: AppPalette.effort
                         )
                     }
                     .buttonStyle(.plain)
@@ -109,7 +109,7 @@ struct HomeQuickActionsView: View {
                             icon: "timer",
                             label: "Fasting",
                             subtitle: "Start or track a fast",
-                            color: .orange
+                            color: AppPalette.caution
                         )
                     }
                     .buttonStyle(.plain)

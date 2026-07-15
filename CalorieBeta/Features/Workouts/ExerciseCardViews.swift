@@ -25,6 +25,7 @@ struct ExerciseCardView: View {
 
     @State private var showingTargetRepsEditor = false
     @State private var targetRepsInput = ""
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var completedSetCount: Int {
         exercise.sets.filter(\.isCompleted).count
@@ -39,14 +40,14 @@ struct ExerciseCardView: View {
         return min(Double(completedSetCount) / Double(totalSetCount), 1)
     }
 
-    private var typeChip: (title: String, icon: String, color: Color) {
+    private var typeChip: (title: String, icon: String, role: AppSignalRole) {
         switch exercise.type {
         case .strength:
-            return ("Strength", "dumbbell.fill", .blue)
+            return ("Strength", "dumbbell.fill", .effort)
         case .cardio:
-            return ("Cardio", "heart.fill", .red)
+            return ("Cardio", "heart.fill", .caution)
         case .flexibility:
-            return ("Mobility", "figure.cooldown", .cyan)
+            return ("Mobility", "figure.cooldown", .recovery)
         }
     }
 
@@ -60,58 +61,9 @@ struct ExerciseCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .top, spacing: 12) {
-                    Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                        .font(.title3)
-                        .frame(width: 42, height: 42)
-                        .background(typeChip.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                exerciseIdentity
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 7) {
-                            Label(typeChip.title, systemImage: typeChip.icon)
-                                .appFont(size: 11, weight: .bold)
-                                .foregroundColor(typeChip.color)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(typeChip.color.opacity(0.10), in: Capsule())
-
-                            Text("\(completedSetCount)/\(totalSetCount) sets")
-                                .appFont(size: 11, weight: .bold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-
-                            if supersetPosition.isInSuperset, let label = supersetPosition.groupLabel {
-                                Label("Superset \(label)", systemImage: "link")
-                                    .appFont(size: 11, weight: .bold)
-                                    .foregroundColor(.brandPrimary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.brandPrimary.opacity(0.12), in: Capsule())
-                            }
-                        }
-
-                        Text(exercise.name)
-                            .appFont(size: 20, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                            .lineLimit(2)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    exerciseMenu
-                }
-
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(typeChip.color.opacity(0.10))
-
-                        Capsule()
-                            .fill(typeChip.color)
-                            .frame(width: geometry.size.width * CGFloat(exerciseProgress))
-                            .animation(.easeInOut(duration: 0.2), value: exerciseProgress)
-                    }
-                }
-                .frame(height: 6)
+                AppProgressTrack(progress: exerciseProgress, role: typeChip.role, height: 6)
 
                 if let note = displayedNote {
                     HStack(spacing: 4) {
@@ -125,8 +77,7 @@ struct ExerciseCardView: View {
                     .foregroundColor(.secondary)
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.yellow.opacity(0.1))
-                    .cornerRadius(8)
+                    .background(AppPalette.caution.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                 }
             }
 
@@ -166,11 +117,10 @@ struct ExerciseCardView: View {
             }
             .buttonStyle(AppActionButtonStyle(.secondary))
         }
-        .padding()
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .appSurface(.quiet, padding: AppSpacing.group, radius: AppRadius.hero)
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(supersetPosition.isInSuperset ? Color.brandPrimary.opacity(0.45) : typeChip.color.opacity(0.08),
+            RoundedRectangle(cornerRadius: AppRadius.hero, style: .continuous)
+                .stroke(supersetPosition.isInSuperset ? AppPalette.brand.opacity(0.45) : typeChip.role.color.opacity(0.08),
                         lineWidth: supersetPosition.isInSuperset ? 1.5 : 1)
         )
     }
@@ -180,19 +130,19 @@ struct ExerciseCardView: View {
             if restTimer.timeRemaining > 0 {
                 Text(restTimer.formattedTime())
                     .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(AppPalette.recovery)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
-                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                    .background(AppPalette.recovery.opacity(0.10), in: Capsule())
             } else {
                 Button {
                     restTimer.start(duration: TimeInterval(exercise.restTimeInSeconds), routineName: routineName)
                 } label: {
                     Image(systemName: "timer")
                         .appFont(size: 13, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(AppPalette.recovery)
                         .frame(width: 32, height: 32)
-                        .background(Color.brandPrimary.opacity(0.10), in: Circle())
+                        .background(AppPalette.recovery.opacity(0.10), in: Circle())
                 }
                 .buttonStyle(.plain)
             }
@@ -252,6 +202,89 @@ struct ExerciseCardView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Saved to your routine for future workouts.")
+        }
+    }
+
+    @ViewBuilder
+    private var exerciseIdentity: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                HStack(alignment: .top, spacing: AppSpacing.row) {
+                    exerciseIcon
+
+                    Text(exercise.name)
+                        .appFont(size: 20, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: AppSpacing.compact)
+                    exerciseMenu
+                }
+
+                HStack(spacing: AppSpacing.compact) {
+                    AppStatusBadge(typeChip.title, icon: typeChip.icon, role: typeChip.role)
+
+                    Text("\(completedSetCount)/\(totalSetCount) sets")
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+
+                    supersetBadge
+                    Spacer(minLength: 0)
+                }
+            }
+        } else {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                exerciseIcon
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 7) {
+                        AppStatusBadge(typeChip.title, icon: typeChip.icon, role: typeChip.role)
+
+                        Text("\(completedSetCount)/\(totalSetCount) sets")
+                            .appFont(size: 11, weight: .bold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+
+                        supersetBadge
+                    }
+
+                    Text(exercise.name)
+                        .appFont(size: 20, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: AppSpacing.compact)
+                exerciseMenu
+            }
+        }
+    }
+
+    private var exerciseIcon: some View {
+        Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
+            .font(.title3)
+            .frame(width: 42, height: 42)
+            .background(
+                AppPalette.canvas,
+                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    .stroke(AppPalette.separator, lineWidth: 0.5)
+            }
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var supersetBadge: some View {
+        if supersetPosition.isInSuperset, let label = supersetPosition.groupLabel {
+            Label("Superset \(label)", systemImage: "link")
+                .appFont(size: 11, weight: .bold)
+                .foregroundColor(.brandPrimary)
+                .lineLimit(1)
+                .padding(.horizontal, AppSpacing.compact)
+                .padding(.vertical, 4)
+                .background(Color.brandPrimary.opacity(0.12), in: Capsule())
         }
     }
 }
@@ -326,9 +359,9 @@ private struct StrengthProgressionCoachCard: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "chart.line.uptrend.xyaxis")
                 .appFont(size: 13, weight: .bold)
-                .foregroundColor(.blue)
+                .foregroundColor(AppPalette.effort)
                 .frame(width: 28, height: 28)
-                .background(Color.blue.opacity(0.10), in: Circle())
+                .background(AppPalette.effort.opacity(0.10), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 if let suggestion {
@@ -573,10 +606,10 @@ struct StrengthSetRow: View {
     }
     private var setTypeColor: Color {
         switch set.resolvedSetType {
-        case .warmup: return .orange
-        case .drop: return .brandPrimary
-        case .failure: return .red
-        case .normal: return .textPrimary
+        case .warmup: return AppPalette.caution
+        case .drop: return AppPalette.brand
+        case .failure: return AppPalette.critical
+        case .normal: return AppPalette.text
         }
     }
 
@@ -645,19 +678,30 @@ struct StrengthSetRow: View {
 
                 Spacer(minLength: 4)
 
-                Button(action: fillFromPrevious) {
+                if previousSet == nil {
                     Text(previousText)
                         .appFont(size: 12, weight: .bold)
-                        .foregroundColor(previousSet == nil ? Color(UIColor.tertiaryLabel) : .textPrimary)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
                         .lineLimit(1)
                         .minimumScaleFactor(0.76)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 5)
-                        .background(Color.backgroundSecondary.opacity(0.78), in: Capsule())
+                        .background(AppPalette.control, in: Capsule())
+                        .accessibilityLabel("No prior set")
+                } else {
+                    Button(action: fillFromPrevious) {
+                        Text(previousText)
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.76)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(AppPalette.control, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Fill from \(previousText)")
                 }
-                .buttonStyle(.plain)
-                .disabled(previousSet == nil)
-                .accessibilityLabel(previousSet == nil ? "No prior set" : "Fill from \(previousText)")
             }
 
             HStack(alignment: .top, spacing: 8) {
@@ -746,7 +790,7 @@ struct StrengthSetRow: View {
                     .multilineTextAlignment(.center)
                     .appFont(size: 18, weight: .bold)
                     .frame(height: 44)
-                    .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .onChange(of: weightInput) {
                         let newWeight = Double(weightInput) ?? 0
                         set.weight = newWeight
@@ -781,7 +825,7 @@ struct StrengthSetRow: View {
                     .multilineTextAlignment(.center)
                     .appFont(size: 18, weight: .bold)
                     .frame(height: 44)
-                    .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .onChange(of: repsInput) {
                         let newReps = Int(repsInput) ?? 0
                         set.reps = newReps
@@ -810,7 +854,7 @@ struct StrengthSetRow: View {
 
                     if isPersonalBest {
                         Image(systemName: "star.fill")
-                            .foregroundColor(.yellow)
+                            .foregroundColor(AppPalette.achievement)
                             .font(.caption2)
                             .offset(x: 3, y: -4)
                             .accessibilityLabel("Personal best")
@@ -868,7 +912,7 @@ struct StrengthSetRow: View {
             }
             .padding(.horizontal, 10)
             .frame(height: 30)
-            .background(Color.backgroundSecondary.opacity(0.86), in: Capsule())
+            .background(AppPalette.control, in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(effortScale == .rir ? "Reps in reserve" : "Rate of perceived exertion")

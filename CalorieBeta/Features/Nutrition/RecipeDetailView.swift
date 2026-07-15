@@ -178,7 +178,7 @@ private struct RecipeNutritionSummary: View {
             AppMetricItem(
                 label: "Calories",
                 value: "\(Int(nutrition.calories.rounded()).formatted()) cal",
-                accent: .orange
+                accent: AppPalette.energy
             ),
             AppMetricItem(
                 label: "Protein",

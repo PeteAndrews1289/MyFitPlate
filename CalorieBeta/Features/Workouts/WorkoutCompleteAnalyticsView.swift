@@ -103,12 +103,12 @@ struct WorkoutCompleteAnalyticsView: View {
                             AppMetricItem(
                                 label: "Volume",
                                 value: formatPercent(comp.volumeDiffPercent),
-                                accent: comp.volumeDiffPercent >= 0 ? .accentPositive : .orange
+                                accent: comp.volumeDiffPercent >= 0 ? AppPalette.positive : AppPalette.caution
                             ),
                             AppMetricItem(
                                 label: "Estimated pace",
                                 value: formatPercent(-comp.durationDiffPercent),
-                                accent: comp.durationDiffPercent <= 0 ? .accentPositive : .blue
+                                accent: comp.durationDiffPercent <= 0 ? AppPalette.positive : AppPalette.effort
                             )
                         ])
                         .appSurface(.quiet)
@@ -525,14 +525,14 @@ struct WorkoutCompleteAnalyticsView: View {
             AppMetricItem(
                 label: plan.remainingCalories >= 0 ? "Budget" : "Over",
                 value: "\(Int(abs(plan.remainingCalories).rounded()).formatted()) cal",
-                accent: plan.remainingCalories >= 0 ? AppPalette.brand : .orange
+                accent: plan.remainingCalories >= 0 ? AppPalette.brand : AppPalette.caution
             )
         ]
         if let protein = plan.targetProteinGrams {
-            items.append(AppMetricItem(label: "Protein", value: "\(protein) g", accent: .accentProtein))
+            items.append(AppMetricItem(label: "Protein", value: "\(protein) g", accent: AppPalette.effort))
         }
         if let carbs = plan.targetCarbGrams {
-            items.append(AppMetricItem(label: "Carbs", value: "\(carbs) g", accent: .accentCarbs))
+            items.append(AppMetricItem(label: "Carbs", value: "\(carbs) g", accent: AppPalette.achievement))
         }
         return items
     }
@@ -565,7 +565,7 @@ struct WorkoutCompleteAnalyticsView: View {
     }
 
     private func recoveryHandoffColor(for kind: TodayFuelPlan.Kind) -> Color {
-        kind == .overTargetReview ? .orange : .brandPrimary
+        kind == .overTargetReview ? AppPalette.caution : AppPalette.brand
     }
 
     private func openRecoveryFoodSearch() {
@@ -883,10 +883,10 @@ struct WorkoutSummaryHeroCard: View {
             ) {
                 Image(systemName: "trophy.fill")
                     .appFont(size: 24, weight: .bold)
-                    .foregroundStyle(Color.yellow)
+                    .foregroundStyle(AppPalette.achievement)
                     .frame(width: 52, height: 52)
                     .background(
-                        Color.yellow.opacity(0.12),
+                        AppPalette.achievement.opacity(0.12),
                         in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                     )
                     .scaleEffect(isAnimated ? 1.0 : 0.65)
@@ -895,11 +895,11 @@ struct WorkoutSummaryHeroCard: View {
             }
 
             AppMetricStrip(items: [
-                AppMetricItem(label: "Volume", value: "\(Int(totalVolume).formatted()) lb"),
-                AppMetricItem(label: "Exercises", value: exerciseCount.formatted(), accent: .blue),
-                AppMetricItem(label: "Working sets", value: setCount.formatted(), accent: .accentPositive),
-                AppMetricItem(label: "Reps", value: repCount.formatted(), accent: .orange),
-                AppMetricItem(label: "Estimated time", value: "\(estimatedMinutes) min", accent: .blue)
+                AppMetricItem(label: "Volume", value: "\(Int(totalVolume).formatted()) lb", accent: AppPalette.effort),
+                AppMetricItem(label: "Exercises", value: exerciseCount.formatted(), accent: Color.secondary),
+                AppMetricItem(label: "Working sets", value: setCount.formatted(), accent: AppPalette.positive),
+                AppMetricItem(label: "Reps", value: repCount.formatted(), accent: AppPalette.effort),
+                AppMetricItem(label: "Estimated time", value: "\(estimatedMinutes) min", accent: AppPalette.recovery)
             ])
             .appSurface(.emphasized)
         }
@@ -1054,7 +1054,7 @@ struct PRCard: View {
         VStack(alignment: .leading, spacing: AppSpacing.compact) {
             Label("Personal Record", systemImage: "crown.fill")
                 .appTextRole(.caption)
-                .foregroundStyle(Color.yellow)
+                .foregroundStyle(AppPalette.achievement)
             Text(exerciseName)
                 .appTextRole(.control)
                 .foregroundStyle(AppPalette.text)
@@ -1070,7 +1070,7 @@ struct PRCard: View {
         .appSurface(.quiet)
         .overlay {
             RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                .stroke(Color.yellow.opacity(0.24), lineWidth: 1)
+                .stroke(AppPalette.achievement.opacity(0.24), lineWidth: 1)
         }
     }
 }
@@ -1085,19 +1085,19 @@ struct InsightCard: View {
         default: return "lightbulb.fill"
         }
     }
-    var categoryColor: Color {
+    var categoryRole: AppSignalRole {
         switch insight.category {
-        case "Performance": return .blue
-        case "Recovery": return .indigo
-        case "Nutrition": return .green
-        default: return .orange
+        case "Performance": return .effort
+        case "Recovery": return .recovery
+        case "Nutrition": return .current
+        default: return .caution
         }
     }
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.compact) {
             Label(insight.category, systemImage: categoryIcon)
                 .appTextRole(.caption)
-                .foregroundStyle(categoryColor)
+                .foregroundStyle(categoryRole.color)
 
             Text(insight.title)
                 .appTextRole(.control)

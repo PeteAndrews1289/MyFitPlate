@@ -308,9 +308,9 @@ struct LivingDayHomeExperience: View {
             let formatter = RelativeDateTimeFormatter()
             formatter.unitsStyle = .short
             let relative = formatter.localizedString(for: lastUpdated, relativeTo: snapshot.generatedAt)
-            return ("Updated \(relative)", "clock.arrow.circlepath", .orange)
+            return ("Updated \(relative)", "clock.arrow.circlepath", AppPalette.caution)
         case .unavailable:
-            return ("Limited Data", "exclamationmark.circle", .orange)
+            return ("Limited Data", "exclamationmark.circle", AppPalette.caution)
         }
     }
 
@@ -914,8 +914,8 @@ private extension LivingDayTransition {
     var color: Color {
         switch kind {
         case .foodLogged, .trainingCompleted: return .brandPrimary
-        case .trainingPlanned: return .indigo
-        case .trainingSkipped: return .orange
+        case .trainingPlanned: return AppPalette.effort
+        case .trainingSkipped: return AppPalette.caution
         }
     }
 }
@@ -925,11 +925,11 @@ private extension LivingDaySnapshot.Event {
         switch kind {
         case .meal: return .brandPrimary
         case .plannedMeal: return .accentCarbs
-        case .strength: return .indigo
-        case .run: return .cyan
-        case .walk: return .blue
-        case .recovery: return .orange
-        case .activity: return .purple
+        case .strength: return AppPalette.effort
+        case .run: return AppPalette.effort
+        case .walk: return AppPalette.positive
+        case .recovery: return AppPalette.recovery
+        case .activity: return AppPalette.achievement
         }
     }
 
@@ -989,8 +989,8 @@ private extension LivingDaySnapshot.Evidence {
     var color: Color {
         switch self {
         case .excellent, .supported: return .brandPrimary
-        case .review: return .orange
-        case .correction: return .red
+        case .review: return AppPalette.caution
+        case .correction: return AppPalette.critical
         case .unavailable, .notApplicable: return .secondary
         }
     }
@@ -1024,7 +1024,7 @@ private extension DailyNextAction {
         switch kind {
         case .preWorkoutFuel, .recoveryMeal, .steadyDay: return .brandPrimary
         case .proteinCatchUp: return .accentProtein
-        case .trustReview: return .orange
+        case .trustReview: return AppPalette.caution
         }
     }
 

@@ -65,12 +65,12 @@ struct WellnessScoreCardView: View {
                     AppMetricItem(
                         label: "Sleep",
                         value: wellnessScore.sleepScore.map(String.init) ?? "--",
-                        accent: .blue
+                        accent: AppPalette.recovery
                     ),
                     AppMetricItem(
                         label: "Recovery",
                         value: wellnessScore.recoveryScore.map(String.init) ?? "--",
-                        accent: .purple
+                        accent: AppPalette.positive
                     )
                 ])
             }

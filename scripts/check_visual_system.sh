@@ -132,8 +132,46 @@ for allowed_file in "${shadow_allowlist[@]}"; do
   fi
 done
 
+# Release-reachable UI uses the shared signal and domain vocabulary. Direct spectrum colors are
+# valid only where the color itself is measured/categorical data, a physical plate standard,
+# celebration/export artwork, or inside the deliberately inaccessible social prototype.
+readonly direct_color_pattern='\.(red|orange|yellow|blue|cyan|indigo|purple|pink|green|teal)([^[:alnum:]_]|$)'
+readonly direct_color_allowlist=(
+  'CalorieBeta/Features/Home/WeeklyCheckInView.swift'
+  'CalorieBeta/Features/Home/WeeklyRecapView.swift'
+  'CalorieBeta/Features/Nutrition/CelebrationOverlayView.swift'
+  'CalorieBeta/Features/Nutrition/PlateCalculatorView.swift'
+  'CalorieBeta/Features/Workouts/RunningViews.swift'
+  'CalorieBeta/Features/Workouts/RunStoryPosterView.swift'
+  'CalorieBeta/Features/Wellness/CycleTrackingView.swift'
+  'CalorieBeta/Features/Wellness/SleepReportCard.swift'
+  'CalorieBeta/Features/Wellness/WellnessScoreDetailView.swift'
+  'CalorieBeta/Features/Community/CommunityHubView.swift'
+  'CalorieBeta/Features/Community/CreateGroupView.swift'
+  'CalorieBeta/Features/Community/CreatePostView.swift'
+  'CalorieBeta/Features/Community/GroupSelectionView.swift'
+  'CalorieBeta/Features/Community/JoinGroupConfirmationView.swift'
+)
+
+direct_color_matches="$(git grep -n -E "$direct_color_pattern" -- 'CalorieBeta/Features' || true)"
+while IFS= read -r match; do
+  [[ -z "$match" ]] && continue
+  file="${match%%:*}"
+  is_allowed=0
+  for allowed_file in "${direct_color_allowlist[@]}"; do
+    if [[ "$file" == "$allowed_file" ]]; then
+      is_allowed=1
+      break
+    fi
+  done
+  if (( is_allowed == 0 )); then
+    printf 'Direct spectrum color outside the data/art/prototype allowlist:\n%s\n' "$match" >&2
+    status=1
+  fi
+done <<< "$direct_color_matches"
+
 if (( status != 0 )); then
-  printf 'Use AppSurfaceModifier, AppActionButtonStyle, and semantic flat colors instead.\n' >&2
+  printf 'Use shared surfaces, actions, and AppPalette/AppSignalRole semantic colors instead.\n' >&2
   exit "$status"
 fi
 

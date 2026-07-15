@@ -22,7 +22,7 @@ struct MealSuggestionDetailView: View {
                 planned: safe(suggestion.calories),
                 target: MealSuggestionReviewRules.safeTarget(remainingCalories),
                 unit: "cal",
-                color: .orange,
+                color: AppPalette.energy,
                 tolerance: 75
             ),
             MealSuggestionMacroFitRow.Model(
@@ -123,11 +123,11 @@ struct MealSuggestionDetailView: View {
                 Text("AI Estimate")
             }
             .appTextRole(.caption)
-            .foregroundStyle(.orange)
+            .foregroundStyle(AppPalette.caution)
             .padding(.horizontal, AppSpacing.row)
             .padding(.vertical, AppSpacing.compact)
             .background(
-                Color.orange.opacity(0.10),
+                AppPalette.caution.opacity(0.10),
                 in: Capsule()
             )
             .fixedSize(horizontal: true, vertical: false)
@@ -138,7 +138,7 @@ struct MealSuggestionDetailView: View {
 
     private var nutritionSummary: some View {
         AppMetricStrip(items: [
-            AppMetricItem(label: "Calories", value: "\(formatted(suggestion.calories)) cal", accent: .orange),
+            AppMetricItem(label: "Calories", value: "\(formatted(suggestion.calories)) cal", accent: AppPalette.energy),
             AppMetricItem(label: "Protein", value: "\(formatted(suggestion.protein)) g", accent: .accentProtein),
             AppMetricItem(label: "Carbs", value: "\(formatted(suggestion.carbs)) g", accent: .accentCarbs),
             AppMetricItem(label: "Fat", value: "\(formatted(suggestion.fats)) g", accent: .accentFats)
@@ -404,7 +404,7 @@ private struct MealSuggestionMacroFitRow: View {
 
     private var statusColor: Color {
         guard let delta else { return .secondary }
-        return abs(delta) <= model.tolerance ? .accentPositive : .orange
+        return abs(delta) <= model.tolerance ? .accentPositive : AppPalette.caution
     }
 
     var body: some View {

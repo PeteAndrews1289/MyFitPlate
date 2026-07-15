@@ -74,7 +74,7 @@ struct BarcodeScannerView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: isRapidMode ? "bolt.badge.clock.fill" : "bolt.slash.fill")
-                        .foregroundColor(isRapidMode ? .yellow : .white)
+                        .foregroundColor(isRapidMode ? AppPalette.achievement : .white)
                     Text(isRapidMode ? "Rapid Scan ON" : "Rapid Scan OFF")
                         .font(.subheadline.bold())
                         .foregroundColor(.white)
@@ -83,7 +83,7 @@ struct BarcodeScannerView: View {
                 .padding(.vertical, 8)
                 .background(isRapidMode ? Color.brandPrimary.opacity(0.9) : Color.black.opacity(0.6), in: Capsule())
                 .overlay(
-                    Capsule().stroke(isRapidMode ? Color.yellow : Color.white.opacity(0.3), lineWidth: 1.5)
+                    Capsule().stroke(isRapidMode ? AppPalette.achievement : Color.white.opacity(0.3), lineWidth: 1.5)
                 )
             }
             .buttonStyle(.plain)
@@ -95,7 +95,7 @@ struct BarcodeScannerView: View {
     private var centerGuidanceFrame: some View {
         VStack {
             RoundedRectangle(cornerRadius: 16)
-                .stroke(flashSuccess ? Color.green : Color.white.opacity(0.8), style: StrokeStyle(lineWidth: flashSuccess ? 5 : 3, dash: flashSuccess ? [] : [10, 5]))
+                .stroke(flashSuccess ? AppPalette.positive : Color.white.opacity(0.8), style: StrokeStyle(lineWidth: flashSuccess ? 5 : 3, dash: flashSuccess ? [] : [10, 5]))
                 .frame(width: 280, height: 160)
                 .overlay(
                     VStack(spacing: 4) {
@@ -106,7 +106,7 @@ struct BarcodeScannerView: View {
                         if let last = lastScannedBarcode, isRapidMode {
                             Text("Added: \(last)")
                                 .font(.caption.bold())
-                                .foregroundColor(.green)
+                                .foregroundColor(AppPalette.positive)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
                                 .background(Color.black.opacity(0.7), in: Capsule())
@@ -134,7 +134,7 @@ struct BarcodeScannerView: View {
                             withAnimation { scannedBarcodes.removeAll() }
                         }
                         .font(.caption.bold())
-                        .foregroundColor(.red)
+                        .foregroundColor(AppPalette.critical)
                     }
                 }
 

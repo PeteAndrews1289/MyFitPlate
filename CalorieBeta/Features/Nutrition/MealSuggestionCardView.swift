@@ -57,7 +57,7 @@ struct MealSuggestionCardView: View {
             Button(action: onTap) {
                 AppListRow(
                     icon: "fork.knife",
-                    iconColor: .orange,
+                    iconColor: AppPalette.energy,
                     title: suggestion.mealName,
                     subtitle: nutritionLine(for: suggestion)
                 ) {

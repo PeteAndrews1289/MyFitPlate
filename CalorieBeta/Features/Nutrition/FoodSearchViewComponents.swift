@@ -291,7 +291,7 @@ struct FoodCard: View {
     private var calorieText: some View {
         Text("\(Int(food.calories.rounded()).formatted()) cal")
             .appFont(size: 13, weight: .medium)
-            .foregroundColor(.orange)
+            .foregroundColor(AppPalette.caution)
     }
 }
 

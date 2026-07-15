@@ -283,7 +283,7 @@ struct AddFoodView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: toggleSavedState) {
                         Image(systemName: isSavedAsCustom ? "star.fill" : "star")
-                            .foregroundColor(isSavedAsCustom ? .yellow : .blue)
+                            .foregroundColor(isSavedAsCustom ? AppPalette.achievement : AppPalette.brand)
                     }
                 }
             }
@@ -316,7 +316,7 @@ struct AddFoodView: View {
                             title: "Scan error",
                             message: "Couldn't read label: \(error.localizedDescription)",
                             iconName: "exclamationmark.triangle.fill",
-                            iconColor: .red
+                            iconColor: AppPalette.critical
                         )
                     }
                 }
@@ -431,7 +431,7 @@ struct AddFoodView: View {
                 if let saturatedFatValidationMessage {
                     Label(saturatedFatValidationMessage, systemImage: "exclamationmark.circle.fill")
                         .appTextRole(.secondary)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(AppPalette.critical)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("manual_food_fat_validation")
                 }
@@ -854,7 +854,7 @@ private struct ManualBarcodeCorrectionCard: View {
             VStack(alignment: .leading, spacing: AppSpacing.compact) {
                 Label(hasScannedLabel ? "Label scanned" : "Label not scanned", systemImage: hasScannedLabel ? "checkmark.seal.fill" : "camera.viewfinder")
                     .appTextRole(.caption)
-                    .foregroundStyle(hasScannedLabel ? Color.accentPositiveText : Color.orange)
+                    .foregroundStyle(hasScannedLabel ? Color.accentPositiveText : AppPalette.caution)
 
                 if communitySharingEnabled {
                     Label("Eligible fixes may help future scans", systemImage: "person.2.fill")
@@ -887,7 +887,7 @@ private struct ManualFoodMacroInputGrid: View {
             )
 
             LazyVGrid(columns: columns, alignment: .leading, spacing: AppSpacing.group) {
-                ManualFoodTextInput(title: "Calories", placeholder: "0", text: $caloriesText, keyboardType: .decimalPad, icon: "flame.fill", color: .orange, unit: "cal")
+                ManualFoodTextInput(title: "Calories", placeholder: "0", text: $caloriesText, keyboardType: .decimalPad, icon: "flame.fill", color: AppPalette.energy, unit: "cal")
                 ManualFoodTextInput(title: "Protein", placeholder: "0", text: $proteinText, keyboardType: .decimalPad, icon: "bolt.fill", color: .accentProtein, unit: "g")
                 ManualFoodTextInput(title: "Carbs", placeholder: "0", text: $carbsText, keyboardType: .decimalPad, icon: "leaf.fill", color: .accentCarbs, unit: "g")
                 ManualFoodTextInput(title: "Total fat", placeholder: "0", text: $fatsText, keyboardType: .decimalPad, icon: "drop.fill", color: .accentFats, unit: "g")
@@ -991,7 +991,7 @@ private struct ManualFoodPreviewCard: View {
             AppSectionHeader(title: "Preview", subtitle: servingDescription)
 
             AppMetricStrip(items: [
-                AppMetricItem(label: "Calories", value: "\(Int(calories.rounded()).formatted()) cal", accent: .orange),
+                AppMetricItem(label: "Calories", value: "\(Int(calories.rounded()).formatted()) cal", accent: AppPalette.energy),
                 AppMetricItem(label: "Protein", value: "\(Int(protein.rounded()).formatted()) g", accent: .accentProtein),
                 AppMetricItem(label: "Carbs", value: "\(Int(carbs.rounded()).formatted()) g", accent: .accentCarbs),
                 AppMetricItem(label: "Fat", value: "\(Int(fats.rounded()).formatted()) g", accent: .accentFats)
@@ -1024,7 +1024,7 @@ private struct ManualFoodNoticeCard: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .appTextRole(.control)
-                .foregroundStyle(.orange)
+                .foregroundStyle(AppPalette.caution)
                 .frame(width: 32)
                 .accessibilityHidden(true)
 

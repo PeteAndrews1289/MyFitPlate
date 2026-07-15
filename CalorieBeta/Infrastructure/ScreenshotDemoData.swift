@@ -1115,7 +1115,7 @@ enum ScreenshotDemoData {
 
         switch requestedScreen {
         case "maia": appState.selectedTab = 1
-        case "train", "runs", "saved-programs", "program-builder", "routine-builder",
+        case "train", "runs", "saved-programs", "program-builder", "routine-builder", "workout-player",
              "program-detail", "workout-history", "workout-summary":
             appState.selectedTab = 2
         case "meal-plan": appState.selectedTab = 3
@@ -1482,6 +1482,28 @@ enum ScreenshotDemoData {
 
     static var workoutSummaryLog: WorkoutSessionLog? {
         workoutHistoryLogs.first
+    }
+
+    static var muscleRecoveryEstimates: [MuscleRecoveryEstimate] {
+        let asOf = today.addingTimeInterval(20 * 60 * 60)
+        let fixtures: [(RecoveryMuscleGroup, Double?, Int?)] = [
+            (.chest, 12, 12),
+            (.back, 35, 10),
+            (.legs, 50, 8),
+            (.arms, 70, 6),
+            (.core, nil, nil),
+            (.shoulders, 28, 8)
+        ]
+
+        return fixtures.map { group, hoursAgo, sets in
+            MuscleRecoveryRules.estimate(
+                group: group,
+                lastTrained: hoursAgo.map { asOf.addingTimeInterval(-$0 * 3_600) },
+                sets: sets,
+                sleepScore: 84,
+                asOf: asOf
+            )
+        }
     }
 
     private static func workoutLogs(for program: WorkoutProgram) -> [WorkoutSessionLog] {

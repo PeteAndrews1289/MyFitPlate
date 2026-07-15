@@ -9,9 +9,9 @@ struct NutritionAuditLaunchButton: View {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "checklist")
                     .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppPalette.caution)
                     .frame(width: 28, height: 28)
-                    .background(Color.orange.opacity(0.12), in: Circle())
+                    .background(AppPalette.caution.opacity(0.12), in: Circle())
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -34,7 +34,7 @@ struct NutritionAuditLaunchButton: View {
                     .accessibilityHidden(true)
             }
             .padding(12)
-            .background(Color.orange.opacity(0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(AppPalette.caution.opacity(0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Review Food Trust. Sources, cross-checks, and items to fix.")
@@ -108,7 +108,7 @@ struct NutritionAuditView: View {
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     DiaryMetricPill(title: "Foods", value: "\(totalFoods)", subtitle: "logged", icon: "fork.knife", color: .brandPrimary)
-                    DiaryMetricPill(title: "Review", value: "\(needsReviewItems.count)", subtitle: "items", icon: "exclamationmark.triangle.fill", color: .orange)
+                    DiaryMetricPill(title: "Review", value: "\(needsReviewItems.count)", subtitle: "items", icon: "exclamationmark.triangle.fill", color: AppPalette.caution)
                     DiaryMetricPill(title: "Cross-Checked", value: "\(crossVerifiedItems.count)", subtitle: "foods", icon: "checkmark.seal.fill", color: .accentPositiveText)
                     DiaryMetricPill(title: "Reviewed", value: "\(userReviewedItems.count)", subtitle: "by you", icon: "person.crop.circle.badge.checkmark", color: .accentProtein)
                 }
@@ -121,7 +121,7 @@ struct NutritionAuditView: View {
                         subtitle: "Low-trust, estimated, or mismatched entries.",
                         items: needsReviewItems,
                         emptyMessage: "No foods need review right now.",
-                        tint: .orange,
+                        tint: AppPalette.caution,
                         icon: "exclamationmark.triangle.fill"
                     )
 
@@ -388,9 +388,9 @@ private struct NutritionAuditItem: Identifiable {
         case .excellent, .strong:
             return .accentPositiveText
         case .review:
-            return .orange
+            return AppPalette.caution
         case .low:
-            return evaluation.requiresCorrection ? .red : .orange
+            return evaluation.requiresCorrection ? AppPalette.critical : AppPalette.caution
         }
     }
 

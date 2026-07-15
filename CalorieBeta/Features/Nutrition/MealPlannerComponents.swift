@@ -45,7 +45,7 @@ struct MealPlanSummaryCard: View {
     }
 
     private var calorieStatusColor: Color {
-        abs(calorieDelta) <= 75 ? .accentPositive : .orange
+        abs(calorieDelta) <= 75 ? .accentPositive : AppPalette.caution
     }
 
     private var dateTitle: String {
@@ -76,7 +76,7 @@ struct MealPlanSummaryCard: View {
                 AppMetricItem(
                     label: "Calories",
                     value: "\(Int(totalCalories.rounded()).formatted()) cal",
-                    accent: .orange
+                    accent: AppPalette.energy
                 ),
                 AppMetricItem(
                     label: "Protein",
@@ -90,7 +90,7 @@ struct MealPlanSummaryCard: View {
                 value: totalCalories,
                 goal: calorieGoal,
                 unit: "cal",
-                color: .orange
+                color: AppPalette.energy
             )
         }
         .padding(.vertical, AppSpacing.compact)
@@ -187,7 +187,7 @@ struct WeeklyPlanOverviewCard: View {
                         .fill(Color.primary.opacity(0.08))
 
                     Capsule()
-                        .fill(plannedDays >= 7 ? Color.accentPositive : Color.blue)
+                        .fill(plannedDays >= 7 ? AppPalette.positive : AppPalette.effort)
                         .frame(width: geometry.size.width * progress)
                 }
             }
@@ -199,11 +199,11 @@ struct WeeklyPlanOverviewCard: View {
                     value: plannedDays == 1 ? "1 day" : "\(plannedDays) days",
                     accent: AppPalette.brand
                 ),
-                AppMetricItem(label: "Meals", value: mealCount.formatted(), accent: .blue),
+                AppMetricItem(label: "Meals", value: mealCount.formatted(), accent: AppPalette.effort),
                 AppMetricItem(
                     label: "Avg calories",
                     value: averageCalories > 0 ? "\(Int(averageCalories.rounded()).formatted()) cal" : "--",
-                    accent: .orange
+                    accent: AppPalette.energy
                 )
             ])
 
@@ -315,7 +315,7 @@ struct MealCardView: View {
     }
 
     private var sourceColor: Color {
-        meal.recipeID == nil ? .orange : .blue
+        meal.recipeID == nil ? AppPalette.caution : AppPalette.effort
     }
 
     private var mealIcon: String {
@@ -338,7 +338,7 @@ struct MealCardView: View {
             HStack(alignment: .top, spacing: AppSpacing.row) {
                 Image(systemName: mealIcon)
                     .appFont(size: 17, weight: .bold)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(AppPalette.caution)
                     .frame(width: 42, height: 42)
                     .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                     .accessibilityHidden(true)
@@ -404,7 +404,7 @@ struct MealCardView: View {
                     }
                     .padding(.top, 8)
                 }
-                .tint(.blue)
+                .tint(AppPalette.effort)
             }
 
             mealActions

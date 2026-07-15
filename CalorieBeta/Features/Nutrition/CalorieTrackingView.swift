@@ -79,7 +79,7 @@ struct CalorieTrackingView: View {
             AppMetricItem(
                 label: "Avg Calories",
                 value: formatted(trendSummary.averageCalories, unit: "cal"),
-                accent: .orange
+                accent: AppPalette.energy
             ),
             AppMetricItem(
                 label: "Avg Protein",
@@ -110,7 +110,7 @@ struct CalorieTrackingView: View {
 
             VStack(alignment: .leading, spacing: AppSpacing.row) {
                 ReportLegend(items: [
-                    ReportLegendItem(label: "Daily total", color: .orange, isDashed: false),
+                    ReportLegendItem(label: "Daily total", color: AppPalette.energy, isDashed: false),
                     ReportLegendItem(
                         label: calorieGoalLabel,
                         color: Color(UIColor.secondaryLabel),
@@ -127,14 +127,14 @@ struct CalorieTrackingView: View {
                                 x: .value("Date", point.date, unit: .day),
                                 y: .value("Calories", point.value)
                             )
-                            .foregroundStyle(Color.orange)
+                            .foregroundStyle(AppPalette.energy)
                             .interpolationMethod(.catmullRom)
 
                             PointMark(
                                 x: .value("Date", point.date, unit: .day),
                                 y: .value("Calories", point.value)
                             )
-                            .foregroundStyle(Color.orange)
+                            .foregroundStyle(AppPalette.energy)
                             .symbolSize(24)
                         }
 
@@ -398,9 +398,9 @@ private struct ReportMicronutrientRow: View {
 
     private var tint: Color {
         if nutrient.name == "Sodium" {
-            return progress >= 1 ? .orange : .blue
+            return progress >= 1 ? AppPalette.caution : AppPalette.effort
         }
-        return progress >= 1 ? .accentPositive : .blue
+        return progress >= 1 ? .accentPositive : AppPalette.effort
     }
 
     var body: some View {

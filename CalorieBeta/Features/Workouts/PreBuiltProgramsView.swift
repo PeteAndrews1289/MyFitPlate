@@ -152,7 +152,7 @@ struct PreBuiltProgramsView: View {
 
             HStack(spacing: 10) {
                 PreBuiltMetric(title: "Routines", value: "\(program.routines.count)", color: .brandPrimary)
-                PreBuiltMetric(title: "Days/wk", value: "\(program.daysOfWeek?.count ?? 0)", color: .blue)
+                PreBuiltMetric(title: "Days/wk", value: "\(program.daysOfWeek?.count ?? 0)", color: AppPalette.effort)
                 PreBuiltMetric(title: "Sets", value: "\(profile.setCount)", color: .accentPositive)
             }
 
@@ -237,7 +237,7 @@ struct PreBuiltProgramsView: View {
                 equipment: "Minimal Equipment",
                 summary: "A low-impact reset for mobility, core control, easy conditioning, and better recovery between harder sessions.",
                 icon: "heart.fill",
-                color: .blue,
+                color: AppPalette.recovery,
                 tags: ["Mobility", "Core", "Recovery", "Low Impact"],
                 setCount: setCount
             )
@@ -250,7 +250,7 @@ struct PreBuiltProgramsView: View {
                 equipment: name.contains("kettlebell") ? "Kettlebell + Bodyweight" : "Flexible",
                 summary: "A higher-movement plan for strength maintenance, conditioning, energy expenditure, and work capacity.",
                 icon: "flame.fill",
-                color: .red,
+                color: AppPalette.caution,
                 tags: ["Conditioning", "Cardio", "Work Capacity", "Flexible"],
                 setCount: setCount
             )
@@ -263,7 +263,7 @@ struct PreBuiltProgramsView: View {
                 equipment: "Machines",
                 summary: "A straightforward gym-machine path for users who want low-friction setup, stable movements, and easy progression.",
                 icon: "rectangle.grid.2x2.fill",
-                color: .blue,
+                color: AppPalette.effort,
                 tags: ["Machines", "Gym", "Low Setup", "Repeatable"],
                 setCount: setCount
             )
@@ -276,7 +276,7 @@ struct PreBuiltProgramsView: View {
                 equipment: usesBarbell ? "Barbell + Accessories" : "Flexible",
                 summary: "A muscle-building split with enough weekly volume to train hard while keeping the structure easy to follow.",
                 icon: "dumbbell.fill",
-                color: .orange,
+                color: AppPalette.achievement,
                 tags: ["Hypertrophy", "Muscle Growth", "Volume", "\(program.daysOfWeek?.count ?? 0) Days"],
                 setCount: setCount
             )
@@ -289,7 +289,7 @@ struct PreBuiltProgramsView: View {
                 equipment: "Dumbbells",
                 summary: "A focused dumbbell plan for users training at home, in a small gym, or without consistent barbell access.",
                 icon: "dumbbell.fill",
-                color: .orange,
+                color: AppPalette.achievement,
                 tags: ["Dumbbell", "Home Friendly", "Flexible", "\(program.daysOfWeek?.count ?? 0) Days"],
                 setCount: setCount
             )
@@ -327,7 +327,7 @@ struct PreBuiltProgramsView: View {
             equipment: "Flexible",
             summary: "A structured plan with enough variety to support steady weekly training.",
             icon: "figure.strengthtraining.traditional",
-            color: .blue,
+                color: AppPalette.effort,
             tags: ["Balanced", "Flexible", "12 Weeks"],
             setCount: setCount
         )
@@ -494,9 +494,9 @@ private struct ProgramSelectionErrorCard: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .appFont(size: 17, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .frame(width: 38, height: 38)
-                .background(Color.orange.opacity(0.12), in: Circle())
+                .background(AppPalette.caution.opacity(0.12), in: Circle())
 
             Text(message)
                 .appFont(size: 13, weight: .semibold)
@@ -566,7 +566,7 @@ private struct PreBuiltProgramStartDateSheet: View {
 
                     HStack(spacing: 10) {
                         PreBuiltMetric(title: "Routines", value: "\(program.routines.count)", color: .brandPrimary)
-                        PreBuiltMetric(title: "Days/wk", value: "\(trainingDayCount)", color: .blue)
+                        PreBuiltMetric(title: "Days/wk", value: "\(trainingDayCount)", color: AppPalette.effort)
                     }
 
                     Text("The weekly rhythm is preserved, and the first workout is aligned to your chosen start date.")

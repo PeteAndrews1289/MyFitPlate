@@ -147,7 +147,7 @@ struct CurrentWeightView: View {
                 systemImage: isDown ? "arrow.down.right" : "arrow.up.right"
             )
             .appTextRole(.secondary)
-            .foregroundStyle(isDown ? Color.accentPositive : Color.orange)
+            .foregroundStyle(isDown ? Color.accentPositive : AppPalette.caution)
             .fixedSize(horizontal: false, vertical: true)
         } else if enteredValue != nil {
             Label("In line with your last entry", systemImage: "equal")

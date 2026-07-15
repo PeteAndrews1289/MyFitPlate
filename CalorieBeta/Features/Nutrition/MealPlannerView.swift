@@ -328,13 +328,13 @@ struct MealPlannerView: View {
         Button(action: { showingImagePicker = true }) {
             AppListRow(
                 icon: "camera.macro",
-                iconColor: .orange,
+                iconColor: AppPalette.caution,
                 title: isAnalyzingImage ? "Chef Maia is analyzing" : "Scan pantry",
                 subtitle: isAnalyzingImage ? "Building recipe ideas" : "AI recipe generator"
             ) {
                 if isAnalyzingImage {
                     ProgressView()
-                        .tint(.orange)
+                        .tint(AppPalette.caution)
                 } else {
                     Image(systemName: "chevron.right")
                         .foregroundStyle(.tertiary)
@@ -759,12 +759,12 @@ struct VisionRecipeResultsView: View {
             
             VStack(spacing: 12) {
                 HStack {
-                    macroBadge(title: "Calories", value: "\(Int(recipe.calories))", color: .orange)
-                    macroBadge(title: "Protein", value: "\(Int(recipe.protein))g", color: .red)
+                    macroBadge(title: "Calories", value: "\(Int(recipe.calories))", color: AppPalette.energy)
+                    macroBadge(title: "Protein", value: "\(Int(recipe.protein))g", color: AppPalette.protein)
                 }
                 HStack {
-                    macroBadge(title: "Carbs", value: "\(Int(recipe.carbs))g", color: .blue)
-                    macroBadge(title: "Fats", value: "\(Int(recipe.fats))g", color: .purple)
+                    macroBadge(title: "Carbs", value: "\(Int(recipe.carbs))g", color: AppPalette.carbohydrate)
+                    macroBadge(title: "Fats", value: "\(Int(recipe.fats))g", color: AppPalette.fat)
                 }
             }
         }

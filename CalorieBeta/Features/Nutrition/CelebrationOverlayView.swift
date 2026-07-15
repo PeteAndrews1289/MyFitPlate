@@ -40,9 +40,9 @@ public enum CelebrationType: Equatable {
 
     var accentColor: Color {
         switch self {
-        case .proteinGoal: .orange
-        case .ayceWin: .orange
-        case .routePR: .blue
+        case .proteinGoal: AppPalette.achievement
+        case .ayceWin: AppPalette.achievement
+        case .routePR: AppPalette.effort
         case .workoutPR: AppPalette.brand
         }
     }

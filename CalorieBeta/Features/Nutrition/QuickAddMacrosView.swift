@@ -75,7 +75,7 @@ struct QuickAddMacrosView: View {
                     if let errorMessage {
                         Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                             .appTextRole(.secondary)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(AppPalette.critical)
                             .fixedSize(horizontal: false, vertical: true)
                             .appSurface(.quiet)
                             .accessibilityIdentifier("quick_add_error")
@@ -133,7 +133,7 @@ struct QuickAddMacrosView: View {
                     title: "Calories",
                     unit: "cal",
                     value: $calories,
-                    accent: .orange,
+                    accent: AppPalette.energy,
                     accessibilityIdentifier: "quick_add_calories"
                 )
                 QuickMacroInputField(
@@ -179,7 +179,7 @@ struct QuickAddMacrosView: View {
                 AppMetricItem(
                     label: "Calories",
                     value: "\(Int(finalCalories.rounded()).formatted()) cal",
-                    accent: .orange
+                    accent: AppPalette.energy
                 ),
                 AppMetricItem(
                     label: "Protein",
@@ -334,7 +334,7 @@ struct MenuScannerView: View {
                     VStack(spacing: 24) {
                         Image(systemName: "menucard")
                             .appFont(size: 60)
-                            .foregroundColor(.blue)
+                            .foregroundColor(AppPalette.effort)
                         
                         Text("Menu matchmaker")
                             .font(.title2)
@@ -347,11 +347,11 @@ struct MenuScannerView: View {
                         
                         if let errorMessage {
                             Text(errorMessage)
-                                .foregroundColor(.red)
+                                .foregroundColor(AppPalette.critical)
                                 .font(.callout)
                                 .multilineTextAlignment(.center)
                                 .padding()
-                                .background(Color.red.opacity(0.1))
+                                .background(AppPalette.critical.opacity(0.1))
                                 .cornerRadius(8)
                         }
                         
@@ -396,7 +396,7 @@ struct MenuScannerView: View {
         VStack(spacing: 18) {
             ProgressView()
                 .controlSize(.large)
-                .tint(.blue)
+                .tint(AppPalette.effort)
             Text("Reading the menu and matching your macros")
                 .appFont(size: 15, weight: .medium)
                 .foregroundColor(Color(UIColor.secondaryLabel))
@@ -446,9 +446,9 @@ struct MenuScannerView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .appFont(size: 14, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .frame(width: 30, height: 30)
-                .background(Color.orange.opacity(0.14), in: Circle())
+                .background(AppPalette.caution.opacity(0.14), in: Circle())
             VStack(alignment: .leading, spacing: 2) {
                 Text("All picks exceed your remaining \(Int(remaining).formatted()) cal")
                     .appFont(size: 13, weight: .bold)
@@ -461,7 +461,7 @@ struct MenuScannerView: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(AppPalette.caution.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     @ViewBuilder
@@ -469,9 +469,9 @@ struct MenuScannerView: View {
         HStack(spacing: 14) {
             Image(systemName: "fork.knife")
                 .appFont(size: 16, weight: .bold)
-                .foregroundColor(.blue)
+                .foregroundColor(AppPalette.effort)
                 .frame(width: 44, height: 44)
-                .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(AppPalette.effort.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(meal.name)
@@ -481,7 +481,7 @@ struct MenuScannerView: View {
                     .lineLimit(2)
 
                 HStack(spacing: 9) {
-                    Text("\(Int(meal.calories).formatted()) cal").foregroundColor(.orange)
+                    Text("\(Int(meal.calories).formatted()) cal").foregroundColor(AppPalette.energy)
                     Text("P \(Int(meal.protein).formatted()) g").foregroundColor(.accentProtein)
                     Text("C \(Int(meal.carbs).formatted()) g").foregroundColor(.accentCarbs)
                     Text("F \(Int(meal.fats).formatted()) g").foregroundColor(.accentFats)
@@ -502,7 +502,7 @@ struct MenuScannerView: View {
 
             Image(systemName: "plus.circle.fill")
                 .appFont(size: 26)
-                .foregroundColor(.blue)
+                .foregroundColor(AppPalette.brand)
         }
         .padding(14)
         .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))

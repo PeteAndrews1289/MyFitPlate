@@ -251,7 +251,7 @@ struct WeeklyRecapView: View {
                 title: "Calories",
                 progress: recap.calorieAdherence,
                 detail: calorieDetail(recap),
-                color: .orange
+                color: AppPalette.energy
             )
 
             WeeklyReportProgressRow(
@@ -364,7 +364,7 @@ struct WeeklyRecapView: View {
             )
 
             ProgressView(value: min(max(shoe.wearFraction, 0), 1))
-                .tint(shoe.isWornOut ? .orange : .brandPrimary)
+                .tint(shoe.isWornOut ? AppPalette.caution : .brandPrimary)
                 .accessibilityLabel("Shoe wear")
                 .accessibilityValue("\(Int((shoe.wearFraction * 100).rounded())) percent")
         }

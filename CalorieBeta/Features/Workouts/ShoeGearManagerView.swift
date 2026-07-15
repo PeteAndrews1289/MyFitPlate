@@ -79,7 +79,7 @@ public struct ShoeGearManagerView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Image(systemName: "trophy.fill")
-                        .foregroundColor(.yellow)
+                        .foregroundColor(AppPalette.achievement)
                         .font(.system(size: 18))
                     Text("Shoe Performance Leaderboard")
                         .appFont(size: 15, weight: .bold)
@@ -112,7 +112,7 @@ public struct ShoeGearManagerView: View {
                             if let paceStr = RunFormat.paceText(secondsPerKm: pace, metric: useMetric) {
                                 Text(paceStr)
                                     .appFont(size: 15, weight: .bold)
-                                    .foregroundColor(index == 0 ? .yellow : .textPrimary)
+                                    .foregroundColor(index == 0 ? AppPalette.achievement : AppPalette.text)
                                     .monospacedDigit()
                             }
                             Text("AVG PACE")

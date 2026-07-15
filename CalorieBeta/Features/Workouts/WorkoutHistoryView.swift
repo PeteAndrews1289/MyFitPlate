@@ -406,7 +406,7 @@ private struct WorkoutHistoryHeaderCard: View {
                 AppMetricItem(
                     label: "Volume",
                     value: totalVolume > 0 ? totalVolume.formattedWorkoutVolume : "0",
-                    accent: .orange
+                    accent: AppPalette.caution
                 )
             ])
             .appSurface(.emphasized)
@@ -552,7 +552,7 @@ private struct WorkoutHistoryHighlightsCard: View {
                 AppMetricItem(
                     label: "Best set · \(highlights.bestSetSubtitle)",
                     value: highlights.bestSetTitle,
-                    accent: .orange
+                    accent: AppPalette.caution
                 ),
                 AppMetricItem(
                     label: "Top move · \(highlights.topExerciseSubtitle)",
@@ -568,7 +568,7 @@ private struct WorkoutHistoryHighlightsCard: View {
                     value: highlights.sessionCount == 0
                         ? "0"
                         : (highlights.totalSets / max(highlights.sessionCount, 1)).formatted(),
-                    accent: .blue
+                    accent: AppPalette.effort
                 )
             ])
             .appSurface(.quiet)
@@ -644,7 +644,7 @@ struct WorkoutHistoryRow: View {
                 AppMetricItem(
                     label: totalVolume > 0 ? "Volume (lb)" : "PR signals",
                     value: totalVolume > 0 ? totalVolume.formattedWorkoutVolume : personalRecordCount.formatted(),
-                    accent: totalVolume > 0 ? .orange : .accentPositive
+                    accent: totalVolume > 0 ? AppPalette.effort : AppPalette.positive
                 )
             ])
         }

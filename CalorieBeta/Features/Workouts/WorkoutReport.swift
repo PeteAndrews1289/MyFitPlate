@@ -24,11 +24,11 @@ struct WorkoutReportCard: View {
             }
 
             AppMetricStrip(items: [
-                AppMetricItem(label: "Workouts", value: report.totalWorkouts.formatted(), accent: .blue),
+                AppMetricItem(label: "Workouts", value: report.totalWorkouts.formatted(), accent: AppPalette.effort),
                 AppMetricItem(
                     label: "Calories",
                     value: "\(Int(report.totalCaloriesBurned.rounded()).formatted()) cal",
-                    accent: .orange
+                    accent: AppPalette.caution
                 )
             ])
 

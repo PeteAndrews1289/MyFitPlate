@@ -33,45 +33,32 @@ struct CoachingDashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "brain.head.profile")
-                                .appFont(size: 24, weight: .bold)
-                                .foregroundColor(.purple)
-                            Text("Maia's strategy")
-                                .appFont(size: 22, weight: .bold)
-                        }
-
-                        Text("What I'm seeing in your recent nutrition, sleep, and activity.")
-                            .appFont(size: 15)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .padding(.bottom, 10)
-
-                        let action = coachAction(for: displayedPlan)
-                        AdaptiveCoachPlanCard(
-                            plan: displayedPlan,
-                            action: action,
-                            onPrimaryAction: {
-                                handleCoachAction(action, plan: displayedPlan)
-                            }
-                        )
-
-                        content
-                    }
-                    .padding(20)
-                    .background(Color.backgroundSecondary.opacity(0.8), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                    AppScreenHeader(
+                        eyebrow: "Maia",
+                        title: "Daily Strategy",
+                        subtitle: "A practical plan built from your recent food, sleep, and training evidence."
                     )
-                    .padding(.horizontal)
 
-                    Spacer()
+                    let action = coachAction(for: displayedPlan)
+                    AdaptiveCoachPlanCard(
+                        plan: displayedPlan,
+                        action: action,
+                        onPrimaryAction: {
+                            handleCoachAction(action, plan: displayedPlan)
+                        }
+                    )
+
+                    AppSectionHeader(
+                        title: "Signals Behind This Plan",
+                        subtitle: "The recent patterns Maia used to shape today's recommendation."
+                    )
+                    content
                 }
-                .padding(.vertical, 20)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
+            .background(AppPalette.canvas.ignoresSafeArea())
             .navigationTitle("Coaching dashboard")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -176,18 +163,19 @@ struct CoachingDashboardView: View {
     private var content: some View {
         if insightsService.isLoadingInsights && insightsService.currentInsights.isEmpty {
             HStack(spacing: 12) {
-                ProgressView().tint(.blue)
+                ProgressView().tint(AppPalette.effort)
                 Text("Reviewing your recent data")
                     .appFont(size: 14)
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 30)
+            .appSurface(.quiet)
         } else if insightsService.currentInsights.isEmpty {
             VStack(spacing: 10) {
                 Image(systemName: "sparkles")
                     .appFont(size: 28)
-                    .foregroundColor(.purple)
+                    .foregroundColor(AppPalette.achievement)
                 Text("Keep logging and I'll build your strategy")
                     .appFont(size: 15, weight: .semibold)
                     .foregroundColor(.textPrimary)
@@ -199,6 +187,7 @@ struct CoachingDashboardView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
+            .appSurface(.quiet)
         } else {
             VStack(alignment: .leading, spacing: 16) {
                 ForEach(insightsService.currentInsights.sorted { $0.priority > $1.priority }) { insight in
@@ -216,21 +205,21 @@ struct CoachingDashboardView: View {
 
     private static func style(for category: UserInsight.InsightCategory) -> (icon: String, color: Color) {
         switch category {
-        case .hydration: return ("drop.fill", .blue)
-        case .macroBalance: return ("chart.pie.fill", .purple)
-        case .microNutrient, .fiberIntake: return ("leaf.fill", .accentPositive)
-        case .mealTiming: return ("clock.fill", .orange)
-        case .consistency: return ("flame.fill", .red)
-        case .postWorkout, .exerciseSynergy: return ("figure.strengthtraining.traditional", .accentPositive)
-        case .foodVariety: return ("square.grid.3x3.fill", .teal)
-        case .positiveReinforcement: return ("star.fill", .yellow)
-        case .sugarAwareness: return ("cube.fill", .pink)
-        case .saturatedFat: return ("drop.triangle.fill", .orange)
-        case .smartSuggestion: return ("lightbulb.fill", .yellow)
-        case .sleep: return ("moon.zzz.fill", .indigo)
-        case .calorieFluctuation: return ("waveform.path.ecg", .orange)
-        case .weekendTrends: return ("calendar", .blue)
-        default: return ("fork.knife", .blue)
+        case .hydration: return ("drop.fill", AppPalette.recovery)
+        case .macroBalance: return ("chart.pie.fill", AppPalette.effort)
+        case .microNutrient, .fiberIntake: return ("leaf.fill", AppPalette.positive)
+        case .mealTiming: return ("clock.fill", AppPalette.caution)
+        case .consistency: return ("flame.fill", AppPalette.caution)
+        case .postWorkout, .exerciseSynergy: return ("figure.strengthtraining.traditional", AppPalette.effort)
+        case .foodVariety: return ("square.grid.3x3.fill", AppPalette.positive)
+        case .positiveReinforcement: return ("star.fill", AppPalette.achievement)
+        case .sugarAwareness: return ("cube.fill", AppPalette.caution)
+        case .saturatedFat: return ("drop.triangle.fill", AppPalette.caution)
+        case .smartSuggestion: return ("lightbulb.fill", AppPalette.achievement)
+        case .sleep: return ("moon.zzz.fill", AppPalette.recovery)
+        case .calorieFluctuation: return ("waveform.path.ecg", AppPalette.caution)
+        case .weekendTrends: return ("calendar", AppPalette.effort)
+        default: return ("fork.knife", AppPalette.effort)
         }
     }
 }
@@ -293,10 +282,12 @@ private struct AdaptiveCoachPlanCard: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 CoachMoveRow(icon: "checkmark.circle.fill", title: "Next move", text: plan.primaryAction, color: .accentPositive)
-                CoachMoveRow(icon: "fork.knife", title: "Food", text: plan.mealMove, color: .orange)
-                CoachMoveRow(icon: "figure.strengthtraining.traditional", title: "Training", text: plan.trainingMove, color: .blue)
-                CoachMoveRow(icon: "moon.zzz.fill", title: "Recovery", text: plan.recoveryMove, color: .indigo)
+                CoachMoveRow(icon: "fork.knife", title: "Food", text: plan.mealMove, color: AppPalette.caution)
+                CoachMoveRow(icon: "figure.strengthtraining.traditional", title: "Training", text: plan.trainingMove, color: AppPalette.effort)
+                CoachMoveRow(icon: "moon.zzz.fill", title: "Recovery", text: plan.recoveryMove, color: AppPalette.recovery)
             }
+            .padding(AppSpacing.row)
+            .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
 
             if !plan.dataPoints.isEmpty {
                 FlowLayout(spacing: 8, rowSpacing: 8) {
@@ -313,17 +304,11 @@ private struct AdaptiveCoachPlanCard: View {
 
             Button(action: onPrimaryAction) {
                 Label(action.title, systemImage: action.icon)
-                    .appFont(size: 14, weight: .bold)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .foregroundColor(.white)
-                    .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppActionButtonStyle(.primary))
             .accessibilityLabel(action.title)
         }
-        .padding(16)
-        .background(Color.backgroundPrimary.opacity(0.65), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .appSurface(.emphasized)
     }
 }
 

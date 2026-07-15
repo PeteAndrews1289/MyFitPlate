@@ -84,7 +84,7 @@ struct MainTabView: View {
             "ayce-start", "ayce-live", "ayce-review", "ayce-summary", "value-radar",
             "celebration", "meal-plan-survey", "meal-plan-survey-cooking", "meal-prep",
             "meal-prep-steps", "meal-suggestion", "plate-calculator", "plate-math",
-            "nutrition-trends", "maia-insights", "maia-action-cards"
+            "nutrition-trends", "maia-insights", "maia-action-cards", "muscle-recovery"
         ].contains(ScreenshotDemoData.requestedScreen)
         #else
         false
@@ -465,6 +465,24 @@ struct MainTabView: View {
             }
         case "maia-action-cards":
             NavigationStack { MaiaActionCardGalleryView() }
+        case "muscle-recovery":
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.section) {
+                        AppScreenHeader(
+                            eyebrow: "Training Evidence",
+                            title: "Muscle Recovery",
+                            subtitle: "See where recent strength work may still be carrying fatigue."
+                        )
+                        MuscleRecoveryMapView(
+                            fixtureRecoveries: ScreenshotDemoData.muscleRecoveryEstimates
+                        )
+                    }
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.vertical, AppSpacing.group)
+                }
+                .background(AppPalette.canvas.ignoresSafeArea())
+            }
         default:
             standardHomeContent
         }

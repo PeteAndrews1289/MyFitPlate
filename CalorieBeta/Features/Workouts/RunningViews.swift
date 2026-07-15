@@ -163,7 +163,7 @@ struct RunHistoryView: View {
                     id: "weekly-runs",
                     label: "Runs",
                     value: viewModel.thisWeekCount.formatted(),
-                    accent: .blue
+                    accent: AppPalette.effort
                 )
             ])
         }
@@ -1276,10 +1276,10 @@ struct RunDetailView: View {
     private func ghostPaceIcon(_ comparison: RunStats.GhostPaceComparison) -> some View {
         Image(systemName: comparison.isPR ? "trophy.fill" : "ghost.fill")
             .appFont(size: 20, weight: .semibold)
-            .foregroundStyle(comparison.isPR ? Color.yellow : AppPalette.brand)
+            .foregroundStyle(comparison.isPR ? AppPalette.achievement : AppPalette.brand)
             .frame(width: 42, height: 42)
             .background(
-                (comparison.isPR ? Color.yellow : AppPalette.brand).opacity(0.12),
+                (comparison.isPR ? AppPalette.achievement : AppPalette.brand).opacity(0.12),
                 in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
             )
             .accessibilityHidden(true)
@@ -1302,7 +1302,7 @@ struct RunDetailView: View {
             let diffText = RunFormat.paceDiffText(secondsPerKmDiff: comparison.paceDifferenceVsAverage, metric: useMetric)
             Text("\(diffText) vs average on this loop")
                 .appTextRole(.secondary)
-                .foregroundStyle(comparison.paceDifferenceVsAverage < 0 ? Color.green : AppPalette.text)
+                .foregroundStyle(comparison.paceDifferenceVsAverage < 0 ? AppPalette.positive : AppPalette.text)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -1363,12 +1363,12 @@ struct RunDetailView: View {
                 id: "time",
                 label: "Time",
                 value: RunFormat.durationText(seconds: run.movingSeconds),
-                accent: .blue
+                accent: AppPalette.effort
             )
         ]
 
         if let pace = RunFormat.paceText(secondsPerKm: run.averagePaceSecondsPerKm, metric: useMetric) {
-            items.append(AppMetricItem(id: "pace", label: "Avg pace", value: pace, accent: .cyan))
+            items.append(AppMetricItem(id: "pace", label: "Avg pace", value: pace, accent: AppPalette.recovery))
         }
         if let bpm = viewModel.averageHeartRate {
             items.append(
@@ -1376,11 +1376,11 @@ struct RunDetailView: View {
                     id: "heart-rate",
                     label: "Avg heart rate",
                     value: "\(Int(bpm.rounded())) bpm",
-                    accent: .red
+                    accent: AppPalette.critical
                 )
             )
             if let zone = hrZoneText {
-                items.append(AppMetricItem(id: "heart-rate-zone", label: "Avg HR zone", value: zone, accent: .orange))
+                items.append(AppMetricItem(id: "heart-rate-zone", label: "Avg HR zone", value: zone, accent: AppPalette.caution))
             }
         }
         if let calories = run.activeCalories {
@@ -1389,7 +1389,7 @@ struct RunDetailView: View {
                     id: "calories",
                     label: "Calories",
                     value: "\(Int(calories.rounded()).formatted()) cal",
-                    accent: .pink
+                    accent: AppPalette.achievement
                 )
             )
         }
@@ -1492,7 +1492,7 @@ struct RunDetailView: View {
             HStack(spacing: AppSpacing.compact) {
                 Image(systemName: "bolt.batteryblock.fill")
                     .appFont(size: 17, weight: .semibold)
-                    .foregroundStyle(Color.yellow)
+                    .foregroundStyle(AppPalette.achievement)
                     .accessibilityHidden(true)
                 Text("Fuel and recovery")
                     .appTextRole(.control)
@@ -1500,8 +1500,8 @@ struct RunDetailView: View {
             }
 
             AppMetricStrip(items: [
-                AppMetricItem(id: "carbs-used", label: "Est. carbs used", value: "~\(carbsBurned) g", accent: .yellow),
-                AppMetricItem(id: "sweat-loss", label: "Est. sweat loss", value: "~\(sweatMl) ml", accent: .blue)
+                AppMetricItem(id: "carbs-used", label: "Est. carbs used", value: "~\(carbsBurned) g", accent: AppPalette.achievement),
+                AppMetricItem(id: "sweat-loss", label: "Est. sweat loss", value: "~\(sweatMl) ml", accent: AppPalette.recovery)
             ])
 
             Text("Aim for \(recovery.targetCarbGrams) g carbs and \(recovery.targetProteinGrams) g protein within 45 minutes to support recovery.")
@@ -1536,7 +1536,7 @@ struct RunDetailView: View {
                         Image(systemName: "flame.fill")
                     }
                     .appTextRole(.caption)
-                    .foregroundStyle(Color.orange)
+                    .foregroundStyle(AppPalette.positive)
                     .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -1573,7 +1573,7 @@ struct RunDetailView: View {
 
             GeometryReader { geometry in
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(isBest ? Color.yellow : AppPalette.brand.opacity(0.60))
+                    .fill(isBest ? AppPalette.achievement : AppPalette.effort.opacity(0.60))
                     .frame(width: geometry.size.width * barRatio, height: 4)
             }
             .frame(height: 4)
@@ -1586,7 +1586,7 @@ struct RunDetailView: View {
         HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
             Text("\(split.index)")
                 .appTextRole(.secondary)
-                .foregroundStyle(isBest ? Color.yellow : Color.secondary)
+                .foregroundStyle(isBest ? AppPalette.achievement : Color.secondary)
                 .frame(minWidth: 24, alignment: .leading)
             Text(splitDistanceText(split))
                 .appTextRole(.secondary)
@@ -1594,7 +1594,7 @@ struct RunDetailView: View {
             if isBest {
                 Label("Fastest", systemImage: "medal.fill")
                     .appTextRole(.caption)
-                    .foregroundStyle(Color.yellow)
+                    .foregroundStyle(AppPalette.achievement)
             }
         }
     }
@@ -1602,7 +1602,7 @@ struct RunDetailView: View {
     private func splitPace(_ split: RunSplit, isBest: Bool) -> some View {
         Text(RunFormat.paceText(secondsPerKm: split.paceSecondsPerKm, metric: useMetric) ?? RunFormat.durationText(seconds: split.seconds))
             .appTextRole(.secondary)
-            .foregroundStyle(isBest ? Color.yellow : AppPalette.text)
+            .foregroundStyle(isBest ? AppPalette.achievement : AppPalette.text)
             .monospacedDigit()
             .fixedSize(horizontal: false, vertical: true)
     }

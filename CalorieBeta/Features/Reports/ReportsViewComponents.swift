@@ -58,17 +58,17 @@ struct ReportsOverviewCard: View {
                 AppMetricItem(
                     label: "Avg calories",
                     value: summary.map { "\(Int($0.averageCalories.rounded()).formatted()) cal" } ?? "--",
-                    accent: .orange
+                    accent: AppPalette.energy
                 ),
                 AppMetricItem(
                     label: "Workouts",
                     value: workoutReport.map { $0.totalWorkouts.formatted() } ?? "--",
-                    accent: .blue
+                    accent: AppPalette.effort
                 ),
                 AppMetricItem(
                     label: "Sleep score",
                     value: sleepReport.map { $0.averageSleepScore.formatted() } ?? "--",
-                    accent: .purple
+                    accent: AppPalette.recovery
                 )
             ])
         }

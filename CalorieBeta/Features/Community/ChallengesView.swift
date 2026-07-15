@@ -75,9 +75,9 @@ struct ChallengesView: View {
 
     private var challengeSummary: some View {
         AppMetricStrip(items: [
-            AppMetricItem(label: "Open", value: openCount.formatted(), accent: .orange),
+            AppMetricItem(label: "Open", value: openCount.formatted(), accent: AppPalette.caution),
             AppMetricItem(label: "Complete", value: completedCount.formatted(), accent: AppPalette.brand),
-            AppMetricItem(label: "Points Left", value: pointsRemaining.formatted(), accent: .blue)
+            AppMetricItem(label: "Points Left", value: pointsRemaining.formatted(), accent: AppPalette.effort)
         ])
         .appSurface(.emphasized)
         .accessibilityIdentifier("challenges_summary")
@@ -133,7 +133,7 @@ private struct ChallengeProgressRow: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             ProgressView(value: progressFraction)
-                .tint(challenge.isCompleted ? AppPalette.brand : Color.orange)
+                .tint(challenge.isCompleted ? AppPalette.brand : AppPalette.effort)
 
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 4) {
@@ -159,10 +159,10 @@ private struct ChallengeProgressRow: View {
         HStack(spacing: AppSpacing.row) {
             Image(systemName: challenge.isCompleted ? "checkmark" : "flag.fill")
                 .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(challenge.isCompleted ? AppPalette.brand : Color.orange)
+                .foregroundStyle(challenge.isCompleted ? AppPalette.brand : AppPalette.effort)
                 .frame(width: 40, height: 40)
                 .background(
-                    (challenge.isCompleted ? AppPalette.brand : Color.orange).opacity(0.10),
+                    (challenge.isCompleted ? AppPalette.brand : AppPalette.effort).opacity(0.10),
                     in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                 )
                 .accessibilityHidden(true)

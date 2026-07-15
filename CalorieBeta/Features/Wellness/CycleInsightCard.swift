@@ -30,8 +30,8 @@ struct MaiaCycleInsightCard: View {
             .appSurface(.emphasized)
 
             AppMetricStrip(items: [
-                AppMetricItem(label: "Estimated Pattern", value: insight.hormonalState, accent: .pink),
-                AppMetricItem(label: "Energy Cue", value: insight.energyLevel, accent: .blue)
+                AppMetricItem(label: "Estimated Pattern", value: insight.hormonalState, accent: AppPalette.recovery),
+                AppMetricItem(label: "Energy Cue", value: insight.energyLevel, accent: AppPalette.effort)
             ])
             .appSurface(.quiet)
 
@@ -51,7 +51,7 @@ struct MaiaCycleInsightCard: View {
 
                     AppListRow(
                         icon: "fork.knife",
-                        iconColor: .orange,
+                        iconColor: AppPalette.energy,
                         title: "Nutrition",
                         subtitle: insight.nutritionTip
                     )
@@ -61,7 +61,7 @@ struct MaiaCycleInsightCard: View {
 
                     AppListRow(
                         icon: "heart.text.square",
-                        iconColor: .blue,
+                        iconColor: AppPalette.recovery,
                         title: "Symptoms",
                         subtitle: insight.symptomTip
                     )

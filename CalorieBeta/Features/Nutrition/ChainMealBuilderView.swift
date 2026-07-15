@@ -754,9 +754,9 @@ public struct ChainMealBuilderView: View {
 
     private var macroSummary: some View {
         HStack(spacing: 8) {
-            macroBadge(label: "P", grams: totalProtein, color: .green)
-            macroBadge(label: "C", grams: totalCarbs, color: .orange)
-            macroBadge(label: "F", grams: totalFat, color: .blue)
+            macroBadge(label: "P", grams: totalProtein, color: AppPalette.protein)
+            macroBadge(label: "C", grams: totalCarbs, color: AppPalette.carbohydrate)
+            macroBadge(label: "F", grams: totalFat, color: AppPalette.fat)
         }
     }
 

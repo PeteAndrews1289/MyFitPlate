@@ -347,7 +347,7 @@ private struct AYCEStartView: View {
                 if let recordLine {
                     AppListRow(
                         icon: "trophy.fill",
-                        iconColor: .orange,
+                        iconColor: AppPalette.achievement,
                         title: "Personal Record",
                         subtitle: recordLine
                     )
@@ -495,7 +495,7 @@ private struct AYCEStartView: View {
     private var estimateNotice: some View {
         AppListRow(
             icon: "info.circle.fill",
-            iconColor: .orange,
+            iconColor: AppPalette.caution,
             title: "Estimated Value",
             subtitle: "Catalog prices represent typical mid-range spots in \(selectedCity.name), not this restaurant's exact menu."
         )
@@ -703,12 +703,12 @@ private struct AYCELiveSessionView: View {
                 AppMetricItem(
                     label: "You Paid",
                     value: AYCERules.money(session.buffetPrice),
-                    accent: .orange
+                    accent: AppPalette.achievement
                 ),
                 AppMetricItem(
                     label: "Calories",
                     value: "\(Int(totals.calories.rounded()).formatted()) cal",
-                    accent: .blue
+                    accent: AppPalette.energy
                 )
             ])
 
@@ -834,7 +834,7 @@ private struct AYCELiveSessionView: View {
     private func estimateFooter(_ session: AYCESession) -> some View {
         AppListRow(
             icon: "info.circle.fill",
-            iconColor: .orange,
+            iconColor: AppPalette.caution,
             title: "Value Estimates",
             subtitle: "Catalog prices represent typical mid-range spots in \(session.city.name). Plate estimates stay marked until logged."
         )
@@ -1119,14 +1119,14 @@ private struct AYCEPlateReviewView: View {
                         AppMetricItem(
                             label: "Ready",
                             value: reviewedItems.count.formatted(),
-                            accent: .blue
+                            accent: AppPalette.effort
                         ),
                         AppMetricItem(
                             label: "Est. Value",
                             value: AYCERules.money(
                                 reviewedItems.reduce(0) { $0 + $1.restaurantPrice }
                             ),
-                            accent: .orange
+                            accent: AppPalette.caution
                         )
                     ])
                     .appSurface(.emphasized)
@@ -1135,7 +1135,7 @@ private struct AYCEPlateReviewView: View {
                     if !canAdd {
                         AppListRow(
                             icon: "exclamationmark.triangle.fill",
-                            iconColor: .orange,
+                            iconColor: AppPalette.caution,
                             title: "Complete Every Item",
                             subtitle: "Add a name, non-negative nutrition, and a restaurant price above zero."
                         )
@@ -1180,7 +1180,7 @@ private struct AYCEPlateReviewView: View {
     private var reviewNotice: some View {
         AppListRow(
             icon: source.isAIEstimated ? "wand.and.stars" : "square.and.pencil",
-            iconColor: .orange,
+            iconColor: AppPalette.caution,
             title: source.isAIEstimated ? "AI Estimate" : "Custom Entry",
             subtitle: source.isAIEstimated
                 ? "Check serving, nutrition, and both value estimates. Photos can miss oils, sauces, or overlapping foods."
@@ -1379,10 +1379,10 @@ private struct AYCESummaryView: View {
         HStack(alignment: .top, spacing: AppSpacing.group) {
             Image(systemName: won ? "trophy.fill" : "fork.knife")
                 .appFont(size: 26, weight: .semibold)
-                .foregroundStyle(won ? Color.orange : AppPalette.brand)
+                .foregroundStyle(won ? AppPalette.achievement : AppPalette.brand)
                 .frame(width: 56, height: 56)
                 .background(
-                    (won ? Color.orange : AppPalette.brand).opacity(0.10),
+                    (won ? AppPalette.achievement : AppPalette.brand).opacity(0.10),
                     in: RoundedRectangle(cornerRadius: AppRadius.surface)
                 )
                 .accessibilityHidden(true)
@@ -1412,12 +1412,12 @@ private struct AYCESummaryView: View {
             AppMetricItem(
                 label: "Calories",
                 value: "\(Int(totals.calories.rounded()).formatted()) cal",
-                accent: .orange
+                accent: AppPalette.energy
             ),
             AppMetricItem(
                 label: "Protein",
                 value: "\(Int(totals.protein.rounded()).formatted()) g",
-                accent: .blue
+                accent: AppPalette.protein
             )
         ])
         .appSurface(.emphasized)
@@ -1461,7 +1461,7 @@ private struct AYCESummaryView: View {
                 ForEach(Array(session.entries.enumerated()), id: \.element.id) { index, entry in
                     AppListRow(
                         icon: entry.item.isAIEstimated ? "wand.and.stars" : "fork.knife",
-                        iconColor: entry.item.isAIEstimated ? .orange : AppPalette.brand,
+                        iconColor: entry.item.isAIEstimated ? AppPalette.caution : AppPalette.brand,
                         title: entry.count > 1
                             ? "\(entry.item.name) ×\(entry.count)"
                             : entry.item.name,
@@ -1470,7 +1470,7 @@ private struct AYCESummaryView: View {
                         if entry.item.isAIEstimated {
                             Text("Estimate")
                                 .appTextRole(.caption)
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(AppPalette.caution)
                         }
                     }
                     if index < session.entries.count - 1 {

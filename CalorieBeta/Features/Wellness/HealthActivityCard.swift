@@ -31,7 +31,7 @@ struct HealthActivityCard: View {
             AppSectionHeader(title: "Apple Health", subtitle: "Today") {
                 Image(systemName: "heart.text.square.fill")
                     .appFont(size: 18, weight: .semibold)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(AppPalette.recovery)
                     .accessibilityHidden(true)
             }
 
@@ -39,18 +39,18 @@ struct HealthActivityCard: View {
                 AppMetricItem(
                     label: "Steps",
                     value: Int(healthViewModel.todaySteps.rounded()).formatted(),
-                    accent: .blue
+                    accent: AppPalette.effort
                 ),
                 AppMetricItem(
                     label: "Active Calories",
                     value: "\(Int(healthViewModel.todayActiveEnergy.rounded()).formatted()) cal",
-                    accent: .orange
+                    accent: AppPalette.energy
                 )
             ])
 
             VStack(alignment: .leading, spacing: AppSpacing.compact) {
                 ProgressView(value: min(max(healthViewModel.todaySteps / stepGoal, 0), 1))
-                    .tint(.blue)
+                    .tint(AppPalette.effort)
 
                 Text("\(Int(healthViewModel.todaySteps.rounded()).formatted()) of \(Int(stepGoal).formatted()) daily steps")
                     .appTextRole(.caption)
@@ -95,9 +95,9 @@ struct HealthActivityCard: View {
         HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: "heart.text.square.fill")
                 .appFont(size: 18, weight: .semibold)
-                .foregroundStyle(.red)
+                .foregroundStyle(AppPalette.recovery)
                 .frame(width: 40, height: 40)
-                .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                .background(AppPalette.recovery.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                 .accessibilityHidden(true)
 
             Text("Bring your device activity into the same daily view as nutrition and training.")

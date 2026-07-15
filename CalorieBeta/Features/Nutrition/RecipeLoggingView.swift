@@ -107,7 +107,7 @@ struct RecipeLoggingView: View {
             if ingredients.isEmpty {
                 HStack(alignment: .top, spacing: AppSpacing.row) {
                     Image(systemName: "exclamationmark.circle")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(AppPalette.caution)
                         .accessibilityHidden(true)
                     Text("All ingredients were removed. Cancel or reopen the recipe to restore its saved ingredients.")
                         .appTextRole(.secondary)
@@ -283,7 +283,7 @@ private struct RecipeLoggingNutrition: View {
             AppMetricItem(
                 label: "Calories",
                 value: "\(Int(nutrition.calories.rounded()).formatted()) cal",
-                accent: .orange
+                accent: AppPalette.energy
             ),
             AppMetricItem(
                 label: "Protein",

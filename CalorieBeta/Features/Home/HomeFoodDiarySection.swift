@@ -106,7 +106,7 @@ struct EmptyDailyLogView: View {
         VStack(spacing: 12) {
             Image(systemName: "plus.viewfinder")
                 .appFont(size: 28, weight: .semibold)
-                .foregroundColor(.blue)
+                .foregroundColor(AppPalette.effort)
                 .frame(width: 56, height: 56)
                 .background(Color(UIColor.secondarySystemFill), in: Circle())
 

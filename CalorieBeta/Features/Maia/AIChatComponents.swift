@@ -197,9 +197,9 @@ struct MaiaActionBoardView: View {
 
     private func tint(for action: ActionKind) -> Color {
         switch action {
-        case .fillMacros: .orange
+        case .fillMacros: AppPalette.energy
         case .proteinOrRecovery: hasWorkoutToday ? .accentSignal : .accentProtein
-        case .trustOrToday: hasNutritionMismatch ? .orange : .accentPositive
+        case .trustOrToday: hasNutritionMismatch ? AppPalette.caution : .accentPositive
         case .hydrate: .accentWater
         }
     }
@@ -315,12 +315,12 @@ private struct MaiaDataBoundaryStrip: View {
                 MaiaDataChip(icon: "calendar", text: "Today", color: AppPalette.brand)
                 MaiaDataChip(icon: "target", text: "Goals", color: .accentPositive)
                 if healthKitEnabled {
-                    MaiaDataChip(icon: "applewatch", text: "HealthKit", color: .blue)
+                    MaiaDataChip(icon: "applewatch", text: "HealthKit", color: AppPalette.recovery)
                 }
                 if pantryCount > 0 {
-                    MaiaDataChip(icon: "cabinet.fill", text: "\(pantryCount) pantry", color: .orange)
+                    MaiaDataChip(icon: "cabinet.fill", text: "\(pantryCount) pantry", color: AppPalette.achievement)
                 }
-                MaiaDataChip(icon: "sparkles", text: "Estimates labeled", color: .purple)
+                MaiaDataChip(icon: "sparkles", text: "Estimates labeled", color: AppPalette.caution)
             }
         }
         .scrollIndicators(.hidden)
@@ -589,9 +589,9 @@ private struct MaiaActionParseFallbackCard: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .appFont(size: 14, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .frame(width: 28, height: 28)
-                .background(Color.orange.opacity(0.12), in: Circle())
+                .background(AppPalette.caution.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("Action needs retry")
@@ -606,10 +606,10 @@ private struct MaiaActionParseFallbackCard: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(AppPalette.caution.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.orange.opacity(0.16), lineWidth: 1)
+                .stroke(AppPalette.caution.opacity(0.16), lineWidth: 1)
         )
         .onAppear {
             DIContainer.shared.analyticsManager?.logEvent("maia_action_payload_failed", parameters: [
@@ -1091,7 +1091,7 @@ struct MaiaBriefingCard: View {
                 AppMetricItem(
                     label: "Calories left",
                     value: Int(calories.rounded()).formatted(),
-                    accent: .orange
+                    accent: AppPalette.energy
                 ),
                 AppMetricItem(
                     label: "Protein left",

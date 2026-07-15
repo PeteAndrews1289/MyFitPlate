@@ -80,7 +80,7 @@ struct FastingTrackerCard: View {
                         AppMetricItem(
                             label: "Started",
                             value: start.formatted(date: .omitted, time: .shortened),
-                            accent: .blue
+                            accent: AppPalette.effort
                         ),
                         AppMetricItem(
                             label: "Goal",
@@ -97,7 +97,7 @@ struct FastingTrackerCard: View {
 
                     AppListRow(
                         icon: stage.icon,
-                        iconColor: .orange,
+                        iconColor: AppPalette.caution,
                         title: stage.name,
                         subtitle: stage.detail
                     )
@@ -192,7 +192,7 @@ struct FastingTrackerCard: View {
         } else {
             AppListRow(
                 icon: "clock",
-                iconColor: .blue,
+                iconColor: AppPalette.effort,
                 title: "Fasting Schedule",
                 subtitle: "\(selectedFastDuration) hours fasting, \(24 - selectedFastDuration) hours eating"
             ) {
@@ -231,10 +231,10 @@ struct FastingTrackerCard: View {
     }
 
     private let stageMilestones: [FastingMilestone] = [
-        FastingMilestone(hour: 0, name: "Fed", detail: "Digesting and absorbing", icon: "fork.knife", color: .blue),
-        FastingMilestone(hour: 4, name: "Post-Meal", detail: "Glucose may trend down", icon: "arrow.down.right", color: .teal),
-        FastingMilestone(hour: 12, name: "Stored Fuel", detail: "Fuel use may shift", icon: "flame", color: .orange),
-        FastingMilestone(hour: 16, name: "Extended Window", detail: "Ketones may increase", icon: "bolt", color: .purple)
+        FastingMilestone(hour: 0, name: "Fed", detail: "Digesting and absorbing", icon: "fork.knife", color: AppPalette.effort),
+        FastingMilestone(hour: 4, name: "Post-Meal", detail: "Glucose may trend down", icon: "arrow.down.right", color: AppPalette.positive),
+        FastingMilestone(hour: 12, name: "Stored Fuel", detail: "Fuel use may shift", icon: "flame", color: AppPalette.caution),
+        FastingMilestone(hour: 16, name: "Extended Window", detail: "Ketones may increase", icon: "bolt", color: AppPalette.achievement)
     ]
 }
 

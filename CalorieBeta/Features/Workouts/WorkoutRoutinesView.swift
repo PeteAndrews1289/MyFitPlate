@@ -29,6 +29,9 @@ struct WorkoutRoutinesView: View {
     #if DEBUG
     init() {
         let screen = ScreenshotDemoData.requestedScreen
+        _routineToPlay = State(
+            initialValue: screen == "workout-player" ? ScreenshotDemoData.routineBuilderRoutine : nil
+        )
         _showingProgramBuilder = State(initialValue: screen == "program-builder")
         _showingSavedPrograms = State(initialValue: screen == "saved-programs")
         _screenshotProgramToEdit = State(

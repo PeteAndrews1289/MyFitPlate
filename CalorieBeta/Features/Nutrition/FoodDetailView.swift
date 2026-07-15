@@ -360,7 +360,7 @@ struct FoodDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: toggleSavedState) {
                     Image(systemName: isSavedAsCustom ? "star.fill" : "star")
-                        .foregroundColor(isSavedAsCustom ? .yellow : .blue)
+                        .foregroundColor(isSavedAsCustom ? AppPalette.achievement : AppPalette.brand)
                 }
             }
         }
@@ -554,7 +554,7 @@ struct FoodDetailView: View {
         } label: {
             Label("Not correct? Take a photo of the nutrition label.", systemImage: "camera.fill")
         }
-        .tint(.blue)
+        .tint(AppPalette.effort)
         .padding(.top, 5)
     }
 
@@ -741,7 +741,7 @@ struct FoodDetailView: View {
                     bannerService.showBanner(title: "Saved", message: message)
                     self.contributeToCommunityPoolIfEligible(itemToSave)
                 } else {
-                    bannerService.showBanner(title: "Error", message: "Could not save custom food.", iconName: "xmark.circle.fill", iconColor: .red)
+                    bannerService.showBanner(title: "Error", message: "Could not save custom food.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                 }
                 if let correctionScope {
                     self.logCorrectionAction(
@@ -831,7 +831,7 @@ struct FoodDetailView: View {
                     self.customFoodForAction = nil
                     bannerService.showBanner(title: "Removed", message: "\(foodName) removed from My Foods.", iconName: "star.slash.fill")
                 } else {
-                    bannerService.showBanner(title: "Error", message: "Could not remove custom food.", iconName: "xmark.circle.fill", iconColor: .red)
+                    bannerService.showBanner(title: "Error", message: "Could not remove custom food.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                 }
             }
         }
@@ -1049,9 +1049,9 @@ struct FoodTrustReceipt: View {
         case .excellent, .strong:
             return .accentPositiveText
         case .review:
-            return .orange
+            return AppPalette.caution
         case .low:
-            return evaluation.requiresCorrection ? .red : .orange
+            return evaluation.requiresCorrection ? AppPalette.critical : AppPalette.caution
         }
     }
 
@@ -1107,7 +1107,7 @@ struct FoodTrustReceipt: View {
         case .notRequired:
             return Color(UIColor.secondaryLabel)
         case .unreviewed, nil:
-            return descriptor.isEstimated ? .orange : Color(UIColor.secondaryLabel)
+            return descriptor.isEstimated ? AppPalette.caution : Color(UIColor.secondaryLabel)
         }
     }
 
@@ -1124,9 +1124,9 @@ struct FoodTrustReceipt: View {
 
     private var sanityTint: Color {
         if findings.contains(where: { $0.severity == .warning }) {
-            return .red
+            return AppPalette.critical
         }
-        return findings.isEmpty ? .accentPositiveText : .orange
+        return findings.isEmpty ? .accentPositiveText : AppPalette.caution
     }
 
     var body: some View {
@@ -1302,7 +1302,7 @@ struct FoodTrustReceipt: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(findingFieldTitle(finding))
                                 .appFont(size: 10, weight: .bold)
-                                .foregroundColor(finding.severity == .warning ? .red : .orange)
+                                .foregroundColor(finding.severity == .warning ? AppPalette.critical : AppPalette.caution)
                             Text(finding.message)
                                 .appFont(size: 11, weight: .medium)
                                 .foregroundColor(.textPrimary)
@@ -1312,7 +1312,7 @@ struct FoodTrustReceipt: View {
                         .padding(.leading, 8)
                         .overlay(alignment: .leading) {
                             Rectangle()
-                                .fill(finding.severity == .warning ? Color.red : Color.orange)
+                                .fill(finding.severity == .warning ? AppPalette.critical : AppPalette.caution)
                                 .frame(width: 2)
                         }
                     }
@@ -1497,9 +1497,9 @@ struct FoodTrustReceipt: View {
         case .evidence:
             return Color(UIColor.secondaryLabel)
         case .caution:
-            return .orange
+            return AppPalette.caution
         case .correction:
-            return .red
+            return AppPalette.critical
         }
     }
 }

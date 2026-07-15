@@ -72,14 +72,14 @@ struct HomeDailyLogSummaryStrip: View {
                 value: Int(calories.rounded()).formatted(),
                 subtitle: "cal logged",
                 icon: "flame.fill",
-                color: .orange
+                color: AppPalette.achievement
             )
             DiaryMetricPill(
                 title: "Activity",
                 value: exercises.count.formatted(),
                 subtitle: exercises.count == 1 ? "session" : "sessions",
                 icon: "figure.run",
-                color: .blue
+                color: AppPalette.effort
             )
             DiaryMetricPill(
                 title: "Burned",
@@ -195,7 +195,7 @@ struct DailySnapshotStrip: View {
                 "Start the day clean",
                 isToday ? "Log your first meal so the rest of today has a real baseline." : "No food was logged for this day.",
                 "fork.knife",
-                .blue
+                AppPalette.effort
             )
         }
 
@@ -204,7 +204,7 @@ struct DailySnapshotStrip: View {
                 "Protect the rest of the day",
                 "You are \(Int(abs(caloriesRemaining).rounded()).formatted()) calories over. Keep the next choice simple and protein-forward.",
                 "exclamationmark.circle.fill",
-                .orange
+                AppPalette.caution
             )
         }
 
@@ -213,7 +213,7 @@ struct DailySnapshotStrip: View {
                 "Hydration is the easy win",
                 "You are at \(Int(waterIntake.rounded()).formatted()) oz. One quick water log gets the day moving.",
                 "drop.fill",
-                .cyan
+                AppPalette.recovery
             )
         }
 
@@ -231,7 +231,7 @@ struct DailySnapshotStrip: View {
                 "Movement slot is open",
                 "No workouts are logged yet. Even a short walk keeps the daily picture more complete.",
                 "figure.walk",
-                .blue
+                AppPalette.positive
             )
         }
 

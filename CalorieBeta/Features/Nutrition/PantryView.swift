@@ -72,7 +72,7 @@ struct PantryView: View {
             AppMetricItem(
                 label: "Categories",
                 value: groupedItems.count.formatted(),
-                accent: .orange
+                accent: AppPalette.achievement
             )
         ])
         .appSurface(.emphasized)
@@ -256,11 +256,11 @@ struct PantryView: View {
 
     private func categoryColor(for category: String) -> Color {
         switch category.lowercased() {
-        case let value where value.contains("produce"): .green
-        case let value where value.contains("protein") || value.contains("meat"): .red
-        case let value where value.contains("dairy"): .blue
-        case let value where value.contains("grain") || value.contains("bakery"): .orange
-        case let value where value.contains("frozen"): .cyan
+        case let value where value.contains("produce"): AppPalette.positive
+        case let value where value.contains("protein") || value.contains("meat"): AppPalette.protein
+        case let value where value.contains("dairy"): AppPalette.recovery
+        case let value where value.contains("grain") || value.contains("bakery"): AppPalette.carbohydrate
+        case let value where value.contains("frozen"): AppPalette.recovery
         default: AppPalette.brand
         }
     }
@@ -387,7 +387,7 @@ struct PantryRecipeGenerationView: View {
                     AppMetricItem(
                         label: "Pantry Ingredients",
                         value: pantryService.pantryItems.count.formatted(),
-                        accent: .orange
+                        accent: AppPalette.achievement
                     )
                 ])
                 .appSurface(.emphasized)
@@ -422,10 +422,10 @@ struct PantryRecipeGenerationView: View {
             )
 
             AppMetricStrip(items: [
-                AppMetricItem(label: "Calories", value: "\(formatted(recipe.nutrition.calories)) cal", accent: .orange),
-                AppMetricItem(label: "Protein", value: "\(formatted(recipe.nutrition.protein)) g", accent: AppPalette.brand),
-                AppMetricItem(label: "Carbs", value: "\(formatted(recipe.nutrition.carbs)) g", accent: .blue),
-                AppMetricItem(label: "Fat", value: "\(formatted(recipe.nutrition.fats)) g", accent: .yellow)
+                AppMetricItem(label: "Calories", value: "\(formatted(recipe.nutrition.calories)) cal", accent: AppPalette.energy),
+                AppMetricItem(label: "Protein", value: "\(formatted(recipe.nutrition.protein)) g", accent: AppPalette.protein),
+                AppMetricItem(label: "Carbs", value: "\(formatted(recipe.nutrition.carbs)) g", accent: AppPalette.carbohydrate),
+                AppMetricItem(label: "Fat", value: "\(formatted(recipe.nutrition.fats)) g", accent: AppPalette.fat)
             ])
 
             Divider()
@@ -502,7 +502,7 @@ struct PantryRecipeGenerationView: View {
             } else {
                 Image(systemName: icon)
                     .appFont(size: 32, weight: .semibold)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(AppPalette.caution)
                     .accessibilityHidden(true)
             }
 
@@ -671,7 +671,7 @@ struct ReceiptScannerView: View {
                 if let errorMessage {
                     HStack(alignment: .top, spacing: AppSpacing.row) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(AppPalette.caution)
                             .accessibilityHidden(true)
                         Text(errorMessage)
                             .appTextRole(.secondary)
@@ -709,7 +709,7 @@ struct ReceiptScannerView: View {
                     AppMetricItem(
                         label: "Ready To Add",
                         value: validItems.count.formatted(),
-                        accent: .orange
+                        accent: AppPalette.achievement
                     )
                 ])
                 .appSurface(.emphasized)

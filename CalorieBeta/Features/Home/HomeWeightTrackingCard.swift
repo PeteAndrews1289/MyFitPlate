@@ -22,7 +22,7 @@ struct HomeWeightTrackingCard: View {
                     HStack(spacing: 6) {
                         Image(systemName: "scalemass.fill")
                             .appFont(size: 13, weight: .bold)
-                            .foregroundColor(.teal)
+                            .foregroundColor(AppPalette.effort)
                         Text("Weight")
                             .appFont(size: 13, weight: .semibold)
                             .foregroundColor(Color(UIColor.secondaryLabel))
@@ -43,7 +43,7 @@ struct HomeWeightTrackingCard: View {
                             Text("\(String(format: "%.1f", abs(BodyUnits.weightDisplayValue(lbs: delta, metric: useMetric)))) \(BodyUnits.weightUnit(metric: useMetric)) · 7d")
                                 .appFont(size: 11, weight: .semibold)
                         }
-                        .foregroundColor(down ? .accentPositive : .orange)
+                        .foregroundColor(down ? .accentPositive : AppPalette.caution)
                     } else {
                         Text("Tap to log today's weight")
                             .appFont(size: 11, weight: .medium)
@@ -58,7 +58,7 @@ struct HomeWeightTrackingCard: View {
                         ForEach(recent, id: \.id) { entry in
                             LineMark(x: .value("Date", entry.date), y: .value("Weight", entry.weight))
                                 .interpolationMethod(.catmullRom)
-                                .foregroundStyle(Color.teal)
+                                .foregroundStyle(AppPalette.effort)
                                 .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
                         }
                     }
@@ -70,7 +70,7 @@ struct HomeWeightTrackingCard: View {
 
                 Text("Log")
                     .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.teal)
+                    .foregroundColor(AppPalette.effort)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 9)
                     .background(Color(UIColor.secondarySystemFill), in: Capsule())

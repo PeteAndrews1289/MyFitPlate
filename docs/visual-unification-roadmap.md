@@ -466,6 +466,31 @@ staged migration so each feature family can be reviewed, tested, and reverted in
   Plan's standard plus dark accessibility-XXXL planning-family journeys passed. Stable final
   captures of the protein and cooking-style steps were visually reviewed.
 
+### Batch 24 - Semantic Signals, Training Identity, and Recovery Field (complete)
+
+- Audited the release-reachable feature tree and moved ordinary direct spectrum colors onto one
+  closed semantic system. Signal roles now distinguish current, positive, effort, recovery,
+  caution, critical, achievement, and neutral states; nutrition and hydration use stable domain
+  roles. The source guard enforces those boundaries app-wide while preserving documented measured
+  chart, physical plate, celebration/export, cycle-phase, and gated-prototype exceptions.
+- Reviewed the official Strong, Hevy, Fitbod, and WHOOP product galleries. The resulting direction
+  keeps dense, stable workout logging; clear training hierarchy; muscle-aware context; and one
+  dominant interpretation, while differentiating MyFitPlate through visible evidence and the
+  nutrition-to-training loop. The complete contract is in `docs/design-direction-2.3.md`.
+- Reworked the live workout identity, session header, set cards, controls, completion analytics,
+  program/routine tools, history, running support, and training reports around a restrained signal
+  vocabulary. Current work, effort, recovery, caution, and achievement no longer borrow arbitrary
+  colors, and accessibility-size layouts keep workout identity and actions readable.
+- Rebuilt Muscle Recovery as Recovery Field: a deterministic, interactive front/back map covering
+  six broad muscle regions with named status, selected-region progress, last-session evidence,
+  working-set volume, recovery window, sleep adjustment, and an explicit planning-not-medical
+  limitation. Missing evidence becomes `no recent signal`, not false readiness.
+- Added shared status badges and progress tracks, an Energy data asset, recovery rules and tests,
+  deterministic direct routes, and focused UI coverage. Standard light, standard dark, and
+  accessibility-XXXL live-workout and Recovery Field captures were reviewed without overlap or
+  clipped controls; focused Core tests, the visual source guard, SwiftLint, and the full simulator
+  build passed.
+
 All five primary tabs, the highest-frequency nutrition entry workflows, Food Detail, Trust,
 Running, My Foods, the manual food editor, and the full recipe family now share one visual grammar.
 Grocery, the remaining confirmation workflows, Settings, and the complete strength-planning and
@@ -474,10 +499,12 @@ first-run and account-access family now joins them, as do the live progress, ach
 weekly-challenge surfaces. Smart Pantry, pantry recipe drafts, receipt review, AYCE, Restaurant
 Value Radar, meal-planning support, Plate Loading, Nutrition Trends, Maia Insights, and Maia's
 structured action cards now join them. The reachable migration queue and legacy-surface retirement
-are complete, and the clean local 2.3 release gate is green. The remaining work is Peter's focused
-physical-device acceptance and signed archive, rollout-dependent removal of the fallback Home, and
-gradual expansion of token-drift checks; unfinished public social surfaces remain explicitly gated
-rather than being polished into accidental release scope.
+are complete, and the clean local 2.3 release gate is green. The semantic signal sweep and training
+identity pass close the color-coordination gap across the reachable app, with Recovery Field as the
+clearest expression of signal, evidence, and action. The remaining work is Peter's focused physical-
+device acceptance and signed archive, rollout-dependent removal of the fallback Home, and gradual
+expansion of token-drift checks; unfinished public social surfaces remain explicitly gated rather
+than being polished into accidental release scope.
 
 ## Product Direction
 

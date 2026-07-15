@@ -2527,6 +2527,53 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutPlayerAndRecoveryFieldUseUnifiedTrainingSignals() throws {
+        let app = XCUIApplication()
+        let configurations = [
+            (name: "Live Workout", route: "workout-player", container: "workout_player"),
+            (name: "Muscle Recovery", route: "muscle-recovery", container: "muscle_recovery_map")
+        ]
+
+        for configuration in configurations {
+            app.terminate()
+            app.launchArguments = [
+                "-ui-testing",
+                "-screenshot-mode",
+                "-screenshot-screen",
+                configuration.route
+            ]
+            app.launch()
+
+            let container = app.descendants(matching: .any)
+                .matching(identifier: configuration.container)
+                .firstMatch
+            XCTAssertTrue(container.waitForExistence(timeout: 10), "\(configuration.name) should load")
+            XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
+            XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
+
+            if configuration.route == "workout-player" {
+                XCTAssertTrue(app.staticTexts["IN SESSION"].waitForExistence(timeout: 5))
+                XCTAssertTrue(app.buttons["Finish Workout"].isHittable)
+                XCTAssertTrue(app.buttons["Plate calculator"].isHittable)
+            } else {
+                let bodyField = app.descendants(matching: .any)
+                    .matching(identifier: "muscle_recovery_body_field")
+                    .firstMatch
+                let evidence = app.descendants(matching: .any)
+                    .matching(identifier: "muscle_recovery_evidence")
+                    .firstMatch
+                XCTAssertTrue(bodyField.waitForExistence(timeout: 5))
+                XCTAssertTrue(evidence.waitForExistence(timeout: 5))
+            }
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(configuration.name) - semantic training signals"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
+    }
+
+    @MainActor
     func testWellnessFamilyUsesUnifiedEvidenceHierarchy() throws {
         let app = XCUIApplication()
         let screens = [

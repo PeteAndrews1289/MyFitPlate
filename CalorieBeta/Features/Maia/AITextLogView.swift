@@ -51,7 +51,7 @@ struct AITextLogView: View {
                         if let errorMessage {
                             Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                                 .appTextRole(.secondary)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(AppPalette.critical)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .appSurface(.quiet)
                                 .accessibilityIdentifier("ai_text_error")
