@@ -181,7 +181,9 @@ privacy manifests, Watch companion relationship, and both Watch HealthKit purpos
 inspected. Both eight-image Store sets were regenerated from deterministic Gate 3 evidence and
 visually reviewed at 1320x2868 and 1284x2778. These are rehearsal results, not closure: rerun the
 suite against the exact final commit and keep the signed archive, physical acceptance, production
-console confirmation, metadata, upload, and submission checkboxes open.
+console confirmation, final paste, upload, and submission checkboxes open. Paste-ready default
+metadata, What's New, review notes, custom product pages, public URLs, and a featuring nomination
+are prepared in `docs/app-store-metadata-2.3.md`.
 
 - [ ] Run the final Core, app, UI, Functions, Firestore Rules, migration, strict lint, visual guard,
   privacy, coverage, and Release-build checks against the exact candidate commit.

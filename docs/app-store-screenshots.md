@@ -123,6 +123,9 @@ dimensions. Upload the 6.9-inch set first; keep the 6.5-inch set available where
 Connect requests it. The release gate remains open until the physical acceptance pass confirms
 that no blocking fix invalidates a captured surface.
 
+Default product-page copy, App Review notes, custom product page plans, and the featuring
+nomination are in `docs/app-store-metadata-2.3.md`.
+
 Custom product pages can reorder approved default images immediately. Running, planning, and
 logging pages should use their deterministic alternates and dedicated captions rather than imply
 that a default-gallery image shows a feature it does not.
