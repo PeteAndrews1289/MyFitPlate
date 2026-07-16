@@ -1100,6 +1100,7 @@ enum ScreenshotDemoData {
         achievementService: AchievementService,
         healthKitViewModel: HealthKitViewModel,
         cycleTrackingService: CycleTrackingService,
+        adaptiveGoalService: AdaptiveGoalService,
         appState: AppState
     ) {
         applyGoals(to: goalSettings)
@@ -1120,6 +1121,19 @@ enum ScreenshotDemoData {
         cycleTrackingService.cycleSettings = CycleSettings(typicalCycleLength: 28, typicalPeriodLength: 5)
         cycleTrackingService.cycleDay = cycleDemoDay
         cycleTrackingService.aiInsight = cycleDemoInsight
+
+        if requestedScreen == "adaptive-tdee-guardrail" {
+            adaptiveGoalService.calculatedTDEE = nil
+            adaptiveGoalService.last21DaysCalorieAverage = 6_420
+            adaptiveGoalService.weightChangeRatePerDay = 0.02
+            adaptiveGoalService.dataConfidence = .low
+            adaptiveGoalService.recentWeighInCount = 18
+            adaptiveGoalService.recentLogCount = 21
+            adaptiveGoalService.recentValidLogCount = 21
+            adaptiveGoalService.partialLogCount = 0
+            adaptiveGoalService.isEstimateActionable = false
+            adaptiveGoalService.tdeeGuardrailMessage = "The result falls outside MyFitPlate's supported TDEE range. Check for missing food entries or unusual weigh-ins before using it."
+        }
 
         switch requestedScreen {
         case "maia": appState.selectedTab = 1

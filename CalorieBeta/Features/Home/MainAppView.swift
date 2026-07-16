@@ -444,6 +444,7 @@ struct CalorieBetaApp: App {
                 achievementService: achieveService,
                 healthKitViewModel: hkViewModel,
                 cycleTrackingService: cycleSvc,
+                adaptiveGoalService: adaptiveSvc,
                 appState: applicationState
             )
         }

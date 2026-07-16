@@ -136,6 +136,16 @@ timezone shift, and NIH preserves label serving language plus its manufacturer-l
 Use `docs/device-test-2.3.md` as the detailed script. The release decision needs concise evidence
 for these journeys:
 
+Automated Gate 3 preflight is green as of 2026-07-15. The complete deterministic UI matrix passed
+80 test methods / 83 executions with no failures or skips across Home, Grocery, Meal Plan, Maia,
+Fast Food Builder, Reports, running, strength, recovery, sharing, deep links, dark mode, and large
+text. Focused regressions additionally prove that a stale generated Grocery list is replaced while
+manual entries survive, and that an implausible 6,420 cal/day Adaptive TDEE is withheld with its
+apply action disabled. MyFitPlateCore passed 1,134/1,134 tests, the app target passed 110/110,
+strict lint, the visual-system guard, and diff checks passed, and the complete unsigned Debug build
+passed with the embedded Watch app, widget, and Live Activity. This simulator evidence narrows the
+remaining work but does not satisfy any physical checkbox below.
+
 - [ ] Living Day appears on launch and after tab round-trips; calorie/protein totals remain clear,
   water logs from the first viewport, the Daily Log stays readable, and Week in Motion does not
   insert late or move the Reports layout.

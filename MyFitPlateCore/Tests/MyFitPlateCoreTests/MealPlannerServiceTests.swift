@@ -228,4 +228,59 @@ final class MealPlannerServiceTests: XCTestCase {
         // refresh fetches existing items (0 here) and adds generated
         XCTAssertFalse(mockRepo.savedGroceryLists.isEmpty)
     }
+
+    func testSynchronizedGroceryListReplacesStalePlanItemsAndPreservesManualItems() async throws {
+        let calendar = Calendar.current
+        let currentStart = try XCTUnwrap(
+            DateComponents(calendar: calendar, year: 2026, month: 7, day: 13, hour: 12).date
+        )
+        let staleStart = try XCTUnwrap(calendar.date(byAdding: .day, value: -7, to: currentStart))
+        let currentPlan = MealPlanDay(
+            id: "current-plan",
+            date: currentStart,
+            meals: [
+                PlannedMeal(
+                    mealType: "Dinner",
+                    ingredients: ["2 bananas", "1 lb chicken breast"]
+                )
+            ]
+        )
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        mockRepo.mockMealPlansByDateString[formatter.string(from: currentStart)] = currentPlan
+        mockRepo.mockFetchGroceryListResult = [
+            GroceryListItem(
+                name: "Apples",
+                quantity: 8,
+                unit: "item",
+                category: "Produce",
+                source: "mealPlan",
+                sourcePlanStart: staleStart
+            ),
+            GroceryListItem(
+                name: "Coffee filters",
+                quantity: 1,
+                unit: "item",
+                category: "Misc",
+                source: "manual"
+            )
+        ]
+
+        let synchronized = await service.fetchSynchronizedGroceryList(
+            for: "user1",
+            starting: currentStart
+        )
+
+        XCTAssertEqual(Set(synchronized.map(\.name)), ["Bananas", "Chicken Breast", "Coffee filters"])
+        XCTAssertFalse(synchronized.contains { $0.name == "Apples" })
+        XCTAssertEqual(synchronized.first(where: { $0.name == "Coffee filters" })?.source, "manual")
+        XCTAssertTrue(
+            synchronized
+                .filter { $0.source == "mealPlan" }
+                .allSatisfy { calendar.isDate($0.sourcePlanStart ?? .distantPast, inSameDayAs: currentStart) }
+        )
+        XCTAssertEqual(mockRepo.savedGroceryLists, synchronized)
+    }
 }

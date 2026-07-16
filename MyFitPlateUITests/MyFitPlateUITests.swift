@@ -1414,6 +1414,39 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testAdaptiveTDEEWithholdsImplausibleEstimate() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "adaptive-tdee-guardrail"
+        ]
+        app.launch()
+
+        let screen = app.descendants(matching: .any)["adaptive_tdee_screen"]
+        let guardrail = app.descendants(matching: .any)["adaptive_tdee_guardrail"]
+        let useEstimate = app.buttons["Use adaptive TDEE"]
+
+        XCTAssertTrue(screen.waitForExistence(timeout: 10))
+        XCTAssertTrue(guardrail.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Estimate not ready to use"].exists)
+        XCTAssertTrue(app.staticTexts["Needs data"].exists)
+        XCTAssertTrue(
+            app.staticTexts["The result falls outside MyFitPlate's supported TDEE range. Check for missing food entries or unusual weigh-ins before using it."].exists
+        )
+        XCTAssertTrue(useEstimate.exists)
+        XCTAssertFalse(useEstimate.isEnabled)
+        XCTAssertFalse(app.staticTexts["6,420 cal/day"].exists)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Adaptive TDEE - implausible estimate withheld"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testMaiaAndReportsSupportDarkAccessibilityText() throws {
         let app = XCUIApplication()
         let screens = [
@@ -1578,7 +1611,14 @@ final class MyFitPlateUITests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
 
-        app.buttons["Previous day"].tap()
+        let previousDay = app.buttons["Previous day"]
+        XCTAssertTrue(previousDay.isHittable)
+        previousDay.tap()
+        if !livingDay.waitForNonExistence(timeout: 2) {
+            XCTAssertTrue(livingDay.exists, "Only retry a dropped tap while Living Day is unchanged")
+            XCTAssertTrue(previousDay.isHittable)
+            previousDay.tap()
+        }
         XCTAssertTrue(livingDay.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Calories"].waitForExistence(timeout: 5))
         XCTAssertTrue(header.exists)
@@ -2156,9 +2196,15 @@ final class MyFitPlateUITests: XCTestCase {
 
         let options = app.buttons["More options for Chicken breast"]
         XCTAssertTrue(options.waitForExistence(timeout: 5))
+        XCTAssertTrue(options.isHittable)
         options.tap()
 
         let edit = app.buttons["Edit Item"]
+        if !edit.waitForExistence(timeout: 2) {
+            XCTAssertTrue(options.exists, "Only retry a dropped tap while the item menu is still closed")
+            XCTAssertTrue(options.isHittable)
+            options.tap()
+        }
         XCTAssertTrue(edit.waitForExistence(timeout: 5))
         edit.tap()
 

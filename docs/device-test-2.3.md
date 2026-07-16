@@ -39,6 +39,20 @@ widget, Live Activity, and Watch products are version 2.3 build 1. The Watch app
 HealthKit purpose strings and arm64_32 plus arm64, and the main privacy manifest parses. Physical
 experience judgments and the signed archive remain open below.
 
+Latest Gate 3 automated preflight on 2026-07-15: Core passed 1,134/1,134 and the app target passed
+110/110. The definitive broad UI matrix passed 80 test methods / 83 executions with no failures or
+skips. It covers the principal Home, Grocery, Meal Plan, Maia, Fast Food Builder, Reports, running,
+strength, recovery, sharing, deep-link, dark-mode, and large-text journeys. The two interactions
+that dropped taps in an earlier broad run each passed five focused repetitions after receiving a
+narrow state-aware retry, then passed in the final full matrix. Focused coverage also proves that
+stale meal-plan Grocery items are replaced without deleting manual entries and that an implausible
+6,420 cal/day Adaptive TDEE remains visibly non-actionable. Strict SwiftLint, the visual-system
+guard, `git diff --check`, and the complete unsigned Debug build with phone, Watch, widget, and Live
+Activity targets passed. Results: `/Volumes/T7 Developer/MyFitPlate/CodexBuildData/Gate3-UI-Final.xcresult`,
+`/Volumes/T7 Developer/MyFitPlate/CodexBuildData/Gate3-Robustness.xcresult`, and
+`/Volumes/T7 Developer/MyFitPlate/CodexBuildData/Gate3-App-Tests.xcresult`. These deterministic
+checks do not replace the physical acceptance steps below.
+
 ## Version 2.3 Living Day owner gates
 
 The implementation, deterministic rendering, simulator accessibility, privacy, performance, CI,

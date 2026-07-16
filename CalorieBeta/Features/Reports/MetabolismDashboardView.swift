@@ -9,7 +9,14 @@ struct MetabolismDashboardView: View {
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @Environment(\.dismiss) private var dismiss
 
-    @State private var isLoading = true
+    @State private var isLoading: Bool
+
+    private let loadsData: Bool
+
+    init(loadsData: Bool = true) {
+        self.loadsData = loadsData
+        _isLoading = State(initialValue: loadsData)
+    }
 
     var body: some View {
         ScrollView {
@@ -27,7 +34,12 @@ struct MetabolismDashboardView: View {
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("Adaptive metabolism")
         .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("adaptive_tdee_screen")
         .task {
+            guard loadsData else {
+                isLoading = false
+                return
+            }
             guard let userID = DIContainer.shared.authService.currentUserID else {
                 isLoading = false
                 return

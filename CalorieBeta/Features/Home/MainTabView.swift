@@ -91,7 +91,8 @@ struct MainTabView: View {
             "ayce-start", "ayce-live", "ayce-review", "ayce-summary", "value-radar",
             "celebration", "add-meal-plan", "meal-plan-survey", "meal-plan-survey-cooking", "meal-prep",
             "meal-prep-steps", "meal-suggestion", "plate-calculator", "plate-math",
-            "nutrition-trends", "maia-insights", "maia-action-cards", "muscle-recovery", "shoe-gear-add"
+            "nutrition-trends", "adaptive-tdee-guardrail", "maia-insights", "maia-action-cards",
+            "muscle-recovery", "shoe-gear-add"
         ].contains(ScreenshotDemoData.requestedScreen)
         #else
         false
@@ -471,6 +472,8 @@ struct MainTabView: View {
                     )
                 )
             }
+        case "adaptive-tdee-guardrail":
+            NavigationStack { MetabolismDashboardView(loadsData: false) }
         case "maia-insights":
             NavigationStack {
                 DetailedInsightsView(
