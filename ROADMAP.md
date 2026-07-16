@@ -85,12 +85,13 @@ Version 2.3 is ready only when all four gates below are complete.
 - [x] Ensure production Functions and data assets match the candidate commit. Redeploy only if the
   final committed backend differs from what is currently live.
 
-Candidate-integrity evidence: 1,128 Core tests, 109 app XCTest cases plus one Swift Testing smoke
-test, 22 Functions tests, strict lint, the visual-system guard, complete Debug target build, and
-diff checks all pass. The production inventory contains every expected 2.3 Function. The generated
-CNF artifact contains 5,993 foods and is reproducible from its checked-in builder. The existing
-localization catalog, Xcode project ordering change, and shared-scheme launch arguments remain
-deliberately outside the candidate commits because they predated this normalization pass.
+Candidate-integrity evidence now includes 1,134 Core tests, 110 app tests, 25 Functions tests,
+23 Firestore Rules tests, 10 migration tests, and 80 UI test methods / 83 executions. Strict lint,
+the visual-system guard, coverage gates, complete Debug and Release target builds, and diff checks
+pass. The production inventory contains every expected 2.3 Function. The generated CNF artifact
+contains 5,993 foods and is reproducible from its checked-in builder. The existing localization
+catalog, Xcode project ordering change, and shared-scheme launch arguments remain deliberately
+outside the candidate commits because they predated this normalization pass.
 
 ### Gate 2 - Trust And Camera Acceptance
 
@@ -170,6 +171,17 @@ Only P0/P1 correctness, privacy, crash, accessibility, and core-workflow finding
 Cosmetic preferences that do not impair understanding or use move to the post-2.3 queue.
 
 ### Gate 4 - Release And Store
+
+An unattended release rehearsal passed on 2026-07-15: Core was 1,134/1,134 at 83.80% line
+coverage; the app was 110/110 at 7.63% line coverage; Functions were 25/25 with zero production
+dependency vulnerabilities; Firestore Rules were 23/23 with a zero-vulnerability test harness;
+and migrations were 10/10. The unsigned generic-device Release product passed and contains phone,
+widget, Live Activity, and Watch bundles at version 2.3 build 1. Their identifiers, architectures,
+privacy manifests, Watch companion relationship, and both Watch HealthKit purpose strings were
+inspected. Both eight-image Store sets were regenerated from deterministic Gate 3 evidence and
+visually reviewed at 1320x2868 and 1284x2778. These are rehearsal results, not closure: rerun the
+suite against the exact final commit and keep the signed archive, physical acceptance, production
+console confirmation, metadata, upload, and submission checkboxes open.
 
 - [ ] Run the final Core, app, UI, Functions, Firestore Rules, migration, strict lint, visual guard,
   privacy, coverage, and Release-build checks against the exact candidate commit.

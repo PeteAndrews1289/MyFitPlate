@@ -53,6 +53,19 @@ Activity targets passed. Results: `/Volumes/T7 Developer/MyFitPlate/CodexBuildDa
 `/Volumes/T7 Developer/MyFitPlate/CodexBuildData/Gate3-App-Tests.xcresult`. These deterministic
 checks do not replace the physical acceptance steps below.
 
+Latest unattended Gate 4 rehearsal on 2026-07-15: Core passed 1,134/1,134 at 83.80% line coverage;
+the app passed 110/110 at 7.63% line coverage; Functions passed 25/25 with zero production
+dependency vulnerabilities; Firestore Rules passed 23/23 with zero test-harness vulnerabilities;
+and migrations passed 10/10. The unsigned generic-device Release build passed. Its phone, widget,
+Live Activity, and Watch bundles are version 2.3 build 1 with coherent identifiers and expected
+device architectures. The embedded Watch app has the correct companion identifier plus both
+HealthKit purpose strings, and every bundled privacy manifest parses. The deterministic 2.3 Store
+gallery was regenerated and visually checked in all 16 required 6.9-inch and 6.5-inch outputs.
+Result: `/Volumes/T7 Developer/MyFitPlate/CodexBuildData/Gate4-App-Coverage.xcresult`; release
+product: `/Volumes/T7 Developer/MyFitPlate/CodexBuildData/.codex_gate2_xcode/Build/Products/Release-iphoneos/MyFitPlate.app`.
+This remains rehearsal evidence. The exact final commit still needs the complete rerun, signed
+archive validation, and all physical/production checks below.
+
 ## Version 2.3 Living Day owner gates
 
 The implementation, deterministic rendering, simulator accessibility, privacy, performance, CI,
