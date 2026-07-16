@@ -4,7 +4,7 @@ This file is the release and decision view for MyFitPlate. It intentionally cont
 current objective, unresolved work, release gates, and evidence-gated follow-up. Completed
 execution history belongs in Git, `AGENT_HANDOFF.local.md`, and the linked product contracts.
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 ## Product Direction
 
@@ -44,7 +44,7 @@ after merge.
 | Health Canada and NIH sources | Implemented and deployed | Generic-food and supplement search/barcode acceptance |
 | Trust-aware camera logging | Implemented and deployed | Fixed 20-30 photo benchmark and production cost/latency review |
 | Local quality foundation | Green | Repeat release-only checks against the final committed candidate |
-| App Store release | Candidate packaged | Physical acceptance, signed archive, metadata, screenshots, and submission |
+| App Store release | Signed candidate packaged | Physical acceptance, camera benchmark, final Store paste, upload, and submission |
 
 Feature implementation is substantially complete. The critical path is now evidence, correction,
 candidate integrity, and release preparation. New feature work is out of scope unless testing
@@ -172,29 +172,40 @@ Cosmetic preferences that do not impair understanding or use move to the post-2.
 
 ### Gate 4 - Release And Store
 
-An unattended release rehearsal passed on 2026-07-15: Core was 1,134/1,134 at 83.80% line
-coverage; the app was 110/110 at 7.63% line coverage; Functions were 25/25 with zero production
-dependency vulnerabilities; Firestore Rules were 23/23 with a zero-vulnerability test harness;
-and migrations were 10/10. The unsigned generic-device Release product passed and contains phone,
-widget, Live Activity, and Watch bundles at version 2.3 build 1. Their identifiers, architectures,
-privacy manifests, Watch companion relationship, and both Watch HealthKit purpose strings were
-inspected. Both eight-image Store sets were regenerated from deterministic Gate 3 evidence and
-visually reviewed at 1320x2868 and 1284x2778. These are rehearsal results, not closure: rerun the
-suite against the exact final commit and keep the signed archive, physical acceptance, production
-console confirmation, final paste, upload, and submission checkboxes open. Paste-ready default
-metadata, What's New, review notes, custom product pages, public URLs, and a featuring nomination
-are prepared in `docs/app-store-metadata-2.3.md`.
+The exact binary source commit `a020e8d0` passed the complete release suite on July 15-16. Core was
+1,134/1,134 at 83.80% line coverage; the app was 110/110 at 7.63%; the complete UI matrix passed
+80 methods / 83 executions; Functions were 25/25; Firestore Rules were 23/23; and migrations were
+10/10. Strict lint, the visual guard, dependency audits, structured-file checks, and the unsigned
+generic-device Release build passed.
 
-- [ ] Run the final Core, app, UI, Functions, Firestore Rules, migration, strict lint, visual guard,
+A signed archive was then created and successfully exported as an App Store Connect IPA using
+cloud-managed distribution signing. Phone, widget, Live Activity, and Watch are all 2.3 build 1;
+the exported products have the correct identifiers, architectures, companion relationship,
+HealthKit purpose strings, privacy manifests, production App Attest entitlement, and
+`get-task-allow=false`. All expected 2.3 Functions are active; production CNF/NIH calls passed with
+a disposable account that was deleted through the production deletion callable. Remote Config is
+empty, so reviewed compiled defaults apply. Server camera overrides are absent, community
+consensus fails closed, App Attest is registered, and App Check enforcement correctly remains off
+until signed-build validity is observed.
+
+The final Store image sets and paste-ready metadata are prepared. Exact paths, hashes, production
+state, and remaining limitations are recorded in `docs/release-evidence-2.3.md`.
+
+- [x] Run the final Core, app, UI, Functions, Firestore Rules, migration, strict lint, visual guard,
   privacy, coverage, and Release-build checks against the exact candidate commit.
-- [ ] Create and validate a signed archive from that commit, including the embedded Watch app,
-  HealthKit purpose strings, entitlements, privacy manifests, and required architectures.
-- [ ] Capture the final 2.3 App Store screenshots from deterministic, representative data. The
-  first three should communicate trusted logging, the food-training loop, and the next action.
-- [ ] Update App Store description, promotional text, What's New, review notes, privacy answers,
-  support/legal links, feature nomination, and custom product pages where appropriate.
-- [ ] Confirm launch-health dashboards, Crashlytics alerts, App Check state, provider flags, camera
-  flags, community-consensus kill switch, and rollback ownership.
+- [x] Create and locally validate a signed archive and App Store export from that commit, including
+  the embedded Watch app, HealthKit purpose strings, entitlements, privacy manifests, and required
+  architectures.
+- [x] Capture the final 2.3 App Store screenshots from deterministic, representative data. The
+  first three communicate trusted logging, the food-training loop, and the next action. Regenerate
+  only if physical acceptance changes a captured surface.
+- [x] Prepare the App Store description, promotional text, What's New, review notes, support/legal
+  links, feature nomination, and five custom product page plans.
+- [x] Confirm the production Functions inventory, provider availability, compiled feature defaults,
+  server camera override state, fail-closed community state, App Attest registration, and local
+  rollback ownership.
+- [ ] From the signed/TestFlight candidate, confirm App Check validity and final launch-health/
+  Crashlytics state, paste the prepared Store material, and verify the review account.
 - [ ] Upload and submit the exact candidate. After acceptance, merge that source to `main` and tag
   the published release `v2.3`.
 
@@ -203,9 +214,10 @@ are prepared in `docs/app-store-metadata-2.3.md`.
 1. [x] Normalize and commit the current 2.3 working tree without disturbing unrelated user files.
 2. [ ] Complete the specialist-source and correction-loop physical checks.
 3. [ ] Complete the fixed Trust-aware camera benchmark and evaluate the results.
-4. [ ] Run the focused device checklist, fixing only release-blocking findings.
-5. [ ] Rerun the full quality suite on the final candidate and produce the signed archive.
-6. [ ] Produce screenshots and App Store metadata, then submit 2.3.
+4. [ ] Run `docs/physical-acceptance-2.3.md`, fixing only release-blocking findings.
+5. [x] Run the full quality suite on the exact candidate and produce the signed App Store export.
+6. [x] Produce screenshots and App Store metadata.
+7. [ ] Confirm signed-build console health, paste metadata, upload, and submit 2.3.
 
 This order is deliberate. Screenshots and Store copy should represent the tested candidate, and a
 signed archive should not be made from an uncommitted or differently deployed source state.
@@ -216,7 +228,7 @@ Peter is required for:
 
 - physical iPhone, Apple Watch, GPS, heart-rate, speech, haptic, widget, and Live Activity checks;
 - the fixed camera photo set and subjective review of correction burden;
-- App Store Connect metadata, signing, archive upload, and final submission approval;
+- the final App Store Connect paste, review-account check, archive upload, and submission approval;
 - production console decisions that require the owner account;
 - any decision to expose community-contributed barcode data publicly.
 

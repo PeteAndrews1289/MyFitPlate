@@ -63,8 +63,19 @@ HealthKit purpose strings, and every bundled privacy manifest parses. The determ
 gallery was regenerated and visually checked in all 16 required 6.9-inch and 6.5-inch outputs.
 Result: `/Volumes/T7 Developer/MyFitPlate/CodexBuildData/Gate4-App-Coverage.xcresult`; release
 product: `/Volumes/T7 Developer/MyFitPlate/CodexBuildData/.codex_gate2_xcode/Build/Products/Release-iphoneos/MyFitPlate.app`.
-This remains rehearsal evidence. The exact final commit still needs the complete rerun, signed
-archive validation, and all physical/production checks below.
+This was rehearsal evidence and is superseded by the exact-candidate closure below.
+
+Exact-candidate Gate 4 closure on July 15-16: binary source commit `a020e8d0` passed Core
+1,134/1,134 at 83.80%, app 110/110 at 7.63%, and the complete UI matrix at 80 methods / 83
+executions with no failures or skips. Functions passed 25/25, Firestore Rules 23/23, migrations
+10/10, strict lint, visual guard, audits, privacy checks, and the generic Release build. Xcode
+created the signed archive and successfully exported a 62 MiB App Store Connect IPA with
+cloud-managed distribution signing. All four products remain 2.3 build 1, `get-task-allow` is
+false, App Attest is production, Watch purpose strings and architectures are correct, and all 34
+privacy manifests parse. Production provider smoke and fail-safe configuration checks also passed.
+See `docs/release-evidence-2.3.md`. The remaining hands-on work is condensed into
+`docs/physical-acceptance-2.3.md`; use that script instead of reconstructing a test order from this
+historical document.
 
 ## Version 2.3 Living Day owner gates
 
