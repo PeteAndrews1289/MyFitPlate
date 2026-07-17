@@ -546,6 +546,10 @@ struct PantryRecipeGenerationView: View {
         Task {
             let recipes = await recipeService.createRecipesFromPantry(itemsString: items, userID: userID)
             await MainActor.run {
+                guard DIContainer.shared.authService.currentUserID == userID else {
+                    isGenerating = false
+                    return
+                }
                 isGenerating = false
                 if recipes.isEmpty {
                     generationError = "No recipe drafts were returned. Please try again."
@@ -568,11 +572,19 @@ struct PantryRecipeGenerationView: View {
             do {
                 _ = try await recipeService.saveRecipe(recipe, for: userID)
                 await MainActor.run {
+                    guard DIContainer.shared.authService.currentUserID == userID else {
+                        savingRecipeIndex = nil
+                        return
+                    }
                     savedRecipeIndices.insert(index)
                     savingRecipeIndex = nil
                 }
             } catch {
                 await MainActor.run {
+                    guard DIContainer.shared.authService.currentUserID == userID else {
+                        savingRecipeIndex = nil
+                        return
+                    }
                     savingRecipeIndex = nil
                     saveError = "Your recipe draft is still here. Please try saving it again."
                 }
@@ -591,6 +603,8 @@ struct ReceiptScannerView: View {
     @State private var isProcessing = false
     @State private var parsedItems: [PantryItem]
     @State private var errorMessage: String?
+    @State private var receiptDate = Date()
+    @State private var receiptAnalysisID: UUID?
 
     private let aiModel = MLImageModel()
 
@@ -615,10 +629,8 @@ struct ReceiptScannerView: View {
                 processImage(image)
             }
         }
-        .sheet(isPresented: $showingCamera) {
-            ImagePicker(sourceType: .camera) { image in
-                capturedImage = image
-            }
+        .imageSourceDialog(isPresented: $showingCamera) { image in
+            capturedImage = image
         }
     }
 
@@ -634,18 +646,10 @@ struct ReceiptScannerView: View {
     }
 
     private var processingState: some View {
-        VStack(spacing: AppSpacing.group) {
-            ProgressView()
-                .controlSize(.large)
-                .tint(AppPalette.brand)
-            Text("Reading Receipt")
-                .appTextRole(.sectionTitle)
-            Text("This may take a few seconds.")
-                .appTextRole(.secondary)
-                .foregroundStyle(.secondary)
+        ImageProcessingView(kind: .receiptPhoto) {
+            receiptAnalysisID = nil
+            isProcessing = false
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityElement(children: .combine)
     }
 
     private var scanState: some View {
@@ -715,6 +719,25 @@ struct ReceiptScannerView: View {
                 .appSurface(.emphasized)
                 .accessibilityIdentifier("receipt_review_summary")
 
+                receiptContextCard
+
+                if let errorMessage {
+                    HStack(alignment: .top, spacing: AppSpacing.row) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(AppPalette.caution)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("New scan was not used")
+                                .appTextRole(.control)
+                            Text(errorMessage)
+                                .appTextRole(.secondary)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .appSurface(.quiet)
+                }
+
                 HStack(alignment: .top, spacing: AppSpacing.row) {
                     Image(systemName: "checkmark.circle")
                         .foregroundStyle(AppPalette.brandText)
@@ -751,6 +774,33 @@ struct ReceiptScannerView: View {
             }
             .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
         }
+    }
+
+    private var receiptContextCard: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            if let capturedImage {
+                Image(uiImage: capturedImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 132)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .accessibilityLabel("Captured grocery receipt")
+            }
+
+            DatePicker("Purchase date", selection: $receiptDate, in: ...Date(), displayedComponents: .date)
+                .appTextRole(.control)
+
+            Button {
+                showingCamera = true
+            } label: {
+                Label("Retake or Choose Another", systemImage: "arrow.triangle.2.circlepath.camera")
+            }
+            .buttonStyle(AppActionButtonStyle(.secondary))
+        }
+        .appSurface(.quiet)
+        .accessibilityIdentifier("receipt_capture_context")
     }
 
     private func receiptItemEditor(index: Int) -> some View {
@@ -832,11 +882,15 @@ struct ReceiptScannerView: View {
     }
 
     private func processImage(_ image: UIImage) {
+        let requestID = UUID()
+        receiptAnalysisID = requestID
         isProcessing = true
         errorMessage = nil
 
         aiModel.parseGroceryReceipt(from: image) { result in
             DispatchQueue.main.async {
+                guard receiptAnalysisID == requestID else { return }
+                receiptAnalysisID = nil
                 isProcessing = false
                 switch result {
                 case .success(let items):
@@ -857,7 +911,8 @@ struct ReceiptScannerView: View {
         let reviewedItems = validItems
         guard !reviewedItems.isEmpty else { return }
 
-        for item in reviewedItems {
+        for var item in reviewedItems {
+            item.dateAdded = receiptDate
             pantryService.addOrUpdateItem(item, userID: userID)
         }
         dismiss()

@@ -7,7 +7,9 @@ public class AppState: ObservableObject {
     @Published public var isUserLoggedIn: Bool = false
     @Published public var isDarkModeEnabled: Bool = false {
         didSet {
-            saveDarkModePreference()
+            if !isApplyingRemoteDarkModePreference {
+                saveDarkModePreference()
+            }
         }
     }
     @Published public var selectedTab: Int = 0
@@ -15,9 +17,11 @@ public class AppState: ObservableObject {
     @Published public var pendingTrainingFuelTarget: TrainingFuelTarget? = nil
     
     private var authStateHandle: Any?
+    private var activeUserID: String?
+    private var isApplyingRemoteDarkModePreference = false
 
     public init() {
-        if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+        if AppRuntime.isUITesting() {
             self.isUserLoggedIn = true
             return
         }
@@ -25,6 +29,7 @@ public class AppState: ObservableObject {
         authStateHandle = DIContainer.shared.authService.observeAuthState { [weak self] userID in
             Task { @MainActor in
                 guard let self = self else { return }
+                self.activeUserID = userID
                 if let userID = userID {
                     self.isUserLoggedIn = true
                     self.identifyReleaseHealthUser(userID)
@@ -47,25 +52,30 @@ public class AppState: ObservableObject {
         Task {
             do {
                 let darkMode = try await DIContainer.shared.databaseService.loadDarkModePreference(userID: userID)
-                await MainActor.run {
-                    if self.isDarkModeEnabled != darkMode {
-                        self.isDarkModeEnabled = darkMode
-                    }
+                guard activeUserID == userID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
+                if isDarkModeEnabled != darkMode {
+                    isApplyingRemoteDarkModePreference = true
+                    isDarkModeEnabled = darkMode
+                    isApplyingRemoteDarkModePreference = false
                 }
             } catch {
+                guard activeUserID == userID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
                 AppLog.app.error("Failed to load dark mode preference: \(error.localizedDescription, privacy: .public)")
                 self.recordNonFatal(error, area: .database, operation: "load_dark_mode_preference")
-                await MainActor.run {
-                    if self.isDarkModeEnabled != false {
-                         self.isDarkModeEnabled = false
-                    }
+                if isDarkModeEnabled {
+                    isApplyingRemoteDarkModePreference = true
+                    isDarkModeEnabled = false
+                    isApplyingRemoteDarkModePreference = false
                 }
             }
         }
     }
 
     private func saveDarkModePreference() {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        guard let userID = activeUserID,
+              DIContainer.shared.authService.currentUserID == userID else { return }
         let isEnabled = self.isDarkModeEnabled
         Task {
             do {
@@ -90,8 +100,13 @@ public class AppState: ObservableObject {
     }
 
     public func signOut() {
+        let userID = DIContainer.shared.authService.currentUserID
         do {
             try DIContainer.shared.authService.signOut()
+            if let userID {
+                TTSManager.shared.clearCachedSpeech(for: userID)
+            }
+            EcosystemSyncManager.shared.clearAccountWidgetData()
             identifyReleaseHealthUser(nil)
         } catch {
             AppLog.app.error("Failed to sign out: \(error.localizedDescription, privacy: .public)")

@@ -10,6 +10,7 @@ struct ManualGroceryItemSheet: View {
     @State private var category = "Misc"
 
     var initialItem: GroceryListItem?
+    var initialBarcode: String?
     let onAdd: (GroceryListItem) -> Void
 
     private let commonUnits = [
@@ -52,9 +53,7 @@ struct ManualGroceryItemSheet: View {
                     AppScreenHeader(
                         eyebrow: "Grocery List",
                         title: screenTitle,
-                        subtitle: initialItem == nil
-                            ? "Add something outside the current meal plan."
-                            : "Update the name, amount, or shopping category."
+                        subtitle: editorSubtitle
                     )
 
                     itemDetailsSection
@@ -102,6 +101,16 @@ struct ManualGroceryItemSheet: View {
                 title: "Item Details",
                 subtitle: "Use the amount you expect to buy."
             )
+
+            if let barcode = preservedBarcode {
+                AppListRow(
+                    icon: "barcode",
+                    iconColor: AppPalette.brand,
+                    title: "Unknown barcode preserved",
+                    subtitle: barcode
+                )
+                .accessibilityIdentifier("grocery_manual_barcode")
+            }
 
             GroceryFormField(title: "Name") {
                 TextField("Chicken breast, blueberries, paper towels", text: $name)
@@ -182,14 +191,31 @@ struct ManualGroceryItemSheet: View {
             quantity: quantityValue,
             unit: unit,
             category: GroceryListBuilder.normalizedCategory(category),
-            source: "manual"
+            source: preservedBarcode == nil ? "manual" : "barcode",
+            barcode: preservedBarcode
         )
         newItem.name = trimmedName
         newItem.quantity = quantityValue
         newItem.unit = unit
         newItem.category = GroceryListBuilder.normalizedCategory(category)
+        newItem.barcode = preservedBarcode
         onAdd(newItem)
         dismiss()
+    }
+
+    private var preservedBarcode: String? {
+        let value = initialItem?.barcode ?? initialBarcode
+        let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private var editorSubtitle: String {
+        if preservedBarcode != nil {
+            return "Name this item once while keeping the scanned code for future matching."
+        }
+        return initialItem == nil
+            ? "Add something outside the current meal plan."
+            : "Update the name, amount, or shopping category."
     }
 }
 

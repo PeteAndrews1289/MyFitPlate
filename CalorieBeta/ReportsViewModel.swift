@@ -30,7 +30,7 @@ class ReportsViewModel: ObservableObject {
     private let workoutAnalyticsService = WorkoutAnalyticsService()
 
     let dailyLogService: DailyLogService
-    let healthKitManager = HealthKitManager.shared // Direct access for fetching
+    let healthKitManager: HealthKitManaging
 
     // *** This is the weak reference to the HealthKitViewModel ***
     private weak var healthKitViewModel: HealthKitViewModel?
@@ -39,9 +39,20 @@ class ReportsViewModel: ObservableObject {
     private var currentUserID: String? { DIContainer.shared.authService.currentUserID }
     private var yesterdaysLog: DailyLog?
     private var didCalculateYesterdaysMealScore = false // Prevents duplicate score saving
+    private var reportTask: Task<Void, Never>?
+    private var wellnessTask: Task<Void, Never>?
+    private var workoutAnalyticsTask: Task<Void, Never>?
+    private var mealScoreHistoryTask: Task<Void, Never>?
+    private var activeReportRequestID: UUID?
+    private var activeReportUserID: String?
+    private var mealScoreHistoryRequestID: UUID?
 
-    init(dailyLogService: DailyLogService) {
+    init(
+        dailyLogService: DailyLogService,
+        healthKitManager: HealthKitManaging = HealthKitManager.shared
+    ) {
         self.dailyLogService = dailyLogService
+        self.healthKitManager = healthKitManager
     }
 
     // *** This setup method is correct ***
@@ -50,13 +61,39 @@ class ReportsViewModel: ObservableObject {
         self.healthKitViewModel = healthKitViewModel
     }
 
+    private func isCurrentReportRequest(_ requestID: UUID, userID: String) -> Bool {
+        activeReportRequestID == requestID
+            && activeReportUserID == userID
+            && currentUserID == userID
+    }
+
+    private func scheduleWellnessRecalculation(
+        yesterdayLogResult: Result<[DailyLog], Error>? = nil,
+        requestID: UUID,
+        userID: String
+    ) {
+        wellnessTask?.cancel()
+        wellnessTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.calculateWellnessScoreIfNeeded(
+                yesterdayLogResult: yesterdayLogResult,
+                requestID: requestID,
+                userID: userID
+            )
+        }
+    }
+
     // Processes sleep samples from HealthKit to generate scores and reports.
     func processAndScoreSleepData(samples: [HKCategorySample]) {
+        guard let requestID = activeReportRequestID,
+              let userID = activeReportUserID,
+              isCurrentReportRequest(requestID, userID: userID) else { return }
+
         guard !samples.isEmpty else {
             self.enhancedSleepReport = nil
             self.lastNightSleepScore = nil
             self.wellnessScore = nil
-            Task { await calculateWellnessScoreIfNeeded() }
+            scheduleWellnessRecalculation(requestID: requestID, userID: userID)
             return
         }
 
@@ -113,7 +150,7 @@ class ReportsViewModel: ObservableObject {
         guard !validDays.isEmpty else {
             self.enhancedSleepReport = nil; self.lastNightSleepScore = nil
             self.wellnessScore = nil
-            Task { await calculateWellnessScoreIfNeeded() }
+            scheduleWellnessRecalculation(requestID: requestID, userID: userID)
             return
         }
 
@@ -157,9 +194,7 @@ class ReportsViewModel: ObservableObject {
             errorMessage = nil
         }
         self.wellnessScore = nil
-        Task {
-            await self.calculateWellnessScoreIfNeeded()
-        }
+        scheduleWellnessRecalculation(requestID: requestID, userID: userID)
     }
 
     private func sleepNightKey(for sample: HKCategorySample, calendar: Calendar) -> Date {
@@ -264,22 +299,54 @@ class ReportsViewModel: ObservableObject {
 
     // Fetches all necessary data for the selected timeframe.
     func fetchData(for timeframe: ReportTimeframe, startDate: Date? = nil, endDate: Date? = nil) {
-        // Ensure user and goals are loaded
-        guard let userID = currentUserID, currentGoals != nil else { errorMessage = "User or goals not loaded."; isLoading = false; return }
-        // Reset state before fetching
-        isLoading = true; errorMessage = nil; summary = nil
-        calorieTrend = []; proteinTrend = []; carbTrend = []; fatTrend = []
-        micronutrientAverages = []; mealDistributionData = []
-        reportSpecificInsight = nil; weeklyWorkoutReport = nil; workoutAnalytics = nil
-        enhancedSleepReport = nil; lastNightSleepScore = nil; wellnessScore = nil
-        didCalculateYesterdaysMealScore = false; yesterdaysLog = nil // Reset yesterday's log flag
+        guard let userID = currentUserID, currentGoals != nil else {
+            reportTask?.cancel()
+            wellnessTask?.cancel()
+            workoutAnalyticsTask?.cancel()
+            activeReportRequestID = nil
+            activeReportUserID = nil
+            errorMessage = "User or goals not loaded."
+            isLoading = false
+            return
+        }
+
+        reportTask?.cancel()
+        wellnessTask?.cancel()
+        workoutAnalyticsTask?.cancel()
+        let requestID = UUID()
+        activeReportRequestID = requestID
+        activeReportUserID = userID
+
+        isLoading = true
+        errorMessage = nil
+        summary = nil
+        calorieTrend = []
+        proteinTrend = []
+        carbTrend = []
+        fatTrend = []
+        micronutrientAverages = []
+        mealDistributionData = []
+        reportSpecificInsight = nil
+        weeklyWorkoutReport = nil
+        workoutAnalytics = nil
+        enhancedSleepReport = nil
+        lastNightSleepScore = nil
+        wellnessScore = nil
+        didCalculateYesterdaysMealScore = false
+        yesterdaysLog = nil
 
         // Determine date range based on timeframe selection
         var effectiveStartDate: Date; var effectiveEndDate: Date = Calendar.current.startOfDay(for: Date()) // Default end date is today
         var timeframeNameForSummary: String = timeframe.rawValue; var daysInPeriodForSummary: Int
 
         if timeframe == .custom {
-            guard let start = startDate, let end = endDate else { errorMessage = "Custom date range not provided."; isLoading = false; return }
+            guard let start = startDate, let end = endDate else {
+                activeReportRequestID = nil
+                activeReportUserID = nil
+                errorMessage = "Custom date range not provided."
+                isLoading = false
+                return
+            }
             effectiveStartDate = Calendar.current.startOfDay(for: start); effectiveEndDate = Calendar.current.startOfDay(for: end)
             // Calculate days in custom range
             let components = Calendar.current.dateComponents([.day], from: effectiveStartDate, to: effectiveEndDate)
@@ -299,70 +366,100 @@ class ReportsViewModel: ObservableObject {
         let reportTimeframeName = timeframeNameForSummary
         let reportDaysInPeriod = daysInPeriodForSummary
 
-        // Use Task to perform asynchronous operations
-        Task {
-             // Fetch logs for the main period and just for yesterday concurrently
-             let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date())) ?? Calendar.current.startOfDay(for: Date())
-             async let logResult = dailyLogService.fetchDailyHistory(for: userID, startDate: reportStartDate, endDate: reportEndDate)
-             async let yesterdayLogResult = dailyLogService.fetchDailyHistory(for: userID, startDate: yesterday, endDate: yesterday)
+        reportTask = Task { @MainActor [weak self] in
+            guard let self else { return }
 
-             // *** Use HealthKitViewModel's authorization status ***
-             if healthKitViewModel?.isAuthorized ?? false {
-                 // Fetch sleep data if authorized (adjust start date for sleep queries)
-                 let sleepStartDate = Calendar.current.date(byAdding: .day, value: -1, to: reportStartDate) ?? reportStartDate // Fetch from day before start to catch overnight sleep
-                 
-                 // Use the shared HealthKitManager instance to perform the fetch
-                 healthKitManager.fetchSleepAnalysis(startDate: sleepStartDate, endDate: reportEndDate) { [weak self] samples, _ in
-                     // Process results on main thread
-                     Task { @MainActor in
-                         guard let self else { return }
-                         if let samples = samples {
-                             let reportEndBoundary = Calendar.current.date(byAdding: .day, value: 1, to: reportEndDate) ?? reportEndDate
-                             let filteredSamples = samples.filter {
-                                 let night = self.sleepNightKey(for: $0, calendar: Calendar.current)
-                                 return night >= reportStartDate && night < reportEndBoundary
-                             }
-                             self.processAndScoreSleepData(samples: filteredSamples)
-                         } else {
-                             // Handle fetch errors or no data
-                             self.enhancedSleepReport = nil; self.lastNightSleepScore = nil; self.wellnessScore = nil
-                             await self.calculateWellnessScoreIfNeeded() // Recalculate wellness without sleep
-                         }
-                     }
-                 }
-             } else {
-                 // Handle case where HealthKit sleep data is not authorized
-                 self.enhancedSleepReport = nil; self.lastNightSleepScore = nil; self.wellnessScore = nil
-                 // Still need to attempt wellness score calculation, passing potential yesterday log result
-                 await self.calculateWellnessScoreIfNeeded(yesterdayLogResult: await yesterdayLogResult)
-             }
+            let yesterday = Calendar.current.date(
+                byAdding: .day,
+                value: -1,
+                to: Calendar.current.startOfDay(for: Date())
+            ) ?? Calendar.current.startOfDay(for: Date())
+            async let logResult = self.dailyLogService.fetchDailyHistory(
+                for: userID,
+                startDate: reportStartDate,
+                endDate: reportEndDate
+            )
+            async let yesterdayLogResult = self.dailyLogService.fetchDailyHistory(
+                for: userID,
+                startDate: yesterday,
+                endDate: yesterday
+            )
 
-            // Await log fetching results
-            isLoading = false // Set loading to false after fetches start
-            switch await logResult {
-            case .success(let logs):
-                // Process fetched logs to calculate summaries, trends, etc.
-                self.processLogs(logs: logs, timeframeName: reportTimeframeName, totalDaysInPeriod: reportDaysInPeriod)
-            case .failure(let e):
-                // Handle errors fetching logs
-                self.errorMessage = "Error fetching report data: \(e.localizedDescription)"
+            if self.healthKitViewModel?.isAuthorized ?? false {
+                let sleepStartDate = Calendar.current.date(
+                    byAdding: .day,
+                    value: -1,
+                    to: reportStartDate
+                ) ?? reportStartDate
+                self.healthKitManager.fetchSleepAnalysis(
+                    startDate: sleepStartDate,
+                    endDate: reportEndDate
+                ) { [weak self] samples, _ in
+                    Task { @MainActor in
+                        guard let self,
+                              self.isCurrentReportRequest(requestID, userID: userID) else { return }
+                        if let samples {
+                            let reportEndBoundary = Calendar.current.date(
+                                byAdding: .day,
+                                value: 1,
+                                to: reportEndDate
+                            ) ?? reportEndDate
+                            let filteredSamples = samples.filter {
+                                let night = self.sleepNightKey(for: $0, calendar: Calendar.current)
+                                return night >= reportStartDate && night < reportEndBoundary
+                            }
+                            self.processAndScoreSleepData(samples: filteredSamples)
+                        } else {
+                            self.enhancedSleepReport = nil
+                            self.lastNightSleepScore = nil
+                            self.wellnessScore = nil
+                            self.scheduleWellnessRecalculation(requestID: requestID, userID: userID)
+                        }
+                    }
+                }
             }
 
-            // Store yesterday's log result if successful
-            if case .success(let yesterdayLogs) = await yesterdayLogResult { self.yesterdaysLog = yesterdayLogs.first; } else { self.yesterdaysLog = nil; }
+            let mainResult = await logResult
+            let yesterdayResult = await yesterdayLogResult
+            guard !Task.isCancelled,
+                  self.isCurrentReportRequest(requestID, userID: userID) else { return }
 
-            // Final check to calculate wellness score if sleep wasn't authorized or calculation hasn't happened yet
-             if !(healthKitViewModel?.isAuthorized ?? false) {
-                 await self.calculateWellnessScoreIfNeeded() // Calculate without sleep data
-             } else if self.wellnessScore == nil {
-                 // If sleep *was* authorized but wellness score is still nil (e.g., fetchSleepAnalysis callback race condition)
-                  await self.calculateWellnessScoreIfNeeded() // Attempt calculation again
-             }
+            switch mainResult {
+            case .success(let logs):
+                self.processLogs(
+                    logs: logs,
+                    timeframeName: reportTimeframeName,
+                    totalDaysInPeriod: reportDaysInPeriod,
+                    requestID: requestID,
+                    userID: userID
+                )
+            case .failure(let error):
+                self.errorMessage = "Error fetching report data: \(error.localizedDescription)"
+            }
+
+            if case .success(let yesterdayLogs) = yesterdayResult {
+                self.yesterdaysLog = yesterdayLogs.first
+            } else {
+                self.yesterdaysLog = nil
+            }
+
+            self.scheduleWellnessRecalculation(
+                yesterdayLogResult: yesterdayResult,
+                requestID: requestID,
+                userID: userID
+            )
+            self.isLoading = false
         }
     }
 
     // Processes fetched logs to populate published report data properties.
-    private func processLogs(logs: [DailyLog], timeframeName: String, totalDaysInPeriod: Int) {
+    private func processLogs(
+        logs: [DailyLog],
+        timeframeName: String,
+        totalDaysInPeriod: Int,
+        requestID: UUID,
+        userID: String
+    ) {
         guard let goals = currentGoals else { return } // Need goals for comparisons
         // Filter out logs that have no meals AND no exercises (empty days)
         let validLogs = logs.filter { !$0.meals.isEmpty || !($0.exercises?.isEmpty ?? true) }
@@ -396,8 +493,15 @@ class ReportsViewModel: ObservableObject {
             self.weeklyWorkoutReport = WorkoutReport(totalWorkouts: totalWorkouts, totalCaloriesBurned: totalCaloriesBurned, mostFrequentWorkout: mostFrequent)
         }
 
-        // Calculate detailed workout analytics (volume, PRs) in a background task
-        Task { if !validLogs.isEmpty { self.workoutAnalytics = await workoutAnalyticsService.calculateAnalytics(for: validLogs, program: nil) } }
+        // Calculate detailed workout analytics without allowing an older timeframe to repaint the view.
+        workoutAnalyticsTask?.cancel()
+        workoutAnalyticsTask = Task { @MainActor [weak self] in
+            guard let self, !validLogs.isEmpty else { return }
+            let analytics = await self.workoutAnalyticsService.calculateAnalytics(for: validLogs, program: nil)
+            guard !Task.isCancelled,
+                  self.isCurrentReportRequest(requestID, userID: userID) else { return }
+            self.workoutAnalytics = analytics
+        }
 
         // Process nutrition data if there are valid logs
         if daysWithActualLogEntries > 0 {
@@ -474,22 +578,35 @@ class ReportsViewModel: ObservableObject {
 
     // Fetches historical meal scores from Firestore.
     func fetchMealScoreHistory(for userID: String) {
-        Task {
+        guard currentUserID == userID else { return }
+        mealScoreHistoryTask?.cancel()
+        let requestID = UUID()
+        mealScoreHistoryRequestID = requestID
+        mealScoreHistoryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
                 let history = try await DIContainer.shared.reportsRepository.fetchMealScoreHistory(userID: userID)
-                DispatchQueue.main.async { self.mealScoreHistory = history }
+                guard !Task.isCancelled,
+                      self.mealScoreHistoryRequestID == requestID,
+                      self.currentUserID == userID else { return }
+                self.mealScoreHistory = history
             } catch {
+                guard !Task.isCancelled else { return }
                 AppLog.data.error("Failed to fetch meal score history: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
 
     // Calculates the wellness score, ensuring dependencies (meal score, sleep) are handled.
-    private func calculateWellnessScoreIfNeeded(yesterdayLogResult: Result<[DailyLog], Error>? = nil) async {
-         // Only calculate if score isn't already present
-         guard wellnessScore == nil else { return }
-        // Ensure user and goals are available
-        guard let userID = currentUserID, let goals = currentGoals else { return }
+    private func calculateWellnessScoreIfNeeded(
+        yesterdayLogResult: Result<[DailyLog], Error>? = nil,
+        requestID: UUID,
+        userID: String
+    ) async {
+        guard !Task.isCancelled,
+              wellnessScore == nil,
+              isCurrentReportRequest(requestID, userID: userID),
+              let goals = currentGoals else { return }
 
         var calculatedMealScore: MealScore = .noScore // Default to no score
         var logsAvailableForMealScore = self.yesterdaysLog != nil // Check if yesterday's log is already loaded
@@ -497,12 +614,14 @@ class ReportsViewModel: ObservableObject {
         // Try using the already loaded yesterday's log first
         if let log = self.yesterdaysLog {
             calculatedMealScore = await calculateMealScore(for: log, goals: goals)
+            guard !Task.isCancelled, isCurrentReportRequest(requestID, userID: userID) else { return }
             // Save score only once per fetch cycle
             if !didCalculateYesterdaysMealScore { saveMealScore(for: userID, date: log.date, score: calculatedMealScore); didCalculateYesterdaysMealScore = true }
         } else if let result = yesterdayLogResult { // If not loaded, try using the passed-in fetch result
             if case .success(let logs) = result, let log = logs.first {
                 self.yesterdaysLog = log // Store it for future use within this cycle
                 calculatedMealScore = await calculateMealScore(for: log, goals: goals)
+                guard !Task.isCancelled, isCurrentReportRequest(requestID, userID: userID) else { return }
                  if !didCalculateYesterdaysMealScore { saveMealScore(for: userID, date: log.date, score: calculatedMealScore); didCalculateYesterdaysMealScore = true }
                  logsAvailableForMealScore = true
             }
@@ -510,8 +629,10 @@ class ReportsViewModel: ObservableObject {
              // If neither is available, attempt one final fetch for yesterday's log
              let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date())) ?? Calendar.current.startOfDay(for: Date())
              let logResult = await dailyLogService.fetchDailyHistory(for: userID, startDate: yesterday, endDate: yesterday)
+             guard !Task.isCancelled, isCurrentReportRequest(requestID, userID: userID) else { return }
              if case .success(let logs) = logResult, let log = logs.first {
                  self.yesterdaysLog = log; calculatedMealScore = await calculateMealScore(for: log, goals: goals)
+                 guard !Task.isCancelled, isCurrentReportRequest(requestID, userID: userID) else { return }
                  if !didCalculateYesterdaysMealScore { saveMealScore(for: userID, date: yesterday, score: calculatedMealScore); didCalculateYesterdaysMealScore = true }
                  logsAvailableForMealScore = true
              }
@@ -523,6 +644,7 @@ class ReportsViewModel: ObservableObject {
         // Extract values from HealthKit samples
         let rhrValue = (await restingHeartRateSample)?.quantity.doubleValue(for: HKUnit(from: "count/min"))
         let hrvValue = (await hrvSample)?.quantity.doubleValue(for: HKUnit(from: "ms"))
+        guard !Task.isCancelled, isCurrentReportRequest(requestID, userID: userID) else { return }
 
         // Calculate the final wellness score using the service
         let finalWellnessScore = wellnessScoreService.calculateWellnessScore(
@@ -531,12 +653,10 @@ class ReportsViewModel: ObservableObject {
             restingHeartRate: rhrValue, hrv: hrvValue
         )
 
-        // Update published properties on the main thread
-        DispatchQueue.main.async {
-            // Only update mealScore if logs were actually available for scoring
-            if logsAvailableForMealScore || calculatedMealScore.overallScore > 0 { self.mealScore = calculatedMealScore }
-            self.wellnessScore = finalWellnessScore
+        if logsAvailableForMealScore || calculatedMealScore.overallScore > 0 {
+            self.mealScore = calculatedMealScore
         }
+        self.wellnessScore = finalWellnessScore
     }
 
     // Async wrappers for HealthKit fetches using continuations.

@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 
 public class MockAnalyticsManager: AnalyticsManagerProtocol {
@@ -23,3 +24,4 @@ public class MockAnalyticsManager: AnalyticsManagerProtocol {
         typedEvents.append((event, parameters))
     }
 }
+#endif

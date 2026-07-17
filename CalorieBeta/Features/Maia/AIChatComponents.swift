@@ -2,43 +2,6 @@ import MyFitPlateCore
 
 import SwiftUI
 
-struct SuggestionButtonsView: View {
-    let suggestions: [String]
-    var onSelect: (String) -> Void
-
-    private let columns: [GridItem] = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Try asking...")
-                .appFont(size: 16, weight: .semibold)
-                .foregroundColor(.textPrimary)
-                .padding(.horizontal)
-                .padding(.bottom, 5)
-
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(suggestions, id: \.self) { suggestion in
-                    Button(action: { onSelect(suggestion) }) {
-                        Text(suggestion)
-                            .appFont(size: 14, weight: .medium)
-                            .foregroundColor(.textPrimary)
-                            .frame(maxWidth: .infinity, minHeight: 50)
-                            .padding(10)
-                            .background(Color.backgroundSecondary.opacity(0.74), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .multilineTextAlignment(.center)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal)
-        }
-        .transition(.opacity.combined(with: .move(edge: .bottom)))
-    }
-}
-
 struct MaiaActionBoardView: View {
     let remainingCalories: Double
     let remainingProtein: Double
@@ -133,7 +96,7 @@ struct MaiaActionBoardView: View {
                         .foregroundStyle(AppPalette.brandText)
                         .accessibilityHidden(true)
                 }
-                .appSurface(.emphasized, radius: AppRadius.hero)
+                .appSurface(.interpreted, radius: AppRadius.hero)
             }
             .buttonStyle(.plain)
             .disabled(recommendedAction == .fillMacros && isGeneratingMeal)
@@ -709,7 +672,7 @@ struct AIChatActionCard: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
-        .appSurface(.emphasized)
+        .appSurface(.interpreted)
         .accessibilityIdentifier("maia_action_meal")
     }
 }
@@ -742,7 +705,7 @@ struct AIChatMealPlanActionCard: View {
                 .buttonStyle(AnimatedCardButtonStyle())
             }
         }
-        .appSurface(.emphasized)
+        .appSurface(.interpreted)
         .accessibilityIdentifier("maia_action_meal_plan")
     }
 }
@@ -783,7 +746,7 @@ struct AIChatWorkoutActionCard: View {
                 MacroLabel(title: "Burn", value: "\(Int(caloriesBurned.rounded())) cal")
             }
         }
-        .appSurface(.emphasized)
+        .appSurface(.interpreted)
         .accessibilityIdentifier("maia_action_workout")
     }
 }
@@ -821,7 +784,7 @@ struct AIChatWaterActionCard: View {
                 MacroLabel(title: "Amount", value: "\(Int(amountOunces.rounded())) oz")
             }
         }
-        .appSurface(.emphasized)
+        .appSurface(.interpreted)
         .accessibilityIdentifier("maia_action_water")
     }
 }
@@ -862,7 +825,7 @@ struct AIChatFastActionCard: View {
                 }
             }
         }
-        .appSurface(.emphasized)
+        .appSurface(.interpreted)
         .accessibilityIdentifier("maia_action_fast")
     }
 }
@@ -908,7 +871,7 @@ struct AIChatWeightActionCard: View {
                 )
             }
         }
-        .appSurface(.emphasized)
+        .appSurface(.interpreted)
         .accessibilityIdentifier("maia_action_weight")
     }
 }
@@ -1170,13 +1133,23 @@ struct MaiaHealthKitContextIndicator: View {
 }
 
 struct MaiaTypingIndicator: View {
+    var label: String?
     @State private var isAnimating = false
     
     var body: some View {
-        HStack(spacing: 5) {
-            DotView(isAnimating: $isAnimating, delay: 0.0)
-            DotView(isAnimating: $isAnimating, delay: 0.2)
-            DotView(isAnimating: $isAnimating, delay: 0.4)
+        HStack(spacing: AppSpacing.compact) {
+            HStack(spacing: 5) {
+                DotView(isAnimating: $isAnimating, delay: 0.0)
+                DotView(isAnimating: $isAnimating, delay: 0.2)
+                DotView(isAnimating: $isAnimating, delay: 0.4)
+            }
+
+            if let label {
+                Text(label)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 18)
@@ -1192,6 +1165,8 @@ struct MaiaTypingIndicator: View {
         .onAppear {
             isAnimating = true
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label ?? "Maia is responding")
     }
 }
 

@@ -459,29 +459,31 @@ struct MealPlanWeekStrip: View {
 
     private let calendar = Calendar.current
 
-    private var dayWidth: CGFloat {
-        dynamicTypeSize.isAccessibilitySize ? 250 : 44
-    }
-
+    @ViewBuilder
     var body: some View {
         let today = calendar.startOfDay(for: Date())
         let dates = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
 
-        ScrollView(.horizontal) {
-            HStack(spacing: AppSpacing.compact) {
-                ForEach(dates, id: \.self) { date in
-                    dayButton(
-                        date,
-                        isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
-                        isToday: calendar.isDateInToday(date),
-                        mealCount: mealCountsByDay[dateKey(for: date)] ?? 0
-                    )
+        if dynamicTypeSize.isAccessibilitySize {
+            accessibilityDayPicker(dates)
+        } else {
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 6) {
+                    ForEach(dates, id: \.self) { date in
+                        dayButton(
+                            date,
+                            isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
+                            isToday: calendar.isDateInToday(date),
+                            mealCount: mealCountsByDay[dateKey(for: date)] ?? 0
+                        )
+                        .id(date)
+                    }
                 }
+                .padding(.vertical, 2)
             }
-            .padding(.vertical, 2)
+            .scrollIndicators(.hidden)
+            .accessibilityIdentifier("meal_plan_week")
         }
-        .scrollIndicators(.hidden)
-        .accessibilityIdentifier("meal_plan_week")
     }
 
     private func dayButton(_ date: Date, isSelected: Bool, isToday: Bool, mealCount: Int) -> some View {
@@ -490,7 +492,7 @@ struct MealPlanWeekStrip: View {
             HapticManager.instance.feedback(.light)
         } label: {
             dayLabel(date, isSelected: isSelected, isToday: isToday, mealCount: mealCount)
-            .frame(width: dayWidth)
+            .frame(width: 40)
             .frame(minHeight: 82)
             .background(
                 isSelected ? AppPalette.control : Color.clear,
@@ -504,63 +506,74 @@ struct MealPlanWeekStrip: View {
 
     @ViewBuilder
     private func dayLabel(_ date: Date, isSelected: Bool, isToday: Bool, mealCount: Int) -> some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            HStack(alignment: .top, spacing: AppSpacing.row) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(dayOfWeek(for: date))
-                        .appTextRole(.control)
-                        .foregroundStyle(isSelected ? AppPalette.brandText : Color.secondary)
+        VStack(spacing: 6) {
+            Text(dayOfWeek(for: date))
+                .appTextRole(.caption)
+                .foregroundStyle(isSelected ? AppPalette.brandText : Color.secondary)
 
-                    Text(monthAndDay(for: date))
-                        .appTextRole(.sectionTitle)
-                        .foregroundStyle(AppPalette.text)
-
-                    Text(mealCount == 1 ? "1 planned meal" : "\(mealCount) planned meals")
-                        .appTextRole(.secondary)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .appTextRole(.control)
-                        .foregroundStyle(AppPalette.brandText)
-                        .accessibilityHidden(true)
-                }
-            }
-            .padding(AppSpacing.row)
-        } else {
-            VStack(spacing: 6) {
-                Text(dayOfWeek(for: date))
-                    .appTextRole(.caption)
-                    .foregroundStyle(isSelected ? AppPalette.brandText : Color.secondary)
-
-                Text(dayOfMonth(for: date))
-                    .appTextRole(.control)
-                    .foregroundStyle(isSelected ? AppPalette.onBrand : AppPalette.text)
-                    .frame(width: 34, height: 34)
-                    .background {
-                        if isSelected {
-                            Circle()
-                                .fill(AppPalette.brand)
-                                .matchedGeometryEffect(id: "selectedMealPlanDay", in: animationNamespace)
-                        }
+            Text(dayOfMonth(for: date))
+                .appTextRole(.control)
+                .foregroundStyle(isSelected ? AppPalette.onBrand : AppPalette.text)
+                .frame(width: 34, height: 34)
+                .background {
+                    if isSelected {
+                        Circle()
+                            .fill(AppPalette.brand)
+                            .matchedGeometryEffect(id: "selectedMealPlanDay", in: animationNamespace)
                     }
-
-                HStack(spacing: 3) {
-                    Circle()
-                        .fill(mealCount > 0 ? AppPalette.brand : Color.clear)
-                        .frame(width: 5, height: 5)
-
-                    Text(mealCount > 0 ? "\(mealCount)" : (isToday ? "Today" : " "))
-                        .appTextRole(.caption)
-                        .foregroundStyle(.secondary)
                 }
-                .frame(height: 16)
+
+            HStack(spacing: 3) {
+                Circle()
+                    .fill(mealCount > 0 ? AppPalette.brand : Color.clear)
+                    .frame(width: 5, height: 5)
+
+                Text(mealCount > 0 ? "\(mealCount)" : (isToday ? "Today" : " "))
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
             }
+            .frame(height: 16)
         }
+    }
+
+    private func accessibilityDayPicker(_ dates: [Date]) -> some View {
+        Menu {
+            ForEach(dates, id: \.self) { date in
+                Button {
+                    selectedDate = date
+                    HapticManager.instance.feedback(.light)
+                } label: {
+                    let mealCount = mealCountsByDay[dateKey(for: date)] ?? 0
+                    Label(
+                        "\(dayOfWeek(for: date)) \(monthAndDay(for: date)) · \(mealCount) \(mealCount == 1 ? "meal" : "meals")",
+                        systemImage: calendar.isDate(date, inSameDayAs: selectedDate)
+                            ? "checkmark.circle.fill"
+                            : "circle"
+                    )
+                }
+            }
+        } label: {
+            let mealCount = mealCountsByDay[dateKey(for: selectedDate)] ?? 0
+            AppListRow(
+                icon: "calendar",
+                iconColor: AppPalette.brand,
+                title: selectedDate.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()),
+                subtitle: mealCount == 1 ? "1 planned meal" : "\(mealCount) planned meals"
+            ) {
+                Image(systemName: "chevron.up.chevron.down")
+                    .appTextRole(.control)
+                    .foregroundStyle(.secondary)
+            }
+            .appSurface(.quiet, padding: 0)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Meal plan day")
+        .accessibilityValue(accessibilityLabel(
+            for: selectedDate,
+            mealCount: mealCountsByDay[dateKey(for: selectedDate)] ?? 0,
+            isSelected: true
+        ))
+        .accessibilityIdentifier("meal_plan_week")
     }
 
     private func accessibilityLabel(for date: Date, mealCount: Int, isSelected: Bool) -> String {

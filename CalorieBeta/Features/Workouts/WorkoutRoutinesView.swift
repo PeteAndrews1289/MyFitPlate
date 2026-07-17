@@ -8,6 +8,7 @@ struct WorkoutRoutinesView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var routineToPlay: WorkoutRoutine?
     @State private var showingAIGenerator = false
@@ -77,7 +78,9 @@ struct WorkoutRoutinesView: View {
 
                     AppScreenHeader(
                         title: "Train",
-                        subtitle: "Your next workout, readiness, and recovery."
+                        subtitle: dynamicTypeSize.isAccessibilitySize
+                            ? nil
+                            : "Your next workout, readiness, and recovery."
                     ) {
                         NavigationLink(destination: WorkoutHistoryView()) {
                             Image(systemName: "clock.arrow.circlepath")

@@ -5,6 +5,7 @@ public extension Notification.Name {
     static let didUpdateExerciseLog = Notification.Name("didUpdateExerciseLog")
     static let openTrainingFuelPlanner = Notification.Name("OpenTrainingFuelPlanner")
     static let trainingFuelNotificationPreferencesChanged = Notification.Name("TrainingFuelNotificationPreferencesChanged")
+    static let mealPlanChanged = Notification.Name("MealPlanChanged")
 }
 
 public enum DailyLogNotificationUserInfoKey {

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 public enum WorkoutServiceError: Error, LocalizedError {
     case userNotLoggedIn
@@ -63,10 +64,12 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
     private var routineListener: Any?
     private var programListener: Any?
     private var listenerUserID: String?
-    private let activeProgramIDKey = "activeWorkoutProgramID"
-    private let activeProgramClearedKey = "activeWorkoutProgramCleared"
+    private let defaults: UserDefaults
+    private static let legacyActiveProgramIDKey = "activeWorkoutProgramID"
+    private static let legacyActiveProgramClearedKey = "activeWorkoutProgramCleared"
 
-    public init() {
+    public init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         loadPreBuiltPrograms()
     }
 
@@ -142,6 +145,9 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
                 userID: userID,
                 sinceDays: days
             )
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                return .failure(CancellationError())
+            }
             return .success(logs)
         } catch {
             reportFailure(error, operation: "fetch_recent_session_logs")
@@ -150,31 +156,46 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
     }
 
     public func fetchRoutinesAndPrograms() {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            resetAccountState()
+            return
+        }
         if listenerUserID == userID, routineListener != nil, programListener != nil {
             return
         }
 
         if let pListener = programListener { DIContainer.shared.workoutRepository.removeListener(pListener) }
         if let rListener = routineListener { DIContainer.shared.workoutRepository.removeListener(rListener) }
+        programListener = nil
+        routineListener = nil
         listenerUserID = userID
+        userPrograms = []
+        userRoutines = []
+        activeProgram = nil
+        migrateLegacyActiveProgramStorageIfNeeded(for: userID)
 
         self.programListener = DIContainer.shared.workoutRepository.addProgramsSnapshotListener(userID: userID) { [weak self] result in
+            guard let self,
+                  self.listenerUserID == userID,
+                  DIContainer.shared.authService.currentUserID == userID else { return }
             switch result {
             case .success(let programs):
-                self?.userPrograms = programs
-                self?.restoreActiveProgram()
+                self.userPrograms = programs
+                self.restoreActiveProgram(for: userID)
             case .failure(let error):
-                self?.reportFailure(error, operation: "programs_snapshot_listener")
+                self.reportFailure(error, operation: "programs_snapshot_listener")
             }
         }
 
         self.routineListener = DIContainer.shared.workoutRepository.addRoutinesSnapshotListener(userID: userID) { [weak self] result in
+            guard let self,
+                  self.listenerUserID == userID,
+                  DIContainer.shared.authService.currentUserID == userID else { return }
             switch result {
             case .success(let routines):
-                self?.userRoutines = routines
+                self.userRoutines = routines
             case .failure(let error):
-                self?.reportFailure(error, operation: "routines_snapshot_listener")
+                self.reportFailure(error, operation: "routines_snapshot_listener")
             }
         }
     }
@@ -190,17 +211,19 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
     }
 
     public func setActiveProgram(_ program: WorkoutProgram) {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         activeProgram = program
-        UserDefaults.standard.set(false, forKey: activeProgramClearedKey)
+        defaults.set(false, forKey: Self.activeProgramClearedStorageKey(for: userID))
         if let programID = program.id {
-            UserDefaults.standard.set(programID, forKey: activeProgramIDKey)
+            defaults.set(programID, forKey: Self.activeProgramIDStorageKey(for: userID))
         }
     }
 
     public func clearActiveProgram() {
         activeProgram = nil
-        UserDefaults.standard.removeObject(forKey: activeProgramIDKey)
-        UserDefaults.standard.set(true, forKey: activeProgramClearedKey)
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        defaults.removeObject(forKey: Self.activeProgramIDStorageKey(for: userID))
+        defaults.set(true, forKey: Self.activeProgramClearedStorageKey(for: userID))
     }
 
     @discardableResult
@@ -397,9 +420,11 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
         }
     }
 
-    public func detachListener(){
+    public func detachListener() {
         if let l = programListener { DIContainer.shared.workoutRepository.removeListener(l) }
         if let l = routineListener { DIContainer.shared.workoutRepository.removeListener(l) }
+        programListener = nil
+        routineListener = nil
     }
 
     private func loadPreBuiltPrograms() {
@@ -426,19 +451,24 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
         return savedProgram
     }
 
-    private func restoreActiveProgram() {
+    private func restoreActiveProgram(for userID: String) {
+        guard listenerUserID == userID,
+              DIContainer.shared.authService.currentUserID == userID else { return }
+        let programIDKey = Self.activeProgramIDStorageKey(for: userID)
+        let clearedKey = Self.activeProgramClearedStorageKey(for: userID)
+
         guard !userPrograms.isEmpty else {
             activeProgram = nil
-            UserDefaults.standard.removeObject(forKey: activeProgramIDKey)
+            defaults.removeObject(forKey: programIDKey)
             return
         }
 
-        if UserDefaults.standard.bool(forKey: activeProgramClearedKey) {
+        if defaults.bool(forKey: clearedKey) {
             activeProgram = nil
             return
         }
 
-        if let savedActiveProgramID = UserDefaults.standard.string(forKey: activeProgramIDKey),
+        if let savedActiveProgramID = defaults.string(forKey: programIDKey),
            let savedActiveProgram = userPrograms.first(where: { $0.id == savedActiveProgramID }) {
             activeProgram = savedActiveProgram
             return
@@ -452,8 +482,47 @@ public class WorkoutService: ObservableObject, WorkoutServicing {
 
         activeProgram = userPrograms.first
         if let firstProgramID = activeProgram?.id {
-            UserDefaults.standard.set(firstProgramID, forKey: activeProgramIDKey)
+            defaults.set(firstProgramID, forKey: programIDKey)
         }
+    }
+
+    private func resetAccountState() {
+        detachListener()
+        listenerUserID = nil
+        userPrograms = []
+        userRoutines = []
+        activeProgram = nil
+    }
+
+    private func migrateLegacyActiveProgramStorageIfNeeded(for userID: String) {
+        let programIDKey = Self.activeProgramIDStorageKey(for: userID)
+        let clearedKey = Self.activeProgramClearedStorageKey(for: userID)
+
+        if defaults.object(forKey: programIDKey) == nil,
+           let legacyProgramID = defaults.string(forKey: Self.legacyActiveProgramIDKey) {
+            defaults.set(legacyProgramID, forKey: programIDKey)
+        }
+        if defaults.object(forKey: clearedKey) == nil,
+           defaults.object(forKey: Self.legacyActiveProgramClearedKey) != nil {
+            defaults.set(defaults.bool(forKey: Self.legacyActiveProgramClearedKey), forKey: clearedKey)
+        }
+
+        defaults.removeObject(forKey: Self.legacyActiveProgramIDKey)
+        defaults.removeObject(forKey: Self.legacyActiveProgramClearedKey)
+    }
+
+    static func activeProgramIDStorageKey(for userID: String) -> String {
+        "active_workout_program_id_\(accountDigest(userID))"
+    }
+
+    static func activeProgramClearedStorageKey(for userID: String) -> String {
+        "active_workout_program_cleared_\(accountDigest(userID))"
+    }
+
+    private static func accountDigest(_ userID: String) -> String {
+        SHA256.hash(data: Data(userID.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 
     private func resolvedProgramID(for program: WorkoutProgram) -> String? {

@@ -5,11 +5,15 @@ import XCTest
 final class PantryServiceTests: XCTestCase {
     private var service: PantryService!
     private var mockRepo: MockNutritionRepository!
+    private var mockAuth: MockAuthService!
 
     override func setUp() {
         super.setUp()
         mockRepo = MockNutritionRepository()
         DIContainer.shared.nutritionRepository = mockRepo
+        mockAuth = MockAuthService()
+        mockAuth.currentUserID = "user-1"
+        DIContainer.shared.authService = mockAuth
         service = PantryService()
     }
 
@@ -99,6 +103,7 @@ final class PantryServiceTests: XCTestCase {
         service.startListening(userID: "user-1")
         await waitForPantryTasks()
 
+        mockAuth.currentUserID = "user-2"
         service.startListening(userID: "user-2")
         await waitForPantryTasks()
 
@@ -244,6 +249,8 @@ final class PantryServiceTests: XCTestCase {
 
     func testFoodLoggedNotificationRemovesMatchingIngredient() async throws {
         let existingID = UUID()
+        service.startListening(userID: "user-1")
+        await waitForPantryTasks()
         service.pantryItems = [item(id: existingID, name: "Tomato", quantity: 2, unit: "item")]
 
         DailyLogNotifications.postFoodLogged(FoodItem(id: "food-1", name: "1 tomato", calories: 25), userID: "user-1")
@@ -261,6 +268,44 @@ final class PantryServiceTests: XCTestCase {
 
         service.addOrUpdateItem(pantryItem, userID: "user-1")
         service.deleteItem(pantryItem, userID: "user-1")
+        await waitForPantryTasks()
+
+        XCTAssertTrue(mockRepo.savedPantryItems.isEmpty)
+        XCTAssertTrue(mockRepo.deletedPantryItemIDs.isEmpty)
+    }
+
+    func testLateSnapshotFromPreviousAccountCannotReplaceCurrentPantry() async {
+        mockRepo.shouldDeferPantrySnapshotCallbacks = true
+        service.startListening(userID: "user-1")
+
+        mockAuth.currentUserID = "user-2"
+        service.startListening(userID: "user-2")
+        XCTAssertTrue(service.pantryItems.isEmpty)
+
+        mockRepo.emitPantrySnapshot(
+            .success([item(name: "Old account oats", quantity: 1, unit: "lb")]),
+            for: "user-1"
+        )
+        await Task.yield()
+        XCTAssertTrue(service.pantryItems.isEmpty)
+
+        mockRepo.emitPantrySnapshot(
+            .success([item(name: "New account rice", quantity: 1, unit: "lb")]),
+            for: "user-2"
+        )
+        await Task.yield()
+        XCTAssertEqual(service.pantryItems.map(\.name), ["New account rice"])
+    }
+
+    func testFoodLoggedNotificationFromPreviousAccountDoesNotMutateCurrentPantry() async {
+        service.startListening(userID: "user-1")
+        await waitForPantryTasks()
+        service.pantryItems = [item(name: "Tomato", quantity: 2, unit: "item")]
+
+        DailyLogNotifications.postFoodLogged(
+            FoodItem(id: "food-1", name: "1 tomato", calories: 25),
+            userID: "user-2"
+        )
         await waitForPantryTasks()
 
         XCTAssertTrue(mockRepo.savedPantryItems.isEmpty)

@@ -132,7 +132,7 @@ struct LoginView: View {
             do {
                 try await DIContainer.shared.authService.sendPasswordReset(email: trimmed)
                 isLoading = false
-                resetAlertMessage = "We sent a password reset link to \(trimmed). Check your inbox and spam folder."
+                resetAlertMessage = "If an account matches that address, a reset link is on the way. Check your inbox and spam folder."
                 showingResetAlert = true
             } catch {
                 isLoading = false

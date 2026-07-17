@@ -13,6 +13,11 @@ public protocol NutritionRepositoryProtocol: Sendable {
     func fetchMealPlan(userID: String, dateString: String) async throws -> MealPlanDay?
     func saveMealPlan(userID: String, plan: MealPlanDay) async throws
     func saveFullMealPlanBatch(userID: String, plans: [MealPlanDay]) async throws
+    func discardMealPlans(
+        userID: String,
+        dateStrings: [String],
+        retainingGroceryItems: [GroceryListItem]
+    ) async throws
     func fetchGroceryList(userID: String) async throws -> [GroceryListItem]
     func saveGroceryList(userID: String, items: [GroceryListItem]) async throws
     

@@ -525,7 +525,7 @@ public enum LivingDaySnapshotBuilder {
             )
         }
 
-        let adjustedProtein = Int(ceil(max(0, proteinRemaining)))
+        let adjustedProtein = Int(max(0, proteinRemaining).rounded())
         if adjustedProtein < DailyNextActionRules.proteinCatchUpMinimumGrams {
             return DailyNextAction(
                 kind: .steadyDay,

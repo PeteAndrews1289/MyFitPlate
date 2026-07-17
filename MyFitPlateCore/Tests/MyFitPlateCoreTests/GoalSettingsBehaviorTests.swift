@@ -343,7 +343,7 @@ final class GoalSettingsBehaviorTests: XCTestCase {
         ]
         
         let expectation = XCTestExpectation(description: "load_compat")
-        settings.loadUserGoals(userID: "user_123") {
+        settings.loadUserGoals(userID: "legacy_target_\(UUID().uuidString)") {
             expectation.fulfill()
         }
         await fulfillment(of: [expectation], timeout: 1.0)
@@ -487,7 +487,7 @@ private final class MockCoreHealthKitManager: HealthKitManaging {
         savedWeightSamples.append((weightLbs, date))
     }
 
-    func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping (HKAuthorizationRequestStatus, Error?) -> Void) {
+    func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping @Sendable (HKAuthorizationRequestStatus, Error?) -> Void) {
         completion(.unnecessary, nil)
     }
 
@@ -502,6 +502,7 @@ final class GoalSettingsAdditionalTests: XCTestCase {
     var settings: GoalSettings!
     var mockRepo: MockSettingsRepository!
     private var mockHK: MockCoreHealthKitManager!
+    private var mockAuth: MockAuthService!
 
     @MainActor
     override func setUp() {
@@ -510,9 +511,10 @@ final class GoalSettingsAdditionalTests: XCTestCase {
         settings = GoalSettings(healthKitManager: mockHK)
         mockRepo = MockSettingsRepository()
         DIContainer.shared.settingsRepository = mockRepo
-        let mockAuth = MockAuthService()
+        mockAuth = MockAuthService()
         mockAuth.currentUserID = "user_123"
         DIContainer.shared.authService = mockAuth
+        settings.activateAccount("user_123")
     }
     
     @MainActor
@@ -657,6 +659,45 @@ final class GoalSettingsAdditionalTests: XCTestCase {
     }
 
     @MainActor
+    func testLateGoalLoadFromPreviousAccountIsIgnored() async {
+        let firstUser = "goal-race-user-1"
+        let secondUser = "goal-race-user-2"
+        UserDefaults.standard.removeObject(forKey: "cached_user_goals_\(firstUser)")
+        UserDefaults.standard.removeObject(forKey: "cached_user_goals_\(secondUser)")
+        UserDefaults.standard.removeObject(
+            forKey: AccountScopedStorageKey.make(prefix: "cached_user_goals", userID: firstUser)!
+        )
+        UserDefaults.standard.removeObject(
+            forKey: AccountScopedStorageKey.make(prefix: "cached_user_goals", userID: secondUser)!
+        )
+        mockRepo.shouldDeferFetchUserGoals = true
+
+        mockAuth.currentUserID = firstUser
+        settings.activateAccount(firstUser)
+        settings.loadUserGoals(userID: firstUser)
+
+        mockAuth.currentUserID = secondUser
+        settings.activateAccount(secondUser)
+        settings.loadUserGoals(userID: secondUser)
+
+        mockRepo.emitUserGoals([
+            "weight": 210.0,
+            "goals": ["goal": "Lose", "calories": 2_100.0]
+        ], for: firstUser)
+        await Task.yield()
+        XCTAssertEqual(settings.weight, 150)
+        XCTAssertEqual(settings.goal, "Maintain")
+
+        mockRepo.emitUserGoals([
+            "weight": 165.0,
+            "goals": ["goal": "Build Muscle", "calories": 2_600.0]
+        ], for: secondUser)
+        await Task.yield()
+        XCTAssertEqual(settings.weight, 165)
+        XCTAssertEqual(settings.goal, "Build Muscle")
+    }
+
+    @MainActor
     func testSaveUserGoalsWritesRecalculatedMifflinGoalImmediately() {
         let repo = mockRepo!
         settings.gender = "Male"
@@ -696,6 +737,9 @@ final class GoalSettingsAdditionalTests: XCTestCase {
         let repo = mockRepo!
         let testUserID = "newer_local_goal_cache_test"
         UserDefaults.standard.removeObject(forKey: "cached_user_goals_\(testUserID)")
+        UserDefaults.standard.removeObject(
+            forKey: AccountScopedStorageKey.make(prefix: "cached_user_goals", userID: testUserID)!
+        )
 
         settings.gender = "Male"
         settings.age = 25

@@ -46,10 +46,14 @@ struct TrainingHeroCard: View {
 
 struct TrainingReadinessCard: View {
     let brief: TrainingReadinessBrief
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
-            AppSectionHeader(title: "Training Readiness", subtitle: brief.message) {
+            AppSectionHeader(
+                title: "Training Readiness",
+                subtitle: dynamicTypeSize.isAccessibilitySize ? nil : brief.message
+            ) {
                 Text("\(brief.score)%")
                     .appTextRole(.control)
                     .foregroundStyle(brief.role.color)
@@ -74,6 +78,7 @@ struct TrainingReadinessCard: View {
             .appSurface(.quiet, padding: 0)
         }
         .accessibilityIdentifier("train_readiness")
+        .accessibilityHint(brief.message)
     }
 }
 
@@ -110,6 +115,7 @@ struct TrainingSignalPill: View {
 struct TrainingWeekPreviewCard: View {
     let program: WorkoutProgram
     let nextWorkout: (program: WorkoutProgram, routine: WorkoutRoutine, title: String)?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private let weekdays: [(value: Int, label: String)] = [
         (1, "S"), (2, "M"), (3, "T"), (4, "W"), (5, "T"), (6, "F"), (7, "S")
@@ -119,9 +125,11 @@ struct TrainingWeekPreviewCard: View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             AppSectionHeader(
                 title: "Program Week",
-                subtitle: program.daysOfWeek?.isEmpty == false
-                    ? "Your training rhythm at a glance."
-                    : "Choose training days to unlock scheduling."
+                subtitle: dynamicTypeSize.isAccessibilitySize
+                    ? nil
+                    : (program.daysOfWeek?.isEmpty == false
+                        ? "Your training rhythm at a glance."
+                        : "Choose training days to unlock scheduling.")
             ) {
                 // DESIGN.md rule 3: progress in words, not bare fractions ("5/7" read as
                 // program progress when it meant training days per week).
@@ -133,15 +141,28 @@ struct TrainingWeekPreviewCard: View {
                     .background(AppPalette.control, in: Capsule())
             }
 
-            HStack(spacing: 7) {
-                ForEach(weekdays, id: \.value) { weekday in
-                    let routine = routine(for: weekday.value)
-                    TrainingWeekDayChip(
-                        label: weekday.label,
-                        detail: routine.map { initials(for: $0.name) },
-                        isActive: routine != nil,
-                        isNext: routine?.id == nextWorkout?.routine.id
+            if dynamicTypeSize.isAccessibilitySize {
+                Label(accessibilityScheduleText, systemImage: "calendar")
+                    .appTextRole(.body)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(AppSpacing.row)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        AppPalette.control,
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                     )
+            } else {
+                HStack(spacing: 7) {
+                    ForEach(weekdays, id: \.value) { weekday in
+                        let routine = routine(for: weekday.value)
+                        TrainingWeekDayChip(
+                            label: weekday.label,
+                            detail: routine.map { initials(for: $0.name) },
+                            isActive: routine != nil,
+                            isNext: routine?.id == nextWorkout?.routine.id
+                        )
+                    }
                 }
             }
 
@@ -203,6 +224,20 @@ struct TrainingWeekPreviewCard: View {
 
         let initials = String(words).uppercased()
         return initials.isEmpty ? "W" : initials
+    }
+
+    private var accessibilityScheduleText: String {
+        guard let scheduledDays = program.daysOfWeek, !scheduledDays.isEmpty else {
+            return "No training days scheduled"
+        }
+
+        let symbols = Calendar.current.weekdaySymbols
+        let names = scheduledDays.sorted().compactMap { weekday -> String? in
+            let index = weekday - 1
+            guard symbols.indices.contains(index) else { return nil }
+            return symbols[index]
+        }
+        return "Scheduled \(names.joined(separator: ", "))"
     }
 }
 
@@ -354,52 +389,6 @@ struct TrainingPathPill: View {
     }
 }
 
-struct TrainingMetricPill: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(color)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-
-            Text(title)
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-}
-
-struct ProgramCompleteCard: View {
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "checkmark.seal.fill")
-                .appFont(size: 20, weight: .bold)
-                .foregroundColor(.accentPositive)
-                .frame(width: 44, height: 44)
-                .background(Color.accentPositive.opacity(0.12), in: Circle())
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Program Complete")
-                    .appFont(size: 19, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Text("Great job. Choose a new program or build your next phase when you are ready.")
-                    .appFont(size: 13)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .appSurface(.emphasized)
-    }
-}
-
 struct ActiveProgramManagementCard<Destination: View>: View {
     let program: WorkoutProgram
     let onDelete: () -> Void
@@ -442,9 +431,14 @@ struct ActiveProgramManagementCard<Destination: View>: View {
 struct TrainingSectionHeader: View {
     let title: String
     let subtitle: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        AppSectionHeader(title: title, subtitle: subtitle)
+        AppSectionHeader(
+            title: title,
+            subtitle: dynamicTypeSize.isAccessibilitySize ? nil : subtitle
+        )
+        .accessibilityHint(subtitle)
     }
 }
 
@@ -453,6 +447,7 @@ struct TrainingActionTile: View {
     let title: String
     let subtitle: String
     let color: Color
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(spacing: AppSpacing.row) {
@@ -468,10 +463,12 @@ struct TrainingActionTile: View {
                     .appTextRole(.control)
                     .foregroundStyle(AppPalette.text)
 
-                Text(subtitle)
-                    .appTextRole(.secondary)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Text(subtitle)
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer(minLength: AppSpacing.compact)
@@ -484,30 +481,7 @@ struct TrainingActionTile: View {
         .padding(AppSpacing.row)
         .appSurface(.quiet, padding: 0)
         .contentShape(Rectangle())
-    }
-}
-
-struct RoutineEmptyState: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "plus.square.dashed")
-                .appFont(size: 30, weight: .semibold)
-                .foregroundColor(.brandForeground)
-                .frame(width: 60, height: 60)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
-
-            Text("No manual routines yet")
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.textPrimary)
-
-            Text("Generate an AI program or use manual build to create reusable sessions.")
-                .appFont(size: 13)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 26)
-        .padding(.horizontal, 18)
-        .background(Color.backgroundSecondary.opacity(0.70), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(subtitle)
     }
 }

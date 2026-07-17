@@ -7,6 +7,7 @@ final class CoreModelSmokeTests: XCTestCase {
         let network = NSError(domain: "network", code: 11, userInfo: [NSLocalizedDescriptionKey: "Offline"])
 
         XCTAssertEqual(AIError.invalidURL.errorDescription, "Invalid API URL.")
+        XCTAssertEqual(AIError.accountChanged.errorDescription, "The active account changed. Try the request again.")
         XCTAssertEqual(
             AIError.featureUnavailable.errorDescription,
             "This camera tool is temporarily unavailable. Try another logging method."

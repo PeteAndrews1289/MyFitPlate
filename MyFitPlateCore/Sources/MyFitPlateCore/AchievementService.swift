@@ -48,32 +48,38 @@ public class AchievementService: ObservableObject {
             self.generateWeeklyChallenges(for: userID)
         }
     }
+
+    public func activateAccount(_ userID: String?) {
+        guard currentUserID != userID else { return }
+
+        userStatusCancellable?.cancel()
+        userProfileCancellable?.cancel()
+        challengesCancellable?.cancel()
+        currentUserID = userID
+        isLoading = false
+        userStatuses = [:]
+        unlockedAchievementsCount = 0
+        userTotalAchievementPoints = 0
+        userAchievementLevel = 1
+        userXp = 0
+        activeChallenges = []
+
+        if let userID,
+           dailyLogService != nil,
+           goalSettings != nil,
+           bannerService != nil {
+            fetchUserStatuses(userID: userID)
+            listenToUserProfile(userID: userID)
+            listenToActiveChallenges(for: userID)
+            generateWeeklyChallenges(for: userID)
+        }
+    }
     
     private func setupAuthListener() {
         authCancellable = DIContainer.shared.authService.observeAuthState { [weak self] uid in
             Task { @MainActor in
                 guard let self = self else { return }
-                if let uid = uid {
-                    if self.currentUserID != uid {
-                        self.currentUserID = uid
-                        if self.dailyLogService != nil && self.goalSettings != nil && self.bannerService != nil {
-                            self.fetchUserStatuses(userID: uid)
-                            self.listenToUserProfile(userID: uid)
-                            self.listenToActiveChallenges(for: uid)
-                            self.generateWeeklyChallenges(for: uid)
-                        }
-                    }
-                } else {
-                    self.currentUserID = nil
-                    self.userStatusCancellable?.cancel()
-                    self.userProfileCancellable?.cancel()
-                    self.challengesCancellable?.cancel()
-                    self.userStatuses = [:]
-                    self.unlockedAchievementsCount = 0
-                    self.userTotalAchievementPoints = 0
-                    self.userAchievementLevel = 1
-                    self.activeChallenges = []
-                }
+                self.activateAccount(uid)
             }
         }
     }
@@ -83,11 +89,12 @@ public class AchievementService: ObservableObject {
     }
 
     public func listenToUserProfile(userID: String) {
+        guard currentUserID == userID else { return }
         userProfileCancellable?.cancel()
         userProfileCancellable = DIContainer.shared.achievementRepository.userProfilePublisher(userID: userID)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] profile in
-                guard let self = self else { return }
+                guard let self, self.currentUserID == userID else { return }
                 if let profile = profile {
                     self.userTotalAchievementPoints = profile.points
                     self.userAchievementLevel = profile.level
@@ -102,9 +109,10 @@ public class AchievementService: ObservableObject {
         userStatusCancellable = DIContainer.shared.achievementRepository.userStatusesPublisher(userID: userID)
             .receive(on: DispatchQueue.main)
             .sink(receiveCompletion: { [weak self] completion in
-                self?.isLoading = false
+                guard let self, self.currentUserID == userID else { return }
+                self.isLoading = false
             }, receiveValue: { [weak self] statuses in
-                guard let self = self else { return }
+                guard let self, self.currentUserID == userID else { return }
                 self.isLoading = false
                 
                 if statuses.isEmpty {
@@ -138,10 +146,12 @@ public class AchievementService: ObservableObject {
     }
 
     private func awardPointsAndCheckLevel(userID: String, points: Int) {
+        guard currentUserID == userID else { return }
         Task {
             do {
                 let result = try await DIContainer.shared.achievementRepository.awardPointsAndCheckLevel(userID: userID, points: points, levelThresholds: self.levelThresholds)
                 await MainActor.run {
+                    guard self.currentUserID == userID else { return }
                     self.userTotalAchievementPoints = result.newPoints
                     self.userAchievementLevel = result.newLevel
                 }
@@ -160,6 +170,7 @@ public class AchievementService: ObservableObject {
          logService.fetchLog(for: userID, date: logDate) { [weak self] (result: Result<DailyLog, Error>) in
               guard let self = self else { return }
               Task { @MainActor in
+                   guard self.currentUserID == userID else { return }
                    switch result {
                    case .success(let dailyLog):
                         self.checkFirstLogAchievement(userID: userID)
@@ -209,9 +220,11 @@ public class AchievementService: ObservableObject {
     private func checkTargetWeightAchievement(userID: String, goals: GoalSettings) { let id = "target_reached"; guard shouldCheck(id), let target = goals.targetWeight else { return }; if AchievementRules.hasReachedTargetWeight(currentWeight: goals.weight, targetWeight: target) { unlockAchievement(userID: userID, achievementID: id) } }
     
     public func checkRecipeCountAchievements(userID: String) {
+        guard currentUserID == userID else { return }
         Task {
             do {
                 let recipeCount = try await DIContainer.shared.achievementRepository.fetchRecipeCount(userID: userID)
+                guard self.currentUserID == userID else { return }
                 let chefAchievementIDs = AchievementRules.chefAchievementIDs
                 for id in chefAchievementIDs {
                     guard let def = getDefinition(id: id) else { continue }
@@ -227,9 +240,11 @@ public class AchievementService: ObservableObject {
     }
 
     public func checkWorkoutCountAchievements(userID: String) {
+        guard currentUserID == userID else { return }
         Task {
             do {
                 let workoutCount = try await DIContainer.shared.achievementRepository.fetchWorkoutCount(userID: userID)
+                guard self.currentUserID == userID else { return }
                 let workoutAchievementIDs = AchievementRules.workoutAchievementIDs
                 for id in workoutAchievementIDs {
                     guard let def = getDefinition(id: id) else { continue }
@@ -250,7 +265,9 @@ public class AchievementService: ObservableObject {
     private func getDefinition(id: String) -> AchievementDefinition? { return achievementDefinitions.first { $0.id == id } }
     
     private func unlockAchievement(userID: String, achievementID: String) {
-        guard shouldCheck(achievementID), let def = getDefinition(id: achievementID) else { return }
+        guard currentUserID == userID,
+              shouldCheck(achievementID),
+              let def = getDefinition(id: achievementID) else { return }
 
         if let statusToUpdate = AchievementRules.unlockedStatus(existingStatus: userStatuses[achievementID], definition: def) {
             self.userStatuses[achievementID] = statusToUpdate
@@ -265,7 +282,9 @@ public class AchievementService: ObservableObject {
     }
     
     private func updateProgress(userID: String, achievementID: String, progress: Double) {
-        guard shouldCheck(achievementID), let def = getDefinition(id: achievementID) else { return }
+        guard currentUserID == userID,
+              shouldCheck(achievementID),
+              let def = getDefinition(id: achievementID) else { return }
         guard let status = AchievementRules.progressStatus(
             existingStatus: userStatuses[achievementID],
             definition: def,
@@ -276,15 +295,18 @@ public class AchievementService: ObservableObject {
     }
 
     public func listenToActiveChallenges(for userID: String) {
+        guard currentUserID == userID else { return }
         challengesCancellable?.cancel()
         challengesCancellable = DIContainer.shared.achievementRepository.activeChallengesPublisher(userID: userID)
             .receive(on: DispatchQueue.main)
             .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] challenges in
-                self?.activeChallenges = challenges
+                guard let self, self.currentUserID == userID else { return }
+                self.activeChallenges = challenges
             })
     }
 
     public func generateWeeklyChallenges(for userID: String) {
+        guard currentUserID == userID else { return }
         let potentialChallenges = AchievementRules.potentialWeeklyChallenges(currentDate: Date())
         
         let challengesToSet = Array(potentialChallenges.shuffled().prefix(5))
@@ -298,9 +320,11 @@ public class AchievementService: ObservableObject {
     }
 
     public func updateChallengeProgress(for userID: String, type: ChallengeType, amount: Double) {
+        guard currentUserID == userID else { return }
         Task {
             do {
                 let challenges = try await DIContainer.shared.achievementRepository.fetchActiveChallenges(userID: userID, type: type)
+                guard self.currentUserID == userID else { return }
                 
                 for challenge in challenges {
                     let updatedChallenge = AchievementRules.challengeAfterAddingProgress(challenge, amount: amount)
@@ -309,11 +333,13 @@ public class AchievementService: ObservableObject {
                         let pointsValue = updatedChallenge.pointsValue
                         let challengeTitle = updatedChallenge.title
                         await MainActor.run {
+                            guard self.currentUserID == userID else { return }
                             self.awardPointsAndCheckLevel(userID: userID, points: pointsValue)
                             self.bannerService?.showBanner(title: "Challenge Complete!", message: challengeTitle, iconName: "star.fill", iconColor: AppPalette.achievement)
                         }
                     }
 
+                    guard self.currentUserID == userID else { return }
                     try await DIContainer.shared.achievementRepository.updateChallenge(userID: userID, challenge: updatedChallenge)
                 }
             } catch {

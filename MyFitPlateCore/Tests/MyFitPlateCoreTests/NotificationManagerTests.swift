@@ -352,6 +352,22 @@ final class NotificationManagerSchedulingTests: XCTestCase {
         XCTAssertTrue(center.addedRequests.isEmpty)
     }
 
+    func testCancelAccountNotificationsRemovesPersonalizedRequests() {
+        manager.cancelAccountNotifications()
+
+        let removed = Set(center.removedIdentifierBatches.flatMap { $0 })
+        XCTAssertTrue(removed.contains("dailyLogReminder"))
+        XCTAssertTrue(removed.contains("dailyBriefing"))
+        XCTAssertTrue(removed.contains("smart_ai_nudge"))
+        XCTAssertTrue(
+            TrainingFuelNotificationCandidate.Kind.allCases.allSatisfy {
+                removed.contains($0.identifier)
+            }
+        )
+        XCTAssertFalse(removed.contains("weighInReminder"))
+        XCTAssertFalse(removed.contains("hydration_0"))
+    }
+
     private var utcCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

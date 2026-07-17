@@ -51,6 +51,7 @@ struct MainTabView: View {
     
     @State private var showingImagePicker = false
     @State private var isProcessingImage = false
+    @State private var imageAnalysisID: UUID?
     @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems?
 
     @State private var showingAYCESession = false
@@ -80,7 +81,7 @@ struct MainTabView: View {
     private let barcodeLookupService = BarcodeFoodLookupService()
     
     private var suppressesSpotlightTours: Bool {
-        ScreenshotDemoMode.isEnabled || ProcessInfo.processInfo.arguments.contains("-ui-testing")
+        ScreenshotDemoMode.isEnabled || AppRuntime.isUITesting()
     }
 
     private var isDirectScreenshotSurface: Bool {
@@ -92,7 +93,7 @@ struct MainTabView: View {
             "celebration", "add-meal-plan", "meal-plan-survey", "meal-plan-survey-cooking", "meal-prep",
             "meal-prep-steps", "meal-suggestion", "plate-calculator", "plate-math",
             "nutrition-trends", "adaptive-tdee-guardrail", "maia-insights", "maia-action-cards",
-            "muscle-recovery", "shoe-gear-add"
+            "muscle-recovery", "shoe-gear-add", "trust-hub"
         ].contains(ScreenshotDemoData.requestedScreen)
         #else
         false
@@ -243,8 +244,12 @@ struct MainTabView: View {
                 }
             }
             .imageSourceDialog(isPresented: $showingImagePicker) { image in
+                let requestID = UUID()
+                imageAnalysisID = requestID
                 self.isProcessingImage = true
                 imageModel.analyzeNutritionFromImage(image: image) { result in
+                    guard imageAnalysisID == requestID else { return }
+                    imageAnalysisID = nil
                     self.isProcessingImage = false
                     switch result {
                     case .success(let analysis):
@@ -352,7 +357,10 @@ struct MainTabView: View {
             }
             
             if isProcessingImage {
-                ImageProcessingView()
+                ImageProcessingView(kind: .mealPhoto) {
+                    imageAnalysisID = nil
+                    isProcessingImage = false
+                }
             }
         }
         .task { await refreshLivingDayFeatureFlagIfNeeded() }
@@ -487,11 +495,13 @@ struct MainTabView: View {
             NavigationStack {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppSpacing.section) {
-                        AppScreenHeader(
-                            eyebrow: "Training Evidence",
-                            title: "Muscle Recovery",
-                            subtitle: "See where recent strength work may still be carrying fatigue."
-                        )
+                        if !dynamicTypeSize.isAccessibilitySize {
+                            AppScreenHeader(
+                                eyebrow: "Training Evidence",
+                                title: "Muscle Recovery",
+                                subtitle: "See where recent strength work may still be carrying fatigue."
+                            )
+                        }
                         MuscleRecoveryMapView(
                             fixtureRecoveries: ScreenshotDemoData.muscleRecoveryEstimates
                         )
@@ -503,6 +513,14 @@ struct MainTabView: View {
             }
         case "shoe-gear-add":
             ShoeGearManagerView(initiallyShowsAddShoe: true)
+        case "trust-hub":
+            NavigationStack {
+                NutritionAuditView(
+                    dailyLog: ScreenshotDemoData.trustHubDemoLog,
+                    dailyLogBinding: .constant(Optional(ScreenshotDemoData.trustHubDemoLog)),
+                    date: ScreenshotDemoData.trustHubDemoLog.date
+                )
+            }
         default:
             standardHomeContent
         }
@@ -840,7 +858,7 @@ struct MainTabView: View {
                             ? AppPalette.brand
                             : AppPalette.text,
                         title: option.title,
-                        subtitle: option.subtitle,
+                        subtitle: dynamicTypeSize.isAccessibilitySize ? nil : option.subtitle,
                         hidesTextFromAccessibility: true
                     ) {
                         Image(systemName: "chevron.right")
@@ -877,9 +895,13 @@ struct MainTabView: View {
             AppListRow(
                 icon: showingAllQuickLogActions ? "chevron.up.circle" : "ellipsis.circle",
                 title: showingAllQuickLogActions ? "Fewer options" : "More options",
-                subtitle: showingAllQuickLogActions
-                    ? "Hide specialty logging tools"
-                    : "Camera, exercise, recipes, buffet, and running",
+                subtitle: dynamicTypeSize.isAccessibilitySize
+                    ? nil
+                    : (
+                        showingAllQuickLogActions
+                            ? "Hide specialty logging tools"
+                            : "Camera, exercise, recipes, buffet, and running"
+                    ),
                 hidesTextFromAccessibility: true
             ) {
                 Image(systemName: showingAllQuickLogActions ? "chevron.up" : "chevron.down")

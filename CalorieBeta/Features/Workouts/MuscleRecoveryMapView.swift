@@ -5,10 +5,13 @@ struct MuscleRecoveryMapView: View {
     @EnvironmentObject private var dailyLogService: DailyLogService
     @EnvironmentObject private var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject private var workoutService: WorkoutService
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var recoveries: [MuscleRecoveryEstimate]
     @State private var selectedGroup: RecoveryMuscleGroup
     @State private var isLoading: Bool
+    @State private var recoveryTask: Task<Void, Never>?
+    @State private var loadGeneration = UUID()
 
     private let fixtureRecoveries: [MuscleRecoveryEstimate]?
 
@@ -42,7 +45,9 @@ struct MuscleRecoveryMapView: View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
             AppSectionHeader(
                 title: "Recovery Field",
-                subtitle: "An estimate from recent working sets and sleep, shown by muscle region."
+                subtitle: dynamicTypeSize.isAccessibilitySize
+                    ? nil
+                    : "An estimate from recent working sets and sleep, shown by muscle region."
             ) {
                 AppStatusBadge(
                     readyCount == 1 ? "1 ready" : "\(readyCount) ready",
@@ -54,24 +59,41 @@ struct MuscleRecoveryMapView: View {
             if isLoading {
                 loadingState
             } else {
-                AppMetricStrip(items: [
-                    AppMetricItem(label: "Ready", value: readyCount.formatted(), accent: AppPalette.brand),
-                    AppMetricItem(label: "Recovering", value: recoveringCount.formatted(), accent: AppPalette.caution),
-                    AppMetricItem(label: "No recent signal", value: noSignalCount.formatted(), accent: Color.secondary)
-                ])
-
-                RecoveryBodyField(
-                    recoveries: recoveries,
-                    selectedGroup: $selectedGroup
-                )
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("Muscle recovery body field")
-                .accessibilityIdentifier("muscle_recovery_body_field")
-
-                if let selectedRecovery {
-                    RecoveryEvidencePanel(estimate: selectedRecovery)
+                if dynamicTypeSize.isAccessibilitySize {
+                    if let selectedRecovery {
+                        RecoveryEvidencePanel(
+                            estimate: selectedRecovery,
+                            sleepSignalDate: healthKitViewModel.sleepSummary.lastSleepDate
+                        )
                         .id(selectedRecovery.id)
                         .transition(.opacity)
+                    }
+
+                    recoverySummary
+
+                    RecoveryRegionList(
+                        recoveries: recoveries,
+                        selectedGroup: $selectedGroup
+                    )
+                } else {
+                    recoverySummary
+
+                    RecoveryBodyField(
+                        recoveries: recoveries,
+                        selectedGroup: $selectedGroup
+                    )
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("Muscle recovery body field")
+                    .accessibilityIdentifier("muscle_recovery_body_field")
+
+                    if let selectedRecovery {
+                        RecoveryEvidencePanel(
+                            estimate: selectedRecovery,
+                            sleepSignalDate: healthKitViewModel.sleepSummary.lastSleepDate
+                        )
+                        .id(selectedRecovery.id)
+                        .transition(.opacity)
+                    }
                 }
 
                 Label(
@@ -94,6 +116,17 @@ struct MuscleRecoveryMapView: View {
             guard fixtureRecoveries == nil else { return }
             calculateRecovery()
         }
+        .onDisappear {
+            recoveryTask?.cancel()
+        }
+    }
+
+    private var recoverySummary: some View {
+        AppMetricStrip(items: [
+            AppMetricItem(label: "Ready", value: readyCount.formatted(), accent: AppPalette.brand),
+            AppMetricItem(label: "Recovering", value: recoveringCount.formatted(), accent: AppPalette.caution),
+            AppMetricItem(label: "No recent signal", value: noSignalCount.formatted(), accent: Color.secondary)
+        ])
     }
 
     private var loadingState: some View {
@@ -115,6 +148,9 @@ struct MuscleRecoveryMapView: View {
     }
 
     private func calculateRecovery() {
+        recoveryTask?.cancel()
+        let requestID = UUID()
+        loadGeneration = requestID
         guard let userID = DIContainer.shared.authService.currentUserID else {
             let now = Date()
             recoveries = RecoveryMuscleGroup.allCases.map {
@@ -137,7 +173,7 @@ struct MuscleRecoveryMapView: View {
         let sleepScore = healthKitViewModel.sleepSummary.lastNightScore
             ?? healthKitViewModel.sleepSummary.averageScore
 
-        Task {
+        recoveryTask = Task { @MainActor in
             var lastTrained: [RecoveryMuscleGroup: Date] = [:]
             var lastSessionSets: [RecoveryMuscleGroup: Int] = [:]
 
@@ -149,6 +185,9 @@ struct MuscleRecoveryMapView: View {
             }
 
             let sessions = await workoutService.fetchRecentSessionLogs(sinceDays: lookbackDays)
+            guard !Task.isCancelled,
+                  loadGeneration == requestID,
+                  DIContainer.shared.authService.currentUserID == userID else { return }
             for session in sessions {
                 var muscleSets: [RecoveryMuscleGroup: Int] = [:]
                 for completed in session.completedExercises {
@@ -164,6 +203,9 @@ struct MuscleRecoveryMapView: View {
                 startDate: startDate,
                 endDate: now
             )
+            guard !Task.isCancelled,
+                  loadGeneration == requestID,
+                  DIContainer.shared.authService.currentUserID == userID else { return }
             if case .success(let logs) = history {
                 for log in logs {
                     guard let exercises = log.exercises else { continue }
@@ -191,14 +233,15 @@ struct MuscleRecoveryMapView: View {
                 )
             }
 
-            await MainActor.run {
-                recoveries = estimates
-                if recoveries.contains(where: { $0.group == selectedGroup && $0.status != .noRecentSignal }) == false,
-                   let firstSignal = recoveries.first(where: { $0.status != .noRecentSignal }) {
-                    selectedGroup = firstSignal.group
-                }
-                isLoading = false
+            guard !Task.isCancelled,
+                  loadGeneration == requestID,
+                  DIContainer.shared.authService.currentUserID == userID else { return }
+            recoveries = estimates
+            if recoveries.contains(where: { $0.group == selectedGroup && $0.status != .noRecentSignal }) == false,
+               let firstSignal = recoveries.first(where: { $0.status != .noRecentSignal }) {
+                selectedGroup = firstSignal.group
             }
+            isLoading = false
         }
     }
 }
@@ -206,31 +249,31 @@ struct MuscleRecoveryMapView: View {
 private struct RecoveryBodyField: View {
     let recoveries: [MuscleRecoveryEstimate]
     @Binding var selectedGroup: RecoveryMuscleGroup
+    @State private var side: RecoveryBodySide = .front
 
     var body: some View {
         VStack(spacing: AppSpacing.row) {
-            HStack(spacing: AppSpacing.group) {
-                RecoveryBodyFigure(
-                    side: .front,
-                    recoveries: recoveries,
-                    selectedGroup: $selectedGroup
-                )
-
-                Divider()
-
-                RecoveryBodyFigure(
-                    side: .back,
-                    recoveries: recoveries,
-                    selectedGroup: $selectedGroup
-                )
+            Picker("Body side", selection: $side) {
+                ForEach(RecoveryBodySide.allCases, id: \.self) { side in
+                    Text(side.rawValue).tag(side)
+                }
             }
-            .frame(height: 268)
+            .pickerStyle(.segmented)
+            .accessibilityHint("Switches between the front and back muscle map")
 
-            HStack(spacing: AppSpacing.row) {
+            RecoveryBodyFigure(
+                side: side,
+                recoveries: recoveries,
+                selectedGroup: $selectedGroup
+            )
+            .frame(height: 320)
+
+            HStack(alignment: .top, spacing: 4) {
                 RecoveryLegendItem(title: "Fatigued", role: .critical)
                 RecoveryLegendItem(title: "Recovering", role: .caution)
                 RecoveryLegendItem(title: "Near ready", role: .recovery)
                 RecoveryLegendItem(title: "Ready", role: .current)
+                RecoveryLegendItem(title: "No signal", role: .neutral)
             }
         }
         .padding(AppSpacing.group)
@@ -239,6 +282,87 @@ private struct RecoveryBodyField: View {
             RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
                 .stroke(AppPalette.separator, lineWidth: 1)
         }
+        .onChange(of: selectedGroup) { _, group in
+            if group == .back {
+                side = .back
+            } else if group == .chest || group == .core {
+                side = .front
+            }
+        }
+    }
+}
+
+private struct RecoveryRegionList: View {
+    let recoveries: [MuscleRecoveryEstimate]
+    @Binding var selectedGroup: RecoveryMuscleGroup
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Choose a Muscle Region",
+                subtitle: "Select a region to review its latest training signal."
+            )
+
+            VStack(spacing: 0) {
+                ForEach(Array(recoveries.enumerated()), id: \.element.id) { index, estimate in
+                    Button {
+                        selectedGroup = estimate.group
+                    } label: {
+                        HStack(alignment: .top, spacing: AppSpacing.row) {
+                            Image(systemName: estimate.status.icon)
+                                .appFont(size: 16, weight: .semibold)
+                                .foregroundStyle(estimate.status.signalRole.color)
+                                .frame(width: 40, height: 40)
+                                .background(
+                                    estimate.status.signalRole.color.opacity(0.10),
+                                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                                )
+                                .accessibilityHidden(true)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(estimate.group.displayName)
+                                    .appTextRole(.control)
+                                    .foregroundStyle(AppPalette.text)
+                                Text(regionSummary(estimate))
+                                    .appTextRole(.secondary)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Spacer(minLength: 0)
+                            if selectedGroup == estimate.group {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(AppPalette.brandText)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .padding(AppSpacing.group)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            selectedGroup == estimate.group
+                                ? AppPalette.interpreted
+                                : Color.clear
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(estimate.group.displayName)
+                    .accessibilityValue(regionSummary(estimate))
+                    .accessibilityAddTraits(selectedGroup == estimate.group ? .isSelected : [])
+
+                    if index < recoveries.count - 1 {
+                        Divider().padding(.leading, 68)
+                    }
+                }
+            }
+            .appSurface(.quiet, padding: 0)
+        }
+    }
+
+    private func regionSummary(_ estimate: MuscleRecoveryEstimate) -> String {
+        estimate.status == .noRecentSignal
+            ? "No recent training signal"
+            : "\(estimate.status.displayName), about \(estimate.roundedPercentage)% recovered"
     }
 }
 
@@ -261,7 +385,7 @@ private struct RecoveryLegendItem: View {
     }
 }
 
-private enum RecoveryBodySide: String {
+private enum RecoveryBodySide: String, CaseIterable {
     case front = "Front"
     case back = "Back"
 }
@@ -332,7 +456,7 @@ private struct RecoveryBodyFigure: View {
     private func anatomyRect(in size: CGSize) -> CGRect {
         let topInset: CGFloat = 22
         let availableHeight = max(0, size.height - topInset - 2)
-        let width = min(size.width * 0.84, availableHeight * 0.47)
+        let width = min(size.width * 0.72, availableHeight * 0.58)
         return CGRect(
             x: (size.width - width) / 2,
             y: topInset,
@@ -928,6 +1052,7 @@ private struct RecoveryZoneShape: Shape {
 
 private struct RecoveryEvidencePanel: View {
     let estimate: MuscleRecoveryEstimate
+    let sleepSignalDate: Date?
 
     private var role: AppSignalRole {
         estimate.status.signalRole
@@ -954,6 +1079,18 @@ private struct RecoveryEvidencePanel: View {
                     icon: estimate.status.icon,
                     role: role
                 )
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                    AppFreshnessLabel(calculationFreshness)
+                    Spacer(minLength: 0)
+                    confidenceLabel
+                }
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    AppFreshnessLabel(calculationFreshness)
+                    confidenceLabel
+                }
             }
 
             RecoveryHorizonView(estimate: estimate, role: role)
@@ -984,6 +1121,51 @@ private struct RecoveryEvidencePanel: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Selected muscle recovery evidence")
         .accessibilityIdentifier("muscle_recovery_evidence")
+    }
+
+    private var calculationFreshness: AppDataFreshness {
+        AppDataFreshness(
+            updatedAt: estimate.asOf,
+            currentFor: 15 * 60,
+            staleAfter: 60 * 60
+        )
+    }
+
+    private var confidenceLabel: some View {
+        Label(confidenceText, systemImage: confidenceIcon)
+            .appTextRole(.caption)
+            .foregroundStyle(confidenceColor)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var confidenceText: String {
+        if estimate.status == .noRecentSignal {
+            return "No training evidence"
+        }
+        if estimate.lastSessionSets == 0 {
+            return "Lower confidence · set detail missing"
+        }
+        if sleepSignalDate == nil {
+            return "Training evidence · no sleep signal"
+        }
+        return "Training + sleep evidence"
+    }
+
+    private var confidenceIcon: String {
+        if estimate.status == .noRecentSignal || estimate.lastSessionSets == 0 {
+            return "exclamationmark.circle"
+        }
+        return sleepSignalDate == nil ? "moon.zzz" : "checkmark.shield"
+    }
+
+    private var confidenceColor: Color {
+        if estimate.status == .noRecentSignal {
+            return .secondary
+        }
+        if estimate.lastSessionSets == 0 || sleepSignalDate == nil {
+            return AppPalette.caution
+        }
+        return AppPalette.brandText
     }
 
     private var lastTrainedText: String {

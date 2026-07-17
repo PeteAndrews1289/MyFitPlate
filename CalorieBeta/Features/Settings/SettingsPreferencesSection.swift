@@ -134,8 +134,17 @@ struct SettingsPreferencesSection: View {
                         if trainingFuelRemindersEnabled {
                             Divider()
                             quietHoursControls
-                            .onChange(of: quietStartBinding) { _, _ in postTrainingFuelPreferenceChange() }
-                            .onChange(of: quietEndBinding) { _, _ in postTrainingFuelPreferenceChange() }
+                            .onChange(of: quietStartBinding) { _, _ in
+                                if quietHoursAreValid { postTrainingFuelPreferenceChange() }
+                            }
+                            .onChange(of: quietEndBinding) { _, _ in
+                                if quietHoursAreValid { postTrainingFuelPreferenceChange() }
+                            }
+
+                            Label(quietHoursStatusText, systemImage: quietHoursAreValid ? "moon.zzz" : "exclamationmark.triangle")
+                                .appTextRole(.caption)
+                                .foregroundStyle(quietHoursAreValid ? Color.secondary : AppPalette.caution)
+                                .fixedSize(horizontal: false, vertical: true)
 
                             if eveningProteinRemindersEnabled {
                                 eveningReminderControl
@@ -229,6 +238,9 @@ struct SettingsPreferencesSection: View {
         guard let voice = ttsManager.selectedVoiceOption else {
             return "Uses the best natural voice currently installed on this iPhone."
         }
+        if voice.isOnline {
+            return "AI-generated online voice with a local iPhone voice fallback when unavailable."
+        }
         if ttsManager.hasNaturalQualityVoice {
             return "\(voice.name) · \(voice.accentLabel) · downloaded \(voice.quality.label.lowercased()) quality."
         }
@@ -321,6 +333,24 @@ struct SettingsPreferencesSection: View {
 
     private var trainingFuelRemindersEnabled: Bool {
         preSessionFuelRemindersEnabled || recoveryFuelRemindersEnabled || eveningProteinRemindersEnabled
+    }
+
+    private var quietHoursAreValid: Bool {
+        minuteOfDay(quietStartBinding) != minuteOfDay(quietEndBinding)
+    }
+
+    private var quietHoursStatusText: String {
+        guard quietHoursAreValid else {
+            return "Choose different start and end times so quiet hours can take effect."
+        }
+        let start = quietStartBinding.formatted(date: .omitted, time: .shortened)
+        let end = quietEndBinding.formatted(date: .omitted, time: .shortened)
+        return "Training reminders stay quiet from \(start) to \(end), including overnight."
+    }
+
+    private func minuteOfDay(_ date: Date) -> Int {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (components.hour ?? 0) * 60 + (components.minute ?? 0)
     }
 
     private func trainingFuelPreferenceChanged(requestPermission: Bool) {

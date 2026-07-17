@@ -20,6 +20,9 @@ struct MealPlannerView: View {
     @State private var showingLogDayConfirmation = false
     @State private var showingMealPrepMode = false
     @State private var showingPantrySheet = false
+    @State private var showingDiscardPlanConfirmation = false
+    @State private var isDiscardingMealPlan = false
+    @State private var discardPlanErrorMessage: String?
     
     @State private var showingImagePicker = false
     @State private var inputImage: UIImage?
@@ -52,6 +55,10 @@ struct MealPlannerView: View {
 
     private var visibleWeekPlans: [MealPlanDay] {
         visibleWeekDates.compactMap { weekPlans[dateKey(for: $0)] }
+    }
+
+    private var hasVisibleMealPlan: Bool {
+        !visibleWeekPlans.isEmpty || planForSelectedDate?.meals.isEmpty == false
     }
 
     private var weekMealCounts: [String: Int] {
@@ -171,6 +178,36 @@ struct MealPlannerView: View {
         } message: {
             Text("This adds the planned meals to the food log for \(selectedDate, formatter: DateFormatter.longDate).")
         }
+        .confirmationDialog(
+            "Discard this meal plan?",
+            isPresented: $showingDiscardPlanConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Discard meal plan", role: .destructive) {
+                discardVisibleMealPlan()
+            }
+            .accessibilityIdentifier("meal_plan_discard_confirm")
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                "This removes the current seven-day plan and its generated grocery items. " +
+                "Pantry items, manual grocery items, and meals already added to your food log stay unchanged."
+            )
+        }
+        .alert(
+            "Couldn’t discard meal plan",
+            isPresented: Binding(
+                get: { discardPlanErrorMessage != nil },
+                set: { if !$0 { discardPlanErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                discardPlanErrorMessage = nil
+            }
+        } message: {
+            Text(discardPlanErrorMessage ?? "")
+        }
         .onAppear(perform: onMealPlanAppear)
     }
 
@@ -250,15 +287,32 @@ struct MealPlannerView: View {
                 Button("Open pantry", systemImage: "refrigerator.fill") {
                     showingPantrySheet = true
                 }
+
+                Divider()
+
+                Button(role: .destructive) {
+                    showingDiscardPlanConfirmation = true
+                } label: {
+                    Label("Discard meal plan", systemImage: "trash")
+                }
+                .disabled(!hasVisibleMealPlan || isDiscardingMealPlan)
+                .accessibilityIdentifier("meal_plan_discard")
             } label: {
-                Image(systemName: "ellipsis")
-                    .appFont(size: 17, weight: .semibold)
-                    .foregroundStyle(AppPalette.text)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        AppPalette.control,
-                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                    )
+                Group {
+                    if isDiscardingMealPlan {
+                        ProgressView()
+                            .tint(AppPalette.text)
+                    } else {
+                        Image(systemName: "ellipsis")
+                            .appFont(size: 17, weight: .semibold)
+                            .foregroundStyle(AppPalette.text)
+                    }
+                }
+                .frame(width: 44, height: 44)
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
             }
             .accessibilityLabel("Meal plan tools")
             .accessibilityIdentifier("meal_plan_tools")
@@ -406,7 +460,13 @@ struct MealPlannerView: View {
     }
 
     private func fetchPlan() {
-        guard let userID = DIContainer.shared.authService.currentUserID else { isLoading = false; return }
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            planForSelectedDate = nil
+            weekPlans.removeAll()
+            didPrefetchVisibleWeek = false
+            isLoading = false
+            return
+        }
         let requestedDate = selectedDate
 
         if let cachedPlan = mealPlannerService.cachedPlan(for: requestedDate, userID: userID) {
@@ -421,6 +481,7 @@ struct MealPlannerView: View {
         Task {
             let plan = await mealPlannerService.fetchPlan(for: requestedDate, userID: userID)
             await MainActor.run {
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 guard Calendar.current.isDate(requestedDate, inSameDayAs: selectedDate) else { return }
                 self.planForSelectedDate = plan
                 self.isLoading = false
@@ -460,6 +521,7 @@ struct MealPlannerView: View {
             }
 
             await MainActor.run {
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 withAnimation(.easeInOut(duration: 0.2)) {
                     weekPlans = plans
                 }
@@ -477,9 +539,37 @@ struct MealPlannerView: View {
     }
 
     private func handlePlanEditDismiss() {
-        mealPlannerService.invalidateCache()
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        mealPlannerService.invalidateCache(for: userID)
         fetchPlan()
         refreshWeekOverview()
+    }
+
+    private func discardVisibleMealPlan() {
+        guard let userID = DIContainer.shared.authService.currentUserID,
+              let startDate = visibleWeekDates.first else { return }
+
+        isDiscardingMealPlan = true
+        Task { @MainActor in
+            let discarded = await mealPlannerService.discardMealPlan(
+                starting: startDate,
+                for: userID
+            )
+            isDiscardingMealPlan = false
+            guard DIContainer.shared.authService.currentUserID == userID else { return }
+
+            guard discarded else {
+                discardPlanErrorMessage = "Your saved plan was not changed. Check your connection and try again."
+                return
+            }
+
+            withAnimation(.easeInOut(duration: 0.2)) {
+                planForSelectedDate = nil
+                weekPlans.removeAll()
+            }
+            didPrefetchVisibleWeek = false
+            HapticManager.instance.feedback(.medium)
+        }
     }
 
     private func log(meal: PlannedMeal) {
@@ -562,6 +652,7 @@ struct MealPlannerView: View {
 
     private func regenerate(meal: PlannedMeal) {
         guard let userID = DIContainer.shared.authService.currentUserID, let currentPlan = planForSelectedDate else { return }
+        let requestedDate = selectedDate
 
         regeneratingMealID = meal.id
 
@@ -576,16 +667,34 @@ struct MealPlannerView: View {
                 preferredCuisines: goalSettings.suggestionCuisines,
                 preferredSnacks: [],
                 userID: userID) {
+                guard DIContainer.shared.authService.currentUserID == userID else {
+                    if regeneratingMealID == meal.id { regeneratingMealID = nil }
+                    return
+                }
 
-                if var updatedPlan = self.planForSelectedDate, let index = updatedPlan.meals.firstIndex(where: { $0.id == meal.id }) {
+                var updatedPlan = currentPlan
+                if let index = updatedPlan.meals.firstIndex(where: { $0.id == meal.id }) {
                     updatedPlan.meals[index] = newMeal
-                    self.planForSelectedDate = updatedPlan
-                    self.updateWeekCache(with: updatedPlan, for: selectedDate)
-                    await mealPlannerService.savePlan(updatedPlan, for: userID)
-                    await mealPlannerService.refreshGroceryList(for: userID)
+                    let didSave = await mealPlannerService.savePlan(updatedPlan, for: userID)
+                    guard DIContainer.shared.authService.currentUserID == userID else {
+                        if regeneratingMealID == meal.id { regeneratingMealID = nil }
+                        return
+                    }
+                    if didSave {
+                        await mealPlannerService.refreshGroceryList(for: userID)
+                        guard DIContainer.shared.authService.currentUserID == userID else {
+                            if regeneratingMealID == meal.id { regeneratingMealID = nil }
+                            return
+                        }
+                        if Calendar.current.isDate(requestedDate, inSameDayAs: selectedDate),
+                           planForSelectedDate?.id == currentPlan.id {
+                            self.planForSelectedDate = updatedPlan
+                            self.updateWeekCache(with: updatedPlan, for: requestedDate)
+                        }
+                    }
                 }
             }
-            regeneratingMealID = nil
+            if regeneratingMealID == meal.id { regeneratingMealID = nil }
         }
     }
 }

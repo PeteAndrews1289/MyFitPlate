@@ -36,7 +36,7 @@ struct HomeDashboardHeader: View {
             )
         }
         .frame(maxWidth: 520)
-        .appSurface(.emphasized)
+        .appSurface(.interpreted)
         .featureSpotlight(isActive: isHeaderSpotlightActive)
     }
 }

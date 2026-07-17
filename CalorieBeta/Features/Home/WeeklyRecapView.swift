@@ -58,6 +58,7 @@ struct WeeklyRecapView: View {
                 }
             }
             .task { await loadRecap() }
+            .onDisappear(perform: cleanupCSVExport)
             .sheet(isPresented: $showingShareOptions) {
                 if let recap {
                     WeeklyRecapShareOptionsView(
@@ -426,18 +427,33 @@ struct WeeklyRecapView: View {
     }
 
     private func prepareCSV(for recap: WeeklyRecap) {
+        cleanupCSVExport()
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let filename = "MyFitPlate-Training-Fuel-\(formatter.string(from: recap.weekEnd)).csv"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MyFitPlateWeeklyExport-\(UUID().uuidString)", isDirectory: true)
+        let url = directory.appendingPathComponent(filename)
         let csv = WeeklyRecapCSVExporter.csvString(for: recap, metric: useMetric)
         do {
-            try Data(csv.utf8).write(to: url, options: .atomic)
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true,
+                attributes: [.protectionKey: FileProtectionType.complete]
+            )
+            try Data(csv.utf8).write(to: url, options: [.atomic, .completeFileProtection])
             csvURL = url
         } catch {
+            try? FileManager.default.removeItem(at: directory)
             csvURL = nil
             AppLog.data.error("Weekly report CSV could not be prepared: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    private func cleanupCSVExport() {
+        guard let csvURL else { return }
+        self.csvURL = nil
+        try? FileManager.default.removeItem(at: csvURL.deletingLastPathComponent())
     }
 
     private func volumeText(_ poundsReps: Double) -> String {

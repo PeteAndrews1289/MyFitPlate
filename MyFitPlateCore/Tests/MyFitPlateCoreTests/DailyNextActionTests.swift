@@ -127,6 +127,20 @@ final class DailyNextActionTests: XCTestCase {
         XCTAssertEqual(action.deepLink, "myfitplate://food-search")
     }
 
+    func testFractionalProteinGapUsesNearestDisplayedGram() {
+        let action = DailyNextActionRules.makeAction(
+            plan: nil,
+            today: nil,
+            goals: TodayFuelPlanGoals(calories: 2_000, protein: 146.4, carbs: 240, fats: 70),
+            now: date(hour: 18),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(action.kind, .proteinCatchUp)
+        XCTAssertEqual(action.proteinGrams, 146)
+        XCTAssertEqual(action.detail, "146 g protein left today")
+    }
+
     func testSmallGapAndInvalidDataFallBackToSteadyDay() {
         let nearlyThere = FoodItem(name: "Meal", calories: 1_900, protein: 110)
         let log = DailyLog(date: date(hour: 20), meals: [Meal(name: "Dinner", foodItems: [nearlyThere])])

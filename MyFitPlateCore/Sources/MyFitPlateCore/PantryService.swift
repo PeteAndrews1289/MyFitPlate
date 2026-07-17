@@ -57,7 +57,9 @@ public class PantryService: ObservableObject {
                 guard let self,
                       let userInfo = notification.userInfo,
                       let foodItem = userInfo[DailyLogNotificationUserInfoKey.foodItem] as? FoodItem,
-                      let userID = userInfo[DailyLogNotificationUserInfoKey.userID] as? String else { return }
+                      let userID = userInfo[DailyLogNotificationUserInfoKey.userID] as? String,
+                      self.listeningUserID == userID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
 
                 self.removeIngredient(named: foodItem.name, userID: userID)
             }
@@ -78,9 +80,13 @@ public class PantryService: ObservableObject {
     }
 
     public func startListening(userID: String) {
-        guard !userID.isEmpty else { return }
+        guard !userID.isEmpty,
+              DIContainer.shared.authService.currentUserID == userID else { return }
         if listeningUserID == userID, listenerRegistration != nil { return }
 
+        if listeningUserID != nil, listeningUserID != userID {
+            pantryItems = []
+        }
         if let handle = listenerRegistration {
             DIContainer.shared.nutritionRepository.removePantrySnapshotListener(handle)
         }
@@ -89,7 +95,9 @@ public class PantryService: ObservableObject {
 
         listenerRegistration = DIContainer.shared.nutritionRepository.addPantrySnapshotListener(userID: userID) { [weak self] result in
             Task { @MainActor in
-                guard let self = self else { return }
+                guard let self,
+                      self.listeningUserID == userID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
                 self.isLoading = false
                 switch result {
                 case .success(let items):
@@ -114,6 +122,7 @@ public class PantryService: ObservableObject {
     }
 
     public func addOrUpdateItem(_ item: PantryItem, userID: String) {
+        guard canMutatePantry(for: userID) else { return }
         var itemToSave = item
         if pantryItems.contains(where: { $0.id == item.id }) {
             itemToSave = item
@@ -136,6 +145,7 @@ public class PantryService: ObservableObject {
     }
 
     public func deleteItem(_ item: PantryItem, userID: String) {
+        guard canMutatePantry(for: userID) else { return }
         Task {
             do {
                 try await DIContainer.shared.nutritionRepository.deletePantryItem(userID: userID, itemID: item.id.uuidString)
@@ -165,6 +175,7 @@ public class PantryService: ObservableObject {
     }
 
     private func removeIngredient(named rawName: String, userID: String) {
+        guard canMutatePantry(for: userID) else { return }
         guard let index = pantryItems.firstIndex(where: { IngredientNameMatcher.matches($0.name, rawName) }) else {
             return
         }
@@ -179,5 +190,10 @@ public class PantryService: ObservableObject {
         } else {
             deleteItem(pantryItem, userID: userID)
         }
+    }
+
+    private func canMutatePantry(for userID: String) -> Bool {
+        DIContainer.shared.authService.currentUserID == userID &&
+            (listeningUserID == nil || listeningUserID == userID)
     }
 }

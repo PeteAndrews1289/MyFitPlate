@@ -12,6 +12,7 @@ struct AddMealToPlanView: View {
     @State private var searchText = ""
     @State private var savingRecipeKey: String?
     @State private var alertMessage: String?
+    @State private var failedRecipe: Recipe?
     @State private var existingPlan: MealPlanDay?
     @State private var replaceExistingMealType = false
     @State private var showingCreateRecipeSheet = false
@@ -57,6 +58,17 @@ struct AddMealToPlanView: View {
                                     mealType: selectedMealType,
                                     mealCount: selectedMealCount,
                                     replaceExistingMealType: $replaceExistingMealType
+                                )
+                            }
+
+                            if let alertMessage, let failedRecipe {
+                                AddMealSaveFailureCard(
+                                    message: alertMessage,
+                                    retry: { addRecipeToPlan(failedRecipe) },
+                                    dismiss: {
+                                        self.alertMessage = nil
+                                        self.failedRecipe = nil
+                                    }
                                 )
                             }
 
@@ -111,14 +123,6 @@ struct AddMealToPlanView: View {
                     .environmentObject(recipeService)
                     .environmentObject(dailyLogService)
             }
-            .alert("Could not add meal", isPresented: Binding(
-                get: { alertMessage != nil },
-                set: { if !$0 { alertMessage = nil } }
-            )) {
-                Button("OK") {}
-            } message: {
-                Text(alertMessage ?? "")
-            }
         }
     }
 
@@ -129,30 +133,55 @@ struct AddMealToPlanView: View {
 
     private func loadExistingPlan() async {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
-        existingPlan = await mealPlannerService.fetchPlan(for: date, userID: userID)
+        let plan = await mealPlannerService.fetchPlan(for: date, userID: userID)
+        guard DIContainer.shared.authService.currentUserID == userID else { return }
+        existingPlan = plan
     }
 
     private func addRecipeToPlan(_ recipe: Recipe) {
         guard savingRecipeKey == nil else { return }
         guard let userID = DIContainer.shared.authService.currentUserID else {
             alertMessage = "You need to be signed in to update a meal plan."
+            failedRecipe = recipe
             return
         }
 
         let key = recipeKey(for: recipe)
         savingRecipeKey = key
+        alertMessage = nil
+        failedRecipe = nil
 
         Task { @MainActor in
             var plan = await mealPlannerService.fetchPlan(for: date, userID: userID) ?? emptyPlan(for: date)
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                savingRecipeKey = nil
+                return
+            }
             if replaceExistingMealType {
                 plan.meals.removeAll { mealTypeMatches($0.mealType, selectedMealType) }
             }
             plan.meals.append(plannedMeal(from: recipe))
             plan.meals.sort(by: sortMeals)
-            existingPlan = plan
 
-            await mealPlannerService.savePlan(plan, for: userID)
+            let didSave = await mealPlannerService.savePlan(plan, for: userID)
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                savingRecipeKey = nil
+                return
+            }
+            guard didSave else {
+                savingRecipeKey = nil
+                alertMessage = "Your recipe and meal-slot choices are still here. Check your connection, then try again."
+                failedRecipe = recipe
+                HapticManager.instance.notification(.warning)
+                return
+            }
+
+            existingPlan = plan
             await mealPlannerService.refreshGroceryList(for: userID)
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                savingRecipeKey = nil
+                return
+            }
             savingRecipeKey = nil
             HapticManager.instance.feedback(.medium)
             dismissSheet()
@@ -209,6 +238,39 @@ struct AddMealToPlanView: View {
     private func dismissSheet() {
         isPresented = false
         dismiss()
+    }
+}
+
+private struct AddMealSaveFailureCard: View {
+    let message: String
+    let retry: () -> Void
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Label("Meal was not saved", systemImage: "wifi.exclamationmark")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+
+            Text(message)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: AppSpacing.compact) {
+                Button("Try Again", action: retry)
+                    .buttonStyle(AppActionButtonStyle(.secondary, fillsWidth: false))
+
+                Button("Dismiss", action: dismiss)
+                    .buttonStyle(AppActionButtonStyle(.ghost, fillsWidth: false))
+            }
+        }
+        .appSurface(.quiet)
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                .stroke(AppPalette.caution.opacity(0.45), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
     }
 }
 

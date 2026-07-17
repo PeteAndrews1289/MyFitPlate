@@ -337,6 +337,10 @@ struct ExercisePickerRow: View {
         RoutineEditorDefaults.inferredType(name: entry.name, category: entry.category)
     }
 
+    private var equipment: ExerciseList.EquipmentFamily {
+        ExerciseList.equipment(for: entry.name)
+    }
+
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: AppSpacing.row) {
@@ -352,7 +356,7 @@ struct ExercisePickerRow: View {
                         .appTextRole(.control)
                         .foregroundStyle(AppPalette.text)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("\(entry.category) • \(type.shortTitle)")
+                    Text("\(entry.category) • \(equipment.rawValue) • \(type.shortTitle)")
                         .appTextRole(.secondary)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -370,6 +374,39 @@ struct ExercisePickerRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("Adds this exercise to the routine")
+    }
+}
+
+private struct ExerciseFilterChip: View {
+    let title: String
+    let icon: String?
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let icon {
+                    Image(systemName: icon)
+                        .accessibilityHidden(true)
+                }
+                Text(title)
+            }
+            .appTextRole(.secondary)
+            .foregroundStyle(isSelected ? AppPalette.onBrand : AppPalette.text)
+            .padding(.horizontal, AppSpacing.row)
+            .frame(minHeight: 40)
+            .background(
+                isSelected ? AppPalette.brand : AppPalette.control,
+                in: Capsule()
+            )
+            .overlay {
+                Capsule()
+                    .stroke(isSelected ? Color.clear : AppPalette.separator, lineWidth: 0.5)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -437,6 +474,17 @@ struct ExerciseSetEditorView: View {
         RoutineEditorDefaults.setTarget(for: editableExercise.type, target: editableExercise.targetReps)
     }
 
+    private var targetPresets: [String] {
+        switch editableExercise.type {
+        case .strength:
+            ["5", "6-8", "8-12", "12-15"]
+        case .cardio:
+            ["10 min", "20 min", "30 min", "5 km"]
+        case .flexibility:
+            ["20 sec", "30 sec", "45 sec", "60 sec"]
+        }
+    }
+
     init(exercise: RoutineExercise, onSave: @escaping (RoutineExercise) -> Void) {
         self._editableExercise = State(initialValue: exercise)
         self._alternativesText = State(initialValue: exercise.alternatives?.joined(separator: ", ") ?? "")
@@ -488,6 +536,23 @@ struct ExerciseSetEditorView: View {
                                         applyTargetToAllSets()
                                     }
                             }
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: AppSpacing.compact) {
+                                    ForEach(targetPresets, id: \.self) { preset in
+                                        ExerciseFilterChip(
+                                            title: preset,
+                                            icon: nil,
+                                            isSelected: editableExercise.targetReps == preset
+                                        ) {
+                                            editableExercise.targetReps = preset
+                                            applyTargetToAllSets()
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 1)
+                            }
+                            .accessibilityLabel("\(editableExercise.type.targetLabel) presets")
 
                             Picker("Rest Between Sets", selection: $editableExercise.restTimeInSeconds) {
                                 ForEach(editableExercise.type.restPresets, id: \.self) { seconds in
@@ -646,6 +711,7 @@ struct ExercisePickerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
     @State private var selectedCategory = "All"
+    @State private var selectedEquipment: ExerciseList.EquipmentFamily?
     @State private var customExerciseName = ""
     @State private var customExerciseType: ExerciseType = .strength
 
@@ -662,12 +728,19 @@ struct ExercisePickerView: View {
             exercises.map { ExercisePickerEntry(name: $0, category: category) }
         }
         let categoryFiltered = selectedCategory == "All" ? entries : entries.filter { $0.category == selectedCategory }
+        let equipmentFiltered = selectedEquipment.map { selected in
+            categoryFiltered.filter { ExerciseList.equipment(for: $0.name) == selected }
+        } ?? categoryFiltered
         guard !searchText.trimmed.isEmpty else {
-            return categoryFiltered.sorted()
+            return equipmentFiltered.sorted()
         }
-        return categoryFiltered
+        return equipmentFiltered
             .filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.category.localizedCaseInsensitiveContains(searchText) }
             .sorted()
+    }
+
+    private var hasActiveFilters: Bool {
+        selectedCategory != "All" || selectedEquipment != nil
     }
 
     var body: some View {
@@ -711,27 +784,67 @@ struct ExercisePickerView: View {
                     VStack(alignment: .leading, spacing: AppSpacing.row) {
                         AppSectionHeader(
                             title: "Exercise Library",
-                            subtitle: selectedCategory == "All" ? "Showing every category" : "Filtered to \(selectedCategory)"
+                            subtitle: "\(visibleEntries.count) movements match"
                         ) {
-                            Menu {
-                                ForEach(categories, id: \.self) { category in
-                                    Button {
-                                        selectedCategory = category
-                                    } label: {
-                                        if selectedCategory == category {
-                                            Label(category, systemImage: "checkmark")
-                                        } else {
-                                            Text(category)
+                            if hasActiveFilters {
+                                Button("Clear") {
+                                    selectedCategory = "All"
+                                    selectedEquipment = nil
+                                }
+                                .appTextRole(.secondary)
+                                .foregroundStyle(AppPalette.brandText)
+                                .accessibilityLabel("Clear exercise filters")
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            Text("MUSCLE")
+                                .appTextRole(.caption)
+                                .foregroundStyle(.secondary)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: AppSpacing.compact) {
+                                    ForEach(categories, id: \.self) { category in
+                                        ExerciseFilterChip(
+                                            title: category,
+                                            icon: category == "All" ? "square.grid.2x2" : nil,
+                                            isSelected: selectedCategory == category
+                                        ) {
+                                            selectedCategory = category
                                         }
                                     }
                                 }
-                            } label: {
-                                Image(systemName: "line.3.horizontal.decrease")
+                                .padding(.horizontal, 1)
                             }
-                            .buttonStyle(AppIconButtonStyle(.neutral))
-                            .accessibilityLabel("Filter exercise category")
-                            .accessibilityValue(selectedCategory)
+
+                            Text("EQUIPMENT")
+                                .appTextRole(.caption)
+                                .foregroundStyle(.secondary)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: AppSpacing.compact) {
+                                    ExerciseFilterChip(
+                                        title: "All",
+                                        icon: "square.grid.2x2",
+                                        isSelected: selectedEquipment == nil
+                                    ) {
+                                        selectedEquipment = nil
+                                    }
+
+                                    ForEach(ExerciseList.EquipmentFamily.allCases) { equipment in
+                                        ExerciseFilterChip(
+                                            title: equipment.rawValue,
+                                            icon: equipment.icon,
+                                            isSelected: selectedEquipment == equipment
+                                        ) {
+                                            selectedEquipment = equipment
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 1)
+                            }
                         }
+                        .appSurface(.quiet)
 
                         if visibleEntries.isEmpty {
                             GuidanceEmptyState(

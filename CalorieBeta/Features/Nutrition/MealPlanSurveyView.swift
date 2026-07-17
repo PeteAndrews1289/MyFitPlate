@@ -19,9 +19,9 @@ struct MealPlanSurveyView: View {
     @State private var customSnack = ""
 
     @State private var isLoading = false
-    @State private var showAlert = false
-    @State private var didGeneratePlan = false
-    @State private var alertMessage = ""
+    @State private var generationStage: MealPlanGenerationStage = .drafting
+    @State private var generationError: String?
+    @State private var generationTask: Task<Void, Never>?
     @State private var currentStep: Int
 
     private static let steps = [
@@ -84,14 +84,9 @@ struct MealPlanSurveyView: View {
                 generationOverlay
             }
         }
-        .alert(didGeneratePlan ? "Meal Plan Ready" : "Meal Plan", isPresented: $showAlert) {
-            Button("OK") {
-                if didGeneratePlan {
-                    dismiss()
-                }
-            }
-        } message: {
-            Text(alertMessage)
+        .onDisappear {
+            generationTask?.cancel()
+            generationTask = nil
         }
         .accessibilityIdentifier("meal_plan_survey_screen")
     }
@@ -123,6 +118,9 @@ struct MealPlanSurveyView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
                 stepHeader
+                if generationError != nil {
+                    generationFailureCard
+                }
                 stepContent
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
@@ -256,22 +254,55 @@ struct MealPlanSurveyView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: AppSpacing.group) {
+                Image(systemName: generationStage.icon)
+                    .appTextRole(.screenTitle)
+                    .foregroundStyle(AppPalette.brandText)
+                    .frame(width: 58, height: 58)
+                    .background(AppPalette.control, in: Circle())
+                    .accessibilityHidden(true)
+
+                VStack(spacing: AppSpacing.compact) {
+                    Text(generationStage.title)
+                        .appTextRole(.sectionTitle)
+                        .foregroundStyle(AppPalette.text)
+
+                    Text(generationStage.detail)
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 ProgressView()
                     .controlSize(.large)
                     .tint(AppPalette.brand)
-                Text("Building Your Week")
-                    .appTextRole(.sectionTitle)
-                    .foregroundStyle(AppPalette.text)
-                Text("Generating and saving seven days of meals.")
-                    .appTextRole(.secondary)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+
+                Button("Cancel Generation", action: cancelGeneration)
+                    .buttonStyle(AppActionButtonStyle(.secondary))
             }
             .appSurface(.emphasized)
             .padding(AppSpacing.screenHorizontal)
             .accessibilityElement(children: .combine)
         }
         .accessibilityIdentifier("meal_plan_generation_loading")
+    }
+
+    private var generationFailureCard: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Label("The plan was not saved", systemImage: "exclamationmark.triangle.fill")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.caution)
+
+            Text(generationError ?? "Your choices are still here. Try again when you are ready.")
+                .appTextRole(.body)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Try Again", action: generateAndSavePlan)
+                .buttonStyle(AppActionButtonStyle(.secondary))
+        }
+        .appSurface(.quiet)
+        .accessibilityIdentifier("meal_plan_generation_error")
     }
 
     private var progress: Double {
@@ -301,9 +332,10 @@ struct MealPlanSurveyView: View {
 
     private func generateAndSavePlan() {
         HapticManager.instance.feedback(.medium)
+        generationTask?.cancel()
         isLoading = true
-        didGeneratePlan = false
-        alertMessage = ""
+        generationStage = .drafting
+        generationError = nil
 
         let foodList = normalized(selectedProteins, custom: customProtein)
             + normalized(selectedCarbs, custom: customCarb)
@@ -311,10 +343,21 @@ struct MealPlanSurveyView: View {
         let cuisineList = MealPlanningPreferenceRules.normalizedCuisines(selectedCuisines)
         let snackList = normalized(selectedSnacks, custom: customSnack)
 
-        Task { @MainActor in
+        generationTask = Task { @MainActor in
             guard let userID = DIContainer.shared.authService.currentUserID else {
-                finishWithError("Sign in before generating a meal plan.")
+                finishGenerationWithError("Sign in before generating a meal plan.")
                 return
+            }
+
+            let stageTask = Task { @MainActor in
+                do {
+                    try await Task.sleep(for: .milliseconds(900))
+                    generationStage = .balancing
+                    try await Task.sleep(for: .milliseconds(1_400))
+                    generationStage = .saving
+                } catch {
+                    return
+                }
             }
 
             let success = await mealPlannerService.generateAndSaveFullWeekPlan(
@@ -325,20 +368,71 @@ struct MealPlanSurveyView: View {
                 userID: userID
             )
 
+            stageTask.cancel()
+            guard !Task.isCancelled else { return }
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                isLoading = false
+                generationTask = nil
+                return
+            }
+
             isLoading = false
-            didGeneratePlan = success
-            alertMessage = success
-                ? "Your seven-day meal plan is ready."
-                : "The generated plan could not be saved. Please try again."
-            showAlert = true
+            generationTask = nil
+
+            if success {
+                HapticManager.instance.notification(.success)
+                ToastManager.shared.showToast(message: "Seven-day meal plan saved.")
+                dismiss()
+            } else {
+                finishGenerationWithError(
+                    "MyFitPlate could not finish saving all seven days. Your selections were preserved."
+                )
+            }
         }
     }
 
-    private func finishWithError(_ message: String) {
+    private func cancelGeneration() {
+        generationTask?.cancel()
+        generationTask = nil
         isLoading = false
-        didGeneratePlan = false
-        alertMessage = message
-        showAlert = true
+        generationError = nil
+        HapticManager.instance.feedback(.light)
+    }
+
+    private func finishGenerationWithError(_ message: String) {
+        isLoading = false
+        generationTask = nil
+        generationError = message
+    }
+}
+
+private enum MealPlanGenerationStage {
+    case drafting
+    case balancing
+    case saving
+
+    var title: String {
+        switch self {
+        case .drafting: "Drafting Seven Days"
+        case .balancing: "Balancing the Week"
+        case .saving: "Saving Your Plan"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .drafting: "Building meals from the foods, cuisines, and cooking style you chose."
+        case .balancing: "Checking daily calories, protein, variety, and repeat ingredients."
+        case .saving: "Writing each day and preparing the grocery handoff."
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .drafting: "wand.and.stars"
+        case .balancing: "slider.horizontal.3"
+        case .saving: "checkmark.circle"
+        }
     }
 }
 

@@ -33,6 +33,8 @@ struct FoodSearchView: View {
     @State private var selectedFoodSource: String = "search_result"
 
     @State private var isProcessingImage = false
+    @State private var imageProcessingKind: ImageProcessingKind = .mealPhoto
+    @State private var imageAnalysisID: UUID?
     @State private var isSearchingAfterScan = false
     @State private var estimatedFoodItemsWrapper: IdentifiableFoodItems?
     @State private var scannedBarcodeItemsWrapper: IdentifiableFoodItems?
@@ -199,9 +201,14 @@ struct FoodSearchView: View {
                     )
                 }
                 .imageSourceDialog(isPresented: $showingImagePicker) { image in
+                    let requestID = UUID()
+                    self.imageAnalysisID = requestID
+                    self.imageProcessingKind = .mealPhoto
                     self.isProcessingImage = true
                     DIContainer.shared.analyticsManager.aiFeatureUsed(.mealPhoto)
                     imageModel.analyzeNutritionFromImage(image: image) { result in
+                        guard self.imageAnalysisID == requestID else { return }
+                        self.imageAnalysisID = nil
                         self.isProcessingImage = false
                         switch result {
                         case .success(let analysis):
@@ -214,11 +221,15 @@ struct FoodSearchView: View {
                         }
                     }
                 }
-                .sheet(isPresented: $showingMenuImagePicker) {
-                    ImagePicker(sourceType: .camera) { image in
+                .imageSourceDialog(isPresented: $showingMenuImagePicker) { image in
+                        let requestID = UUID()
+                        self.imageAnalysisID = requestID
+                        self.imageProcessingKind = .menuPhoto
                         self.isProcessingImage = true
                         DIContainer.shared.analyticsManager.aiFeatureUsed(.menuPhoto)
                         imageModel.estimateMenuFromImage(image: image) { result in
+                            guard self.imageAnalysisID == requestID else { return }
+                            self.imageAnalysisID = nil
                             self.isProcessingImage = false
                             switch result {
                             case .success(let foodItems):
@@ -227,7 +238,6 @@ struct FoodSearchView: View {
                                 self.scanError = (true, "Could not analyze the menu. Error: \(error.localizedDescription)")
                             }
                         }
-                    }
                 }
                 .sheet(isPresented: $showingAITextLog) { AITextLogView() }
                 .sheet(isPresented: $showingValueRadar) { RestaurantValueRadarView() }
@@ -305,9 +315,14 @@ struct FoodSearchView: View {
                     Text(scanError.1)
                 }
 
-                if isProcessingImage || isSearchingAfterScan {
+                if isProcessingImage {
+                    ImageProcessingView(kind: imageProcessingKind) {
+                        imageAnalysisID = nil
+                        isProcessingImage = false
+                    }
+                } else if isSearchingAfterScan {
                     Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
-                    ProgressView(isProcessingImage ? "Analyzing image" : "Searching barcode")
+                    ProgressView("Searching barcode")
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .foregroundColor(.white)
                         .padding(20)
@@ -556,6 +571,28 @@ struct FoodSearchView: View {
                 onDelete: nil,
                 sourceForFood: { viewModel.sourceForTrustedSearchResult($0) }
             )
+        }
+
+        if !viewModel.isLoading, let message = viewModel.searchCoverageMessage {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
+                Image(systemName: "wifi.exclamationmark")
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.caution)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Partial source coverage")
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
+                    Text(message)
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .appSurface(.quiet)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("food_search_partial_coverage")
         }
 
         if viewModel.isLoading {
@@ -908,7 +945,7 @@ struct BarcodeMissRecoveryView: View {
                     recoveryButton(
                         icon: "magnifyingglass",
                         title: "Search by name",
-                        subtitle: "Try the brand, product name, or a simpler food description.",
+                        subtitle: "Try the brand and product name. Food and supplement package UPCs can change.",
                         tint: .accentSignal,
                         action: searchByName
                     )

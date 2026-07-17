@@ -331,6 +331,14 @@ public class NotificationManager {
         removeTrainingFuelLedgerEntries(identifiers: identifiers)
     }
 
+    public func cancelAccountNotifications() {
+        cancelTrainingFuelNotifications()
+        center.removePendingRequests(withIdentifiers: [
+            NotificationType.dailyLogReminder(hour: 0, minute: 0).id,
+            NotificationType.dailyBriefing.id
+        ])
+    }
+
     private func scheduleTrainingFuelCandidate(
         _ candidate: TrainingFuelNotificationCandidate,
         calendar: Calendar,

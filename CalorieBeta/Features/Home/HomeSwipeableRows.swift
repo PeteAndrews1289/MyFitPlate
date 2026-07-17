@@ -163,6 +163,7 @@ struct SwipeableFoodItemView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(initialFoodItem.name)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                        .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
                         .appFont(size: 16, weight: .semibold)
                         .foregroundColor(.textPrimary)
 

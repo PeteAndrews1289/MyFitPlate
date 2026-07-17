@@ -16,6 +16,9 @@ public class InsightsService: ObservableObject {
     private let goalSettings: GoalSettings
     private weak var healthKitViewModel: HealthKitViewModel?
     private var analysisTask: Task<Void, Never>? = nil
+    private var activeAccountID: String?
+    private var analysisRequestID: UUID?
+    private var suggestionRequestID: UUID?
     private var cancellables = Set<AnyCancellable>()
 
     private var lastWeeklyInsightFetch: Date?
@@ -58,8 +61,42 @@ public class InsightsService: ObservableObject {
             .store(in: &cancellables)
     }
 
+    public func activateAccount(_ userID: String?) {
+        guard activeAccountID != userID else { return }
+        analysisTask?.cancel()
+        analysisTask = nil
+        analysisRequestID = nil
+        suggestionRequestID = nil
+        activeAccountID = userID
+        currentInsights = []
+        smartSuggestion = nil
+        currentCoachingPlan = nil
+        currentRunRecoveryPrompt = nil
+        isLoadingInsights = false
+        isGeneratingSuggestion = false
+        lastWeeklyInsightFetch = nil
+    }
+
+    private func isActiveAccount(_ userID: String) -> Bool {
+        activeAccountID == userID && DIContainer.shared.authService.currentUserID == userID
+    }
+
+    private func activateCurrentAccountIfNeeded(_ userID: String) {
+        guard activeAccountID != userID else { return }
+        activateAccount(userID)
+    }
+
     public func generateSingleMealSuggestion(pantryItems: [String] = [], avoiding: [String] = []) async -> MealSuggestion? {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return nil }
+        activateCurrentAccountIfNeeded(userID)
+        let requestID = UUID()
+        suggestionRequestID = requestID
         self.isGeneratingSuggestion = true
+        defer {
+            if suggestionRequestID == requestID {
+                isGeneratingSuggestion = false
+            }
+        }
         
         let remainingCalories = max(0, (goalSettings.calories ?? 2000) - (dailyLogService.currentDailyLog?.totalCalories() ?? 0))
         let remainingProtein = max(0, goalSettings.protein - (dailyLogService.currentDailyLog?.totalMacros().protein ?? 0))
@@ -86,24 +123,21 @@ public class InsightsService: ObservableObject {
             avoiding: avoiding
         )
         guard let responseString = await fetchAIResponse(prompt: prompt) else {
-            self.isGeneratingSuggestion = false
             return nil
         }
+        guard isActiveAccount(userID), suggestionRequestID == requestID else { return nil }
         guard let jsonData = InsightsRules.extractJSONPayload(responseString).data(using: .utf8) else {
-            self.isGeneratingSuggestion = false
             return nil
         }
 
         do {
             let suggestion = try JSONDecoder().decode(MealSuggestion.self, from: jsonData)
-            self.isGeneratingSuggestion = false
             return suggestion
         } catch {
             // This decode failing silently is exactly how the feature shipped dead —
             // leave a non-fatal trail with the reason.
             AppLog.ai.error("Meal suggestion decode failed: \(error.localizedDescription, privacy: .public)")
             AIResponseTelemetry.recordDecodeFailure(error, operation: "decode_meal_suggestion")
-            self.isGeneratingSuggestion = false
             return nil
         }
     }
@@ -112,8 +146,16 @@ public class InsightsService: ObservableObject {
         target: TrainingFuelTarget,
         pantryItems: [String] = []
     ) async -> MealSuggestion? {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return nil }
+        activateCurrentAccountIfNeeded(userID)
+        let requestID = UUID()
+        suggestionRequestID = requestID
         isGeneratingSuggestion = true
-        defer { isGeneratingSuggestion = false }
+        defer {
+            if suggestionRequestID == requestID {
+                isGeneratingSuggestion = false
+            }
+        }
 
         let initialBudget = currentTrainingFuelBudget()
         guard [
@@ -139,6 +181,7 @@ public class InsightsService: ObservableObject {
               let jsonData = InsightsRules.extractJSONPayload(responseString).data(using: .utf8) else {
             return nil
         }
+        guard isActiveAccount(userID), suggestionRequestID == requestID else { return nil }
 
         do {
             let suggestion = try JSONDecoder().decode(MealSuggestion.self, from: jsonData)
@@ -181,9 +224,15 @@ public class InsightsService: ObservableObject {
     }
 
     public func generateDailySmartInsight() {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            smartSuggestion = nil
+            currentCoachingPlan = nil
+            return
+        }
+        activateCurrentAccountIfNeeded(userID)
         let hour = Calendar.current.component(.hour, from: Date())
         let log = dailyLogService.currentDailyLog
-        let isToday = log != nil ? Calendar.current.isDateInToday(log!.date) : false
+        let isToday = log.map { Calendar.current.isDateInToday($0.date) } ?? false
 
         self.smartSuggestion = InsightsRules.determineSmartSuggestion(
             log: log,
@@ -205,9 +254,13 @@ public class InsightsService: ObservableObject {
         forLastDays days: Int = 7,
         requestConsentIfNeeded: Bool = false
     ) {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        activateCurrentAccountIfNeeded(userID)
         guard !isLoadingInsights else { return }
 
-        if requestConsentIfNeeded && !hasCurrentAIConsent {
+        let hasAIConsent = AIDataConsentStore.shared.hasCurrentConsent(for: userID)
+        let mayShareHealthData = AIDataConsentStore.shared.allowsHealthData(for: userID)
+        if requestConsentIfNeeded && !hasAIConsent {
             NotificationCenter.default.post(name: .aiDataConsentRequired, object: nil)
         }
 
@@ -215,26 +268,29 @@ public class InsightsService: ObservableObject {
             return
         }
 
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
-
         let sleepData = self.healthKitViewModel?.sleepSamples ?? []
+        let requestID = UUID()
 
         isLoadingInsights = true
         analysisTask?.cancel()
+        analysisRequestID = requestID
 
         analysisTask = Task {
             let endDate = Calendar.current.startOfDay(for: Date())
             guard let startDate = Calendar.current.date(byAdding: .day, value: -(days), to: endDate) else {
-                await self.handleInsightsError(message: "Could not calculate date range for insights.")
+                self.handleInsightsError(
+                    message: "Could not calculate date range for insights.",
+                    userID: userID,
+                    requestID: requestID
+                )
                 return
             }
 
             let result = await self.fetchLogsForAnalysis(userID: userID, startDate: startDate, endDate: endDate)
 
-            if Task.isCancelled {
-                await self.handleInsightsError(message: nil, isLoading: false)
-                return
-            }
+            guard !Task.isCancelled,
+                  self.isActiveAccount(userID),
+                  self.analysisRequestID == requestID else { return }
 
             switch result {
             case .success(let logs):
@@ -249,16 +305,17 @@ public class InsightsService: ObservableObject {
 
                 if logs.count < 3 {
                     let noDataInsight = [UserInsight(title: "More Data Needed", message: "Log consistently for a few more days to unlock your personalized weekly insights!", category: .nutritionGeneral, priority: 100)]
-                    self.handleInsightsResult(insights: noDataInsight, error: nil)
+                    self.handleInsightsResult(insights: noDataInsight, error: nil, userID: userID, requestID: requestID)
                     return
                 }
 
                 let aiInsights: [UserInsight]
-                if self.hasCurrentAIConsent {
+                if hasAIConsent {
                     aiInsights = await self.generateAIInsights(
                         for: logs,
                         sleepSamples: sleepData,
                         goals: self.goalSettings,
+                        allowsHealthData: mayShareHealthData,
                         retryCount: 1
                     )
                 } else {
@@ -269,17 +326,30 @@ public class InsightsService: ObservableObject {
                     )
                 }
 
-                self.handleInsightsResult(insights: aiInsights, error: aiInsights.isEmpty ? "Could not generate insights at this time." : nil)
+                guard !Task.isCancelled,
+                      self.isActiveAccount(userID),
+                      self.analysisRequestID == requestID else { return }
+                self.handleInsightsResult(
+                    insights: aiInsights,
+                    error: aiInsights.isEmpty ? "Could not generate insights at this time." : nil,
+                    userID: userID,
+                    requestID: requestID
+                )
 
             case .failure(let error):
-                await self.handleInsightsError(message: "Could not analyze data: \(error.localizedDescription)")
+                self.handleInsightsError(
+                    message: "Could not analyze data: \(error.localizedDescription)",
+                    userID: userID,
+                    requestID: requestID
+                )
             }
         }
     }
 
     // MARK: - Smart Notification Logic (Fixed "700k Days" Bug)
     public func generateSmartNotification(context: NotificationContext) async -> (title: String, body: String)? {
-        guard hasCurrentAIConsent else { return nil }
+        guard let userID = DIContainer.shared.authService.currentUserID,
+              AIDataConsentStore.shared.hasCurrentConsent(for: userID) else { return nil }
 
         let hour = Calendar.current.component(.hour, from: Date())
         let mayShareHealthData = allowsHealthDataInAIRequests
@@ -303,6 +373,7 @@ public class InsightsService: ObservableObject {
 
         guard let responseString = await fetchAIResponse(prompt: prompt),
               let data = responseString.data(using: .utf8) else { return nil }
+        guard isActiveAccount(userID) else { return nil }
 
         struct NotificationResponse: Decodable {
             let title: String
@@ -330,6 +401,7 @@ public class InsightsService: ObservableObject {
         wellnessScoreSummary: String,
         todaysWorkout: String
     ) async -> (title: String, body: String)? {
+        guard isActiveAccount(userID) else { return nil }
         let prompt = InsightsRules.createDailyBriefingPrompt(
             wellnessScoreSummary: wellnessScoreSummary,
             todaysWorkout: todaysWorkout
@@ -337,6 +409,7 @@ public class InsightsService: ObservableObject {
 
         guard let response = await fetchAIResponse(prompt: prompt),
               let data = response.data(using: .utf8) else { return nil }
+        guard isActiveAccount(userID) else { return nil }
 
         struct BriefingResponse: Decodable {
             let title: String
@@ -353,7 +426,13 @@ public class InsightsService: ObservableObject {
         }
     }
 
-    private func handleInsightsResult(insights: [UserInsight], error: String?) {
+    private func handleInsightsResult(
+        insights: [UserInsight],
+        error: String?,
+        userID: String,
+        requestID: UUID
+    ) {
+        guard isActiveAccount(userID), analysisRequestID == requestID else { return }
         self.isLoadingInsights = false
         if let errorMessage = error {
             self.currentInsights = [UserInsight(title: "Insight Error", message: errorMessage, category: .nutritionGeneral)]
@@ -363,8 +442,14 @@ public class InsightsService: ObservableObject {
         }
     }
 
-    private func generateAIInsights(for logs: [DailyLog], sleepSamples: [HKCategorySample], goals: GoalSettings, retryCount: Int) async -> [UserInsight] {
-        let healthDataForAI = allowsHealthDataInAIRequests ? sleepSamples : []
+    private func generateAIInsights(
+        for logs: [DailyLog],
+        sleepSamples: [HKCategorySample],
+        goals: GoalSettings,
+        allowsHealthData: Bool,
+        retryCount: Int
+    ) async -> [UserInsight] {
+        let healthDataForAI = allowsHealthData ? sleepSamples : []
         let prompt = createAIPrompt(logs: logs, sleepSamples: healthDataForAI, goals: goals)
 
         guard let responseString = await fetchAIResponse(prompt: prompt) else {
@@ -386,7 +471,13 @@ public class InsightsService: ObservableObject {
             )
             if retryCount > 0 {
                 AppLog.ai.info("Retrying insights generation.")
-                return await generateAIInsights(for: logs, sleepSamples: sleepSamples, goals: goals, retryCount: retryCount - 1)
+                return await generateAIInsights(
+                    for: logs,
+                    sleepSamples: sleepSamples,
+                    goals: goals,
+                    allowsHealthData: allowsHealthData,
+                    retryCount: retryCount - 1
+                )
             }
             return generateLocalInsights(from: logs, sleepSamples: sleepSamples, goals: goals)
         }
@@ -498,8 +589,8 @@ public class InsightsService: ObservableObject {
         }
     }
 
-    private func handleInsightsError(message: String?, isLoading: Bool? = nil) async {
-        if let isLoading = isLoading { self.isLoadingInsights = isLoading }
+    private func handleInsightsError(message: String?, userID: String, requestID: UUID) {
+        guard isActiveAccount(userID), analysisRequestID == requestID else { return }
         if let message = message { self.currentInsights = [UserInsight(title: "Insight Error", message: message, category: .nutritionGeneral)] }
         self.isLoadingInsights = false
     }
@@ -510,12 +601,15 @@ public class InsightsService: ObservableObject {
 
     // MARK: - Maia Operator Logic
     public func processOperatorMessage(message: String, context: String) async -> MaiaOperatorResponse? {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return nil }
+        activateCurrentAccountIfNeeded(userID)
         let prompt = InsightsRules.createOperatorPrompt(message: message, context: context)
 
         guard let responseString = await fetchAIResponse(prompt: prompt),
               let data = responseString.data(using: .utf8) else {
             return nil
         }
+        guard isActiveAccount(userID) else { return nil }
 
         do {
             let decoded = try JSONDecoder().decode(MaiaOperatorResponse.self, from: data)
@@ -528,7 +622,9 @@ public class InsightsService: ObservableObject {
     }
 
     public func executeOperatorActions(_ actions: [MaiaOperatorAction], userID: String) async {
+        guard isActiveAccount(userID) else { return }
         for action in actions {
+            guard isActiveAccount(userID) else { return }
             switch action.actionType {
             case "log_food":
                 guard let name = action.foodName, let cals = action.calories else { continue }

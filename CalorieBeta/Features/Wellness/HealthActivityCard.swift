@@ -13,6 +13,8 @@ struct HealthActivityCard: View {
         Group {
             if healthViewModel.hasSyncedHealthData {
                 connectedContent
+            } else if hasRequestedAppleHealthAccess || healthViewModel.isAuthorized {
+                awaitingDataContent
             } else {
                 connectContent
             }
@@ -28,11 +30,23 @@ struct HealthActivityCard: View {
 
     private var connectedContent: some View {
         VStack(alignment: .leading, spacing: AppSpacing.group) {
-            AppSectionHeader(title: "Apple Health", subtitle: "Today") {
+            AppSectionHeader(title: "Apple Health", subtitle: "Today's device activity") {
                 Image(systemName: "heart.text.square.fill")
                     .appFont(size: 18, weight: .semibold)
                     .foregroundStyle(AppPalette.recovery)
                     .accessibilityHidden(true)
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                AppFreshnessLabel(healthFreshness)
+                Spacer(minLength: 0)
+                if healthFreshness.state == .aging || healthFreshness.state == .stale {
+                    Button("Refresh") {
+                        healthViewModel.fetchTodayPassiveData()
+                    }
+                    .appTextRole(.caption)
+                    .accessibilityHint("Reads today's Apple Health activity again")
+                }
             }
 
             AppMetricStrip(items: [
@@ -56,6 +70,46 @@ struct HealthActivityCard: View {
                     .appTextRole(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
+            }
+        }
+    }
+
+    private var awaitingDataContent: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Apple Health",
+                subtitle: "Access was requested, but MyFitPlate has not received readable activity yet."
+            ) {
+                Image(systemName: "heart.text.square")
+                    .appFont(size: 18, weight: .semibold)
+                    .foregroundStyle(AppPalette.recovery)
+                    .accessibilityHidden(true)
+            }
+
+            AppListRow(
+                icon: AppDataAvailabilityReason.notSynced.icon,
+                iconColor: AppPalette.caution,
+                title: AppDataAvailabilityReason.notSynced.title,
+                subtitle: "There may be no activity yet, a permission may be off, or Health is still syncing."
+            )
+            .appSurface(.quiet, padding: 0)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppSpacing.row) {
+                    refreshButton
+                    reviewAccessButton
+                }
+                VStack(spacing: AppSpacing.row) {
+                    refreshButton
+                    reviewAccessButton
+                }
+            }
+
+            if let authError = healthViewModel.authError, !authError.isEmpty {
+                Text(authError)
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.critical)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -124,6 +178,35 @@ struct HealthActivityCard: View {
                 : "Shows Apple's Health access request"
         )
         .accessibilityIdentifier("apple_health_connect_button")
+    }
+
+    private var refreshButton: some View {
+        Button {
+            healthViewModel.syncAllHealthData()
+        } label: {
+            Label("Try Sync Again", systemImage: "arrow.clockwise")
+        }
+        .buttonStyle(AppActionButtonStyle(.secondary))
+        .accessibilityIdentifier("apple_health_retry_sync")
+    }
+
+    private var reviewAccessButton: some View {
+        Button {
+            guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else { return }
+            UIApplication.shared.open(settingsURL)
+        } label: {
+            Label("Review Access", systemImage: "gear")
+        }
+        .buttonStyle(AppActionButtonStyle(.ghost))
+        .accessibilityIdentifier("apple_health_review_access")
+    }
+
+    private var healthFreshness: AppDataFreshness {
+        AppDataFreshness(
+            updatedAt: healthViewModel.lastSyncedAt,
+            currentFor: 15 * 60,
+            staleAfter: 2 * 60 * 60
+        )
     }
 }
 

@@ -40,12 +40,28 @@ struct HomeView: View {
                         }
                     } else {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("No data yet")
+                            Text(appDelegate.isPhoneReachable ? "No day data yet" : "Phone not connected")
                                 .font(.headline)
-                            Text("Open MyFitPlate on your phone to sync today.")
+                            Text(
+                                appDelegate.isPhoneReachable
+                                    ? "Open MyFitPlate on your phone, then sync again."
+                                    : "Open MyFitPlate on both devices to reconnect."
+                            )
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
+                    }
+
+                    TimelineView(.periodic(from: Date(), by: 60)) { context in
+                        WatchSyncStatusView(
+                            freshness: AppDataFreshness(
+                                updatedAt: appDelegate.lastSyncDate,
+                                now: context.date
+                            ),
+                            isPhoneReachable: appDelegate.isPhoneReachable,
+                            isPending: appDelegate.isSyncRequestPending,
+                            retry: appDelegate.requestSync
+                        )
                     }
 
                     VStack(spacing: 6) {
@@ -105,6 +121,76 @@ struct HomeView: View {
         case .proteinCatchUp: return WatchPalette.accentProtein
         case .trustReview, .steadyDay: return WatchPalette.brandForeground
         }
+    }
+}
+
+private struct WatchSyncStatusView: View {
+    let freshness: AppDataFreshness
+    let isPhoneReachable: Bool
+    let isPending: Bool
+    let retry: () -> Void
+
+    private var color: Color {
+        switch freshness.state {
+        case .stale: WatchPalette.accentSignal
+        case .current, .aging, .unavailable: .secondary
+        }
+    }
+
+    private var icon: String {
+        if !isPhoneReachable {
+            return "iphone.slash"
+        }
+        switch freshness.state {
+        case .current: return "checkmark.circle"
+        case .aging: return "arrow.triangle.2.circlepath"
+        case .stale: return "clock.badge.exclamationmark"
+        case .unavailable: return "iphone.and.arrow.forward"
+        }
+    }
+
+    private var message: String {
+        if !isPhoneReachable {
+            return "Phone not reachable"
+        }
+        if isPending {
+            return "Sync requested"
+        }
+        return freshness.shortLabel
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Label(message, systemImage: icon)
+                .font(.caption2)
+                .foregroundStyle(color)
+                .lineLimit(2)
+
+            Spacer(minLength: 2)
+
+            if freshness.state != .current || !isPhoneReachable {
+                Button(action: retry) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption.weight(.semibold))
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.plain)
+                .disabled(!isPhoneReachable || isPending)
+                .accessibilityLabel("Sync now")
+                .accessibilityHint(
+                    isPhoneReachable
+                        ? "Requests current data from MyFitPlate on your phone"
+                        : "Open MyFitPlate on your phone to make sync available"
+                )
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            color.opacity(freshness.state == .stale ? 0.12 : 0.07),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .accessibilityElement(children: .contain)
     }
 }
 

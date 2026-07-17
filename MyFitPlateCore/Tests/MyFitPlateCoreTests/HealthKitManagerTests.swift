@@ -10,11 +10,13 @@ final class HealthKitManagerTests: XCTestCase {
         super.setUp()
         mockStore = MockHealthStore()
         manager = HealthKitManager(store: mockStore)
+        ToastManager.shared.toast = nil
     }
 
     override func tearDown() {
         manager = nil
         mockStore = nil
+        ToastManager.shared.toast = nil
         super.tearDown()
     }
 
@@ -50,13 +52,11 @@ final class HealthKitManagerTests: XCTestCase {
     func testGetRequestStatusForAuthorization() {
         mockStore.authorizationStatusResult = .shouldRequest
         let exp = expectation(description: "Status completes")
-        var reqStatus: HKAuthorizationRequestStatus?
         manager.getRequestStatusForAuthorization(toShare: [], read: []) { status, _ in
-            reqStatus = status
+            XCTAssertEqual(status, .shouldRequest)
             exp.fulfill()
         }
         waitForExpectations(timeout: 1.0)
-        XCTAssertEqual(reqStatus, .shouldRequest)
     }
 
     func testFetchWorkouts() {
@@ -208,6 +208,22 @@ final class HealthKitManagerTests: XCTestCase {
         waitForExpectations(timeout: 1.0)
         XCTAssertEqual(mockStore.deletedObjectTypes.count, 4)
         XCTAssertEqual(mockStore.savedObjects.count, 2) // calories and carbs for new item
+    }
+
+    func testReplaceNutritionDoesNotDuplicateWhenOldSamplesCannotBeDeleted() {
+        mockStore.deleteError = NSError(domain: "HealthKitManagerTests", code: 17)
+        let oldItem = FoodItem(name: "Apple", calories: 80, protein: 0, carbs: 20, fats: 0, timestamp: Date())
+        let newItem = FoodItem(name: "Apple Large", calories: 120, protein: 0, carbs: 30, fats: 0, timestamp: Date())
+        let exp = expectation(description: "Replacement failure is surfaced")
+
+        manager.replaceNutrition(oldItem: oldItem, newItem: newItem)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            exp.fulfill()
+        }
+        waitForExpectations(timeout: 1.0)
+        XCTAssertTrue(mockStore.savedObjects.isEmpty, "A failed delete must not append corrected samples beside stale samples")
+        XCTAssertNotNil(ToastManager.shared.toast)
     }
 
     func testSaveWeightSample() {

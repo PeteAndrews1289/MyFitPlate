@@ -76,7 +76,7 @@ struct WellnessScoreDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .appSurface(.emphasized, radius: AppRadius.hero)
+        .appSurface(.interpreted, radius: AppRadius.hero)
         .accessibilityIdentifier("wellness_score_overview")
     }
 

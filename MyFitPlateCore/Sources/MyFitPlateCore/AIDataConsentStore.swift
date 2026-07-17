@@ -23,7 +23,7 @@ public final class AIDataConsentStore: @unchecked Sendable {
 
     private let defaults: UserDefaults
     private let lock = NSLock()
-    private let keyPrefix = "ai_data_consent_v1_"
+    private let keyPrefix = "ai_data_consent_v1"
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -33,7 +33,14 @@ public final class AIDataConsentStore: @unchecked Sendable {
         guard !userID.isEmpty else { return nil }
         lock.lock()
         defer { lock.unlock() }
-        guard let data = defaults.data(forKey: key(for: userID)),
+        guard let key = key(for: userID) else { return nil }
+        let legacyKey = legacyKey(for: userID)
+        if defaults.data(forKey: key) == nil,
+           let legacyData = defaults.data(forKey: legacyKey) {
+            defaults.set(legacyData, forKey: key)
+        }
+        defaults.removeObject(forKey: legacyKey)
+        guard let data = defaults.data(forKey: key),
               let consent = try? JSONDecoder().decode(AIDataConsent.self, from: data),
               consent.version == AIDataConsent.currentVersion else {
             return nil
@@ -54,19 +61,29 @@ public final class AIDataConsentStore: @unchecked Sendable {
         let consent = AIDataConsent(grantedAt: date, includesHealthData: includesHealthData)
         guard let data = try? JSONEncoder().encode(consent) else { return }
         lock.lock()
-        defaults.set(data, forKey: key(for: userID))
+        if let key = key(for: userID) {
+            defaults.set(data, forKey: key)
+        }
+        defaults.removeObject(forKey: legacyKey(for: userID))
         lock.unlock()
     }
 
     public func revoke(for userID: String) {
         guard !userID.isEmpty else { return }
         lock.lock()
-        defaults.removeObject(forKey: key(for: userID))
+        if let key = key(for: userID) {
+            defaults.removeObject(forKey: key)
+        }
+        defaults.removeObject(forKey: legacyKey(for: userID))
         lock.unlock()
     }
 
-    private func key(for userID: String) -> String {
-        keyPrefix + userID
+    private func key(for userID: String) -> String? {
+        AccountScopedStorageKey.make(prefix: keyPrefix, userID: userID)
+    }
+
+    private func legacyKey(for userID: String) -> String {
+        "ai_data_consent_v1_\(userID)"
     }
 }
 

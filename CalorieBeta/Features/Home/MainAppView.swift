@@ -282,7 +282,7 @@ struct CalorieBetaApp: App {
     init() {
         let launchStartedAt = Date()
         let launchArguments = ProcessInfo.processInfo.arguments
-        let isUITesting = launchArguments.contains("-ui-testing")
+        let isUITesting = AppRuntime.isUITesting(arguments: launchArguments)
         let isScreenshotMode = ScreenshotDemoMode.isEnabled
 
         #if ENABLE_APP_CHECK
@@ -320,43 +320,7 @@ struct CalorieBetaApp: App {
         let isDebugBuild = false
         #endif
         
-        if isUITesting {
-            let mockAuth = MockAuthService()
-            let mockDb = MockDatabaseService()
-            let mockCloud = MockCloudFunctionService()
-            let mockNutrition = MockNutritionRepository()
-            let mockWorkout = MockWorkoutRepository()
-            let mockSettings = MockSettingsRepository()
-            let mockAchievements = MockAchievementRepository()
-            #if DEBUG
-            if isScreenshotMode {
-                ScreenshotDemoData.prepareUserDefaults()
-                ScreenshotDemoData.configureRepositories(
-                    nutrition: mockNutrition,
-                    workout: mockWorkout,
-                    settings: mockSettings
-                )
-                ScreenshotDemoData.configureAchievementRepository(mockAchievements)
-            }
-            #endif
-            DIContainer.shared.configure(
-                authService: mockAuth,
-                databaseService: mockDb,
-                nutritionRepository: mockNutrition,
-                workoutRepository: mockWorkout,
-                groupRepository: MockGroupRepository(),
-                achievementRepository: mockAchievements,
-                settingsRepository: mockSettings,
-                reportsRepository: MockReportsRepository(),
-                postRepository: MockPostRepository(),
-                cloudFunctionService: mockCloud,
-                accountDeletionService: MockAccountDeletionService(),
-                analyticsManager: MockAnalyticsManager(),
-                crashManager: MockCrashManager(),
-                featureFlagService: FeatureFlagService(),
-                aiService: MockAIService()
-            )
-        } else {
+        let configureProductionDependencies = {
             let auth = FirebaseAuthService()
             let db = FirestoreDatabaseService()
             let cloud = FirebaseCloudFunctionService()
@@ -380,6 +344,48 @@ struct CalorieBetaApp: App {
             DIContainer.shared.communityBarcodeStore = FirestoreCommunityBarcodeStore()
         }
 
+        #if DEBUG
+        if isUITesting {
+            let mockAuth = MockAuthService()
+            let mockDb = MockDatabaseService()
+            let mockCloud = MockCloudFunctionService()
+            let mockNutrition = MockNutritionRepository()
+            let mockWorkout = MockWorkoutRepository()
+            let mockSettings = MockSettingsRepository()
+            let mockAchievements = MockAchievementRepository()
+            if isScreenshotMode {
+                ScreenshotDemoData.prepareUserDefaults()
+                ScreenshotDemoData.configureRepositories(
+                    nutrition: mockNutrition,
+                    workout: mockWorkout,
+                    settings: mockSettings
+                )
+                ScreenshotDemoData.configureAchievementRepository(mockAchievements)
+            }
+            DIContainer.shared.configure(
+                authService: mockAuth,
+                databaseService: mockDb,
+                nutritionRepository: mockNutrition,
+                workoutRepository: mockWorkout,
+                groupRepository: MockGroupRepository(),
+                achievementRepository: mockAchievements,
+                settingsRepository: mockSettings,
+                reportsRepository: MockReportsRepository(),
+                postRepository: MockPostRepository(),
+                cloudFunctionService: mockCloud,
+                accountDeletionService: MockAccountDeletionService(),
+                analyticsManager: MockAnalyticsManager(),
+                crashManager: MockCrashManager(),
+                featureFlagService: FeatureFlagService(),
+                aiService: MockAIService()
+            )
+        } else {
+            configureProductionDependencies()
+        }
+        #else
+        configureProductionDependencies()
+        #endif
+
         ReleaseHealth.configure(
             crashManager: DIContainer.shared.crashManager,
             analyticsManager: DIContainer.shared.analyticsManager,
@@ -400,7 +406,7 @@ struct CalorieBetaApp: App {
         let insightsSvc = InsightsService(dailyLogService: logService, goalSettings: goalsSvc, healthKitViewModel: hkViewModel)
         let plannerService = MealPlannerService(recipeService: recipes)
         let spotlightMgr = SpotlightManager()
-        let cycleSvc = CycleTrackingService()
+        let cycleSvc = CycleTrackingService(userID: DIContainer.shared.authService.currentUserID)
         let adaptiveSvc = AdaptiveGoalService()
         let pantrySvc = PantryService()
         let workoutSvc = WorkoutService()
@@ -494,8 +500,10 @@ struct ContentView: View {
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var connectivityManager: WatchConnectivityManager
     @EnvironmentObject var pantryService: PantryService
+    @EnvironmentObject var recipeService: RecipeService
     @EnvironmentObject var spotlightManager: SpotlightManager
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
+    @EnvironmentObject var cycleService: CycleTrackingService
 
     @State private var isLoadingUserState = true
     @State private var shouldShowOnboardingSurvey = false
@@ -545,6 +553,11 @@ struct ContentView: View {
             queueUITestDeepLinkIfNeeded()
             #endif
             checkUserStatusAndFirstLogin()
+            dailyLogService.activateAccount(currentUserID)
+            goalSettings.activateAccount(currentUserID)
+            insightsService.activateAccount(currentUserID)
+            recipeService.activateAccount(currentUserID)
+            cycleService.activateAccount(currentUserID)
             trainingFuelPlanStore.load(for: currentUserID)
             sendNutritionToWatchIfNeeded()
             syncTrainingFuelNotificationsIfNeeded()
@@ -554,6 +567,14 @@ struct ContentView: View {
             handleAppDidBecomeActive()
         }
         .onChange(of: appState.isUserLoggedIn) { _, isLoggedIn in
+            dailyLogService.activateAccount(isLoggedIn ? currentUserID : nil)
+            goalSettings.activateAccount(isLoggedIn ? currentUserID : nil)
+            insightsService.activateAccount(isLoggedIn ? currentUserID : nil)
+            recipeService.activateAccount(isLoggedIn ? currentUserID : nil)
+            if !isLoggedIn {
+                pantryService.stopListening()
+            }
+            cycleService.activateAccount(isLoggedIn ? currentUserID : nil)
             trainingFuelPlanStore.load(for: isLoggedIn ? currentUserID : nil)
             handleLoginStateChange(isLoggedIn: isLoggedIn)
             syncTrainingFuelNotificationsIfNeeded()
@@ -916,12 +937,14 @@ struct ContentView: View {
             self.shouldShowFirstSessionFoodSearch = false
             self.pantryService.stopListening()
             self.connectivityManager.clearWatchAccount()
+            FastingManager.shared.endFast()
+            NotificationManager.shared.cancelAccountNotifications()
         }
     }
     
     private func checkUserStatusAndFirstLogin() {
         self.isLoadingUserState = true
-        if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+        if AppRuntime.isUITesting() {
             DispatchQueue.main.async {
                 self.shouldShowOnboardingSurvey = false
                 self.isLoadingUserState = false
@@ -934,6 +957,7 @@ struct ContentView: View {
         if let userID = currentUserID {
              checkFirstLogin(userID: userID) { isFirstLogin in
                  DispatchQueue.main.async {
+                     guard self.currentUserID == userID, self.appState.isUserLoggedIn else { return }
                      self.shouldShowOnboardingSurvey = isFirstLogin
                      self.isLoadingUserState = false
                      if !isFirstLogin {
@@ -963,15 +987,17 @@ struct ContentView: View {
         if let userID = currentUserID {
             pantryService.startListening(userID: userID)
             goalSettings.loadUserGoals(userID: userID) {
+                guard self.currentUserID == userID, self.appState.isUserLoggedIn else { return }
                 self.goalSettings.loadWeightHistory()
+                self.insightsService.generateAndFetchInsights()
                 self.sendNutritionToWatchIfNeeded()
                 self.syncTrainingFuelNotificationsIfNeeded()
             }
             dailyLogService.fetchLog(for: userID, date: Date()) { _ in
+                guard self.currentUserID == userID, self.appState.isUserLoggedIn else { return }
                 self.sendNutritionToWatchIfNeeded()
                 self.syncTrainingFuelNotificationsIfNeeded()
             }
-            insightsService.generateAndFetchInsights()
             NotificationManager.shared.scheduleDailyLogReminderIfAuthorized()
         }
         
@@ -1075,59 +1101,46 @@ private struct FirstSessionChoiceView: View {
     let onViewed: () -> Void
 
     var body: some View {
-        ZStack {
-            AnimatedBackgroundView()
+        AppSheetScaffold(
+            title: "Start with your first win",
+            subtitle: "Give today a real baseline. You can change or add anything later.",
+            dismiss: onExplore
+        ) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    Label {
+                        Text("Two useful ways to begin")
+                            .appTextRole(.control)
+                    } icon: {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(AppPalette.brandText)
+                    }
+                    .accessibilityAddTraits(.isHeader)
 
-            VStack(spacing: 22) {
-                VStack(spacing: 10) {
-                    Image(systemName: "checkmark.seal.fill")
-                        .appFont(size: 28, weight: .bold)
-                        .foregroundColor(.brandForeground)
-                        .frame(width: 62, height: 62)
-                        .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                    VStack(spacing: AppSpacing.row) {
+                        firstSessionOption(
+                            icon: "square.and.arrow.down",
+                            title: "Import my history",
+                            subtitle: "Bring MyFitnessPal diary and weight history into MyFitPlate.",
+                            color: AppPalette.brandText,
+                            action: onImportHistory
+                        )
 
-                    Text("Start with your first win")
-                        .appFont(size: 28, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .multilineTextAlignment(.center)
+                        firstSessionOption(
+                            icon: "fork.knife",
+                            title: "Log my first meal",
+                            subtitle: "Open food search with barcode, camera, and Maia ready.",
+                            color: AppPalette.protein,
+                            action: onLogFirstMeal
+                        )
+                    }
 
-                    Text("Bring your history over or log one meal now so today has a real baseline.")
-                        .appFont(size: 15)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Explore first", action: onExplore)
+                        .buttonStyle(AppActionButtonStyle(.ghost))
                 }
-
-                VStack(spacing: 12) {
-                    firstSessionOption(
-                        icon: "square.and.arrow.down",
-                        title: "Import my history",
-                        subtitle: "Bring MyFitnessPal diary and weight history into MyFitPlate.",
-                        color: .brandPrimary,
-                        action: onImportHistory
-                    )
-
-                    firstSessionOption(
-                        icon: "fork.knife",
-                        title: "Log my first meal",
-                        subtitle: "Open food search with barcode, camera, and Maia options ready.",
-                        color: .accentProtein,
-                        action: onLogFirstMeal
-                    )
-                }
-
-                Button(action: onExplore) {
-                    Text("I'll explore first")
-                        .appFont(size: 14, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(Color.backgroundSecondary.opacity(0.7), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .buttonStyle(.plain)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
             }
-            .padding(24)
-            .frame(maxWidth: 540)
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
@@ -1136,36 +1149,43 @@ private struct FirstSessionChoiceView: View {
 
     private func firstSessionOption(icon: String, title: String, subtitle: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 14) {
+            HStack(spacing: AppSpacing.row) {
                 Image(systemName: icon)
-                    .appFont(size: 20, weight: .bold)
-                    .foregroundColor(color)
-                    .frame(width: 46, height: 46)
-                    .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .appFont(size: 18, weight: .semibold)
+                    .foregroundStyle(color)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        color.opacity(0.12),
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.text)
 
                     Text(subtitle)
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 0)
 
                 Image(systemName: "chevron.right")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                    .appFont(size: 12, weight: .semibold)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
-            .padding(14)
+            .padding(AppSpacing.group)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.backgroundSecondary.opacity(0.9), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(
+                AppPalette.surface,
+                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                    .stroke(AppPalette.separator, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

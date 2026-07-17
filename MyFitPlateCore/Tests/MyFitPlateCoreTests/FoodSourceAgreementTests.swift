@@ -176,6 +176,19 @@ final class FoodSourceAgreementTests: XCTestCase {
         XCTAssertEqual(verified.sourceMetadata?.validatedCrossVerifiedBy, ["USDA", "Open Food Facts"])
     }
 
+    func testHealthCanadaCanParticipateInValidatedAgreement() {
+        let item = food(calories: 165, protein: 31, carbs: 0, fats: 3.6, servingWeight: 100)
+            .withDatabaseSource(.fatSecret, sourceName: "FatSecret")
+
+        let verified = item.withCrossVerification(["Health Canada", "Canadian Nutrient File"])
+
+        XCTAssertEqual(verified.sourceMetadata?.validatedCrossVerifiedBy, ["Health Canada CNF"])
+        XCTAssertEqual(
+            verified.sourceMetadata?.validatedCrossVerificationEvidence.first?.sourceType,
+            .healthCanadaCNF
+        )
+    }
+
     func testCustomFoodCannotClaimIndependentCrossVerification() {
         var metadata = FoodSourceMetadata.userEntered(sourceName: "My Foods")
         metadata.sourceType = .custom

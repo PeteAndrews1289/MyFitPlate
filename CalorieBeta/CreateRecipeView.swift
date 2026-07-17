@@ -460,6 +460,10 @@ struct CreateRecipeView: View {
                 success = await saveManualRecipe(for: userID)
             }
 
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                isLoading = false
+                return
+            }
             isLoading = false
             if success {
                 bannerService.showBanner(

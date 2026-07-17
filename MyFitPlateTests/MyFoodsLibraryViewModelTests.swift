@@ -6,10 +6,11 @@ import XCTest
 final class MyFoodsLibraryViewModelTests: XCTestCase {
     private var repository: MockNutritionRepository!
     private var store: CustomFoodStore!
+    private var auth: MockAuthService!
 
     override func setUp() {
         super.setUp()
-        let auth = MockAuthService()
+        auth = MockAuthService()
         auth.currentUserID = "library-user"
         repository = MockNutritionRepository()
         DIContainer.shared.authService = auth
@@ -93,6 +94,26 @@ final class MyFoodsLibraryViewModelTests: XCTestCase {
         wait(for: [completion], timeout: 2)
         XCTAssertEqual(Set(model.savedFoods.map(\.id)), Set([group.keeper.id, distinct.id]))
         XCTAssertEqual(repository.mergedCustomFoodOperations.count, 1)
+    }
+
+    func testEditCompletingAfterAccountSwitchCannotChangeVisibleLibrary() {
+        repository.customFoodDelayNanoseconds = 100_000_000
+        let original = food(id: "food", name: "Original")
+        let edited = food(id: "food", name: "Edited")
+        let model = MyFoodsLibraryViewModel(
+            initialFoods: [original],
+            startsLoading: false
+        )
+        let completion = expectation(description: "stale edit is rejected")
+
+        model.saveEditedFood(edited, using: store) { success in
+            XCTAssertFalse(success)
+            completion.fulfill()
+        }
+        auth.currentUserID = "different-library-user"
+
+        wait(for: [completion], timeout: 2)
+        XCTAssertEqual(model.savedFoods.first?.name, "Original")
     }
 
     private func food(

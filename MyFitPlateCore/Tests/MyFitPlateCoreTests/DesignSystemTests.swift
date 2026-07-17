@@ -55,6 +55,7 @@ final class DesignSystemTests: XCTestCase {
     func testVisualSystemComponentsCanBeConstructed() {
         let text = Text("Test").appTextRole(.body)
         let surface = EmptyView().appSurface(.quiet)
+        let interpretedSurface = EmptyView().appSurface(.interpreted)
         let primary = Button("Continue") {}.buttonStyle(AppActionButtonStyle(.primary))
         let secondary = Button("Later") {}.buttonStyle(AppActionButtonStyle(.secondary))
         let icon = Button {} label: { Image(systemName: "xmark") }
@@ -67,11 +68,18 @@ final class DesignSystemTests: XCTestCase {
         ])
         let row = AppListRow(icon: "magnifyingglass", title: "Search food", subtitle: "Find from the food database")
         let sheet = AppSheetScaffold(title: "Quick Log", dismiss: {}) { EmptyView() }
+        let editor = AppEditorScaffold(title: "Edit food", dismiss: {}) {
+            EmptyView()
+        } actions: {
+            Button("Save") {}
+        }
         let badge = AppStatusBadge("Recovering", icon: "clock", role: .recovery)
         let progress = AppProgressTrack(progress: 0.64, role: .effort)
+        let freshness = AppFreshnessLabel(AppDataFreshness(updatedAt: Date()))
 
         XCTAssertNotNil(text)
         XCTAssertNotNil(surface)
+        XCTAssertNotNil(interpretedSurface)
         XCTAssertNotNil(primary)
         XCTAssertNotNil(secondary)
         XCTAssertNotNil(icon)
@@ -80,7 +88,29 @@ final class DesignSystemTests: XCTestCase {
         XCTAssertNotNil(metrics.body)
         XCTAssertNotNil(row.body)
         XCTAssertNotNil(sheet.body)
+        XCTAssertNotNil(editor.body)
         XCTAssertNotNil(badge.body)
         XCTAssertNotNil(progress.body)
+        XCTAssertNotNil(freshness.body)
+    }
+
+    func testDataFreshnessStatesAndLabels() {
+        let now = Date(timeIntervalSince1970: 10_000)
+
+        let current = AppDataFreshness(updatedAt: now.addingTimeInterval(-30), now: now)
+        XCTAssertEqual(current.state, .current)
+        XCTAssertEqual(current.shortLabel, "Updated now")
+
+        let aging = AppDataFreshness(updatedAt: now.addingTimeInterval(-45 * 60), now: now)
+        XCTAssertEqual(aging.state, .aging)
+        XCTAssertEqual(aging.shortLabel, "Updated 45m ago")
+
+        let stale = AppDataFreshness(updatedAt: now.addingTimeInterval(-3 * 60 * 60), now: now)
+        XCTAssertEqual(stale.state, .stale)
+        XCTAssertEqual(stale.shortLabel, "Updated 3h ago")
+
+        let unavailable = AppDataFreshness(updatedAt: nil, now: now)
+        XCTAssertEqual(unavailable.state, .unavailable)
+        XCTAssertEqual(unavailable.shortLabel, "Not synced")
     }
 }

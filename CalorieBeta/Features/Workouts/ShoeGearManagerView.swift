@@ -312,65 +312,197 @@ private struct AddShoeModal: View {
     @State private var name = ""
     @State private var initialMileage = ""
     @State private var maxMileage = "350"
+    @State private var hasPreparedUnits = false
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    private var canSave: Bool {
+        !brand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var distanceUnit: String {
+        useMetric ? "km" : "mi"
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("Shoe Details")) {
-                    TextField("Brand (e.g. Nike, Hoka, Brooks)", text: $brand)
-                        .appFont(size: 16)
-                    TextField("Model Name (e.g. Pegasus 40, Clifton 9)", text: $name)
-                        .appFont(size: 16)
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    shoeSetupHeader
 
-                Section(header: Text("Mileage Tracking (\(useMetric ? "km" : "miles"))"), footer: Text("Default recommended replacement limit is ~350 miles (560 km).")) {
-                    mileageField(label: "Initial Mileage", placeholder: "0", value: $initialMileage)
-                    mileageField(label: "Max Limit (\(useMetric ? "km" : "mi"))", placeholder: "350", value: $maxMileage)
+                    shoeDetailsSection
+                    mileageSection
                 }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.group)
             }
-            .scrollContentBackground(.hidden)
-            .background(AppPalette.canvas)
-            .navigationTitle("Add New Shoe")
+            .scrollDismissesKeyboard(.interactively)
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Shoe Setup")
             .navigationBarTitleDisplayMode(.inline)
             .accessibilityIdentifier("add_shoe_screen")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .appTextRole(.control)
+                        .tint(AppPalette.brand)
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        saveShoe()
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button(action: saveShoe) {
+                    Label("Save Shoe", systemImage: "checkmark")
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(!canSave)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.row)
+                .padding(.bottom, AppSpacing.compact)
+                .background(AppPalette.canvas.ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AppPalette.separator)
+                        .frame(height: 1)
+                }
+                .accessibilityIdentifier("add_shoe_save")
+            }
+        }
+        .onAppear(perform: prepareUnitDefaults)
+    }
+
+    private var shoeSetupHeader: some View {
+        HStack(alignment: .top, spacing: AppSpacing.group) {
+            VStack(alignment: .leading, spacing: 4) {
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Text("RUNNING GEAR")
+                        .appFont(size: 11, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+
+                Text("Add a Shoe")
+                    .appFont(size: 28, weight: .bold)
+                    .foregroundStyle(AppPalette.text)
+
+                Text("Track mileage automatically and know when a pair is nearing its replacement range.")
+                    .appFont(size: 13, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: 0)
+
+            Image(systemName: "figure.run")
+                .appFont(size: 21, weight: .bold)
+                .foregroundStyle(AppPalette.effort)
+                .frame(width: 54, height: 54)
+                .background(
+                    AppPalette.effort.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                )
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var shoeDetailsSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            ShoeSetupSectionHeader(
+                title: "Identity",
+                subtitle: "This is how the shoe will appear in run history."
+            )
+
+            ShoeSetupField(title: "Brand", icon: "building.2.fill") {
+                TextField("Nike, Hoka, Brooks", text: $brand)
+                    .textInputAutocapitalization(.words)
+                    .accessibilityIdentifier("add_shoe_brand")
+            }
+
+            ShoeSetupField(title: "Model", icon: "shoeprints.fill") {
+                TextField("Pegasus 40, Clifton 9", text: $name)
+                    .textInputAutocapitalization(.words)
+                    .accessibilityIdentifier("add_shoe_name")
+            }
+        }
+        .appSurface(.quiet)
+    }
+
+    private var mileageSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            ShoeSetupSectionHeader(
+                title: "Mileage Tracking",
+                subtitle: "Start from the distance already on this pair, then choose a replacement reminder."
+            )
+
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: AppSpacing.row) {
+                        mileageField(
+                            title: "Current Mileage",
+                            icon: "gauge.with.dots.needle.33percent",
+                            placeholder: "0",
+                            value: $initialMileage
+                        )
+                        mileageField(
+                            title: "Replacement Range",
+                            icon: "flag.checkered",
+                            placeholder: useMetric ? "560" : "350",
+                            value: $maxMileage
+                        )
                     }
-                    .appTextRole(.control)
-                    .disabled(brand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                } else {
+                    HStack(alignment: .top, spacing: AppSpacing.row) {
+                        mileageField(
+                            title: "Current Mileage",
+                            icon: "gauge.with.dots.needle.33percent",
+                            placeholder: "0",
+                            value: $initialMileage
+                        )
+                        mileageField(
+                            title: "Replacement Range",
+                            icon: "flag.checkered",
+                            placeholder: useMetric ? "560" : "350",
+                            value: $maxMileage
+                        )
+                    }
                 }
+            }
+
+            Label(
+                "Most running shoes are replaced around 350 mi (560 km), but comfort and wear still matter.",
+                systemImage: "info.circle.fill"
+            )
+            .appFont(size: 11, weight: .semibold)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .appSurface(.quiet)
+    }
+
+    private func mileageField(
+        title: String,
+        icon: String,
+        placeholder: String,
+        value: Binding<String>
+    ) -> some View {
+        ShoeSetupField(title: title, icon: icon) {
+            HStack(spacing: AppSpacing.compact) {
+                TextField(placeholder, text: value)
+                    .keyboardType(.decimalPad)
+
+                Spacer()
+
+                Text(distanceUnit)
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundStyle(.secondary)
             }
         }
     }
 
-    @ViewBuilder
-    private func mileageField(label: String, placeholder: String, value: Binding<String>) -> some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                Text(label)
-                    .appTextRole(.body)
-                TextField(placeholder, text: value)
-                    .keyboardType(.decimalPad)
-            }
-        } else {
-            HStack {
-                Text(label)
-                    .appTextRole(.body)
-                Spacer()
-                TextField(placeholder, text: value)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 100)
-            }
-        }
+    private func prepareUnitDefaults() {
+        guard !hasPreparedUnits else { return }
+        hasPreparedUnits = true
+        maxMileage = useMetric ? "560" : "350"
     }
 
     private func saveShoe() {
@@ -396,5 +528,59 @@ private struct AddShoeModal: View {
         shoeStore.addShoe(newShoe)
         HapticManager.instance.notification(.success)
         dismiss()
+    }
+}
+
+private struct ShoeSetupField<Content: View>: View {
+    let title: String
+    let icon: String
+    private let content: Content
+
+    init(title: String, icon: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.icon = icon
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Label(title, systemImage: icon)
+                .appFont(size: 11, weight: .semibold)
+                .foregroundStyle(.secondary)
+
+            content
+                .appFont(size: 16)
+                .foregroundStyle(AppPalette.text)
+                .padding(.horizontal, AppSpacing.row)
+                .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+                .background(
+                    AppPalette.canvas,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        .stroke(AppPalette.separator, lineWidth: 1)
+                }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ShoeSetupSectionHeader: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .appFont(size: 18, weight: .bold)
+                .foregroundStyle(AppPalette.text)
+
+            Text(subtitle)
+                .appFont(size: 13, weight: .medium)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

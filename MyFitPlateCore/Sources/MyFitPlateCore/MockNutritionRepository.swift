@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 import Combine
 
@@ -13,13 +14,28 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
     public var updateLogSuccess: Bool = true
     public var mockFetchLogResult: Result<DailyLog, Error>?
     public var mockFetchDailyHistoryResult: Result<[DailyLog], Error>?
+    public var mockFetchDailyHistoryResultsByUserID: [String: Result<[DailyLog], Error>] = [:]
+    public var fetchDailyHistoryDelayNanoseconds: UInt64 = 0
+    public var mockFetchDailyHistoryResultsByStartDate: [Date: Result<[DailyLog], Error>] = [:]
+    public var fetchDailyHistoryDelayNanosecondsByStartDate: [Date: UInt64] = [:]
     public var mockLogsByDay: [DailyLog] = []
     public var filtersHistoryByRequestedRange = false
     public var mockRecommendedFoods: [FoodItem] = []
+    public var shouldDeferRecommendedFoodCallbacks = false
+    public var recommendedFoodCallbacks: [(Result<[FoodItem], Error>) -> Void] = []
+    public var shouldDeferLogSnapshotCallbacks = false
+    public var logSnapshotListenerUserIDs: [String] = []
+    public var logSnapshotCallbacks: [String: (Result<DailyLog, Error>) -> Void] = [:]
+    public var shouldDeferDailyLogUpdateCompletions = false
+    public var deferredDailyLogUpdateCompletions: [(Bool) -> Void] = []
     
     public func updateDailyLog(userID: String, log: DailyLog, completion: @escaping (Bool) -> Void) {
         lastUpdatedLog = log
-        completion(updateLogSuccess)
+        if shouldDeferDailyLogUpdateCompletions {
+            deferredDailyLogUpdateCompletions.append(completion)
+        } else {
+            completion(updateLogSuccess)
+        }
     }
     public func saveDailyLog(userID: String, log: DailyLog) async throws {
         if let saveDailyLogError { throw saveDailyLogError }
@@ -38,7 +54,11 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
         }
     }
     public func addLogSnapshotListener(userID: String, date: Date, onChange: @escaping (Result<DailyLog, Error>) -> Void) -> Any { 
-        if let result = mockFetchLogResult {
+        logSnapshotListenerUserIDs.append(userID)
+        logSnapshotCallbacks[userID] = onChange
+        if shouldDeferLogSnapshotCallbacks {
+            return UUID()
+        } else if let result = mockFetchLogResult {
             onChange(result)
         } else if let log = mockLogsByDay.first(where: { Calendar.current.isDate($0.date, inSameDayAs: date) }) {
             onChange(.success(log))
@@ -49,8 +69,23 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
         return UUID() 
     }
     public func removeLogSnapshotListener(_ handle: Any) {}
+    public func emitLogSnapshot(_ result: Result<DailyLog, Error>, for userID: String) {
+        logSnapshotCallbacks[userID]?(result)
+    }
+    public func completeDeferredDailyLogUpdates(success: Bool? = nil) {
+        let completions = deferredDailyLogUpdateCompletions
+        deferredDailyLogUpdateCompletions = []
+        completions.forEach { $0(success ?? updateLogSuccess) }
+    }
     public func fetchDailyHistory(userID: String, startDate: Date?, endDate: Date?) async throws -> [DailyLog] { 
-        if let mock = mockFetchDailyHistoryResult {
+        let normalizedStartDate = startDate.map { Calendar.current.startOfDay(for: $0) }
+        let requestDelay = normalizedStartDate.flatMap { fetchDailyHistoryDelayNanosecondsByStartDate[$0] }
+            ?? fetchDailyHistoryDelayNanoseconds
+        if requestDelay > 0 {
+            try await Task.sleep(nanoseconds: requestDelay)
+        }
+        let dateResult = normalizedStartDate.flatMap { mockFetchDailyHistoryResultsByStartDate[$0] }
+        if let mock = dateResult ?? mockFetchDailyHistoryResultsByUserID[userID] ?? mockFetchDailyHistoryResult {
             let logs = try mock.get()
             guard filtersHistoryByRequestedRange else { return logs }
             let calendar = Calendar.current
@@ -64,31 +99,69 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
         return [] 
     }
     public func fetchRecommendedFoods(userID: String, mealName: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        completion(.success(mockRecommendedFoods))
+        if shouldDeferRecommendedFoodCallbacks {
+            recommendedFoodCallbacks.append(completion)
+        } else {
+            completion(.success(mockRecommendedFoods))
+        }
+    }
+    public func completeDeferredRecommendedFoodFetches(with result: Result<[FoodItem], Error>? = nil) {
+        let callbacks = recommendedFoodCallbacks
+        recommendedFoodCallbacks = []
+        let resolvedResult = result ?? .success(mockRecommendedFoods)
+        callbacks.forEach { $0(resolvedResult) }
     }
     public var mockFetchMealPlanResult: MealPlanDay?
     public var mockMealPlansByDateString: [String: MealPlanDay] = [:]
     public var mockFetchGroceryListResult: [GroceryListItem] = []
     public var savedMealPlans: [MealPlanDay] = []
     public var savedGroceryLists: [GroceryListItem] = []
+    public var grocerySaveSnapshots: [[GroceryListItem]] = []
+    public var grocerySaveDelayNanoseconds: UInt64 = 0
+    public var groceryListError: Error?
     public var batchSavedMealPlans: [MealPlanDay] = []
+    public var discardedMealPlanDateStrings: [String] = []
+    public var discardedMealPlanUserIDs: [String] = []
+    public var mealPlanError: Error?
     
     public func fetchMealPlan(userID: String, dateString: String) async throws -> MealPlanDay? { 
+        if let mealPlanError { throw mealPlanError }
         return mockMealPlansByDateString[dateString] ?? mockFetchMealPlanResult
     }
     public func saveMealPlan(userID: String, plan: MealPlanDay) async throws {
+        if let mealPlanError { throw mealPlanError }
         savedMealPlans.append(plan)
     }
     public func saveFullMealPlanBatch(userID: String, plans: [MealPlanDay]) async throws {
+        if let mealPlanError { throw mealPlanError }
         batchSavedMealPlans.append(contentsOf: plans)
     }
+    public func discardMealPlans(
+        userID: String,
+        dateStrings: [String],
+        retainingGroceryItems: [GroceryListItem]
+    ) async throws {
+        if let mealPlanError { throw mealPlanError }
+        discardedMealPlanUserIDs.append(userID)
+        discardedMealPlanDateStrings = dateStrings
+        dateStrings.forEach { mockMealPlansByDateString.removeValue(forKey: $0) }
+        savedGroceryLists = retainingGroceryItems
+        mockFetchGroceryListResult = retainingGroceryItems
+    }
     public func fetchGroceryList(userID: String) async throws -> [GroceryListItem] { 
+        if let groceryListError { throw groceryListError }
         return mockFetchGroceryListResult 
     }
     public func saveGroceryList(userID: String, items: [GroceryListItem]) async throws {
+        if grocerySaveDelayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: grocerySaveDelayNanoseconds)
+        }
+        grocerySaveSnapshots.append(items)
         savedGroceryLists = items
     }
     public var mockPantrySnapshotResult: Result<[PantryItem], Error>?
+    public var shouldDeferPantrySnapshotCallbacks = false
+    public var pantrySnapshotCallbacks: [String: (Result<[PantryItem], Error>) -> Void] = [:]
     public var pantryListenerUserIDs: [String] = []
     public var removedPantryListenerHandles: [Any] = []
     public var savedPantryItems: [PantryItem] = []
@@ -99,12 +172,19 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
 
     public func addPantrySnapshotListener(userID: String, onChange: @escaping (Result<[PantryItem], Error>) -> Void) -> Any {
         pantryListenerUserIDs.append(userID)
-        if let mockPantrySnapshotResult {
+        pantrySnapshotCallbacks[userID] = onChange
+        if shouldDeferPantrySnapshotCallbacks {
+            return UUID()
+        } else if let mockPantrySnapshotResult {
             onChange(mockPantrySnapshotResult)
         } else {
             onChange(.success([]))
         }
         return UUID()
+    }
+
+    public func emitPantrySnapshot(_ result: Result<[PantryItem], Error>, for userID: String) {
+        pantrySnapshotCallbacks[userID]?(result)
     }
 
     public func removePantrySnapshotListener(_ handle: Any) {
@@ -143,7 +223,11 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
     public var mergedCustomFoodOperations: [(keeping: String, removing: [String])] = []
     public var customFoodsToReturn: [FoodItem] = []
     public var customFoodError: Error?
+    public var customFoodDelayNanoseconds: UInt64 = 0
     public func saveCustomFood(userID: String, foodItem: FoodItem) async throws {
+        if customFoodDelayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: customFoodDelayNanoseconds)
+        }
         if let customFoodError { throw customFoodError }
         savedCustomFoods.append(foodItem)
     }
@@ -153,8 +237,10 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
         removingFoodIDs: [String]
     ) async throws {
         if let customFoodError { throw customFoodError }
-        savedCustomFoods.append(foodItem)
-        replacedCustomFoodOperations.append((foodItem, removingFoodIDs))
+        lock.withLock {
+            savedCustomFoods.append(foodItem)
+            replacedCustomFoodOperations.append((foodItem, removingFoodIDs))
+        }
     }
     public func deleteCustomFood(userID: String, foodItemID: String) async throws {
         if let customFoodError { throw customFoodError }
@@ -169,6 +255,9 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
         mergedCustomFoodOperations.append((keepingFoodID, removingFoodIDs))
     }
     public func fetchCustomFoods(userID: String) async throws -> [FoodItem] {
+        if customFoodDelayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: customFoodDelayNanoseconds)
+        }
         if let customFoodError { throw customFoodError }
         return customFoodsToReturn
     }
@@ -188,3 +277,4 @@ public final class MockNutritionRepository: NutritionRepositoryProtocol, @unchec
         return Array(recentFoodsToReturn.prefix(limit))
     }
 }
+#endif

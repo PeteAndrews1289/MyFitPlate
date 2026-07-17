@@ -8,22 +8,34 @@ struct LandingPageView: View {
         VStack(alignment: .leading, spacing: AppSpacing.section) {
             Spacer()
 
-            MyFitPlateLaunchMark()
+            MyFitPlateLaunchMark(treatment: .launch)
                 .accessibilityHidden(true)
 
-            AppScreenHeader(
-                eyebrow: "MyFitPlate",
-                title: errorMessage == nil ? "Preparing your day" : "We couldn't load your account",
-                subtitle: errorMessage ?? "Loading your goals, recent meals, and training context."
-            )
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                Text("MYFITPLATE")
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.launchForeground.opacity(0.82))
+
+                Text(errorMessage == nil ? "Preparing your day" : "We couldn't load your account")
+                    .appTextRole(.display)
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(errorMessage ?? "Loading your goals, recent meals, and training context.")
+                    .appTextRole(.body)
+                    .foregroundStyle(.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
 
             if errorMessage == nil {
                 ProgressView()
-                    .tint(AppPalette.brand)
+                    .tint(AppPalette.launchForeground)
                     .accessibilityLabel("Loading account")
             } else {
                 Button("Try again", action: loadData)
-                    .buttonStyle(AppActionButtonStyle(.secondary))
+                    .buttonStyle(AppActionButtonStyle(.primary))
             }
 
             Spacer()
@@ -31,7 +43,7 @@ struct LandingPageView: View {
         .padding(.horizontal, AppSpacing.screenHorizontal)
         .padding(.vertical, AppSpacing.section)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppPalette.canvas.ignoresSafeArea())
+        .background(AppPalette.launchBackground.ignoresSafeArea())
         .accessibilityIdentifier("account_loading_screen")
         .onAppear(perform: loadData)
     }
@@ -47,14 +59,33 @@ struct LandingPageView: View {
 }
 
 struct MyFitPlateLaunchMark: View {
+    enum Treatment {
+        case standard
+        case launch
+    }
+
+    let treatment: Treatment
+
+    init(treatment: Treatment = .standard) {
+        self.treatment = treatment
+    }
+
     var body: some View {
         Text("MFP")
             .font(.system(size: 25, weight: .bold, design: .rounded))
-            .foregroundStyle(Color(red: 0.66, green: 0.90, blue: 0.77))
+            .foregroundStyle(foregroundColor)
             .frame(width: 76, height: 76)
             .background(
-                Color(red: 0.07, green: 0.24, blue: 0.18),
+                backgroundColor,
                 in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
             )
+    }
+
+    private var foregroundColor: Color {
+        treatment == .launch ? AppPalette.launchBackground : AppPalette.launchForeground
+    }
+
+    private var backgroundColor: Color {
+        treatment == .launch ? AppPalette.launchForeground : AppPalette.launchBackground
     }
 }

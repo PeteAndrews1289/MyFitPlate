@@ -166,6 +166,7 @@ public enum FoodSearchRanking {
         usda: [FoodItem],
         healthCanada: [FoodItem] = [],
         openFoodFacts: [FoodItem] = [],
+        query: String = "",
         usdaLimit: Int = 8,
         healthCanadaLimit: Int = 8,
         openFoodFactsLimit: Int = 10
@@ -195,7 +196,60 @@ public enum FoodSearchRanking {
         merge(usda, additionLimit: usdaLimit)
         merge(healthCanada, additionLimit: healthCanadaLimit)
         merge(openFoodFacts, additionLimit: openFoodFactsLimit)
-        return merged
+        return attachingCrossSourceAgreement(
+            to: merged,
+            query: query,
+            candidates: fatSecret + usda + healthCanada + openFoodFacts
+        )
+    }
+
+    private static func attachingCrossSourceAgreement(
+        to foods: [FoodItem],
+        query: String,
+        candidates: [FoodItem]
+    ) -> [FoodItem] {
+        let normalizedQuery = normalized(query)
+        let queryTokens = tokens(normalizedQuery)
+        let queryTokenSet = Set(queryTokens)
+
+        return foods.map { primary in
+            let primaryName = normalized(primary.name)
+            let primaryTokens = Set(tokens(primaryName))
+            let eligibleCandidates = candidates.compactMap { candidate -> (String, FoodItem?)? in
+                guard candidate.id != primary.id,
+                      let sourceName = candidate.sourceMetadata?.sourceName else {
+                    return nil
+                }
+
+                let candidateName = normalized(candidate.name)
+                let namesMatch: Bool
+                if queryTokens.isEmpty {
+                    namesMatch = primaryName == candidateName
+                } else {
+                    let candidateTokens = Set(tokens(candidateName))
+                    let bothMatchQuery = queryTokenSet.isSubset(of: primaryTokens) &&
+                        queryTokenSet.isSubset(of: candidateTokens)
+                    let sharedDescriptors = primaryTokens
+                        .intersection(candidateTokens)
+                        .subtracting(queryTokenSet)
+                    namesMatch = bothMatchQuery && (
+                        queryTokens.count > 1 ||
+                        primaryName == candidateName ||
+                        !sharedDescriptors.isEmpty
+                    )
+                }
+                return namesMatch ? (sourceName, candidate) : nil
+            }
+
+            let newEvidence = FoodSourceAgreement.agreeingEvidence(
+                primary: primary,
+                candidates: eligibleCandidates
+            )
+            guard !newEvidence.isEmpty else { return primary }
+
+            let existingEvidence = primary.sourceMetadata?.validatedCrossVerificationEvidence ?? []
+            return primary.withCrossVerificationEvidence(existingEvidence + newEvidence)
+        }
     }
 
     /// Builds the item a quick-log should record once food details have been fetched.

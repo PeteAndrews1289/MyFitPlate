@@ -149,6 +149,38 @@ struct FoodDetailNoticeCard: View {
     }
 }
 
+struct LabelScanFailureCard: View {
+    let retry: () -> Void
+    let continueManually: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Label("Label details were not clear enough", systemImage: "doc.text.viewfinder")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+
+            Text("Try a flatter, brighter photo with the full Nutrition Facts panel visible. Your current serving and nutrient values have not been changed.")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: AppSpacing.compact) {
+                Button("Try Another Photo", action: retry)
+                    .buttonStyle(AppActionButtonStyle(.secondary, fillsWidth: false))
+                Button("Edit Manually", action: continueManually)
+                    .buttonStyle(AppActionButtonStyle(.ghost, fillsWidth: false))
+            }
+        }
+        .appSurface(.quiet)
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                .stroke(AppPalette.caution.opacity(0.45), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("label_scan_failure")
+    }
+}
+
 struct FoodDetailLabelScanCard: View {
     let action: () -> Void
 

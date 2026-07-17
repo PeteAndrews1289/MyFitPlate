@@ -114,7 +114,7 @@ struct DetailedInsightsView: View {
                 accent: AppPalette.caution
             )
         ])
-        .appSurface(.emphasized)
+        .appSurface(.interpreted)
         .accessibilityIdentifier("maia_insights_summary")
     }
 
@@ -217,7 +217,7 @@ private struct LeadInsightView: View {
                 sourceDisclosure(source)
             }
         }
-        .appSurface(.emphasized)
+        .appSurface(.interpreted)
         .accessibilityIdentifier("maia_insights_lead")
     }
 

@@ -562,7 +562,9 @@ private struct AddRecipeToPlanSheet: View {
 
     private func loadExistingPlan() async {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
-        existingPlan = await mealPlannerService.fetchPlan(for: selectedDate, userID: userID)
+        let plan = await mealPlannerService.fetchPlan(for: selectedDate, userID: userID)
+        guard DIContainer.shared.authService.currentUserID == userID else { return }
+        existingPlan = plan
     }
 
     private func saveToPlan() {
@@ -577,14 +579,32 @@ private struct AddRecipeToPlanSheet: View {
         Task { @MainActor in
             var plan = await mealPlannerService.fetchPlan(for: selectedDate, userID: userID)
                 ?? emptyPlan(for: selectedDate)
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                isSaving = false
+                return
+            }
             if replaceExistingMealType {
                 plan.meals.removeAll { mealTypeMatches($0.mealType, selectedMealType) }
             }
             plan.meals.append(plannedMeal)
             plan.meals.sort(by: sortMeals)
 
-            await mealPlannerService.savePlan(plan, for: userID)
+            let didSave = await mealPlannerService.savePlan(plan, for: userID)
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                isSaving = false
+                return
+            }
+            guard didSave else {
+                isSaving = false
+                alertMessage = "Your recipe and meal-slot choices are still here. Check your connection, then try again."
+                HapticManager.instance.notification(.warning)
+                return
+            }
             await mealPlannerService.refreshGroceryList(for: userID)
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                isSaving = false
+                return
+            }
             isSaving = false
             HapticManager.instance.feedback(.medium)
             dismiss()

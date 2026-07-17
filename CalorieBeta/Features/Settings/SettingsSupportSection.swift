@@ -1,8 +1,11 @@
 import SwiftUI
 import MyFitPlateCore
+import UIKit
 
 struct SettingsSupportSection: View {
     @Environment(\.openURL) private var openURL
+    @State private var showingSupportFallback = false
+    @State private var copiedSupportAddress = false
     @Binding var showingHealthDisclaimer: Bool
     @Binding var showingResetTourConfirmation: Bool
     @Binding var showingAIDataConsent: Bool
@@ -27,7 +30,7 @@ struct SettingsSupportSection: View {
 
                 Divider().padding(.leading, 50)
 
-                Link(destination: URL(string: "https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/privacy_policy.md")!) {
+                Link(destination: MyFitPlateLinks.privacyPolicyURL) {
                     SettingsLabel(
                         icon: "lock.shield.fill",
                         title: "Privacy & data",
@@ -52,7 +55,7 @@ struct SettingsSupportSection: View {
 
                 Divider().padding(.leading, 50)
 
-                Link(destination: URL(string: "https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/terms_of_service.md")!) {
+                Link(destination: MyFitPlateLinks.termsOfServiceURL) {
                     SettingsLabel(
                         icon: "doc.text.fill",
                         title: "Terms of service",
@@ -156,21 +159,43 @@ struct SettingsSupportSection: View {
             }
             .accessibilityIdentifier("settings_account_access")
         }
+        .sheet(isPresented: $showingSupportFallback) {
+            supportFallbackSheet
+        }
     }
 
     private func openFeedbackEmail() {
-        guard let url = feedbackEmailURL else { return }
+        guard let url = feedbackEmailURL else {
+            showingSupportFallback = true
+            return
+        }
         DIContainer.shared.analyticsManager?.logEvent("feedback_email_opened", parameters: [
             "source": "settings"
         ])
-        openURL(url)
+        openURL(url) { accepted in
+            if !accepted {
+                showingSupportFallback = true
+                DIContainer.shared.analyticsManager?.logEvent("feedback_email_fallback_shown", parameters: [
+                    "source": "settings"
+                ])
+            }
+        }
     }
 
     private var feedbackEmailURL: URL? {
+        var components = URLComponents(string: "mailto:\(MyFitPlateLinks.supportEmailAddress)")
+        components?.queryItems = [
+            URLQueryItem(name: "subject", value: "MyFitPlate feedback"),
+            URLQueryItem(name: "body", value: feedbackBody)
+        ]
+        return components?.url
+    }
+
+    private var feedbackBody: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Unknown"
         let systemVersion = ProcessInfo.processInfo.operatingSystemVersionString
-        let body = """
+        return """
         What were you trying to do?
 
 
@@ -180,13 +205,55 @@ struct SettingsSupportSection: View {
         App version: \(version) (\(build))
         System: \(systemVersion)
         """
+    }
 
-        var components = URLComponents(string: "mailto:peteandrews1289@gmail.com")
-        components?.queryItems = [
-            URLQueryItem(name: "subject", value: "MyFitPlate feedback"),
-            URLQueryItem(name: "body", value: body)
-        ]
-        return components?.url
+    private var supportFallbackSheet: some View {
+        AppSheetScaffold(
+            title: "Contact Support",
+            subtitle: "Your mail app did not open. The address and diagnostic details are still available below.",
+            dismiss: { showingSupportFallback = false }
+        ) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    AppListRow(
+                        icon: "envelope.fill",
+                        iconColor: AppPalette.brandText,
+                        title: MyFitPlateLinks.supportEmailAddress,
+                        subtitle: "Include what you were trying to do and what happened."
+                    )
+                    .appSurface(.interpreted, padding: 0)
+
+                    Button {
+                        UIPasteboard.general.string = MyFitPlateLinks.supportEmailAddress
+                        copiedSupportAddress = true
+                        HapticsService.shared.playSuccess()
+                    } label: {
+                        Label(
+                            copiedSupportAddress ? "Support Address Copied" : "Copy Support Address",
+                            systemImage: copiedSupportAddress ? "checkmark" : "doc.on.doc"
+                        )
+                    }
+                    .buttonStyle(AppActionButtonStyle(.secondary))
+
+                    ShareLink(
+                        item: "Email \(MyFitPlateLinks.supportEmailAddress)\n\n\(feedbackBody)",
+                        subject: Text("MyFitPlate support details")
+                    ) {
+                        Label("Share Support Details", systemImage: "square.and.arrow.up")
+                    }
+                    .buttonStyle(AppActionButtonStyle(.ghost))
+
+                    Text("The shared details contain app and operating-system versions, not your food, health, or account data.")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .onDisappear { copiedSupportAddress = false }
     }
 }
 
@@ -290,74 +357,145 @@ struct AIDataConsentSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var includeHealthData = false
     @State private var hasExistingConsent = false
+    @State private var showsProcessingDetails = false
 
     private var userID: String {
         DIContainer.shared.authService.currentUserID ?? ""
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Text("MyFitPlate uses OpenAI through a secured Firebase service to power Maia, photo and menu analysis, meal planning, and workout insights.")
-                    Text("When you use an AI feature, MyFitPlate may send the text or image you submit plus the nutrition goals, food logs, journal entries, cycle information, pantry items, or workout details needed for that request. Your email and username are not included in AI prompts.")
-                } header: {
-                    Text("AI processing")
-                }
-
-                Section {
-                    Toggle("Include Apple Health data", isOn: $includeHealthData)
-                        .accessibilityIdentifier("settings_ai_health_toggle")
-                    Text("When enabled, Maia may also receive relevant steps, active energy, sleep summaries, and recovery signals. Apple Health data is never used for advertising.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Text("Optional Health context")
-                }
-
-                Section {
-                    Link("Read the privacy policy", destination: URL(string: "https://github.com/PeteAndrews1289/MyFitPlate/blob/main/docs/privacy_policy.md")!)
-                    Text("You can change this choice here at any time. Turning AI data sharing off blocks future AI requests until you allow it again.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section {
-                    Button(hasExistingConsent ? "Save AI preferences" : "Allow AI features") {
-                        AIDataConsentStore.shared.grant(for: userID, includesHealthData: includeHealthData)
-                        dismiss()
-                    }
-                    .disabled(userID.isEmpty)
-                    .accessibilityIdentifier("settings_ai_allow")
-
-                    if hasExistingConsent {
-                        Button("Turn off AI data sharing", role: .destructive) {
-                            AIDataConsentStore.shared.revoke(for: userID)
-                            dismiss()
+        AppEditorScaffold(
+            title: "AI Data Sharing",
+            subtitle: "Choose what MyFitPlate may use only when you ask for an AI-powered result.",
+            dismiss: { dismiss() }
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                VStack(alignment: .leading, spacing: AppSpacing.group) {
+                    Label {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Your AI consent receipt")
+                                .appTextRole(.sectionTitle)
+                                .foregroundStyle(AppPalette.text)
+                            Text("Text or images you submit, plus only the app context needed to answer.")
+                                .appTextRole(.secondary)
+                                .foregroundStyle(.secondary)
                         }
-                        .accessibilityIdentifier("settings_ai_revoke")
-                    } else {
-                        Button("Not now", role: .cancel) { dismiss() }
+                    } icon: {
+                        Image(systemName: "checkmark.shield.fill")
+                            .appFont(size: 22, weight: .semibold)
+                            .foregroundStyle(AppPalette.brandText)
+                    }
+
+                    VStack(spacing: 0) {
+                        consentRow(
+                            icon: "person.crop.circle.badge.xmark",
+                            title: "Identity excluded",
+                            detail: "Your email and username are not placed in AI prompts."
+                        )
+                        Divider().padding(.leading, 52)
+                        consentRow(
+                            icon: "lock.fill",
+                            title: "Secured route",
+                            detail: "Requests pass through MyFitPlate's protected Firebase service."
+                        )
+                        Divider().padding(.leading, 52)
+                        consentRow(
+                            icon: "arrow.uturn.backward.circle",
+                            title: "Reversible",
+                            detail: "Turn sharing off here at any time to block future AI requests."
+                        )
+                    }
+
+                    DisclosureGroup(isExpanded: $showsProcessingDetails) {
+                        Text("Depending on the feature, a request may include nutrition goals, food logs, pantry items, journal or cycle context, workout details, or the image and text you submit. MyFitPlate sends only the context needed for that request.")
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, AppSpacing.compact)
+                    } label: {
+                        Label("What can be included", systemImage: "doc.text.magnifyingglass")
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.brandText)
                     }
                 }
-            }
-            .scrollContentBackground(.hidden)
-            .background(AppPalette.canvas.ignoresSafeArea())
-            .navigationTitle("AI Data Sharing")
-            .navigationBarTitleDisplayMode(.inline)
-            .tint(AppPalette.brand)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                .appSurface(.interpreted)
+
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(
+                        title: "Optional Health Context",
+                        subtitle: "This is separate from the core AI permission."
+                    )
+
+                    Toggle("Include Apple Health data", isOn: $includeHealthData)
+                        .appTextRole(.control)
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        )
+                        .accessibilityIdentifier("settings_ai_health_toggle")
+
+                    Text("When enabled, Maia may also receive relevant steps, active energy, sleep summaries, and recovery signals. Apple Health data is never used for advertising.")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            }
-            .onAppear {
-                if let consent = AIDataConsentStore.shared.consent(for: userID) {
-                    includeHealthData = consent.includesHealthData
-                    hasExistingConsent = true
+
+                Link(destination: MyFitPlateLinks.privacyPolicyURL) {
+                    AppListRow(
+                        icon: "doc.text",
+                        iconColor: AppPalette.brandText,
+                        title: "Read the Privacy Policy",
+                        subtitle: "Review the complete data-use terms."
+                    ) {
+                        Image(systemName: "arrow.up.right")
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                    }
                 }
+                .buttonStyle(.plain)
+                .appSurface(.quiet, padding: 0)
+            }
+        } actions: {
+            Button(hasExistingConsent ? "Save AI Preferences" : "Allow AI Features") {
+                AIDataConsentStore.shared.grant(
+                    for: userID,
+                    includesHealthData: includeHealthData
+                )
+                dismiss()
+            }
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .disabled(userID.isEmpty)
+            .accessibilityIdentifier("settings_ai_allow")
+
+            if hasExistingConsent {
+                Button("Turn Off AI Data Sharing") {
+                    AIDataConsentStore.shared.revoke(for: userID)
+                    dismiss()
+                }
+                .buttonStyle(AppActionButtonStyle(.destructive))
+                .accessibilityIdentifier("settings_ai_revoke")
+            } else {
+                Button("Not Now") { dismiss() }
+                    .buttonStyle(AppActionButtonStyle(.ghost))
+            }
+        }
+        .tint(AppPalette.brand)
+        .onAppear {
+            if let consent = AIDataConsentStore.shared.consent(for: userID) {
+                includeHealthData = consent.includesHealthData
+                hasExistingConsent = true
             }
         }
         .accessibilityIdentifier("settings_ai_data_screen")
+    }
+
+    private func consentRow(icon: String, title: String, detail: String) -> some View {
+        AppListRow(
+            icon: icon,
+            iconColor: AppPalette.brandText,
+            title: title,
+            subtitle: detail
+        )
     }
 }

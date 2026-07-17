@@ -1,25 +1,5 @@
 import SwiftUI
 import MyFitPlateCore
-import UIKit
-
-private struct DynamicTypeFieldLabel: UIViewRepresentable {
-    let text: String
-
-    func makeUIView(context: Context) -> UILabel {
-        let label = UILabel()
-        label.adjustsFontForContentSizeCategory = true
-        label.font = .preferredFont(forTextStyle: .headline)
-        label.numberOfLines = 0
-        label.isAccessibilityElement = false
-        label.setContentCompressionResistancePriority(.required, for: .vertical)
-        return label
-    }
-
-    func updateUIView(_ label: UILabel, context: Context) {
-        label.text = text
-        label.font = .preferredFont(forTextStyle: .headline)
-    }
-}
 
 struct GenderButtonPicker: View {
     @Binding var selectedGender: String
@@ -67,110 +47,77 @@ struct CaloricCalculatorView: View {
      }
 
     private let goals = ["Lose", "Maintain", "Gain"]
+
     var body: some View {
-        NavigationStack {
-            Form {
+        AppEditorScaffold(
+            title: "Calorie & Macro Goals",
+            subtitle: "Review the assumptions behind your estimate, then save the target you want to use.",
+            dismiss: { dismiss() }
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
                 personalInfoSection
-
-                Section(header: Text("Weight Goals")) {
-                    currentWeightRow
-                    targetWeightRow
-                }
-
-                Section(header: Text("Daily Calorie Goal")) {
-                    HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
-                        TextField("Calories", text: $calorieInput)
-                            .keyboardType(.numberPad)
-                            .appTextRole(.metric)
-                            .foregroundStyle(AppPalette.energy)
-                            .monospacedDigit()
-                            .focused($numericFieldIsFocused)
-
-                        Text("cal")
-                            .appTextRole(.control)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
+                weightGoalsSection
+                dailyCalorieSection
                 macronutrientSection
                 citationSection
             }
-            .scrollContentBackground(.hidden)
-            .background(AppPalette.canvas.ignoresSafeArea())
-            .navigationTitle("Calorie & Macro Goals")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { numericFieldIsFocused = false }
-                }
+        } actions: {
+            Button("Save Goals") {
+                numericFieldIsFocused = false
+                saveCaloricGoal()
             }
-            .safeAreaInset(edge: .bottom) {
-                Button("Save Goals") {
-                    numericFieldIsFocused = false
-                    saveCaloricGoal()
-                }
-                .buttonStyle(AppActionButtonStyle(.primary))
-                .disabled(Double(calorieInput) == nil)
-                .padding(.horizontal, AppSpacing.screenHorizontal)
-                .padding(.top, AppSpacing.row)
-                .padding(.bottom, AppSpacing.compact)
-                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(AppPalette.separator)
-                        .frame(height: 1)
-                }
-                .accessibilityIdentifier("settings_goals_save")
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .disabled(!hasValidCalorieInput)
+            .accessibilityIdentifier("settings_goals_save")
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { numericFieldIsFocused = false }
             }
-            .onAppear(perform: fetchAndSetGoals)
-            .alert(isPresented: $showSaveConfirmation) {
-                Alert(
-                    title: Text("Goals saved"),
-                    message: Text("Your nutrition goals are updated."),
-                    dismissButton: .default(Text("OK")) { dismiss() }
-                )
+        }
+        .onAppear(perform: fetchAndSetGoals)
+        .alert(isPresented: $showSaveConfirmation) {
+            Alert(
+                title: Text("Goals saved"),
+                message: Text("Your nutrition goals are updated."),
+                dismissButton: .default(Text("OK")) { dismiss() }
+            )
+        }
+        .onChange(of: goalSettings.activityLevel) { _, newLevel in
+            let newString = activityString(for: newLevel)
+            if selectedActivityString != newString {
+                selectedActivityString = newString
             }
-            .onChange(of: goalSettings.activityLevel) { _, newLevel in
-                let newString = activityString(for: newLevel)
-                if selectedActivityString != newString {
-                    selectedActivityString = newString
-                }
-                goalSettings.recalculateAllGoals()
+            goalSettings.recalculateAllGoals()
+        }
+        .onChange(of: goalSettings.goal) { _, newGoal in
+            if goals.contains(newGoal) && selectedGoal != newGoal {
+                selectedGoal = newGoal
             }
-            .onChange(of: goalSettings.goal) { _, newGoal in
-                if goals.contains(newGoal) && selectedGoal != newGoal {
-                    selectedGoal = newGoal
-                }
-                goalSettings.recalculateAllGoals()
+            goalSettings.recalculateAllGoals()
+        }
+        .onChange(of: goalSettings.age) {
+            if goalSettings.calorieGoalMethod == .custom {
+                goalSettings.calorieGoalMethod = .mifflinWithActivity
             }
-            .onChange(of: goalSettings.age) {
-                if goalSettings.calorieGoalMethod == .custom {
-                    goalSettings.calorieGoalMethod = .mifflinWithActivity
-                }
-                goalSettings.recalculateAllGoals()
+            goalSettings.recalculateAllGoals()
+        }
+        .onChange(of: goalSettings.gender) {
+            if goalSettings.calorieGoalMethod == .custom {
+                goalSettings.calorieGoalMethod = .mifflinWithActivity
             }
-            .onChange(of: goalSettings.gender) {
-                if goalSettings.calorieGoalMethod == .custom {
-                    goalSettings.calorieGoalMethod = .mifflinWithActivity
-                }
-                goalSettings.recalculateAllGoals()
-            }
-            .onChange(of: goalSettings.proteinPercentage) { goalSettings.recalculateAllGoals() }
-            .onChange(of: goalSettings.carbsPercentage) { goalSettings.recalculateAllGoals() }
-            .onChange(of: goalSettings.fatsPercentage) { goalSettings.recalculateAllGoals() }
-            .onChange(of: goalSettings.calories) { _, newRecommendedCalories in
-                if Double(calorieInput) != newRecommendedCalories {
-                    calorieInput = String(format: "%.0f", newRecommendedCalories ?? 0)
-                }
+            goalSettings.recalculateAllGoals()
+        }
+        .onChange(of: goalSettings.proteinPercentage) { goalSettings.recalculateAllGoals() }
+        .onChange(of: goalSettings.carbsPercentage) { goalSettings.recalculateAllGoals() }
+        .onChange(of: goalSettings.fatsPercentage) { goalSettings.recalculateAllGoals() }
+        .onChange(of: goalSettings.calories) { _, newRecommendedCalories in
+            if Double(calorieInput) != newRecommendedCalories {
+                calorieInput = String(format: "%.0f", newRecommendedCalories ?? 0)
             }
         }
         .tint(AppPalette.brand)
-        .background(AppPalette.canvas.ignoresSafeArea())
         .accessibilityIdentifier("settings_goals_screen")
     }
 
@@ -185,12 +132,14 @@ struct CaloricCalculatorView: View {
     private var ageRow: some View {
         if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                DynamicTypeFieldLabel(text: "Age")
+                Text("Age")
+                    .appTextRole(.control)
                 ageField
             }
         } else {
             HStack(spacing: AppSpacing.group) {
-                DynamicTypeFieldLabel(text: "Age")
+                Text("Age")
+                    .appTextRole(.control)
                     .fixedSize(horizontal: true, vertical: false)
                 Spacer(minLength: AppSpacing.group)
                 ageField
@@ -281,17 +230,23 @@ struct CaloricCalculatorView: View {
     }
 
     private var personalInfoSection: some View {
-        Section(header: Text("Your Information")) {
-            ageRow
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Your Information",
+                subtitle: "Age, sex, and activity level are assumptions in the energy estimate."
+            )
 
-            GenderButtonPicker(selectedGender: $goalSettings.gender)
-                .padding(.vertical, 5)
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                ageRow
 
-             Picker("Activity level", selection: $selectedActivityString) {
-                 ForEach(activityLevelStrings, id: \.self) { levelString in
-                     Text(levelString).tag(levelString)
-                 }
-             }
+                GenderButtonPicker(selectedGender: $goalSettings.gender)
+
+                Picker("Activity level", selection: $selectedActivityString) {
+                    ForEach(activityLevelStrings, id: \.self) { levelString in
+                        Text(levelString).tag(levelString)
+                    }
+                }
+                .appTextRole(.control)
             .onChange(of: selectedActivityString) { _, newValue in
                 if let index = activityLevelStrings.firstIndex(of: newValue) {
                     if goalSettings.activityLevel != activityLevelValues[index],
@@ -302,34 +257,92 @@ struct CaloricCalculatorView: View {
                 }
             }
 
-            Picker("Goal", selection: $selectedGoal) {
-                ForEach(goals, id: \.self) { goal in
-                    Text(goal).tag(goal)
+                Picker("Goal", selection: $selectedGoal) {
+                    ForEach(goals, id: \.self) { goal in
+                        Text(goal).tag(goal)
+                    }
+                }
+                .appTextRole(.control)
+                .onChange(of: selectedGoal) { _, newValue in
+                    if goalSettings.goal != newValue,
+                       goalSettings.calorieGoalMethod == .custom {
+                        goalSettings.calorieGoalMethod = .mifflinWithActivity
+                    }
+                    goalSettings.goal = newValue
                 }
             }
-            .onChange(of: selectedGoal) { _, newValue in
-                if goalSettings.goal != newValue,
-                   goalSettings.calorieGoalMethod == .custom {
-                    goalSettings.calorieGoalMethod = .mifflinWithActivity
-                }
-                goalSettings.goal = newValue
+            .appSurface(.emphasized)
+        }
+    }
+
+    private var weightGoalsSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Weight Goals",
+                subtitle: "These values shape the direction of the recommendation."
+            )
+
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                currentWeightRow
+                Divider()
+                targetWeightRow
+            }
+            .appSurface(.emphasized)
+        }
+    }
+
+    private var dailyCalorieSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Daily Calorie Goal",
+                subtitle: "The calculated value remains editable before you save."
+            )
+
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                TextField("Calories", text: $calorieInput)
+                    .keyboardType(.numberPad)
+                    .appTextRole(.metric)
+                    .foregroundStyle(AppPalette.energy)
+                    .monospacedDigit()
+                    .focused($numericFieldIsFocused)
+
+                Text("cal")
+                    .appTextRole(.control)
+                    .foregroundStyle(.secondary)
+            }
+            .appSurface(.interpreted)
+
+            if !calorieInput.isEmpty, !hasValidCalorieInput {
+                Text("Enter a calorie target greater than zero.")
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.critical)
             }
         }
     }
 
     private var macronutrientSection: some View {
-        Section(header: Text("Macronutrient Distribution")) {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Macronutrient Distribution",
+                subtitle: "Percentages are converted to gram targets from the calorie goal."
+            )
+
             VStack(spacing: 15) {
                 macroSlider(title: "Protein", value: $goalSettings.proteinPercentage, color: .accentProtein)
                 macroSlider(title: "Carbs", value: $goalSettings.carbsPercentage, color: .accentCarbs)
                 macroSlider(title: "Fat", value: $goalSettings.fatsPercentage, color: .accentFats)
             }
-             .padding(.vertical, 5)
+            .appSurface(.emphasized)
         }
     }
     
     private var citationSection: some View {
-        Section(header: Text("Source Information"), footer: Text("Calorie and macronutrient recommendations are estimates for informational purposes. Your actual nutritional needs may vary. Consult with a healthcare professional before making significant changes to your diet or exercise routine.")) {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Source & Limits",
+                subtitle: "This is an estimate, not a measurement or medical recommendation."
+            )
+
             VStack(alignment: .leading, spacing: 5) {
                 Text("Calorie goals are estimated using the Mifflin-St Jeor equation combined with standard activity level multipliers.")
                     .appTextRole(.secondary)
@@ -339,8 +352,13 @@ struct CaloricCalculatorView: View {
                     Link("Source: A new predictive equation for resting energy expenditure in healthy individuals. Am J Clin Nutr. 1990.", destination: url)
                         .appTextRole(.secondary)
                 }
+
+                Text("Your actual needs may vary. Consult a qualified healthcare professional before making significant dietary or exercise changes.")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.vertical, 5)
+            .appSurface(.quiet)
         }
     }
 
@@ -369,6 +387,11 @@ struct CaloricCalculatorView: View {
         }
         selectedActivityString = activityString(for: goalSettings.activityLevel)
         selectedGoal = goals.contains(goalSettings.goal) ? goalSettings.goal : "Maintain"
+    }
+
+    private var hasValidCalorieInput: Bool {
+        guard let value = Double(calorieInput) else { return false }
+        return value > 0
     }
     
     private func saveCaloricGoal() {

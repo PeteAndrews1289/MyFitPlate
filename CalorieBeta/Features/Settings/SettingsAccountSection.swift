@@ -126,7 +126,7 @@ struct SettingsAccountSection: View {
             .padding(AppSpacing.group)
         }
         .accessibilityIdentifier("settings_goals_data")
-        .sheet(isPresented: $showingExportShare) {
+        .sheet(isPresented: $showingExportShare, onDismiss: cleanupExportFiles) {
             PDFShareView(activityItems: exportURLs)
         }
         .sheet(isPresented: $showingMFPImport) {
@@ -135,6 +135,7 @@ struct SettingsAccountSection: View {
                 .environmentObject(goalSettings)
         }
         .onAppear(perform: presentScreenshotImportIfNeeded)
+        .onDisappear(perform: cleanupExportFiles)
     }
 
     private func presentScreenshotImportIfNeeded() {
@@ -159,30 +160,53 @@ struct SettingsAccountSection: View {
     /// the share sheet. Best-effort: partial data still exports (an empty CSV has a header).
     private func exportData() {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        cleanupExportFiles()
         isExporting = true
 
         Task {
             let logsResult = await dailyLogService.fetchDailyHistory(for: userID, startDate: nil, endDate: nil)
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                isExporting = false
+                return
+            }
             let sessions = await workoutService.fetchRecentSessionLogs(sinceDays: 3650)
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                isExporting = false
+                return
+            }
 
             let foodCSV = DataExporter.foodLogCSV(from: (try? logsResult.get()) ?? [])
             let workoutCSV = DataExporter.workoutCSV(from: sessions)
 
             let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("MyFitPlateExport-\(UUID().uuidString)", isDirectory: true)
             let foodURL = directory.appendingPathComponent("myfitplate-food-diary.csv")
             let workoutURL = directory.appendingPathComponent("myfitplate-workouts.csv")
 
             do {
-                try foodCSV.write(to: foodURL, atomically: true, encoding: .utf8)
-                try workoutCSV.write(to: workoutURL, atomically: true, encoding: .utf8)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                try Data(foodCSV.utf8).write(to: foodURL, options: [.atomic, .completeFileProtection])
+                try Data(workoutCSV.utf8).write(to: workoutURL, options: [.atomic, .completeFileProtection])
+                guard DIContainer.shared.authService.currentUserID == userID else {
+                    try? FileManager.default.removeItem(at: directory)
+                    isExporting = false
+                    return
+                }
                 exportURLs = [foodURL, workoutURL]
                 DIContainer.shared.analyticsManager?.logEvent("data_exported", parameters: nil)
                 showingExportShare = true
             } catch {
+                try? FileManager.default.removeItem(at: directory)
                 AppLog.app.error("Data export failed: \(error.localizedDescription, privacy: .public)")
             }
 
             isExporting = false
         }
+    }
+
+    private func cleanupExportFiles() {
+        let directories = Set(exportURLs.map { $0.deletingLastPathComponent() })
+        directories.forEach { try? FileManager.default.removeItem(at: $0) }
+        exportURLs = []
     }
 }

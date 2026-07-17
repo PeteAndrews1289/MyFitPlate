@@ -6,10 +6,18 @@ public class USDAFoodAPIService {
     private let apiKey: String?
     private let baseURL = "https://api.nal.usda.gov/fdc/v1"
     private let requestTimeout: TimeInterval = 6
+    private let session: URLSession
 
     public init() {
         let plistKey = Bundle.main.object(forInfoDictionaryKey: "USDA_API_KEY") as? String
         apiKey = (plistKey?.isEmpty == false && plistKey != "$(USDA_API_KEY)") ? plistKey : nil
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        session = URLSession(configuration: configuration)
     }
 
     // Text search — lab/reference foods plus FNDDS prepared-food records.
@@ -25,10 +33,7 @@ public class USDAFoodAPIService {
         ]
         guard let url = components.url else { return [] }
         do {
-            let (data, _) = try await URLSession.shared.data(for: URLRequest(
-                url: url,
-                timeoutInterval: requestTimeout
-            ))
+            let data = try await responseData(from: url)
             return FoodSearchRanking.rankedRemoteMatches(
                 query: query,
                 foods: try USDAFoodParser.foodItems(from: data)
@@ -41,23 +46,38 @@ public class USDAFoodAPIService {
     // Barcode (GTIN/UPC) lookup — searches Branded foods dataset by the UPC string.
     public func lookupBarcode(_ barcode: String) async -> FoodItem? {
         guard let apiKey else { return nil }
+        let normalized = BarcodeCorrectionRules.normalizedBarcode(barcode)
+        guard (8...14).contains(normalized.count),
+              normalized.allSatisfy(\.isNumber) else { return nil }
         guard var components = URLComponents(string: "\(baseURL)/foods/search") else { return nil }
         components.queryItems = [
-            URLQueryItem(name: "query", value: barcode),
+            URLQueryItem(name: "query", value: normalized),
             URLQueryItem(name: "api_key", value: apiKey),
             URLQueryItem(name: "pageSize", value: "5"),
             URLQueryItem(name: "dataType", value: "Branded")
         ]
         guard let url = components.url else { return nil }
         do {
-            let (data, _) = try await URLSession.shared.data(for: URLRequest(
-                url: url,
-                timeoutInterval: requestTimeout
-            ))
-            return try USDAFoodParser.foodItem(matchingBarcode: barcode, from: data)
+            let data = try await responseData(from: url)
+            return try USDAFoodParser.foodItem(matchingBarcode: normalized, from: data)
         } catch {
             return nil
         }
+    }
+
+    private func responseData(from url: URL) async throws -> Data {
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: requestTimeout
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return data
     }
 }
 

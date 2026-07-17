@@ -1,9 +1,10 @@
 import Foundation
 
-/// Cross-database agreement for barcode lookups. The Cross-Verified state requires two
-/// recognized databases to return the same checksum-valid product identifier and comparable
-/// calories, protein, carbohydrate, and fat after serving-weight normalization. Agreement does
-/// not by itself prove independent lineage: two providers may both reproduce a manufacturer label.
+/// Cross-database agreement for food records. The Cross-Verified state requires recognized
+/// databases to report comparable calories, protein, carbohydrate, and fat after serving-weight
+/// normalization. Product-barcode matches and generic composition matches have different identity
+/// strength, which the Trust Receipt explains. Agreement does not by itself prove independent
+/// lineage: two providers may both reproduce a manufacturer label.
 public enum FoodSourceAgreement {
 
     /// Databases report different serving sizes for the same product, so agreement is
@@ -123,7 +124,7 @@ public enum FoodSourceAgreement {
     ) -> [String] {
         guard let metadata else { return [] }
         switch metadata.sourceType {
-        case .usda, .fatSecret, .openFoodFacts:
+        case .usda, .healthCanadaCNF, .fatSecret, .openFoodFacts:
             break
         default:
             return []
@@ -221,6 +222,11 @@ public enum FoodSourceAgreement {
         if normalized == "fatsecret" || normalized == "fat secret" {
             return ("fatsecret", "FatSecret")
         }
+        if normalized == "health canada" ||
+            normalized == "health canada cnf" ||
+            normalized == "canadian nutrient file" {
+            return ("health_canada_cnf", "Health Canada CNF")
+        }
         if normalized == "open food facts" {
             return ("open_food_facts", "Open Food Facts")
         }
@@ -231,6 +237,8 @@ public enum FoodSourceAgreement {
         switch sourceType {
         case .usda:
             return "usda"
+        case .healthCanadaCNF:
+            return "health_canada_cnf"
         case .fatSecret:
             return "fatsecret"
         case .openFoodFacts:
@@ -243,6 +251,7 @@ public enum FoodSourceAgreement {
     private static func sourceType(for identity: String) -> FoodSourceType {
         switch identity {
         case "usda": return .usda
+        case "health_canada_cnf": return .healthCanadaCNF
         case "fatsecret": return .fatSecret
         case "open_food_facts": return .openFoodFacts
         default: return .unknown

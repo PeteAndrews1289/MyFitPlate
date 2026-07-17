@@ -194,10 +194,19 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
     
     func fetchMealPlan(userID: String, dateString: String) async throws -> MealPlanDay? {
         let planRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.mealPlans).document(dateString)
-        return try await planRef.getDocument(as: MealPlanDay.self)
+        let document = try await planRef.getDocument()
+        guard document.exists else { return nil }
+
+        let payload = try document.data(as: MealPlanPayload.self)
+        return MealPlanDay(
+            id: payload.id ?? document.documentID,
+            date: payload.date.dateValue(),
+            meals: payload.meals
+        )
     }
     
     private struct MealPlanPayload: Codable {
+        let id: String?
         let date: Timestamp
         let meals: [PlannedMeal]
     }
@@ -205,7 +214,11 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
     func saveMealPlan(userID: String, plan: MealPlanDay) async throws {
         let planID = plan.id
         let planRef = db.collection(FirestoreCollection.users).document(userID).collection(FirestoreCollection.mealPlans).document(planID)
-        let data = try Firestore.Encoder().encode(MealPlanPayload(date: Timestamp(date: plan.date), meals: plan.meals))
+        let data = try Firestore.Encoder().encode(MealPlanPayload(
+            id: planID,
+            date: Timestamp(date: plan.date),
+            meals: plan.meals
+        ))
         try await planRef.setData(data, merge: true)
     }
     
@@ -215,10 +228,42 @@ final class FirestoreNutritionRepository: NutritionRepositoryProtocol, @unchecke
         
         for plan in plans {
             let dayId = plan.id
-            let data = try Firestore.Encoder().encode(MealPlanPayload(date: Timestamp(date: plan.date), meals: plan.meals))
+            let data = try Firestore.Encoder().encode(MealPlanPayload(
+                id: dayId,
+                date: Timestamp(date: plan.date),
+                meals: plan.meals
+            ))
             batch.setData(data, forDocument: collectionRef.document(dayId), merge: true)
         }
         
+        try await batch.commit()
+    }
+
+    func discardMealPlans(
+        userID: String,
+        dateStrings: [String],
+        retainingGroceryItems: [GroceryListItem]
+    ) async throws {
+        let batch = db.batch()
+        let userRef = db.collection(FirestoreCollection.users).document(userID)
+        let planCollection = userRef.collection(FirestoreCollection.mealPlans)
+        let groceryRef = userRef
+            .collection(FirestoreCollection.userSettings)
+            .document(FirestoreDocument.groceryList)
+        let groceryData = try retainingGroceryItems.map { try Firestore.Encoder().encode($0) }
+
+        for dateString in Set(dateStrings) where !dateString.isEmpty {
+            batch.deleteDocument(planCollection.document(dateString))
+        }
+        batch.setData(
+            [
+                "items": groceryData,
+                "lastUpdated": Timestamp(date: Date())
+            ],
+            forDocument: groceryRef,
+            merge: true
+        )
+
         try await batch.commit()
     }
     

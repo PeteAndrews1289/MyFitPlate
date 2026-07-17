@@ -52,6 +52,20 @@ final class WatchQuickActionsTests: XCTestCase {
         XCTAssertEqual(first, store.scope(for: "private-user-a"))
         XCTAssertNotEqual(first, store.scope(for: "private-user-b"))
         XCTAssertNotEqual(first, "private-user-a")
+        let storedScopes = try XCTUnwrap(defaults.dictionary(forKey: "scopes") as? [String: String])
+        XCTAssertNil(storedScopes["private-user-a"])
+        XCTAssertFalse(storedScopes.keys.contains { $0.contains("private-user") })
+    }
+
+    func testAccountScopeMigratesRawLegacyKeyWithoutChangingScope() throws {
+        let defaults = try makeDefaults()
+        defaults.set(["private-user-a": "existing-watch-scope"], forKey: "scopes")
+        let store = WatchAccountScopeStore(defaults: defaults, storageKey: "scopes")
+
+        XCTAssertEqual(store.scope(for: "private-user-a"), "existing-watch-scope")
+        let storedScopes = try XCTUnwrap(defaults.dictionary(forKey: "scopes") as? [String: String])
+        XCTAssertNil(storedScopes["private-user-a"])
+        XCTAssertEqual(storedScopes.values.first, "existing-watch-scope")
     }
 
     func testInboxPersistsDeduplicatesAndWaitsForSuccess() throws {

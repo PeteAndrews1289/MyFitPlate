@@ -51,7 +51,7 @@ struct CalorieWidgetEntryView: View {
     @Environment(\.widgetFamily) var family
 
     private var homeURL: URL {
-        URL(string: "myfitplate://home")!
+        URL(string: "myfitplate://home") ?? MyFitPlateLinks.appStoreURL
     }
 
     private var destinationURL: URL {
@@ -105,7 +105,7 @@ struct CalorieWidgetEntryView: View {
         VStack(alignment: .center, spacing: 5) {
             Text("MyFitPlate")
                 .font(.headline)
-            Text("Log a meal to see your day here.")
+            Text("Open MyFitPlate to sync your day.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -142,7 +142,20 @@ struct AccessoryRectangularCaloriesView: View {
 
     var body: some View {
         if let data, data.calorieGoal > 0 {
-            if let action = data.nextAction {
+            if data.widgetFreshness.state == .stale {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Open app to refresh", systemImage: "clock.badge.exclamationmark")
+                        .font(.headline)
+                        .widgetAccentable()
+                        .lineLimit(1)
+                    Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(data.widgetFreshness.shortLabel)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else if let action = data.nextAction {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(action.title)
                         .font(.headline)
@@ -175,7 +188,7 @@ struct AccessoryRectangularCaloriesView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("MyFitPlate")
                     .font(.headline)
-                Text("Log a meal to see your day here.")
+                Text("Open the app to sync your day.")
                     .font(.caption2)
             }
         }
@@ -186,7 +199,9 @@ struct AccessoryInlineCaloriesView: View {
     let data: WidgetData?
 
     var body: some View {
-        if let action = data?.nextAction {
+        if let data, data.widgetFreshness.state == .stale {
+            Text("MyFitPlate: Open app to refresh")
+        } else if let action = data?.nextAction {
             Text("MyFitPlate: \(action.title)")
         } else if let data, data.calorieGoal > 0 {
             Text("\(Int(max(0, data.calorieGoal - data.calories)).formatted()) cal left")
@@ -255,6 +270,10 @@ struct MediumWidgetView: View {
 
                 Spacer(minLength: 4)
 
+                if data.widgetFreshness.state == .stale {
+                    WidgetFreshnessMark(data: data, compact: true)
+                }
+
                 HStack(spacing: 8) {
                     Text("P \(Int(max(0, data.proteinGoal - data.protein)).formatted())g")
                         .foregroundStyle(WidgetPalette.accentProtein)
@@ -311,6 +330,10 @@ struct MediumWidgetView: View {
                                 .foregroundColor(WidgetPalette.accentSignal)
                         }
 
+                        if data.widgetFreshness.state == .stale {
+                            WidgetFreshnessMark(data: data, compact: true)
+                        }
+
                         Spacer()
 
                         Button(intent: LogWaterIntent()) {
@@ -353,9 +376,16 @@ struct SmallWidgetView: View {
                 Spacer(minLength: 8)
 
                 VStack(alignment: .trailing, spacing: 1) {
-                    Text("Protein")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 3) {
+                        if data.widgetFreshness.state == .stale {
+                            Image(systemName: "clock.badge.exclamationmark")
+                                .foregroundStyle(WidgetPalette.accentSignal)
+                                .accessibilityHidden(true)
+                        }
+                        Text("Protein")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.caption2)
                     Text("\(Int(max(0, data.proteinGoal - data.protein)).formatted()) g")
                         .font(.system(.headline, design: .rounded, weight: .bold))
                         .foregroundStyle(WidgetPalette.accentProtein)
@@ -457,9 +487,13 @@ struct LargeWidgetView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Living Day")
                         .font(.headline)
-                    Text("Your current path")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if data.widgetFreshness.state == .stale {
+                        WidgetFreshnessMark(data: data, compact: true)
+                    } else {
+                        Text("Your current path")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Spacer()
@@ -534,10 +568,35 @@ struct LargeWidgetView: View {
                     .lineLimit(1)
             }
 
+            if data.widgetFreshness.state == .stale {
+                WidgetFreshnessMark(data: data)
+            }
+
             if let action = data.nextAction {
                 WidgetNextActionRow(action: action)
             }
         }
+    }
+}
+
+private struct WidgetFreshnessMark: View {
+    let data: WidgetData
+    var compact = false
+
+    var body: some View {
+        Label(data.widgetFreshness.shortLabel, systemImage: "clock.badge.exclamationmark")
+            .font(compact ? .caption2.weight(.semibold) : .caption.weight(.semibold))
+            .foregroundStyle(WidgetPalette.accentSignal)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(data.widgetFreshness.accessibilityLabel)
+    }
+}
+
+private extension WidgetData {
+    var widgetFreshness: AppDataFreshness {
+        AppDataFreshness(updatedAt: lastUpdated)
     }
 }
 

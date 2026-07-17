@@ -6,21 +6,25 @@ final class WorkoutServiceTests: XCTestCase {
     var service: WorkoutService!
     var mockRepo: MockWorkoutRepository!
     var mockCrash: MockCrashManager!
+    var mockAuth: MockAuthService!
+    var defaults: UserDefaults!
+    var defaultsSuiteName: String!
 
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.removeObject(forKey: "activeWorkoutProgramID")
-        UserDefaults.standard.removeObject(forKey: "activeWorkoutProgramCleared")
+        defaultsSuiteName = "WorkoutServiceTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: defaultsSuiteName)!
+        defaults.removePersistentDomain(forName: defaultsSuiteName)
         mockRepo = MockWorkoutRepository()
         DIContainer.shared.workoutRepository = mockRepo
-        let mockAuth = MockAuthService()
+        mockAuth = MockAuthService()
         mockAuth.currentUserID = "user_123"
         DIContainer.shared.authService = mockAuth
         mockCrash = MockCrashManager()
         DIContainer.shared.crashManager = mockCrash
         ToastManager.shared.toast = nil
 
-        service = WorkoutService()
+        service = WorkoutService(defaults: defaults)
     }
 
     // MARK: - Failure surfacing (silent write failures once froze program progress)
@@ -61,8 +65,10 @@ final class WorkoutServiceTests: XCTestCase {
     override func tearDown() {
         service = nil
         mockRepo = nil
-        UserDefaults.standard.removeObject(forKey: "activeWorkoutProgramID")
-        UserDefaults.standard.removeObject(forKey: "activeWorkoutProgramCleared")
+        mockAuth = nil
+        defaults.removePersistentDomain(forName: defaultsSuiteName)
+        defaults = nil
+        defaultsSuiteName = nil
         super.tearDown()
     }
 
@@ -154,7 +160,10 @@ final class WorkoutServiceTests: XCTestCase {
         service.setActiveProgram(program)
         
         XCTAssertEqual(service.activeProgram?.id, "p1")
-        XCTAssertEqual(UserDefaults.standard.string(forKey: "activeWorkoutProgramID"), "p1")
+        XCTAssertEqual(
+            defaults.string(forKey: WorkoutService.activeProgramIDStorageKey(for: "user_123")),
+            "p1"
+        )
     }
 
     func testSaveProgram() async {
@@ -182,8 +191,8 @@ final class WorkoutServiceTests: XCTestCase {
         service.clearActiveProgram()
 
         XCTAssertNil(service.activeProgram)
-        XCTAssertNil(UserDefaults.standard.string(forKey: "activeWorkoutProgramID"))
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: "activeWorkoutProgramCleared"))
+        XCTAssertNil(defaults.string(forKey: WorkoutService.activeProgramIDStorageKey(for: "user_123")))
+        XCTAssertTrue(defaults.bool(forKey: WorkoutService.activeProgramClearedStorageKey(for: "user_123")))
     }
 
     func testClearedActiveProgramDoesNotAutoRestoreFirstSavedProgram() {
@@ -197,6 +206,86 @@ final class WorkoutServiceTests: XCTestCase {
 
         XCTAssertEqual(service.userPrograms.map(\.id), ["p1"])
         XCTAssertNil(service.activeProgram)
+    }
+
+    func testActiveProgramPreferenceIsScopedByAccount() {
+        let firstProgram = WorkoutProgram(id: "first", userID: "user_123", name: "First", dateCreated: Date(), routines: [])
+        service.setActiveProgram(firstProgram)
+
+        mockAuth.currentUserID = "user_456"
+        let secondProgram = WorkoutProgram(id: "second", userID: "user_456", name: "Second", dateCreated: Date(), routines: [])
+        service.setActiveProgram(secondProgram)
+
+        XCTAssertEqual(
+            defaults.string(forKey: WorkoutService.activeProgramIDStorageKey(for: "user_123")),
+            "first"
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: WorkoutService.activeProgramIDStorageKey(for: "user_456")),
+            "second"
+        )
+    }
+
+    func testLateSnapshotFromPreviousAccountIsIgnored() {
+        var programCallbacks: [String: (Result<[WorkoutProgram], Error>) -> Void] = [:]
+        var routineCallbacks: [String: (Result<[WorkoutRoutine], Error>) -> Void] = [:]
+        mockRepo.onProgramsSnapshotListenerAdded = { userID, onUpdate in
+            programCallbacks[userID] = onUpdate
+        }
+        mockRepo.onRoutinesSnapshotListenerAdded = { userID, onUpdate in
+            routineCallbacks[userID] = onUpdate
+        }
+
+        service.fetchRoutinesAndPrograms()
+        mockAuth.currentUserID = "user_456"
+        service.fetchRoutinesAndPrograms()
+
+        let secondProgram = WorkoutProgram(id: "second", userID: "user_456", name: "Second", dateCreated: Date(), routines: [])
+        let secondRoutine = WorkoutRoutine(id: "routine-second", userID: "user_456", name: "Second", dateCreated: Date(), exercises: [])
+        programCallbacks["user_456"]?(.success([secondProgram]))
+        routineCallbacks["user_456"]?(.success([secondRoutine]))
+
+        let staleProgram = WorkoutProgram(id: "stale", userID: "user_123", name: "Stale", dateCreated: Date(), routines: [])
+        let staleRoutine = WorkoutRoutine(id: "routine-stale", userID: "user_123", name: "Stale", dateCreated: Date(), exercises: [])
+        programCallbacks["user_123"]?(.success([staleProgram]))
+        routineCallbacks["user_123"]?(.success([staleRoutine]))
+
+        XCTAssertEqual(service.userPrograms.map(\.id), ["second"])
+        XCTAssertEqual(service.userRoutines.map(\.id), ["routine-second"])
+        XCTAssertEqual(service.activeProgram?.id, "second")
+    }
+
+    func testSigningOutClearsPresentedWorkoutState() {
+        service.userPrograms = [WorkoutProgram(id: "p1", userID: "user_123", name: "P", dateCreated: Date(), routines: [])]
+        service.userRoutines = [WorkoutRoutine(id: "r1", userID: "user_123", name: "R", dateCreated: Date(), exercises: [])]
+        service.activeProgram = service.userPrograms.first
+
+        mockAuth.currentUserID = nil
+        service.fetchRoutinesAndPrograms()
+
+        XCTAssertTrue(service.userPrograms.isEmpty)
+        XCTAssertTrue(service.userRoutines.isEmpty)
+        XCTAssertNil(service.activeProgram)
+    }
+
+    func testLegacyActiveProgramPreferenceMigratesOnlyToCurrentAccount() {
+        defaults.set("legacy", forKey: "activeWorkoutProgramID")
+        defaults.set(false, forKey: "activeWorkoutProgramCleared")
+        let legacyProgram = WorkoutProgram(id: "legacy", userID: "user_123", name: "Legacy", dateCreated: Date(), routines: [])
+        mockRepo.onProgramsSnapshotListenerAdded = { _, onUpdate in
+            onUpdate(.success([legacyProgram]))
+        }
+
+        service.fetchRoutinesAndPrograms()
+
+        XCTAssertEqual(service.activeProgram?.id, "legacy")
+        XCTAssertEqual(
+            defaults.string(forKey: WorkoutService.activeProgramIDStorageKey(for: "user_123")),
+            "legacy"
+        )
+        XCTAssertNil(defaults.object(forKey: "activeWorkoutProgramID"))
+        XCTAssertNil(defaults.object(forKey: "activeWorkoutProgramCleared"))
+        XCTAssertNil(defaults.object(forKey: WorkoutService.activeProgramIDStorageKey(for: "user_456")))
     }
 
     func testSkipCurrentWorkout() async {
@@ -246,7 +335,7 @@ final class WorkoutServiceTests: XCTestCase {
         XCTAssertEqual(result, .clearedLocalOnly)
         XCTAssertTrue(mockRepo.deletedProgramIDs.isEmpty)
         XCTAssertNil(service.activeProgram)
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: "activeWorkoutProgramCleared"))
+        XCTAssertTrue(defaults.bool(forKey: WorkoutService.activeProgramClearedStorageKey(for: "user_123")))
     }
 
     func testDeleteProgramReportsRepositoryFailureAndKeepsLocalState() async {

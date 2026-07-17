@@ -165,7 +165,7 @@ struct MetabolismDashboardView: View {
                     )
                 ])
             }
-            .appSurface(.emphasized)
+            .appSurface(.interpreted)
 
             Button(action: {
                 HapticManager.instance.feedback(.light)

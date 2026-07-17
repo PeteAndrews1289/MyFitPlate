@@ -140,9 +140,20 @@ struct AIChatbotView: View {
                 },
                 bottomContent: {
                     VStack(spacing: 0) {
+                        if let message = viewModel.inlineErrorMessage {
+                            MaiaInlineFailureView(
+                                message: message,
+                                onRetry: viewModel.retryLastMessage
+                            )
+                            .padding(.horizontal, AppSpacing.screenHorizontal)
+                            .padding(.vertical, AppSpacing.compact)
+                        }
+
                         // Keep the action board available after prior chats whenever the composer is idle.
                         if viewModel.userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-                            !viewModel.isLoading && !isInputFocused {
+                            !viewModel.isLoading &&
+                            viewModel.inlineErrorMessage == nil &&
+                            !isInputFocused {
                             MaiaActionBoardView(
                                 remainingCalories: viewModel.remainingCalories,
                                 remainingProtein: viewModel.remainingProtein,
@@ -183,7 +194,7 @@ struct AIChatbotView: View {
                                     .clipShape(Circle())
                                     .background(Color.backgroundSecondary, in: Circle())
 
-                                MaiaTypingIndicator()
+                                MaiaTypingIndicator(label: viewModel.requestStage)
 
                                 Spacer()
                             }
@@ -272,7 +283,7 @@ struct AIChatbotView: View {
             }
         }
         .alert(isPresented: $viewModel.showAlert) {
-            Alert(title: Text("Notification"), message: Text(viewModel.alertMessage), dismissButton: .default(Text("OK")))
+            Alert(title: Text("Maia"), message: Text(viewModel.alertMessage), dismissButton: .default(Text("OK")))
         }
         .sheet(isPresented: $showingSuggestionDetail) {
             if let mealSuggestion {
@@ -293,7 +304,7 @@ struct AIChatbotView: View {
             Button("Clear Chat", role: .destructive) { viewModel.clearChat() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This removes the saved conversation history on this device.")
+            Text("This removes the saved conversation history on this device. Food, water, workouts, weight, and other actions already logged will remain.")
         }
         }
     }
@@ -397,5 +408,28 @@ struct AIChatbotView: View {
             "protein": Int(suggestion.protein.rounded())
         ])
         mealSuggestion = nil
+    }
+}
+
+private struct MaiaInlineFailureView: View {
+    let message: String
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Label("Maia paused", systemImage: "wifi.exclamationmark")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.caution)
+
+            Text(message)
+                .appTextRole(.body)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Retry Question", action: onRetry)
+                .buttonStyle(AppActionButtonStyle(.secondary))
+        }
+        .appSurface(.quiet)
+        .accessibilityIdentifier("maia_inline_error")
     }
 }

@@ -230,7 +230,7 @@ struct AIReviewOverview: View {
                     )
                 ])
             }
-            .appSurface(.emphasized)
+            .appSurface(.interpreted)
         }
     }
 }

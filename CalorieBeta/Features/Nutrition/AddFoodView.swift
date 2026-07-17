@@ -42,8 +42,9 @@ struct AddFoodView: View {
 
     @State private var showingImagePicker = false
     @State private var isProcessingLabel = false
+    @State private var labelAnalysisID: UUID?
     @State private var hasScannedNutritionLabel = false
-    @State private var scanError: (Bool, String) = (false, "")
+    @State private var labelScanFailed = false
 
     // MARK: - Robust Initializer
     init(initialFoodItem: FoodItem, dailyLog: Binding<DailyLog?>, date: Date = Date(), source: String = "manual", targetMealName: String? = nil, onLogUpdated: @escaping () -> Void, onUpdate: ((FoodItem) -> Void)? = nil, showsSavedControl: Bool = true) {
@@ -225,6 +226,13 @@ struct AddFoodView: View {
                             ManualFoodNoticeCard(title: "Serving details unavailable", message: errorLoading)
                         }
 
+                        if labelScanFailed {
+                            LabelScanFailureCard(
+                                retry: { showingImagePicker = true },
+                                continueManually: { labelScanFailed = false }
+                            )
+                        }
+
                         ManualFoodMacroInputGrid(
                             caloriesText: $caloriesText,
                             proteinText: $proteinText,
@@ -271,7 +279,10 @@ struct AddFoodView: View {
             .blur(radius: isProcessingLabel ? 3 : 0)
 
             if isProcessingLabel {
-                ImageProcessingView()
+                ImageProcessingView(kind: .nutritionLabel) {
+                    labelAnalysisID = nil
+                    isProcessingLabel = false
+                }
             }
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
@@ -298,12 +309,16 @@ struct AddFoodView: View {
                 checkIfSaved()
             }
         }
-        .sheet(isPresented: $showingImagePicker) {
-            ImagePicker(sourceType: .camera) { image in
+        .imageSourceDialog(isPresented: $showingImagePicker) { image in
+                let requestID = UUID()
+                labelAnalysisID = requestID
+                labelScanFailed = false
                 isProcessingLabel = true
                 logLabelScanStarted()
                 DIContainer.shared.analyticsManager.log(.aiFeatureUsed, ["feature": AIFeature.nutritionLabel.rawValue])
                 imageModel.parseNutritionLabel(from: image) { result in
+                    guard labelAnalysisID == requestID else { return }
+                    labelAnalysisID = nil
                     isProcessingLabel = false
                     switch result {
                     case .success(let nutrition):
@@ -312,15 +327,10 @@ struct AddFoodView: View {
                         bannerService.showBanner(title: "Success", message: "Nutrition label scanned successfully", iconName: "checkmark.circle.fill", iconColor: .accentPositive)
                     case .failure(let error):
                         logLabelScanCompleted(result: "failure")
-                        bannerService.showBanner(
-                            title: "Scan error",
-                            message: "Couldn't read label: \(error.localizedDescription)",
-                            iconName: "exclamationmark.triangle.fill",
-                            iconColor: AppPalette.critical
-                        )
+                        AppLog.data.error("Nutrition label scan failed: \(error.localizedDescription, privacy: .public)")
+                        labelScanFailed = true
                     }
                 }
-            }
         }
     }
 

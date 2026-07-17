@@ -34,6 +34,32 @@ public class AIService: AIServiceProtocol {
             NotificationCenter.default.post(name: .aiDataConsentRequired, object: nil)
             return .failure(.consentRequired)
         }
+
+        return await performRequest(
+            messages: messages,
+            model: model,
+            maxTokens: maxTokens,
+            temperature: temperature,
+            responseFormat: responseFormat,
+            requestKind: requestKind,
+            retryCount: retryCount,
+            requestingUserID: userID
+        )
+    }
+
+    private func performRequest(
+        messages: [[String: Any]],
+        model: String,
+        maxTokens: Int,
+        temperature: Double,
+        responseFormat: [String: Any]?,
+        requestKind: AIRequestKind,
+        retryCount: Int,
+        requestingUserID: String
+    ) async -> Result<String, AIError> {
+        guard DIContainer.shared.authService.currentUserID == requestingUserID else {
+            return .failure(.accountChanged)
+        }
         
         var requestData: [String: Any] = [
             "model": model,
@@ -49,6 +75,9 @@ public class AIService: AIServiceProtocol {
 
         do {
             let result = try await functions.httpsCallable("generateAIResponse").call(requestData)
+            guard DIContainer.shared.authService.currentUserID == requestingUserID else {
+                return .failure(.accountChanged)
+            }
             guard let data = result.data as? [String: Any],
                   let content = data["content"] as? String else {
                 return .failure(.apiError("Invalid response from cloud function."))
@@ -56,8 +85,14 @@ public class AIService: AIServiceProtocol {
             return .success(content.trimmingCharacters(in: .whitespacesAndNewlines))
         } catch {
             if retryCount > 0 {
+                guard DIContainer.shared.authService.currentUserID == requestingUserID else {
+                    return .failure(.accountChanged)
+                }
                 AppLog.ai.warning("AI request failed. Retrying: \(error.localizedDescription, privacy: .public)")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard DIContainer.shared.authService.currentUserID == requestingUserID else {
+                    return .failure(.accountChanged)
+                }
                 return await performRequest(
                     messages: messages,
                     model: model,
@@ -65,7 +100,8 @@ public class AIService: AIServiceProtocol {
                     temperature: temperature,
                     responseFormat: responseFormat,
                     requestKind: requestKind,
-                    retryCount: retryCount - 1
+                    retryCount: retryCount - 1,
+                    requestingUserID: requestingUserID
                 )
             }
             return .failure(.networkError(error))

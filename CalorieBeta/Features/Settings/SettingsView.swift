@@ -131,9 +131,11 @@ struct SettingsView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { showSettings = false }
+                    .disabled(isDeletingAccount)
             }
         }
         .tint(AppPalette.brand)
+        .interactiveDismissDisabled(isDeletingAccount)
         .sheet(isPresented: $showCaloricCalculator) {
             CaloricCalculatorView()
                 .environmentObject(goalSettings)
@@ -157,13 +159,13 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
             Button("Sign out", role: .destructive) { appState.signOut() }
         } message: {
-            Text("Are you sure you want to sign out?")
+            Text("This signs out on this iPhone and clears account details from widgets and Apple Watch. Your cloud data stays saved and returns when you sign in again.")
         }
         .alert("Delete account", isPresented: $showingDeleteAccountAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { DispatchQueue.main.async { showingReauthForDelete = true } }
         } message: {
-            Text("Are you sure you want to delete your account? This will permanently delete your profile, logs, recipes, workouts, and account data. This cannot be undone.")
+            Text("After password confirmation, MyFitPlate will permanently remove your profile, logs, recipes, workouts, cloud data, and sign-in. Keep the app open until deletion finishes. This cannot be undone.")
         }
         .modifier(DeleteAccountAlerts(
             showingReauthForDelete: $showingReauthForDelete,
@@ -282,7 +284,7 @@ struct SettingsView: View {
             } catch {
                 await MainActor.run {
                     isDeletingAccount = false
-                    deleteErrorMessage = error.localizedDescription
+                    deleteErrorMessage = "\(error.localizedDescription)\n\nNo additional deletion is assumed. Try again, or contact \(MyFitPlateLinks.supportEmailAddress) if the problem continues."
                     DIContainer.shared.analyticsManager?.logEvent(
                         ProductAnalytics.Event.accountDeletionFailed.rawValue,
                         parameters: [
@@ -295,10 +297,11 @@ struct SettingsView: View {
     }
 
     private func clearLocalAccountData(userID: String) {
+        TTSManager.shared.clearCachedSpeech(for: userID)
         let defaults = UserDefaults.standard
         if let bundleIdentifier = Bundle.main.bundleIdentifier {
             defaults.removePersistentDomain(forName: bundleIdentifier)
         }
-        SharedDataManager.shared.clearWidgetData()
+        EcosystemSyncManager.shared.clearAccountWidgetData()
     }
 }

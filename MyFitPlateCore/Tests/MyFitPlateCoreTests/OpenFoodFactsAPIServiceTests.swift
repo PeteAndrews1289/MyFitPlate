@@ -2,6 +2,43 @@ import XCTest
 @testable import MyFitPlateCore
 
 final class OpenFoodFactsAPIServiceTests: XCTestCase {
+
+    func testSearchRequestKeepsAmpersandInsideOneQueryValue() throws {
+        let url = try XCTUnwrap(OpenFoodFactsRequestBuilder.searchURL(query: "mac & cheese"))
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+
+        XCTAssertEqual(items.first(where: { $0.name == "search_terms" })?.value, "mac & cheese")
+        XCTAssertEqual(items.filter { $0.name == "search_terms" }.count, 1)
+    }
+
+    func testSearchRequestCannotInjectProviderParameters() throws {
+        let url = try XCTUnwrap(
+            OpenFoodFactsRequestBuilder.searchURL(query: "protein&page_size=5000")
+        )
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+
+        XCTAssertEqual(
+            items.first(where: { $0.name == "search_terms" })?.value,
+            "protein&page_size=5000"
+        )
+        XCTAssertEqual(items.filter { $0.name == "page_size" }.compactMap(\.value), ["25"])
+    }
+
+    func testProductRequestNormalizesDigitsAndRejectsInvalidBarcodes() throws {
+        let url = try XCTUnwrap(OpenFoodFactsRequestBuilder.productURL(barcode: " 012-34 "))
+
+        XCTAssertTrue(url.path.hasSuffix("/01234.json"))
+        XCTAssertNil(OpenFoodFactsRequestBuilder.productURL(barcode: "not-a-barcode"))
+        XCTAssertNil(OpenFoodFactsRequestBuilder.productURL(barcode: ""))
+        XCTAssertNil(OpenFoodFactsRequestBuilder.productURL(barcode: String(repeating: "1", count: 33)))
+    }
+
+    func testUserAgentUsesCurrentInjectedAppVersion() {
+        XCTAssertEqual(
+            OpenFoodFactsRequestBuilder.userAgent(appVersion: "2.3"),
+            "MyFitPlate/2.3 (iOS; contact: peteandrews1289@gmail.com)"
+        )
+    }
     
     func testParsingValidJSON() throws {
         let json = """

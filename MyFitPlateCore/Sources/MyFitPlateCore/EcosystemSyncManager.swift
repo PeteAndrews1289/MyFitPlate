@@ -110,4 +110,9 @@ public class EcosystemSyncManager {
             WidgetCenter.shared.reloadTimelines(ofKind: calorieWidgetKind)
         }
     }
+
+    public func clearAccountWidgetData() {
+        SharedDataManager.shared.clearWidgetData()
+        WidgetCenter.shared.reloadTimelines(ofKind: calorieWidgetKind)
+    }
 }

@@ -38,6 +38,7 @@ public struct GroceryListItem: Identifiable, Codable, Equatable {
     public var category: String = "Misc"
     public var source: String?
     public var sourcePlanStart: Date?
+    public var barcode: String?
 
     public init(
         id: UUID = UUID(),
@@ -47,7 +48,8 @@ public struct GroceryListItem: Identifiable, Codable, Equatable {
         isCompleted: Bool = false,
         category: String = "Misc",
         source: String? = nil,
-        sourcePlanStart: Date? = nil
+        sourcePlanStart: Date? = nil,
+        barcode: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -57,6 +59,7 @@ public struct GroceryListItem: Identifiable, Codable, Equatable {
         self.category = category
         self.source = source
         self.sourcePlanStart = sourcePlanStart
+        self.barcode = barcode
     }
 }
 

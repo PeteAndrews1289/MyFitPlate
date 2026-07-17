@@ -11,9 +11,13 @@ final class AYCESessionManager: ObservableObject {
     @Published private(set) var hasCelebratedBreakEven = false
     @Published private(set) var hasCelebratedKitchenWin = false
 
-    @AppStorage("ayceSessionDraft") private var draftData: Data = Data()
-    @AppStorage("ayceScoreboard") private var scoreboardData: Data = Data()
-
+    private let userDefaults: UserDefaults
+    private let authService: AuthServiceProtocol?
+    private let accountUserID: String?
+    private let draftStorageKey: String?
+    private let scoreboardStorageKey: String?
+    private let legacyDraftStorageKey = "ayceSessionDraft"
+    private let legacyScoreboardStorageKey = "ayceScoreboard"
     private let managesLiveActivity: Bool
 
     #if canImport(ActivityKit)
@@ -23,9 +27,25 @@ final class AYCESessionManager: ObservableObject {
     init(
         initialSession: AYCESession? = nil,
         restoresDraft: Bool = true,
-        managesLiveActivity: Bool = true
+        managesLiveActivity: Bool = true,
+        userDefaults: UserDefaults = .standard,
+        authService: AuthServiceProtocol? = nil
     ) {
+        let resolvedAuthService = authService ?? DIContainer.shared.authService
+        let userID = resolvedAuthService?.currentUserID
+        self.userDefaults = userDefaults
+        self.authService = resolvedAuthService
+        self.accountUserID = userID
+        self.draftStorageKey = AccountScopedStorageKey.make(
+            prefix: legacyDraftStorageKey,
+            userID: userID
+        )
+        self.scoreboardStorageKey = AccountScopedStorageKey.make(
+            prefix: legacyScoreboardStorageKey,
+            userID: userID
+        )
         self.managesLiveActivity = managesLiveActivity
+        migrateLegacyStorageIfNeeded()
 
         if let initialSession {
             session = initialSession
@@ -130,11 +150,11 @@ final class AYCESessionManager: ObservableObject {
                 to: loadScoreboard()
             )
             if let encoded = try? JSONEncoder().encode(updated) {
-                scoreboardData = encoded
+                setStoredData(encoded, forKey: scoreboardStorageKey)
             }
         }
         session = nil
-        draftData = Data()
+        setStoredData(Data(), forKey: draftStorageKey)
         return finished
     }
 
@@ -145,7 +165,7 @@ final class AYCESessionManager: ObservableObject {
     func discard() {
         endLiveActivity()
         session = nil
-        draftData = Data()
+        setStoredData(Data(), forKey: draftStorageKey)
     }
 
     private func completeSessionMutation() {
@@ -155,7 +175,8 @@ final class AYCESessionManager: ObservableObject {
     }
 
     private func loadScoreboard() -> [AYCESessionRecord] {
-        (try? JSONDecoder().decode([AYCESessionRecord].self, from: scoreboardData)) ?? []
+        guard let data = storedData(forKey: scoreboardStorageKey) else { return [] }
+        return (try? JSONDecoder().decode([AYCESessionRecord].self, from: data)) ?? []
     }
 
     private func celebrateIfNeeded() {
@@ -171,17 +192,53 @@ final class AYCESessionManager: ObservableObject {
     }
 
     private func persistDraft() {
-        draftData = (try? JSONEncoder().encode(session)) ?? Data()
+        setStoredData((try? JSONEncoder().encode(session)) ?? Data(), forKey: draftStorageKey)
     }
 
     private func restoreDraft() {
-        guard !draftData.isEmpty,
+        guard let draftData = storedData(forKey: draftStorageKey),
+              !draftData.isEmpty,
               let restored = try? JSONDecoder().decode(AYCESession.self, from: draftData) else {
             return
         }
         session = restored
         hasCelebratedBreakEven = AYCERules.breakEvenProgress(session: restored) >= 1
         hasCelebratedKitchenWin = AYCERules.hasBeatenKitchen(session: restored)
+    }
+
+    private var isCurrentAccount: Bool {
+        guard let accountUserID else { return false }
+        return authService?.currentUserID == accountUserID
+    }
+
+    private func storedData(forKey key: String?) -> Data? {
+        guard isCurrentAccount, let key else { return nil }
+        return userDefaults.data(forKey: key)
+    }
+
+    private func setStoredData(_ data: Data, forKey key: String?) {
+        guard isCurrentAccount, let key else { return }
+        if data.isEmpty {
+            userDefaults.removeObject(forKey: key)
+        } else {
+            userDefaults.set(data, forKey: key)
+        }
+    }
+
+    private func migrateLegacyStorageIfNeeded() {
+        guard isCurrentAccount,
+              let draftStorageKey,
+              let scoreboardStorageKey else { return }
+        if userDefaults.data(forKey: draftStorageKey) == nil,
+           let legacyDraft = userDefaults.data(forKey: legacyDraftStorageKey) {
+            userDefaults.set(legacyDraft, forKey: draftStorageKey)
+        }
+        if userDefaults.data(forKey: scoreboardStorageKey) == nil,
+           let legacyScoreboard = userDefaults.data(forKey: legacyScoreboardStorageKey) {
+            userDefaults.set(legacyScoreboard, forKey: scoreboardStorageKey)
+        }
+        userDefaults.removeObject(forKey: legacyDraftStorageKey)
+        userDefaults.removeObject(forKey: legacyScoreboardStorageKey)
     }
 
     private func startLiveActivity() {
@@ -191,7 +248,10 @@ final class AYCESessionManager: ObservableObject {
         do {
             liveActivity = try Activity.request(
                 attributes: AYCEActivityAttributes(cuisineName: session.cuisine.displayName),
-                content: .init(state: activityState(), staleDate: nil)
+                content: .init(
+                    state: activityState(),
+                    staleDate: Date().addingTimeInterval(45 * 60)
+                )
             )
         } catch {
             AppLog.liveActivity.error(
@@ -207,7 +267,12 @@ final class AYCESessionManager: ObservableObject {
         guard let liveActivity else { return }
         let state = activityState()
         Task {
-            await liveActivity.update(.init(state: state, staleDate: nil))
+            await liveActivity.update(
+                .init(
+                    state: state,
+                    staleDate: Date().addingTimeInterval(45 * 60)
+                )
+            )
         }
         #endif
     }

@@ -527,6 +527,7 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         let plan = confirmedPlan(start: start, confirmedAt: date(2026, 7, 11, 14, 0))
 
         store.confirm(plan, for: "user-a")
+        XCTAssertFalse(defaults.dictionaryRepresentation().keys.joined().contains("user-a"))
         store.load(for: "user-b", now: start, calendar: calendar)
         XCTAssertNil(store.confirmedPlan)
 
@@ -809,6 +810,9 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let key = "myfitplate.training_fuel_plan.user-a"
+        let hashedKey = try XCTUnwrap(
+            AccountScopedStorageKey.make(prefix: "myfitplate.training_fuel_plan", userID: "user-a")
+        )
         defaults.set(Data("not-json".utf8), forKey: key)
 
         let store = TrainingFuelPlanStore(userDefaults: defaults)
@@ -816,6 +820,7 @@ final class TrainingFuelPlannerIntegrationTests: XCTestCase {
 
         XCTAssertNil(store.confirmedPlan)
         XCTAssertNil(defaults.data(forKey: key))
+        XCTAssertNil(defaults.data(forKey: hashedKey))
     }
 
     func testSavedPlanDecodesWhenNewIdentityAndOutcomeKeysAreAbsent() throws {

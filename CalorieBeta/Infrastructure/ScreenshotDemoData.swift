@@ -184,6 +184,10 @@ enum ScreenshotDemoData {
         discoveryFoods()[0]
     }
 
+    static var trustHubDemoLog: DailyLog {
+        nutritionHistory()[0]
+    }
+
     static var manualFoodDemoFood: FoodItem {
         FoodItem(
             id: "demo-manual-power-bowl",
@@ -921,7 +925,16 @@ enum ScreenshotDemoData {
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: "cached_user_goals_\(userID)")
         defaults.removeObject(forKey: "chatHistory_\(userID)")
+        if let goalCacheKey = AccountScopedStorageKey.make(prefix: "cached_user_goals", userID: userID) {
+            defaults.removeObject(forKey: goalCacheKey)
+        }
+        if let chatCacheKey = AccountScopedStorageKey.make(prefix: "chatHistory", userID: userID) {
+            defaults.removeObject(forKey: chatCacheKey)
+        }
         defaults.removeObject(forKey: "mealPlanCache")
+        if let mealPlanCacheKey = AccountScopedStorageKey.make(prefix: "mealPlanCache", userID: userID) {
+            defaults.removeObject(forKey: mealPlanCacheKey)
+        }
         defaults.set(programID, forKey: "activeWorkoutProgramID")
         defaults.set(false, forKey: "activeWorkoutProgramCleared")
         defaults.set(false, forKey: "useMetricBodyUnits")

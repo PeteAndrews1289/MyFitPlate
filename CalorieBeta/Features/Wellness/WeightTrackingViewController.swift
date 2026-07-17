@@ -65,6 +65,7 @@ class WeightTrackingViewController: UIViewController {
             }
             
             await MainActor.run {
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 self.currentWeight = fetchedWeight
                 self.weightHistory = fetchedHistory
                 

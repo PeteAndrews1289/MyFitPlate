@@ -28,7 +28,8 @@ public final class NIHDietarySupplementAPIService {
 
     public func lookupBarcode(_ barcode: String) async -> FoodItem? {
         let normalized = BarcodeCorrectionRules.normalizedBarcode(barcode)
-        guard (8...14).contains(normalized.count) else { return nil }
+        guard (8...14).contains(normalized.count),
+              normalized.allSatisfy(\.isNumber) else { return nil }
         guard await isFeatureEnabled() else { return nil }
         guard let service = await resolvedCloudFunctionService() else { return nil }
 

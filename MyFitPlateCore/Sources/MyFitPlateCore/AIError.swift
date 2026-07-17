@@ -22,6 +22,7 @@ public enum AIRequestKind: String, Sendable {
 
 public enum AIError: Error, LocalizedError {
     case consentRequired
+    case accountChanged
     case featureUnavailable
     case invalidURL
     case noData
@@ -33,6 +34,7 @@ public enum AIError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .consentRequired: return "Review and allow AI data sharing before using Maia."
+        case .accountChanged: return "The active account changed. Try the request again."
         case .featureUnavailable:
             return "This camera tool is temporarily unavailable. Try another logging method."
         case .invalidURL: return "Invalid API URL."

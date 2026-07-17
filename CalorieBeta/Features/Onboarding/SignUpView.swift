@@ -25,7 +25,7 @@ struct SignUpView: View {
                     AuthIntro(
                         icon: "person.badge.plus",
                         eyebrow: "One account",
-                        title: "Create your workspace",
+                        title: "Build your MyFitPlate",
                         subtitle: "Your food history, body trends, training, and preferences will stay together."
                     )
 

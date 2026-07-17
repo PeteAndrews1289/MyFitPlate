@@ -133,7 +133,7 @@ public enum DailyNextActionRules {
            consumedProtein.isFinite,
            consumedProtein >= 0 {
             let caloriesRemaining = goals.calories - consumedCalories
-            let proteinRemaining = Int(ceil(max(0, goals.protein - consumedProtein)))
+            let proteinRemaining = Int(max(0, goals.protein - consumedProtein).rounded())
             if caloriesRemaining >= Double(proteinCatchUpMinimumCalories),
                proteinRemaining >= proteinCatchUpMinimumGrams {
                 return DailyNextAction(

@@ -100,16 +100,24 @@ extension View {
 }
 
 private struct ImageSourceDialog: ViewModifier {
+    @Environment(\.openURL) private var openURL
     @Binding var isPresented: Bool
     let onImagePicked: (UIImage) -> Void
     @State private var showCamera = false
     @State private var showLibrary = false
+    @State private var showCameraAccessRecovery = false
+
+    private var cameraAccessMessage: String {
+        AVCaptureDevice.authorizationStatus(for: .video) == .restricted
+            ? "Camera access is restricted on this device. You can choose an existing photo instead."
+            : "Allow camera access in Settings, or choose an existing photo instead."
+    }
 
     func body(content: Content) -> some View {
         content
             .confirmationDialog("Add a Photo", isPresented: $isPresented, titleVisibility: .visible) {
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button("Take Photo") { showCamera = true }
+                    Button("Take Photo", action: requestCamera)
                 }
                 Button("Choose from Library") { showLibrary = true }
                 Button("Cancel", role: .cancel) {}
@@ -120,5 +128,42 @@ private struct ImageSourceDialog: ViewModifier {
             .sheet(isPresented: $showLibrary) {
                 ImagePicker(sourceType: .photoLibrary, onImagePicked: onImagePicked)
             }
+            .alert("Camera access needed", isPresented: $showCameraAccessRecovery) {
+                if AVCaptureDevice.authorizationStatus(for: .video) == .denied {
+                    Button("Open Settings", action: openSettings)
+                }
+                Button("Choose Photo") {
+                    showLibrary = true
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(cameraAccessMessage)
+            }
+    }
+
+    private func requestCamera() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            showCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showCamera = true
+                    } else {
+                        showCameraAccessRecovery = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            showCameraAccessRecovery = true
+        @unknown default:
+            showCameraAccessRecovery = true
+        }
+    }
+
+    private func openSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        openURL(url)
     }
 }

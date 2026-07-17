@@ -18,6 +18,10 @@ final class WeeklyRecapLoader: ObservableObject {
         acceptsInitialRecap = initialRecap != nil
     }
 
+    private func isCurrentRequest(_ requestID: UUID, userID: String) -> Bool {
+        generation == requestID && DIContainer.shared.authService.currentUserID == userID
+    }
+
     func load(
         dailyLogService: DailyLogService,
         workoutService: WorkoutService,
@@ -79,7 +83,7 @@ final class WeeklyRecapLoader: ObservableObject {
         async let sessionsResult = workoutService.fetchRecentSessionLogsResult(sinceDays: 365)
 
         let (dailyLogsResult, workoutLogsResult) = await (logsResult, sessionsResult)
-        guard generation == requestID else { return }
+        guard isCurrentRequest(requestID, userID: userID) else { return }
 
         let dailyLogs: [DailyLog]
         let sessions: [WorkoutSessionLog]
@@ -106,13 +110,13 @@ final class WeeklyRecapLoader: ObservableObject {
             zoneSeconds = [180, 1_020, 2_040, 1_080, 240]
             shouldQueryHealth = false
         } else {
-            runs = await fetchRuns(since: runHistoryStart, importer: importer)
+            runs = await fetchRuns(since: runHistoryStart, userID: userID, importer: importer)
         }
         #else
-        runs = await fetchRuns(since: runHistoryStart, importer: importer)
+        runs = await fetchRuns(since: runHistoryStart, userID: userID, importer: importer)
         #endif
 
-        guard generation == requestID else { return }
+        guard isCurrentRequest(requestID, userID: userID) else { return }
         let shoeStore = RunningShoeStore()
         runs = shoeStore.applyTags(to: runs)
 
@@ -125,7 +129,7 @@ final class WeeklyRecapLoader: ObservableObject {
             )
         }
 
-        guard generation == requestID else { return }
+        guard isCurrentRequest(requestID, userID: userID) else { return }
         let workoutResultStore = RunWorkoutResultStore()
         let weekRunIDs = runs.filter {
             $0.startDate >= weekStart && $0.startDate <= now
@@ -153,9 +157,15 @@ final class WeeklyRecapLoader: ObservableObject {
         loadMessage = nil
     }
 
-    private func fetchRuns(since: Date, importer: RunImportService) async -> [Run] {
+    private func fetchRuns(
+        since: Date,
+        userID: String,
+        importer: RunImportService
+    ) async -> [Run] {
         await withCheckedContinuation { continuation in
-            importer.fetchRuns(since: since) { continuation.resume(returning: $0) }
+            importer.fetchRuns(since: since, userID: userID) {
+                continuation.resume(returning: $0)
+            }
         }
     }
 

@@ -15,6 +15,7 @@ final class MyFoodsLibraryViewModel: ObservableObject {
     @Published var confirmation: MyFoodsLibraryConfirmation?
 
     private var loadGeneration = UUID()
+    private var loadedUserID: String?
 
     init(
         initialFoods: [FoodItem] = [],
@@ -54,6 +55,10 @@ final class MyFoodsLibraryViewModel: ObservableObject {
 
     func load(using service: DailyLogService) {
         guard let userID = DIContainer.shared.authService.currentUserID else {
+            loadGeneration = UUID()
+            loadedUserID = nil
+            savedFoods = []
+            recentFoods = []
             isLoading = false
             loadError = "Sign in to manage My Foods."
             return
@@ -61,6 +66,11 @@ final class MyFoodsLibraryViewModel: ObservableObject {
 
         let generation = UUID()
         loadGeneration = generation
+        if loadedUserID != userID {
+            savedFoods = []
+            recentFoods = []
+        }
+        loadedUserID = userID
         if savedFoods.isEmpty {
             isLoading = true
         }
@@ -68,7 +78,10 @@ final class MyFoodsLibraryViewModel: ObservableObject {
 
         service.fetchRecentFoodItems(for: userID) { [weak self] result in
             Task { @MainActor in
-                guard let self, self.loadGeneration == generation else { return }
+                guard let self,
+                      self.loadGeneration == generation,
+                      self.loadedUserID == userID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
                 if case .success(let items) = result {
                     self.recentFoods = items
                 }
@@ -77,7 +90,10 @@ final class MyFoodsLibraryViewModel: ObservableObject {
 
         service.customFoodStore.fetchMyFoodItems(for: userID) { [weak self] result in
             Task { @MainActor in
-                guard let self, self.loadGeneration == generation else { return }
+                guard let self,
+                      self.loadGeneration == generation,
+                      self.loadedUserID == userID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
                 self.isLoading = false
                 switch result {
                 case .success(let items):
@@ -102,6 +118,10 @@ final class MyFoodsLibraryViewModel: ObservableObject {
         activeMutationID = food.id
         store.saveCustomFood(for: userID, foodItem: food) { [weak self] success in
             guard let self else { return }
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                completion(false)
+                return
+            }
             self.activeMutationID = nil
             if success, let index = self.savedFoods.firstIndex(where: { $0.id == food.id }) {
                 self.savedFoods[index] = food
@@ -122,6 +142,10 @@ final class MyFoodsLibraryViewModel: ObservableObject {
         activeMutationID = food.id
         store.deleteCustomFood(for: userID, foodItemID: food.id) { [weak self] success in
             guard let self else { return }
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                completion(false)
+                return
+            }
             self.activeMutationID = nil
             if success {
                 self.savedFoods.removeAll { $0.id == food.id }
@@ -142,6 +166,10 @@ final class MyFoodsLibraryViewModel: ObservableObject {
         activeMutationID = food.id
         store.removeBarcodeAssociation(for: userID, foodItemID: food.id) { [weak self] success in
             guard let self else { return }
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                completion(false)
+                return
+            }
             self.activeMutationID = nil
             if success, let index = self.savedFoods.firstIndex(where: { $0.id == food.id }) {
                 self.savedFoods[index] = MyFoodsLibraryRules.removingBarcodeAssociation(from: food)
@@ -172,6 +200,10 @@ final class MyFoodsLibraryViewModel: ObservableObject {
             removingFoodIDs: removingIDs
         ) { [weak self] success in
             guard let self else { return }
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                completion(false)
+                return
+            }
             self.activeMutationID = nil
             if success {
                 let removed = Set(removingIDs)

@@ -184,7 +184,14 @@ final class RunRecorderViewModel: ObservableObject {
         store.save(run: run, locations: rawLocations, weightLbs: weightLbs) { [weak self] savedID in
             guard let self else { return }
             if savedID == nil {
-                ToastManager.shared.showToast(message: "Saved locally, but Health sync failed.")
+                if let userID = DIContainer.shared.authService.currentUserID,
+                   RunFallbackStore.shared.save(run, for: userID) {
+                    let shoeStore = RunningShoeStore()
+                    shoeStore.tagRun(runID: run.id, withShoeID: shoeStore.defaultShoe()?.id)
+                    ToastManager.shared.showToast(message: "Saved in MyFitPlate; Apple Health sync failed.")
+                } else {
+                    ToastManager.shared.showToast(message: "Apple Health sync failed. Keep this summary open while you review it.")
+                }
             }
             // New recordings get the CURRENT default shoe stamped at save time — history
             // is never retroactively re-tagged when the default changes.
@@ -204,7 +211,10 @@ final class RunRecorderViewModel: ObservableObject {
             // Records are judged against strictly-past runs so the just-saved copy of
             // this run (different HK UUID, same stats) can't mask its own achievement.
             let since = Calendar.current.date(byAdding: .year, value: -1, to: run.startDate) ?? run.startDate
-            RunImportService().fetchRuns(since: since) { history in
+            RunImportService().fetchRuns(
+                since: since,
+                userID: DIContainer.shared.authService.currentUserID
+            ) { history in
                 let past = history.filter { $0.endDate <= run.startDate }
                 self.finishedSetRecord = RunStats.setsRecord(run, against: past + [run])
                 HapticManager.instance.notification(.success)
@@ -228,7 +238,10 @@ final class RunRecorderViewModel: ObservableObject {
         do {
             liveActivity = try Activity.request(
                 attributes: RunActivityAttributes(),
-                content: .init(state: activityState(), staleDate: nil)
+                content: .init(
+                    state: activityState(),
+                    staleDate: Date().addingTimeInterval(10 * 60)
+                )
             )
         } catch {
             AppLog.liveActivity.error("Run Live Activity failed to start: \(error.localizedDescription, privacy: .public)")
@@ -245,7 +258,12 @@ final class RunRecorderViewModel: ObservableObject {
         lastActivityPush = Date()
         let state = activityState()
         Task {
-            await liveActivity.update(.init(state: state, staleDate: nil))
+            await liveActivity.update(
+                .init(
+                    state: state,
+                    staleDate: Date().addingTimeInterval(10 * 60)
+                )
+            )
         }
         #endif
     }

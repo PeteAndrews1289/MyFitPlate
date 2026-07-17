@@ -13,6 +13,8 @@ struct WeightTrackingView: View {
     @State private var showingChartDeleteAlert = false
     @State private var chartEntryToDeleteID: String?
     @State private var chartEntryToDeleteDetails = ""
+    @State private var deletedWeightEntry: (date: Date, weight: Double)?
+    @State private var weightUndoTask: Task<Void, Never>?
 
     private var numberFormatter: NumberFormatter {
         let formatter = NumberFormatter()
@@ -128,12 +130,41 @@ struct WeightTrackingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
-            Button {
-                showingWeightEntrySheet = true
-            } label: {
-                Label("Log Weight", systemImage: "plus")
+            VStack(spacing: AppSpacing.compact) {
+                if deletedWeightEntry != nil {
+                    HStack(spacing: AppSpacing.row) {
+                        Label("Weight entry removed", systemImage: "trash")
+                            .appTextRole(.caption)
+                            .foregroundStyle(AppPalette.text)
+
+                        Spacer(minLength: AppSpacing.compact)
+
+                        Button("Undo", action: restoreDeletedWeightEntry)
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.brandText)
+                    }
+                    .padding(.horizontal, AppSpacing.group)
+                    .padding(.vertical, AppSpacing.row)
+                    .background(
+                        AppPalette.surface,
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                            .stroke(AppPalette.separator, lineWidth: 1)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .accessibilityElement(children: .contain)
+                }
+
+                Button {
+                    showingWeightEntrySheet = true
+                } label: {
+                    Label("Log Weight", systemImage: "plus")
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .accessibilityIdentifier("weight_log_button")
             }
-            .buttonStyle(AppActionButtonStyle(.primary))
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.row)
             .padding(.bottom, AppSpacing.compact)
@@ -143,7 +174,7 @@ struct WeightTrackingView: View {
                     .fill(AppPalette.separator)
                     .frame(height: 1)
             }
-            .accessibilityIdentifier("weight_log_button")
+            .animation(AppMotion.visibility, value: deletedWeightEntry != nil)
         }
         .sheet(isPresented: $showingWeightEntrySheet) {
             CurrentWeightView()
@@ -431,12 +462,38 @@ struct WeightTrackingView: View {
     }
 
     private func confirmDeleteChartEntry(entryID: String) {
+        if let entry = goalSettings.weightHistory.first(where: { $0.id == entryID }) {
+            deletedWeightEntry = (entry.date, entry.weight)
+            weightUndoTask?.cancel()
+            weightUndoTask = Task {
+                try? await Task.sleep(for: .seconds(6))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    withAnimation(AppMotion.visibility) {
+                        deletedWeightEntry = nil
+                    }
+                }
+            }
+        }
         goalSettings.deleteWeightEntry(entryID: entryID) { error in
             if let error {
                 AppLog.app.error("Failed to delete weight entry: \(error.localizedDescription, privacy: .public)")
             }
         }
         chartEntryToDeleteID = nil
+    }
+
+    private func restoreDeletedWeightEntry() {
+        guard let deletedWeightEntry else { return }
+        weightUndoTask?.cancel()
+        goalSettings.updateUserWeight(
+            deletedWeightEntry.weight,
+            date: deletedWeightEntry.date,
+            syncToHealthKit: false
+        )
+        withAnimation(AppMotion.visibility) {
+            self.deletedWeightEntry = nil
+        }
     }
 }
 

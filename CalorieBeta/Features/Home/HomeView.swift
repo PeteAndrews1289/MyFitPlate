@@ -30,6 +30,7 @@ struct HomeView: View {
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
 
     @State private var lastRecoveryCheck: Date?
+    @State private var recoveryCheckUserID: String?
     @State private var showingProfileSheet = false
     @State private var showingAddExerciseView = false
 
@@ -44,6 +45,7 @@ struct HomeView: View {
 
     @State private var mealSuggestion: MealSuggestion?
     @State private var mealSuggestionTarget: TrainingFuelTarget?
+    @State private var mealSuggestionUserID: String?
     @State private var showingSuggestionDetail = false
     @State private var showingSuggestionPreferences = false
 
@@ -51,8 +53,6 @@ struct HomeView: View {
     @State private var currentSpotlightIndex: Int = 0
     @State private var showingSpotlightTour = false
     @State private var showingCoachingDashboard = false
-
-    @State private var showingWorkoutRoutines = false
 
     @State private var selectedExerciseForDetail: LoggedExercise?
     @State private var showingWorkoutDetail = false
@@ -76,6 +76,7 @@ struct HomeView: View {
     // food is logged, so the flame ticks immediately.
     @State private var pastLoggedDays: [Date] = []
     @State private var lastStreakFetchDay: Date?
+    @State private var streakHistoryUserID: String?
     @State private var hasCheckedSwitcherHistory = false
 
     private var isMenuScannerEnabled: Bool {
@@ -200,7 +201,6 @@ struct HomeView: View {
                             }
 
                             HomeQuickActionsView(
-                                showingWorkoutRoutines: $showingWorkoutRoutines,
                                 showingCoachingDashboard: $showingCoachingDashboard,
                                 showingMenuScanner: $showingMenuScanner,
                                 showingWeightEntrySheet: $showingWeightEntrySheet,
@@ -211,6 +211,7 @@ struct HomeView: View {
                                 waterIntake: currentWaterIntake,
                                 waterGoal: goalSettings.waterGoal,
                                 canLogWater: isToday && !isLivingDayHomeEnabled,
+                                onOpenWorkouts: { appState.selectedTab = 2 },
                                 onLogWater: { logWaterFromHome(amount: 8) },
                                 onRepeatYesterdayMeals: { repeatYesterdayMeals() }
                             )
@@ -298,11 +299,22 @@ struct HomeView: View {
                             workoutService.fetchRoutinesAndPrograms()
                             trainingFuelPlanStore.load(for: userId)
                             refreshLivingDayMealPlan()
+                            refreshStreakHistory()
                         } else {
                             dailyLogService.smartSuggestions = []
                             trainingFuelPlanStore.load(for: nil)
                             livingDayMealPlan = nil
                             livingDayMealPlanUserID = nil
+                            mealSuggestion = nil
+                            mealSuggestionTarget = nil
+                            mealSuggestionUserID = nil
+                            showingSuggestionDetail = false
+                            pastLoggedDays = []
+                            lastStreakFetchDay = nil
+                            streakHistoryUserID = nil
+                            hasCheckedSwitcherHistory = false
+                            lastRecoveryCheck = nil
+                            recoveryCheckUserID = nil
                         }
                     }
                     .onChange(of: currentSpotlightIndex) { _, newIndex in
@@ -478,6 +490,12 @@ struct HomeView: View {
           .onChange(of: selectedDate) { _, _ in
               refreshLivingDayMealPlan()
           }
+          .onReceive(NotificationCenter.default.publisher(for: .mealPlanChanged)) { notification in
+              guard notification.object as? String == DIContainer.shared.authService.currentUserID else {
+                  return
+              }
+              refreshLivingDayMealPlan()
+          }
           .onChange(of: isLivingDayHomeEnabled) { _, _ in
               refreshLivingDayMealPlan()
           }
@@ -505,14 +523,6 @@ struct HomeView: View {
                   showingTrainingFuelPlanner = true
               }
           }
-          // The "start workout" quick action switches to the Train tab instead of pushing
-          // a second copy of the whole Train screen inside Home's navigation stack.
-          .onChange(of: showingWorkoutRoutines) { _, isShowing in
-              if isShowing {
-                  showingWorkoutRoutines = false
-                  appState.selectedTab = 2
-              }
-          }
           .navigationDestination(isPresented: $showingWorkoutDetail) {
               if let selectedExerciseForDetail {
                   PastWorkoutDetailView(exercise: selectedExerciseForDetail)
@@ -535,6 +545,11 @@ struct HomeView: View {
     /// finished in the last two hours (recorded or from a watch via HealthKit) feeds the
     /// 45-minute recovery window logic.
     private func refreshRunRecoveryPrompt() {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        if recoveryCheckUserID != userID {
+            recoveryCheckUserID = userID
+            lastRecoveryCheck = nil
+        }
         // Home reappears constantly (tab switches, sheet dismissals); a HealthKit query on
         // every appearance is wasteful and makes the banner flicker. Re-check at most once
         // every 5 minutes — well inside the 45-minute recovery window it feeds.
@@ -542,7 +557,11 @@ struct HomeView: View {
         lastRecoveryCheck = Date()
 
         let since = Calendar.current.date(byAdding: .hour, value: -2, to: Date()) ?? Date()
-        RunImportService().fetchRuns(since: since) { runs in
+        RunImportService().fetchRuns(
+            since: since,
+            userID: userID
+        ) { runs in
+            guard DIContainer.shared.authService.currentUserID == userID else { return }
             insightsService.evaluateRunRecoveryPrompt(
                 recentRun: runs.first,
                 weightLbs: goalSettings.weight
@@ -576,6 +595,7 @@ struct HomeView: View {
                         dailyLogService: dailyLogService
                     )
                     await MainActor.run {
+                        guard DIContainer.shared.authService.currentUserID == userID else { return }
                         if goalSettings.isCheckInReady {
                             self.showingWeeklyCheckIn = true
                         }
@@ -591,7 +611,7 @@ struct HomeView: View {
     /// user taps "Replay feature tour" in Settings (which clears the seen flags first).
     private func startSpotlightTourIfNeeded() {
         guard !ScreenshotDemoMode.isEnabled,
-              !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
+              !AppRuntime.isUITesting() else { return }
         let needed = spotlightOrder.filter { !spotlightManager.isShown(id: $0) }
         guard !needed.isEmpty else { return }
         self.tourSpotlightIDs = needed
@@ -861,11 +881,20 @@ struct HomeView: View {
 
     private func refreshStreakHistory() {
         let todayStart = Calendar.current.startOfDay(for: Date())
-        if let last = lastStreakFetchDay, Calendar.current.isDate(last, inSameDayAs: todayStart) {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            pastLoggedDays = []
+            lastStreakFetchDay = nil
+            streakHistoryUserID = nil
             hasCheckedSwitcherHistory = true
             return
         }
-        guard let userID = DIContainer.shared.authService.currentUserID else {
+        if streakHistoryUserID != userID {
+            pastLoggedDays = []
+            lastStreakFetchDay = nil
+            hasCheckedSwitcherHistory = false
+            streakHistoryUserID = userID
+        }
+        if let last = lastStreakFetchDay, Calendar.current.isDate(last, inSameDayAs: todayStart) {
             hasCheckedSwitcherHistory = true
             return
         }
@@ -874,10 +903,14 @@ struct HomeView: View {
         Task {
             let start = Calendar.current.date(byAdding: .day, value: -45, to: todayStart)
             if case .success(let logs) = await dailyLogService.fetchDailyHistory(for: userID, startDate: start, endDate: Date()) {
+                guard DIContainer.shared.authService.currentUserID == userID,
+                      streakHistoryUserID == userID else { return }
                 pastLoggedDays = logs
                     .filter { !$0.meals.flatMap(\.foodItems).isEmpty && !Calendar.current.isDateInToday($0.date) }
                     .map(\.date)
             }
+            guard DIContainer.shared.authService.currentUserID == userID,
+                  streakHistoryUserID == userID else { return }
             hasCheckedSwitcherHistory = true
         }
     }
@@ -1187,14 +1220,17 @@ struct HomeView: View {
     }
 
     private func generateTrainingFuelSuggestion(target: TrainingFuelTarget) {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         Task {
             let suggestion = await insightsService.generateTrainingFuelSuggestion(
                 target: target,
                 pantryItems: pantryService.pantryItems.map(\.name)
             )
+            guard DIContainer.shared.authService.currentUserID == userID else { return }
             if let suggestion {
                 mealSuggestionTarget = target
                 mealSuggestion = suggestion
+                mealSuggestionUserID = userID
                 showingSuggestionDetail = true
             } else {
                 ToastManager.shared.showToast(
@@ -1467,6 +1503,7 @@ struct HomeView: View {
             HapticManager.instance.feedback(.light)
         }
 
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         Task {
             mealSuggestionTarget = nil
             let pantryNames = pantryService.pantryItems.map(\.name)
@@ -1476,9 +1513,12 @@ struct HomeView: View {
                 "pantry_count": pantryNames.count
             ])
             if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 self.mealSuggestion = suggestion
+                self.mealSuggestionUserID = userID
                 self.showingSuggestionDetail = true
             } else {
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 // Never fail silently (the AI call needs a network round-trip).
                 ToastManager.shared.showToast(message: "Maia couldn't build a meal right now. Check your connection and try again.")
             }
@@ -1600,7 +1640,14 @@ struct HomeView: View {
     }
 
     private func logMealSuggestion(_ suggestion: MealSuggestion) {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID,
+              mealSuggestionUserID == userID else {
+            mealSuggestion = nil
+            mealSuggestionTarget = nil
+            mealSuggestionUserID = nil
+            showingSuggestionDetail = false
+            return
+        }
 
         let foodItem = FoodItem(
             id: UUID().uuidString,
@@ -1620,6 +1667,8 @@ struct HomeView: View {
         withAnimation {
             self.mealSuggestion = nil
             self.mealSuggestionTarget = nil
+            self.mealSuggestionUserID = nil
+            self.showingSuggestionDetail = false
         }
     }
 
@@ -1628,8 +1677,14 @@ struct HomeView: View {
                 completion()
                 return
             }
+            let requestedDate = selectedDate
 
-            dailyLogService.fetchLog(for: userID, date: selectedDate) { [self] _ in
+            dailyLogService.fetchLog(for: userID, date: requestedDate) { [self] _ in
+                guard DIContainer.shared.authService.currentUserID == userID,
+                      Calendar.current.isDate(selectedDate, inSameDayAs: requestedDate) else {
+                    completion()
+                    return
+                }
                 self.goalSettings.recalculateAllGoals()
                 self.refreshDeferredTrainingRecoveryIfNeeded()
                 if self.isToday {

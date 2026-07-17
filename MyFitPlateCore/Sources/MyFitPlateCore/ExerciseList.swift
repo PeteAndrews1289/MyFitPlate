@@ -2,6 +2,29 @@
 import Foundation
 
 public struct ExerciseList {
+    public enum EquipmentFamily: String, CaseIterable, Hashable, Identifiable, Sendable {
+        case bodyweight = "Bodyweight"
+        case dumbbell = "Dumbbell"
+        case barbell = "Barbell"
+        case cable = "Cable"
+        case machine = "Machine"
+        case kettlebell = "Kettlebell"
+        case flexible = "Flexible"
+
+        public var id: String { rawValue }
+
+        public var icon: String {
+            switch self {
+            case .bodyweight: "figure.strengthtraining.functional"
+            case .dumbbell: "dumbbell.fill"
+            case .barbell: "figure.strengthtraining.traditional"
+            case .cable: "arrow.up.and.down"
+            case .machine: "gearshape.2.fill"
+            case .kettlebell: "scalemass.fill"
+            case .flexible: "slider.horizontal.3"
+            }
+        }
+    }
 
     /// One exercise: its display name, muscle-group category, and a concise how-to cue.
     /// This is the single source of truth — `categorizedExercises` and `instructions`
@@ -219,5 +242,55 @@ public struct ExerciseList {
 
     public static func category(for name: String) -> String? {
         entries.first { $0.name == name }?.category
+    }
+
+    /// A lightweight equipment family used for discovery and swap explanations. The exercise
+    /// library intentionally keeps broad names such as "Romanian Deadlift" flexible instead of
+    /// claiming a specific implement when the movement can reasonably use several.
+    public static func equipment(for name: String) -> EquipmentFamily {
+        let normalized = name.lowercased()
+
+        if normalized.contains("/") {
+            return .flexible
+        }
+        if normalized.contains("dumbbell") {
+            return .dumbbell
+        }
+        if normalized.contains("kettlebell") {
+            return .kettlebell
+        }
+        if normalized.contains("barbell") {
+            return .barbell
+        }
+        if normalized.contains("cable")
+            || normalized.contains("pulldown")
+            || normalized.contains("face pull")
+            || normalized.contains("pull-through") {
+            return .cable
+        }
+        if normalized.contains("machine")
+            || normalized.contains("leg press")
+            || normalized.contains("hack squat")
+            || normalized.contains("pec deck")
+            || normalized.contains("treadmill")
+            || normalized.contains("elliptical")
+            || normalized.contains("stair climber")
+            || normalized.contains("stationary bike")
+            || normalized.contains("rowing machine") {
+            return .machine
+        }
+
+        let bodyweightMovements = [
+            "push-up", "pull-up", "chin-up", "dip", "plank", "crunch", "bird dog",
+            "dead bug", "mountain climber", "burpee", "high knees", "bodyweight squat",
+            "glute bridge", "frog pump", "leg raise", "world's greatest stretch",
+            "hip flexor stretch", "thoracic rotation", "wall slide", "scapular push-up",
+            "couch stretch", "child's pose", "box breathing"
+        ]
+        if bodyweightMovements.contains(where: normalized.contains) {
+            return .bodyweight
+        }
+
+        return .flexible
     }
 }

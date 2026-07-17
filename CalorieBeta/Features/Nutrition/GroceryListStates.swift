@@ -1,5 +1,33 @@
 import SwiftUI
 
+struct GroceryUndoBanner: View {
+    let itemName: String
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: AppSpacing.row) {
+            Image(systemName: "trash")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.caution)
+                .accessibilityHidden(true)
+
+            Text("\(itemName) removed")
+                .appTextRole(.body)
+                .foregroundStyle(AppPalette.text)
+                .lineLimit(2)
+
+            Spacer(minLength: AppSpacing.compact)
+
+            Button("Undo", action: onUndo)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.brandText)
+        }
+        .appSurface(.emphasized)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("grocery_delete_undo")
+    }
+}
+
 struct GroceryAllCompleteState: View {
     let onShowCompleted: () -> Void
 
@@ -91,5 +119,40 @@ struct GroceryListEmptyState: View {
         .frame(maxWidth: .infinity)
         .appSurface(.quiet)
         .accessibilityIdentifier("grocery_empty")
+    }
+}
+
+struct GroceryListLoadErrorState: View {
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(spacing: AppSpacing.group) {
+            Image(systemName: "icloud.slash")
+                .appTextRole(.screenTitle)
+                .foregroundStyle(AppPalette.caution)
+                .frame(width: 64, height: 64)
+                .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+                .accessibilityHidden(true)
+
+            VStack(spacing: 4) {
+                Text("Grocery List Unavailable")
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
+
+                Text("Your saved list was not changed. Check your connection and try loading it again.")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button(action: onRetry) {
+                Label("Try Again", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(AppActionButtonStyle(.primary))
+        }
+        .frame(maxWidth: .infinity)
+        .appSurface(.quiet)
+        .accessibilityIdentifier("grocery_load_error")
     }
 }

@@ -19,6 +19,7 @@ final class RecipeServiceTests: XCTestCase {
         DIContainer.shared.nutritionRepository = mockRepo
         DIContainer.shared.authService = mockAuth
         DIContainer.shared.aiService = mockAI
+        service.activateAccount("user_123")
     }
     
     override func tearDown() {
@@ -276,6 +277,102 @@ final class RecipeServiceTests: XCTestCase {
         XCTAssertNil(recipe)
     }
 
+    func testRecipeImportURLPolicyAllowsPublicHTTPS() {
+        XCTAssertEqual(
+            RecipeImportURLPolicy.allowedURL(from: "  https://recipes.example.com/pasta  ")?.absoluteString,
+            "https://recipes.example.com/pasta"
+        )
+        XCTAssertEqual(
+            RecipeImportURLPolicy.allowedURL(from: "https://recipes.example.com./pasta")?.absoluteString,
+            "https://recipes.example.com/pasta"
+        )
+        XCTAssertNotNil(RecipeImportURLPolicy.allowedURL(from: "https://8.8.8.8/recipe"))
+        XCTAssertNotNil(RecipeImportURLPolicy.allowedURL(from: "https://[2606:4700:4700::1111]/recipe"))
+    }
+
+    func testRecipeImportURLPolicyRejectsUnsafeDestinations() {
+        let rejected = [
+            "http://recipes.example.com/pasta",
+            "file:///private/etc/hosts",
+            "https://user:password@recipes.example.com/pasta",
+            "https://localhost/recipe",
+            "https://localhost./recipe",
+            "https://localhost.localdomain./recipe",
+            "https://printer/recipe",
+            "https://recipes.local/recipe",
+            "https://recipes.local./recipe",
+            "https://router.home.arpa./recipe",
+            "https://127.0.0.1/recipe",
+            "https://10.0.0.1/recipe",
+            "https://100.64.0.1/recipe",
+            "https://169.254.1.1/recipe",
+            "https://172.16.0.1/recipe",
+            "https://192.0.0.1/recipe",
+            "https://192.168.1.1/recipe",
+            "https://192.0.2.1/recipe",
+            "https://198.18.0.1/recipe",
+            "https://198.19.255.254/recipe",
+            "https://198.51.100.1/recipe",
+            "https://203.0.113.1/recipe",
+            "https://224.0.0.1/recipe",
+            "https://0177.0.0.1/recipe",
+            "https://0x7f.0.0.1/recipe",
+            "https://[::1]/recipe",
+            "https://[0:0:0:0:0:0:0:1]/recipe",
+            "https://[::]/recipe",
+            "https://[::127.0.0.1]/recipe",
+            "https://[2002:7f00:1::]/recipe",
+            "https://[64:ff9b::7f00:1]/recipe",
+            "https://[fd00::1]/recipe",
+            "https://[fe80::1]/recipe",
+            "https://[fec0::1]/recipe",
+            "https://[ff02::1]/recipe",
+            "https://[::ffff:127.0.0.1]/recipe",
+            "not a URL"
+        ]
+
+        for value in rejected {
+            XCTAssertNil(RecipeImportURLPolicy.allowedURL(from: value), value)
+        }
+    }
+
+    func testRecipeImportRedirectPolicyRevalidatesEveryDestination() throws {
+        let publicRequest = URLRequest(url: try XCTUnwrap(URL(string: "https://recipes.example.com/final")))
+        XCTAssertNotNil(RecipeImportURLPolicy.allowedRedirectRequest(publicRequest))
+
+        let localRequest = URLRequest(url: try XCTUnwrap(URL(string: "https://127.0.0.1/admin")))
+        XCTAssertNil(RecipeImportURLPolicy.allowedRedirectRequest(localRequest))
+
+        let downgradedRequest = URLRequest(url: try XCTUnwrap(URL(string: "http://recipes.example.com/final")))
+        XCTAssertNil(RecipeImportURLPolicy.allowedRedirectRequest(downgradedRequest))
+    }
+
+    func testRecipePageTextExtractorIncludesJSONLDAndVisibleRecipeText() throws {
+        let html = """
+        <html><body>
+        <script type="application/ld+json">{"@type":"Recipe","name":"Oat Bowl"}</script>
+        <h1>Oat Bowl</h1><p>Combine oats, milk, berries, and cinnamon in a bowl.</p>
+        </body></html>
+        """
+
+        let text = try XCTUnwrap(RecipePageTextExtractor.extract(from: html))
+        XCTAssertTrue(text.contains("\"@type\":\"Recipe\""))
+        XCTAssertTrue(text.contains("Combine oats"))
+    }
+
+    func testRecipePageTextExtractorFallsBackToVisibleBodyText() throws {
+        let html = """
+        <html><body><div>Roast the chicken with lemon, garlic, potatoes, and herbs until fully cooked.</div></body></html>
+        """
+
+        let text = try XCTUnwrap(RecipePageTextExtractor.extract(from: html))
+        XCTAssertTrue(text.contains("Roast the chicken"))
+    }
+
+    func testRecipePageTextExtractorRejectsPagesWithoutUsefulRecipeContent() throws {
+        XCTAssertNil(try RecipePageTextExtractor.extract(from: "<html><body>Home</body></html>"))
+    }
+
     func testCreateRecipesFromPantryRetriesAndSucceeds() async {
         let validJSON = """
         {
@@ -298,5 +395,30 @@ final class RecipeServiceTests: XCTestCase {
         mockAI.mockResult = .failure(.networkError(URLError(.notConnectedToInternet)))
         let recipes = await service.createRecipesFromPantry(itemsString: "Beans", userID: "user_123")
         XCTAssertTrue(recipes.isEmpty)
+    }
+
+    func testDelayedAIRecipeCannotSaveOrAppearAfterAccountSwitch() async {
+        mockAI.responseDelayNanoseconds = 100_000_000
+        mockAI.mockResult = .success("""
+        {
+            "name": "Private old recipe",
+            "ingredients": [],
+            "instructions": [],
+            "nutrition": {"calories": 500, "protein": 30, "carbs": 40, "fats": 20}
+        }
+        """)
+
+        let task = Task {
+            await service.createRecipeFromAI(description: "Old account idea", userID: "user_123")
+        }
+        await Task.yield()
+        mockAuth.currentUserID = "user_456"
+        service.activateAccount("user_456")
+
+        let recipe = await task.value
+        XCTAssertNil(recipe)
+        XCTAssertTrue(mockRepo.savedRecipes.isEmpty)
+        XCTAssertTrue(service.userRecipes.isEmpty)
+        XCTAssertFalse(service.isLoading)
     }
 }

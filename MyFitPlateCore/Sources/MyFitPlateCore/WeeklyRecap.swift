@@ -619,15 +619,17 @@ public enum WeeklyRecapBuilder {
         allRuns: [Run],
         shoes: [RunningShoe]
     ) -> WeeklyRecapShoeContext? {
-        let weeklyByShoe = Dictionary(grouping: weekRuns.compactMap { run -> Run? in
-            run.shoeID == nil ? nil : run
-        }, by: { $0.shoeID! })
+        let weeklyByShoe = Dictionary(grouping: weekRuns, by: \.shoeID)
+            .compactMap { shoeID, runs -> (shoeID: String, runs: [Run])? in
+                guard let shoeID else { return nil }
+                return (shoeID, runs)
+            }
         guard let primary = weeklyByShoe.max(by: {
-            $0.value.reduce(0) { $0 + safePositive($1.distanceMeters) } <
-                $1.value.reduce(0) { $0 + safePositive($1.distanceMeters) }
-        }), let shoe = shoes.first(where: { $0.id == primary.key }) else { return nil }
+            $0.runs.reduce(0) { $0 + safePositive($1.distanceMeters) } <
+                $1.runs.reduce(0) { $0 + safePositive($1.distanceMeters) }
+        }), let shoe = shoes.first(where: { $0.id == primary.shoeID }) else { return nil }
 
-        let weeklyMeters = primary.value.reduce(0.0) { $0 + safePositive($1.distanceMeters) }
+        let weeklyMeters = primary.runs.reduce(0.0) { $0 + safePositive($1.distanceMeters) }
         let totalMeters = safePositive(shoe.initialMeters) + allRuns
             .filter { $0.shoeID == shoe.id }
             .reduce(0.0) { $0 + safePositive($1.distanceMeters) }
@@ -821,7 +823,7 @@ public enum WeeklyRecapCSVExporter {
             rows.append(["Running", "Primary shoe wear", decimal(shoe.wearFraction * 100), "%", "Based on configured replacement distance"])
         }
 
-        return rows.map { $0.map(escaped).joined(separator: ",") }.joined(separator: "\r\n") + "\r\n"
+        return rows.map { $0.map(DataExporter.escape).joined(separator: ",") }.joined(separator: "\r\n") + "\r\n"
     }
 
     private static func decimal(_ value: Double?) -> String {
@@ -829,8 +831,4 @@ public enum WeeklyRecapCSVExporter {
         return String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), value)
     }
 
-    private static func escaped(_ value: String) -> String {
-        guard value.contains(",") || value.contains("\"") || value.contains("\n") else { return value }
-        return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
-    }
 }

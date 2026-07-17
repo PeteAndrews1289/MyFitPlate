@@ -3,7 +3,6 @@ import MyFitPlateCore
 import SwiftUI
 
 struct HomeQuickActionsView: View {
-    @Binding var showingWorkoutRoutines: Bool
     @Binding var showingCoachingDashboard: Bool
     @Binding var showingMenuScanner: Bool
     @Binding var showingWeightEntrySheet: Bool
@@ -15,6 +14,7 @@ struct HomeQuickActionsView: View {
     var waterIntake: Double
     var waterGoal: Double
     var canLogWater: Bool
+    var onOpenWorkouts: () -> Void
     var onLogWater: () -> Void
     var onRepeatYesterdayMeals: () -> Void
 
@@ -55,7 +55,7 @@ struct HomeQuickActionsView: View {
 
                     Button(action: {
                         HapticManager.instance.feedback(.light)
-                        showingWorkoutRoutines = true
+                        onOpenWorkouts()
                     }) {
                         QuickActionButton(
                             icon: "dumbbell.fill",

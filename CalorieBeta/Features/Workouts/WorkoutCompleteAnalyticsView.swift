@@ -14,6 +14,7 @@ struct WorkoutCompleteAnalyticsView: View {
     
     // The raw data source. Kept in state so past-session edits can refresh this screen in place.
     @State private var log: WorkoutSessionLog
+    @State private var ownerUserID: String?
     
     @StateObject var analyticsService = WorkoutAnalyticsService()
     @State private var analytics: WorkoutAnalytics?
@@ -30,11 +31,14 @@ struct WorkoutCompleteAnalyticsView: View {
     @State private var showingWorkoutEditor = false
     @State private var isSavingWorkoutEdit = false
     @State private var recoveryMealSuggestion: MealSuggestion?
+    @State private var recoverySuggestionUserID: String?
     @State private var didLogRecoveryHandoffViewed = false
+    @State private var analyticsLoadGeneration: UUID?
     private let isFreshCompletion: Bool
 
     init(log: WorkoutSessionLog, isFreshCompletion: Bool = false) {
         self._log = State(initialValue: log)
+        self._ownerUserID = State(initialValue: DIContainer.shared.authService.currentUserID)
         self.isFreshCompletion = isFreshCompletion
     }
 
@@ -307,8 +311,19 @@ struct WorkoutCompleteAnalyticsView: View {
     private func loadData() {
         isLoading = true
         self.muscleSplit = analyticsService.calculateMuscleSplit(log: log)
+        let requestID = UUID()
+        analyticsLoadGeneration = requestID
 
         if ScreenshotDemoMode.isEnabled {
+            analytics = localAnalytics
+            comparison = nil
+            trendData = [:]
+            isLoading = false
+            return
+        }
+
+        guard let userID = ownerUserID,
+              DIContainer.shared.authService.currentUserID == userID else {
             analytics = localAnalytics
             comparison = nil
             trendData = [:]
@@ -324,13 +339,15 @@ struct WorkoutCompleteAnalyticsView: View {
                 aiInsights: saved
             )
             Task {
-                let uid = DIContainer.shared.authService.currentUserID
-                if let uid {
-                    self.comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: uid)
-                    for exercise in log.completedExercises.prefix(3) {
-                        let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: uid)
-                        self.trendData[exercise.exerciseName] = points
-                    }
+                let comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: userID)
+                guard analyticsLoadGeneration == requestID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
+                self.comparison = comparison
+                for exercise in log.completedExercises.prefix(3) {
+                    let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: userID)
+                    guard analyticsLoadGeneration == requestID,
+                          DIContainer.shared.authService.currentUserID == userID else { return }
+                    self.trendData[exercise.exerciseName] = points
                 }
                 self.isLoading = false
             }
@@ -341,21 +358,27 @@ struct WorkoutCompleteAnalyticsView: View {
         analytics = localAnalytics
 
         Task {
-            let uid = DIContainer.shared.authService.currentUserID
-            let generated = await analyticsService.generateAnalytics(for: log, userID: uid)
+            let generated = await analyticsService.generateAnalytics(for: log, userID: userID)
+            guard analyticsLoadGeneration == requestID,
+                  DIContainer.shared.authService.currentUserID == userID else { return }
             self.analytics = generated
 
             // Persist so the History view can show them without re-generating.
-            if let uid, let sessionID = log.id, !generated.aiInsights.isEmpty {
-                await analyticsService.saveInsights(generated.aiInsights, forSessionID: sessionID, userID: uid)
+            if let sessionID = log.id, !generated.aiInsights.isEmpty {
+                await analyticsService.saveInsights(generated.aiInsights, forSessionID: sessionID, userID: userID)
+                guard analyticsLoadGeneration == requestID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
             }
 
-            if let uid {
-                self.comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: uid)
-                for exercise in log.completedExercises.prefix(3) {
-                    let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: uid)
-                    self.trendData[exercise.exerciseName] = points
-                }
+            let comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: userID)
+            guard analyticsLoadGeneration == requestID,
+                  DIContainer.shared.authService.currentUserID == userID else { return }
+            self.comparison = comparison
+            for exercise in log.completedExercises.prefix(3) {
+                let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: userID)
+                guard analyticsLoadGeneration == requestID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
+                self.trendData[exercise.exerciseName] = points
             }
 
             self.isLoading = false
@@ -379,7 +402,7 @@ struct WorkoutCompleteAnalyticsView: View {
     private func shouldRequestAppReview() -> Bool {
         guard isFreshCompletion,
               !ScreenshotDemoMode.isEnabled,
-              !ProcessInfo.processInfo.arguments.contains("-ui-testing"),
+              !AppRuntime.isUITesting(),
               let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String else {
             return false
         }
@@ -393,7 +416,8 @@ struct WorkoutCompleteAnalyticsView: View {
 
     @MainActor
     private func saveEditedWorkout(_ updatedLog: WorkoutSessionLog) async {
-        guard let userID = DIContainer.shared.authService.currentUserID else {
+        guard let userID = ownerUserID,
+              DIContainer.shared.authService.currentUserID == userID else {
             ToastManager.shared.showToast(message: "Sign in to edit workout history.")
             return
         }
@@ -404,6 +428,10 @@ struct WorkoutCompleteAnalyticsView: View {
 
         do {
             try await DIContainer.shared.workoutRepository.saveWorkoutSessionLog(userID: userID, log: logToSave)
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                isSavingWorkoutEdit = false
+                return
+            }
             log = logToSave
             analytics = nil
             comparison = nil
@@ -569,27 +597,34 @@ struct WorkoutCompleteAnalyticsView: View {
     }
 
     private func openRecoveryFoodSearch() {
+        guard ownerUserID == DIContainer.shared.authService.currentUserID else { return }
         HapticManager.instance.feedback(.light)
         logRecoveryHandoffAction("search")
         showingRecoveryFoodSearch = true
     }
 
     private func generateRecoveryMealSuggestion() {
+        guard let userID = ownerUserID,
+              DIContainer.shared.authService.currentUserID == userID else { return }
         HapticManager.instance.feedback(.light)
         logRecoveryHandoffAction("fill_macros")
 
         Task {
             let pantryNames = pantryService.pantryItems.map(\.name)
             if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 self.recoveryMealSuggestion = suggestion
+                self.recoverySuggestionUserID = userID
                 self.showingRecoveryMealDetail = true
             } else {
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 ToastManager.shared.showToast(message: "Maia couldn't build a meal right now. Check your connection and try again.")
             }
         }
     }
 
     private func reviewTodayFromRecoveryHandoff() {
+        guard ownerUserID == DIContainer.shared.authService.currentUserID else { return }
         HapticManager.instance.feedback(.light)
         logRecoveryHandoffAction("review_day")
         if currentTodayLog != nil {
@@ -600,7 +635,14 @@ struct WorkoutCompleteAnalyticsView: View {
     }
 
     private func logRecoveryMealSuggestion(_ suggestion: MealSuggestion) {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID,
+              ownerUserID == userID,
+              recoverySuggestionUserID == userID else {
+            recoveryMealSuggestion = nil
+            recoverySuggestionUserID = nil
+            showingRecoveryMealDetail = false
+            return
+        }
 
         let foodItem = FoodItem(
             id: UUID().uuidString,
@@ -623,6 +665,7 @@ struct WorkoutCompleteAnalyticsView: View {
 
         withAnimation {
             self.recoveryMealSuggestion = nil
+            self.recoverySuggestionUserID = nil
             self.showingRecoveryMealDetail = false
         }
     }
@@ -679,46 +722,107 @@ private struct WorkoutSessionLogEditorSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Session") {
+        AppEditorScaffold(
+            title: "Edit Workout",
+            subtitle: "Correct the saved session without changing the original Apple Health workout.",
+            dismiss: {
+                guard !isSaving else { return }
+                dismiss()
+            }
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(
+                        title: "Session",
+                        subtitle: "Changes update this MyFitPlate history record."
+                    )
+
                     DatePicker("Date", selection: $draft.date, displayedComponents: [.date, .hourAndMinute])
-                }
+                        .appTextRole(.control)
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        )
 
-                ForEach(draft.completedExercises.indices, id: \.self) { exerciseIndex in
-                    let exercise = draft.completedExercises[exerciseIndex]
-                    Section(exercise.exerciseName) {
-                        ForEach(draft.completedExercises[exerciseIndex].sets.indices, id: \.self) { setIndex in
-                            CompletedSetEditorRow(
-                                set: $draft.completedExercises[exerciseIndex].sets[setIndex],
-                                setIndex: setIndex + 1,
-                                exerciseType: exercise.exercise.type
+                    AppMetricStrip(items: [
+                        AppMetricItem(
+                            label: "Exercises",
+                            value: draft.completedExercises.count.formatted(),
+                            accent: AppPalette.effort
+                        ),
+                        AppMetricItem(
+                            label: "Sets",
+                            value: draft.completedExercises.reduce(0) { $0 + $1.sets.count }.formatted(),
+                            accent: AppPalette.brand
+                        )
+                    ])
+                }
+                .appSurface(.emphasized)
+
+                if draft.completedExercises.isEmpty {
+                    AppListRow(
+                        icon: AppDataAvailabilityReason.notProvided.icon,
+                        iconColor: AppPalette.caution,
+                        title: "No exercises in this session",
+                        subtitle: "Close this editor and add a new workout instead."
+                    )
+                    .appSurface(.quiet, padding: 0)
+                } else {
+                    ForEach(draft.completedExercises.indices, id: \.self) { exerciseIndex in
+                        let exercise = draft.completedExercises[exerciseIndex]
+
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            AppSectionHeader(
+                                title: exercise.exerciseName,
+                                subtitle: "\(exercise.sets.count) \(exercise.sets.count == 1 ? "set" : "sets") · \(exerciseTypeLabel(exercise.exercise.type))"
                             )
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Edit Workout")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .disabled(isSaving)
-                }
 
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        onSave(sanitizedDraft())
-                    } label: {
-                        if isSaving {
-                            ProgressView()
-                        } else {
-                            Text("Save")
+                            VStack(spacing: 0) {
+                                ForEach(draft.completedExercises[exerciseIndex].sets.indices, id: \.self) { setIndex in
+                                    CompletedSetEditorRow(
+                                        set: $draft.completedExercises[exerciseIndex].sets[setIndex],
+                                        setIndex: setIndex + 1,
+                                        exerciseType: exercise.exercise.type
+                                    )
+                                    .padding(AppSpacing.group)
+
+                                    if setIndex < draft.completedExercises[exerciseIndex].sets.count - 1 {
+                                        Divider().padding(.leading, AppSpacing.group)
+                                    }
+                                }
+                            }
+                            .appSurface(.quiet, padding: 0)
                         }
                     }
-                    .disabled(isSaving)
                 }
             }
+        } actions: {
+            Button {
+                onSave(sanitizedDraft())
+            } label: {
+                if isSaving {
+                    HStack {
+                        ProgressView()
+                        Text("Saving Workout")
+                    }
+                } else {
+                    Label("Save Workout", systemImage: "checkmark")
+                }
+            }
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .disabled(isSaving || draft.completedExercises.isEmpty)
+            .accessibilityIdentifier("workout_editor_save")
+        }
+        .interactiveDismissDisabled(isSaving)
+        .tint(AppPalette.brand)
+    }
+
+    private func exerciseTypeLabel(_ type: ExerciseType) -> String {
+        switch type {
+        case .strength: "Strength"
+        case .cardio: "Cardio"
+        case .flexibility: "Mobility"
         }
     }
 
@@ -803,7 +907,7 @@ private struct CompletedSetEditorRow: View {
                 durationField
             }
         }
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func editableNumberField<Field: View>(

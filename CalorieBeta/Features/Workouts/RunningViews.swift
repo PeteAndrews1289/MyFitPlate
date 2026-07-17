@@ -28,7 +28,10 @@ final class RunHistoryViewModel: ObservableObject {
         HealthKitManager.shared.requestAuthorization { [weak self] _, _ in
             guard let self else { return }
             let since = Calendar.current.date(byAdding: .day, value: -180, to: Date()) ?? Date()
-            self.importer.fetchRuns(since: since) { runs in
+            self.importer.fetchRuns(
+                since: since,
+                userID: DIContainer.shared.authService.currentUserID
+            ) { runs in
                 self.runs = RunningShoeStore().applyTags(to: runs)
                 self.isLoading = false
             }
@@ -227,159 +230,177 @@ private struct RunWorkoutPickerSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        AppSheetScaffold(
+            title: "Start a Run",
+            subtitle: "Record freely, log a treadmill session, or follow a structured workout.",
+            dismiss: { dismiss() }
+        ) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Button {
-                        onStart(nil)
-                    } label: {
-                        startCard(
-                            title: "Open run",
-                            subtitle: "GPS, splits, pace, route",
-                            icon: "figure.run",
-                            detail: nil
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        AppSectionHeader(
+                            title: "Start Now",
+                            subtitle: "Outdoor recording checks GPS and writes the completed workout to Health."
                         )
-                    }
-                    .buttonStyle(.plain)
 
-                    Button {
-                        onLogTreadmill()
-                    } label: {
-                        startCard(
-                            title: "Log treadmill",
-                            subtitle: "Indoor distance and time",
-                            icon: "figure.run.treadmill",
-                            detail: nil
-                        )
-                    }
-                    .buttonStyle(.plain)
+                        Button {
+                            onStart(nil)
+                        } label: {
+                            startCard(
+                                title: "Open run",
+                                subtitle: "GPS, splits, pace, and route",
+                                icon: "figure.run",
+                                detail: "Outdoor",
+                                interpreted: true
+                            )
+                        }
+                        .buttonStyle(.plain)
 
-                    Button {
-                        editorRoute = .repeatTemplate
-                    } label: {
-                        startCard(
-                            title: "Create repeats",
-                            subtitle: "Build a saved repeat workout",
-                            icon: "plus.circle.fill",
-                            detail: nil
-                        )
+                        Button {
+                            onLogTreadmill()
+                        } label: {
+                            startCard(
+                                title: "Log treadmill",
+                                subtitle: "Enter indoor distance and time",
+                                icon: "figure.run.treadmill",
+                                detail: "Manual"
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        editorRoute = .stepTemplate
-                    } label: {
-                        startCard(
-                            title: "Create step-by-step",
-                            subtitle: "Build any saved run workout",
-                            icon: "list.bullet.rectangle",
-                            detail: nil
-                        )
-                    }
-                    .buttonStyle(.plain)
 
                     if !planStore.customPlans.isEmpty {
-                        Text("Saved")
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .textCase(.uppercase)
-                            .padding(.top, 6)
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            AppSectionHeader(
+                                title: "Saved Workouts",
+                                subtitle: "Tap to start. Touch and hold to edit or delete."
+                            )
 
-                        ForEach(planStore.customPlans) { plan in
+                            ForEach(planStore.customPlans) { plan in
+                                Button {
+                                    onStart(plan)
+                                } label: {
+                                    startCard(
+                                        title: plan.name,
+                                        subtitle: plan.subtitle,
+                                        icon: "bookmark.fill",
+                                        detail: detailText(for: plan)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button {
+                                        editorRoute = .edit(plan)
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
+                                    }
+                                    Button(role: .destructive) {
+                                        planStore.deletePlan(id: plan.id)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        AppSectionHeader(
+                            title: "Guided Workouts",
+                            subtitle: "Use a built-in session or create a workout around your own intervals."
+                        )
+
+                        Button {
+                            editorRoute = .repeatTemplate
+                        } label: {
+                            startCard(
+                                title: "Create repeats",
+                                subtitle: "Repeat one work and recovery block",
+                                icon: "repeat",
+                                detail: "Custom"
+                            )
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            editorRoute = .stepTemplate
+                        } label: {
+                            startCard(
+                                title: "Create step-by-step",
+                                subtitle: "Build a fully custom progression",
+                                icon: "list.bullet.rectangle",
+                                detail: "Custom"
+                            )
+                        }
+                        .buttonStyle(.plain)
+
+                        ForEach(templates) { plan in
                             Button {
                                 onStart(plan)
                             } label: {
                                 startCard(
                                     title: plan.name,
                                     subtitle: plan.subtitle,
-                                    icon: "bookmark.fill",
+                                    icon: icon(for: plan),
                                     detail: detailText(for: plan)
                                 )
                             }
                             .buttonStyle(.plain)
-                            .contextMenu {
-                                Button {
-                                    editorRoute = .edit(plan)
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                Button(role: .destructive) {
-                                    planStore.deletePlan(id: plan.id)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
                         }
                     }
-
-                    Text("Templates")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .textCase(.uppercase)
-                        .padding(.top, 6)
-
-                    ForEach(templates) { plan in
-                        Button {
-                            onStart(plan)
-                        } label: {
-                            startCard(
-                                title: plan.name,
-                                subtitle: plan.subtitle,
-                                icon: icon(for: plan),
-                                detail: detailText(for: plan)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
                 }
-                .padding()
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Start run")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Cancel") { dismiss() }
+        }
+        .sheet(item: $editorRoute) { route in
+            switch route {
+            case .repeatTemplate:
+                RunWorkoutTemplateEditorSheet(metric: metric) { plan in
+                    planStore.addPlan(plan)
                 }
-            }
-            .sheet(item: $editorRoute) { route in
-                switch route {
-                case .repeatTemplate:
-                    RunWorkoutTemplateEditorSheet(metric: metric) { plan in
-                        planStore.addPlan(plan)
-                    }
-                case .stepTemplate:
-                    RunWorkoutStepTemplateEditorSheet(metric: metric, initialPlan: nil) { plan in
-                        planStore.addPlan(plan)
-                    }
-                case .edit(let plan):
-                    RunWorkoutStepTemplateEditorSheet(metric: metric, initialPlan: plan) { plan in
-                        planStore.updatePlan(plan)
-                    }
+            case .stepTemplate:
+                RunWorkoutStepTemplateEditorSheet(metric: metric, initialPlan: nil) { plan in
+                    planStore.addPlan(plan)
+                }
+            case .edit(let plan):
+                RunWorkoutStepTemplateEditorSheet(metric: metric, initialPlan: plan) { plan in
+                    planStore.updatePlan(plan)
                 }
             }
         }
     }
 
-    private func startCard(title: String, subtitle: String, icon: String, detail: String?) -> some View {
+    private func startCard(
+        title: String,
+        subtitle: String,
+        icon: String,
+        detail: String?,
+        interpreted: Bool = false
+    ) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(.brandForeground)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 40, height: 40)
-                .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(
+                    AppPalette.brand.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .appFont(size: 15, weight: .bold)
-                    .foregroundColor(.textPrimary)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
                 Text(subtitle)
-                    .appFont(size: 12)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let detail {
                     Text(detail)
-                        .appFont(size: 11, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
             }
@@ -387,10 +408,12 @@ private struct RunWorkoutPickerSheet: View {
             Spacer(minLength: 8)
 
             Image(systemName: "chevron.right")
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(Color(UIColor.tertiaryLabel))
+                .appTextRole(.secondary)
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
         }
-        .appSurface(.emphasized)
+        .appSurface(interpreted ? .interpreted : .emphasized)
+        .accessibilityElement(children: .combine)
     }
 
     private func detailText(for plan: RunWorkoutPlan) -> String {
@@ -436,9 +459,19 @@ private struct TreadmillRunEntrySheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Treadmill") {
+        AppEditorScaffold(
+            title: "Log a Treadmill Run",
+            subtitle: "Enter the distance and moving time shown by the treadmill.",
+            dismiss: { dismiss() }
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(
+                        title: "Run Details",
+                        subtitle: "MyFitPlate estimates active calories from distance and your current weight."
+                    )
+
+                    VStack(alignment: .leading, spacing: AppSpacing.group) {
                     Stepper(
                         "Distance: \(distanceText)",
                         value: $distanceValue,
@@ -452,41 +485,54 @@ private struct TreadmillRunEntrySheet: View {
                         step: 1
                     )
                     DatePicker("Ended", selection: $endedAt, displayedComponents: [.date, .hourAndMinute])
+                    }
+                    .appTextRole(.control)
+                    .appSurface(.emphasized)
                 }
 
-                Section {
-                    HStack {
-                        Text("Average pace")
-                        Spacer()
-                        Text(averagePaceText)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .monospacedDigit()
-                    }
-                    HStack {
-                        Text("Estimated calories")
-                        Spacer()
-                        Text("\(Int(estimatedCalories.rounded())) cal")
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .monospacedDigit()
-                    }
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(
+                        title: "Calculated Summary",
+                        subtitle: "Pace and active calories are derived from the values above."
+                    )
+                    AppMetricStrip(items: [
+                        AppMetricItem(
+                            label: "Average pace",
+                            value: averagePaceText,
+                            accent: AppPalette.effort
+                        ),
+                        AppMetricItem(
+                            label: "Active calories",
+                            value: "\(Int(estimatedCalories.rounded())) cal",
+                            accent: AppPalette.caution
+                        )
+                    ])
+                    .appSurface(.interpreted)
+                }
+
+                Label(
+                    "The completed workout is saved to MyFitPlate and sent to Apple Health when permission is available.",
+                    systemImage: "heart.text.clipboard"
+                )
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .appSurface(.quiet)
+            }
+        } actions: {
+            Button {
+                save()
+            } label: {
+                if isSaving {
+                    ProgressView()
+                } else {
+                    Label("Save Treadmill Run", systemImage: "checkmark")
                 }
             }
-            .navigationTitle("Treadmill run")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                        .disabled(isSaving)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(isSaving ? "Saving" : "Save") {
-                        save()
-                    }
-                    .fontWeight(.semibold)
-                    .disabled(isSaving || distanceMeters < 100 || durationMinutes < 1)
-                }
-            }
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .disabled(isSaving || distanceMeters < 100 || durationMinutes < 1)
         }
+        .interactiveDismissDisabled(isSaving)
     }
 
     private var distanceMeters: Double {
@@ -523,11 +569,25 @@ private struct TreadmillRunEntrySheet: View {
         ActivationFunnel.recordTrainingCompletion(.treadmillRun)
         isSaving = true
         RunRecorderStore().save(run: run, locations: [], weightLbs: goalSettings.weight) { savedID in
+            var savedToHistory = savedID != nil
             if let savedID {
                 let shoeStore = RunningShoeStore()
                 shoeStore.tagRun(runID: savedID, withShoeID: shoeStore.defaultShoe()?.id)
             } else {
-                ToastManager.shared.showToast(message: "Saved locally, but Health sync failed.")
+                if let userID = DIContainer.shared.authService.currentUserID,
+                   RunFallbackStore.shared.save(run, for: userID) {
+                    savedToHistory = true
+                    let shoeStore = RunningShoeStore()
+                    shoeStore.tagRun(runID: run.id, withShoeID: shoeStore.defaultShoe()?.id)
+                    ToastManager.shared.showToast(message: "Saved in MyFitPlate; Apple Health sync failed.")
+                } else {
+                    ToastManager.shared.showToast(message: "Apple Health sync failed. This run was not saved.")
+                }
+            }
+            guard savedToHistory else {
+                isSaving = false
+                HapticManager.instance.notification(.error)
+                return
             }
             let today = dailyLogService.currentDailyLog.flatMap { log in
                 Calendar.current.isDate(log.date, inSameDayAs: run.endDate) ? log : nil
@@ -608,53 +668,110 @@ private struct RunWorkoutTemplateEditorSheet: View {
     @State private var slowestPaceSeconds = 330
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Workout") {
-                    TextField("Name", text: $name)
-                    Stepper("Repeats: \(repetitions)", value: $repetitions, in: 1...20)
-                    Picker("Work goal", selection: $workMode) {
-                        ForEach(RunWorkGoalMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
+        AppEditorScaffold(
+            title: "Create Repeat Workout",
+            subtitle: "Build one work-and-recovery block, then choose how many times to repeat it.",
+            dismiss: { dismiss() }
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(
+                        title: "Workout Identity",
+                        subtitle: "Use a short name you will recognize at the start line."
+                    )
+                    TextField("Workout name", text: $name)
+                        .appTextRole(.control)
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        )
+                }
+
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(
+                        title: "Structure",
+                        subtitle: "Warm up once, repeat the work block, then cool down."
+                    )
+                    VStack(alignment: .leading, spacing: AppSpacing.group) {
+                        Stepper("Repeats: \(repetitions)", value: $repetitions, in: 1...20)
+                        Picker("Work goal", selection: $workMode) {
+                            ForEach(RunWorkGoalMode.allCases) { mode in
+                                Text(mode.label).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        Divider()
+                        Stepper("Warm up: \(warmupMinutes) min", value: $warmupMinutes, in: 0...30)
+                        if workMode == .duration {
+                            Stepper("Work: \(workSeconds) sec", value: $workSeconds, in: 15...600, step: 15)
+                        } else {
+                            Stepper(
+                                "Work: \(RunFormat.distanceText(meters: Double(workMeters), metric: metric))",
+                                value: $workMeters,
+                                in: 100...3000,
+                                step: 50
+                            )
+                        }
+                        Stepper("Recovery: \(recoverySeconds) sec", value: $recoverySeconds, in: 0...600, step: 15)
+                        Stepper("Cool down: \(cooldownMinutes) min", value: $cooldownMinutes, in: 0...30)
+                    }
+                    .appTextRole(.control)
+                    .appSurface(.emphasized)
+                }
+
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(
+                        title: "Effort Guidance",
+                        subtitle: "A cue is always shown. Add a pace range only when it is useful."
+                    )
+                    VStack(alignment: .leading, spacing: AppSpacing.group) {
+                        TextField("Effort cue", text: $cue)
+                            .appTextRole(.control)
+                            .padding(AppSpacing.row)
+                            .background(
+                                AppPalette.control,
+                                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                            )
+                        Toggle("Use a pace range", isOn: $usePaceTarget)
+                        if usePaceTarget {
+                            Stepper(
+                                "Fastest: \(paceText(secondsPerUnit: fastestPaceSeconds))",
+                                value: $fastestPaceSeconds,
+                                in: 180...1200,
+                                step: 5
+                            )
+                            Stepper(
+                                "Slowest: \(paceText(secondsPerUnit: slowestPaceSeconds))",
+                                value: $slowestPaceSeconds,
+                                in: 180...1200,
+                                step: 5
+                            )
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .appTextRole(.control)
+                    .appSurface(.emphasized)
                 }
 
-                Section("Timing") {
-                    Stepper("Warm up: \(warmupMinutes) min", value: $warmupMinutes, in: 0...30, step: 1)
-                    if workMode == .duration {
-                        Stepper("Work: \(workSeconds) sec", value: $workSeconds, in: 15...600, step: 15)
-                    } else {
-                        Stepper("Work: \(RunFormat.distanceText(meters: Double(workMeters), metric: metric))", value: $workMeters, in: 100...3000, step: 50)
-                    }
-                    Stepper("Recovery: \(recoverySeconds) sec", value: $recoverySeconds, in: 0...600, step: 15)
-                    Stepper("Cool down: \(cooldownMinutes) min", value: $cooldownMinutes, in: 0...30, step: 1)
-                }
-
-                Section("Target") {
-                    TextField("Cue", text: $cue)
-                    Toggle("Pace range", isOn: $usePaceTarget)
-                    if usePaceTarget {
-                        Stepper("Fastest: \(paceText(secondsPerUnit: fastestPaceSeconds))", value: $fastestPaceSeconds, in: 180...1200, step: 5)
-                        Stepper("Slowest: \(paceText(secondsPerUnit: slowestPaceSeconds))", value: $slowestPaceSeconds, in: 180...1200, step: 5)
-                    }
-                }
+                AppMetricStrip(items: [
+                    AppMetricItem(label: "Steps", value: makePlan().steps.count.formatted(), accent: AppPalette.effort),
+                    AppMetricItem(
+                        label: "Est. time",
+                        value: RunFormat.durationText(seconds: makePlan().estimatedDurationSeconds),
+                        accent: AppPalette.recovery
+                    )
+                ])
+                .appSurface(.interpreted)
             }
-            .navigationTitle("Custom run")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") {
-                        onSave(makePlan())
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                }
+        } actions: {
+            Button {
+                onSave(makePlan())
+                dismiss()
+            } label: {
+                Label("Save Workout", systemImage: "checkmark")
             }
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .disabled(name.trimmed.isEmpty)
         }
     }
 
@@ -663,7 +780,7 @@ private struct RunWorkoutTemplateEditorSheet: View {
             ? .duration(seconds: Double(workSeconds))
             : .distance(meters: Double(workMeters))
         return RunWorkoutPlan.repeatTemplate(
-            name: name,
+            name: name.trimmed.isEmpty ? "Custom intervals" : name.trimmed,
             warmupSeconds: Double(warmupMinutes * 60),
             repetitions: repetitions,
             workGoal: goal,
@@ -707,63 +824,96 @@ private struct RunWorkoutStepTemplateEditorSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Workout") {
-                    TextField("Name", text: $name)
+        AppEditorScaffold(
+            title: planID == nil ? "Create Step Workout" : "Edit Step Workout",
+            subtitle: "Arrange the session from warm-up through cooldown, with an optional cue for every step.",
+            dismiss: { dismiss() }
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(title: "Workout Identity")
+                    TextField("Workout name", text: $name)
+                        .appTextRole(.control)
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        )
                 }
 
-                Section("Steps") {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(
+                        title: "Session Steps",
+                        subtitle: "Each card becomes one spoken and haptic stage during the run."
+                    )
+
                     ForEach($steps) { $step in
                         stepEditor(step: $step)
+                            .appSurface(.emphasized)
                     }
 
                     Button {
                         steps.append(RunWorkoutStepDraft(kind: .hard, title: "Work"))
                     } label: {
-                        Label("Add step", systemImage: "plus.circle.fill")
+                        Label("Add Step", systemImage: "plus")
                     }
+                    .buttonStyle(AppActionButtonStyle(.secondary))
                 }
+
+                AppMetricStrip(items: [
+                    AppMetricItem(label: "Steps", value: steps.count.formatted(), accent: AppPalette.effort),
+                    AppMetricItem(
+                        label: "Est. time",
+                        value: RunFormat.durationText(seconds: makePlan().estimatedDurationSeconds),
+                        accent: AppPalette.recovery
+                    )
+                ])
+                .appSurface(.interpreted)
             }
-            .navigationTitle(planID == nil ? "Step workout" : "Edit workout")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") {
-                        onSave(makePlan())
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                    .disabled(steps.isEmpty)
-                }
+        } actions: {
+            Button {
+                onSave(makePlan())
+                dismiss()
+            } label: {
+                Label("Save Workout", systemImage: "checkmark")
             }
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .disabled(steps.isEmpty || name.trimmed.isEmpty)
         }
     }
 
     @ViewBuilder
     private func stepEditor(step: Binding<RunWorkoutStepDraft>) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
             HStack {
                 Picker("Type", selection: step.kind) {
                     ForEach(RunWorkoutStep.Kind.allCases, id: \.self) { kind in
                         Text(kind.displayName).tag(kind)
                     }
                 }
+                .pickerStyle(.menu)
+                .appTextRole(.control)
+
+                Spacer(minLength: AppSpacing.compact)
 
                 Button(role: .destructive) {
                     removeStep(id: step.wrappedValue.id)
                 } label: {
                     Image(systemName: "trash")
+                        .frame(width: 44, height: 44)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
                 .disabled(steps.count <= 1)
-                .accessibilityLabel("Delete step")
+                .accessibilityLabel("Delete \(step.wrappedValue.title) step")
             }
 
-            TextField("Title", text: step.title)
+            TextField("Step title", text: step.title)
+                .appTextRole(.control)
+                .padding(AppSpacing.row)
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
 
             Picker("Goal", selection: step.goalMode) {
                 ForEach(RunWorkGoalMode.allCases) { mode in
@@ -788,9 +938,15 @@ private struct RunWorkoutStepTemplateEditorSheet: View {
                 )
             }
 
-            TextField("Cue", text: step.cue)
+            TextField("Effort cue", text: step.cue)
+                .appTextRole(.control)
+                .padding(AppSpacing.row)
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
 
-            Toggle("Pace range", isOn: step.usePaceTarget)
+            Toggle("Use a pace range", isOn: step.usePaceTarget)
             if step.wrappedValue.usePaceTarget {
                 Stepper(
                     "Fastest: \(paceText(secondsPerUnit: step.wrappedValue.fastestPaceSeconds))",
@@ -806,13 +962,13 @@ private struct RunWorkoutStepTemplateEditorSheet: View {
                 )
             }
         }
-        .padding(.vertical, 4)
+        .appTextRole(.control)
     }
 
     private func makePlan() -> RunWorkoutPlan {
         RunWorkoutPlan(
             id: planID ?? UUID().uuidString,
-            name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Custom workout" : name,
+            name: name.trimmed.isEmpty ? "Custom workout" : name.trimmed,
             subtitle: subtitle,
             steps: steps.map { $0.step(metric: metric) }
         )
@@ -1034,7 +1190,10 @@ final class RunDetailViewModel: ObservableObject {
         workoutResult = workoutResultStore.result(forRunID: run.id)
 
         let since = Calendar.current.date(byAdding: .year, value: -2, to: Date()) ?? Date()
-        importer.fetchRuns(since: since) { [weak self] history in
+        importer.fetchRuns(
+            since: since,
+            userID: DIContainer.shared.authService.currentUserID
+        ) { [weak self] history in
             self?.ghostPaceComparison = RunStats.ghostPaceComparison(for: run, against: history)
         }
 
@@ -1759,61 +1918,5 @@ struct RunMapView: View {
             routes.append(LoadedRoute(id: run.id, coordinates: coordinates, isLatest: index == 0))
         }
         isLoading = false
-    }
-}
-
-// MARK: - Reports card
-
-/// Weekly mileage over the last 8 weeks, shown in Reports only when there's any running
-/// at all — non-runners never see an empty chart.
-struct RunMileageCard: View {
-    @State private var weeks: [RunStats.WeekMileage] = []
-    @State private var loaded = false
-    @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
-
-    private var totalMeters: Double { weeks.reduce(0) { $0 + $1.meters } }
-
-    var body: some View {
-        Group {
-            if loaded && totalMeters > 0 {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("Running")
-                            .appFont(size: 14, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                        Spacer()
-                        Text("Last 8 weeks · \(RunFormat.distanceText(meters: totalMeters, metric: useMetric))")
-                            .appFont(size: 11)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-
-                    Chart(weeks, id: \.weekStart) { week in
-                        BarMark(
-                            x: .value("Week", week.weekStart, unit: .weekOfYear),
-                            y: .value("Distance", useMetric ? week.meters / 1000 : week.meters / RunFormat.metersPerMile)
-                        )
-                        .foregroundStyle(Color.brandPrimary)
-                        .cornerRadius(3)
-                    }
-                    .chartXAxis {
-                        AxisMarks(values: .stride(by: .weekOfYear, count: 2)) { _ in
-                            AxisValueLabel(format: .dateTime.month(.abbreviated).day(), centered: true)
-                                .font(.system(size: 9))
-                        }
-                    }
-                    .frame(height: 110)
-                    .accessibilityLabel("Weekly running distance, last 8 weeks")
-                }
-                .appSurface(.emphasized)
-            }
-        }
-        .onAppear {
-            guard !loaded else { return }
-            let since = Calendar.current.date(byAdding: .weekOfYear, value: -8, to: Date()) ?? Date()
-            RunImportService().fetchRuns(since: since) { runs in
-                weeks = RunStats.weeklyMileage(runs: runs, weeks: 8)
-                loaded = true
-            }
-        }
     }
 }

@@ -308,7 +308,7 @@ private struct AdaptiveCoachPlanCard: View {
             .buttonStyle(AppActionButtonStyle(.primary))
             .accessibilityLabel(action.title)
         }
-        .appSurface(.emphasized)
+        .appSurface(.interpreted)
     }
 }
 

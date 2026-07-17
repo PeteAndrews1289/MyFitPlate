@@ -4,18 +4,22 @@ import XCTest
 final class RunningShoeStoreTests: XCTestCase {
     private var suiteName: String!
     private var testDefaults: UserDefaults!
+    private var authService: MockAuthService!
     private var store: RunningShoeStore!
 
     override func setUp() {
         super.setUp()
         suiteName = "RunningShoeStoreTests_\(UUID().uuidString)"
         testDefaults = UserDefaults(suiteName: suiteName)
-        store = RunningShoeStore(userDefaults: testDefaults)
+        authService = MockAuthService()
+        authService.currentUserID = "runner-a"
+        store = RunningShoeStore(userDefaults: testDefaults, authService: authService)
     }
 
     override func tearDown() {
         testDefaults.removePersistentDomain(forName: suiteName)
         store = nil
+        authService = nil
         testDefaults = nil
         suiteName = nil
         super.tearDown()
@@ -142,5 +146,44 @@ final class RunningShoeStoreTests: XCTestCase {
         XCTAssertEqual(store.runCount(for: fastShoe.id, across: [run1, run2]), 1)
         XCTAssertEqual(store.longestRunDistance(for: slowShoe.id, across: [run1, run2]), 10000)
         XCTAssertEqual(store.fastestShoeID(across: [run1, run2]), fastShoe.id)
+    }
+
+    func testShoesAndRunTagsAreIsolatedBetweenAccounts() {
+        let accountAShoe = RunningShoe(name: "Account A Racer", brand: "A")
+        store.addShoe(accountAShoe)
+        store.tagRun(runID: "same-run", withShoeID: accountAShoe.id)
+
+        authService.currentUserID = "runner-b"
+        XCTAssertEqual(store.shoes.map(\.name), ["Road Trainer"])
+        XCTAssertNil(store.shoeID(forRunID: "same-run"))
+
+        let accountBShoe = RunningShoe(name: "Account B Trail", brand: "B")
+        store.addShoe(accountBShoe)
+        store.tagRun(runID: "same-run", withShoeID: accountBShoe.id)
+
+        authService.currentUserID = "runner-a"
+        XCTAssertNotNil(store.shoe(for: accountAShoe.id))
+        XCTAssertNil(store.shoe(for: accountBShoe.id))
+        XCTAssertEqual(store.shoeID(forRunID: "same-run"), accountAShoe.id)
+
+        authService.currentUserID = "runner-b"
+        XCTAssertNotNil(store.shoe(for: accountBShoe.id))
+        XCTAssertNil(store.shoe(for: accountAShoe.id))
+        XCTAssertEqual(store.shoeID(forRunID: "same-run"), accountBShoe.id)
+    }
+
+    func testSignedOutStoreDoesNotExposeOrPersistShoeData() {
+        let accountAShoe = RunningShoe(name: "Private shoe", brand: "A")
+        store.addShoe(accountAShoe)
+
+        authService.currentUserID = nil
+        XCTAssertTrue(store.shoes.isEmpty)
+        store.addShoe(RunningShoe(name: "Signed-out shoe", brand: "None"))
+        store.tagRun(runID: "signed-out-run", withShoeID: accountAShoe.id)
+
+        authService.currentUserID = "runner-a"
+        XCTAssertNotNil(store.shoe(for: accountAShoe.id))
+        XCTAssertNil(store.shoes.first(where: { $0.name == "Signed-out shoe" }))
+        XCTAssertNil(store.shoeID(forRunID: "signed-out-run"))
     }
 }

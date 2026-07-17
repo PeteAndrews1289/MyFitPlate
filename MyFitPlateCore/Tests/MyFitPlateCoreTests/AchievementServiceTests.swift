@@ -201,4 +201,21 @@ final class AchievementServiceTests: XCTestCase {
         let firstWeigh = mockRepo.savedStatuses.contains { $0.achievementID == "on_the_weigh" && $0.isUnlocked }
         XCTAssertTrue(firstWeigh)
     }
+
+    func testAccountSwitchClearsPublishedStateAndDetachesPreviousPublishers() async {
+        service.listenToUserProfile(userID: "user_123")
+        mockRepo.mockProfilePublisher.send((points: 150, level: 3))
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        XCTAssertEqual(service.userTotalAchievementPoints, 150)
+
+        mockAuth.currentUserID = "user_456"
+        service.activateAccount("user_456")
+        mockRepo.mockProfilePublisher.send((points: 999, level: 9))
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        XCTAssertEqual(service.userTotalAchievementPoints, 0)
+        XCTAssertEqual(service.userAchievementLevel, 1)
+        XCTAssertTrue(service.userStatuses.isEmpty)
+        XCTAssertTrue(service.activeChallenges.isEmpty)
+    }
 }

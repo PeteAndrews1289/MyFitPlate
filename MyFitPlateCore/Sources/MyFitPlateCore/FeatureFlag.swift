@@ -13,6 +13,7 @@ public enum FeatureFlag: String, CaseIterable {
     case livingDayHome
     case healthCanadaFoodSearch
     case nihSupplementLabels
+    case maiaNaturalVoice
 
     /// Value used when neither a local override nor a remote value is present.
     /// New/gated features stay dark until deliberately enabled. Already-shipped, higher-risk
@@ -34,6 +35,8 @@ public enum FeatureFlag: String, CaseIterable {
         // Specialist reference providers ship on, with Remote Config retained as a kill switch.
         case .healthCanadaFoodSearch: return true
         case .nihSupplementLabels: return true
+        // Online speech has a local system-voice fallback and can be disabled independently.
+        case .maiaNaturalVoice: return true
         }
     }
 

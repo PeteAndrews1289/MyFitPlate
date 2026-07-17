@@ -46,7 +46,8 @@ struct FoodDetailView: View {
     @State private var hasLoggedSuspiciousData = false
     @State private var hasLoggedTrustCardView = false
     @State private var isProcessingLabel = false
-    @State private var scanError: (Bool, String) = (false, "")
+    @State private var labelAnalysisID: UUID?
+    @State private var labelScanFailed = false
 
     // MARK: - Robust Initializer
     // Updated to use new model fields if available, ensuring stability.
@@ -316,6 +317,13 @@ struct FoodDetailView: View {
                                 )
                             }
 
+                            if labelScanFailed {
+                                LabelScanFailureCard(
+                                    retry: { showingImagePicker = true },
+                                    continueManually: { labelScanFailed = false }
+                                )
+                            }
+
                             FoodDetailMacroGrid(
                                 calories: adjustedNutrients.calories,
                                 protein: adjustedNutrients.protein,
@@ -352,7 +360,10 @@ struct FoodDetailView: View {
             }.blur(radius: isProcessingLabel ? 3 : 0)
             
             if isProcessingLabel {
-                ImageProcessingView()
+                ImageProcessingView(kind: .nutritionLabel) {
+                    labelAnalysisID = nil
+                    isProcessingLabel = false
+                }
             }
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
@@ -371,19 +382,23 @@ struct FoodDetailView: View {
             setupInitialData()
             checkIfSaved()
         }
-        .sheet(isPresented: $showingImagePicker) {
-            ImagePicker(sourceType: .camera) { image in
+        .imageSourceDialog(isPresented: $showingImagePicker) { image in
+                let requestID = UUID()
+                labelAnalysisID = requestID
+                labelScanFailed = false
                 self.isProcessingLabel = true
                 imageModel.parseNutritionLabel(from: image) { result in
+                    guard labelAnalysisID == requestID else { return }
+                    labelAnalysisID = nil
                     self.isProcessingLabel = false
                     switch result {
                     case .success(let nutrition):
                         self.handleScannedNutrition(nutrition)
                     case .failure(let error):
-                        self.scanError = (true, "Could not read the nutrition label. Error: \(error.localizedDescription)")
+                        AppLog.data.error("Nutrition label scan failed: \(error.localizedDescription, privacy: .public)")
+                        self.labelScanFailed = true
                     }
                 }
-            }
         }
         .sheet(isPresented: $showingCorrectionEditor, onDismiss: {
             if !correctionEditorDidSubmit {
@@ -406,11 +421,6 @@ struct FoodDetailView: View {
                 )
             }
             .presentationDetents([.large])
-        }
-        .alert("Scan error", isPresented: $scanError.0) {
-            Button("OK") { }
-        } message: {
-            Text(scanError.1)
         }
     }
 
@@ -1066,6 +1076,8 @@ struct FoodTrustReceipt: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsScoreDetails = false
+    @State private var showsSourceDetails = false
+    @State private var showsCoverageDetails = false
     @State private var presentedResolution: FoodTrustResolution?
 
     private var tint: Color {
@@ -1093,6 +1105,10 @@ struct FoodTrustReceipt: View {
 
     private var coreScope: FoodTrustEvidenceScope {
         passport.coreNutrition
+    }
+
+    private var supportingEvidence: [FoodVerificationEvidence] {
+        metadata?.validatedCrossVerificationEvidence ?? []
     }
 
     private var reviewText: String {
@@ -1148,6 +1164,8 @@ struct FoodTrustReceipt: View {
                     .transition(.opacity)
             }
 
+            evidenceFingerprint
+
             Divider()
 
             VStack(alignment: .leading, spacing: 0) {
@@ -1177,6 +1195,10 @@ struct FoodTrustReceipt: View {
                     isLast: true,
                     isEmphasized: presentedResolution != nil
                 )
+            }
+
+            if !supportingEvidence.isEmpty {
+                sourceAgreementDisclosure
             }
 
             evidenceCoverage
@@ -1254,48 +1276,300 @@ struct FoodTrustReceipt: View {
             )
     }
 
+    private var evidenceFingerprint: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text("Evidence Fingerprint")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: AppSpacing.compact),
+                    count: dynamicTypeSize.isAccessibilitySize ? 1 : 2
+                ),
+                alignment: .leading,
+                spacing: AppSpacing.compact
+            ) {
+                fingerprintCell(
+                    icon: descriptor.systemImage,
+                    title: "Source type",
+                    value: passport.lineage.title,
+                    color: tint
+                )
+                fingerprintCell(
+                    icon: "point.3.connected.trianglepath.dotted",
+                    title: "Agreement",
+                    value: agreementFingerprintText,
+                    color: supportingEvidence.isEmpty ? .secondary : .accentPositiveText
+                )
+                fingerprintCell(
+                    icon: "person.crop.circle.badge.checkmark",
+                    title: "Your review",
+                    value: reviewText,
+                    color: reviewTint
+                )
+                fingerprintCell(
+                    icon: freshnessIcon,
+                    title: "Freshness",
+                    value: freshnessFingerprintText,
+                    color: freshnessTint
+                )
+            }
+        }
+        .padding(AppSpacing.row)
+        .background(
+            AppPalette.control,
+            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+        )
+        .accessibilityIdentifier("food_trust_fingerprint")
+    }
+
+    private func fingerprintCell(
+        icon: String,
+        title: String,
+        value: String,
+        color: Color
+    ) -> some View {
+        HStack(alignment: .top, spacing: AppSpacing.compact) {
+            Image(systemName: icon)
+                .appFont(size: 12, weight: .bold)
+                .foregroundStyle(color)
+                .frame(width: 24, height: 24)
+                .background(color.opacity(0.10), in: Circle())
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var agreementFingerprintText: String {
+        supportingEvidence.isEmpty
+            ? "No attached comparison"
+            : "\(supportingEvidence.count + 1) comparable records"
+    }
+
+    private var freshnessFingerprintText: String {
+        switch passport.freshness.state {
+        case .current: "Current record"
+        case .aging: "Older record"
+        case .stale: "May be stale"
+        case .retrieved: "Retrieval date only"
+        case .unknown: "Date unavailable"
+        }
+    }
+
     private var evidenceCoverage: some View {
         VStack(alignment: .leading, spacing: 10) {
             Divider()
 
-            Text("Evidence Coverage")
-                .appFont(size: 12, weight: .bold)
-                .foregroundColor(.textPrimary)
+            Button {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.14) : AppMotion.visibility) {
+                    showsCoverageDetails.toggle()
+                }
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Field Evidence")
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.text)
+                        Text("Identity, serving, detailed nutrients, and ingredients")
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
-            ForEach(passport.scopes.filter { $0.field != .coreNutrition }) { scope in
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: evidenceIcon(scope.state))
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundColor(evidenceTint(scope.state))
-                        .frame(width: 24, height: 24)
-                        .background(evidenceTint(scope.state).opacity(0.10), in: Circle())
+                    Spacer(minLength: 0)
+                    Image(systemName: showsCoverageDetails ? "chevron.up" : "chevron.down")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(showsCoverageDetails ? "Hide field evidence" : "Show field evidence")
+
+            if showsCoverageDetails {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    ForEach(passport.scopes.filter { $0.field != .coreNutrition }) { scope in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: evidenceIcon(scope.state))
+                                .appFont(size: 11, weight: .bold)
+                                .foregroundColor(evidenceTint(scope.state))
+                                .frame(width: 24, height: 24)
+                                .background(evidenceTint(scope.state).opacity(0.10), in: Circle())
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Text(scope.title)
+                                        .appFont(size: 11, weight: .bold)
+                                        .foregroundColor(.textPrimary)
+                                    Spacer(minLength: 4)
+                                    Text(scope.state.label)
+                                        .appFont(size: 9, weight: .bold)
+                                        .foregroundColor(evidenceTint(scope.state))
+                                        .multilineTextAlignment(.trailing)
+                                }
+                                Text(scope.detail)
+                                    .appFont(size: 10, weight: .medium)
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+
+                    Label(freshnessText, systemImage: freshnessIcon)
+                        .appFont(size: 10, weight: .semibold)
+                        .foregroundColor(freshnessTint)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .transition(.opacity)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var sourceAgreementDisclosure: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Divider()
+
+            Button {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .easeInOut(duration: 0.2)) {
+                    showsSourceDetails.toggle()
+                }
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                        .appFont(size: 12, weight: .bold)
+                        .foregroundColor(.accentPositiveText)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text(scope.title)
-                                .appFont(size: 11, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                            Spacer(minLength: 4)
-                            Text(scope.state.label)
-                                .appFont(size: 9, weight: .bold)
-                                .foregroundColor(evidenceTint(scope.state))
-                                .multilineTextAlignment(.trailing)
-                        }
-                        Text(scope.detail)
-                            .appFont(size: 10, weight: .medium)
+                        Text("Sources in agreement")
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                        Text(sourceAgreementSummary)
+                            .appFont(size: 10, weight: .semibold)
                             .foregroundColor(Color(UIColor.secondaryLabel))
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                }
-                .accessibilityElement(children: .combine)
-            }
 
-            Label(freshnessText, systemImage: freshnessIcon)
-                .appFont(size: 10, weight: .semibold)
-                .foregroundColor(freshnessTint)
-                .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 4)
+
+                    Image(systemName: showsSourceDetails ? "chevron.up" : "chevron.down")
+                        .appFont(size: 10, weight: .bold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+                .padding(.vertical, 5)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                showsSourceDetails
+                    ? "Hide agreeing source details"
+                    : "Show agreeing source details"
+            )
+
+            if showsSourceDetails {
+                VStack(alignment: .leading, spacing: 10) {
+                    sourceEvidenceRow(
+                        name: sourceName,
+                        lineage: metadata?.effectiveEvidenceLineage ?? .unknown,
+                        date: metadata?.sourceUpdatedAt ?? metadata?.sourceObservedAt,
+                        isPrimary: true
+                    )
+
+                    ForEach(supportingEvidence, id: \.sourceName) { evidence in
+                        sourceEvidenceRow(
+                            name: evidence.sourceName,
+                            lineage: evidence.lineage,
+                            date: evidence.sourceUpdatedAt ?? evidence.observedAt,
+                            isPrimary: false
+                        )
+                    }
+
+                    Text(sourceAgreementCaveat)
+                        .appFont(size: 10, weight: .medium)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 2)
+                .transition(.opacity)
+            }
         }
-        .padding(.vertical, 2)
+        .accessibilityIdentifier("food_trust_source_agreement")
+    }
+
+    private func sourceEvidenceRow(
+        name: String,
+        lineage: FoodEvidenceLineage,
+        date: Date?,
+        isPrimary: Bool
+    ) -> some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: isPrimary ? "checkmark.circle.fill" : "plus.circle.fill")
+                .appFont(size: 11, weight: .bold)
+                .foregroundColor(isPrimary ? .brandForeground : .accentPositiveText)
+                .frame(width: 22, height: 22)
+                .background(
+                    (isPrimary ? Color.brandPrimary : Color.accentPositiveText).opacity(0.10),
+                    in: Circle()
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(name)
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundColor(.textPrimary)
+                    if isPrimary {
+                        Text("Primary")
+                            .appFont(size: 8, weight: .bold)
+                            .foregroundColor(.brandForeground)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                    }
+                }
+
+                Text(lineage.title)
+                    .appFont(size: 10, weight: .medium)
+                    .foregroundColor(Color(UIColor.secondaryLabel))
+
+                if let date {
+                    Text("Record date \(date.formatted(.dateTime.year().month(.abbreviated).day()))")
+                        .appFont(size: 9, weight: .medium)
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var sourceAgreementSummary: String {
+        let names = supportingEvidence.map(\.sourceName)
+        return ([sourceName] + names).joined(separator: " + ")
+    }
+
+    private var sourceAgreementCaveat: String {
+        let hasBarcode = !(metadata?.barcode?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty ?? true)
+        if hasBarcode {
+            return "These databases report comparable core nutrition for the matched barcode. They may still reproduce the same manufacturer label, so provider count is not laboratory verification."
+        }
+        return "These reference records match the search description and report comparable core nutrition after serving normalization. This supports the core values, not exact packaged-product identity."
     }
 
     private func resolutionNotice(_ resolution: FoodTrustResolution) -> some View {

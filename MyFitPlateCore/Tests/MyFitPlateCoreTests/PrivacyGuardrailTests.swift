@@ -30,6 +30,7 @@ final class PrivacyGuardrailTests: XCTestCase {
         )
         XCTAssertTrue(store.allowsHealthData(for: "user-a"))
         XCTAssertNil(store.consent(for: "user-b"))
+        XCTAssertFalse(defaults.dictionaryRepresentation().keys.joined().contains("user-a"))
     }
 
     func testRevokingAIConsentBlocksAllAIDataSharing() {
@@ -40,6 +41,21 @@ final class PrivacyGuardrailTests: XCTestCase {
 
         XCTAssertFalse(store.hasCurrentConsent(for: "user-a"))
         XCTAssertFalse(store.allowsHealthData(for: "user-a"))
+    }
+
+    func testLegacyAIConsentMigratesAwayFromRawAccountKey() throws {
+        let userID = "legacy-consent-user"
+        let legacyKey = "ai_data_consent_v1_\(userID)"
+        let consent = AIDataConsent(
+            grantedAt: Date(timeIntervalSince1970: 1_750_000_000),
+            includesHealthData: true
+        )
+        defaults.set(try JSONEncoder().encode(consent), forKey: legacyKey)
+        let store = AIDataConsentStore(defaults: defaults)
+
+        XCTAssertEqual(store.consent(for: userID), consent)
+        XCTAssertNil(defaults.data(forKey: legacyKey))
+        XCTAssertFalse(defaults.dictionaryRepresentation().keys.joined().contains(userID))
     }
 
     func testMaiaContractDropsHealthKitScopeWithoutOptionalConsent() {
@@ -116,5 +132,21 @@ final class PrivacyGuardrailTests: XCTestCase {
         XCTAssertEqual(result?["includes_action"] as? Bool, true)
         XCTAssertNil(result?["food_name"])
         XCTAssertNil(result?["route"])
+    }
+
+    func testAnalyticsSanitizerRejectsUnknownIdentityAndNameSuffixes() {
+        let result = AnalyticsPrivacy.sanitizedParameters([
+            "screen_name": "food_search",
+            "correlation_id": "private-id",
+            "item_name": "Private meal",
+            "recipe_description": "Private recipe text",
+            "provider": "health_canada"
+        ])
+
+        XCTAssertEqual(result?["screen_name"] as? String, "food_search")
+        XCTAssertEqual(result?["provider"] as? String, "health_canada")
+        XCTAssertNil(result?["correlation_id"])
+        XCTAssertNil(result?["item_name"])
+        XCTAssertNil(result?["recipe_description"])
     }
 }

@@ -60,12 +60,22 @@ public enum AnalyticsPrivacy {
         "weigh_ins"
     ]
 
+    private static let sensitiveKeySuffixes = [
+        "_description", "_email", "_id", "_name", "_prompt", "_query", "_text"
+    ]
+
+    private static let allowedSensitiveSuffixKeys: Set<String> = ["screen_name"]
+
     public static func sanitizedParameters(_ parameters: [String: Any]?) -> [String: Any]? {
         guard let parameters else { return nil }
         let sanitized = parameters.filter { key, _ in
             let normalizedKey = key.lowercased()
             return !sensitiveExactKeys.contains(normalizedKey) &&
-                !sensitiveKeyFragments.contains(where: normalizedKey.contains)
+                !sensitiveKeyFragments.contains(where: normalizedKey.contains) &&
+                (
+                    allowedSensitiveSuffixKeys.contains(normalizedKey) ||
+                        !sensitiveKeySuffixes.contains(where: normalizedKey.hasSuffix)
+                )
         }
         return sanitized.isEmpty ? nil : sanitized
     }

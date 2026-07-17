@@ -38,6 +38,27 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    private func activateTab(
+        _ identifier: String,
+        destinationHeader: XCUIElement,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let tab = app.buttons[identifier]
+        XCTAssertTrue(tab.waitForExistence(timeout: 5), file: file, line: line)
+
+        for _ in 0..<3 {
+            tab.press(forDuration: 0.1)
+            if destinationHeader.waitForExistence(timeout: 5) {
+                return
+            }
+        }
+
+        XCTFail("The requested tab did not present its destination", file: file, line: line)
+    }
+
+    @MainActor
     func testHomeDashboardLoads() throws {
         let app = XCUIApplication()
 
@@ -230,14 +251,24 @@ final class MyFitPlateUITests: XCTestCase {
         canadaRow.tap()
 
         XCTAssertTrue(app.staticTexts["Health Canada CNF"].waitForExistence(timeout: 5))
+        let showFieldEvidence = app.buttons["Show field evidence"]
+        for _ in 0..<6 where !showFieldEvidence.exists || !showFieldEvidence.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(showFieldEvidence.waitForExistence(timeout: 5))
+        XCTAssertTrue(showFieldEvidence.isHittable)
+        showFieldEvidence.tap()
+        let canadaReleaseDate = app.descendants(matching: .any)
+            .matching(NSPredicate(
+                format: "label CONTAINS %@",
+                "Reference dataset released May 14, 2026"
+            ))
+            .firstMatch
+        for _ in 0..<4 where !canadaReleaseDate.exists {
+            app.swipeUp()
+        }
         XCTAssertTrue(
-            app.descendants(matching: .any)
-                .matching(NSPredicate(
-                    format: "label CONTAINS %@",
-                    "Reference dataset released May 14, 2026"
-                ))
-                .firstMatch
-                .waitForExistence(timeout: 5)
+            canadaReleaseDate.waitForExistence(timeout: 5)
         )
         app.terminate()
         app.launch()
@@ -265,7 +296,19 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(supplementRow.label.contains("1 Softgel"))
         supplementRow.tap()
 
-        XCTAssertTrue(app.staticTexts["NIH DSLD"].waitForExistence(timeout: 5))
+        let nihReceiptTitle = app.staticTexts["NIH DSLD"]
+        if !nihReceiptTitle.waitForExistence(timeout: 2) {
+            let unchangedSupplementRow = app.buttons
+                .matching(NSPredicate(format: "label CONTAINS %@", "Example Vitamin D3"))
+                .firstMatch
+            XCTAssertTrue(
+                unchangedSupplementRow.exists,
+                "Only retry while the unchanged NIH search result remains visible"
+            )
+            XCTAssertTrue(unchangedSupplementRow.isHittable)
+            unchangedSupplementRow.tap()
+        }
+        XCTAssertTrue(nihReceiptTitle.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["1 Softgel"].waitForExistence(timeout: 5))
         XCTAssertTrue(
             app.descendants(matching: .any)
@@ -549,10 +592,14 @@ final class MyFitPlateUITests: XCTestCase {
         let firstRecipe = app.descendants(matching: .any)["recipe_open_demo-recipe-chicken-bowl"]
         XCTAssertTrue(firstRecipe.waitForExistence(timeout: 10))
         XCTAssertTrue(firstRecipe.isHittable)
-        firstRecipe.tap()
 
         let detail = app.descendants(matching: .any)["recipe_detail"]
         let addToLog = app.buttons["recipe_add_to_log"]
+        firstRecipe.press(forDuration: 0.1)
+        if !detail.waitForExistence(timeout: 3) {
+            XCTAssertTrue(firstRecipe.isHittable, "Recipe should remain tappable after a dropped input")
+            firstRecipe.press(forDuration: 0.1)
+        }
         XCTAssertTrue(detail.waitForExistence(timeout: 5))
         XCTAssertTrue(addToLog.waitForExistence(timeout: 5))
         addToLog.tap()
@@ -783,12 +830,11 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertLessThan(searchField.frame.minY, chainIdentity.frame.minY)
         XCTAssertLessThan(chainIdentity.frame.minY, category.frame.minY)
 
-        menuSearchField.tap()
-        menuSearchField.typeText("Barbacoa")
+        focusAndType("Barbacoa", into: menuSearchField)
         XCTAssertTrue(app.buttons["chain_builder_ingredient_c_barbacoa"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["chain_builder_ingredient_c_white_rice"].exists)
         app.buttons["Clear menu search"].tap()
-        menuSearchField.typeText("\n")
+        focusAndType("\n", into: menuSearchField)
 
         let whiteRice = app.buttons["chain_builder_ingredient_c_white_rice"]
         XCTAssertTrue(whiteRice.waitForExistence(timeout: 5))
@@ -1137,15 +1183,21 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertLessThan(dailyLog.frame.minY, app.frame.maxY - 180)
         XCTAssertGreaterThan(dailyLog.frame.maxY, 100)
 
-        let expectedDailyMetrics = [
+        let immediatelyVisibleDailyMetrics = [
             ("home_daily_metric_calories", "Calories: 1,310 / 2,100 cal"),
             ("home_daily_metric_protein", "Protein: 98 / 160 g"),
-            ("home_daily_metric_water", "Water: 72 / 64 oz"),
-            ("home_daily_metric_activity", "Activity: 1 session")
+            ("home_daily_metric_water", "Water: 72 / 64 oz")
         ]
-        for (identifier, label) in expectedDailyMetrics {
+        for (identifier, label) in immediatelyVisibleDailyMetrics {
             XCTAssertEqual(app.descendants(matching: .any)[identifier].label, label)
         }
+
+        let activityMetric = app.descendants(matching: .any)["home_daily_metric_activity"]
+        for _ in 0..<6 where !activityMetric.exists {
+            homeScrollView.swipeUp()
+        }
+        XCTAssertTrue(activityMetric.waitForExistence(timeout: 5), "Activity metric should remain reachable")
+        XCTAssertEqual(activityMetric.label, "Activity: 1 session")
 
         // iOS 26 audits hidden visual children of these verified combined accessibility elements
         // at their exact rounded-glyph bounds. Filter only those known visual strings; all other
@@ -1287,11 +1339,47 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    func testMealPlanOffersConfirmedDiscard() throws {
+        let app = XCUIApplication()
+        app.terminate()
+        app.launchArguments = [
+            "-ui-testing",
+            "-screenshot-mode",
+            "-screenshot-screen",
+            "meal-plan"
+        ]
+        app.launch()
+
+        let summary = app.staticTexts["Today's meal plan"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 10))
+
+        let tools = app.buttons["Meal plan tools"]
+        XCTAssertTrue(tools.waitForExistence(timeout: 5))
+        tools.tap()
+
+        let discard = app.buttons["Discard meal plan"]
+        XCTAssertTrue(discard.waitForExistence(timeout: 5))
+        XCTAssertTrue(discard.isEnabled)
+        discard.tap()
+
+        XCTAssertTrue(app.staticTexts["Discard this meal plan?"].waitForExistence(timeout: 5))
+        let discardExplanation = app.staticTexts
+            .matching(NSPredicate(
+                format: "label == %@",
+                "This removes the current seven-day plan and its generated grocery items. " +
+                    "Pantry items, manual grocery items, and meals already added to your food log stay unchanged."
+            ))
+            .firstMatch
+        XCTAssertTrue(discardExplanation.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["meal_plan_discard_confirm"].exists)
+    }
+
+    @MainActor
     func testTrainAndMealPlanSupportDarkAccessibilityText() throws {
         let app = XCUIApplication()
         let screens = [
-            (name: "train", label: "Dumbbell Strength & Hypertrophy", isButton: false),
-            (name: "meal-plan", label: "planned meals, selected", isButton: true)
+            (name: "train", identifier: "", label: "Dumbbell Strength & Hypertrophy", isButton: false),
+            (name: "meal-plan", identifier: "meal_plan_week", label: "planned meals, selected", isButton: true)
         ]
 
         for screen in screens {
@@ -1310,7 +1398,7 @@ final class MyFitPlateUITests: XCTestCase {
             let primarySurface: XCUIElement
             if screen.isButton {
                 primarySurface = app.buttons
-                    .matching(NSPredicate(format: "label CONTAINS %@", screen.label))
+                    .matching(identifier: screen.identifier)
                     .firstMatch
             } else {
                 primarySurface = app.staticTexts
@@ -1318,6 +1406,12 @@ final class MyFitPlateUITests: XCTestCase {
                     .firstMatch
             }
             XCTAssertTrue(primarySurface.waitForExistence(timeout: 12))
+            if screen.isButton {
+                XCTAssertTrue(
+                    (primarySurface.value as? String)?.contains(screen.label) == true,
+                    "Meal-plan day picker should announce meal count and selection"
+                )
+            }
             XCTAssertGreaterThan(primarySurface.frame.width, 0)
             XCTAssertGreaterThanOrEqual(primarySurface.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(primarySurface.frame.maxX, app.frame.maxX + 1)
@@ -1393,6 +1487,14 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(header.waitForExistence(timeout: 10))
         XCTAssertTrue(headline.waitForExistence(timeout: 10))
         XCTAssertLessThan(header.frame.minY, headline.frame.minY)
+
+        let dayAction = app.buttons["week_in_motion_day_action"].firstMatch
+        XCTAssertTrue(dayAction.waitForExistence(timeout: 5))
+        dayAction.tap()
+        XCTAssertTrue(app.navigationBars["Day Details"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["How to read the week"].exists)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(headline.waitForExistence(timeout: 5))
 
         for _ in 0..<6 where !timeframe.isHittable {
             app.swipeUp()
@@ -1507,8 +1609,16 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(meal.waitForExistence(timeout: 5))
         let logFood = app.buttons["Log Food"]
         XCTAssertTrue(logFood.exists)
-        logFood.tap()
         let logged = app.buttons["Logged"]
+
+        for _ in 0..<3 where !logged.exists {
+            XCTAssertTrue(logFood.isHittable)
+            logFood.press(forDuration: 0.1)
+            if logged.waitForExistence(timeout: 3) {
+                break
+            }
+        }
+
         XCTAssertTrue(logged.waitForExistence(timeout: 3))
         XCTAssertFalse(logged.isEnabled)
 
@@ -1654,30 +1764,77 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(addWater.waitForExistence(timeout: 5))
         XCTAssertTrue(addWater.isHittable)
         XCTAssertEqual(addWater.value as? String, "72 / 64 oz")
-        addWater.tap()
-        let waterUpdated = expectation(
-            for: NSPredicate(format: "value == %@", "80 / 64 oz"),
-            evaluatedWith: addWater
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [waterUpdated], timeout: 5), .completed)
+        let updatedWater = app.buttons
+            .matching(identifier: "livingDayAddWaterButton")
+            .matching(NSPredicate(format: "value == %@", "80 / 64 oz"))
+            .firstMatch
+        addWater.press(forDuration: 0.1)
+        if !updatedWater.waitForExistence(timeout: 2) {
+            let unchangedWater = app.buttons
+                .matching(identifier: "livingDayAddWaterButton")
+                .matching(NSPredicate(format: "value == %@", "72 / 64 oz"))
+                .firstMatch
+            XCTAssertTrue(unchangedWater.exists, "Only retry when a dropped input leaves water unchanged")
+            XCTAssertTrue(unchangedWater.isHittable)
+            unchangedWater.press(forDuration: 0.1)
+        }
+        XCTAssertTrue(updatedWater.waitForExistence(timeout: 5))
         XCTAssertTrue(share.isHittable)
         XCTAssertTrue(density.isHittable)
         XCTAssertLessThan(addWater.frame.minY, action.frame.minY)
         XCTAssertLessThan(action.frame.minY, maia.frame.minY)
         XCTAssertLessThan(maia.frame.minY, firstEvent.frame.minY)
 
-        let detailedPath = app.buttons["Detailed path"]
+        let initialDensity = try XCTUnwrap(density.value as? String)
+        let targetDensity = initialDensity == "Detailed path" ? "Compact path" : "Detailed path"
+        let targetDensityButton = app.buttons[targetDensity]
         density.press(forDuration: 0.1)
-        if !detailedPath.waitForExistence(timeout: 3), density.isHittable {
+        if !targetDensityButton.waitForExistence(timeout: 3), density.isHittable {
             density.press(forDuration: 0.1)
         }
-        XCTAssertTrue(detailedPath.waitForExistence(timeout: 7))
-        detailedPath.tap()
+        XCTAssertTrue(targetDensityButton.waitForExistence(timeout: 7))
+        targetDensityButton.tap()
+
+        let updatedDensity = app.descendants(matching: .any)
+            .matching(identifier: "livingDayDensityMenu")
+            .matching(NSPredicate(format: "value == %@", targetDensity))
+            .firstMatch
+        if !updatedDensity.waitForExistence(timeout: 2) {
+            let unchangedDensity = app.descendants(matching: .any)
+                .matching(identifier: "livingDayDensityMenu")
+                .matching(NSPredicate(format: "value == %@", initialDensity))
+                .firstMatch
+            let retryTarget = app.buttons[targetDensity]
+            XCTAssertTrue(
+                unchangedDensity.exists,
+                "Only retry while path density remains unchanged"
+            )
+            XCTAssertTrue(retryTarget.exists)
+            XCTAssertTrue(retryTarget.isHittable)
+            retryTarget.tap()
+        }
+        XCTAssertTrue(updatedDensity.waitForExistence(timeout: 5))
+        XCTAssertTrue(targetDensityButton.waitForNonExistence(timeout: 5))
 
         try app.performAccessibilityAudit(for: [.textClipped])
 
-        share.tap()
-        XCTAssertTrue(app.navigationBars["Share Living Day"].waitForExistence(timeout: 5))
+        let refreshedShare = app.buttons["livingDayShareButton"]
+        let shareHittable = expectation(
+            for: NSPredicate(format: "hittable == true"),
+            evaluatedWith: refreshedShare
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [shareHittable], timeout: 5), .completed)
+        refreshedShare.tap()
+        let shareNavigationBar = app.navigationBars["Share Living Day"]
+        if !shareNavigationBar.waitForExistence(timeout: 3) {
+            XCTAssertTrue(
+                refreshedShare.exists,
+                "Only retry a dropped tap while the Living Day share sheet remains closed"
+            )
+            XCTAssertTrue(refreshedShare.isHittable)
+            refreshedShare.tap()
+        }
+        XCTAssertTrue(shareNavigationBar.waitForExistence(timeout: 7))
 
         let budget = app.switches["livingDayShareBudgetToggle"]
         let path = app.switches["livingDaySharePathToggle"]
@@ -1768,20 +1925,15 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(homeHeader.waitForExistence(timeout: 10))
         XCTAssertTrue(livingDay.waitForExistence(timeout: 10))
 
-        app.buttons["tab_reports"].tap()
-        XCTAssertTrue(
-            app.staticTexts
-                .matching(NSPredicate(
-                    format: "identifier == %@ AND label == %@",
-                    "reports_screen_header",
-                    "Reports"
-                ))
-                .firstMatch
-                .waitForExistence(timeout: 5)
-        )
-
-        app.buttons["tab_home"].tap()
-        XCTAssertTrue(homeHeader.waitForExistence(timeout: 5))
+        let reportsHeader = app.staticTexts
+            .matching(NSPredicate(
+                format: "identifier == %@ AND label == %@",
+                "reports_screen_header",
+                "Reports"
+            ))
+            .firstMatch
+        activateTab("tab_reports", destinationHeader: reportsHeader, in: app)
+        activateTab("tab_home", destinationHeader: homeHeader, in: app)
         XCTAssertTrue(
             livingDay.waitForExistence(timeout: 5),
             "Living Day should remain enabled when Home is rebuilt after a tab change"
@@ -1823,12 +1975,12 @@ final class MyFitPlateUITests: XCTestCase {
     func testSettingsDestinationsUseUnifiedSurfaces() throws {
         let app = XCUIApplication()
         let destinations = [
-            (name: "Goals", route: "settings-goals", container: "settings_goals_screen", action: "settings_goals_save"),
-            (name: "Height", route: "settings-height", container: "settings_height_screen", action: "settings_height_save"),
-            (name: "Water", route: "settings-water", container: "settings_water_screen", action: "settings_water_save"),
+            (name: "Goals", route: "settings-goals", container: "settings_goals_screen", action: "Save Goals"),
+            (name: "Height", route: "settings-height", container: "settings_height_screen", action: "Save Height"),
+            (name: "Water", route: "settings-water", container: "settings_water_screen", action: "Save Goal"),
             (name: "Disclaimer", route: "settings-disclaimer", container: "settings_disclaimer_screen", action: ""),
-            (name: "AI Data", route: "settings-ai-data", container: "settings_ai_data_screen", action: "settings_ai_allow"),
-            (name: "Import", route: "settings-import", container: "settings_import_screen", action: "settings_import_choose_files")
+            (name: "AI Data", route: "settings-ai-data", container: "settings_ai_data_screen", action: "Allow AI Features"),
+            (name: "Import", route: "settings-import", container: "settings_import_screen", action: "Choose Files")
         ]
 
         for destination in destinations {
@@ -1841,7 +1993,9 @@ final class MyFitPlateUITests: XCTestCase {
             ]
             app.launch()
 
-            let container = app.descendants(matching: .any)[destination.container]
+            let container = app.descendants(matching: .any)
+                .matching(identifier: destination.container)
+                .firstMatch
             XCTAssertTrue(
                 container.waitForExistence(timeout: 10),
                 "\(destination.name) should open directly from its screenshot route"
@@ -1851,6 +2005,11 @@ final class MyFitPlateUITests: XCTestCase {
 
             if !destination.action.isEmpty {
                 let action = app.buttons[destination.action]
+                let scrollView = app.scrollViews.firstMatch
+                for _ in 0..<8 where !action.exists || !action.isHittable {
+                    guard scrollView.exists else { break }
+                    scrollView.swipeUp()
+                }
                 XCTAssertTrue(action.waitForExistence(timeout: 5))
                 XCTAssertTrue(action.isHittable)
             }
@@ -1867,10 +2026,10 @@ final class MyFitPlateUITests: XCTestCase {
         let app = XCUIApplication()
         let destinations = [
             (name: "Settings", route: "settings", container: "settings_screen", action: "Done"),
-            (name: "Goals", route: "settings-goals", container: "settings_goals_screen", action: "settings_goals_save"),
-            (name: "Height", route: "settings-height", container: "settings_height_screen", action: "settings_height_save"),
-            (name: "Water", route: "settings-water", container: "settings_water_screen", action: "settings_water_save"),
-            (name: "Import", route: "settings-import", container: "settings_import_screen", action: "settings_import_choose_files")
+            (name: "Goals", route: "settings-goals", container: "settings_goals_screen", action: "Save Goals"),
+            (name: "Height", route: "settings-height", container: "settings_height_screen", action: "Save Height"),
+            (name: "Water", route: "settings-water", container: "settings_water_screen", action: "Save Goal"),
+            (name: "Import", route: "settings-import", container: "settings_import_screen", action: "Choose Files")
         ]
 
         for destination in destinations {
@@ -1886,20 +2045,21 @@ final class MyFitPlateUITests: XCTestCase {
             ]
             app.launch()
 
-            let container = app.descendants(matching: .any)[destination.container]
+            let container = app.descendants(matching: .any)
+                .matching(identifier: destination.container)
+                .firstMatch
             let action = app.buttons[destination.action]
             XCTAssertTrue(container.waitForExistence(timeout: 10))
-            XCTAssertTrue(action.waitForExistence(timeout: 5))
             XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
 
             try app.performAccessibilityAudit(for: [.textClipped])
 
-            if !action.isHittable {
+            if !action.waitForExistence(timeout: 2) || !action.isHittable {
                 let scrollView = app.scrollViews.firstMatch
                 XCTAssertTrue(scrollView.exists)
-                var remainingScrolls = 4
-                while !action.isHittable && remainingScrolls > 0 {
+                var remainingScrolls = 10
+                while (!action.exists || !action.isHittable) && remainingScrolls > 0 {
                     scrollView.swipeUp()
                     remainingScrolls -= 1
                 }
@@ -2046,12 +2206,21 @@ final class MyFitPlateUITests: XCTestCase {
         }
         XCTAssertTrue(doneButton.waitForExistence(timeout: 7), "Trust Hub should always provide a visible dismissal")
         XCTAssertTrue(doneButton.isHittable, "Trust Hub dismissal should be tappable")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["nutrition_evidence_map"].waitForExistence(timeout: 5),
+            "Trust Hub should expose the field-level Evidence Map"
+        )
 
         let verifiedFood = app.buttons
             .matching(NSPredicate(format: "label CONTAINS %@", "Greek Yogurt Parfait"))
             .firstMatch
         XCTAssertTrue(verifiedFood.waitForExistence(timeout: 5), "Verified foods should appear in Trust Hub")
         XCTAssertTrue(verifiedFood.isEnabled, "Trust Hub food rows should remain interactive")
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Trust Hub evidence map"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
 
         doneButton.tap()
         XCTAssertTrue(
@@ -2732,10 +2901,15 @@ final class MyFitPlateUITests: XCTestCase {
                 XCTAssertTrue(evidence.waitForExistence(timeout: 5))
 
                 let coreZone = app.buttons["muscle_recovery_zone_front_core"]
+                let coreEvidence = app.staticTexts["Core"]
                 XCTAssertTrue(coreZone.waitForExistence(timeout: 5))
                 XCTAssertTrue(coreZone.isHittable)
-                coreZone.tap()
-                XCTAssertTrue(app.staticTexts["Core"].waitForExistence(timeout: 5))
+                coreZone.press(forDuration: 0.1)
+                if !coreEvidence.waitForExistence(timeout: 3) {
+                    XCTAssertTrue(coreZone.isHittable, "Core should remain tappable after a dropped input")
+                    coreZone.press(forDuration: 0.1)
+                }
+                XCTAssertTrue(coreEvidence.waitForExistence(timeout: 5))
             }
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
@@ -2892,7 +3066,7 @@ final class MyFitPlateUITests: XCTestCase {
         let screens = [
             (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_create_account"),
             (name: "Sign In", route: "login", title: "Welcome back", action: "login_submit"),
-            (name: "Create Account", route: "signup", title: "Create your workspace", action: "signup_submit"),
+            (name: "Create Account", route: "signup", title: "Build your MyFitPlate", action: "signup_submit"),
             (name: "Personal Setup", route: "onboarding-lifestyle", title: "How active is your life?", action: "onboarding_next"),
             (name: "Feature Tour", route: "feature-tour", title: "Meet Maia", action: "feature_tour_next")
         ]
@@ -2930,7 +3104,7 @@ final class MyFitPlateUITests: XCTestCase {
         let app = XCUIApplication()
         let screens = [
             (name: "Welcome", route: "welcome", title: "MyFitPlate", action: "welcome_create_account"),
-            (name: "Create Account", route: "signup", title: "Create your workspace", action: "Cancel"),
+            (name: "Create Account", route: "signup", title: "Build your MyFitPlate", action: "Cancel"),
             (name: "Personal Setup", route: "onboarding-lifestyle", title: "How active is your life?", action: "onboarding_next"),
             (name: "Feature Tour", route: "feature-tour", title: "Meet Maia", action: "feature_tour_next")
         ]
@@ -3448,8 +3622,8 @@ final class MyFitPlateUITests: XCTestCase {
 
             let container = app.descendants(matching: .any)["add_shoe_screen"]
             XCTAssertTrue(container.waitForExistence(timeout: 10))
-            XCTAssertTrue(app.staticTexts["Shoe Details"].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.buttons["Save"].exists)
+            XCTAssertTrue(app.staticTexts["Identity"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["Save Shoe"].exists)
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "Add Shoe - \(configuration.name)"
@@ -3458,8 +3632,6 @@ final class MyFitPlateUITests: XCTestCase {
 
             if configuration.accessibilityText {
                 container.swipeUp()
-                // SwiftUI Form reports one unresolvable viewport node after scrolling at XXXL.
-                // Keep every identifiable label and field subject to the clipping audit.
                 try app.performAccessibilityAudit(for: [.textClipped]) { issue in
                     issue.element == nil
                 }

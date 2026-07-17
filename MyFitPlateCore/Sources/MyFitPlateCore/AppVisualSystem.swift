@@ -1,5 +1,11 @@
 import SwiftUI
 
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+
 /// The restrained visual language introduced with Living Day. New and migrated screens use these
 /// roles instead of choosing raw sizes, radii, colors, and animation curves independently.
 public enum AppTextRole: CaseIterable, Sendable {
@@ -46,6 +52,17 @@ public enum AppTextRole: CaseIterable, Sendable {
         case .caption: .caption2
         }
     }
+
+    fileprivate var accessibilityRelativeTextStyle: Font.TextStyle {
+        switch self {
+        case .display: .title2
+        case .screenTitle, .metric: .title3
+        case .sectionTitle, .control: .headline
+        case .body: .body
+        case .secondary: .footnote
+        case .caption: .caption
+        }
+    }
 }
 
 public struct AppTextRoleModifier: ViewModifier {
@@ -59,7 +76,9 @@ public struct AppTextRoleModifier: ViewModifier {
     public func body(content: Content) -> some View {
         content.font(
             .system(
-                role.relativeTextStyle,
+                dynamicTypeSize.isAccessibilitySize
+                    ? role.accessibilityRelativeTextStyle
+                    : role.relativeTextStyle,
                 design: dynamicTypeSize.isAccessibilitySize ? .default : .rounded,
                 weight: role.weight
             )
@@ -99,10 +118,21 @@ public enum AppMotion {
 
 public enum AppPalette {
     public static var canvas: Color { Color("BackgroundPrimary", bundle: .main) }
-    public static var surface: Color { Color("BackgroundSecondary", bundle: .main) }
+    public static var surface: Color {
+#if os(iOS) || os(tvOS) || os(visionOS)
+        Color(uiColor: .secondarySystemBackground)
+#elseif os(macOS)
+        Color(nsColor: .controlBackgroundColor)
+#else
+        Color.white.opacity(0.08)
+#endif
+    }
+    public static var interpreted: Color { Color("BackgroundSecondary", bundle: .main) }
     public static var control: Color { Color("ControlBackground", bundle: .main) }
     public static var brand: Color { Color("BrandPrimary", bundle: .main) }
     public static var brandText: Color { Color("AccentPositiveText", bundle: .main) }
+    public static var launchBackground: Color { Color("LaunchBackground", bundle: .main) }
+    public static var launchForeground: Color { Color(red: 0.66, green: 0.90, blue: 0.77) }
     public static var onSignal: Color { Color.black.opacity(0.86) }
     public static var onBrand: Color { onSignal }
     public static var text: Color { Color("TextPrimary", bundle: .main) }
@@ -153,6 +183,7 @@ public enum AppSignalRole: CaseIterable, Sendable {
 public enum AppSurfaceRole: Sendable {
     case quiet
     case emphasized
+    case interpreted
 }
 
 public struct AppSurfaceModifier: ViewModifier {
@@ -186,6 +217,7 @@ public struct AppSurfaceModifier: ViewModifier {
         switch role {
         case .quiet: AppPalette.control
         case .emphasized: AppPalette.surface
+        case .interpreted: AppPalette.interpreted
         }
     }
 
@@ -193,13 +225,13 @@ public struct AppSurfaceModifier: ViewModifier {
         switch role {
         case .quiet:
             AppPalette.separator.opacity(colorSchemeContrast == .increased ? 1 : 0.55)
-        case .emphasized:
+        case .emphasized, .interpreted:
             AppPalette.separator.opacity(colorSchemeContrast == .increased ? 1 : 0.9)
         }
     }
 
     private var borderWidth: CGFloat {
-        colorSchemeContrast == .increased || role == .emphasized ? 1 : 0.5
+        colorSchemeContrast == .increased || role != .quiet ? 1 : 0.5
     }
 }
 
@@ -832,5 +864,182 @@ public struct AppSheetScaffold<Content: View>: View {
         .fixedSize()
         .accessibilityLabel("Close")
         .accessibilityIdentifier("app_sheet_close_button")
+    }
+}
+
+/// A consistent shell for editable sheets. Content scrolls independently while the action area
+/// remains reachable above the keyboard and Home indicator.
+public struct AppEditorScaffold<Content: View, Actions: View>: View {
+    public let title: String
+    public let subtitle: String?
+    public let dismiss: () -> Void
+    private let content: Content
+    private let actions: Actions
+
+    public init(
+        title: String,
+        subtitle: String? = nil,
+        dismiss: @escaping () -> Void,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder actions: () -> Actions
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.dismiss = dismiss
+        self.content = content()
+        self.actions = actions()
+    }
+
+    public var body: some View {
+        AppSheetScaffold(title: title, subtitle: subtitle, dismiss: dismiss) {
+            ScrollView {
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.vertical, AppSpacing.group)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: AppSpacing.compact) {
+                    Divider()
+                    actions
+                        .padding(.horizontal, AppSpacing.screenHorizontal)
+                        .padding(.top, AppSpacing.compact)
+                        .padding(.bottom, AppSpacing.group)
+                }
+                .background(AppPalette.canvas)
+            }
+        }
+    }
+}
+
+public enum AppDataFreshnessState: CaseIterable, Equatable, Sendable {
+    case current
+    case aging
+    case stale
+    case unavailable
+}
+
+/// A shared, deterministic interpretation of when synchronized data should still be trusted.
+public struct AppDataFreshness: Equatable, Sendable {
+    public let state: AppDataFreshnessState
+    public let updatedAt: Date?
+    public let age: TimeInterval?
+
+    public init(
+        updatedAt: Date?,
+        now: Date = Date(),
+        currentFor: TimeInterval = 15 * 60,
+        staleAfter: TimeInterval = 2 * 60 * 60
+    ) {
+        self.updatedAt = updatedAt
+
+        guard let updatedAt else {
+            state = .unavailable
+            age = nil
+            return
+        }
+
+        let age = max(0, now.timeIntervalSince(updatedAt))
+        self.age = age
+
+        if age <= currentFor {
+            state = .current
+        } else if age <= staleAfter {
+            state = .aging
+        } else {
+            state = .stale
+        }
+    }
+
+    public var shortLabel: String {
+        guard let age else { return "Not synced" }
+
+        if age < 90 {
+            return "Updated now"
+        }
+        if age < 60 * 60 {
+            return "Updated \(max(1, Int(age / 60)))m ago"
+        }
+        if age < 24 * 60 * 60 {
+            return "Updated \(max(1, Int(age / (60 * 60))))h ago"
+        }
+        return "Updated \(max(1, Int(age / (24 * 60 * 60))))d ago"
+    }
+
+    public var accessibilityLabel: String {
+        switch state {
+        case .current:
+            shortLabel
+        case .aging:
+            "\(shortLabel). Recent data may still be syncing."
+        case .stale:
+            "\(shortLabel). Data may be out of date."
+        case .unavailable:
+            "Not synced. Open MyFitPlate on your phone to update this data."
+        }
+    }
+}
+
+public struct AppFreshnessLabel: View {
+    public let freshness: AppDataFreshness
+
+    public init(_ freshness: AppDataFreshness) {
+        self.freshness = freshness
+    }
+
+    public var body: some View {
+        Label(freshness.shortLabel, systemImage: icon)
+            .appTextRole(.caption)
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(freshness.accessibilityLabel)
+    }
+
+    private var icon: String {
+        switch freshness.state {
+        case .current: "checkmark.circle"
+        case .aging: "arrow.triangle.2.circlepath"
+        case .stale: "clock.badge.exclamationmark"
+        case .unavailable: "iphone.slash"
+        }
+    }
+
+    private var color: Color {
+        switch freshness.state {
+        case .current: .secondary
+        case .aging: AppPalette.recovery
+        case .stale: AppPalette.caution
+        case .unavailable: .secondary
+        }
+    }
+}
+
+public enum AppDataAvailabilityReason: Equatable, Sendable {
+    case notProvided
+    case notApplicable
+    case permissionNeeded
+    case notSynced
+    case insufficientEvidence
+
+    public var title: String {
+        switch self {
+        case .notProvided: "Not provided"
+        case .notApplicable: "Not applicable"
+        case .permissionNeeded: "Permission needed"
+        case .notSynced: "Not synced"
+        case .insufficientEvidence: "Not enough evidence"
+        }
+    }
+
+    public var icon: String {
+        switch self {
+        case .notProvided: "minus.circle"
+        case .notApplicable: "slash.circle"
+        case .permissionNeeded: "lock.circle"
+        case .notSynced: "arrow.triangle.2.circlepath"
+        case .insufficientEvidence: "questionmark.circle"
+        }
     }
 }

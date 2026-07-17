@@ -4,6 +4,7 @@ import SwiftUI
 struct MealSuggestionDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var showsMacroDetails = false
 
     let suggestion: MealSuggestion
     var pantryItemNames: [String] = []
@@ -143,7 +144,7 @@ struct MealSuggestionDetailView: View {
             AppMetricItem(label: "Carbs", value: "\(formatted(suggestion.carbs)) g", accent: .accentCarbs),
             AppMetricItem(label: "Fat", value: "\(formatted(suggestion.fats)) g", accent: .accentFats)
         ])
-        .appSurface(.emphasized)
+        .appSurface(.interpreted)
         .accessibilityIdentifier("meal_suggestion_nutrition_summary")
     }
 
@@ -154,26 +155,59 @@ struct MealSuggestionDetailView: View {
                 subtitle: "Estimated serving compared with today's remaining targets."
             )
 
-            VStack(spacing: 0) {
-                ForEach(Array(macroRows.enumerated()), id: \.element.id) { index, row in
-                    MealSuggestionMacroFitRow(model: row)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    Text(accessibilityMacroSummary)
+                        .appTextRole(.body)
+                        .foregroundStyle(AppPalette.text)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    if index < macroRows.count - 1 {
-                        Divider()
-                            .padding(.leading, 52)
+                    DisclosureGroup(isExpanded: $showsMacroDetails) {
+                        macroFitRows
+                            .padding(.top, AppSpacing.compact)
+                    } label: {
+                        Text(showsMacroDetails ? "Hide macro details" : "Review all macro details")
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.brandText)
                     }
                 }
-            }
-            .background(
-                AppPalette.control,
-                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
-                    .stroke(AppPalette.separator, lineWidth: 1)
+                .appSurface(.quiet)
+            } else {
+                macroFitRows
+                    .background(
+                        AppPalette.control,
+                        in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                            .stroke(AppPalette.separator, lineWidth: 1)
+                    }
             }
         }
         .accessibilityIdentifier("meal_suggestion_macro_fit")
+    }
+
+    private var macroFitRows: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(macroRows.enumerated()), id: \.element.id) { index, row in
+                MealSuggestionMacroFitRow(model: row)
+
+                if index < macroRows.count - 1 {
+                    Divider()
+                        .padding(.leading, 52)
+                }
+            }
+        }
+    }
+
+    private var accessibilityMacroSummary: String {
+        let values = macroRows.prefix(2).map { row in
+            guard let target = row.target else {
+                return "\(row.title) \(Int(row.planned.rounded())) \(row.unit)"
+            }
+            return "\(row.title) \(Int(row.planned.rounded())) of \(Int(target.rounded())) \(row.unit)"
+        }
+        return values.joined(separator: " · ")
     }
 
     private var pantrySection: some View {

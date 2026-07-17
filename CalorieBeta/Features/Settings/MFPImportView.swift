@@ -86,13 +86,20 @@ final class MFPImportViewModel: ObservableObject {
 
     private func prepareMergePlan(dailyLogService: DailyLogService, goalSettings: GoalSettings) {
         Task { @MainActor in
+            guard let userID = DIContainer.shared.authService.currentUserID else {
+                stage = .failed("You need to be signed in to import.")
+                return
+            }
             let calendar = Calendar.current
 
             var existingDays = Set<Date>()
             let sortedDates = diaryLogs.map(\.date).sorted()
-            if let first = sortedDates.first, let last = sortedDates.last,
-               let userID = DIContainer.shared.authService.currentUserID {
+            if let first = sortedDates.first, let last = sortedDates.last {
                 let result = await dailyLogService.fetchDailyHistory(for: userID, startDate: first, endDate: last)
+                guard DIContainer.shared.authService.currentUserID == userID else {
+                    stage = .failed("The active account changed. Select the export files again to continue safely.")
+                    return
+                }
                 let existing = (try? result.get()) ?? []
                 existingDays = Set(
                     existing
@@ -127,6 +134,10 @@ final class MFPImportViewModel: ObservableObject {
             // Each day is its own document, so writes are independent; the stagger keeps
             // a multi-year import from stampeding Firestore all at once.
             for log in logs {
+                guard DIContainer.shared.authService.currentUserID == userID else {
+                    stage = .failed("Import stopped because the active account changed.")
+                    return
+                }
                 dailyLogService.addMealGroupsToLog(
                     for: userID,
                     date: log.date,
@@ -139,10 +150,19 @@ final class MFPImportViewModel: ObservableObject {
             }
 
             for weighIn in weights {
+                guard DIContainer.shared.authService.currentUserID == userID else {
+                    stage = .failed("Import stopped because the active account changed.")
+                    return
+                }
                 goalSettings.updateUserWeight(weighIn.weightLbs, date: weighIn.date)
                 written += 1
                 stage = .importing(written: written, total: total)
                 try? await Task.sleep(nanoseconds: 60_000_000)
+            }
+
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                stage = .failed("Import stopped because the active account changed.")
+                return
             }
 
             DIContainer.shared.analyticsManager?.logEvent("mfp_import_completed", parameters: [
@@ -248,6 +268,13 @@ struct MFPImportView: View {
             }
             .appSurface(.quiet)
 
+            AppListRow(
+                icon: "lock.shield",
+                iconColor: AppPalette.brandText,
+                title: "Private until you confirm",
+                subtitle: "CSV files are read on this device. MyFitPlate writes supported diary and measurement records to your account only after you review the preview."
+            )
+            .appSurface(.interpreted, padding: 0)
         }
     }
 
@@ -353,13 +380,52 @@ struct MFPImportView: View {
                     .accessibilityHidden(true)
             }
 
-            Text("\(days) days · \(entries.formatted()) entries · \(weighIns) weigh-ins" + (conflicts > 0 ? " · \(conflicts) days left untouched" : ""))
-                .appTextRole(.body)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .appSurface(.emphasized)
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                AppSectionHeader(
+                    title: "Import Receipt",
+                    subtitle: "A record of what this import added and intentionally left alone."
+                )
+
+                VStack(spacing: 0) {
+                    previewRow("Days imported", days.formatted())
+                    Divider()
+                    previewRow("Food entries imported", entries.formatted())
+                    Divider()
+                    previewRow("Weigh-ins imported", weighIns.formatted())
+                    Divider()
+                    previewRow("Existing days left untouched", conflicts.formatted())
+                    Divider()
+                    previewRow("Unreadable rows skipped", viewModel.skippedRows.formatted())
+                }
+                .appSurface(.quiet)
+
+                ShareLink(
+                    item: importReceiptText(
+                        days: days,
+                        entries: entries,
+                        weighIns: weighIns,
+                        conflicts: conflicts
+                    )
+                ) {
+                    Label("Share Import Receipt", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(AppActionButtonStyle(.secondary))
+            }
 
         }
+    }
+
+    private func importReceiptText(days: Int, entries: Int, weighIns: Int, conflicts: Int) -> String {
+        """
+        MyFitPlate import receipt
+        Generated: \(Date().formatted(date: .abbreviated, time: .shortened))
+
+        Days imported: \(days)
+        Food entries imported: \(entries)
+        Weigh-ins imported: \(weighIns)
+        Existing days left untouched: \(conflicts)
+        Unreadable rows skipped: \(viewModel.skippedRows)
+        """
     }
 
     private func failedView(_ message: String) -> some View {

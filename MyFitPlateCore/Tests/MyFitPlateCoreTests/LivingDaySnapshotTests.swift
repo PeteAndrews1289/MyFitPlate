@@ -113,6 +113,20 @@ final class LivingDaySnapshotTests: XCTestCase {
         )
     }
 
+    func testFractionalProteinGoalKeepsBudgetAndActionInAgreement() {
+        let snapshot = LivingDaySnapshotBuilder.make(
+            date: day,
+            now: day.addingTimeInterval(17 * 60 * 60),
+            dailyLog: nil,
+            goals: TodayFuelPlanGoals(calories: 2_100, protein: 146.4, carbs: 230, fats: 60),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(snapshot.budget.protein.remaining, 146.4)
+        XCTAssertEqual(snapshot.nextAction.proteinGrams, 146)
+        XCTAssertEqual(snapshot.nextAction.detail, "146 g protein left today")
+    }
+
     func testContradictoryFoodUsesCorrectionEvidence() {
         let food = FoodItem(
             name: "Broken label",

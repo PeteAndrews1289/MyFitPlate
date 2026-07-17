@@ -123,6 +123,16 @@ struct ExerciseCardView: View {
                 .stroke(supersetPosition.isInSuperset ? AppPalette.brand.opacity(0.45) : typeChip.role.color.opacity(0.08),
                         lineWidth: supersetPosition.isInSuperset ? 1.5 : 1)
         )
+        .sheet(isPresented: $showingTargetRepsEditor) {
+            TargetRepsEditorSheet(initialTarget: targetRepsInput) { newTarget in
+                exercise.targetReps = newTarget
+                for index in exercise.sets.indices where !exercise.sets[index].isCompleted {
+                    exercise.sets[index].target = newTarget
+                }
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.hidden)
+        }
     }
 
     private var exerciseMenu: some View {
@@ -195,13 +205,6 @@ struct ExerciseCardView: View {
                     .frame(width: 32, height: 32)
                     .background(Color.backgroundPrimary.opacity(0.72), in: Circle())
             }
-        }
-        .alert("Edit Target Reps", isPresented: $showingTargetRepsEditor) {
-            TextField("e.g. 8-12", text: $targetRepsInput)
-            Button("Save") { exercise.targetReps = targetRepsInput }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Saved to your routine for future workouts.")
         }
     }
 
@@ -286,6 +289,73 @@ struct ExerciseCardView: View {
                 .padding(.horizontal, AppSpacing.compact)
                 .padding(.vertical, 4)
                 .background(Color.brandPrimary.opacity(0.12), in: Capsule())
+        }
+    }
+}
+
+private struct TargetRepsEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var target: String
+    let onSave: (String) -> Void
+
+    private let presets = ["5", "6-8", "8-12", "12-15", "AMRAP"]
+
+    init(initialTarget: String, onSave: @escaping (String) -> Void) {
+        _target = State(initialValue: initialTarget)
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        AppEditorScaffold(
+            title: "Target Reps",
+            subtitle: "Updates this exercise and every unfinished set. Completed work stays unchanged.",
+            dismiss: { dismiss() }
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                TextField("For example, 8-12", text: $target)
+                    .appTextRole(.control)
+                    .textInputAutocapitalization(.characters)
+                    .padding(AppSpacing.row)
+                    .background(
+                        AppPalette.control,
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                            .stroke(AppPalette.separator, lineWidth: 0.5)
+                    }
+                    .accessibilityLabel("Target reps")
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AppSpacing.compact) {
+                        ForEach(presets, id: \.self) { preset in
+                            Button(preset) {
+                                target = preset
+                            }
+                            .appTextRole(.secondary)
+                            .foregroundStyle(target == preset ? AppPalette.onBrand : AppPalette.text)
+                            .padding(.horizontal, AppSpacing.row)
+                            .frame(minHeight: 40)
+                            .background(
+                                target == preset ? AppPalette.brand : AppPalette.control,
+                                in: Capsule()
+                            )
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(target == preset ? .isSelected : [])
+                        }
+                    }
+                }
+            }
+        } actions: {
+            Button {
+                let normalized = target.trimmingCharacters(in: .whitespacesAndNewlines)
+                onSave(normalized)
+                dismiss()
+            } label: {
+                Label("Update Target", systemImage: "checkmark")
+            }
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .disabled(target.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 }
@@ -496,27 +566,58 @@ struct SwapExerciseView: View {
     }
 
     var body: some View {
-        NavigationView {
-            List {
-                if !suggested.isEmpty && searchText.isEmpty {
-                    Section(header: Text("Suggested")) {
-                        ForEach(suggested, id: \.self) { swapRow($0) }
+        AppSheetScaffold(
+            title: "Swap Exercise",
+            subtitle: "Set values, targets, and rest stay with this slot. Review completed values before continuing with the replacement.",
+            dismiss: { dismiss() }
+        ) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    HStack(spacing: AppSpacing.row) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                        TextField("Search any exercise", text: $searchText)
+                            .appTextRole(.control)
+                    }
+                    .padding(AppSpacing.row)
+                    .background(
+                        AppPalette.control,
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                            .stroke(AppPalette.separator, lineWidth: 0.5)
+                    }
+
+                    if !suggested.isEmpty && searchText.isEmpty {
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            AppSectionHeader(
+                                title: "Best Matches",
+                                subtitle: swappedCategory.map { "Same \($0.lowercased()) intent appears first." }
+                            )
+
+                            ForEach(suggested, id: \.self) { name in
+                                swapRow(name, isSavedAlternative: true)
+                            }
+                        }
+                    }
+
+                    ForEach(filteredCategories, id: \.category) { group in
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            AppSectionHeader(
+                                title: group.category,
+                                subtitle: group.category == swappedCategory ? "Same primary muscle group" : nil
+                            )
+
+                            ForEach(group.exercises, id: \.self) { name in
+                                swapRow(name, isSavedAlternative: false)
+                            }
+                        }
                     }
                 }
-                ForEach(filteredCategories, id: \.category) { group in
-                    Section(header: Text(group.category)) {
-                        ForEach(group.exercises, id: \.self) { swapRow($0) }
-                    }
-                }
-            }
-            .listStyle(.insetGrouped)
-            .searchable(text: $searchText, prompt: "Search any exercise")
-            .navigationTitle("Swap Exercise")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
             }
             .alert(infoTitle, isPresented: $showingInfo) {
                 Button("Got it", role: .cancel) {}
@@ -526,21 +627,43 @@ struct SwapExerciseView: View {
         }
     }
 
-    private func swapRow(_ name: String) -> some View {
-        HStack {
+    private func swapRow(_ name: String, isSavedAlternative: Bool) -> some View {
+        HStack(alignment: .center, spacing: AppSpacing.row) {
             Button {
                 performSwap(to: name)
             } label: {
-                HStack {
-                    Text(name).foregroundColor(.primary)
+                HStack(spacing: AppSpacing.row) {
+                    Image(systemName: ExerciseList.equipment(for: name).icon)
+                        .appFont(size: 16, weight: .semibold)
+                        .foregroundStyle(AppPalette.brandText)
+                        .frame(width: 40, height: 40)
+                        .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(
+                            cornerRadius: AppRadius.control,
+                            style: .continuous
+                        ))
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(name)
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(matchReason(for: name, isSavedAlternative: isSavedAlternative))
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                     Spacer()
                     Image(systemName: "arrow.left.arrow.right")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
+                        .appFont(size: 13, weight: .semibold)
+                        .foregroundStyle(AppPalette.brandText)
+                        .accessibilityHidden(true)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+
             if let how = ExerciseList.instructions(for: name) {
                 Button {
                     infoTitle = name
@@ -553,13 +676,48 @@ struct SwapExerciseView: View {
                 .accessibilityLabel("How to perform \(name)")
             }
         }
+        .padding(AppSpacing.row)
+        .appSurface(.quiet, padding: 0)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func matchReason(for name: String, isSavedAlternative: Bool) -> String {
+        let candidateCategory = ExerciseList.category(for: name)
+        let candidateEquipment = ExerciseList.equipment(for: name).rawValue
+        let sameMuscle = candidateCategory != nil && candidateCategory == swappedCategory
+        let sameEquipment = ExerciseList.equipment(for: name) == ExerciseList.equipment(for: exercise.name)
+
+        if sameMuscle && sameEquipment {
+            return "Same \(candidateCategory?.lowercased() ?? "muscle") focus • Same \(candidateEquipment.lowercased()) setup"
+        }
+        if sameMuscle {
+            return "Same \(candidateCategory?.lowercased() ?? "muscle") focus • \(candidateEquipment)"
+        }
+        if isSavedAlternative {
+            return "Saved alternative • \(candidateEquipment)"
+        }
+        return "\(candidateCategory ?? "Flexible") • \(candidateEquipment)"
     }
 
     private func performSwap(to newName: String) {
         guard newName != exercise.name else { dismiss(); return }
         let originalName = exercise.name
-        // Preserve set count + targets, but mint fresh ids so per-set editing stays correct.
-        exercise.sets = exercise.sets.map { ExerciseSet(target: $0.target) }
+        // Preserve every entered value, but mint fresh ids so the replacement's set editing and
+        // persistence remain independent from the original movement.
+        exercise.sets = exercise.sets.map { set in
+            ExerciseSet(
+                isCompleted: set.isCompleted,
+                target: set.target,
+                previousPerformance: set.previousPerformance,
+                isWarmup: set.isWarmup,
+                setType: set.setType,
+                effort: set.effort,
+                reps: set.reps,
+                weight: set.weight,
+                distance: set.distance,
+                durationInSeconds: set.durationInSeconds
+            )
+        }
         var alternatives = exercise.alternatives ?? []
         alternatives.removeAll { $0 == newName }
         if !alternatives.contains(originalName) { alternatives.insert(originalName, at: 0) }
