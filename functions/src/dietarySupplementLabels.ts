@@ -63,9 +63,13 @@ export async function searchDietarySupplements(
   query: string,
   limit = 6
 ): Promise<SupplementSearchResult[]> {
-  const ids = await searchLabelIDs(query, Math.min(Math.max(limit + 2, 4), 10));
+  const candidateLimit = Math.min(Math.max(limit * 3, 12), 24);
+  const ids = await searchLabelIDs(query, candidateLimit);
   const records = await Promise.all(ids.map((id) => getSupplement(id)));
-  return records.filter((record): record is SupplementSearchResult => record !== undefined).slice(0, limit);
+  return rankSupplementResults(
+    query,
+    records.filter((record): record is SupplementSearchResult => record !== undefined)
+  ).slice(0, limit);
 }
 
 export async function lookupDietarySupplementBarcode(
@@ -76,10 +80,53 @@ export async function lookupDietarySupplementBarcode(
     return undefined;
   }
   const candidates = equivalentBarcodes(normalized);
-  const idGroups = await Promise.all(candidates.map((candidate) => searchLabelIDs(candidate, 10)));
-  const ids = [...new Set(idGroups.flat())].slice(0, 20);
+  const queries = supplementBarcodeSearchQueries(normalized);
+  const idGroups = await Promise.all(queries.map((query) => searchLabelIDs(query, 20)));
+  const ids = [...new Set(idGroups.flat())].slice(0, 40);
   const records = await Promise.all(ids.map((id) => getSupplement(id)));
   return records.find((record) => record?.barcode && candidates.includes(record.barcode));
+}
+
+export function rankSupplementResults(
+  query: string,
+  records: SupplementSearchResult[]
+): SupplementSearchResult[] {
+  const normalizedQuery = normalizeSearchText(query);
+  const queryTokens = normalizedQuery.split(" ").filter((token) => token.length > 1);
+
+  return records
+    .map((record, index) => {
+      const normalizedName = normalizeSearchText(record.name);
+      const matchedTokens = queryTokens.filter((token) => normalizedName.includes(token)).length;
+      let score = record.micronutrientCount * 18;
+
+      if (normalizedName === normalizedQuery) {
+        score += 360;
+      } else if (normalizedName.includes(normalizedQuery)) {
+        score += 240;
+      }
+      score += matchedTokens * 90;
+      if (queryTokens.length > 0 && matchedTokens === queryTokens.length) {
+        score += 120;
+      }
+      if (record.barcode) {
+        score += 8;
+      }
+
+      // Preserve NIH relevance as a bounded tie-breaker without allowing a sparse label
+      // to outrank a substantially richer multivitamin record.
+      score += Math.max(0, 120 - index * 4);
+      return { record, score, index };
+    })
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map(({ record }) => record);
+}
+
+export function supplementBarcodeSearchQueries(barcode: string): string[] {
+  return equivalentBarcodes(normalizeBarcode(barcode)).map((candidate) => {
+    const formatted = formatBarcodeForDSLD(candidate);
+    return formatted === candidate ? candidate : `"${formatted}"`;
+  });
 }
 
 export function mapDSLDLabel(label: DSLDLabel): SupplementSearchResult | undefined {
@@ -206,7 +253,7 @@ function nutrientKey(value: string): string | undefined {
   if (normalized.startsWith("pantothenic acid")) return "vitaminB5";
   if (normalized.startsWith("vitamin b6")) return "vitaminB6";
   if (normalized.startsWith("vitamin b12")) return "vitaminB12";
-  if (normalized === "folate" || normalized === "folic acid") return "folate";
+  if (normalized.startsWith("folate") || normalized.startsWith("folic acid")) return "folate";
   if (normalized === "calcium") return "calcium";
   if (normalized === "iron") return "iron";
   if (normalized === "magnesium") return "magnesium";
@@ -319,6 +366,29 @@ function equivalentBarcodes(barcode: string): string[] {
     }
   }
   return results;
+}
+
+function formatBarcodeForDSLD(barcode: string): string {
+  switch (barcode.length) {
+  case 8:
+    return `${barcode.slice(0, 4)} ${barcode.slice(4)}`;
+  case 12:
+    return `${barcode.slice(0, 1)} ${barcode.slice(1, 6)} ${barcode.slice(6, 11)} ${barcode.slice(11)}`;
+  case 13:
+    return `${barcode.slice(0, 1)} ${barcode.slice(1, 7)} ${barcode.slice(7)}`;
+  case 14:
+    return `${barcode.slice(0, 2)} ${barcode.slice(2, 8)} ${barcode.slice(8)}`;
+  default:
+    return barcode;
+  }
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function cleanText(value: string): string {

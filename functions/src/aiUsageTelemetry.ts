@@ -1,6 +1,17 @@
 import { createHash } from "node:crypto";
 import { AIRequestKind } from "./aiRequestRouting";
 
+export const ACCOUNT_DELETION_USAGE_COLLECTIONS = [
+  "aiUsage",
+  "aiUsageBreakdown",
+  "aiVisionUsage",
+  "fatSecretUsage",
+  "referenceFoodUsage",
+  "supplementLookupUsage",
+  "maiaSpeechUsage",
+  "communityBarcodeUsage",
+] as const;
+
 export function aiUsageRequestPrefix(kind: AIRequestKind): string {
   switch (kind) {
     case "meal_photo": return "mealPhoto";

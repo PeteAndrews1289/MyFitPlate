@@ -37,7 +37,7 @@ fi
 
 # Total line-coverage % over Core source only (exclude the test bundle and .build dependencies).
 PERCENT="$(xcrun llvm-cov report "$BIN" -instr-profile="$PROF" \
-  -ignore-filename-regex='(\.build|\.codex_xcode|/Tests/|/Mocks/|/Previews/|HealthKitManager\.swift|HealthKitViewModel\.swift|NotificationManager\.swift)' 2>/dev/null \
+  -ignore-filename-regex='(/checkouts/|\.build|\.codex_xcode|/Tests/|/Mocks/|/Previews/|HealthKitManager\.swift|HealthKitViewModel\.swift|NotificationManager\.swift)' 2>/dev/null \
   | awk '/^TOTAL/ { gsub("%","",$10); print $10 }')"
 
 if [[ -z "$PERCENT" ]]; then

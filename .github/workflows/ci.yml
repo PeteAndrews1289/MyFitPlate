@@ -47,6 +47,9 @@ jobs:
       - name: Enforce visual-system boundaries
         run: ./scripts/check_visual_system.sh
 
+      - name: Validate privacy metadata
+        run: bash ./scripts/check_privacy_metadata.sh
+
       - name: Resolve Swift packages
         run: |
           xcodebuild -resolvePackageDependencies \

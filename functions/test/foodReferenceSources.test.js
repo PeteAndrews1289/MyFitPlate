@@ -5,7 +5,11 @@ const {
   loadCanadianNutrientDataset,
   searchCanadianNutrientFile,
 } = require("../lib/canadianNutrientFile.js");
-const { mapDSLDLabel } = require("../lib/dietarySupplementLabels.js");
+const {
+  mapDSLDLabel,
+  rankSupplementResults,
+  supplementBarcodeSearchQueries,
+} = require("../lib/dietarySupplementLabels.js");
 
 test("CNF asset includes the complete 2026 food catalog", () => {
   const dataset = loadCanadianNutrientDataset();
@@ -120,4 +124,33 @@ test("DSLD mapping preserves label serving and converts only unambiguous units",
 test("DSLD mapping rejects off-market and nutrient-empty labels", () => {
   assert.equal(mapDSLDLabel({ id: 1, fullName: "Old", offMarket: 1 }), undefined);
   assert.equal(mapDSLDLabel({ id: 2, fullName: "Empty", offMarket: 0 }), undefined);
+});
+
+test("DSLD search ranking favors micronutrient-rich multivitamin labels", () => {
+  const sparse = {
+    id: "sparse",
+    name: "Multivitamin",
+    servingSize: "1 tablet",
+    quantityValue: 1,
+    servingUnit: "tablet",
+    micronutrientCount: 3,
+    nutrients: { vitaminC: 60, vitaminD: 10, zinc: 5 },
+  };
+  const rich = {
+    id: "rich",
+    name: "Daily Multivitamin and Mineral",
+    servingSize: "2 tablets",
+    quantityValue: 2,
+    servingUnit: "tablets",
+    micronutrientCount: 19,
+    nutrients: { vitaminC: 90 },
+  };
+
+  assert.equal(rankSupplementResults("multivitamin", [sparse, rich])[0].id, "rich");
+});
+
+test("DSLD barcode lookup formats UPC-A the way label records store it", () => {
+  const queries = supplementBarcodeSearchQueries("748927052497");
+  assert.ok(queries.includes("\"7 48927 05249 7\""));
+  assert.ok(queries.length <= 5);
 });

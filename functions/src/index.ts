@@ -27,15 +27,24 @@ import {
 import {
   AIRequestKind,
   AIVisionRouteConfiguration,
+  isAIModelAvailabilityError,
   isAIRequestRouteEnabled,
-  isReasoningRoute,
+  isReasoningModel,
+  resolveAIRequestModels,
   resolveAIRequestRoute,
 } from "./aiRequestRouting";
 import {
+  ACCOUNT_DELETION_USAGE_COLLECTIONS,
   aiUsageBreakdownDocumentID,
   aiUsageRequestPrefix,
   safeAIUsageCount,
 } from "./aiUsageTelemetry";
+import {
+  MAIA_SPEECH_MAX_CHARACTERS,
+  MAIA_SPEECH_MODEL,
+  MAIA_SPEECH_VOICE,
+  buildMaiaSpeechRequest,
+} from "./maiaSpeech";
 
 initializeApp();
 const db = getFirestore();
@@ -59,17 +68,31 @@ const DAILY_CALL_LIMIT = 300; // AI calls, per user, per UTC day
 const FATSECRET_DAILY_LIMIT = 600; // food lookups are cheap + frequent, but still bounded
 const REFERENCE_FOOD_DAILY_LIMIT = 600;
 const SUPPLEMENT_DAILY_LIMIT = 100;
+const MAIA_SPEECH_DAILY_LIMIT = 30;
 const COMMUNITY_BARCODE_DAILY_LIMIT = 20;
 const COMMUNITY_BARCODE_MAX_CONTRIBUTIONS = 250;
 const ALLOWED_ROLES = new Set(["system", "user", "assistant"]);
 const ALLOWED_FATSECRET_PARAMS = new Set(["query", "barcode", "food_id", "page", "max_results"]);
 const MAX_PARAM_LENGTH = 200;
 const AI_ROUTE_CONFIG_CACHE_MS = 60_000;
+const AI_MODEL_UNAVAILABLE_CACHE_MS = 30 * 60_000;
 
 let cachedAIRouteConfiguration: {
   value: AIVisionRouteConfiguration;
   expiresAt: number;
 } | undefined;
+
+const unavailableAIModels = new Map<string, number>();
+
+function activeAIRequestModels(models: string[], now = Date.now()): string[] {
+  return models.filter((model, index) => {
+    // The final candidate is the proven compatibility route and must always be attempted.
+    if (index === models.length - 1) {
+      return true;
+    }
+    return (unavailableAIModels.get(model) ?? 0) <= now;
+  });
+}
 
 interface CommunityBarcodeConfig {
   acceptContributions: boolean;
@@ -542,7 +565,6 @@ export const generateAIResponse = onCall(
 
     // 4. Clamp model / tokens / temperature to safe server-side values. The request kind,
     // not a model string supplied by the app, determines any higher-cost route.
-    const safeModel = route.model;
     const safeMaxTokens = Math.min(
       typeof maxTokens === "number" && maxTokens > 0
         ? maxTokens
@@ -563,59 +585,149 @@ export const generateAIResponse = onCall(
         : undefined
     );
 
+    const openai = new OpenAI({ apiKey: openAIKey.value() });
+    const modelCandidates = activeAIRequestModels(resolveAIRequestModels(route));
+    for (let modelIndex = 0; modelIndex < modelCandidates.length; modelIndex += 1) {
+      const model = modelCandidates[modelIndex];
+      const requestStartedAt = Date.now();
+      try {
+        const params: any = {
+          model,
+          messages: messages,
+          safety_identifier: createHash("sha256").update(uid).digest("hex"),
+        };
+        if (isReasoningModel(model)) {
+          params.max_completion_tokens = safeMaxTokens;
+          params.reasoning_effort = route.reasoningEffort ?? "none";
+        } else {
+          params.temperature = safeTemperature;
+          params.max_tokens = safeMaxTokens;
+        }
+        if (safeResponseFormat) {
+          params.response_format = safeResponseFormat;
+        }
+
+        const completion = await openai.chat.completions.create(params);
+
+        await recordAIUsageResult(uid, {
+          model,
+          requestKind: route.kind,
+          durationMs: Date.now() - requestStartedAt,
+          succeeded: true,
+          inputTokens: completion.usage?.prompt_tokens,
+          outputTokens: completion.usage?.completion_tokens,
+          totalTokens: completion.usage?.total_tokens,
+        });
+
+        return {
+          content: completion.choices[0]?.message?.content || "",
+        };
+      } catch (error: any) {
+        const durationMs = Date.now() - requestStartedAt;
+        await recordAIUsageResult(uid, {
+          model,
+          requestKind: route.kind,
+          durationMs,
+          succeeded: false,
+        });
+
+        const hasFallback = modelIndex < modelCandidates.length - 1;
+        if (hasFallback && isAIModelAvailabilityError(error)) {
+          unavailableAIModels.set(model, Date.now() + AI_MODEL_UNAVAILABLE_CACHE_MS);
+          logger.warn("OpenAI model unavailable; trying compatibility fallback", {
+            model,
+            fallbackModel: modelCandidates[modelIndex + 1],
+            requestKind: route.kind,
+            status: typeof error?.status === "number" ? error.status : undefined,
+            errorCode: typeof error?.code === "string" ? error.code : undefined,
+          });
+          continue;
+        }
+
+        logger.error("OpenAI request failed", {
+          model,
+          requestKind: route.kind,
+          durationMs,
+          errorType: error instanceof Error ? error.name : "unknown",
+          status: typeof error?.status === "number" ? error.status : undefined,
+          errorCode: typeof error?.code === "string" ? error.code : undefined,
+        });
+        throw new HttpsError(
+          "internal",
+          "An error occurred while generating the AI response."
+        );
+      }
+    }
+
+    throw new HttpsError(
+      "internal",
+      "An error occurred while generating the AI response."
+    );
+  }
+);
+
+// Maia's local AVSpeech fallback remains available in the app. This callable provides the
+// higher-quality online option without exposing the OpenAI key or allowing clients to choose
+// arbitrary models, voices, output formats, or unbounded text.
+export const generateMaiaSpeech = onCall(
+  {
+    secrets: [openAIKey],
+    timeoutSeconds: 30,
+    memory: "256MiB",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+
+    const text = typeof request.data?.text === "string"
+      ? request.data.text.trim()
+      : "";
+    if (!text || text.length > MAIA_SPEECH_MAX_CHARACTERS) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Speech text must contain between 1 and 1800 characters."
+      );
+    }
+
+    await enforceDailyLimit(
+      request.auth.uid,
+      "maiaSpeechUsage",
+      MAIA_SPEECH_DAILY_LIMIT
+    );
+
     const requestStartedAt = Date.now();
     try {
       const openai = new OpenAI({ apiKey: openAIKey.value() });
+      const speech = await openai.audio.speech.create(
+        buildMaiaSpeechRequest(text)
+      );
+      const audio = Buffer.from(await speech.arrayBuffer());
 
-      const params: any = {
-        model: safeModel,
-        messages: messages,
-        safety_identifier: createHash("sha256").update(uid).digest("hex"),
-      };
-      if (isReasoningRoute(route)) {
-        params.max_completion_tokens = safeMaxTokens;
-        params.reasoning_effort = route.reasoningEffort ?? "none";
-      } else {
-        params.temperature = safeTemperature;
-        params.max_tokens = safeMaxTokens;
-      }
-      if (safeResponseFormat) {
-        params.response_format = safeResponseFormat;
-      }
-
-      const completion = await openai.chat.completions.create(params);
-
-      await recordAIUsageResult(uid, {
-        model: safeModel,
-        requestKind: route.kind,
+      logger.info("Maia speech generated", {
+        model: MAIA_SPEECH_MODEL,
+        voice: MAIA_SPEECH_VOICE,
+        characters: text.length,
+        audioBytes: audio.byteLength,
         durationMs: Date.now() - requestStartedAt,
-        succeeded: true,
-        inputTokens: completion.usage?.prompt_tokens,
-        outputTokens: completion.usage?.completion_tokens,
-        totalTokens: completion.usage?.total_tokens,
       });
 
       return {
-        content: completion.choices[0]?.message?.content || "",
+        audioBase64: audio.toString("base64"),
+        format: "mp3",
+        model: MAIA_SPEECH_MODEL,
+        voice: MAIA_SPEECH_VOICE,
       };
     } catch (error: any) {
-      const durationMs = Date.now() - requestStartedAt;
-      await recordAIUsageResult(uid, {
-        model: safeModel,
-        requestKind: route.kind,
-        durationMs,
-        succeeded: false,
-      });
-      logger.error("OpenAI request failed", {
-        model: safeModel,
-        requestKind: route.kind,
-        durationMs,
+      logger.warn("Maia speech generation failed", {
+        model: MAIA_SPEECH_MODEL,
+        durationMs: Date.now() - requestStartedAt,
         errorType: error instanceof Error ? error.name : "unknown",
         status: typeof error?.status === "number" ? error.status : undefined,
       });
       throw new HttpsError(
-        "internal",
-        "An error occurred while generating the AI response."
+        "unavailable",
+        "Natural speech is temporarily unavailable."
       );
     }
   }
@@ -669,7 +781,10 @@ export const fatSecretProxy = onCall(
       if (error instanceof HttpsError) {
         throw error;
       }
-      logger.error("fatSecretProxy error:", error);
+      logger.error("fatSecretProxy error", {
+        errorType: error instanceof Error ? error.name : "unknown",
+        status: typeof error?.status === "number" ? error.status : undefined,
+      });
       throw new HttpsError("internal", "Food lookup failed.");
     }
   }
@@ -896,16 +1011,7 @@ export const deleteUserData = onCall(async (request) => {
   await db.recursiveDelete(db.collection("users").doc(uid));
 
   // Delete the per-user usage counters stored in top-level collections.
-  const usageCollections = [
-    "aiUsage",
-    "aiUsageBreakdown",
-    "aiVisionUsage",
-    "fatSecretUsage",
-    "referenceFoodUsage",
-    "supplementLookupUsage",
-    "communityBarcodeUsage",
-  ];
-  for (const collection of usageCollections) {
+  for (const collection of ACCOUNT_DELETION_USAGE_COLLECTIONS) {
     const snapshot = await db.collection(collection).where("uid", "==", uid).get();
     if (snapshot.empty) {
       continue;

@@ -2,10 +2,24 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  ACCOUNT_DELETION_USAGE_COLLECTIONS,
   aiUsageBreakdownDocumentID,
   aiUsageRequestPrefix,
   safeAIUsageCount,
 } = require("../lib/aiUsageTelemetry.js");
+
+test("account deletion covers every top-level usage collection", () => {
+  assert.deepEqual(ACCOUNT_DELETION_USAGE_COLLECTIONS, [
+    "aiUsage",
+    "aiUsageBreakdown",
+    "aiVisionUsage",
+    "fatSecretUsage",
+    "referenceFoodUsage",
+    "supplementLookupUsage",
+    "maiaSpeechUsage",
+    "communityBarcodeUsage",
+  ]);
+});
 
 test("AI usage prefixes remain stable for every request kind", () => {
   assert.equal(aiUsageRequestPrefix("general"), "general");
