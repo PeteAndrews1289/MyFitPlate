@@ -1,21 +1,28 @@
 import Foundation
 
+@MainActor
 final class DailyLogRecentFoodStore {
     private let collectionName = "recentFoods"
+    private let defaults: UserDefaults
+    private let cacheKeyPrefix = "recentFoods"
 
-    public init() {
+    public init(userDefaults: UserDefaults = .standard) {
+        self.defaults = userDefaults
     }
 
     public func addRecentFood(for userID: String, foodItem: FoodItem, source: String) {
-        guard !userID.isEmpty else { return }
+        guard !userID.isEmpty,
+              DIContainer.shared.authService.currentUserID == userID,
+              let cacheKey = prepareCache(for: userID) else { return }
         
         let stableID = stableID(for: foodItem)
 
         // 1. Update local cache immediately
-        updateLocalCache(userID: userID, adding: foodItem)
+        updateLocalCache(cacheKey: cacheKey, adding: foodItem)
 
         // 2. Sync to Firestore
         Task {
+            guard DIContainer.shared.authService.currentUserID == userID else { return }
             do {
                 try await DIContainer.shared.nutritionRepository.saveRecentFood(userID: userID, foodItem: foodItem, source: source, stableID: stableID)
             } catch {
@@ -25,14 +32,15 @@ final class DailyLogRecentFoodStore {
     }
 
     public func fetchRecentFoodItems(for userID: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        guard !userID.isEmpty else {
+        guard !userID.isEmpty,
+              DIContainer.shared.authService.currentUserID == userID,
+              let cacheKey = prepareCache(for: userID) else {
             completion(.failure(NSError(domain: "DailyLogRecentFoodStore", code: -1, userInfo: [NSLocalizedDescriptionKey: "User ID is empty."])))
             return
         }
 
         // 1. Instantly return local cache
-        let cacheKey = "recentFoods_\(userID)"
-        if let data = UserDefaults.standard.data(forKey: cacheKey),
+        if let data = defaults.data(forKey: cacheKey),
            let cachedItems = try? JSONDecoder().decode([FoodItem].self, from: data) {
             completion(.success(cachedItems))
         }
@@ -41,26 +49,32 @@ final class DailyLogRecentFoodStore {
         Task {
             do {
                 let foodItems = try await DIContainer.shared.nutritionRepository.fetchRecentFoods(userID: userID, limit: 10)
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 
                 // Update local cache
                 if let encoded = try? JSONEncoder().encode(foodItems) {
-                    UserDefaults.standard.set(encoded, forKey: cacheKey)
+                    defaults.set(encoded, forKey: cacheKey)
                 }
 
-                DispatchQueue.main.async { completion(.success(foodItems)) }
+                DispatchQueue.main.async {
+                    guard DIContainer.shared.authService.currentUserID == userID else { return }
+                    completion(.success(foodItems))
+                }
             } catch {
                 // Only surface the error if we didn't already succeed with cache
-                if UserDefaults.standard.data(forKey: cacheKey) == nil {
-                    DispatchQueue.main.async { completion(.failure(error)) }
+                if defaults.data(forKey: cacheKey) == nil {
+                    DispatchQueue.main.async {
+                        guard DIContainer.shared.authService.currentUserID == userID else { return }
+                        completion(.failure(error))
+                    }
                 }
             }
         }
     }
     
-    private func updateLocalCache(userID: String, adding newFood: FoodItem) {
-        let cacheKey = "recentFoods_\(userID)"
+    private func updateLocalCache(cacheKey: String, adding newFood: FoodItem) {
         var currentItems: [FoodItem] = []
-        if let data = UserDefaults.standard.data(forKey: cacheKey),
+        if let data = defaults.data(forKey: cacheKey),
            let decoded = try? JSONDecoder().decode([FoodItem].self, from: data) {
             currentItems = decoded
         }
@@ -75,8 +89,21 @@ final class DailyLogRecentFoodStore {
         }
         
         if let encoded = try? JSONEncoder().encode(currentItems) {
-            UserDefaults.standard.set(encoded, forKey: cacheKey)
+            defaults.set(encoded, forKey: cacheKey)
         }
+    }
+
+    private func prepareCache(for userID: String) -> String? {
+        guard let key = AccountScopedStorageKey.make(prefix: cacheKeyPrefix, userID: userID) else {
+            return nil
+        }
+        let legacyKey = "recentFoods_\(userID)"
+        if defaults.data(forKey: key) == nil,
+           let legacyData = defaults.data(forKey: legacyKey) {
+            defaults.set(legacyData, forKey: key)
+        }
+        defaults.removeObject(forKey: legacyKey)
+        return key
     }
 
     private func stableID(for foodItem: FoodItem) -> String {

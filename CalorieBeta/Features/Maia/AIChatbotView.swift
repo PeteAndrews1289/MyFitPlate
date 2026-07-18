@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct AIChatbotView: View {
@@ -15,7 +17,6 @@ struct AIChatbotView: View {
     @EnvironmentObject var insightsService: InsightsService
     @EnvironmentObject var pantryService: PantryService
 
-    @Environment(\.colorScheme) var colorScheme
     @StateObject private var ttsManager = TTSManager.shared
     @State private var mealSuggestion: MealSuggestion?
     @State private var showingSuggestionDetail = false
@@ -32,6 +33,10 @@ struct AIChatbotView: View {
 
     private var hasNutritionMismatch: Bool {
         dailyLogService.currentDailyLog?.calorieConsistencyStatus().hasMeaningfulMismatch == true
+    }
+
+    private var canSendMessage: Bool {
+        !viewModel.userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.isLoading
     }
 
     private var canIncludeHealthContext: Bool {
@@ -67,30 +72,34 @@ struct AIChatbotView: View {
     var body: some View {
         SpotlightTourScaffold(steps: AIChatbotView.maiaTourSteps) { isActive in
         VStack(spacing: 0) {
-            if viewModel.chatMessages.count <= 1 {
-                MaiaBriefingCard(
-                    calories: viewModel.remainingCalories,
-                    protein: viewModel.remainingProtein,
-                    carbs: viewModel.remainingCarbs,
-                    fats: viewModel.remainingFats,
-                    water: viewModel.waterOunces,
-                    waterGoal: viewModel.waterGoal,
-                    mealCount: viewModel.mealCount,
-                    workoutCount: viewModel.workoutCount
-                )
-                .padding(.horizontal)
-                .padding(.top, 10)
+            AppScreenHeader(
+                title: "Maia",
+                subtitle: "A practical next step, grounded in today."
+            ) {
+                HStack(spacing: AppSpacing.compact) {
+                    Image("maia_avatar")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 44, height: 44)
+                        .clipShape(Circle())
+                        .background(AppPalette.control, in: Circle())
+                        .accessibilityHidden(true)
 
-                if canIncludeHealthContext {
-                    MaiaHealthKitContextIndicator(
-                        steps: healthKitViewModel.todaySteps,
-                        activeEnergy: healthKitViewModel.todayActiveEnergy,
-                        sleepSummary: healthKitViewModel.sleepSummary
-                    )
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+                    if viewModel.chatMessages.count > 1 {
+                        Button {
+                            viewModel.showingClearChatConfirmation = true
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(AppIconButtonStyle(.neutral))
+                        .accessibilityLabel("Clear Maia chat")
+                    }
                 }
             }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.compact)
+            .accessibilityIdentifier("maia_screen_header")
 
             ChatHistoryListView(
                 chatMessages: $viewModel.chatMessages,
@@ -100,119 +109,146 @@ struct AIChatbotView: View {
                 currentSpokenText: ttsManager.currentSpokenText,
                 onAction: { viewModel.handleMaiaAction($0) },
                 showAlert: $viewModel.showAlert,
-                alertMessage: $viewModel.alertMessage
+                alertMessage: $viewModel.alertMessage,
+                topContent: {
+                    VStack(spacing: 0) {
+                        if viewModel.chatMessages.count <= 1 {
+                            MaiaBriefingCard(
+                                calories: viewModel.remainingCalories,
+                                protein: viewModel.remainingProtein,
+                                carbs: viewModel.remainingCarbs,
+                                fats: viewModel.remainingFats,
+                                water: viewModel.waterOunces,
+                                waterGoal: viewModel.waterGoal,
+                                mealCount: viewModel.mealCount,
+                                workoutCount: viewModel.workoutCount
+                            )
+                            .padding(.horizontal, AppSpacing.screenHorizontal)
+                            .padding(.top, AppSpacing.group)
+
+                            if canIncludeHealthContext {
+                                MaiaHealthKitContextIndicator(
+                                    steps: healthKitViewModel.todaySteps,
+                                    activeEnergy: healthKitViewModel.todayActiveEnergy,
+                                    sleepSummary: healthKitViewModel.sleepSummary
+                                )
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
+                                .padding(.top, AppSpacing.compact)
+                            }
+                        }
+                    }
+                },
+                bottomContent: {
+                    VStack(spacing: 0) {
+                        if let message = viewModel.inlineErrorMessage {
+                            MaiaInlineFailureView(
+                                message: message,
+                                onRetry: viewModel.retryLastMessage
+                            )
+                            .padding(.horizontal, AppSpacing.screenHorizontal)
+                            .padding(.vertical, AppSpacing.compact)
+                        }
+
+                        // Keep the action board available after prior chats whenever the composer is idle.
+                        if viewModel.userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                            !viewModel.isLoading &&
+                            viewModel.inlineErrorMessage == nil &&
+                            !isInputFocused {
+                            MaiaActionBoardView(
+                                remainingCalories: viewModel.remainingCalories,
+                                remainingProtein: viewModel.remainingProtein,
+                                waterRemaining: max(0, viewModel.waterGoal - viewModel.waterOunces),
+                                hasWorkoutToday: viewModel.workoutCount > 0,
+                                hasNutritionMismatch: hasNutritionMismatch,
+                                healthKitEnabled: canIncludeHealthContext,
+                                pantryCount: pantryService.pantryItems.count,
+                                isGeneratingMeal: insightsService.isGeneratingSuggestion,
+                                onFillMacros: generateMealSuggestionFromActionBoard,
+                                onProteinOrRecovery: {
+                                    let contract = viewModel.workoutCount > 0
+                                        ? MaiaContextContract.recoveryMeal
+                                        : MaiaContextContract.proteinAnchor
+                                    sendActionPrompt(proteinOrRecoveryPrompt, contract: contract)
+                                },
+                                onTrustOrToday: {
+                                    let contract = hasNutritionMismatch
+                                        ? MaiaContextContract.trustAudit
+                                        : MaiaContextContract.dailyRead(includeHealthKit: canIncludeHealthContext)
+                                    sendActionPrompt(trustOrTodayPrompt, contract: contract)
+                                },
+                                onHydrate: {
+                                    handleHydrationAction()
+                                }
+                            )
+                            .padding(.horizontal, AppSpacing.screenHorizontal)
+                            .padding(.vertical, AppSpacing.compact)
+                            .featureSpotlight(isActive: isActive("maia-actions"))
+                        }
+
+                        if viewModel.isLoading {
+                            HStack(alignment: .bottom, spacing: 10) {
+                                Image("maia_avatar")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 34, height: 34)
+                                    .clipShape(Circle())
+                                    .background(Color.backgroundSecondary, in: Circle())
+
+                                MaiaTypingIndicator(label: viewModel.requestStage)
+
+                                Spacer()
+                            }
+                            .padding(.horizontal, AppSpacing.screenHorizontal)
+                            .padding(.vertical, AppSpacing.compact)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        }
+                    }
+                }
             )
             .onTapGesture { hideKeyboard() }
 
-            VStack(spacing: 0) {
-                // Show the quick-action board whenever the composer is idle (empty + not loading),
-                // not just on the very first message. Chat history persists, so gating on message
-                // count meant a returning user — anyone who'd ever sent one message — never saw the
-                // action board again. Clearing the field brings it back.
-                if viewModel.userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.isLoading && !isInputFocused {
-                    MaiaActionBoardView(
-                        remainingCalories: viewModel.remainingCalories,
-                        remainingProtein: viewModel.remainingProtein,
-                        waterRemaining: max(0, viewModel.waterGoal - viewModel.waterOunces),
-                        hasWorkoutToday: viewModel.workoutCount > 0,
-                        hasNutritionMismatch: hasNutritionMismatch,
-                        healthKitEnabled: canIncludeHealthContext,
-                        pantryCount: pantryService.pantryItems.count,
-                        isGeneratingMeal: insightsService.isGeneratingSuggestion,
-                        onFillMacros: generateMealSuggestionFromActionBoard,
-                        onProteinOrRecovery: {
-                            let contract = viewModel.workoutCount > 0
-                                ? MaiaContextContract.recoveryMeal
-                                : MaiaContextContract.proteinAnchor
-                            sendActionPrompt(proteinOrRecoveryPrompt, contract: contract)
-                        },
-                        onTrustOrToday: {
-                            let contract = hasNutritionMismatch
-                                ? MaiaContextContract.trustAudit
-                                : MaiaContextContract.dailyRead(includeHealthKit: canIncludeHealthContext)
-                            sendActionPrompt(trustOrTodayPrompt, contract: contract)
-                        },
-                        onHydrate: {
-                            handleHydrationAction()
-                        }
+            HStack(spacing: 10) {
+                TextField("Ask Maia anything", text: $viewModel.userMessage, axis: .vertical)
+                    .focused($isInputFocused)
+                    .textFieldStyle(PlainTextFieldStyle())
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        AppPalette.control,
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
                     )
-                    .padding(.vertical, 6)
-                    .featureSpotlight(isActive: isActive("maia-actions"))
-                }
-
-                if viewModel.isLoading {
-                    HStack(alignment: .bottom, spacing: 10) {
-                        Image("maia_avatar")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 34, height: 34)
-                            .clipShape(Circle())
-                            .background(Color.backgroundSecondary, in: Circle())
-                        
-                        MaiaTypingIndicator()
-                        
-                        Spacer()
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                            .stroke(AppPalette.separator, lineWidth: 0.5)
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-                }
+                    .lineLimit(1...4)
+                    .onSubmit { viewModel.sendMessage() }
 
-                HStack(spacing: 10) {
-                    TextField("Ask Maia anything", text: $viewModel.userMessage, axis: .vertical)
-                        .focused($isInputFocused)
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(Color.backgroundPrimary.opacity(colorScheme == .dark ? 0.62 : 0.92), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .lineLimit(1...4)
-                        .onSubmit { viewModel.sendMessage() }
-
-                    Button(action: { viewModel.sendMessage() }) {
-                        Image(systemName: "arrow.up")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.white)
-                            .frame(width: 42, height: 42)
-                            .background(
-                                viewModel.userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isLoading
-                                ? Color(UIColor.tertiaryLabel)
-                                : Color.brandPrimary,
-                                in: Circle()
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(viewModel.userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isLoading)
+                Button(action: { viewModel.sendMessage() }) {
+                    Image(systemName: "arrow.up")
                 }
-                .padding(.horizontal)
-                .padding(.top, 10)
-                .padding(.bottom, bottomSafeAreaInset)
-                .featureSpotlight(isActive: isActive("maia-composer"))
+                .buttonStyle(AppIconButtonStyle(.brand))
+                .disabled(!canSendMessage)
+                .opacity(canSendMessage ? 1 : 0.45)
+                .accessibilityLabel("Send message")
             }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.compact)
+            .padding(.bottom, bottomSafeAreaInset)
             .background(
                 Rectangle()
-                    .fill(.ultraThinMaterial)
+                    .fill(AppPalette.surface)
                     .ignoresSafeArea(edges: .bottom)
                     .overlay(
-                        Rectangle().frame(height: 1).foregroundColor(Color.primary.opacity(0.05)),
+                        Rectangle().frame(height: 1).foregroundStyle(AppPalette.separator),
                         alignment: .top
                     )
             )
+            .featureSpotlight(isActive: isActive("maia-composer"))
         }
         .background(Color.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle("Maia")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .toolbar {
-            if viewModel.chatMessages.count > 1 {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        viewModel.showingClearChatConfirmation = true
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .accessibilityLabel("Clear Maia chat")
-                }
-            }
-
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button {
@@ -221,7 +257,7 @@ struct AIChatbotView: View {
                 } label: {
                     Image(systemName: "keyboard.chevron.compact.down")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
                 }
                 .accessibilityLabel("Dismiss keyboard")
             }
@@ -247,7 +283,7 @@ struct AIChatbotView: View {
             }
         }
         .alert(isPresented: $viewModel.showAlert) {
-            Alert(title: Text("Notification"), message: Text(viewModel.alertMessage), dismissButton: .default(Text("OK")))
+            Alert(title: Text("Maia"), message: Text(viewModel.alertMessage), dismissButton: .default(Text("OK")))
         }
         .sheet(isPresented: $showingSuggestionDetail) {
             if let mealSuggestion {
@@ -268,7 +304,7 @@ struct AIChatbotView: View {
             Button("Clear Chat", role: .destructive) { viewModel.clearChat() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This removes the saved conversation history on this device.")
+            Text("This removes the saved conversation history on this device. Food, water, workouts, weight, and other actions already logged will remain.")
         }
         }
     }
@@ -372,5 +408,28 @@ struct AIChatbotView: View {
             "protein": Int(suggestion.protein.rounded())
         ])
         mealSuggestion = nil
+    }
+}
+
+private struct MaiaInlineFailureView: View {
+    let message: String
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Label("Maia paused", systemImage: "wifi.exclamationmark")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.caution)
+
+            Text(message)
+                .appTextRole(.body)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Retry Question", action: onRetry)
+                .buttonStyle(AppActionButtonStyle(.secondary))
+        }
+        .appSurface(.quiet)
+        .accessibilityIdentifier("maia_inline_error")
     }
 }

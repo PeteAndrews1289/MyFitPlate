@@ -50,11 +50,13 @@ public struct MealPlanAIGenerator {
     public func generateWeekPlan(goals: GoalSettings, preferredFoods: [String], preferredCuisines: [String], preferredSnacks: [String]) async -> [MealPlanDay] {
         if let fullWeekPlan = await generateFullWeekPlanAI(goals: goals, preferredFoods: preferredFoods, preferredCuisines: preferredCuisines, preferredSnacks: preferredSnacks) {
             return fullWeekPlan
-        } else if let legacyPlan = await generateLegacyFullWeekPlanAI(goals: goals, preferredFoods: preferredFoods, preferredCuisines: preferredCuisines, preferredSnacks: preferredSnacks) {
-            return legacyPlan
-        } else {
-            return generateLocalFullWeekPlan(goals: goals, preferredFoods: preferredFoods, preferredCuisines: preferredCuisines, preferredSnacks: preferredSnacks)
         }
+        guard !Task.isCancelled else { return [] }
+        if let legacyPlan = await generateLegacyFullWeekPlanAI(goals: goals, preferredFoods: preferredFoods, preferredCuisines: preferredCuisines, preferredSnacks: preferredSnacks) {
+            return legacyPlan
+        }
+        guard !Task.isCancelled else { return [] }
+        return generateLocalFullWeekPlan(goals: goals, preferredFoods: preferredFoods, preferredCuisines: preferredCuisines, preferredSnacks: preferredSnacks)
     }
 
     // MARK: - Private Generators
@@ -123,6 +125,7 @@ public struct MealPlanAIGenerator {
             responseFormat: ["type": "json_object"]
         )
 
+        guard !Task.isCancelled else { return nil }
         switch result {
         case .success(let jsonString):
             do {
@@ -155,6 +158,7 @@ public struct MealPlanAIGenerator {
         var mealHistory: [String] = []
 
         for i in 0..<7 {
+            guard !Task.isCancelled else { return nil }
             guard let targetDate = Calendar.current.date(byAdding: .day, value: i, to: Date()) else {
                 return nil
             }
@@ -169,6 +173,7 @@ public struct MealPlanAIGenerator {
                 retryCount: 1
             )
 
+            guard !Task.isCancelled else { return nil }
             dailyPlans[i] = singleDayPlan
             if let plan = singleDayPlan {
                 mealHistory.append(contentsOf: plan.meals.compactMap { $0.foodItem?.name })
@@ -200,6 +205,7 @@ public struct MealPlanAIGenerator {
         let messages: [[String: Any]] = [["role": "user", "content": prompt]]
         let result = await DIContainer.shared.aiService.performRequest(messages: messages, responseFormat: ["type": "json_object"])
 
+        guard !Task.isCancelled else { return nil }
         switch result {
         case .success(let jsonString):
             do {

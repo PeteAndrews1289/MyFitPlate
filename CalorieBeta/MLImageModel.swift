@@ -6,6 +6,34 @@ struct AIMealResponse: Codable {
     let foods: [AIItemResponse]
 }
 
+struct MealPhotoItemReview: Sendable {
+    let itemID: String
+    let confidence: Double
+    let portionLowGrams: Double?
+    let portionHighGrams: Double?
+    let requiresConfirmation: Bool
+    let clarificationQuestion: String?
+    let hiddenIngredientRisks: [String]
+    let referenceSourceName: String?
+}
+
+struct MealPhotoReviewContext: Sendable {
+    let overallConfidence: Double
+    let analysisNotes: String
+    let clarificationQuestions: [String]
+    let groundedItemCount: Int
+    let itemReviews: [String: MealPhotoItemReview]
+
+    var needsConfirmationCount: Int {
+        itemReviews.values.filter(\.requiresConfirmation).count
+    }
+}
+
+struct MealPhotoAnalysis: Sendable {
+    let items: [FoodItem]
+    let reviewContext: MealPhotoReviewContext
+}
+
 struct AIItemResponse: Codable {
     let itemName: String
     let servingSize: String
@@ -112,7 +140,7 @@ class MLImageModel {
 
     // MARK: - Nutrition Label Parsing
     func parseNutritionLabel(from image: UIImage, completion: @escaping (Result<NutritionLabelData, Error>) -> Void) {
-        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+        guard let imageData = image.aiPreparedJPEGData() else {
             completion(.failure(ImageRecognitionError.imageProcessingError))
             return
         }
@@ -134,7 +162,7 @@ class MLImageModel {
                 "role": "user",
                 "content": [
                     ["type": "text", "text": prompt],
-                    ["type": "image_url", "image_url": ["url": base64Image]]
+                    ["type": "image_url", "image_url": ["url": base64Image, "detail": "high"]]
                 ]
             ]
         ]
@@ -143,7 +171,8 @@ class MLImageModel {
             let result = await AIService.shared.performRequest(
                 messages: messages,
                 model: "gpt-4o-mini",
-                responseFormat: ["type": "json_object"]
+                responseFormat: ["type": "json_object"],
+                requestKind: .nutritionLabel
             )
 
             switch result {
@@ -166,24 +195,49 @@ class MLImageModel {
 
     // MARK: - Meal Estimation
     func estimateNutritionFromImage(image: UIImage, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
+        analyzeNutritionFromImage(image: image) { result in
+            completion(result.map(\.items))
+        }
+    }
+
+    func analyzeNutritionFromImage(
+        image: UIImage,
+        completion: @escaping (Result<MealPhotoAnalysis, Error>) -> Void
+    ) {
         performEstimateRequest(image: image, retryCount: 1, completion: completion)
     }
 
-    private func performEstimateRequest(image: UIImage, retryCount: Int, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+    private func performEstimateRequest(
+        image: UIImage,
+        retryCount: Int,
+        completion: @escaping (Result<MealPhotoAnalysis, Error>) -> Void
+    ) {
+        guard let imageData = image.aiPreparedJPEGData() else {
             completion(.failure(ImageRecognitionError.imageProcessingError))
             return
         }
         let base64Image = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
 
         let prompt = """
-        You are an expert nutritional analysis assistant. Analyze the food and beverages in the provided image.
-        Your task is to identify every item (including drinks, alcohol, sauces), estimate its quantity, and provide a nutritional breakdown.
+        Analyze this meal photo as an honest draft for a nutrition log. Speed is useful, but false
+        precision is harmful. Identify every clearly visible food, beverage, sauce, and topping as a
+        separate item when possible.
 
-        RULES:
-        1. Response MUST be a valid JSON object. Root key: "foods" (array of objects).
-        2. Keys per object: "itemName", "servingSize" (e.g. '1 cup', '12 oz'), "calories", "protein", "carbs", "fats".
-        3. **Beverages:** If you see a drink (beer, wine, juice, soda), estimate based on standard glass sizes. Do not ignore them.
+        Follow these rules:
+        - Report only visible or strongly supported foods. Do not turn a possibility into a fact.
+        - Use a concise generic food identity suitable for a composition-database search. Do not
+          invent a brand. Keep preparation separate, such as grilled, fried, raw, or steamed.
+        - Estimate a best gram weight plus a realistic low/high gram range whenever the image permits.
+          Use null for all three gram fields when visual scale is genuinely unavailable.
+        - Calories and macros are fallback estimates for the best portion. Keep them internally
+          consistent and realistic, but do not imply that they were read from a label or database.
+        - Put oils, butter, dressings, fillings, and other plausible but unmeasurable additions in
+          hiddenIngredientRisks. Do not silently include a precise hidden amount.
+        - Confidence is 0 to 1 and reflects both identity and portion confidence. Set
+          requiresConfirmation when uncertainty could materially change nutrition.
+        - Ask no more than two short clarification questions for ambiguities with the largest likely
+          calorie or macro impact. Do not ask about details that are already clear.
+        - If the image is too unclear or does not show food, set imageUsable to false and return no foods.
         """
 
         let messages: [[String: Any]] = [
@@ -191,23 +245,113 @@ class MLImageModel {
                 "role": "user",
                 "content": [
                     ["type": "text", "text": prompt],
-                    ["type": "image_url", "image_url": ["url": base64Image]]
+                    ["type": "image_url", "image_url": ["url": base64Image, "detail": "high"]]
                 ]
             ]
         ]
 
-        performImageAnalysis(
-            messages: messages,
-            retryCount: retryCount,
-            sourceType: .aiImage,
-            sourceName: "Maia Vision",
-            completion: completion
-        )
+        Task {
+            let result = await AIService.shared.performRequest(
+                messages: messages,
+                maxTokens: 4_000,
+                temperature: 0,
+                requestKind: .mealPhoto,
+                retryCount: 0
+            )
+
+            switch result {
+            case .success(let jsonString):
+                do {
+                    let response = try JSONDecoder().decode(
+                        MealPhotoAnalysisResponse.self,
+                        from: Data(jsonString.utf8)
+                    )
+                    guard response.imageUsable, !response.foods.isEmpty else {
+                        completion(.failure(ImageRecognitionError.noData))
+                        return
+                    }
+
+                    let outcomes = await groundMealPhotoFoods(response.foods)
+                    guard !outcomes.isEmpty else {
+                        completion(.failure(ImageRecognitionError.invalidOutputFormat))
+                        return
+                    }
+                    let items = outcomes.map(\.item)
+                    let itemReviews = Dictionary(uniqueKeysWithValues: outcomes.map { outcome in
+                        (
+                            outcome.item.id,
+                            MealPhotoItemReview(
+                                itemID: outcome.item.id,
+                                confidence: outcome.modelConfidence,
+                                portionLowGrams: outcome.portionLowGrams,
+                                portionHighGrams: outcome.portionHighGrams,
+                                requiresConfirmation: outcome.requiresConfirmation,
+                                clarificationQuestion: outcome.clarificationQuestion,
+                                hiddenIngredientRisks: outcome.hiddenIngredientRisks,
+                                referenceSourceName: outcome.referenceSourceName
+                            )
+                        )
+                    })
+                    let analysis = MealPhotoAnalysis(
+                        items: items,
+                        reviewContext: MealPhotoReviewContext(
+                            overallConfidence: min(max(response.overallConfidence, 0), 1),
+                            analysisNotes: response.analysisNotes,
+                            clarificationQuestions: Array(response.clarificationQuestions.prefix(2)),
+                            groundedItemCount: outcomes.filter(\.usedNutrientReference).count,
+                            itemReviews: itemReviews
+                        )
+                    )
+                    DispatchQueue.main.async { completion(.success(analysis)) }
+                } catch {
+                    if retryCount > 0 {
+                        performEstimateRequest(
+                            image: image,
+                            retryCount: retryCount - 1,
+                            completion: completion
+                        )
+                    } else {
+                        completion(.failure(ImageRecognitionError.decodingError(error)))
+                    }
+                }
+            case .failure(let error):
+                completion(.failure(ImageRecognitionError.networkError(error)))
+            }
+        }
+    }
+
+    private func groundMealPhotoFoods(
+        _ estimates: [MealPhotoFoodEstimate]
+    ) async -> [MealPhotoGroundingOutcome] {
+        let limitedEstimates = Array(estimates.prefix(12))
+        return await withTaskGroup(of: (Int, MealPhotoGroundingOutcome?).self) { group in
+            for (index, estimate) in limitedEstimates.enumerated() {
+                group.addTask {
+                    let query = [estimate.itemName, estimate.preparation]
+                        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                        .joined(separator: " ")
+                    async let usda = USDAFoodAPIService().searchFoods(query: query)
+                    async let canada = HealthCanadaFoodAPIService().searchFoods(query: query, limit: 8)
+                    let (usdaFoods, canadaFoods) = await (usda, canada)
+                    let candidates = usdaFoods + canadaFoods
+                    return (
+                        index,
+                        MealPhotoGrounding.makeOutcome(estimate: estimate, candidates: candidates)
+                    )
+                }
+            }
+
+            var ordered: [(Int, MealPhotoGroundingOutcome)] = []
+            for await (index, outcome) in group {
+                if let outcome { ordered.append((index, outcome)) }
+            }
+            return ordered.sorted { $0.0 < $1.0 }.map(\.1)
+        }
     }
 
     // MARK: - Menu Estimation
     func estimateMenuFromImage(image: UIImage, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+        guard let imageData = image.aiPreparedJPEGData() else {
             completion(.failure(ImageRecognitionError.imageProcessingError))
             return
         }
@@ -229,7 +373,7 @@ class MLImageModel {
                 "role": "user",
                 "content": [
                     ["type": "text", "text": prompt],
-                    ["type": "image_url", "image_url": ["url": base64Image]]
+                    ["type": "image_url", "image_url": ["url": base64Image, "detail": "high"]]
                 ]
             ]
         ]
@@ -239,6 +383,7 @@ class MLImageModel {
             retryCount: 1,
             sourceType: .aiMenu,
             sourceName: "Maia Menu",
+            requestKind: .menuPhoto,
             completion: completion
         )
     }
@@ -247,7 +392,7 @@ class MLImageModel {
         image: UIImage,
         completion: @escaping (Result<[ScannedMenuValueItem], Error>) -> Void
     ) {
-        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+        guard let imageData = image.aiPreparedJPEGData() else {
             completion(.failure(ImageRecognitionError.imageProcessingError))
             return
         }
@@ -264,7 +409,7 @@ class MLImageModel {
             "role": "user",
             "content": [
                 ["type": "text", "text": prompt],
-                ["type": "image_url", "image_url": ["url": base64Image]]
+                ["type": "image_url", "image_url": ["url": base64Image, "detail": "high"]]
             ]
         ]]
 
@@ -272,7 +417,8 @@ class MLImageModel {
             let result = await AIService.shared.performRequest(
                 messages: messages,
                 model: "gpt-4o-mini",
-                responseFormat: ["type": "json_object"]
+                responseFormat: ["type": "json_object"],
+                requestKind: .menuPhoto
             )
             switch result {
             case .success(let json):
@@ -306,7 +452,7 @@ class MLImageModel {
 
     // MARK: - Menu Matchmaker
     func recommendMenuMeals(from image: UIImage, remainingCalories: Double, remainingProtein: Double, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+        guard let imageData = image.aiPreparedJPEGData() else {
             completion(.failure(ImageRecognitionError.imageProcessingError))
             return
         }
@@ -338,7 +484,7 @@ class MLImageModel {
                 "role": "user",
                 "content": [
                     ["type": "text", "text": prompt],
-                    ["type": "image_url", "image_url": ["url": base64Image]]
+                    ["type": "image_url", "image_url": ["url": base64Image, "detail": "high"]]
                 ]
             ]
         ]
@@ -348,13 +494,14 @@ class MLImageModel {
             retryCount: 1,
             sourceType: .aiMenu,
             sourceName: "Maia Menu",
+            requestKind: .menuPhoto,
             completion: completion
         )
     }
 
     // MARK: - Grocery Receipt Parsing
     func parseGroceryReceipt(from image: UIImage, completion: @escaping (Result<[PantryItem], Error>) -> Void) {
-        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+        guard let imageData = image.aiPreparedJPEGData() else {
             completion(.failure(ImageRecognitionError.imageProcessingError))
             return
         }
@@ -380,7 +527,7 @@ class MLImageModel {
                 "role": "user",
                 "content": [
                     ["type": "text", "text": prompt],
-                    ["type": "image_url", "image_url": ["url": base64Image]]
+                    ["type": "image_url", "image_url": ["url": base64Image, "detail": "high"]]
                 ]
             ]
         ]
@@ -389,7 +536,8 @@ class MLImageModel {
             let result = await AIService.shared.performRequest(
                 messages: messages,
                 model: "gpt-4o-mini",
-                responseFormat: ["type": "json_object"]
+                responseFormat: ["type": "json_object"],
+                requestKind: .receiptPhoto
             )
 
             switch result {
@@ -423,6 +571,7 @@ class MLImageModel {
         retryCount: Int,
         sourceType: FoodSourceType,
         sourceName: String,
+        requestKind: AIRequestKind,
         completion: @escaping (Result<[FoodItem], Error>) -> Void
     ) {
 
@@ -432,7 +581,8 @@ class MLImageModel {
             let result = await AIService.shared.performRequest(
                 messages: messages,
                 model: "gpt-4o-mini",
-                maxTokens: 1000,
+                maxTokens: 3_000,
+                requestKind: requestKind,
                 retryCount: 0
             )
 
@@ -448,6 +598,7 @@ class MLImageModel {
                             retryCount: retryCount - 1,
                             sourceType: sourceType,
                             sourceName: sourceName,
+                            requestKind: requestKind,
                             completion: completion
                         )
                     } else {
@@ -479,6 +630,7 @@ class MLImageModel {
                             retryCount: retryCount - 1,
                             sourceType: sourceType,
                             sourceName: sourceName,
+                            requestKind: requestKind,
                             completion: completion
                         )
                     } else {
@@ -490,5 +642,42 @@ class MLImageModel {
                 completion(.failure(ImageRecognitionError.networkError(error)))
             }
         }
+    }
+}
+
+extension UIImage {
+    /// Normalizes orientation and bounds payload size without corrupting the encoded image.
+    func aiPreparedJPEGData(
+        maxPixelDimension: CGFloat = 2_048,
+        maxBytes: Int = 6_000_000
+    ) -> Data? {
+        guard maxPixelDimension > 0, maxBytes > 0 else { return nil }
+
+        let pixelWidth = CGFloat(cgImage?.width ?? Int(size.width * scale))
+        let pixelHeight = CGFloat(cgImage?.height ?? Int(size.height * scale))
+        guard pixelWidth.isFinite, pixelHeight.isFinite, pixelWidth > 0, pixelHeight > 0 else {
+            return nil
+        }
+
+        let resizeScale = min(1, maxPixelDimension / max(pixelWidth, pixelHeight))
+        let targetSize = CGSize(
+            width: max(1, (pixelWidth * resizeScale).rounded()),
+            height: max(1, (pixelHeight * resizeScale).rounded())
+        )
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let normalizedImage = UIGraphicsImageRenderer(size: targetSize, format: format).image { context in
+            UIColor.white.setFill()
+            context.cgContext.fill(CGRect(origin: .zero, size: targetSize))
+            draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+
+        for quality: CGFloat in [0.82, 0.68, 0.52] {
+            if let data = normalizedImage.jpegData(compressionQuality: quality), data.count <= maxBytes {
+                return data
+            }
+        }
+        return nil
     }
 }

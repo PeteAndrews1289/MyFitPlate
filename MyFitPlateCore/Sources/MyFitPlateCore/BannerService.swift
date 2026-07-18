@@ -8,7 +8,7 @@ public class BannerService: ObservableObject {
     
     public init() {}
     
-    public func showBanner(title: String, message: String, iconName: String = "checkmark.circle.fill", iconColor: Color = .green) {
+    public func showBanner(title: String, message: String, iconName: String = "checkmark.circle.fill", iconColor: Color = AppPalette.brand) {
         self.currentBanner = BannerData(title: title, message: message, iconName: iconName, iconColor: iconColor)
     }
 }

@@ -120,7 +120,7 @@ struct TrainingFuelPlannerCard: View {
         case .skipped:
             return Color(UIColor.secondaryLabel)
         case .stale, .overTarget, .invalidDiary, .invalidTargets, .budgetUsedElsewhere:
-            return .orange
+            return AppPalette.caution
         default:
             return .brandPrimary
         }
@@ -377,7 +377,7 @@ struct TrainingFuelPlannerSheet: View {
             if currentCandidate.assumptions.contains(.durationNeedsReview) {
                 Label("Duration could not be derived from this plan. Review it below.", systemImage: "exclamationmark.circle")
                     .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppPalette.caution)
             } else if currentCandidate.assumptions.contains(.durationEstimated) {
                 Label("Duration, effort, and focus are editable estimates.", systemImage: "slider.horizontal.3")
                     .appFont(size: 11, weight: .semibold)
@@ -454,7 +454,7 @@ struct TrainingFuelPlannerSheet: View {
             if !wantsBefore && !wantsAfter {
                 Text("Choose at least one window to create a fuel target.")
                     .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppPalette.caution)
             }
         }
     }
@@ -702,23 +702,23 @@ struct TrainingFuelPlannerSheet: View {
             if progress.status == .overTarget {
                 Label("Today's calorie target has been reached. Review the day instead of adding fuel.", systemImage: "exclamationmark.triangle.fill")
                     .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppPalette.caution)
             } else if progress.status == .stale {
                 Label("This session window has passed. Update or remove the plan.", systemImage: "clock.badge.exclamationmark")
                     .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppPalette.caution)
             } else if progress.status == .budgetUsedElsewhere {
                 Label("Food logged elsewhere used the remaining daily budget, so this target was paused.", systemImage: "equal.circle.fill")
                     .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppPalette.caution)
             } else if progress.status == .invalidDiary {
                 Label("Today's diary contains a value that cannot be verified. Fix the log before using this plan.", systemImage: "exclamationmark.triangle.fill")
                     .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppPalette.caution)
             } else if progress.status == .invalidTargets {
                 Label("Today's nutrition targets cannot be verified. Update them before using this plan.", systemImage: "target")
                     .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppPalette.caution)
             } else if progress.status == .awaitingOutcome {
                 Label("Confirm whether the session was completed or skipped before recovery guidance appears.", systemImage: "checkmark.circle")
                     .appFont(size: 12, weight: .semibold)
@@ -1003,7 +1003,7 @@ struct TrainingFuelPlannerSheet: View {
         case .skipped:
             return Color(UIColor.secondaryLabel)
         case .stale, .overTarget, .invalidDiary, .invalidTargets, .budgetUsedElsewhere:
-            return .orange
+            return AppPalette.caution
         default:
             return Color(UIColor.secondaryLabel)
         }
@@ -1033,21 +1033,21 @@ struct TrainingFuelPlannerSheet: View {
                 .accentSignal
             )
         case .needsSessionTime:
-            return ("Choose a Start Time", "The planner will not invent one.", "clock", .orange)
+            return ("Choose a Start Time", "The planner will not invent one.", "clock", AppPalette.caution)
         case .noFuelRequested:
-            return ("Choose a Fuel Window", "Turn on before training, after training, or both.", "fork.knife", .orange)
+            return ("Choose a Fuel Window", "Turn on before training, after training, or both.", "fork.knife", AppPalette.caution)
         case .outsideToday:
-            return ("Outside Today's Plan", "Choose a time that keeps this fuel inside today.", "calendar.badge.exclamationmark", .orange)
+            return ("Outside Today's Plan", "Choose a time that keeps this fuel inside today.", "calendar.badge.exclamationmark", AppPalette.caution)
         case .staleSession:
-            return ("Start Time Has Passed", "Update the time before creating a new allocation.", "clock.badge.exclamationmark", .orange)
+            return ("Start Time Has Passed", "Update the time before creating a new allocation.", "clock.badge.exclamationmark", AppPalette.caution)
         case .overTargetReview:
             return ("Daily Target Reached", "Review today's log instead of creating extra fuel.", "checkmark.circle", .accentPositive)
         case .insufficientBudget:
-            return ("No Actionable Budget", "Today's remaining targets are too small for a useful allocation.", "equal.circle", .orange)
+            return ("No Actionable Budget", "Today's remaining targets are too small for a useful allocation.", "equal.circle", AppPalette.caution)
         case .invalidDiaryData:
-            return ("Check Today's Log", "A nutrition value could not be verified, so no target was created.", "exclamationmark.triangle", .orange)
+            return ("Check Today's Log", "A nutrition value could not be verified, so no target was created.", "exclamationmark.triangle", AppPalette.caution)
         case .invalidCalorieTarget:
-            return ("Set a Calorie Goal", "A valid daily calorie target is required.", "target", .orange)
+            return ("Set a Calorie Goal", "A valid daily calorie target is required.", "target", AppPalette.caution)
         case .ready:
             return ("Ready", "", "checkmark.circle", .accentPositive)
         }

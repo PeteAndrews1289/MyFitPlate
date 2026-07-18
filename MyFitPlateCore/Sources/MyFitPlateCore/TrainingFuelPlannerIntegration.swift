@@ -1012,7 +1012,8 @@ public final class TrainingFuelPlanStore: ObservableObject {
     @Published public private(set) var confirmedPlan: TrainingFuelConfirmedPlan?
 
     private let userDefaults: UserDefaults
-    private let keyPrefix = "myfitplate.training_fuel_plan."
+    private let keyPrefix = "myfitplate.training_fuel_plan"
+    private let legacyKeyPrefix = "myfitplate.training_fuel_plan."
     private var currentUserID: String?
 
     public init(userDefaults: UserDefaults = .standard) {
@@ -1029,6 +1030,7 @@ public final class TrainingFuelPlanStore: ObservableObject {
             confirmedPlan = nil
             return
         }
+        migrateLegacyStorageIfNeeded(for: userID, to: key)
         guard let data = userDefaults.data(forKey: key) else {
             confirmedPlan = nil
             return
@@ -1053,6 +1055,9 @@ public final class TrainingFuelPlanStore: ObservableObject {
         guard let key = storageKey(for: userID),
               let data = try? JSONEncoder().encode(plan) else { return }
         userDefaults.set(data, forKey: key)
+        if let legacyKey = legacyStorageKey(for: userID) {
+            userDefaults.removeObject(forKey: legacyKey)
+        }
     }
 
     @discardableResult
@@ -1224,13 +1229,29 @@ public final class TrainingFuelPlanStore: ObservableObject {
         if let key = storageKey(for: resolvedUserID) {
             userDefaults.removeObject(forKey: key)
         }
+        if let legacyKey = legacyStorageKey(for: resolvedUserID) {
+            userDefaults.removeObject(forKey: legacyKey)
+        }
         confirmedPlan = nil
     }
 
     private func storageKey(for userID: String?) -> String? {
+        AccountScopedStorageKey.make(prefix: keyPrefix, userID: userID)
+    }
+
+    private func legacyStorageKey(for userID: String?) -> String? {
         guard let userID = userID?.trimmingCharacters(in: .whitespacesAndNewlines),
               !userID.isEmpty else { return nil }
-        return keyPrefix + userID
+        return legacyKeyPrefix + userID
+    }
+
+    private func migrateLegacyStorageIfNeeded(for userID: String?, to key: String) {
+        guard let legacyKey = legacyStorageKey(for: userID) else { return }
+        if userDefaults.data(forKey: key) == nil,
+           let legacyData = userDefaults.data(forKey: legacyKey) {
+            userDefaults.set(legacyData, forKey: key)
+        }
+        userDefaults.removeObject(forKey: legacyKey)
     }
 
     private func planForOutcome(

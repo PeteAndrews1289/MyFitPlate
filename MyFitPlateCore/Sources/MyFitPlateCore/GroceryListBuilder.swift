@@ -1,8 +1,20 @@
 import Foundation
 
 public enum GroceryListBuilder {
+    public static let standardCategories = [
+        "Produce",
+        "Meat & Seafood",
+        "Dairy & Eggs",
+        "Carbohydrates",
+        "Pantry & Oils",
+        "Spices & Seasonings",
+        "Bakery",
+        "Misc"
+    ]
+
     public static func makeGroceryList(
         from days: [MealPlanDay],
+        starting sourcePlanStart: Date? = nil,
         unitSystem: GroceryUnitSystem = currentUnitSystem()
     ) -> [GroceryListItem] {
         let ingredients = days
@@ -17,7 +29,7 @@ public enum GroceryListBuilder {
 
         for ingredient in ingredients {
             let parsed = IngredientLineParser.normalizedIngredient(from: ingredient)
-            let key = "\(IngredientNameMatcher.normalized(parsed.name))_\(parsed.unit)"
+            let key = "\(IngredientNameMatcher.canonical(parsed.name))_\(parsed.unit)"
             let category = IngredientCategoryMapper.groceryCategory(for: parsed.name)
 
             if var existing = grouped[key] {
@@ -29,7 +41,8 @@ public enum GroceryListBuilder {
                     quantity: parsed.quantity,
                     unit: parsed.unit,
                     category: category,
-                    source: "mealPlan"
+                    source: "mealPlan",
+                    sourcePlanStart: sourcePlanStart ?? days.map(\.date).min()
                 )
             }
         }
@@ -45,10 +58,10 @@ public enum GroceryListBuilder {
     }
 
     static func mergeKey(for name: String) -> String {
-        IngredientNameMatcher.normalized(name)
+        IngredientNameMatcher.canonical(name)
     }
 
-    static func applyUnitSystem(_ item: GroceryListItem, system: GroceryUnitSystem) -> GroceryListItem {
+    public static func applyUnitSystem(_ item: GroceryListItem, system: GroceryUnitSystem) -> GroceryListItem {
         var newItem = item
 
         if system == .imperial {
@@ -85,16 +98,30 @@ public enum GroceryListBuilder {
             }
 
             if newItem.unit == "g" && newItem.quantity >= 1000 {
-                newItem.quantity = newItem.quantity / 1000
+                newItem.quantity /= 1000
                 newItem.unit = "kg"
             }
             if newItem.unit == "ml" && newItem.quantity >= 1000 {
-                newItem.quantity = newItem.quantity / 1000
+                newItem.quantity /= 1000
                 newItem.unit = "L"
             }
         }
 
         return newItem
+    }
+
+    public static func normalizedCategory(_ category: String) -> String {
+        switch category.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "produce": "Produce"
+        case "protein", "meat", "meat & seafood": "Meat & Seafood"
+        case "dairy", "dairy & eggs", "dairy & misc": "Dairy & Eggs"
+        case "carbohydrates", "carbs", "grains": "Carbohydrates"
+        case "pantry", "pantry & oils": "Pantry & Oils"
+        case "spices", "seasonings", "spices & seasonings": "Spices & Seasonings"
+        case "bakery": "Bakery"
+        case "misc", "miscellaneous", "": "Misc"
+        default: category.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
     }
 
     public static func currentUnitSystem() -> GroceryUnitSystem {

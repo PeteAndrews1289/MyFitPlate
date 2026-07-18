@@ -9,6 +9,17 @@ import Combine
 public enum BodyUnits {
     public static let lbsPerKg = 2.2046226218
     public static let cmPerInch = 2.54
+    public static let preferenceKey = "useMetricBodyUnits"
+
+    public static func prefersMetric(
+        defaults: UserDefaults = .standard,
+        locale: Locale = .current
+    ) -> Bool {
+        if let storedPreference = defaults.object(forKey: preferenceKey) as? Bool {
+            return storedPreference
+        }
+        return locale.measurementSystem != .us
+    }
 
     /// Pounds -> the value shown in the user's chosen unit (kg if metric, else lbs).
     public static func weightDisplayValue(lbs: Double, metric: Bool) -> Double {
@@ -107,6 +118,7 @@ public class GoalSettings: ObservableObject {
     private var isSyncingWeightFromHealthKit = false
     private var hasAutoSyncedWeightThisSession = false
     private var loadedGoalUserIDs = Set<String>()
+    private var activeUserID: String?
     public weak var dailyLogService: DailyLogService?
     public weak var adaptiveGoalService: AdaptiveGoalService?
 
@@ -132,6 +144,56 @@ public class GoalSettings: ObservableObject {
 
     public func setupDependencies(dailyLogService: DailyLogService) {
         self.dailyLogService = dailyLogService
+    }
+
+    @MainActor
+    public func activateAccount(_ userID: String?) {
+        guard activeUserID != userID else { return }
+        weightHistoryCancellable?.cancel()
+        weightHistoryCancellable = nil
+        activeUserID = userID
+        loadedGoalUserIDs.removeAll()
+        hasAutoSyncedWeightThisSession = false
+        isSyncingWeightFromHealthKit = false
+
+        isHydratingPersistedGoals = true
+        calories = nil
+        protein = 150
+        fats = 70
+        carbs = 250
+        weight = 150
+        height = 170
+        age = 25
+        gender = "Male"
+        activityLevel = 1.2
+        goal = "Maintain"
+        targetWeight = nil
+        proteinPercentage = 30
+        carbsPercentage = 50
+        fatsPercentage = 20
+        weightHistory = []
+        lastCheckInDate = nil
+        calciumGoal = nil
+        ironGoal = nil
+        potassiumGoal = nil
+        sodiumGoal = nil
+        vitaminAGoal = nil
+        vitaminCGoal = nil
+        vitaminDGoal = nil
+        vitaminB12Goal = nil
+        folateGoal = nil
+        waterGoal = 64
+        calorieGoalMethod = .mifflinWithActivity
+        suggestionProteins = ["Chicken", "Beef", "Fish"]
+        suggestionCuisines = ["Any"]
+        suggestionCarbs = ["Rice", "Potatoes", "Pasta"]
+        suggestionVeggies = ["Broccoli", "Bell Peppers"]
+        trainingIntent = "General Fitness"
+        reminderStyle = "Gentle"
+        maiaTone = "Balanced"
+        cookingStyle = "Macro-Focused Prep"
+        isHydratingPersistedGoals = false
+        recalculateAllGoals()
     }
     
     // MARK: - Calculation Logic
@@ -230,31 +292,38 @@ public class GoalSettings: ObservableObject {
     
     @MainActor
     public func loadUserGoals(userID: String, completion: @escaping () -> Void = {}) {
+        if activeUserID != userID {
+            activateAccount(userID)
+        }
         var localResult: (updatedData: [String: Any], shouldUpdateFirestore: Bool)?
         if let localData = loadFromLocalCache(userID: userID) {
             localResult = applyDecodedGoals(from: localData)
         }
         DIContainer.shared.settingsRepository.fetchUserGoals(userID: userID) { [weak self] data in
-            guard let self = self else { completion(); return }
-            
-            var shouldUpdateFirestore = false
-            
-            if let data = data {
-                if let localResult, self.shouldPreferLocalGoals(local: localResult.updatedData, remote: data) {
-                    shouldUpdateFirestore = true
-                    self.saveToLocalCache(userID: userID, data: localResult.updatedData)
-                } else {
-                    let result = self.applyDecodedGoals(from: data)
-                    shouldUpdateFirestore = result.shouldUpdateFirestore
-                    self.saveToLocalCache(userID: userID, data: result.updatedData)
+            Task { @MainActor in
+                guard let self else { completion(); return }
+                guard self.activeUserID == userID else {
+                    completion()
+                    return
                 }
-            }
-            
-            if shouldUpdateFirestore {
-                self.saveUserGoals(userID: userID)
-            }
-            
-            DispatchQueue.main.async {
+
+                var shouldUpdateFirestore = false
+
+                if let data {
+                    if let localResult, self.shouldPreferLocalGoals(local: localResult.updatedData, remote: data) {
+                        shouldUpdateFirestore = true
+                        self.saveToLocalCache(userID: userID, data: localResult.updatedData)
+                    } else {
+                        let result = self.applyDecodedGoals(from: data)
+                        shouldUpdateFirestore = result.shouldUpdateFirestore
+                        self.saveToLocalCache(userID: userID, data: result.updatedData)
+                    }
+                }
+
+                if shouldUpdateFirestore {
+                    self.saveUserGoals(userID: userID)
+                }
+
                 self.loadedGoalUserIDs.insert(userID)
                 self.recalculateAllGoals()
                 completion()
@@ -473,25 +542,37 @@ public class GoalSettings: ObservableObject {
     }
 
     private func saveToLocalCache(userID: String, data: [String: Any]) {
-        guard !userID.isEmpty, let cleanDict = plistSafeValue(data) as? [String: Any] else { return }
-        UserDefaults.standard.set(cleanDict, forKey: "cached_user_goals_\(userID)")
+        guard let cacheKey = AccountScopedStorageKey.make(prefix: "cached_user_goals", userID: userID),
+              let cleanDict = plistSafeValue(data) as? [String: Any] else { return }
+        UserDefaults.standard.set(cleanDict, forKey: cacheKey)
+        UserDefaults.standard.removeObject(forKey: "cached_user_goals_\(userID)")
     }
 
     private func loadFromLocalCache(userID: String) -> [String: Any]? {
-        guard !userID.isEmpty else { return nil }
-        return UserDefaults.standard.dictionary(forKey: "cached_user_goals_\(userID)")
+        guard let cacheKey = AccountScopedStorageKey.make(prefix: "cached_user_goals", userID: userID) else {
+            return nil
+        }
+        if let cached = UserDefaults.standard.dictionary(forKey: cacheKey) {
+            return cached
+        }
+
+        let legacyKey = "cached_user_goals_\(userID)"
+        guard let legacyCache = UserDefaults.standard.dictionary(forKey: legacyKey) else { return nil }
+        UserDefaults.standard.set(legacyCache, forKey: cacheKey)
+        UserDefaults.standard.removeObject(forKey: legacyKey)
+        return legacyCache
     }
 
     public func saveUserGoals(userID: String) {
         guard !userID.isEmpty else { return }
         loadedGoalUserIDs.insert(userID)
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
             self._recalculateCalorieGoal()
             self.calculateMicronutrientGoals()
             self.syncAnalyticsUserProperties()
             let updatedAt = Date()
-            var goalsDict: [String:Any] = [
+            var goalsDict: [String: Any] = [
                 "calories": self.calories ?? 0, "protein": self.protein, "fats": self.fats, "carbs": self.carbs,
                 "proteinPercentage": self.proteinPercentage, "carbsPercentage": self.carbsPercentage, "fatsPercentage": self.fatsPercentage,
                 "activityLevel": self.activityLevel, "goal": self.goal, "targetWeight": self.targetWeight ?? NSNull(),
@@ -507,7 +588,7 @@ public class GoalSettings: ObservableObject {
             if let lastDate = self.lastCheckInDate {
                 goalsDict["lastCheckInDate"] = lastDate
             }
-            let userData:[String:Any] = [
+            let userData: [String: Any] = [
                 "goals": goalsDict, "height": self.height, "weight": self.weight, "age": self.age, "gender": self.gender, "isFirstLogin": false,
                 "calorieGoalMethod": self.calorieGoalMethod.rawValue, "activityLevel": self.activityLevel, "goal": self.goal,
                 "calories": self.calories ?? 0, "goalSettingsUpdatedAt": updatedAt
@@ -517,7 +598,9 @@ public class GoalSettings: ObservableObject {
                 do {
                     try await DIContainer.shared.settingsRepository.saveUserGoals(userID: userID, data: userData)
                 } catch {
-                    AppLog.data.error("Failed to save user goals: \(error.localizedDescription)")
+                    AppLog.data.error(
+                        "Failed to save user goals: \(error.localizedDescription, privacy: .private)"
+                    )
                 }
             }
         }
@@ -539,11 +622,16 @@ public class GoalSettings: ObservableObject {
     @MainActor
     public func loadWeightHistory() {
         guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        if activeUserID != userID {
+            activateAccount(userID)
+        }
         weightHistoryCancellable?.cancel()
         weightHistoryCancellable = DIContainer.shared.settingsRepository.weightHistoryPublisher(userID: userID)
             .receive(on: DispatchQueue.main)
             .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] history in
-                guard let self else { return }
+                guard let self,
+                      self.activeUserID == userID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
                 self.weightHistory = history
                 // Auto-import HealthKit weights ONCE per session, not on every emission:
                 // syncWeightFromHealthKit writes back into history, which re-emits here — a
@@ -578,7 +666,9 @@ public class GoalSettings: ObservableObject {
                 try await DIContainer.shared.settingsRepository.saveWeightEntry(userID: userID, weight: newWeight, date: date)
                 self.loadWeightHistory()
             } catch {
-                AppLog.data.error("Failed to save weight sample: \(error.localizedDescription)")
+                AppLog.data.error(
+                    "Failed to save weight sample: \(error.localizedDescription, privacy: .private)"
+                )
             }
         }
         if syncToHealthKit {
@@ -596,9 +686,9 @@ public class GoalSettings: ObservableObject {
             return
         }
 
-        healthKitManager.fetchRecentWeightSamples(startDate: startDate, endDate: endDate) { [weak self] samples, error in
+        healthKitManager.fetchRecentWeightSamples(startDate: startDate, endDate: endDate) { [weak self] samples, _ in
             DispatchQueue.main.async {
-                guard let self = self else { return }
+                guard let self else { return }
                 self.isSyncingWeightFromHealthKit = false
                 guard let samples = samples, !samples.isEmpty else { return }
                 
@@ -626,7 +716,9 @@ public class GoalSettings: ObservableObject {
                     }
                     
                     if !alreadyLogged {
-                        AppLog.health.info("Importing weight sample from HealthKit: \(weightLbs) lbs on \(sampleDate)")
+                        AppLog.health.info(
+                            "Importing HealthKit weight sample: \(weightLbs, privacy: .private) lbs on \(sampleDate, privacy: .private)"
+                        )
                         self.updateUserWeight(weightLbs, date: sampleDate, syncToHealthKit: false)
                     }
                 }
@@ -635,21 +727,24 @@ public class GoalSettings: ObservableObject {
     }
     
     public func deleteWeightEntry(entryID: String, completion: @escaping (Error?) -> Void) {
-    Task { @MainActor in
-        guard let userID = DIContainer.shared.authService.currentUserID else { completion(NSError(domain:"App",code:401)); return }
-        do {
-            try await DIContainer.shared.settingsRepository.deleteWeightEntry(userID: userID, entryID: entryID)
-            completion(nil)
-        } catch {
-            completion(error)
+        Task { @MainActor in
+            guard let userID = DIContainer.shared.authService.currentUserID else {
+                completion(NSError(domain: "App", code: 401))
+                return
+            }
+            do {
+                try await DIContainer.shared.settingsRepository.deleteWeightEntry(userID: userID, entryID: entryID)
+                completion(nil)
+            } catch {
+                completion(error)
+            }
         }
     }
-}
     
     // MARK: - Helpers
     
     public func getHeightInFeetAndInches() -> (feet: Int, inches: Int) {
-        let hCm = self.height; guard hCm > 0 else { return (0,0) }; let totalInches = Int(round(hCm / 2.54))
+        let hCm = self.height; guard hCm > 0 else { return (0, 0) }; let totalInches = Int(round(hCm / 2.54))
         return (totalInches / 12, totalInches % 12)
     }
     
@@ -686,7 +781,7 @@ public class GoalSettings: ObservableObject {
         let sortedData = periodData.sorted { $0.date < $1.date }
         let highest = sortedData.max(by: { $0.weight < $1.weight })?.weight
         let lowest = sortedData.min(by: { $0.weight < $1.weight })?.weight
-        var trend: Double? = nil, dailyRate: Double? = nil
+        var trend: Double?, dailyRate: Double?
         if sortedData.count >= 2, let first = sortedData.first, let last = sortedData.last {
             trend = last.weight - first.weight
             if let days = Calendar.current.dateComponents([.day], from: first.date, to: last.date).day, days > 0 {
@@ -720,7 +815,12 @@ public class AdaptiveGoalService: ObservableObject {
     /// "progress to your first estimate" UI shown before there's enough data for a TDEE.
     @Published public var recentWeighInCount: Int = 0
     @Published public var recentLogCount: Int = 0
+    @Published public var partialLogCount: Int = 0
+    @Published public var isEstimateActionable: Bool = false
+    @Published public var tdeeGuardrailMessage: String?
     @Published public var lastCalculationDate: Date?
+    private var activeUserID: String?
+    private var activeCalculationRequestID: UUID?
     
     public enum DataConfidence: String {
         case high = "High Confidence"
@@ -747,6 +847,9 @@ public class AdaptiveGoalService: ObservableObject {
         public let dataConfidence: DataConfidence
         public let validLogCount: Int
         public let recentWorkoutCount: Int
+        public let partialLogCount: Int
+        public let isActionable: Bool
+        public let guardrailMessage: String?
 
         public init(
             recentWeighInCount: Int,
@@ -756,7 +859,10 @@ public class AdaptiveGoalService: ObservableObject {
             calculatedTDEE: Double?,
             dataConfidence: DataConfidence,
             validLogCount: Int = 0,
-            recentWorkoutCount: Int = 0
+            recentWorkoutCount: Int = 0,
+            partialLogCount: Int = 0,
+            isActionable: Bool = false,
+            guardrailMessage: String? = nil
         ) {
             self.recentWeighInCount = recentWeighInCount
             self.recentLogCount = recentLogCount
@@ -766,6 +872,9 @@ public class AdaptiveGoalService: ObservableObject {
             self.dataConfidence = dataConfidence
             self.validLogCount = validLogCount
             self.recentWorkoutCount = recentWorkoutCount
+            self.partialLogCount = partialLogCount
+            self.isActionable = isActionable
+            self.guardrailMessage = guardrailMessage
         }
     }
 
@@ -797,10 +906,31 @@ public class AdaptiveGoalService: ObservableObject {
         let recentWeighInCount = recentWeights.count
         let recentLogCount = recentLogs.count
 
-        let validLogs = recentLogs.filter { $0.totalCalories() > 500 }
+        let calorieTotals = recentLogs.map { max($0.totalCalories(), 0) }
+        let positiveTotals = calorieTotals.filter { $0 > 0 }.sorted()
+        let medianCalories: Double = {
+            guard !positiveTotals.isEmpty else { return 0 }
+            let middle = positiveTotals.count / 2
+            if positiveTotals.count.isMultiple(of: 2) {
+                return (positiveTotals[middle - 1] + positiveTotals[middle]) / 2
+            }
+            return positiveTotals[middle]
+        }()
+        let completeDayFloor = max(500, medianCalories * 0.5)
+        let validLogs = recentLogs.filter { $0.totalCalories() >= completeDayFloor }
+        let partialLogCount = recentLogs.filter {
+            let calories = $0.totalCalories()
+            return calories > 0 && calories < completeDayFloor
+        }.count
         let recentWorkoutCount = recentLogs.reduce(0) { $0 + ($1.exercises?.count ?? 0) }
 
-        guard recentWeighInCount >= 7, recentLogCount >= 10 else {
+        guard recentWeighInCount >= 7, validLogs.count >= 10 else {
+            let guardrailMessage: String?
+            if partialLogCount > 0 || (recentLogCount >= 10 && validLogs.count < 10) {
+                guardrailMessage = "Some days look only partly logged. Finish logging meals on at least 10 days before MyFitPlate estimates your TDEE."
+            } else {
+                guardrailMessage = nil
+            }
             return ExpenditureSnapshot(
                 recentWeighInCount: recentWeighInCount,
                 recentLogCount: recentLogCount,
@@ -809,7 +939,10 @@ public class AdaptiveGoalService: ObservableObject {
                 calculatedTDEE: nil,
                 dataConfidence: .insufficient,
                 validLogCount: validLogs.count,
-                recentWorkoutCount: recentWorkoutCount
+                recentWorkoutCount: recentWorkoutCount,
+                partialLogCount: partialLogCount,
+                isActionable: false,
+                guardrailMessage: guardrailMessage
             )
         }
 
@@ -849,15 +982,36 @@ public class AdaptiveGoalService: ObservableObject {
             confidence = .medium
         }
 
+        let isWithinSupportedRange = (1000...5000).contains(rawTDEE)
+        let hasTooManyPartialDays = partialLogCount > 3
+        let hasUsableConfidence = confidence == .high || confidence == .medium
+        let isActionable = hasUsableConfidence && isWithinSupportedRange && !hasTooManyPartialDays
+
+        let guardrailMessage: String?
+        if hasTooManyPartialDays {
+            guardrailMessage = "\(partialLogCount) days look only partly logged, so this estimate is paused. Complete those days or build a cleaner 21-day window."
+            confidence = .low
+        } else if !isWithinSupportedRange {
+            guardrailMessage = "The result falls outside MyFitPlate's supported TDEE range. Check for missing food entries or unusual weigh-ins before using it."
+            confidence = .low
+        } else if !hasUsableConfidence {
+            guardrailMessage = "Only \(validLogs.count) complete food-log days are available. Reach at least 13 complete days and 10 weigh-ins before using this estimate."
+        } else {
+            guardrailMessage = nil
+        }
+
         return ExpenditureSnapshot(
             recentWeighInCount: recentWeighInCount,
             recentLogCount: recentLogCount,
             last21DaysCalorieAverage: averageCalories,
             weightChangeRatePerDay: ratePerDay,
-            calculatedTDEE: max(1000, min(rawTDEE, 5000)),
+            calculatedTDEE: isWithinSupportedRange && !hasTooManyPartialDays ? rawTDEE : nil,
             dataConfidence: confidence,
             validLogCount: validLogs.count,
-            recentWorkoutCount: recentWorkoutCount
+            recentWorkoutCount: recentWorkoutCount,
+            partialLogCount: partialLogCount,
+            isActionable: isActionable,
+            guardrailMessage: guardrailMessage
         )
     }
 
@@ -870,7 +1024,8 @@ public class AdaptiveGoalService: ObservableObject {
         carbsPercentage: Double,
         fatsPercentage: Double
     ) -> WeeklyGoalProposal? {
-        guard let calculatedTDEE = snapshot.calculatedTDEE,
+        guard snapshot.isActionable,
+              let calculatedTDEE = snapshot.calculatedTDEE,
               snapshot.dataConfidence == .high || snapshot.dataConfidence == .medium else {
             return nil
         }
@@ -943,7 +1098,10 @@ public class AdaptiveGoalService: ObservableObject {
             calculatedTDEE: calculatedTDEE,
             dataConfidence: dataConfidence,
             validLogCount: recentValidLogCount,
-            recentWorkoutCount: recentWorkoutCount
+            recentWorkoutCount: recentWorkoutCount,
+            partialLogCount: partialLogCount,
+            isActionable: isEstimateActionable,
+            guardrailMessage: tdeeGuardrailMessage
         )
         return Self.weeklyGoalProposal(
             snapshot: snapshot,
@@ -956,26 +1114,47 @@ public class AdaptiveGoalService: ObservableObject {
         )
     }
 
-    /// Calculate the true TDEE based on weight changes and caloric intake over the last 21 days.
+    /// Estimate TDEE from weight changes and logged caloric intake over the last 21 days.
     public func calculateExpenditure(weightHistory: [(id: String, date: Date, weight: Double)], dailyLogs: [DailyLog]) {
         guard let snapshot = Self.expenditureSnapshot(weightHistory: weightHistory, dailyLogs: dailyLogs) else { return }
 
         DispatchQueue.main.async {
-            self.recentWeighInCount = snapshot.recentWeighInCount
-            self.recentLogCount = snapshot.recentLogCount
-            self.recentValidLogCount = snapshot.validLogCount
-            self.recentWorkoutCount = snapshot.recentWorkoutCount
-
-            if let calculatedTDEE = snapshot.calculatedTDEE {
-                self.last21DaysCalorieAverage = snapshot.last21DaysCalorieAverage
-                self.weightChangeRatePerDay = snapshot.weightChangeRatePerDay
-                self.calculatedTDEE = calculatedTDEE
-                self.dataConfidence = snapshot.dataConfidence
-            } else {
-                self.dataConfidence = .insufficient
-                self.calculatedTDEE = nil
-            }
+            self.apply(snapshot)
         }
+    }
+
+    private func activateAccount(_ userID: String) {
+        guard activeUserID != userID else { return }
+        activeUserID = userID
+        activeCalculationRequestID = nil
+        calculatedTDEE = nil
+        weightTrendLine = []
+        calorieTrendLine = []
+        last21DaysCalorieAverage = nil
+        weightChangeRatePerDay = nil
+        dataConfidence = .insufficient
+        recentValidLogCount = 0
+        recentWorkoutCount = 0
+        recentWeighInCount = 0
+        recentLogCount = 0
+        partialLogCount = 0
+        isEstimateActionable = false
+        tdeeGuardrailMessage = nil
+        lastCalculationDate = nil
+    }
+
+    private func apply(_ snapshot: ExpenditureSnapshot) {
+        recentWeighInCount = snapshot.recentWeighInCount
+        recentLogCount = snapshot.recentLogCount
+        recentValidLogCount = snapshot.validLogCount
+        recentWorkoutCount = snapshot.recentWorkoutCount
+        partialLogCount = snapshot.partialLogCount
+        isEstimateActionable = snapshot.isActionable
+        tdeeGuardrailMessage = snapshot.guardrailMessage
+        last21DaysCalorieAverage = snapshot.last21DaysCalorieAverage
+        weightChangeRatePerDay = snapshot.weightChangeRatePerDay
+        calculatedTDEE = snapshot.calculatedTDEE
+        dataConfidence = snapshot.dataConfidence
     }
 
     private static func trainingLoadLabel(for workoutCount: Int) -> String {
@@ -1005,6 +1184,16 @@ public class AdaptiveGoalService: ObservableObject {
     }
     
     public func fetchAndCalculate(userID: String, goalSettings: GoalSettings, dailyLogService: DailyLogService) async {
+        let isCurrentAccount = await MainActor.run {
+            DIContainer.shared.authService.currentUserID == userID
+        }
+        guard isCurrentAccount else { return }
+        let requestID = UUID()
+        await MainActor.run {
+            self.activateAccount(userID)
+            self.activeCalculationRequestID = requestID
+        }
+
         let calendar = Calendar.current
         let today = Date()
         guard let twentyOneDaysAgo = calendar.date(byAdding: .day, value: -21, to: today) else { return }
@@ -1012,25 +1201,39 @@ public class AdaptiveGoalService: ObservableObject {
         let result = await dailyLogService.fetchDailyHistory(for: userID, startDate: twentyOneDaysAgo, endDate: today)
         switch result {
         case .success(let logs):
-            self.calculateExpenditure(weightHistory: goalSettings.weightHistory, dailyLogs: logs)
-            // Close the loop: if the user is already on adaptive TDEE, refresh their
-            // calorie/macro goals so the target tracks the freshly calculated metabolism.
-            // calculatedTDEE is assigned on the main queue inside calculateExpenditure, so this
-            // main-queue hop is guaranteed to run after that assignment (FIFO ordering).
+            guard let snapshot = Self.expenditureSnapshot(
+                weightHistory: goalSettings.weightHistory,
+                dailyLogs: logs
+            ) else { return }
             await MainActor.run {
-                if goalSettings.calorieGoalMethod == .dynamicTDEE {
+                guard DIContainer.shared.authService.currentUserID == userID,
+                      self.activeUserID == userID,
+                      self.activeCalculationRequestID == requestID else { return }
+                self.apply(snapshot)
+
+                // Close the loop: if the user is already on adaptive TDEE, refresh their
+                // calorie/macro goals so the target tracks the freshly calculated metabolism.
+                if goalSettings.calorieGoalMethod == .dynamicTDEE,
+                   self.isEstimateActionable {
                     goalSettings.recalculateAllGoals()
                 }
             }
         case .failure(let error):
-            print("AdaptiveGoalService Error: \(error.localizedDescription)")
+            AppLog.data.error(
+                "Adaptive goal calculation failed: \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 
     /// Throttled wrapper — recalculates at most once per calendar day. Safe to call on every Home
     /// appearance so the weekly check-in can surface without the user first visiting Reports.
     public func fetchAndCalculateIfNeeded(userID: String, goalSettings: GoalSettings, dailyLogService: DailyLogService) async {
+        let isCurrentAccount = await MainActor.run {
+            DIContainer.shared.authService.currentUserID == userID
+        }
+        guard isCurrentAccount else { return }
         let alreadyCalculatedToday = await MainActor.run { () -> Bool in
+            self.activateAccount(userID)
             if let last = self.lastCalculationDate {
                 return Calendar.current.isDateInToday(last)
             }
@@ -1039,6 +1242,10 @@ public class AdaptiveGoalService: ObservableObject {
         guard !alreadyCalculatedToday else { return }
 
         await fetchAndCalculate(userID: userID, goalSettings: goalSettings, dailyLogService: dailyLogService)
-        await MainActor.run { self.lastCalculationDate = Date() }
+        await MainActor.run {
+            guard DIContainer.shared.authService.currentUserID == userID,
+                  self.activeUserID == userID else { return }
+            self.lastCalculationDate = Date()
+        }
     }
 }

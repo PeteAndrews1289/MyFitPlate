@@ -18,19 +18,55 @@ public class AIService: AIServiceProtocol {
         maxTokens: Int = 2048,
         temperature: Double = 0.7,
         responseFormat: [String: Any]? = nil,
+        requestKind: AIRequestKind = .general,
         retryCount: Int = 1
     ) async -> Result<String, AIError> {
+        if let requiredFlag = requestKind.requiredFeatureFlag {
+            let isEnabled = DIContainer.shared.featureFlagService?.boolValue(for: requiredFlag)
+                ?? requiredFlag.defaultValue
+            guard isEnabled else {
+                return .failure(.featureUnavailable)
+            }
+        }
+
         guard let userID = DIContainer.shared.authService.currentUserID,
               AIDataConsentStore.shared.hasCurrentConsent(for: userID) else {
             NotificationCenter.default.post(name: .aiDataConsentRequired, object: nil)
             return .failure(.consentRequired)
+        }
+
+        return await performRequest(
+            messages: messages,
+            model: model,
+            maxTokens: maxTokens,
+            temperature: temperature,
+            responseFormat: responseFormat,
+            requestKind: requestKind,
+            retryCount: retryCount,
+            requestingUserID: userID
+        )
+    }
+
+    private func performRequest(
+        messages: [[String: Any]],
+        model: String,
+        maxTokens: Int,
+        temperature: Double,
+        responseFormat: [String: Any]?,
+        requestKind: AIRequestKind,
+        retryCount: Int,
+        requestingUserID: String
+    ) async -> Result<String, AIError> {
+        guard DIContainer.shared.authService.currentUserID == requestingUserID else {
+            return .failure(.accountChanged)
         }
         
         var requestData: [String: Any] = [
             "model": model,
             "messages": messages,
             "maxTokens": maxTokens,
-            "temperature": temperature
+            "temperature": temperature,
+            "requestKind": requestKind.rawValue
         ]
         
         if let format = responseFormat {
@@ -39,6 +75,9 @@ public class AIService: AIServiceProtocol {
 
         do {
             let result = try await functions.httpsCallable("generateAIResponse").call(requestData)
+            guard DIContainer.shared.authService.currentUserID == requestingUserID else {
+                return .failure(.accountChanged)
+            }
             guard let data = result.data as? [String: Any],
                   let content = data["content"] as? String else {
                 return .failure(.apiError("Invalid response from cloud function."))
@@ -46,9 +85,24 @@ public class AIService: AIServiceProtocol {
             return .success(content.trimmingCharacters(in: .whitespacesAndNewlines))
         } catch {
             if retryCount > 0 {
+                guard DIContainer.shared.authService.currentUserID == requestingUserID else {
+                    return .failure(.accountChanged)
+                }
                 AppLog.ai.warning("AI request failed. Retrying: \(error.localizedDescription, privacy: .public)")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
-                return await performRequest(messages: messages, model: model, maxTokens: maxTokens, temperature: temperature, responseFormat: responseFormat, retryCount: retryCount - 1)
+                guard DIContainer.shared.authService.currentUserID == requestingUserID else {
+                    return .failure(.accountChanged)
+                }
+                return await performRequest(
+                    messages: messages,
+                    model: model,
+                    maxTokens: maxTokens,
+                    temperature: temperature,
+                    responseFormat: responseFormat,
+                    requestKind: requestKind,
+                    retryCount: retryCount - 1,
+                    requestingUserID: requestingUserID
+                )
             }
             return .failure(.networkError(error))
         }

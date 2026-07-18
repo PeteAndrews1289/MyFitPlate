@@ -23,104 +23,74 @@ struct GrocerySummaryCard: View {
 
     private var progress: CGFloat {
         guard totalCount > 0 else { return 0 }
-        return CGFloat(Double(completedCount) / Double(totalCount))
+        return CGFloat(completedCount) / CGFloat(totalCount)
     }
 
     private var categoryLabel: String {
         categoryCount == 1 ? "category" : "categories"
     }
 
+    private var progressLabel: String {
+        if completedCount == totalCount {
+            return "All items checked"
+        }
+        return "\(Int((progress * 100).rounded()).formatted())% checked"
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Shopping run")
-                        .appFont(size: 21, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("\(remainingCount.formatted()) left across \(categoryCount.formatted()) \(categoryLabel).")
-                        .appFont(size: 13, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
-                HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Shopping Run",
+                subtitle: "\(remainingCount.formatted()) left across \(categoryCount.formatted()) \(categoryLabel)."
+            ) {
+                HStack(spacing: AppSpacing.compact) {
                     Button(action: onAddManual) {
                         Image(systemName: "plus")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.white)
-                            .frame(width: 42, height: 42)
-                            .background(Color.brandPrimary, in: Circle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppIconButtonStyle(.brand))
                     .accessibilityLabel("Add grocery item")
+                    .accessibilityIdentifier("grocery_add_item")
 
                     Button(action: onScan) {
                         Image(systemName: "barcode.viewfinder")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .frame(width: 42, height: 42)
-                            .background(Color(UIColor.secondarySystemFill), in: Circle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppIconButtonStyle(.neutral))
                     .accessibilityLabel("Scan barcode")
+                    .accessibilityIdentifier("grocery_scan_item")
                 }
             }
 
-            HStack(spacing: 10) {
-                GroceryMetricTile(title: "Items", value: totalCount.formatted(), color: .blue)
-                GroceryMetricTile(title: "Done", value: completedCount.formatted(), color: .accentPositive)
-                GroceryMetricTile(title: "Left", value: remainingCount.formatted(), color: .orange)
-            }
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Items", value: totalCount.formatted()),
+                AppMetricItem(label: "Checked", value: completedCount.formatted(), accent: .accentPositive),
+                AppMetricItem(label: "Left", value: remainingCount.formatted(), accent: AppPalette.caution)
+            ])
+            .accessibilityIdentifier("grocery_summary_metrics")
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         Capsule()
-                            .fill(Color.primary.opacity(0.08))
+                            .fill(AppPalette.separator.opacity(0.5))
 
                         Capsule()
                             .fill(Color.accentPositive)
                             .frame(width: geometry.size.width * progress)
                     }
                 }
-                .frame(height: 8)
+                .frame(height: 7)
+                .accessibilityHidden(true)
 
-                Text(completedCount == totalCount ? "All set for this list." : "\(Int((progress * 100).rounded()).formatted())% checked off")
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                Text(progressLabel)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Shopping progress, \(progressLabel)")
         }
-        .padding(.vertical, 2)
-        .glassCard()
-    }
-}
-
-struct GroceryMetricTile: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .appFont(size: 21, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-
-            HStack(spacing: 5) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 6, height: 6)
-
-                Text(title)
-                    .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .padding(.vertical, AppSpacing.compact)
+        .overlay(alignment: .bottom) { Divider() }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("grocery_summary")
     }
 }

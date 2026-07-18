@@ -111,6 +111,56 @@ final class FoodSourceAgreementTests: XCTestCase {
             .withDatabaseSource(.fatSecret, sourceName: "FatSecret", barcode: "0123456789")
         let verified = item.withCrossVerification(["USDA"])
         XCTAssertEqual(verified.sourceMetadata?.crossVerifiedBy, ["USDA"])
+        XCTAssertEqual(verified.sourceMetadata?.validatedCrossVerificationEvidence.count, 1)
+        XCTAssertEqual(
+            verified.sourceMetadata?.validatedCrossVerificationEvidence.first?.lineage,
+            .manufacturerLabel
+        )
+    }
+
+    func testAgreeingEvidencePreservesCandidateLineageAndDates() {
+        let updatedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let primary = food(calories: 380, protein: 8, carbs: 70, fats: 6, servingWeight: 100)
+            .withDatabaseSource(.fatSecret, sourceName: "FatSecret")
+        var candidateMetadata = FoodSourceMetadata.database(
+            .usda,
+            sourceName: "USDA FoodData Central",
+            sourceID: "usda_10",
+            evidenceLineage: .manufacturerLabel,
+            sourceUpdatedAt: updatedAt
+        )
+        candidateMetadata.confidence = .databaseMatch
+        let candidate = food(calories: 375, protein: 8.2, carbs: 69, fats: 6.1, servingWeight: 100)
+            .withSourceMetadata(candidateMetadata)
+
+        let evidence = FoodSourceAgreement.agreeingEvidence(
+            primary: primary,
+            candidates: [("USDA", candidate)]
+        )
+
+        XCTAssertEqual(evidence.count, 1)
+        XCTAssertEqual(evidence.first?.sourceName, "USDA")
+        XCTAssertEqual(evidence.first?.lineage, .manufacturerLabel)
+        XCTAssertEqual(evidence.first?.sourceUpdatedAt, updatedAt)
+    }
+
+    func testStructuredEvidenceRemainsValidWithoutLegacyNameArray() {
+        var metadata = FoodSourceMetadata.database(
+            .fatSecret,
+            sourceName: "FatSecret",
+            sourceID: "fatsecret_10"
+        )
+        metadata.crossVerificationEvidence = [
+            FoodVerificationEvidence(
+                sourceName: "USDA",
+                sourceType: .usda,
+                lineage: .manufacturerLabel,
+                sourceID: "usda_10"
+            )
+        ]
+
+        XCTAssertEqual(metadata.validatedCrossVerificationEvidence.map(\.sourceName), ["USDA"])
+        XCTAssertTrue(metadata.hasCrossDatabaseAgreement)
     }
 
     func testCrossVerificationRejectsSelfReferencesDuplicatesAndUnknownSources() {
@@ -124,6 +174,19 @@ final class FoodSourceAgreementTests: XCTestCase {
 
         XCTAssertEqual(verified.sourceMetadata?.crossVerifiedBy, ["USDA", "Open Food Facts"])
         XCTAssertEqual(verified.sourceMetadata?.validatedCrossVerifiedBy, ["USDA", "Open Food Facts"])
+    }
+
+    func testHealthCanadaCanParticipateInValidatedAgreement() {
+        let item = food(calories: 165, protein: 31, carbs: 0, fats: 3.6, servingWeight: 100)
+            .withDatabaseSource(.fatSecret, sourceName: "FatSecret")
+
+        let verified = item.withCrossVerification(["Health Canada", "Canadian Nutrient File"])
+
+        XCTAssertEqual(verified.sourceMetadata?.validatedCrossVerifiedBy, ["Health Canada CNF"])
+        XCTAssertEqual(
+            verified.sourceMetadata?.validatedCrossVerificationEvidence.first?.sourceType,
+            .healthCanadaCNF
+        )
     }
 
     func testCustomFoodCannotClaimIndependentCrossVerification() {
@@ -156,6 +219,7 @@ final class FoodSourceAgreementTests: XCTestCase {
             from: JSONEncoder().encode(metadata)
         )
         XCTAssertEqual(decoded.crossVerifiedBy, ["USDA", "Open Food Facts"])
+        XCTAssertEqual(decoded.sourceObservedAt, metadata.sourceObservedAt)
     }
 
     func testLegacyMetadataWithoutFieldDecodes() throws {

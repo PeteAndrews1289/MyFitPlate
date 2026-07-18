@@ -2,6 +2,7 @@ import SwiftUI
 import MyFitPlateCore
 
 struct SettingsPreferencesSection: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject var healthKitViewModel: HealthKitViewModel
     @EnvironmentObject var goalSettings: GoalSettings
     @Binding var includeActiveCaloriesInGoal: Bool
@@ -19,7 +20,7 @@ struct SettingsPreferencesSection: View {
     @StateObject private var ttsManager = TTSManager.shared
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: AppSpacing.section) {
             SettingsSectionCard(title: "Integrations") {
                 Button(action: {
                     healthKitViewModel.requestAuthorization()
@@ -32,10 +33,11 @@ struct SettingsPreferencesSection: View {
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text(healthKitViewModel.isAuthorized ? "Review Health access" : "Connect Apple Health")
-                                .appFont(size: 15, weight: .semibold)
+                                .appTextRole(.control)
                             Text(healthKitViewModel.isAuthorized ? "Refresh workouts, sleep, and recovery permissions." : "Import workouts and sleep where available.")
-                                .appFont(size: 12)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
+                                .appTextRole(.secondary)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         
                         Spacer()
@@ -60,22 +62,20 @@ struct SettingsPreferencesSection: View {
                         SettingsLabel(
                             icon: "flame.fill",
                             title: "Include active calories",
-                            subtitle: "Add exercise calories burned to your daily food allowance.",
-                            color: .orange
+                            subtitle: "Add exercise calories burned to your daily food allowance."
                         )
                     }
-                    .tint(.blue)
-                    .padding(16)
+                    .padding(AppSpacing.group)
                 }
             }
+            .accessibilityIdentifier("settings_integrations")
 
             SettingsSectionCard(title: "Notifications") {
                 VStack(alignment: .leading, spacing: 10) {
                     SettingsLabel(
                         icon: "bell.fill",
                         title: "Daily log reminder",
-                        subtitle: "Nightly check-in to log your meals.",
-                        color: .orange
+                        subtitle: "Nightly check-in to log your meals."
                     )
                     DatePicker("", selection: $notificationTimeBinding, displayedComponents: .hourAndMinute)
                         .labelsHidden()
@@ -89,8 +89,7 @@ struct SettingsPreferencesSection: View {
                         SettingsLabel(
                             icon: "drop.fill",
                             title: "Hydration reminders",
-                            subtitle: "Gentle nudges to drink water through the day.",
-                            color: .blue
+                            subtitle: "Gentle nudges to drink water through the day."
                         )
                     }
                     .onChange(of: hydrationRemindersEnabled) { _, enabled in
@@ -103,8 +102,7 @@ struct SettingsPreferencesSection: View {
                         SettingsLabel(
                             icon: "scalemass.fill",
                             title: "Weigh-in reminder",
-                            subtitle: "A morning nudge to log your weight.",
-                            color: .blue
+                            subtitle: "A morning nudge to log your weight."
                         )
                     }
                     .onChange(of: weighInReminderEnabled) { _, enabled in
@@ -117,8 +115,7 @@ struct SettingsPreferencesSection: View {
                         SettingsLabel(
                             icon: "bolt.fill",
                             title: "Training & Fuel",
-                            subtitle: "Choose only the moments when a reminder would help.",
-                            color: .orange
+                            subtitle: "Choose only the moments when a reminder would help."
                         )
 
                         Toggle("Before training", isOn: $preSessionFuelRemindersEnabled)
@@ -136,71 +133,51 @@ struct SettingsPreferencesSection: View {
 
                         if trainingFuelRemindersEnabled {
                             Divider()
-                            HStack {
-                                Text("Quiet hours")
-                                    .appFont(size: 14, weight: .semibold)
-                                Spacer()
-                                DatePicker("Start", selection: $quietStartBinding, displayedComponents: .hourAndMinute)
-                                    .labelsHidden()
-                                Text("to")
-                                    .foregroundStyle(.secondary)
-                                DatePicker("End", selection: $quietEndBinding, displayedComponents: .hourAndMinute)
-                                    .labelsHidden()
+                            quietHoursControls
+                            .onChange(of: quietStartBinding) { _, _ in
+                                if quietHoursAreValid { postTrainingFuelPreferenceChange() }
                             }
-                            .onChange(of: quietStartBinding) { _, _ in postTrainingFuelPreferenceChange() }
-                            .onChange(of: quietEndBinding) { _, _ in postTrainingFuelPreferenceChange() }
+                            .onChange(of: quietEndBinding) { _, _ in
+                                if quietHoursAreValid { postTrainingFuelPreferenceChange() }
+                            }
+
+                            Label(quietHoursStatusText, systemImage: quietHoursAreValid ? "moon.zzz" : "exclamationmark.triangle")
+                                .appTextRole(.caption)
+                                .foregroundStyle(quietHoursAreValid ? Color.secondary : AppPalette.caution)
+                                .fixedSize(horizontal: false, vertical: true)
 
                             if eveningProteinRemindersEnabled {
-                                HStack {
-                                    Text("Evening reminder")
-                                        .appFont(size: 14, weight: .semibold)
-                                    Spacer()
-                                    DatePicker(
-                                        "Evening reminder",
-                                        selection: $eveningProteinTimeBinding,
-                                        displayedComponents: .hourAndMinute
-                                    )
-                                    .labelsHidden()
-                                }
+                                eveningReminderControl
                                 .onChange(of: eveningProteinTimeBinding) { _, _ in postTrainingFuelPreferenceChange() }
                             }
                         }
                     }
                 }
-                .padding(16)
+                .padding(AppSpacing.group)
             }
+            .accessibilityIdentifier("settings_notifications")
 
             SettingsSectionCard(title: "Training") {
                 VStack(alignment: .leading, spacing: 12) {
                     SettingsLabel(
                         icon: "figure.strengthtraining.traditional",
                         title: "Set effort metric",
-                        subtitle: "How you rate each set — RPE (how hard, 6–10) or RIR (reps left in the tank).",
-                        color: .brandPrimary
+                        subtitle: "Choose RPE for effort from 6 to 10, or RIR for reps left in the tank."
                     )
-                    Picker("Effort metric", selection: $liftingEffortMetric) {
-                        Text("RPE").tag("rpe")
-                        Text("RIR").tag("rir")
-                    }
-                    .pickerStyle(.segmented)
+                    effortPicker
                 }
-                .padding(16)
+                .padding(AppSpacing.group)
             }
+            .accessibilityIdentifier("settings_training")
 
             SettingsSectionCard(title: "Maia") {
                 VStack(alignment: .leading, spacing: 12) {
                     SettingsLabel(
                         icon: "sparkles",
                         title: "Assistant tone",
-                        subtitle: "How Maia talks to you — Balanced, Coach (motivating), or Analyst (data-first).",
-                        color: .brandPrimary
+                        subtitle: "Choose Balanced, motivating Coach, or data-first Analyst."
                     )
-                    Picker("Assistant tone", selection: $goalSettings.maiaTone) {
-                        Text("Balanced").tag("Balanced")
-                        Text("Coach").tag("Coach")
-                        Text("Analyst").tag("Analyst")
-                    }
-                    .pickerStyle(.segmented)
+                    tonePicker
                     .onChange(of: goalSettings.maiaTone) { _, _ in
                         guard let userID = DIContainer.shared.authService.currentUserID else { return }
                         goalSettings.saveUserGoals(userID: userID)
@@ -211,8 +188,7 @@ struct SettingsPreferencesSection: View {
                     SettingsLabel(
                         icon: "waveform",
                         title: "Spoken voice",
-                        subtitle: spokenVoiceSubtitle,
-                        color: .blue
+                        subtitle: spokenVoiceSubtitle
                     )
 
                     if !ttsManager.availableVoices.isEmpty {
@@ -224,7 +200,7 @@ struct SettingsPreferencesSection: View {
                             )
                         ) {
                             ForEach(ttsManager.availableVoices) { voice in
-                                Text("\(voice.name) (\(voice.quality.label))")
+                                Text(voice.pickerLabel)
                                     .tag(voice.id)
                             }
                         }
@@ -241,16 +217,15 @@ struct SettingsPreferencesSection: View {
                                 ttsManager.isSpeaking ? "Stop Preview" : "Preview Voice",
                                 systemImage: ttsManager.isSpeaking ? "stop.fill" : "speaker.wave.2.fill"
                             )
-                            .appFont(size: 14, weight: .semibold)
-                            .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.bordered)
-                        .tint(.brandPrimary)
+                        .buttonStyle(AppActionButtonStyle(.secondary))
                     }
                 }
-                .padding(16)
+                .padding(AppSpacing.group)
             }
+            .accessibilityIdentifier("settings_maia")
         }
+        .tint(AppPalette.brand)
         .onAppear {
             ttsManager.refreshAvailableVoices()
         }
@@ -261,16 +236,121 @@ struct SettingsPreferencesSection: View {
 
     private var spokenVoiceSubtitle: String {
         guard let voice = ttsManager.selectedVoiceOption else {
-            return "Uses the best English voice available on this iPhone."
+            return "Uses the best natural voice currently installed on this iPhone."
+        }
+        if voice.isOnline {
+            return "AI-generated online voice with a local iPhone voice fallback when unavailable."
         }
         if ttsManager.hasNaturalQualityVoice {
-            return "\(voice.name) is a downloaded \(voice.quality.label.lowercased()) voice."
+            return "\(voice.name) · \(voice.accentLabel) · downloaded \(voice.quality.label.lowercased()) quality."
         }
-        return "\(voice.name) is a standard system voice. Enhanced and Premium voices sound more natural."
+        return "\(voice.name) · \(voice.accentLabel). Download an Enhanced or Premium voice in Accessibility > Spoken Content for a more natural result."
+    }
+
+    @ViewBuilder
+    private var quietHoursControls: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                Text("Quiet hours")
+                    .appTextRole(.control)
+                DatePicker("Starts", selection: $quietStartBinding, displayedComponents: .hourAndMinute)
+                DatePicker("Ends", selection: $quietEndBinding, displayedComponents: .hourAndMinute)
+            }
+        } else {
+            HStack(spacing: AppSpacing.compact) {
+                Text("Quiet hours")
+                    .appTextRole(.control)
+                Spacer(minLength: AppSpacing.compact)
+                DatePicker("Start", selection: $quietStartBinding, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                Text("to")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                DatePicker("End", selection: $quietEndBinding, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var eveningReminderControl: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            DatePicker(
+                "Evening reminder",
+                selection: $eveningProteinTimeBinding,
+                displayedComponents: .hourAndMinute
+            )
+        } else {
+            HStack {
+                Text("Evening reminder")
+                    .appTextRole(.control)
+                Spacer()
+                DatePicker(
+                    "Evening reminder",
+                    selection: $eveningProteinTimeBinding,
+                    displayedComponents: .hourAndMinute
+                )
+                .labelsHidden()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var effortPicker: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Picker("Effort metric", selection: $liftingEffortMetric) {
+                Text("RPE").tag("rpe")
+                Text("RIR").tag("rir")
+            }
+            .pickerStyle(.menu)
+        } else {
+            Picker("Effort metric", selection: $liftingEffortMetric) {
+                Text("RPE").tag("rpe")
+                Text("RIR").tag("rir")
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
+    @ViewBuilder
+    private var tonePicker: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Picker("Assistant tone", selection: $goalSettings.maiaTone) {
+                Text("Balanced").tag("Balanced")
+                Text("Coach").tag("Coach")
+                Text("Analyst").tag("Analyst")
+            }
+            .pickerStyle(.menu)
+        } else {
+            Picker("Assistant tone", selection: $goalSettings.maiaTone) {
+                Text("Balanced").tag("Balanced")
+                Text("Coach").tag("Coach")
+                Text("Analyst").tag("Analyst")
+            }
+            .pickerStyle(.segmented)
+        }
     }
 
     private var trainingFuelRemindersEnabled: Bool {
         preSessionFuelRemindersEnabled || recoveryFuelRemindersEnabled || eveningProteinRemindersEnabled
+    }
+
+    private var quietHoursAreValid: Bool {
+        minuteOfDay(quietStartBinding) != minuteOfDay(quietEndBinding)
+    }
+
+    private var quietHoursStatusText: String {
+        guard quietHoursAreValid else {
+            return "Choose different start and end times so quiet hours can take effect."
+        }
+        let start = quietStartBinding.formatted(date: .omitted, time: .shortened)
+        let end = quietEndBinding.formatted(date: .omitted, time: .shortened)
+        return "Training reminders stay quiet from \(start) to \(end), including overnight."
+    }
+
+    private func minuteOfDay(_ date: Date) -> Int {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (components.hour ?? 0) * 60 + (components.minute ?? 0)
     }
 
     private func trainingFuelPreferenceChanged(requestPermission: Bool) {

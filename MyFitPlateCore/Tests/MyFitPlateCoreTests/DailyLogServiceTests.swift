@@ -6,6 +6,7 @@ final class DailyLogServiceTests: XCTestCase {
     
     var service: DailyLogService!
     var mockRepo: MockNutritionRepository!
+    var mockAuth: MockAuthService!
     var goalSettings: GoalSettings!
     var bannerService: BannerService!
     var mockCrashManager: MockCrashManager!
@@ -15,13 +16,16 @@ final class DailyLogServiceTests: XCTestCase {
         super.setUp()
         mockRepo = MockNutritionRepository()
         DIContainer.shared.nutritionRepository = mockRepo
-        DIContainer.shared.authService = MockAuthService() // Assumes there's a MockAuthService
+        mockAuth = MockAuthService()
+        mockAuth.currentUserID = "user"
+        DIContainer.shared.authService = mockAuth
         mockCrashManager = MockCrashManager()
         mockAnalyticsManager = MockAnalyticsManager()
         DIContainer.shared.crashManager = mockCrashManager
         DIContainer.shared.analyticsManager = mockAnalyticsManager
         
         service = DailyLogService()
+        service.activateAccount("user")
         goalSettings = GoalSettings()
         bannerService = BannerService()
         
@@ -205,6 +209,26 @@ final class DailyLogServiceTests: XCTestCase {
         }
         
         await fulfillment(of: [expectation], timeout: 1.0)
+    }
+
+    func testRecommendedFoodsCompletingAfterAccountSwitchAreRejected() async {
+        mockRepo.shouldDeferRecommendedFoodCallbacks = true
+        let completion = expectation(description: "Stale recommendation is rejected")
+
+        service.fetchRecommendedFoods(for: "user", mealName: "Breakfast") { result in
+            if case .success = result {
+                XCTFail("The previous account's recommendations must not be delivered.")
+            }
+            completion.fulfill()
+        }
+
+        mockAuth.currentUserID = "user-2"
+        service.activateAccount("user-2")
+        mockRepo.completeDeferredRecommendedFoodFetches(with: .success([
+            FoodItem(id: "old", name: "Old account oats", calories: 150)
+        ]))
+
+        await fulfillment(of: [completion], timeout: 1.0)
     }
 
     func testAddFoodToPastDateDoesNotReplaceCurrentDailyLog() async throws {
@@ -418,6 +442,25 @@ final class DailyLogServiceTests: XCTestCase {
         }
     }
 
+    func testDailyHistoryCompletingAfterAccountSwitchIsRejected() async {
+        mockRepo.fetchDailyHistoryDelayNanoseconds = 75_000_000
+        mockRepo.mockFetchDailyHistoryResult = .success([
+            DailyLog(id: "old-account-history", date: Date(), meals: [])
+        ])
+
+        let resultTask = Task {
+            await service.fetchDailyHistory(for: "user", startDate: nil, endDate: nil)
+        }
+        await Task.yield()
+        mockAuth.currentUserID = "user-2"
+        service.activateAccount("user-2")
+
+        let result = await resultTask.value
+        if case .success = result {
+            XCTFail("History from the previous account must not be delivered.")
+        }
+    }
+
     func testLoadSmartSuggestionsDeduplicatesRecentFoods() async {
         mockRepo.recentFoodsToReturn = [
             FoodItem(id: "1", name: "Apple", calories: 95),
@@ -469,7 +512,7 @@ final class DailyLogServiceTests: XCTestCase {
         service.activelyViewedDate = date
         mockRepo.mockFetchLogResult = .success(DailyLog(id: "1", date: date, meals: []))
         
-        var food = FoodItem(id: "f1", name: "Apple", calories: 95)
+        let food = FoodItem(id: "f1", name: "Apple", calories: 95)
         // Add a case where normalizedForEstimatedSource changes calories if source is some specific string
         // Actually we just test that the logging calls the normalizer and adds it.
         service.addFoodToLog(for: "user", date: date, mealName: "Snack", foodItem: food, source: "estimate")
@@ -511,5 +554,102 @@ final class DailyLogServiceTests: XCTestCase {
             exp.fulfill()
         }
         await fulfillment(of: [exp], timeout: 1.0)
+    }
+
+    func testFoodLoggedNotificationExposesTypedPayload() throws {
+        let food = FoodItem(id: "persisted-food", name: "Greek yogurt", calories: 140)
+        let notification = Notification(
+            name: .foodItemLogged,
+            userInfo: [
+                DailyLogNotificationUserInfoKey.foodItem: food,
+                DailyLogNotificationUserInfoKey.userID: "user-1"
+            ]
+        )
+        let payload = try XCTUnwrap(DailyLogNotifications.foodLoggedPayload(from: notification))
+        XCTAssertEqual(payload.foodItem, food)
+        XCTAssertEqual(payload.userID, "user-1")
+    }
+
+    func testFoodLoggedPayloadRejectsWrongNotificationAndEmptyAccount() {
+        XCTAssertNil(DailyLogNotifications.foodLoggedPayload(from: Notification(name: .didUpdateExerciseLog)))
+        XCTAssertNil(DailyLogNotifications.foodLoggedPayload(from: Notification(
+            name: .foodItemLogged,
+            userInfo: [
+                "foodItem": FoodItem(id: "food", name: "Oats", calories: 150),
+                "userID": ""
+            ]
+        )))
+    }
+
+    func testTwoFetchesWhileInitialListenerIsPendingBothComplete() async {
+        let date = Calendar.current.startOfDay(for: Date())
+        mockRepo.shouldDeferLogSnapshotCallbacks = true
+
+        let first = expectation(description: "First fetch completes")
+        let second = expectation(description: "Second fetch completes")
+        service.fetchLog(for: "user", date: date) { result in
+            XCTAssertEqual(try? result.get().id, "user-log")
+            first.fulfill()
+        }
+        service.fetchLog(for: "user", date: date) { result in
+            XCTAssertEqual(try? result.get().id, "user-log")
+            second.fulfill()
+        }
+
+        mockRepo.emitLogSnapshot(.success(DailyLog(id: "user-log", date: date, meals: [])), for: "user")
+
+        await fulfillment(of: [first, second], timeout: 1.0)
+    }
+
+    func testAccountSwitchClearsLogAndIgnoresLatePreviousAccountListener() async {
+        let date = Calendar.current.startOfDay(for: Date())
+        mockRepo.shouldDeferLogSnapshotCallbacks = true
+
+        service.fetchLog(for: "user", date: date) { _ in }
+        mockAuth.currentUserID = "user-2"
+        service.activateAccount("user-2")
+        service.fetchLog(for: "user-2", date: date) { _ in }
+
+        mockRepo.emitLogSnapshot(.success(DailyLog(id: "old-account", date: date, meals: [])), for: "user")
+        await Task.yield()
+        XCTAssertNil(service.currentDailyLog)
+
+        mockRepo.emitLogSnapshot(.success(DailyLog(id: "new-account", date: date, meals: [])), for: "user-2")
+        await Task.yield()
+        XCTAssertEqual(service.currentDailyLog?.id, "new-account")
+    }
+
+    func testMutationCompletingAfterAccountSwitchCannotPublishOldAccountState() async {
+        let date = Calendar.current.startOfDay(for: Date())
+        mockRepo.mockFetchLogResult = .success(DailyLog(id: "old-account", date: date, meals: []))
+        mockRepo.shouldDeferDailyLogUpdateCompletions = true
+
+        service.addFoodToLog(
+            for: "user",
+            date: date,
+            mealName: "Breakfast",
+            foodItem: FoodItem(id: "food", name: "Oats", calories: 150)
+        )
+        await Task.yield()
+        XCTAssertEqual(mockRepo.deferredDailyLogUpdateCompletions.count, 1)
+
+        mockAuth.currentUserID = "user-2"
+        service.activateAccount("user-2")
+        mockRepo.completeDeferredDailyLogUpdates(success: true)
+        await Task.yield()
+
+        XCTAssertNil(service.currentDailyLog)
+        XCTAssertNil(bannerService.currentBanner)
+    }
+
+    func testSignOutClearsAccountScopedDailyLogAndSuggestions() {
+        service.publishCurrentDailyLog(DailyLog(id: "user-log", date: Date(), meals: []))
+        service.smartSuggestions = [FoodItem(id: "food", name: "Oats", calories: 150)]
+
+        mockAuth.currentUserID = nil
+        service.activateAccount(nil)
+
+        XCTAssertNil(service.currentDailyLog)
+        XCTAssertTrue(service.smartSuggestions.isEmpty)
     }
 }

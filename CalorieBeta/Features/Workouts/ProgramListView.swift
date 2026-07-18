@@ -33,6 +33,7 @@ struct ProgramListView: View {
             }
             .padding()
         }
+        .accessibilityIdentifier("saved_programs")
         .background(Color.backgroundPrimary.ignoresSafeArea())
         .navigationTitle("Saved Plans")
         .navigationBarTitleDisplayMode(.inline)
@@ -47,7 +48,13 @@ struct ProgramListView: View {
             }
         }
         .sheet(isPresented: $showingProgramCreator) {
-            ProgramCreatorView(workoutService: workoutService, programToEdit: programToEdit)
+            NavigationStack {
+                ProgramCreatorView(
+                    workoutService: workoutService,
+                    programToEdit: programToEdit,
+                    isPresentedModally: true
+                )
+            }
         }
     }
 
@@ -92,35 +99,26 @@ struct SavedProgramsHeader: View {
     let activeProgramName: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Saved Plans")
-                        .appFont(size: 25, weight: .bold)
-                        .foregroundColor(.textPrimary)
+        AppScreenHeader(
+            eyebrow: "Training Library",
+            title: "Your Training Plans",
+            subtitle: activeProgramName.map { "Active now: \($0)" }
+                ?? "Choose a plan, review its rotation, or adjust its schedule."
+        ) {
+            VStack(spacing: 0) {
+                Text("\(programCount)")
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.brandText)
 
-                    Text(activeProgramName.map { "Active now: \($0)" } ?? "Select a plan as active, open details, or adjust a schedule.")
-                        .appFont(size: 14)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer()
-
-                VStack(spacing: 0) {
-                    Text("\(programCount)")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.brandPrimary)
-
-                    Text("plans")
-                        .appFont(size: 10, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-                .frame(width: 52, height: 52)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                Text(programCount == 1 ? "plan" : "plans")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
             }
+            .frame(minWidth: 52, minHeight: 52)
+            .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(programCount) saved \(programCount == 1 ? "plan" : "plans")")
         }
-        .asCard()
     }
 }
 
@@ -128,32 +126,28 @@ struct SavedProgramsEmptyState: View {
     let onCreate: () -> Void
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
             Image(systemName: "folder.badge.plus")
-                .appFont(size: 30, weight: .semibold)
-                .foregroundColor(.brandPrimary)
-                .frame(width: 62, height: 62)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
+                .appFont(size: 26, weight: .semibold)
+                .foregroundStyle(AppPalette.brandText)
+                .accessibilityHidden(true)
 
             Text("No saved plans yet")
-                .appFont(size: 19, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
 
             Text("Choose a pre-built program, generate one with AI, or build a plan manually.")
-                .appFont(size: 13)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .multilineTextAlignment(.center)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Button(action: onCreate) {
                 Label("Build a Plan", systemImage: "plus")
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(AppActionButtonStyle(.primary))
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .padding(.horizontal, 18)
-        .asCard()
+        .appSurface(.quiet)
     }
 }
 
@@ -191,7 +185,7 @@ struct SavedProgramCard<Destination: View>: View {
 
     private var statusColor: Color {
         if isActive { return .accentPositive }
-        return program.startDate == nil ? .orange : .brandPrimary
+        return program.startDate == nil ? AppPalette.caution : AppPalette.brand
     }
 
     private var scheduleText: String {
@@ -202,33 +196,33 @@ struct SavedProgramCard<Destination: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: isActive ? "checkmark.seal.fill" : "calendar.badge.clock")
-                    .appFont(size: 18, weight: .bold)
-                    .foregroundColor(statusColor)
-                    .frame(width: 42, height: 42)
-                    .background(statusColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .appFont(size: 18, weight: .semibold)
+                    .foregroundStyle(statusColor)
+                    .frame(width: 40, height: 40)
+                    .background(statusColor.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
                         SavedProgramStatusPill(title: statusTitle, color: statusColor)
 
                         Text(scheduleText)
-                            .appFont(size: 11, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.82)
                     }
 
                     Text(program.name)
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                        .appTextRole(.sectionTitle)
+                        .foregroundStyle(AppPalette.text)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text("\(program.routines.count) routine rotation")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer(minLength: 0)
@@ -238,43 +232,42 @@ struct SavedProgramCard<Destination: View>: View {
                     Button("Delete", role: .destructive) { onDelete() }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .appFont(size: 14, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(width: 34, height: 34)
-                        .background(Color.backgroundPrimary.opacity(0.68), in: Circle())
+                }
+                .buttonStyle(AppIconButtonStyle(.plain))
+                .accessibilityLabel("Options for \(program.name)")
+            }
+
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Progress", value: progressText, accent: AppPalette.brand),
+                AppMetricItem(label: "Days / week", value: trainingDays == 0 ? "Unset" : "\(trainingDays)", accent: AppPalette.effort),
+                AppMetricItem(label: "Sets", value: "\(totalSetCount)", accent: .accentPositive)
+            ])
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppSpacing.compact) {
+                    actionLinks
+                }
+
+                VStack(spacing: AppSpacing.compact) {
+                    actionLinks
                 }
             }
+        }
+        .appSurface(.emphasized)
+    }
 
-            HStack(spacing: 10) {
-                SavedProgramMetric(title: "Progress", value: progressText, color: .brandPrimary)
-                SavedProgramMetric(title: "Days/wk", value: trainingDays == 0 ? "Unset" : "\(trainingDays)", color: .blue)
-                SavedProgramMetric(title: "Sets", value: "\(totalSetCount)", color: .accentPositive)
-            }
-
-            HStack(spacing: 10) {
+    @ViewBuilder
+    private var actionLinks: some View {
                 NavigationLink(destination: destination()) {
                     Label("Details", systemImage: "doc.text.magnifyingglass")
-                        .appFont(size: 14, weight: .bold)
-                        .foregroundColor(.brandPrimary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppActionButtonStyle(.secondary))
 
                 Button(action: onSetActive) {
                     Label(isActive ? "Active" : "Set Active", systemImage: isActive ? "checkmark.circle.fill" : "target")
-                        .appFont(size: 14, weight: .bold)
-                        .foregroundColor(isActive ? .accentPositive : .white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(isActive ? Color.accentPositive.opacity(0.12) : Color.brandPrimary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppActionButtonStyle(isActive ? .secondary : .primary))
                 .disabled(isActive)
-            }
-        }
-        .asCard()
     }
 }
 
@@ -284,54 +277,11 @@ struct SavedProgramStatusPill: View {
 
     var body: some View {
         Text(title)
-            .appFont(size: 10, weight: .bold)
-            .foregroundColor(color)
+            .appTextRole(.caption)
+            .foregroundStyle(color)
             .textCase(.uppercase)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
             .background(color.opacity(0.10), in: Capsule())
-    }
-}
-
-struct SavedProgramMetric: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(color)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-
-            Text(title)
-                .appFont(size: 10, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-}
-enum MuscleGroup: String, CaseIterable {
-    case chest = "Chest"
-    case back = "Back"
-    case legs = "Legs"
-    case arms = "Arms"
-    case core = "Core"
-    case shoulders = "Shoulders"
-    
-    var icon: String {
-        switch self {
-        case .chest: return "shield.fill" // Or figure.strengthtraining.traditional
-        case .back: return "figure.flexibility"
-        case .legs: return "figure.walk"
-        case .arms: return "figure.arms.open"
-        case .core: return "circle.grid.2x2.fill"
-        case .shoulders: return "figure.stand"
-        }
     }
 }

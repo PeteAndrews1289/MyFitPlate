@@ -13,98 +13,52 @@ struct ProgramDetailHeroCard: View {
     let setCount: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Training Program")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .textCase(.uppercase)
-
-                    Text(programName)
-                        .appFont(size: 27, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text(statusText)
-                        .appFont(size: 14)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 12)
-
-                VStack(spacing: 2) {
-                    Text("\(Int((progress * 100).rounded()))%")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.brandPrimary)
-
-                    Text("done")
-                        .appFont(size: 10, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-                .frame(width: 62, height: 62)
-                .background(Color.brandPrimary.opacity(0.10), in: Circle())
-                .overlay(
-                    Circle()
-                        .trim(from: 0, to: max(progress, 0.02))
-                        .stroke(Color.brandPrimary, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                )
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppScreenHeader(
+                eyebrow: "Training Program",
+                title: programName,
+                subtitle: statusText
+            ) {
+                Text("\(Int((progress * 100).rounded()))% complete")
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.brandText)
+                    .padding(.horizontal, AppSpacing.row)
+                    .frame(minHeight: 36)
+                    .background(
+                        AppPalette.brand.opacity(0.10),
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
+                    .accessibilityLabel("\(Int((progress * 100).rounded())) percent complete")
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("\(completedWorkouts) of \(totalWorkouts) workouts complete")
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-
-                    Spacer()
-                }
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                Text("\(completedWorkouts) of \(totalWorkouts) sessions complete")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
 
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         Capsule()
-                            .fill(Color.brandPrimary.opacity(0.12))
+                            .fill(AppPalette.brand.opacity(0.12))
 
                         Capsule()
-                            .fill(Color.brandPrimary)
+                            .fill(AppPalette.brand)
                             .frame(width: geometry.size.width * CGFloat(progress))
-                            .animation(.easeInOut(duration: 0.35), value: progress)
+                            .animation(AppMotion.standard, value: progress)
                     }
                 }
                 .frame(height: 8)
+                .accessibilityHidden(true)
+
+                AppMetricStrip(items: [
+                    AppMetricItem(label: "Routines", value: routineCount.formatted()),
+                    AppMetricItem(label: "Days / week", value: trainingDays.formatted(), accent: AppPalette.effort),
+                    AppMetricItem(label: "Exercises", value: exerciseCount.formatted(), accent: AppPalette.achievement),
+                    AppMetricItem(label: "Working sets", value: setCount.formatted(), accent: .accentPositive)
+                ])
             }
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ProgramMetricTile(title: "Routines", value: "\(routineCount)", color: .brandPrimary)
-                ProgramMetricTile(title: "Days/week", value: "\(trainingDays)", color: .blue)
-                ProgramMetricTile(title: "Exercises", value: "\(exerciseCount)", color: .orange)
-                ProgramMetricTile(title: "Working sets", value: "\(setCount)", color: .accentPositive)
-            }
+            .appSurface(.emphasized)
         }
-        .asCard()
-    }
-}
-
-struct ProgramMetricTile: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(color)
-
-            Text(title)
-                .appFont(size: 11, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -115,32 +69,16 @@ struct ProgramPreviewActionCard: View {
     let onSelect: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "sparkles")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-                    .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Make This Your Plan",
+                subtitle: "Copy this structure into your account, then adjust the schedule whenever you need."
+            )
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Make This Your Plan")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("This copies the program into your account, starts it today, and keeps the suggested training days. You can adjust the schedule later.")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer()
-            }
-
-            HStack(spacing: 10) {
-                ProgramMetricTile(title: "Suggested days", value: "\(daysPerWeek)/wk", color: .blue)
-                ProgramMetricTile(title: "Routine rotation", value: "\(routineCount)", color: .brandPrimary)
-            }
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Suggested days", value: "\(daysPerWeek) / week", accent: AppPalette.effort),
+                AppMetricItem(label: "Routine rotation", value: routineCount.formatted())
+            ])
 
             Button(action: { onSelect?() }) {
                 if isSelecting {
@@ -153,11 +91,11 @@ struct ProgramPreviewActionCard: View {
                     Label("Select Plan", systemImage: "checkmark.circle.fill")
                 }
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(AppActionButtonStyle(.primary))
             .disabled(onSelect == nil || isSelecting)
-            .opacity(onSelect == nil ? 0.55 : 1)
         }
-        .asCard()
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("program_detail_select")
     }
 }
 
@@ -168,105 +106,48 @@ struct ProgramScheduleSetupCard: View {
     let onSave: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "calendar.badge.clock")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-                    .frame(width: 42, height: 42)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: isScheduled ? "Schedule" : "Schedule Your Program",
+                subtitle: isScheduled
+                    ? "Adjust the start date or training days when life moves around."
+                    : "Pick when this block starts and which days you want to train."
+            )
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(isScheduled ? "Schedule" : "Schedule Your Program")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.textPrimary)
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
+                    .appTextRole(.control)
+                    .tint(AppPalette.brand)
 
-                    Text(isScheduled ? "Adjust the start date or training days when life moves around." : "Pick when this block starts and which days you want to train.")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
+                Divider()
+
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    Text("Training Days")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+
+                    WeekDaySelector(selectedDays: $selectedDays)
                 }
 
-                Spacer()
+                Button(action: onSave) {
+                    Label(
+                        isScheduled ? "Update Schedule" : "Save Schedule",
+                        systemImage: "checkmark.circle.fill"
+                    )
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(selectedDays.isEmpty)
             }
-
-            DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
-                .appFont(size: 15, weight: .semibold)
-                .tint(.brandPrimary)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Training Days")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .textCase(.uppercase)
-
-                WeekDaySelector(selectedDays: $selectedDays)
-            }
-
-            Button(action: onSave) {
-                Label(isScheduled ? "Update Schedule" : "Save Schedule", systemImage: "checkmark.circle.fill")
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .disabled(selectedDays.isEmpty)
-            .opacity(selectedDays.isEmpty ? 0.55 : 1)
+            .appSurface(.quiet)
         }
-        .asCard()
-    }
-}
-
-struct ProgramNextWorkoutCard: View {
-    let nextWorkout: (routine: WorkoutRoutine, title: String)
-    let onStart: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "play.circle.fill")
-                    .appFont(size: 20, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Next Session")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .textCase(.uppercase)
-
-                    Text(nextWorkout.routine.name)
-                        .appFont(size: 22, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                }
-
-                Spacer()
-            }
-
-            VStack(spacing: 8) {
-                ForEach(nextWorkout.routine.exercises.prefix(5)) { exercise in
-                    ProgramExercisePreviewRow(exercise: exercise)
-                }
-
-                if nextWorkout.routine.exercises.count > 5 {
-                    Text("+ \(nextWorkout.routine.exercises.count - 5) more")
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(.brandPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .padding(12)
-            .background(Color.backgroundSecondary.opacity(0.62), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-            Button(action: onStart) {
-                Label(nextWorkout.title, systemImage: "play.fill")
-            }
-            .buttonStyle(PrimaryButtonStyle())
-        }
-        .asCard()
+        .accessibilityIdentifier("program_detail_schedule")
     }
 }
 
 struct ProgramExercisePreviewRow: View {
     let exercise: RoutineExercise
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var setCount: Int {
         max(exercise.sets.count, exercise.targetSets)
@@ -278,49 +159,26 @@ struct ProgramExercisePreviewRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                .font(.body)
+            Image(systemName: exercise.type.icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(exercise.type.color)
                 .frame(width: 30, height: 30)
-                .background(Color.brandPrimary.opacity(0.10), in: Circle())
+                .background(exercise.type.color.opacity(0.10), in: Circle())
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(exercise.name)
-                    .appFont(size: 14, weight: .semibold)
-                    .foregroundColor(.textPrimary)
-                    .lineLimit(1)
+                    .appTextRole(.body)
+                    .foregroundStyle(AppPalette.text)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
 
-                Text("\(setCount) sets • \(targetText)")
-                    .appFont(size: 11)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(1)
+                Text("\(setCount) sets · \(targetText)")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             }
 
             Spacer(minLength: 0)
         }
-    }
-}
-
-struct ProgramCompleteSummaryCard: View {
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "checkmark.seal.fill")
-                .appFont(size: 21, weight: .bold)
-                .foregroundColor(.accentPositive)
-                .frame(width: 44, height: 44)
-                .background(Color.accentPositive.opacity(0.12), in: Circle())
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Program Complete")
-                    .appFont(size: 20, weight: .bold)
-                    .foregroundColor(.textPrimary)
-
-                Text("You finished this block. Keep it for history or build the next phase from what worked.")
-                    .appFont(size: 13)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .asCard()
     }
 }
 
@@ -332,30 +190,16 @@ struct ProgramCalendarCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "calendar")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.blue)
-                    .frame(width: 42, height: 42)
-                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Training Calendar")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("Tap a scheduled day to start that workout.")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-            }
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Training Calendar",
+                subtitle: "Tap a completed day to review it or a scheduled day to start."
+            )
 
             content
+                .appSurface(.quiet)
         }
-        .asCard()
+        .accessibilityIdentifier("program_detail_calendar")
     }
 }
 
@@ -367,26 +211,13 @@ struct ProgramRoutineBreakdownCard: View {
     let onStart: (WorkoutRoutine) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "list.bullet.rectangle.fill")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.orange)
-                    .frame(width: 42, height: 42)
-                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Workout Breakdown")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("Inspect, edit, or start any routine in this block.")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-            }
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Routine Rotation",
+                subtitle: allowsEditing
+                    ? "Inspect, edit, or start any routine in this block."
+                    : "Preview the routines in the order they repeat."
+            )
 
             if routines.isEmpty {
                 GuidanceEmptyState(
@@ -395,7 +226,7 @@ struct ProgramRoutineBreakdownCard: View {
                     message: "This program doesn't have any routines yet. Add one to start training."
                 )
             } else {
-                VStack(spacing: 10) {
+                VStack(spacing: AppSpacing.row) {
                     ForEach(routines) { routine in
                         ProgramRoutineCard(
                             routine: routine,
@@ -408,7 +239,7 @@ struct ProgramRoutineBreakdownCard: View {
                 }
             }
         }
-        .asCard()
+        .accessibilityIdentifier("program_detail_routines")
     }
 }
 
@@ -420,58 +251,41 @@ struct ProgramRoutineCard: View {
     let onStart: () -> Void
 
     @State private var isExpanded = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var visibleExercises: ArraySlice<RoutineExercise> {
         isExpanded ? routine.exercises.prefix(routine.exercises.count) : routine.exercises.prefix(3)
     }
 
+    private var primaryType: ExerciseType {
+        routine.exercises.first?.type
+            ?? RoutineEditorDefaults.inferredType(name: routine.name, category: nil)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Text(ExerciseEmojiMapper.getEmoji(for: routine.exercises.first?.name ?? routine.name))
-                    .font(.title3)
-                    .frame(width: 38, height: 38)
-                    .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(routine.name)
-                        .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
-
-                    Text("\(routine.exercises.count) exercises")
-                        .appFont(size: 12)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
-                if allowsEditing {
-                    Button(action: onEdit) {
-                        Image(systemName: "pencil")
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(.blue)
-                            .frame(width: 31, height: 31)
-                            .background(Color.blue.opacity(0.10), in: Circle())
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        routineIdentity
+                        routineActions
                     }
-                    .buttonStyle(.plain)
-                }
-
-                if allowsStarting {
-                    Button(action: onStart) {
-                        Image(systemName: "play.fill")
-                            .appFont(size: 11, weight: .bold)
-                            .foregroundColor(.white)
-                            .frame(width: 31, height: 31)
-                            .background(Color.brandPrimary, in: Circle())
+                } else {
+                    HStack(spacing: AppSpacing.row) {
+                        routineIdentity
+                        Spacer(minLength: AppSpacing.compact)
+                        routineActions
                     }
-                    .buttonStyle(.plain)
                 }
             }
 
-            VStack(spacing: 8) {
-                ForEach(visibleExercises) { exercise in
+            VStack(spacing: AppSpacing.compact) {
+                ForEach(Array(visibleExercises.enumerated()), id: \.element.id) { index, exercise in
                     ProgramExercisePreviewRow(exercise: exercise)
+
+                    if index < visibleExercises.count - 1 {
+                        Divider()
+                    }
                 }
             }
 
@@ -482,14 +296,58 @@ struct ProgramRoutineCard: View {
                     }
                 } label: {
                     Label(isExpanded ? "Show Less" : "Show All Exercises", systemImage: isExpanded ? "chevron.up" : "chevron.down")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(.brandPrimary)
+                        .appTextRole(.caption)
+                        .foregroundStyle(AppPalette.brandText)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(12)
-        .background(Color.backgroundSecondary.opacity(0.62), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .appSurface(.quiet)
+    }
+
+    private var routineIdentity: some View {
+        HStack(spacing: AppSpacing.row) {
+            Image(systemName: primaryType.icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(primaryType.color)
+                .frame(width: 40, height: 40)
+                .background(
+                    primaryType.color.opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(routine.name)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+
+                Text("\(routine.exercises.count) exercises")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var routineActions: some View {
+        HStack(spacing: AppSpacing.compact) {
+            if allowsEditing {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                }
+                .buttonStyle(AppIconButtonStyle(.neutral))
+                .accessibilityLabel("Edit \(routine.name)")
+            }
+
+            if allowsStarting {
+                Button(action: onStart) {
+                    Image(systemName: "play.fill")
+                }
+                .buttonStyle(AppIconButtonStyle(.brand))
+                .accessibilityLabel("Start \(routine.name)")
+            }
+        }
     }
 }
 
@@ -501,7 +359,7 @@ struct CalendarView: View {
     let onReview: (WorkoutSessionLog) -> Void
     @State private var month: Date = Date()
     
-    private let days = ["S", "M", "T", "W", "T", "F", "S"]
+    private let weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
 
     private struct DayEntry: Identifiable {
@@ -521,12 +379,9 @@ struct CalendarView: View {
             HStack(spacing: 10) {
                 Button(action: { self.month = Calendar.current.date(byAdding: .month, value: -1, to: self.month) ?? self.month }) {
                     Image(systemName: "chevron.left")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(.brandPrimary)
-                        .frame(width: 32, height: 32)
-                        .background(Color.brandPrimary.opacity(0.10), in: Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppIconButtonStyle(.plain))
+                .accessibilityLabel("Previous month")
 
                 Spacer()
 
@@ -538,20 +393,18 @@ struct CalendarView: View {
 
                 Button(action: { self.month = Calendar.current.date(byAdding: .month, value: 1, to: self.month) ?? self.month }) {
                     Image(systemName: "chevron.right")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(.brandPrimary)
-                        .frame(width: 32, height: 32)
-                        .background(Color.brandPrimary.opacity(0.10), in: Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppIconButtonStyle(.plain))
+                .accessibilityLabel("Next month")
             }
 
             HStack(spacing: 6) {
-                ForEach(days, id: \.self) { day in
-                    Text(day)
-                        .appFont(size: 11, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                ForEach(Array(weekdays.enumerated()), id: \.offset) { _, weekday in
+                    Text(String(weekday.prefix(1)))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
+                        .accessibilityLabel(weekday)
                 }
             }
 
@@ -599,9 +452,11 @@ struct CalendarView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(dayEntry.workout == nil && dayEntry.completedLog == nil)
+                        .accessibilityLabel(dayAccessibilityLabel(for: dayEntry))
                     }
                 }
             }
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         }
     }
     
@@ -687,5 +542,19 @@ struct CalendarView: View {
         }
 
         return Color(UIColor.secondaryLabel)
+    }
+
+    private func dayAccessibilityLabel(for entry: DayEntry) -> String {
+        let date = entry.date.formatted(date: .long, time: .omitted)
+        if entry.isCompleted {
+            return "\(date), completed workout. Double tap to review."
+        }
+        if entry.isSkipped {
+            return "\(date), skipped workout."
+        }
+        if let workout = entry.workout {
+            return "\(date), \(workout.name). Double tap to start."
+        }
+        return date
     }
 }

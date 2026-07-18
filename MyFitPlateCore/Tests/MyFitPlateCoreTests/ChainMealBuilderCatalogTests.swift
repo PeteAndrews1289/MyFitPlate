@@ -21,11 +21,25 @@ final class ChainMealBuilderCatalogTests: XCTestCase {
         for chain in chains {
             XCTAssertFalse(chain.name.isEmpty)
             XCTAssertTrue(chain.brandColorHex.hasPrefix("#"))
-            XCTAssertFalse(chain.categories.isEmpty, "\(chain.name) needs at least one category")
+            XCTAssertGreaterThanOrEqual(chain.categories.count, 2, "\(chain.name) needs meaningful menu grouping")
+            XCTAssertGreaterThanOrEqual(chain.ingredientCount, 15, "\(chain.name) needs at least 15 choices")
             XCTAssertEqual(chain.ingredientCount, chain.categories.flatMap(\.ingredients).count)
+            XCTAssertNotNil(
+                ChainRestaurantCatalog.officialNutritionURL(for: chain.id),
+                "\(chain.name) needs an official nutrition source"
+            )
 
             for category in chain.categories {
                 XCTAssertFalse(category.ingredients.isEmpty, "\(chain.name) / \(category.title) is empty")
+
+                for ingredient in category.ingredients {
+                    XCTAssertFalse(ingredient.name.isEmpty)
+                    XCTAssertFalse(ingredient.servingDescription.isEmpty)
+                    XCTAssertGreaterThanOrEqual(ingredient.calories, 0)
+                    XCTAssertGreaterThanOrEqual(ingredient.protein, 0)
+                    XCTAssertGreaterThanOrEqual(ingredient.carbs, 0)
+                    XCTAssertGreaterThanOrEqual(ingredient.fat, 0)
+                }
             }
         }
     }

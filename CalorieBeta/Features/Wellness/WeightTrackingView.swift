@@ -1,21 +1,20 @@
 import SwiftUI
 
-// DESIGN.md rule 1: this screen answers "is my weight moving the right way?" — the hero is
-// the current weight + trend chart. "Log weight" is the single filled CTA. The goal card,
-// milestones, and period stats are supporting cast in neutral cards.
 struct WeightTrackingView: View {
-    @EnvironmentObject var goalSettings: GoalSettings
+    @EnvironmentObject private var goalSettings: GoalSettings
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
+
     @State private var showingWeightEntrySheet = false
     @State private var showingTargetWeightSheet = false
-    @State private var targetWeightInput: String = ""
     @State private var showingCaloricCalculatorSheet = false
-
+    @State private var targetWeightInput = ""
     @State private var selectedChartTimeframe: WeightChartTimeframe = .month
-
     @State private var showingChartDeleteAlert = false
     @State private var chartEntryToDeleteID: String?
-    @State private var chartEntryToDeleteDetails: String = ""
+    @State private var chartEntryToDeleteDetails = ""
+    @State private var deletedWeightEntry: (date: Date, weight: Double)?
+    @State private var weightUndoTask: Task<Void, Never>?
 
     private var numberFormatter: NumberFormatter {
         let formatter = NumberFormatter()
@@ -28,11 +27,13 @@ struct WeightTrackingView: View {
     private var unit: String { BodyUnits.weightUnit(metric: useMetric) }
 
     private func display(_ lbs: Double) -> String {
-        numberFormatter.string(from: NSNumber(value: BodyUnits.weightDisplayValue(lbs: lbs, metric: useMetric))) ?? "—"
+        numberFormatter.string(
+            from: NSNumber(value: BodyUnits.weightDisplayValue(lbs: lbs, metric: useMetric))
+        ) ?? "--"
     }
 
     private var currentProgress: Double {
-        goalSettings.calculateWeightProgress().map { $0 / 100.0 } ?? 0.0
+        goalSettings.calculateWeightProgress().map { min(max($0 / 100, 0), 1) } ?? 0
     }
 
     private var initialWeightForCurrentGoalPeriod: Double? {
@@ -49,8 +50,6 @@ struct WeightTrackingView: View {
         return goalSettings.weight - target
     }
 
-    /// Change vs. the most recent entry at least 7 days old — the same "am I trending" signal
-    /// the Home card shows, so the two surfaces never disagree.
     private var sevenDayDelta: Double? {
         let history = goalSettings.weightHistory.sorted { $0.date < $1.date }
         guard let current = history.last?.weight else { return nil }
@@ -59,15 +58,13 @@ struct WeightTrackingView: View {
         return current - prior
     }
 
-    var filteredDataForLineChart: [(id: String, date: Date, weight: Double)] {
+    private var filteredDataForLineChart: [(id: String, date: Date, weight: Double)] {
         let now = Date()
         let allHistory = goalSettings.weightHistory.sorted { $0.date < $1.date }
-
         guard !allHistory.isEmpty else { return [] }
 
         let calendar = Calendar.current
-        var startDate: Date?
-
+        let startDate: Date?
         switch selectedChartTimeframe {
         case .week:
             startDate = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: now))
@@ -81,10 +78,8 @@ struct WeightTrackingView: View {
             return allHistory
         }
 
-        if let start = startDate {
-            return allHistory.filter { $0.date >= start }
-        }
-        return allHistory
+        guard let startDate else { return allHistory }
+        return allHistory.filter { $0.date >= startDate }
     }
 
     private var chartStats: (trend: Double?, highest: Double?, lowest: Double?, dailyRate: Double?) {
@@ -100,74 +95,97 @@ struct WeightTrackingView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                heroCard
+            LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                AppScreenHeader(
+                    eyebrow: "Body Trend",
+                    title: "Weight Progress",
+                    subtitle: "Follow the direction over time without overreacting to a single day."
+                )
 
-                Button(action: { showingWeightEntrySheet = true }) {
-                    Label("Log weight", systemImage: "plus")
-                }
-                .buttonStyle(PrimaryButtonStyle())
+                trendSection
 
-                if let target = goalSettings.targetWeight, let initial = initialWeightForCurrentGoalPeriod {
-                    goalCard(target: target, initial: initial)
-                } else {
-                    Button("Set a target weight") {
-                        targetWeightInput = display(goalSettings.weight)
-                        showingCaloricCalculatorSheet = true
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                }
+                goalSection
 
-                if let initialWt = initialWeightForCurrentGoalPeriod,
-                   let targetWt = goalSettings.targetWeight,
-                   abs(initialWt - targetWt) > 0.01 {
+                if let initial = initialWeightForCurrentGoalPeriod,
+                   let target = goalSettings.targetWeight,
+                   abs(initial - target) > 0.01 {
                     MilestoneView(
-                        initialWeight: initialWt,
+                        initialWeight: initial,
                         currentWeight: goalSettings.weight,
-                        targetWeight: targetWt
+                        targetWeight: target
                     )
                 }
 
-                periodStatsCard
+                periodStatsSection
+
+                Color.clear.frame(height: 76)
             }
-            .padding(.horizontal)
-            .padding(.top, 12)
-            .padding(.bottom, 30)
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.section)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .accessibilityIdentifier("weight_tracking_screen")
+        .background(AppPalette.canvas.ignoresSafeArea())
         .navigationTitle("Weight")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: AppSpacing.compact) {
+                if deletedWeightEntry != nil {
+                    HStack(spacing: AppSpacing.row) {
+                        Label("Weight entry removed", systemImage: "trash")
+                            .appTextRole(.caption)
+                            .foregroundStyle(AppPalette.text)
+
+                        Spacer(minLength: AppSpacing.compact)
+
+                        Button("Undo", action: restoreDeletedWeightEntry)
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.brandText)
+                    }
+                    .padding(.horizontal, AppSpacing.group)
+                    .padding(.vertical, AppSpacing.row)
+                    .background(
+                        AppPalette.surface,
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                            .stroke(AppPalette.separator, lineWidth: 1)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .accessibilityElement(children: .contain)
+                }
+
+                Button {
+                    showingWeightEntrySheet = true
+                } label: {
+                    Label("Log Weight", systemImage: "plus")
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .accessibilityIdentifier("weight_log_button")
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.row)
+            .padding(.bottom, AppSpacing.compact)
+            .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(AppPalette.separator)
+                    .frame(height: 1)
+            }
+            .animation(AppMotion.visibility, value: deletedWeightEntry != nil)
+        }
         .sheet(isPresented: $showingWeightEntrySheet) {
             CurrentWeightView()
                 .environmentObject(goalSettings)
         }
         .sheet(isPresented: $showingTargetWeightSheet) {
-            NavigationView {
-                Form {
-                    Section(header: Text("Target weight")) {
-                        TextField("Target weight (\(unit))", text: $targetWeightInput)
-                            .keyboardType(.decimalPad)
-                    }
-                    Button("Save target") {
-                        if let targetValue = Double(targetWeightInput), targetValue > 0 {
-                            goalSettings.targetWeight = BodyUnits.weightToLbs(targetValue, metric: useMetric)
-                            if let userID = DIContainer.shared.authService.currentUserID {
-                                goalSettings.saveUserGoals(userID: userID)
-                            }
-                        }
-                        showingTargetWeightSheet = false
-                    }
-                    .disabled(Double(targetWeightInput) == nil || (Double(targetWeightInput) ?? 0) <= 0)
-                }
-                .navigationTitle("Set target")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { showingTargetWeightSheet = false }
-                    }
-                }
-            }
-            .tint(.brandPrimary)
+            TargetWeightSheet(
+                value: $targetWeightInput,
+                unit: unit,
+                onSave: saveTargetWeight
+            )
         }
         .sheet(isPresented: $showingCaloricCalculatorSheet) {
             CaloricCalculatorView()
@@ -175,8 +193,8 @@ struct WeightTrackingView: View {
         }
         .alert("Delete this entry?", isPresented: $showingChartDeleteAlert) {
             Button("Delete", role: .destructive) {
-                if let idToDelete = chartEntryToDeleteID {
-                    confirmDeleteChartEntry(entryID: idToDelete)
+                if let id = chartEntryToDeleteID {
+                    confirmDeleteChartEntry(entryID: id)
                 }
             }
             Button("Cancel", role: .cancel) {
@@ -187,195 +205,276 @@ struct WeightTrackingView: View {
         }
         .onAppear {
             goalSettings.loadWeightHistory()
-            if let target = goalSettings.targetWeight {
-                targetWeightInput = display(target)
-            } else {
-                targetWeightInput = display(goalSettings.weight)
-            }
+            targetWeightInput = display(goalSettings.targetWeight ?? goalSettings.weight)
         }
     }
 
-    // MARK: - Hero: current weight + trend chart
+    private var trendSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            currentWeightSummary
 
-    private var heroCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Current weight")
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-
-                    HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        Text(goalSettings.weight > 0 ? display(goalSettings.weight) : "—")
-                            .appFont(size: 36, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                            .monospacedDigit()
-                            .contentTransition(.numericText())
-                            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: goalSettings.weight)
-
-                        Text(unit)
-                            .appFont(size: 15, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                    }
-                }
-
-                Spacer()
-
-                if let delta = sevenDayDelta, abs(delta) >= 0.05 {
-                    let down = delta < 0
-                    HStack(spacing: 4) {
-                        Image(systemName: down ? "arrow.down.right" : "arrow.up.right")
-                            .appFont(size: 11, weight: .bold)
-                        Text("\(display(abs(delta))) \(unit) · 7 days")
-                            .appFont(size: 12, weight: .semibold)
-                    }
-                    .foregroundColor(down ? .accentPositive : .orange)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(UIColor.secondarySystemFill), in: Capsule())
-                }
-            }
-
-            Picker("Timeframe", selection: $selectedChartTimeframe.animation()) {
-                ForEach(WeightChartTimeframe.allCases) { timeframe in
-                    Text(timeframe.rawValue).tag(timeframe)
-                }
-            }
-            .pickerStyle(SegmentedPickerStyle())
+            timeframePicker
 
             if !filteredDataForLineChart.isEmpty {
                 WeightChartView(
                     weightHistory: filteredDataForLineChart,
                     currentWeight: goalSettings.weight,
-                    onEntrySelected: { entryId in
-                        if let entry = goalSettings.weightHistory.first(where: { $0.id == entryId }) {
-                            self.chartEntryToDeleteID = entryId
-                            let weightString = display(entry.weight)
-                            let dateString = alertItemFormatter.string(from: entry.date)
-                            self.chartEntryToDeleteDetails = "\(weightString) \(unit) on \(dateString)"
-                            self.showingChartDeleteAlert = true
-                        }
-                    }
+                    onEntrySelected: selectChartEntry
                 )
-                .frame(height: 230)
+                .frame(height: dynamicTypeSize.isAccessibilitySize ? 270 : 230)
 
-                Text("Tap a point to remove a mistaken entry.")
-                    .appFont(size: 11, weight: .medium)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                Label("Tap a point to remove a mistaken entry.", systemImage: "hand.tap")
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
             } else {
-                VStack(spacing: 6) {
-                    Image(systemName: "chart.xyaxis.line")
-                        .appFont(size: 22, weight: .semibold)
-                        .foregroundColor(Color(UIColor.tertiaryLabel))
-                    Text("No entries in this period yet")
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                    Text("Log your weight and the trend appears here.")
-                        .appFont(size: 12)
-                        .foregroundColor(Color(UIColor.tertiaryLabel))
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 230)
+                GuidanceEmptyState(
+                    icon: "chart.xyaxis.line",
+                    title: "No entries in this period",
+                    message: "Log your weight and the trend will appear here."
+                )
+                .frame(minHeight: 220)
             }
         }
-        .asCard()
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("weight_trend_section")
     }
 
-    // MARK: - Goal card
-
-    private func goalCard(target: Double, initial: Double) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Weight goal")
-                    .appFont(size: 17, weight: .semibold)
-                Spacer()
-                Button("Edit") {
-                    targetWeightInput = display(target)
-                    showingTargetWeightSheet = true
-                }
-                .appFont(size: 14, weight: .semibold)
-                .tint(.brandPrimary)
-            }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color(UIColor.secondarySystemFill))
-                    Capsule().fill(Color.brandPrimary)
-                        .frame(width: max(8, geo.size.width * CGFloat(min(max(currentProgress, 0), 1))))
+    @ViewBuilder
+    private var timeframePicker: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Picker("Timeframe", selection: $selectedChartTimeframe.animation(AppMotion.standard)) {
+                ForEach(WeightChartTimeframe.allCases) { timeframe in
+                    Text(timeframe.rawValue).tag(timeframe)
                 }
             }
-            .frame(height: 10)
-
-            HStack {
-                Text("Started at \(display(initial)) \(unit)")
-                Spacer()
-                Text("Goal \(display(target)) \(unit)")
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("weight_timeframe_picker")
+        } else {
+            Picker("Timeframe", selection: $selectedChartTimeframe.animation(AppMotion.standard)) {
+                ForEach(WeightChartTimeframe.allCases) { timeframe in
+                    Text(timeframe.rawValue).tag(timeframe)
+                }
             }
-            .appFont(size: 12)
-            .foregroundColor(Color(UIColor.secondaryLabel))
-
-            Divider()
-
-            HStack(spacing: 15) {
-                StatBox(
-                    value: totalLossOrGain.map { String(format: "%+.1f %@", BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric), unit) } ?? "—",
-                    label: "Total change"
-                )
-                StatBox(
-                    value: goalSettings.calculateWeightProgress().map { String(format: "%.0f%%", $0) } ?? "—",
-                    label: "Progress"
-                )
-                StatBox(
-                    value: weightRemaining.map { String(format: "%.1f %@", abs(BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric)), unit) } ?? "—",
-                    label: "To go"
-                )
-            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("weight_timeframe_picker")
         }
-        .asCard()
     }
 
-    // MARK: - Period stats
+    @ViewBuilder
+    private var currentWeightSummary: some View {
+        let value = goalSettings.weight > 0 ? display(goalSettings.weight) : "--"
 
-    private var periodStatsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Period stats")
-                .appFont(size: 17, weight: .semibold)
-
-            Grid(alignment: .leading, horizontalSpacing: 15, verticalSpacing: 15) {
-                GridRow {
-                    SmallStatCard(
-                        title: "Daily rate",
-                        value: chartStats.dailyRate.map { String(format: "%+.2f %@/day", BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric), unit) } ?? "—",
-                        iconName: chartStats.dailyRate.map { $0 == 0 ? "arrow.left.arrow.right" : ($0 < 0 ? "arrow.down.right" : "arrow.up.right") } ?? "scalemass",
-                        iconColor: chartStats.dailyRate.map { $0 == 0 ? Color(UIColor.secondaryLabel) : ($0 < 0 ? .accentPositive : .orange) } ?? Color(UIColor.secondaryLabel)
-                    )
-                    SmallStatCard(
-                        title: "Trend",
-                        value: chartStats.trend.map { String(format: "%+.1f %@", BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric), unit) } ?? "—",
-                        iconName: chartStats.trend.map { $0 == 0 ? "arrow.left.arrow.right" : ($0 < 0 ? "arrow.down.right" : "arrow.up.right") } ?? "chart.line.uptrend.xyaxis",
-                        iconColor: chartStats.trend.map { $0 == 0 ? Color(UIColor.secondaryLabel) : ($0 < 0 ? .accentPositive : .orange) } ?? Color(UIColor.secondaryLabel)
-                    )
-                }
-                GridRow {
-                    SmallStatCard(
-                        title: "Highest",
-                        value: chartStats.highest.map { "\(display($0)) \(unit)" } ?? "—",
-                        iconName: "arrow.up.to.line",
-                        iconColor: Color(UIColor.secondaryLabel)
-                    )
-                    SmallStatCard(
-                        title: "Lowest",
-                        value: chartStats.lowest.map { "\(display($0)) \(unit)" } ?? "—",
-                        iconName: "arrow.down.to.line",
-                        iconColor: Color(UIColor.secondaryLabel)
-                    )
-                }
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                weightValue(value)
+                sevenDayChange
+            }
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.group) {
+                weightValue(value)
+                Spacer(minLength: AppSpacing.compact)
+                sevenDayChange
             }
         }
-        .asCard()
+    }
+
+    private func weightValue(_ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Current Weight")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                Text(value)
+                    .appTextRole(.display)
+                    .foregroundStyle(AppPalette.text)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+
+                Text(unit)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sevenDayChange: some View {
+        if let delta = sevenDayDelta, abs(delta) >= 0.05 {
+            let isDown = delta < 0
+            Label(
+                "\(display(abs(delta))) \(unit) in 7 days",
+                systemImage: isDown ? "arrow.down.right" : "arrow.up.right"
+            )
+            .appTextRole(.caption)
+            .foregroundStyle(isDown ? Color.accentPositive : AppPalette.caution)
+            .padding(.horizontal, AppSpacing.row)
+            .padding(.vertical, AppSpacing.compact)
+            .background(AppPalette.control, in: Capsule())
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text("7-day change will appear after enough entries")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var goalSection: some View {
+        if let target = goalSettings.targetWeight,
+           let initial = initialWeightForCurrentGoalPeriod {
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                AppSectionHeader(
+                    title: "Weight Goal",
+                    subtitle: "Progress from \(display(initial)) \(unit) toward \(display(target)) \(unit)."
+                ) {
+                    Button("Edit") {
+                        targetWeightInput = display(target)
+                        showingTargetWeightSheet = true
+                    }
+                    .buttonStyle(AppActionButtonStyle(.ghost, fillsWidth: false))
+                }
+
+                VStack(alignment: .leading, spacing: AppSpacing.group) {
+                    ProgressView(value: currentProgress)
+                        .tint(AppPalette.brand)
+                        .accessibilityLabel("Weight goal progress")
+                        .accessibilityValue("\(Int((currentProgress * 100).rounded())) percent")
+
+                    AppMetricStrip(items: [
+                        AppMetricItem(
+                            label: "Total Change",
+                            value: totalLossOrGain.map {
+                                String(
+                                    format: "%+.1f %@",
+                                    BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric),
+                                    unit
+                                )
+                            } ?? "--"
+                        ),
+                        AppMetricItem(
+                            label: "Progress",
+                            value: goalSettings.calculateWeightProgress().map {
+                                String(format: "%.0f%%", $0)
+                            } ?? "--"
+                        ),
+                        AppMetricItem(
+                            label: "To Go",
+                            value: weightRemaining.map {
+                                String(
+                                    format: "%.1f %@",
+                                    abs(BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric)),
+                                    unit
+                                )
+                            } ?? "--"
+                        )
+                    ])
+                }
+                .appSurface(.quiet)
+            }
+            .accessibilityIdentifier("weight_goal_section")
+        } else {
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                AppSectionHeader(
+                    title: "Weight Goal",
+                    subtitle: "Add a target to see progress and meaningful milestones."
+                )
+
+                Button {
+                    targetWeightInput = display(goalSettings.weight)
+                    showingCaloricCalculatorSheet = true
+                } label: {
+                    Label("Set a Target Weight", systemImage: "target")
+                }
+                .buttonStyle(AppActionButtonStyle(.secondary))
+            }
+        }
+    }
+
+    private var periodStatsSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Period Signals",
+                subtitle: "Calculated from the selected trend window."
+            )
+
+            AppMetricStrip(items: [
+                AppMetricItem(
+                    label: "Daily Rate",
+                    value: chartStats.dailyRate.map {
+                        String(
+                            format: "%+.2f %@/day",
+                            BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric),
+                            unit
+                        )
+                    } ?? "--",
+                    accent: trendColor(chartStats.dailyRate)
+                ),
+                AppMetricItem(
+                    label: "Net Trend",
+                    value: chartStats.trend.map {
+                        String(
+                            format: "%+.1f %@",
+                            BodyUnits.weightDisplayValue(lbs: $0, metric: useMetric),
+                            unit
+                        )
+                    } ?? "--",
+                    accent: trendColor(chartStats.trend)
+                ),
+                AppMetricItem(
+                    label: "Highest",
+                    value: chartStats.highest.map { "\(display($0)) \(unit)" } ?? "--",
+                    accent: AppPalette.caution
+                ),
+                AppMetricItem(
+                    label: "Lowest",
+                    value: chartStats.lowest.map { "\(display($0)) \(unit)" } ?? "--",
+                    accent: AppPalette.effort
+                )
+            ])
+            .appSurface(.quiet)
+        }
+        .accessibilityIdentifier("weight_period_signals")
+    }
+
+    private func trendColor(_ value: Double?) -> Color {
+        guard let value else { return Color(UIColor.secondaryLabel) }
+        if value < 0 { return .accentPositive }
+        if value > 0 { return AppPalette.caution }
+        return Color(UIColor.secondaryLabel)
+    }
+
+    private func selectChartEntry(_ entryID: String) {
+        guard let entry = goalSettings.weightHistory.first(where: { $0.id == entryID }) else { return }
+        chartEntryToDeleteID = entryID
+        chartEntryToDeleteDetails = "\(display(entry.weight)) \(unit) on \(alertItemFormatter.string(from: entry.date))"
+        showingChartDeleteAlert = true
+    }
+
+    private func saveTargetWeight() {
+        guard let value = Double(targetWeightInput), value > 0 else { return }
+        goalSettings.targetWeight = BodyUnits.weightToLbs(value, metric: useMetric)
+        if let userID = DIContainer.shared.authService.currentUserID {
+            goalSettings.saveUserGoals(userID: userID)
+        }
+        showingTargetWeightSheet = false
     }
 
     private func confirmDeleteChartEntry(entryID: String) {
+        if let entry = goalSettings.weightHistory.first(where: { $0.id == entryID }) {
+            deletedWeightEntry = (entry.date, entry.weight)
+            weightUndoTask?.cancel()
+            weightUndoTask = Task {
+                try? await Task.sleep(for: .seconds(6))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    withAnimation(AppMotion.visibility) {
+                        deletedWeightEntry = nil
+                    }
+                }
+            }
+        }
         goalSettings.deleteWeightEntry(entryID: entryID) { error in
             if let error {
                 AppLog.app.error("Failed to delete weight entry: \(error.localizedDescription, privacy: .public)")
@@ -383,52 +482,103 @@ struct WeightTrackingView: View {
         }
         chartEntryToDeleteID = nil
     }
-}
 
-struct StatBox: View {
-    var value: String
-    var label: String
-
-    var body: some View {
-        VStack(spacing: 3) {
-            Text(value)
-                .appFont(size: 17, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(label)
-                .appFont(size: 11, weight: .medium)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+    private func restoreDeletedWeightEntry() {
+        guard let deletedWeightEntry else { return }
+        weightUndoTask?.cancel()
+        goalSettings.updateUserWeight(
+            deletedWeightEntry.weight,
+            date: deletedWeightEntry.date,
+            syncToHealthKit: false
+        )
+        withAnimation(AppMotion.visibility) {
+            self.deletedWeightEntry = nil
         }
-        .frame(maxWidth: .infinity)
     }
 }
 
-struct SmallStatCard: View {
-    var title: String
-    var value: String
-    var iconName: String
-    var iconColor: Color
+private struct TargetWeightSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var value: String
+    let unit: String
+    let onSave: () -> Void
+    @FocusState private var isFocused: Bool
+
+    private var isValid: Bool {
+        guard let value = Double(value) else { return false }
+        return value > 0
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: iconName)
-                    .foregroundColor(iconColor)
-                    .font(.footnote.weight(.medium))
-                Text(title)
-                    .appFont(size: 11, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                Spacer()
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    AppScreenHeader(
+                        eyebrow: "Body Goal",
+                        title: "Target Weight",
+                        subtitle: "You can change this at any time as your plan evolves."
+                    )
+
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        Text("Target")
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
+
+                        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                            TextField("0.0", text: $value)
+                                .keyboardType(.decimalPad)
+                                .focused($isFocused)
+                                .appTextRole(.metric)
+                                .monospacedDigit()
+                                .accessibilityLabel("Target weight in \(unit)")
+
+                            Text(unit)
+                                .appTextRole(.control)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                                .stroke(AppPalette.separator, lineWidth: 1)
+                        }
+                    }
+                }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
             }
-            Text(value)
-                .appFont(size: 16, weight: .semibold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Set Target")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { isFocused = false }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button("Save Target") {
+                    isFocused = false
+                    onSave()
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(!isValid)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.row)
+                .padding(.bottom, AppSpacing.compact)
+                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    Rectangle().fill(AppPalette.separator).frame(height: 1)
+                }
+            }
+            .onAppear { isFocused = true }
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.backgroundPrimary.opacity(0.7), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .tint(AppPalette.brand)
     }
 }

@@ -182,10 +182,10 @@ class WellnessScoreService {
         let color: Color
         switch score {
         case 90...: color = .accentPositive
-        case 80..<90: color = .green
-        case 70..<80: color = .yellow
-        case 60..<70: color = .orange
-        default: color = .red
+        case 80..<90: color = AppPalette.positive
+        case 70..<80: color = AppPalette.achievement
+        case 60..<70: color = AppPalette.caution
+        default: color = AppPalette.critical
         }
 
         if availableCount == 1 {

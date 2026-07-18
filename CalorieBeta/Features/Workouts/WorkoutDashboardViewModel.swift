@@ -7,7 +7,7 @@ struct TrainingReadinessBrief {
     let status: String
     let message: String
     let icon: String
-    let color: Color
+    let role: AppSignalRole
     let signals: [TrainingSignal]
 }
 
@@ -16,7 +16,7 @@ struct TrainingSignal: Identifiable {
     let title: String
     let value: String
     let icon: String
-    let color: Color
+    let role: AppSignalRole
 }
 
 @MainActor
@@ -68,33 +68,33 @@ class WorkoutDashboardViewModel: ObservableObject {
         let status: String
         let message: String
         let icon: String
-        let color: Color
+        let role: AppSignalRole
 
         if loggedWorkouts > 0 {
             status = "Recovery Mode"
             message = "You already logged activity today. Start another session if it is intentional, or keep the next block easy."
             icon = "moon.zzz.fill"
-            color = .blue
+            role = .recovery
         } else if score >= 78 {
             status = "Primed to Train"
             message = "Fuel, hydration, and protein are lining up. This is a good window for a focused session."
             icon = "bolt.fill"
-            color = .accentPositive
+            role = .positive
         } else if waterRatio < 0.25 {
             status = "Hydrate First"
             message = "Log some water before you train. It is the fastest readiness win in the app."
             icon = "drop.fill"
-            color = .cyan
+            role = .recovery
         } else if calorieRatio < 0.15 {
             status = "Fuel First"
             message = "You have not logged much food yet. Consider a small meal or snack before a hard session."
             icon = "fork.knife"
-            color = .orange
+            role = .caution
         } else {
             status = "Ready, Build Gradually"
             message = "You are clear to train. Warm up patiently and let the first working set tell you the day."
             icon = "figure.strengthtraining.traditional"
-            color = .brandPrimary
+            role = .current
         }
 
         return TrainingReadinessBrief(
@@ -102,12 +102,12 @@ class WorkoutDashboardViewModel: ObservableObject {
             status: status,
             message: message,
             icon: icon,
-            color: color,
+            role: role,
             signals: [
-                TrainingSignal(title: "Fuel", value: calories > 0 ? "\(Int(calories.rounded())) cal" : "Not logged", icon: "flame.fill", color: .orange),
-                TrainingSignal(title: "Protein", value: "\(Int(protein.rounded()))/\(Int(proteinGoal.rounded()))g", icon: "bolt.fill", color: .accentProtein),
-                TrainingSignal(title: "Water", value: "\(Int(water.rounded()))/\(Int(waterGoal.rounded())) oz", icon: "drop.fill", color: .cyan),
-                TrainingSignal(title: "Activity", value: loggedWorkouts == 0 ? "Open" : "\(loggedWorkouts) logged", icon: "figure.run", color: .blue)
+                TrainingSignal(title: "Fuel", value: calories > 0 ? "\(Int(calories.rounded())) cal" : "Not logged", icon: "flame.fill", role: .caution),
+                TrainingSignal(title: "Protein", value: "\(Int(protein.rounded()))/\(Int(proteinGoal.rounded()))g", icon: "bolt.fill", role: .effort),
+                TrainingSignal(title: "Water", value: "\(Int(water.rounded()))/\(Int(waterGoal.rounded())) oz", icon: "drop.fill", role: .recovery),
+                TrainingSignal(title: "Activity", value: loggedWorkouts == 0 ? "Open" : "\(loggedWorkouts) logged", icon: "figure.run", role: .effort)
             ]
         )
     }

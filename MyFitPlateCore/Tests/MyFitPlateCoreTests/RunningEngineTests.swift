@@ -149,6 +149,60 @@ final class RunSessionTests: XCTestCase {
         XCTAssertEqual(firedSplits[0].index, 1)
         XCTAssertEqual(firedSplits[0].distanceMeters, 1000)
     }
+
+    func testMovingTimeCapsLongGPSGap() throws {
+        let session = RunSession(metric: true)
+        session.start(at: start)
+        session.ingest(RunLocationFix(
+            latitude: 40,
+            longitude: -74,
+            horizontalAccuracy: 5,
+            timestamp: start
+        ))
+        session.ingest(RunLocationFix(
+            latitude: 40 + 500 / metersPerLatDegree,
+            longitude: -74,
+            horizontalAccuracy: 5,
+            timestamp: start.addingTimeInterval(300)
+        ))
+        session.ingest(RunLocationFix(
+            latitude: 40 + 1000 / metersPerLatDegree,
+            longitude: -74,
+            horizontalAccuracy: 5,
+            timestamp: start.addingTimeInterval(2_100)
+        ))
+
+        let run = try XCTUnwrap(session.finish(at: start.addingTimeInterval(2_100)))
+        XCTAssertEqual(run.movingSeconds, 30, accuracy: 0.001)
+        XCTAssertEqual(run.splits.first?.seconds ?? 0, 30, accuracy: 0.001)
+    }
+
+    func testElapsedReplayRetainsLongGPSGapForHistoricalSplits() throws {
+        let session = RunSession(metric: true, timeAccounting: .elapsed)
+        session.start(at: start)
+        session.ingest(RunLocationFix(
+            latitude: 40,
+            longitude: -74,
+            horizontalAccuracy: 5,
+            timestamp: start
+        ))
+        session.ingest(RunLocationFix(
+            latitude: 40 + 500 / metersPerLatDegree,
+            longitude: -74,
+            horizontalAccuracy: 5,
+            timestamp: start.addingTimeInterval(300)
+        ))
+        session.ingest(RunLocationFix(
+            latitude: 40 + 1000 / metersPerLatDegree,
+            longitude: -74,
+            horizontalAccuracy: 5,
+            timestamp: start.addingTimeInterval(2_100)
+        ))
+
+        let run = try XCTUnwrap(session.finish(at: start.addingTimeInterval(2_100)))
+        XCTAssertEqual(run.movingSeconds, 2_100, accuracy: 0.001)
+        XCTAssertEqual(run.splits.first?.seconds ?? 0, 2_100, accuracy: 0.001)
+    }
 }
 
 final class RunEnergyTests: XCTestCase {

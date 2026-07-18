@@ -4,15 +4,19 @@ import XCTest
 final class RunWorkoutPlanTests: XCTestCase {
     private var suiteName: String!
     private var testDefaults: UserDefaults!
+    private var authService: MockAuthService!
 
     override func setUp() {
         super.setUp()
         suiteName = "RunWorkoutPlanTests_\(UUID().uuidString)"
         testDefaults = UserDefaults(suiteName: suiteName)
+        authService = MockAuthService()
+        authService.currentUserID = "runner-a"
     }
 
     override func tearDown() {
         testDefaults.removePersistentDomain(forName: suiteName)
+        authService = nil
         testDefaults = nil
         suiteName = nil
         super.tearDown()
@@ -225,7 +229,7 @@ final class RunWorkoutPlanTests: XCTestCase {
     }
 
     func testPlanStorePersistsCustomPlans() throws {
-        let store = RunWorkoutPlanStore(userDefaults: testDefaults)
+        let store = RunWorkoutPlanStore(userDefaults: testDefaults, authService: authService)
         let plan = RunWorkoutPlan.repeatTemplate(
             id: "template-1",
             name: "Track day",
@@ -238,13 +242,13 @@ final class RunWorkoutPlanTests: XCTestCase {
 
         store.addPlan(plan)
 
-        let reloaded = RunWorkoutPlanStore(userDefaults: testDefaults)
+        let reloaded = RunWorkoutPlanStore(userDefaults: testDefaults, authService: authService)
         XCTAssertEqual(reloaded.customPlans.map(\.id), ["template-1"])
         XCTAssertEqual(reloaded.customPlans.first?.name, "Track day")
     }
 
     func testPlanStoreRekeysDuplicateIDsAndDeletes() {
-        let store = RunWorkoutPlanStore(userDefaults: testDefaults)
+        let store = RunWorkoutPlanStore(userDefaults: testDefaults, authService: authService)
         let plan = RunWorkoutPlan.repeatTemplate(
             id: "same",
             name: "One",
@@ -267,7 +271,7 @@ final class RunWorkoutPlanTests: XCTestCase {
     }
 
     func testResultStorePersistsResultsByRunID() throws {
-        let store = RunWorkoutResultStore(userDefaults: testDefaults)
+        let store = RunWorkoutResultStore(userDefaults: testDefaults, authService: authService)
         let result = RunWorkoutResult(
             runID: "run-42",
             planID: "plan-42",
@@ -288,12 +292,58 @@ final class RunWorkoutPlanTests: XCTestCase {
 
         store.save(result)
 
-        let reloaded = RunWorkoutResultStore(userDefaults: testDefaults)
+        let reloaded = RunWorkoutResultStore(userDefaults: testDefaults, authService: authService)
         XCTAssertEqual(reloaded.result(forRunID: "run-42")?.planName, "Track day")
         let pace = try XCTUnwrap(reloaded.result(forRunID: "run-42")?.steps.first?.paceSecondsPerKm)
         XCTAssertEqual(pace, 258.333, accuracy: 0.001)
 
         reloaded.deleteResult(forRunID: "run-42")
         XCTAssertNil(store.result(forRunID: "run-42"))
+    }
+
+    func testPlanStoreSeparatesAccountsAndClearsWhenSignedOut() {
+        let store = RunWorkoutPlanStore(userDefaults: testDefaults, authService: authService)
+        store.addPlan(RunWorkoutPlan(id: "a-plan", name: "A plan", subtitle: "A", steps: []))
+
+        authService.currentUserID = "runner-b"
+        XCTAssertTrue(store.customPlans.isEmpty)
+        store.addPlan(RunWorkoutPlan(id: "b-plan", name: "B plan", subtitle: "B", steps: []))
+
+        authService.currentUserID = nil
+        XCTAssertTrue(store.customPlans.isEmpty)
+
+        authService.currentUserID = "runner-a"
+        XCTAssertEqual(store.customPlans.map(\.id), ["a-plan"])
+
+        authService.currentUserID = "runner-b"
+        XCTAssertEqual(store.customPlans.map(\.id), ["b-plan"])
+    }
+
+    func testResultStoreSeparatesAccounts() {
+        let store = RunWorkoutResultStore(userDefaults: testDefaults, authService: authService)
+        let result = RunWorkoutResult(
+            runID: "shared-run-id",
+            planID: "a-plan",
+            planName: "Account A result",
+            completedAt: Date(timeIntervalSince1970: 1),
+            steps: []
+        )
+        store.save(result)
+
+        authService.currentUserID = "runner-b"
+        XCTAssertNil(store.result(forRunID: "shared-run-id"))
+        store.save(RunWorkoutResult(
+            runID: "shared-run-id",
+            planID: "b-plan",
+            planName: "Account B result",
+            completedAt: Date(timeIntervalSince1970: 2),
+            steps: []
+        ))
+
+        authService.currentUserID = "runner-a"
+        XCTAssertEqual(store.result(forRunID: "shared-run-id")?.planName, "Account A result")
+
+        authService.currentUserID = "runner-b"
+        XCTAssertEqual(store.result(forRunID: "shared-run-id")?.planName, "Account B result")
     }
 }

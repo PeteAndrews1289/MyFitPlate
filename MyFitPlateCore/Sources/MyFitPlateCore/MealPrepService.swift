@@ -55,19 +55,8 @@ public class MealPrepService: ObservableObject {
             }
 
             if let instructions = meal.instructions {
-                let steps = instructions
-                    .split(separator: "\n")
-                    .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-
-                for step in steps {
-                    let cleanStep = step
-                        .replacingOccurrences(of: "^\\d+\\.\\s*", with: "", options: .regularExpression)
-                        .trimmingCharacters(in: .whitespaces)
-
-                    if !cleanStep.isEmpty {
-                        allSteps.append((recipeName: recipeName, step: cleanStep))
-                    }
+                for step in MealSuggestionReviewRules.instructionSteps(instructions) {
+                    allSteps.append((recipeName: recipeName, step: step))
                 }
             }
         }

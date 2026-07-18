@@ -8,6 +8,14 @@ class AIChatbotViewModel: ObservableObject {
     @Published var showAlert = false
     @Published var alertMessage = ""
     @Published var showingClearChatConfirmation = false
+    @Published var requestStage = "Reading today's context"
+    @Published var inlineErrorMessage: String?
+
+    private var retryMessage: String?
+    private var retryContextContract: MaiaContextContract?
+    private var requestStageTask: Task<Void, Never>?
+    private var activeRequestID: UUID?
+    private var activeAccountID: String?
     
     var chatContext: String?
     
@@ -19,8 +27,22 @@ class AIChatbotViewModel: ObservableObject {
     var healthKitViewModel: HealthKitViewModel?
     
     func setupView() {
-        loadMessages()
-        if let userID = DIContainer.shared.authService.currentUserID {
+        let userID = DIContainer.shared.authService.currentUserID
+        if activeAccountID != userID {
+            requestStageTask?.cancel()
+            requestStageTask = nil
+            activeRequestID = nil
+            activeAccountID = userID
+            isLoading = false
+            inlineErrorMessage = nil
+            retryMessage = nil
+            retryContextContract = nil
+            chatMessages.removeAll()
+            loadMessages()
+        } else if chatMessages.isEmpty {
+            loadMessages()
+        }
+        if let userID {
             dailyLogService?.fetchLog(for: userID, date: dailyLogService?.activelyViewedDate ?? Date()) { _ in }
         }
         if chatMessages.isEmpty {
@@ -30,6 +52,13 @@ class AIChatbotViewModel: ObservableObject {
     }
     
     func clearChat() {
+        requestStageTask?.cancel()
+        requestStageTask = nil
+        activeRequestID = nil
+        isLoading = false
+        inlineErrorMessage = nil
+        retryMessage = nil
+        retryContextContract = nil
         chatMessages.removeAll()
         chatMessages.append(ChatMessage(id: UUID(), text: welcomeMessage(), isUser: false))
         saveMessages()
@@ -233,21 +262,85 @@ class AIChatbotViewModel: ObservableObject {
 
         let msgToSend = userMessage
         userMessage = ""
-        isLoading = true
+        submitRequest(message: msgToSend, contextContract: effectiveContract)
+    }
 
-        fetchGPT3Response(for: msgToSend, contextContract: effectiveContract) { [weak self] aiResponse in
-            guard let self = self else { return }
-            let aiMsg = ChatMessage(id: UUID(), text: aiResponse, isUser: false)
-            self.chatMessages.append(aiMsg)
-            self.isLoading = false
-            HapticManager.instance.feedback(.light)
+    func retryLastMessage() {
+        guard let retryMessage, let retryContextContract, !isLoading else { return }
+        DIContainer.shared.analyticsManager?.logEvent("maia_message_retry", parameters: [
+            "action": retryContextContract.action
+        ])
+        submitRequest(message: retryMessage, contextContract: retryContextContract)
+    }
+
+    private func submitRequest(message: String, contextContract: MaiaContextContract) {
+        guard let requestAccountID = DIContainer.shared.authService.currentUserID,
+              requestAccountID == activeAccountID else {
+            inlineErrorMessage = "Sign in again before asking Maia."
+            return
         }
+        let requestID = UUID()
+        activeRequestID = requestID
+        isLoading = true
+        inlineErrorMessage = nil
+        retryMessage = message
+        retryContextContract = contextContract
+        startRequestStages()
+
+        fetchGPT3Response(for: message, contextContract: contextContract) { [weak self] result in
+            guard let self,
+                  self.activeRequestID == requestID,
+                  self.activeAccountID == requestAccountID,
+                  DIContainer.shared.authService.currentUserID == requestAccountID else { return }
+            self.activeRequestID = nil
+            self.requestStageTask?.cancel()
+            self.requestStageTask = nil
+            self.isLoading = false
+
+            switch result {
+            case .success(let content):
+                self.inlineErrorMessage = nil
+                self.retryMessage = nil
+                self.retryContextContract = nil
+                self.chatMessages.append(ChatMessage(id: UUID(), text: content, isUser: false))
+                HapticManager.instance.feedback(.light)
+            case .failure(let error):
+                self.inlineErrorMessage = self.userFacingRequestError(error)
+                HapticManager.instance.notification(.warning)
+            }
+        }
+    }
+
+    private func startRequestStages() {
+        requestStageTask?.cancel()
+        requestStage = "Reading today's context"
+        requestStageTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(800))
+                self?.requestStage = "Working through your request"
+                try await Task.sleep(for: .milliseconds(1_800))
+                self?.requestStage = "Preparing a practical answer"
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func userFacingRequestError(_ error: Error) -> String {
+        let description = error.localizedDescription.lowercased()
+        if description.contains("offline") ||
+            description.contains("internet") ||
+            description.contains("network") ||
+            description.contains("connection") {
+            return "You appear to be offline. Your question is still here and can be retried when the connection returns."
+        }
+        return "Maia could not reach the response service. Your question is still here and nothing was logged or changed."
     }
     
     func fetchGPT3Response(
         for message: String,
         contextContract: MaiaContextContract,
-        completion: @escaping (String) -> Void
+        completion: @escaping (Result<String, Error>) -> Void
     ) {
         let systemPrompt = """
         You are Maia, the personal nutrition and training coach inside MyFitPlate.
@@ -315,7 +408,7 @@ class AIChatbotViewModel: ObservableObject {
         ```
         
         Action: Log Weight
-        The user enters weight in \(BodyUnits.weightUnit(metric: UserDefaults.standard.bool(forKey: "useMetricBodyUnits"))). ALWAYS return "weightPounds" in POUNDS — if the stated weight is in kilograms, convert it (1 kg = 2.20462 lb).
+        The user enters weight in \(BodyUnits.weightUnit(metric: BodyUnits.prefersMetric())). ALWAYS return "weightPounds" in POUNDS — if the stated weight is in kilograms, convert it (1 kg = 2.20462 lb).
         ```json
         {
           "type": "log_weight",
@@ -350,10 +443,10 @@ class AIChatbotViewModel: ObservableObject {
 
             switch result {
             case .success(let content):
-                completion(content)
+                completion(.success(content))
             case .failure(let error):
                 AppLog.ai.error("Maia chat request failed: \(error.localizedDescription, privacy: .public)")
-                completion("I couldn't reach Maia's deeper model right now. Based on your logged day, focus first on protein, hydration, and a simple meal that fits your remaining calories.")
+                completion(.failure(error))
             }
         }
     }
@@ -399,6 +492,7 @@ class AIChatbotViewModel: ObservableObject {
                 )
                 
                 await MainActor.run {
+                    guard DIContainer.shared.authService.currentUserID == userID else { return }
                     if success {
                         let haptic = UINotificationFeedbackGenerator()
                         haptic.notificationOccurred(.success)
@@ -446,7 +540,7 @@ class AIChatbotViewModel: ObservableObject {
             goalSettings?.updateUserWeight(weightPounds)
             let haptic = UINotificationFeedbackGenerator()
             haptic.notificationOccurred(.success)
-            let useMetric = UserDefaults.standard.bool(forKey: "useMetricBodyUnits")
+            let useMetric = BodyUnits.prefersMetric()
             alertMessage = "Weight updated to \(String(format: "%.1f", BodyUnits.weightDisplayValue(lbs: weightPounds, metric: useMetric))) \(BodyUnits.weightUnit(metric: useMetric))!"
             showAlert = true
         }
@@ -542,8 +636,14 @@ class AIChatbotViewModel: ObservableObject {
     // MARK: - Persistence
     
     private func loadMessages() {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
-        let key = "chatHistory_\(userID)"
+        guard let userID = activeAccountID,
+              let key = AccountScopedStorageKey.make(prefix: "chatHistory", userID: userID) else { return }
+        let legacyKey = "chatHistory_\(userID)"
+        if UserDefaults.standard.data(forKey: key) == nil,
+           let legacyData = UserDefaults.standard.data(forKey: legacyKey) {
+            UserDefaults.standard.set(legacyData, forKey: key)
+        }
+        UserDefaults.standard.removeObject(forKey: legacyKey)
         if let data = UserDefaults.standard.data(forKey: key),
            let decodedMessages = try? JSONDecoder().decode([ChatMessage].self, from: data) {
             self.chatMessages = decodedMessages
@@ -551,13 +651,15 @@ class AIChatbotViewModel: ObservableObject {
     }
 
     func saveMessages() {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
-        let key = "chatHistory_\(userID)"
+        guard let userID = activeAccountID,
+              DIContainer.shared.authService.currentUserID == userID,
+              let key = AccountScopedStorageKey.make(prefix: "chatHistory", userID: userID) else { return }
         let max = 12
         let messagesToSave = Array(chatMessages.suffix(max))
 
         if let encoded = try? JSONEncoder().encode(messagesToSave) {
             UserDefaults.standard.set(encoded, forKey: key)
+            UserDefaults.standard.removeObject(forKey: "chatHistory_\(userID)")
         }
     }
 }

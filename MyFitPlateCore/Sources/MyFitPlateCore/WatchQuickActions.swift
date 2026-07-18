@@ -134,12 +134,26 @@ public final class WatchAccountScopeStore: @unchecked Sendable {
     }
 
     public func scope(for userID: String) -> String {
+        guard let accountKey = AccountScopedStorageKey.make(
+            prefix: "watchAccountScope",
+            userID: userID
+        ) else { return UUID().uuidString }
         lock.lock()
         defer { lock.unlock() }
         var scopes = defaults.dictionary(forKey: storageKey) as? [String: String] ?? [:]
-        if let existing = scopes[userID], !existing.isEmpty { return existing }
+        if let existing = scopes[accountKey], !existing.isEmpty {
+            if scopes.removeValue(forKey: userID) != nil {
+                defaults.set(scopes, forKey: storageKey)
+            }
+            return existing
+        }
+        if let legacyScope = scopes.removeValue(forKey: userID), !legacyScope.isEmpty {
+            scopes[accountKey] = legacyScope
+            defaults.set(scopes, forKey: storageKey)
+            return legacyScope
+        }
         let scope = UUID().uuidString
-        scopes[userID] = scope
+        scopes[accountKey] = scope
         defaults.set(scopes, forKey: storageKey)
         return scope
     }

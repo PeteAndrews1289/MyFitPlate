@@ -21,6 +21,7 @@ struct AIWorkoutGeneratorView: View {
     @State private var isLoading = false
     @State private var generatedProgram: WorkoutProgram?
     @State private var errorMessage: String?
+    @State private var generationTask: Task<Void, Never>?
 
     // Enums to provide structured options in the Pickers
     enum FitnessLevel: String, CaseIterable, Identifiable {
@@ -38,92 +39,183 @@ struct AIWorkoutGeneratorView: View {
     }
 
     var body: some View {
-        NavigationView {
-            VStack {
-                // If a program has been generated, show the preview
-                if var program = generatedProgram {
-                    GeneratedProgramPreviewView(program: program, onSave: {
-                        // Assign the schedule to the program before saving
+        ZStack {
+            if var program = generatedProgram {
+                GeneratedProgramPreviewView(
+                    program: program,
+                    onBack: { generatedProgram = nil },
+                    onSave: {
                         program.startDate = startDate
                         program.daysOfWeek = selectedDaysOfWeek
                         Task {
                             await workoutService.saveProgram(program)
                             dismiss()
                         }
-                    })
-                } else {
-                    // Otherwise, show the form to generate a program
-                    Form {
-                        if let errorMessage = errorMessage {
-                            Section {
-                                Text(errorMessage)
-                                    .foregroundColor(.red)
-                            }
-                        }
-
-                        Section(header: Text("Primary Goal")) {
-                            TextField("e.g., Build muscle, lose fat...", text: $goal)
-                            Text("This is your main objective. Be specific!")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        // Section for user's fitness level and equipment
-                        Section(header: Text("Your Profile")) {
-                            Picker("Fitness Level", selection: $fitnessLevel) {
-                                ForEach(FitnessLevel.allCases) { level in
-                                    Text(level.rawValue).tag(level)
-                                }
-                            }
-                            
-                            Picker("Available Equipment", selection: $equipment) {
-                                ForEach(Equipment.allCases) { eq in
-                                    Text(eq.rawValue).tag(eq)
-                                }
-                            }
-                        }
-                        
-                        Section(header: Text("Schedule")) {
-                            Stepper("Workouts Per Week: \(daysPerWeek) days", value: $daysPerWeek, in: 2...6)
-                            DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
-                            WeekDaySelector(selectedDays: $selectedDaysOfWeek)
-                        }
-
-                        Section(header: Text("Additional Preferences (Optional)")) {
-                            TextEditor(text: $details)
-                                .frame(height: 100)
-                            Text("Add any specific notes for Maia. e.g., 'I have a bad knee', 'I hate running', 'Focus on 30-minute workouts'.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        Button {
-                            generatePlan()
-                        } label: {
-                            Label("Generate Program with AI", systemImage: "sparkles")
-                        }
-                        .disabled(isLoading || goal.isEmpty)
                     }
+                )
+            } else {
+                AppEditorScaffold(
+                    title: "Build a Training Program",
+                    subtitle: "Give Maia the goal, equipment, time, and constraints that matter.",
+                    dismiss: { dismiss() }
+                ) {
+                    VStack(alignment: .leading, spacing: AppSpacing.section) {
+                        goalSection
+                        profileSection
+                        scheduleSection
+                        preferenceSection
+
+                        if let errorMessage {
+                            Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                                .appTextRole(.secondary)
+                                .foregroundStyle(AppPalette.critical)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .appSurface(.quiet)
+                                .accessibilityIdentifier("ai_program_error")
+                        }
+                    }
+                } actions: {
+                    Button(action: generatePlan) {
+                        Label("Generate Program", systemImage: "sparkles")
+                    }
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .disabled(isLoading || goal.trimmed.isEmpty)
+                    .accessibilityIdentifier("ai_program_generate")
                 }
             }
-            .navigationTitle("AI Program Generator")
-            .overlay(
-                // Loading overlay
-                Group {
-                    if isLoading {
-                        Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
-                        VStack {
-                            ProgressView()
-                            Text("Generating your program...")
-                                .foregroundColor(.white)
-                                .padding()
+
+            if isLoading {
+                Color.black.opacity(0.36)
+                    .ignoresSafeArea()
+
+                VStack(alignment: .leading, spacing: AppSpacing.group) {
+                    ProgressView()
+                        .tint(AppPalette.brand)
+
+                    AppSectionHeader(
+                        title: "Building your program",
+                        subtitle: "Balancing your goal, schedule, equipment, and recovery needs."
+                    )
+
+                    Button("Cancel Generation", action: cancelGeneration)
+                        .buttonStyle(AppActionButtonStyle(.secondary))
+                }
+                .appSurface(.emphasized)
+                .padding(AppSpacing.screenHorizontal)
+                .accessibilityIdentifier("ai_program_loading")
+            }
+        }
+        .tint(AppPalette.brand)
+        .onDisappear {
+            generationTask?.cancel()
+        }
+    }
+
+    private var goalSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Primary Goal",
+                subtitle: "Use one clear outcome. You can refine the plan after generation."
+            )
+
+            TextField("Build muscle, improve endurance, return to training...", text: $goal)
+                .textInputAutocapitalization(.sentences)
+                .appTextRole(.control)
+                .padding(AppSpacing.group)
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .accessibilityIdentifier("ai_program_goal")
+        }
+    }
+
+    private var profileSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Training Profile",
+                subtitle: "These choices determine exercise complexity and available movements."
+            )
+
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    Text("Experience")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker("Experience", selection: $fitnessLevel) {
+                        ForEach(FitnessLevel.allCases) { level in
+                            Text(level.rawValue).tag(level)
                         }
-                        .padding(20)
-                        .background(.black.opacity(0.7))
-                        .cornerRadius(15)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    Text("Equipment")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker("Equipment", selection: $equipment) {
+                        ForEach(Equipment.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .appTextRole(.control)
+                }
+            }
+            .appSurface(.emphasized)
+        }
+    }
+
+    private var scheduleSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Schedule",
+                subtitle: "Choose the weekly frequency and days you can consistently protect."
+            )
+
+            VStack(alignment: .leading, spacing: AppSpacing.group) {
+                Stepper(
+                    "Training days: \(daysPerWeek)",
+                    value: $daysPerWeek,
+                    in: 2...6
+                )
+                .appTextRole(.control)
+
+                DatePicker("Start date", selection: $startDate, displayedComponents: .date)
+                    .appTextRole(.control)
+
+                WeekDaySelector(selectedDays: $selectedDaysOfWeek)
+            }
+            .appSurface(.emphasized)
+        }
+    }
+
+    private var preferenceSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Constraints & Preferences",
+                subtitle: "Optional details help Maia avoid exercises or schedules that do not fit."
+            )
+
+            TextEditor(text: $details)
+                .appTextRole(.body)
+                .frame(minHeight: 120)
+                .padding(AppSpacing.row)
+                .scrollContentBackground(.hidden)
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .overlay(alignment: .topLeading) {
+                    if details.isEmpty {
+                        Text("Example: Keep sessions near 30 minutes and avoid high-impact knee work.")
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.tertiary)
+                            .padding(AppSpacing.group)
+                            .allowsHitTesting(false)
                     }
                 }
-            )
         }
     }
     
@@ -131,8 +223,8 @@ struct AIWorkoutGeneratorView: View {
     private func generatePlan() {
         isLoading = true
         errorMessage = nil
-        Task {
-            // Pass all the structured data to the service
+        generationTask?.cancel()
+        generationTask = Task {
             let result = await workoutService.generateAIWorkoutPlan(
                 goal: goal,
                 daysPerWeek: daysPerWeek,
@@ -141,7 +233,8 @@ struct AIWorkoutGeneratorView: View {
                 details: details,
                 goalSettings: goalSettings
             )
-            
+
+            guard !Task.isCancelled else { return }
             isLoading = false
             switch result {
             case .success(let program):
@@ -151,31 +244,80 @@ struct AIWorkoutGeneratorView: View {
             }
         }
     }
+
+    private func cancelGeneration() {
+        generationTask?.cancel()
+        generationTask = nil
+        isLoading = false
+    }
 }
 
 /// A view to show the AI-generated program before the user saves it.
 struct GeneratedProgramPreviewView: View {
     let program: WorkoutProgram
+    var onBack: () -> Void
     var onSave: () -> Void
 
     var body: some View {
-        VStack {
-            List {
-                Section(header: Text("Your New Program: \(program.name)")) {
-                    ForEach(program.routines) { routine in
-                        VStack(alignment: .leading) {
-                            Text(routine.name).appFont(size: 17, weight: .bold)
-                            ForEach(routine.exercises) { exercise in
-                                Text("- \(exercise.name) (\(exercise.sets.count) sets)")
-                                    .font(.caption)
+        AppEditorScaffold(
+            title: program.name,
+            subtitle: "Review every session before adding this program to your training library.",
+            dismiss: onBack
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                AppMetricStrip(items: [
+                    AppMetricItem(
+                        label: "Sessions",
+                        value: program.routines.count.formatted(),
+                        accent: AppPalette.effort
+                    ),
+                    AppMetricItem(
+                        label: "Source",
+                        value: "Maia",
+                        accent: AppPalette.caution
+                    )
+                ])
+                .appSurface(.interpreted)
+
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(
+                        title: "Program Sessions",
+                        subtitle: "Exercises and set counts remain editable after saving."
+                    )
+
+                    LazyVStack(spacing: AppSpacing.row) {
+                        ForEach(program.routines) { routine in
+                            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                                Text(routine.name)
+                                    .appTextRole(.sectionTitle)
+                                    .foregroundStyle(AppPalette.text)
+
+                                ForEach(routine.exercises) { exercise in
+                                    HStack(spacing: AppSpacing.compact) {
+                                        Circle()
+                                            .fill(exercise.type.color)
+                                            .frame(width: 6, height: 6)
+                                            .accessibilityHidden(true)
+                                        Text(exercise.name)
+                                            .appTextRole(.body)
+                                        Spacer(minLength: AppSpacing.compact)
+                                        Text("\(exercise.sets.count) sets")
+                                            .appTextRole(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
                             }
+                            .appSurface(.emphasized)
                         }
                     }
                 }
             }
+        } actions: {
             Button("Save Program", action: onSave)
-                .buttonStyle(PrimaryButtonStyle())
-                .padding()
+                .buttonStyle(AppActionButtonStyle(.primary))
+
+            Button("Back to Details", action: onBack)
+                .buttonStyle(AppActionButtonStyle(.ghost))
         }
     }
 }
@@ -183,27 +325,78 @@ struct GeneratedProgramPreviewView: View {
 /// A reusable component for selecting days of the week.
 struct WeekDaySelector: View {
     @Binding var selectedDays: [Int]
-    private let days = ["S", "M", "T", "W", "T", "F", "S"]
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private let days = [
+        WeekDayChoice(day: 1, shortName: "S", fullName: "Sunday"),
+        WeekDayChoice(day: 2, shortName: "M", fullName: "Monday"),
+        WeekDayChoice(day: 3, shortName: "T", fullName: "Tuesday"),
+        WeekDayChoice(day: 4, shortName: "W", fullName: "Wednesday"),
+        WeekDayChoice(day: 5, shortName: "T", fullName: "Thursday"),
+        WeekDayChoice(day: 6, shortName: "F", fullName: "Friday"),
+        WeekDayChoice(day: 7, shortName: "S", fullName: "Saturday")
+    ]
 
     var body: some View {
-        HStack {
-            ForEach(0..<7) { index in
-                let day = index + 1 // Use 1 (Sun) to 7 (Sat) for Calendar component
-                Text(days[index])
-                    .fontWeight(.bold)
-                    .foregroundColor(selectedDays.contains(day) ? .white : .primary)
-                    .frame(width: 35, height: 35)
-                    .background(
-                        Circle().fill(selectedDays.contains(day) ? Color.brandPrimary : Color.gray.opacity(0.2))
-                    )
-                    .onTapGesture {
-                        if let index = selectedDays.firstIndex(of: day) {
-                            selectedDays.remove(at: index)
-                        } else {
-                            selectedDays.append(day)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AppSpacing.compact) {
+                    ForEach(days) { day in
+                        dayButton(day, usesFullName: true)
+                    }
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(days) { day in
+                            dayButton(day, usesFullName: false)
                         }
                     }
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 88))], spacing: AppSpacing.compact) {
+                        ForEach(days) { day in
+                            dayButton(day, usesFullName: true)
+                        }
+                    }
+                }
             }
         }
+        .accessibilityIdentifier("weekday_selector")
     }
+
+    private func dayButton(_ day: WeekDayChoice, usesFullName: Bool) -> some View {
+        let isSelected = selectedDays.contains(day.day)
+        return Button {
+            if let index = selectedDays.firstIndex(of: day.day) {
+                selectedDays.remove(at: index)
+            } else {
+                selectedDays.append(day.day)
+            }
+        } label: {
+            Text(usesFullName ? day.fullName : day.shortName)
+                .appTextRole(usesFullName ? .secondary : .control)
+                .frame(width: usesFullName ? nil : 42)
+                .frame(maxWidth: usesFullName ? .infinity : nil, minHeight: 42)
+                .foregroundStyle(isSelected ? AppPalette.onBrand : AppPalette.text)
+                .background(
+                    isSelected ? AppPalette.brand : AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        .stroke(isSelected ? Color.clear : AppPalette.separator, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(day.fullName)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+    }
+}
+
+private struct WeekDayChoice: Identifiable {
+    let day: Int
+    let shortName: String
+    let fullName: String
+
+    var id: Int { day }
 }

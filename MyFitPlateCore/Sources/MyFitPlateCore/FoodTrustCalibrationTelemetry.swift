@@ -41,10 +41,14 @@ public struct FoodTrustCalibrationContext: Equatable, Sendable {
             reviewStatus: metadata?.reviewStatus,
             crossVerifiedCount: crossVerifiedCount
         )
-        self.servingEvidence = item.servingWeight.isFinite &&
-            item.servingWeight >= FoodSourceAgreement.minimumComparableServingWeight
-            ? "comparable"
-            : "missing_or_too_small"
+        if descriptor.sourceKey == "nih_dsld", item.servingWeight == 0 {
+            self.servingEvidence = "label_serving"
+        } else {
+            self.servingEvidence = item.servingWeight.isFinite &&
+                item.servingWeight >= FoodSourceAgreement.minimumComparableServingWeight
+                ? "comparable"
+                : "missing_or_too_small"
+        }
         self.sanityProfile = Self.sanityProfile(findings)
         self.sanityFindingCount = findings.count
     }
@@ -92,7 +96,7 @@ public struct FoodTrustCalibrationContext: Equatable, Sendable {
         crossVerifiedCount: Int
     ) -> String {
         if crossVerifiedCount > 0 {
-            return "independent_cross_verification"
+            return "cross_database_agreement"
         }
         if source == "community_barcode" {
             return "community_consensus"
@@ -109,6 +113,10 @@ public struct FoodTrustCalibrationContext: Equatable, Sendable {
         switch source {
         case "usda", "fatsecret", "open_food_facts":
             return "single_database"
+        case "health_canada_cnf":
+            return "government_reference"
+        case "nih_dsld":
+            return "manufacturer_label"
         case "custom_barcode", "manual", "chain_builder", "recipe":
             return "personal_or_curated"
         default:

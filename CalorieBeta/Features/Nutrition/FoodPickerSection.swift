@@ -1,4 +1,5 @@
 import SwiftUI
+import MyFitPlateCore
 
 struct FoodPickerSection: View {
     let title: String
@@ -37,24 +38,14 @@ struct FoodPickerSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.textPrimary)
-
-                if !subtitle.isEmpty {
-                    Text(subtitle)
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-            }
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: title, subtitle: subtitle.isEmpty ? nil : subtitle)
 
             if foods.isEmpty {
                 FoodSearchEmptyState(icon: "tray", title: emptyTitle, message: emptyMessage)
             } else {
-                VStack(spacing: 9) {
-                    ForEach(foods) { food in
+                VStack(spacing: 0) {
+                    ForEach(Array(foods.enumerated()), id: \.element.id) { index, food in
                         FoodPickerRow(
                             food: food,
                             isQuickLogged: quickLoggedFoodIDs.contains(food.id),
@@ -63,8 +54,13 @@ struct FoodPickerSection: View {
                             onDelete: onDelete,
                             source: sourceForFood?(food)
                         )
+
+                        if index < foods.count - 1 {
+                            Divider().padding(.leading, 66)
+                        }
                     }
                 }
+                .appSurface(.quiet, padding: 0)
             }
         }
     }
@@ -77,8 +73,15 @@ struct FoodPickerRow: View {
     let onQuickLog: ((FoodItem) -> Void)?
     let onDelete: ((FoodItem) -> Void)?
     let source: String?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var detailText: String {
+        if food.sourceMetadata?.sourceType == .nihDSLD {
+            let count = food.reportedMicronutrientCount
+            let noun = count == 1 ? "label nutrient" : "label nutrients"
+            return "\(count) \(noun)  •  NIH DSLD"
+        }
+
         guard food.calories > 0 || food.protein > 0 || food.carbs > 0 || food.fats > 0 else {
             return "Tap to review nutrition"
         }
@@ -109,94 +112,150 @@ struct FoodPickerRow: View {
     // blocked ScrollView scrolling that started on a food item. Quick log and delete are
     // already inline buttons on the row, so the swipe duplicated them at the cost of scroll.
     var body: some View {
-            HStack(spacing: 10) {
-                Button(action: {
-                    onSelect(food)
-                }) {
-                    HStack(spacing: 12) {
-                        Text(FoodEmojiMapper.getEmoji(for: food.name))
-                            .appFont(size: 23)
-                            .frame(width: 42, height: 42)
-                            .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(food.name)
-                                .appFont(size: 15, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                                .lineLimit(2)
-
-                            HStack(spacing: 6) {
-                                Text(servingText)
-                                    .appFont(size: 12, weight: .medium)
-                                    .foregroundColor(Color(UIColor.secondaryLabel))
-                                    .lineLimit(1)
-
-                                if let sourceDescriptor {
-                                    FoodTrustMiniBadge(
-                                        food: food,
-                                        descriptor: sourceDescriptor,
-                                        metadata: food.sourceMetadata
-                                    )
-                                }
-
-                                if FoodDataSanity.isSuspicious(food) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .appFont(size: 10, weight: .bold)
-                                        .foregroundColor(.orange)
-                                        .accessibilityLabel("Nutrition data looks off")
-                                }
-                            }
-
-                            Text(detailText)
-                                .appFont(size: 11, weight: .semibold)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .lineLimit(1)
-                        }
-
-                        Spacer(minLength: 6)
-
-                        Image(systemName: "chevron.right")
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(Color(UIColor.tertiaryLabel))
-                    }
-                    .contentShape(Rectangle())
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    selectionButton
+                    actionButtons
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .buttonStyle(.plain)
-
-                if let onQuickLog {
-                    Button(action: { onQuickLog(food) }) {
-                        Image(systemName: isQuickLogged ? "checkmark" : "plus")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(isQuickLogged ? .white : .brandPrimary)
-                            .frame(width: 36, height: 36)
-                            .background(isQuickLogged ? Color.accentPositive : Color.clear, in: Circle())
-                            .overlay(
-                                Circle()
-                                    .stroke(isQuickLogged ? Color.clear : Color.brandPrimary.opacity(0.55), lineWidth: 1.4)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isQuickLogged)
-                    .accessibilityLabel("Quick log \(food.name)")
-                }
-
-                if let onDelete {
-                    Button(role: .destructive, action: { onDelete(food) }) {
-                        Image(systemName: "trash")
-                            .appFont(size: 14, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .frame(width: 34, height: 34)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Remove \(food.name) from recent foods")
+            } else {
+                HStack(spacing: AppSpacing.compact) {
+                    selectionButton
+                    actionButtons
                 }
             }
-            .padding(12)
-            .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+        }
+        .padding(AppSpacing.row)
+    }
+
+    private var selectionButton: some View {
+        Button(action: {
+            onSelect(food)
+        }) {
+            HStack(spacing: 10) {
+                foodGlyph
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(food.name)
+                        .appTextRole(.body)
+                        .foregroundStyle(AppPalette.text)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Group {
+                        if dynamicTypeSize.isAccessibilitySize {
+                            VStack(alignment: .leading, spacing: 4) {
+                                servingLabel
+                                evidenceBadges
+                            }
+                        } else {
+                            HStack(spacing: 6) {
+                                servingLabel
+                                evidenceBadges
+                            }
+                        }
+                    }
+
+                    Text(detailText)
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 6)
+
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Image(systemName: "chevron.right")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityHint("Review serving and nutrition")
+    }
+
+    private var servingLabel: some View {
+        Text(servingText)
+            .appTextRole(.secondary)
+            .foregroundStyle(.secondary)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+    }
+
+    @ViewBuilder
+    private var foodGlyph: some View {
+        Group {
+            if food.sourceMetadata?.sourceType == .nihDSLD {
+                Image(systemName: "pills.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(AppPalette.brandText)
+            } else if dynamicTypeSize.isAccessibilitySize {
+                Image(systemName: "fork.knife")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(FoodEmojiMapper.getEmoji(for: food.name))
+                    .font(.system(size: 23))
+            }
+        }
+        .frame(width: 46, height: 46)
+        .background(AppPalette.canvas, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var evidenceBadges: some View {
+        if let sourceDescriptor {
+            FoodTrustMiniBadge(
+                food: food,
+                descriptor: sourceDescriptor,
+                metadata: food.sourceMetadata
             )
+        }
+
+        if FoodDataSanity.isSuspicious(food) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .appTextRole(.caption)
+                .foregroundStyle(AppPalette.caution)
+                .accessibilityLabel("Nutrition data looks off")
+        }
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: AppSpacing.compact) {
+            if let onQuickLog {
+                Button(action: { onQuickLog(food) }) {
+                    Image(systemName: isQuickLogged ? "checkmark" : "plus")
+                        .appTextRole(.control)
+                        .foregroundStyle(isQuickLogged ? AppPalette.onBrand : AppPalette.brandText)
+                        .frame(width: 40, height: 40)
+                        .background(isQuickLogged ? Color.accentPositive : Color.clear, in: Circle())
+                        .overlay {
+                            Circle()
+                                .stroke(isQuickLogged ? Color.clear : AppPalette.brand.opacity(0.55), lineWidth: 1.4)
+                        }
+                }
+                .buttonStyle(.plain)
+                .disabled(isQuickLogged)
+                .accessibilityLabel(isQuickLogged ? "\(food.name) logged" : "Quick log \(food.name)")
+            }
+
+            if let onDelete {
+                Button(role: .destructive, action: { onDelete(food) }) {
+                    Image(systemName: "trash")
+                        .appTextRole(.body)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, height: 40)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove \(food.name) from recent foods")
+            }
+        }
     }
 }
 
@@ -230,13 +289,22 @@ struct FoodTrustMiniBadge: View {
         case .excellent, .strong:
             return .accentPositiveText
         case .review:
-            return .orange
+            return AppPalette.caution
         case .low:
-            return evaluation.requiresCorrection ? .red : .orange
+            return evaluation.requiresCorrection ? AppPalette.critical : AppPalette.caution
         }
     }
 
     private var title: String {
+        switch descriptor.sourceKey {
+        case "health_canada_cnf":
+            return "Health Canada"
+        case "nih_dsld":
+            return "NIH label"
+        default:
+            break
+        }
+
         switch evaluation.level {
         case .excellent:
             return "Excellent"
@@ -274,6 +342,7 @@ struct FoodTrustMiniBadge: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(tint.opacity(0.10), in: Capsule())
+            .accessibilityIdentifier("food_source_badge_\(descriptor.sourceKey)")
             .accessibilityLabel("\(evaluation.label), \(descriptor.title)")
     }
 }

@@ -19,14 +19,18 @@ struct HomeView: View {
     @EnvironmentObject var workoutService: WorkoutService
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Binding var navigateToProfile: Bool
     @Binding var showSettings: Bool
+    let livingDayTransition: LivingDayTransition?
+    let isLivingDayHomeEnabled: Bool
 
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
 
     @State private var lastRecoveryCheck: Date?
+    @State private var recoveryCheckUserID: String?
     @State private var showingProfileSheet = false
     @State private var showingAddExerciseView = false
 
@@ -41,6 +45,7 @@ struct HomeView: View {
 
     @State private var mealSuggestion: MealSuggestion?
     @State private var mealSuggestionTarget: TrainingFuelTarget?
+    @State private var mealSuggestionUserID: String?
     @State private var showingSuggestionDetail = false
     @State private var showingSuggestionPreferences = false
 
@@ -48,8 +53,6 @@ struct HomeView: View {
     @State private var currentSpotlightIndex: Int = 0
     @State private var showingSpotlightTour = false
     @State private var showingCoachingDashboard = false
-
-    @State private var showingWorkoutRoutines = false
 
     @State private var selectedExerciseForDetail: LoggedExercise?
     @State private var showingWorkoutDetail = false
@@ -63,6 +66,8 @@ struct HomeView: View {
     @State private var pendingTrainingFuelDestination: TrainingFuelDestination?
     @State private var selectedTrainingFuelTarget: TrainingFuelTarget?
     @State private var showingMFPImport = false
+    @State private var livingDayMealPlan: MealPlanDay?
+    @State private var livingDayMealPlanUserID: String?
     @StateObject private var runPlanStore = RunWorkoutPlanStore()
     @AppStorage("mfpSwitcherPromptDismissed") private var mfpSwitcherPromptDismissed = false
     @AppStorage("mfpSwitcherPromptSeen") private var mfpSwitcherPromptSeen = false
@@ -71,6 +76,7 @@ struct HomeView: View {
     // food is logged, so the flame ticks immediately.
     @State private var pastLoggedDays: [Date] = []
     @State private var lastStreakFetchDay: Date?
+    @State private var streakHistoryUserID: String?
     @State private var hasCheckedSwitcherHistory = false
 
     private var isMenuScannerEnabled: Bool {
@@ -93,7 +99,7 @@ struct HomeView: View {
         ),
         "quickActions": (
             title: "Quick Actions",
-            text: "Your most-used tools in one tap: start a workout, open Maia's plan, repeat yesterday's meals, scan a menu, log weight, or track a fast."
+            text: "Your most-used tools in one tap: add water, start a workout, open Maia's plan, repeat yesterday's meals, scan a menu, log weight, or track a fast."
         ),
         "menuScanner": (
             title: "Menu Matchmaker",
@@ -101,7 +107,7 @@ struct HomeView: View {
         ),
         "dailyLog": (
             title: "Your Daily Log",
-            text: "Everything you track lands here. Swipe any food or exercise row to delete it, or tap to edit the details."
+            text: "Food, protein, hydration, and activity stay together here. Swipe a food or exercise row to delete it, or tap to edit the details."
         )
     ]
 
@@ -132,45 +138,69 @@ struct HomeView: View {
     }
 
     var body: some View {
-          ZStack {
+        VStack(spacing: 0) {
+            homeScreenHeader
+
+            ZStack {
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(spacing: 16) {
                             dateNavigationView
-                                .padding(.horizontal)
-                                .padding(.top, 10)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
+                                .padding(.top, AppSpacing.group)
 
                             if goalSettings.isCheckInReady {
                                 weeklyCheckInBanner
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
                             }
 
-                            // DESIGN.md rule 1: the rings are Home's hero and always render —
-                            // before anything is logged they show a zeroed day, which invites
-                            // the first log instead of hiding the screen's whole answer.
-                            HomeDashboardHeader(
-                                dailyLog: currentLogForSelectedDate ?? DailyLog(date: selectedDate, meals: []),
-                                isToday: isToday,
-                                selectedDateFormattedString: selectedDateFormattedString,
-                                weeklyInsight: weeklyInsight,
-                                isHeaderSpotlightActive: isSpotlightActive(for: "dashboardHeader"),
-                                showingDetailedInsights: $showingDetailedInsights,
-                                onReviewFoodTrust: {
-                                    showingNutritionAudit = true
+                            Group {
+                                if isLivingDayHomeEnabled, isToday {
+                                    LivingDayHomeExperience(
+                                        snapshot: livingDaySnapshot,
+                                        transition: livingDayTransition,
+                                        hydration: LivingDayHydrationState(
+                                            consumed: currentWaterIntake,
+                                            target: goalSettings.waterGoal
+                                        ),
+                                        onEventSelected: { event in
+                                            handleLivingDayEvent(event, scrollProxy: proxy)
+                                        },
+                                        onActionSelected: { action in
+                                            handleLivingDayAction(action, scrollProxy: proxy)
+                                        },
+                                        onAddWater: {
+                                            HapticManager.instance.feedback(.medium)
+                                            logWaterFromHome(amount: 8)
+                                        }
+                                    )
+                                } else {
+                                    // The existing dashboard remains the default and the fallback
+                                    // while Living Day soaks behind Remote Config.
+                                    HomeDashboardHeader(
+                                        dailyLog: currentLogForSelectedDate ?? DailyLog(date: selectedDate, meals: []),
+                                        isToday: isToday,
+                                        selectedDateFormattedString: selectedDateFormattedString,
+                                        weeklyInsight: weeklyInsight,
+                                        isHeaderSpotlightActive: isSpotlightActive(for: "dashboardHeader"),
+                                        showingDetailedInsights: $showingDetailedInsights,
+                                        onReviewFoodTrust: {
+                                            showingNutritionAudit = true
+                                        }
+                                    )
                                 }
-                            )
-                                .padding(.horizontal)
+                            }
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
                                 .id("dashboardHeader")
 
                             if shouldOfferSwitcherPrompt {
                                 switcherPromptCard
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
                             }
 
                             HomeQuickActionsView(
-                                showingWorkoutRoutines: $showingWorkoutRoutines,
                                 showingCoachingDashboard: $showingCoachingDashboard,
                                 showingMenuScanner: $showingMenuScanner,
                                 showingWeightEntrySheet: $showingWeightEntrySheet,
@@ -178,10 +208,15 @@ struct HomeView: View {
                                 showSettings: $showSettings,
                                 isMenuScannerEnabled: isMenuScannerEnabled,
                                 isMenuScannerSpotlightActive: isMenuScannerEnabled && isSpotlightActive(for: "menuScanner"),
+                                waterIntake: currentWaterIntake,
+                                waterGoal: goalSettings.waterGoal,
+                                canLogWater: isToday && !isLivingDayHomeEnabled,
+                                onOpenWorkouts: { appState.selectedTab = 2 },
+                                onLogWater: { logWaterFromHome(amount: 8) },
                                 onRepeatYesterdayMeals: { repeatYesterdayMeals() }
                             )
                                 .featureSpotlight(isActive: isSpotlightActive(for: "quickActions"))
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
                                 .id("quickActions")
 
                             // DESIGN.md rule 1: the diary is the most-touched section, so it
@@ -198,7 +233,7 @@ struct HomeView: View {
                                 onDeleteFood: { deleteFood(byID: $0) },
                                 onDeleteExercise: { deleteExercise(byID: $0) }
                             )
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
                                 .id("dailyLog")
 
                             if isToday, (goalSettings.calories ?? 0) > 0 {
@@ -218,25 +253,25 @@ struct HomeView: View {
                                         showingTrainingFuelPlanner = true
                                     }
                                 )
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
                             }
 
                             if shouldOfferFillMyMacros,
                                todayFuelPlan.action == .none,
                                trainingFuelPlanStore.confirmedPlan == nil {
                                 fillMyMacrosCard
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
                             }
 
                             weeklyRecapBanner
-                                .padding(.horizontal)
+                                .padding(.horizontal, AppSpacing.screenHorizontal)
 
                             if currentLogForSelectedDate != nil {
                                 HealthActivityCard()
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
                                 HomeWeightTrackingCard(showingWeightEntrySheet: $showingWeightEntrySheet)
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
                             }
 
                             // The training-aware fuel plan is a "next step" nudge, not the
@@ -244,13 +279,14 @@ struct HomeView: View {
                             // actions, and diary keep the prime real estate up top.
                             if shouldShowTodayFuelPlan {
                                 todayFuelPlanCard(for: todayFuelPlan)
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, AppSpacing.screenHorizontal)
                             }
                         }
                         .frame(width: geometry.size.width, alignment: .top)
                         .clipped()
                         .padding(.bottom, 128)
                     }
+                    .accessibilityIdentifier("home_scroll")
                     .scrollBounceBehavior(.basedOnSize, axes: .vertical)
                     .onAppear {
                         if let userId = DIContainer.shared.authService.currentUserID {
@@ -262,9 +298,23 @@ struct HomeView: View {
                             dailyLogService.loadSmartSuggestions(for: userId)
                             workoutService.fetchRoutinesAndPrograms()
                             trainingFuelPlanStore.load(for: userId)
+                            refreshLivingDayMealPlan()
+                            refreshStreakHistory()
                         } else {
                             dailyLogService.smartSuggestions = []
                             trainingFuelPlanStore.load(for: nil)
+                            livingDayMealPlan = nil
+                            livingDayMealPlanUserID = nil
+                            mealSuggestion = nil
+                            mealSuggestionTarget = nil
+                            mealSuggestionUserID = nil
+                            showingSuggestionDetail = false
+                            pastLoggedDays = []
+                            lastStreakFetchDay = nil
+                            streakHistoryUserID = nil
+                            hasCheckedSwitcherHistory = false
+                            lastRecoveryCheck = nil
+                            recoveryCheckUserID = nil
                         }
                     }
                     .onChange(of: currentSpotlightIndex) { _, newIndex in
@@ -277,9 +327,10 @@ struct HomeView: View {
                     }
                 }
             }
-
-          }
-          .overlayPreferenceValue(SpotlightBoundsKey.self) { anchor in
+            }
+        }
+        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .overlayPreferenceValue(SpotlightBoundsKey.self) { anchor in
               GeometryReader { proxy in
                   if showingSpotlightTour,
                      currentSpotlightIndex < tourSpotlightIDs.count,
@@ -296,39 +347,8 @@ struct HomeView: View {
                       .animation(.easeInOut(duration: 0.25), value: currentSpotlightIndex)
                   }
               }
-          }
-          .toolbar {
-              ToolbarItem(placement: .navigationBarLeading) {
-                  Button(action: { self.showingProfileSheet = true }) {
-                      Text("MFP")
-                          .appFont(size: 13, weight: .bold)
-                          .foregroundColor(.brandPrimary)
-                          .frame(width: 44, height: 44)
-                          .background(.ultraThinMaterial, in: Circle())
-                          .overlay(
-                              Circle()
-                                  .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                          )
-                  }
-                  .buttonStyle(.plain)
-                  .accessibilityLabel("Open profile")
-              }
-              ToolbarItem(placement: .navigationBarTrailing) {
-                  Menu {
-                      Button(action: { self.showingProfileSheet = true }) {
-                          Label("Profile", systemImage: "person")
-                      }
-                      Divider()
-                      Button(action: { self.showSettings = true }) {
-                          Label("Settings", systemImage: "gearshape")
-                      }
-                  } label: {
-                      Image(systemName: "line.3.horizontal")
-                          .font(.title2)
-                          .foregroundColor(Color(UIColor.secondaryLabel))
-                  }
-              }
-          }
+        }
+        .toolbar(.hidden, for: .navigationBar)
           // MARK: - Sheets
           .sheet(isPresented: $showingDetailedInsights) {
               NavigationStack {
@@ -396,10 +416,11 @@ struct HomeView: View {
               NavigationStack {
                   ScrollView {
                       FastingTrackerCard()
-                          .padding()
+                          .padding(.horizontal, AppSpacing.screenHorizontal)
+                          .padding(.vertical, AppSpacing.group)
                   }
                   .background(Color.backgroundPrimary.ignoresSafeArea())
-                  .navigationTitle("Fasting")
+                  .navigationTitle("")
                   .navigationBarTitleDisplayMode(.inline)
                   .toolbar {
                       ToolbarItem(placement: .cancellationAction) {
@@ -463,6 +484,21 @@ struct HomeView: View {
           .onChange(of: dailyLogService.currentDailyLog) { _, _ in
               refreshDeferredTrainingRecoveryIfNeeded()
           }
+          .onChange(of: livingDayWidgetSignature) { _, _ in
+              syncLivingDayWidgetPath()
+          }
+          .onChange(of: selectedDate) { _, _ in
+              refreshLivingDayMealPlan()
+          }
+          .onReceive(NotificationCenter.default.publisher(for: .mealPlanChanged)) { notification in
+              guard notification.object as? String == DIContainer.shared.authService.currentUserID else {
+                  return
+              }
+              refreshLivingDayMealPlan()
+          }
+          .onChange(of: isLivingDayHomeEnabled) { _, _ in
+              refreshLivingDayMealPlan()
+          }
           .onChange(of: spotlightManager.replayToken) { _, _ in
               startSpotlightTourIfNeeded()
           }
@@ -487,14 +523,6 @@ struct HomeView: View {
                   showingTrainingFuelPlanner = true
               }
           }
-          // The "start workout" quick action switches to the Train tab instead of pushing
-          // a second copy of the whole Train screen inside Home's navigation stack.
-          .onChange(of: showingWorkoutRoutines) { _, isShowing in
-              if isShowing {
-                  showingWorkoutRoutines = false
-                  appState.selectedTab = 2
-              }
-          }
           .navigationDestination(isPresented: $showingWorkoutDetail) {
               if let selectedExerciseForDetail {
                   PastWorkoutDetailView(exercise: selectedExerciseForDetail)
@@ -517,6 +545,11 @@ struct HomeView: View {
     /// finished in the last two hours (recorded or from a watch via HealthKit) feeds the
     /// 45-minute recovery window logic.
     private func refreshRunRecoveryPrompt() {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        if recoveryCheckUserID != userID {
+            recoveryCheckUserID = userID
+            lastRecoveryCheck = nil
+        }
         // Home reappears constantly (tab switches, sheet dismissals); a HealthKit query on
         // every appearance is wasteful and makes the banner flicker. Re-check at most once
         // every 5 minutes — well inside the 45-minute recovery window it feeds.
@@ -524,7 +557,11 @@ struct HomeView: View {
         lastRecoveryCheck = Date()
 
         let since = Calendar.current.date(byAdding: .hour, value: -2, to: Date()) ?? Date()
-        RunImportService().fetchRuns(since: since) { runs in
+        RunImportService().fetchRuns(
+            since: since,
+            userID: userID
+        ) { runs in
+            guard DIContainer.shared.authService.currentUserID == userID else { return }
             insightsService.evaluateRunRecoveryPrompt(
                 recentRun: runs.first,
                 weightLbs: goalSettings.weight
@@ -537,6 +574,8 @@ struct HomeView: View {
         workoutService.fetchRoutinesAndPrograms()
         trainingFuelPlanStore.load(for: DIContainer.shared.authService.currentUserID)
         fetchLogForSelectedDate()
+        refreshLivingDayMealPlan()
+        syncLivingDayWidgetPath()
         refreshStreakHistory()
         if isToday {
             if !ScreenshotDemoMode.isEnabled {
@@ -556,6 +595,7 @@ struct HomeView: View {
                         dailyLogService: dailyLogService
                     )
                     await MainActor.run {
+                        guard DIContainer.shared.authService.currentUserID == userID else { return }
                         if goalSettings.isCheckInReady {
                             self.showingWeeklyCheckIn = true
                         }
@@ -571,7 +611,7 @@ struct HomeView: View {
     /// user taps "Replay feature tour" in Settings (which clears the seen flags first).
     private func startSpotlightTourIfNeeded() {
         guard !ScreenshotDemoMode.isEnabled,
-              !ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
+              !AppRuntime.isUITesting() else { return }
         let needed = spotlightOrder.filter { !spotlightManager.isShown(id: $0) }
         guard !needed.isEmpty else { return }
         self.tourSpotlightIDs = needed
@@ -624,70 +664,109 @@ struct HomeView: View {
 
     // MARK: - Components & Subviews
 
-    private var dateNavigationView: some View {
-        HStack(spacing: 12) {
-            Button(action: {
-                changeSelectedDate(by: -1)
-            }) {
-                Image(systemName: "chevron.left")
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .frame(width: 38, height: 38)
-                    .background(Color.backgroundPrimary.opacity(0.82), in: Circle())
+    private var homeScreenHeader: some View {
+        AppScreenHeader(
+            title: "Home",
+            subtitle: isToday
+                ? "Your food, training, and recovery today."
+                : "Review your food, training, and recovery."
+        ) {
+            HStack(spacing: AppSpacing.compact) {
+                Button(action: { showingProfileSheet = true }) {
+                    Image(systemName: "person.crop.circle")
+                }
+                .buttonStyle(AppIconButtonStyle(.neutral))
+                .accessibilityLabel("Open profile")
+                .accessibilityIdentifier("home_profile_button")
+
+                Button(action: { showSettings = true }) {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(AppIconButtonStyle(.neutral))
+                .accessibilityLabel("Open settings")
+                .accessibilityIdentifier("home_settings_button")
             }
+        }
+        .padding(.horizontal, AppSpacing.screenHorizontal)
+        .padding(.top, AppSpacing.group)
+        .padding(.bottom, AppSpacing.compact)
+        .accessibilityIdentifier("home_screen_header")
+    }
 
-            Spacer()
+    private var dateNavigationView: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    dateNavigationLabel
 
-            VStack(spacing: 2) {
-                Text(selectedDateFormattedString)
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.textPrimary)
-
-                // The streak replaces the weekday line once it means something. Orange is
-                // the flame's semantic color; the grace-day copy nudges without shaming.
-                if isToday, streakDays >= 2 {
-                    HStack(spacing: 3) {
-                        Image(systemName: "flame.fill")
-                            .appFont(size: 10, weight: .bold)
-                            .foregroundColor(.orange)
-                        Text(streakOnGrace ? "\(streakDays)-day streak — log to keep it" : "\(streakDays)-day streak")
-                            .appFont(size: 11, weight: .semibold)
-                            .foregroundColor(streakOnGrace ? .orange : Color(UIColor.secondaryLabel))
-                            .contentTransition(.numericText())
+                    HStack(spacing: AppSpacing.compact) {
+                        previousDateButton
+                        nextDateButton
                     }
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: streakDays)
-                    .accessibilityLabel(streakOnGrace
-                        ? "\(streakDays) day logging streak. Log today to keep it."
-                        : "\(streakDays) day logging streak")
-                } else {
-                    Text(selectedDateSubtitle)
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    previousDateButton
+                    Spacer(minLength: AppSpacing.row)
+                    dateNavigationLabel
+                    Spacer(minLength: AppSpacing.row)
+                    nextDateButton
                 }
             }
-
-            Spacer()
-
-            Button(action: {
-                changeSelectedDate(by: 1)
-            }) {
-                Image(systemName: "chevron.right")
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(isToday ? Color(UIColor.tertiaryLabel) : Color(UIColor.secondaryLabel))
-                    .frame(width: 38, height: 38)
-                    .background(Color.backgroundPrimary.opacity(isToday ? 0.36 : 0.82), in: Circle())
-            }
-            .disabled(isToday)
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(maxWidth: 520)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay(
-            Capsule()
-                .stroke(Color.white.opacity(0.16), lineWidth: 1)
-        )
+        .frame(maxWidth: 520, alignment: .leading)
+    }
+
+    private var dateNavigationLabel: some View {
+        VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .center, spacing: 2) {
+            Text(selectedDateFormattedString)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("home_date_label")
+
+            // The streak replaces the weekday line once it means something. Orange is
+            // the flame's semantic color; the grace-day copy nudges without shaming.
+            if isToday, streakDays >= 2 {
+                HStack(spacing: 3) {
+                    Image(systemName: "flame.fill")
+                        .appTextRole(.caption)
+                        .foregroundStyle(AppPalette.caution)
+                    Text(streakOnGrace ? "\(streakDays)-day streak — log to keep it" : "\(streakDays)-day streak")
+                        .appTextRole(.caption)
+                        .foregroundStyle(streakOnGrace ? AppPalette.caution : Color(UIColor.secondaryLabel))
+                        .contentTransition(.numericText())
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .animation(AppMotion.standard, value: streakDays)
+                .accessibilityLabel(streakOnGrace
+                    ? "\(streakDays) day logging streak. Log today to keep it."
+                    : "\(streakDays) day logging streak")
+            } else {
+                Text(selectedDateSubtitle)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .center)
+    }
+
+    private var previousDateButton: some View {
+        Button(action: { changeSelectedDate(by: -1) }) {
+            Image(systemName: "chevron.left")
+        }
+        .buttonStyle(AppIconButtonStyle(.neutral))
+        .accessibilityLabel("Previous day")
+    }
+
+    private var nextDateButton: some View {
+        Button(action: { changeSelectedDate(by: 1) }) {
+            Image(systemName: "chevron.right")
+        }
+        .buttonStyle(AppIconButtonStyle(.neutral))
+        .disabled(isToday)
+        .opacity(isToday ? 0.35 : 1)
+        .accessibilityLabel("Next day")
     }
 
     private var todayHasLoggedFood: Bool {
@@ -722,7 +801,7 @@ struct HomeView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "square.and.arrow.down")
                     .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+                    .foregroundColor(.brandForeground)
                     .frame(width: 42, height: 42)
                     .background(Color.brandPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
@@ -748,7 +827,7 @@ struct HomeView: View {
                         Text("Import history")
                             .appFont(size: 14, weight: .bold)
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(AppPalette.onBrand)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 11)
                     .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -802,11 +881,20 @@ struct HomeView: View {
 
     private func refreshStreakHistory() {
         let todayStart = Calendar.current.startOfDay(for: Date())
-        if let last = lastStreakFetchDay, Calendar.current.isDate(last, inSameDayAs: todayStart) {
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            pastLoggedDays = []
+            lastStreakFetchDay = nil
+            streakHistoryUserID = nil
             hasCheckedSwitcherHistory = true
             return
         }
-        guard let userID = DIContainer.shared.authService.currentUserID else {
+        if streakHistoryUserID != userID {
+            pastLoggedDays = []
+            lastStreakFetchDay = nil
+            hasCheckedSwitcherHistory = false
+            streakHistoryUserID = userID
+        }
+        if let last = lastStreakFetchDay, Calendar.current.isDate(last, inSameDayAs: todayStart) {
             hasCheckedSwitcherHistory = true
             return
         }
@@ -815,10 +903,14 @@ struct HomeView: View {
         Task {
             let start = Calendar.current.date(byAdding: .day, value: -45, to: todayStart)
             if case .success(let logs) = await dailyLogService.fetchDailyHistory(for: userID, startDate: start, endDate: Date()) {
+                guard DIContainer.shared.authService.currentUserID == userID,
+                      streakHistoryUserID == userID else { return }
                 pastLoggedDays = logs
                     .filter { !$0.meals.flatMap(\.foodItems).isEmpty && !Calendar.current.isDateInToday($0.date) }
                     .map(\.date)
             }
+            guard DIContainer.shared.authService.currentUserID == userID,
+                  streakHistoryUserID == userID else { return }
             hasCheckedSwitcherHistory = true
         }
     }
@@ -839,6 +931,22 @@ struct HomeView: View {
         max(0, goalSettings.fats - (currentLogForSelectedDate?.totalMacros().fats ?? 0))
     }
 
+    private var currentWaterIntake: Double {
+        currentLogForSelectedDate?.waterTracker?.totalOunces ?? 0
+    }
+
+    private func logWaterFromHome(amount: Double) {
+        guard isToday,
+              amount > 0,
+              let userID = DIContainer.shared.authService.currentUserID else { return }
+
+        dailyLogService.addWaterToCurrentLog(
+            for: userID,
+            amount: amount,
+            goalOunces: max(1, goalSettings.waterGoal)
+        )
+    }
+
     private var trainingFuelGoals: TodayFuelPlanGoals {
         TodayFuelPlanGoals(
             calories: goalSettings.calories ?? 0,
@@ -846,6 +954,155 @@ struct HomeView: View {
             carbs: goalSettings.carbs,
             fats: goalSettings.fats
         )
+    }
+
+    private var livingDaySnapshot: LivingDaySnapshot {
+        let currentUserID = DIContainer.shared.authService.currentUserID
+        let plannedMeals: [PlannedMeal]
+        if livingDayMealPlanUserID == currentUserID,
+           let plan = livingDayMealPlan,
+           Calendar.current.isDate(plan.date, inSameDayAs: selectedDate) {
+            plannedMeals = plan.meals
+        } else {
+            plannedMeals = []
+        }
+
+        let activities = (currentLogForSelectedDate?.exercises ?? []).map {
+            LivingDayActivityInput(exercise: $0)
+        }
+
+        return LivingDaySnapshotBuilder.make(
+            date: selectedDate,
+            dailyLog: currentLogForSelectedDate,
+            goals: trainingFuelGoals,
+            plannedMeals: plannedMeals,
+            activities: activities,
+            trainingPlan: trainingFuelPlanStore.confirmedPlan,
+            freshness: .current(updatedAt: nil)
+        )
+    }
+
+    private var livingDayWidgetSignature: String {
+        guard isLivingDayHomeEnabled, isToday else { return "disabled" }
+        let snapshot = livingDaySnapshot
+        let events = snapshot.events.map { event in
+            [
+                event.id,
+                event.kind.rawValue,
+                event.state.rawValue,
+                String(event.startDate.timeIntervalSinceReferenceDate),
+                event.evidence.rawValue
+            ].joined(separator: ":")
+        }
+        let budget = snapshot.budget.nutrients.map { nutrient in
+            [nutrient.consumed, nutrient.planned, nutrient.target]
+                .map { value in
+                    value.map { String($0) } ?? "nil"
+                }
+                .joined(separator: ":")
+        }
+        return ([snapshot.nextAction.kind.rawValue] + budget + events).joined(separator: "|")
+    }
+
+    private func syncLivingDayWidgetPath() {
+        guard isLivingDayHomeEnabled, isToday else {
+            EcosystemSyncManager.shared.updateWidgetPath(snapshot: nil)
+            return
+        }
+        EcosystemSyncManager.shared.updateWidgetPath(snapshot: livingDaySnapshot)
+    }
+
+    private func refreshLivingDayMealPlan() {
+        guard isLivingDayHomeEnabled,
+              isToday,
+              let userID = DIContainer.shared.authService.currentUserID else {
+            livingDayMealPlan = nil
+            livingDayMealPlanUserID = nil
+            return
+        }
+
+        let requestedDate = selectedDate
+        livingDayMealPlan = mealPlannerService.cachedPlan(for: requestedDate, userID: userID)
+        livingDayMealPlanUserID = userID
+
+        Task { @MainActor in
+            let plan = await mealPlannerService.fetchPlan(for: requestedDate, userID: userID)
+            guard DIContainer.shared.authService.currentUserID == userID,
+                  Calendar.current.isDate(selectedDate, inSameDayAs: requestedDate) else { return }
+            livingDayMealPlan = plan
+            livingDayMealPlanUserID = userID
+        }
+    }
+
+    private func handleLivingDayEvent(
+        _ event: LivingDaySnapshot.Event,
+        scrollProxy: ScrollViewProxy
+    ) {
+        HapticManager.instance.feedback(.light)
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.livingDayEventOpened.rawValue, parameters: [
+            "kind": event.kind.rawValue,
+            "state": event.state.rawValue,
+            "evidence": event.evidence.rawValue
+        ])
+
+        let needsTrustReview = event.evidence == .correction || event.evidence == .review
+        if event.kind == .meal,
+           needsTrustReview,
+           currentLogForSelectedDate != nil {
+            showingNutritionAudit = true
+            return
+        }
+
+        switch event.destination {
+        case .diary:
+            withAnimation(.easeInOut(duration: 0.2)) {
+                scrollProxy.scrollTo("dailyLog", anchor: .top)
+            }
+        case .mealPlan:
+            appState.selectedTab = 3
+        case .workouts:
+            appState.selectedTab = 2
+        case .runs:
+            openLivingDayRoute("myfitplate://runs")
+        case .trainingFuel:
+            showingTrainingFuelPlanner = true
+        case .none:
+            break
+        }
+    }
+
+    private func handleLivingDayAction(
+        _ action: DailyNextAction,
+        scrollProxy: ScrollViewProxy
+    ) {
+        HapticManager.instance.feedback(.light)
+        DIContainer.shared.analyticsManager?.logEvent(ProductAnalytics.Event.livingDayActionOpened.rawValue, parameters: [
+            "kind": action.kind.rawValue
+        ])
+
+        switch action.kind {
+        case .preWorkoutFuel, .recoveryMeal:
+            showingTrainingFuelPlanner = true
+        case .proteinCatchUp:
+            openLivingDayRoute(action.deepLink)
+        case .trustReview:
+            if currentLogForSelectedDate != nil {
+                showingNutritionAudit = true
+            }
+        case .steadyDay:
+            if action.deepLink.contains("meal-plan") {
+                appState.selectedTab = 3
+            } else {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    scrollProxy.scrollTo("dailyLog", anchor: .top)
+                }
+            }
+        }
+    }
+
+    private func openLivingDayRoute(_ deepLink: String) {
+        guard let url = URL(string: deepLink) else { return }
+        AppCoordinator.shared.handle(url: url, appState: appState)
     }
 
     private var trainingFuelCandidates: [TrainingFuelSessionCandidate] {
@@ -963,14 +1220,17 @@ struct HomeView: View {
     }
 
     private func generateTrainingFuelSuggestion(target: TrainingFuelTarget) {
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         Task {
             let suggestion = await insightsService.generateTrainingFuelSuggestion(
                 target: target,
                 pantryItems: pantryService.pantryItems.map(\.name)
             )
+            guard DIContainer.shared.authService.currentUserID == userID else { return }
             if let suggestion {
                 mealSuggestionTarget = target
                 mealSuggestion = suggestion
+                mealSuggestionUserID = userID
                 showingSuggestionDetail = true
             } else {
                 ToastManager.shared.showToast(
@@ -1115,7 +1375,7 @@ struct HomeView: View {
                         todayFuelPlanMetricPill(
                             title: plan.remainingCalories >= 0 ? "Budget" : "Over",
                             value: "\(Int(abs(plan.remainingCalories).rounded()).formatted()) cal",
-                            color: plan.remainingCalories >= 0 ? .brandPrimary : .orange
+                            color: plan.remainingCalories >= 0 ? .brandPrimary : AppPalette.caution
                         )
 
                         if let protein = plan.targetProteinGrams {
@@ -1151,10 +1411,9 @@ struct HomeView: View {
             }
             .padding(16)
             .frame(maxWidth: 520, alignment: .leading)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .background(Color.backgroundSecondary.opacity(0.84), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
                     .stroke(icon.color.opacity(0.16), lineWidth: 1)
             )
         }
@@ -1193,7 +1452,7 @@ struct HomeView: View {
         case .planDinner:
             return ("moon.stars.fill", .accentCarbs)
         case .overTargetReview:
-            return ("exclamationmark.triangle.fill", .orange)
+            return ("exclamationmark.triangle.fill", AppPalette.caution)
         case .steadyDay:
             return ("checkmark.circle.fill", .accentPositive)
         }
@@ -1244,6 +1503,7 @@ struct HomeView: View {
             HapticManager.instance.feedback(.light)
         }
 
+        guard let userID = DIContainer.shared.authService.currentUserID else { return }
         Task {
             mealSuggestionTarget = nil
             let pantryNames = pantryService.pantryItems.map(\.name)
@@ -1253,9 +1513,12 @@ struct HomeView: View {
                 "pantry_count": pantryNames.count
             ])
             if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 self.mealSuggestion = suggestion
+                self.mealSuggestionUserID = userID
                 self.showingSuggestionDetail = true
             } else {
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 // Never fail silently (the AI call needs a network round-trip).
                 ToastManager.shared.showToast(message: "Maia couldn't build a meal right now. Check your connection and try again.")
             }
@@ -1367,14 +1630,24 @@ struct HomeView: View {
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(16)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .background(Color.backgroundSecondary.opacity(0.70), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                    .stroke(AppPalette.separator, lineWidth: 1)
+            }
         }
         .buttonStyle(.plain)
     }
 
     private func logMealSuggestion(_ suggestion: MealSuggestion) {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID,
+              mealSuggestionUserID == userID else {
+            mealSuggestion = nil
+            mealSuggestionTarget = nil
+            mealSuggestionUserID = nil
+            showingSuggestionDetail = false
+            return
+        }
 
         let foodItem = FoodItem(
             id: UUID().uuidString,
@@ -1394,6 +1667,8 @@ struct HomeView: View {
         withAnimation {
             self.mealSuggestion = nil
             self.mealSuggestionTarget = nil
+            self.mealSuggestionUserID = nil
+            self.showingSuggestionDetail = false
         }
     }
 
@@ -1402,8 +1677,14 @@ struct HomeView: View {
                 completion()
                 return
             }
+            let requestedDate = selectedDate
 
-            dailyLogService.fetchLog(for: userID, date: selectedDate) { [self] _ in
+            dailyLogService.fetchLog(for: userID, date: requestedDate) { [self] _ in
+                guard DIContainer.shared.authService.currentUserID == userID,
+                      Calendar.current.isDate(selectedDate, inSameDayAs: requestedDate) else {
+                    completion()
+                    return
+                }
                 self.goalSettings.recalculateAllGoals()
                 self.refreshDeferredTrainingRecoveryIfNeeded()
                 if self.isToday {

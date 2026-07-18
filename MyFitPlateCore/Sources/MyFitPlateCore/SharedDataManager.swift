@@ -18,6 +18,8 @@ public struct WidgetData: Codable, Equatable, Sendable {
     public var lastUpdated: Date? = nil
     public var macroCalorieDelta: Double? = nil
     public var nextAction: DailyNextAction? = nil
+    public var pathEvents: [WidgetPathEvent]? = nil
+    public var pathDate: Date? = nil
 
     public init(
         calories: Double,
@@ -30,7 +32,9 @@ public struct WidgetData: Codable, Equatable, Sendable {
         fatGoal: Double,
         lastUpdated: Date? = nil,
         macroCalorieDelta: Double? = nil,
-        nextAction: DailyNextAction? = nil
+        nextAction: DailyNextAction? = nil,
+        pathEvents: [WidgetPathEvent]? = nil,
+        pathDate: Date? = nil
     ) {
         self.calories = calories
         self.calorieGoal = calorieGoal
@@ -43,6 +47,8 @@ public struct WidgetData: Codable, Equatable, Sendable {
         self.lastUpdated = lastUpdated
         self.macroCalorieDelta = macroCalorieDelta
         self.nextAction = nextAction
+        self.pathEvents = pathEvents
+        self.pathDate = pathDate
     }
 
     public static var previewData: WidgetData {
@@ -64,7 +70,34 @@ public struct WidgetData: Codable, Equatable, Sendable {
                 deepLink: "myfitplate://training-fuel",
                 proteinGrams: 15,
                 carbGrams: 35
-            )
+            ),
+            pathEvents: [
+                WidgetPathEvent(
+                    kind: .meal,
+                    state: .completed,
+                    sequence: 0,
+                    startDate: Date().addingTimeInterval(-3_600),
+                    isApproximate: false,
+                    needsTrustReview: false
+                ),
+                WidgetPathEvent(
+                    kind: .strength,
+                    state: .planned,
+                    sequence: 1,
+                    startDate: Date().addingTimeInterval(2_700),
+                    isApproximate: false,
+                    needsTrustReview: false
+                ),
+                WidgetPathEvent(
+                    kind: .recovery,
+                    state: .planned,
+                    sequence: 2,
+                    startDate: Date().addingTimeInterval(6_300),
+                    isApproximate: false,
+                    needsTrustReview: false
+                )
+            ],
+            pathDate: Date()
         )
     }
 }

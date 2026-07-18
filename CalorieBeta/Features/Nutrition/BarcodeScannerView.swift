@@ -1,9 +1,22 @@
 import SwiftUI
 import VisionKit
 import AVFoundation
+import UIKit
+
+private enum BarcodeScannerAvailability {
+    case checking
+    case ready
+    case permissionDenied
+    case restricted
+    case unsupported
+    case temporarilyUnavailable
+}
 
 struct BarcodeScannerView: View {
     @Environment(\.presentationMode) var presentationMode
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     var onBarcodeDetected: (String) -> Void
     var onBarcodesDetected: (([String]) -> Void)?
 
@@ -11,47 +24,172 @@ struct BarcodeScannerView: View {
     @State private var scannedBarcodes: [String] = []
     @State private var lastScannedBarcode: String?
     @State private var flashSuccess = false
+    @State private var availability: BarcodeScannerAvailability = .checking
 
     var body: some View {
-        if DataScannerViewController.isSupported && DataScannerViewController.isAvailable {
-            ZStack {
-                VisionKitScannerView(
-                    isRapidMode: isRapidMode,
-                    onBarcodeDetected: { barcode in
-                        if isRapidMode {
-                            handleRapidScan(barcode)
-                        } else {
-                            onBarcodeDetected(barcode)
-                        }
-                    }
+        Group {
+            switch availability {
+            case .ready:
+                scannerContent
+            case .checking:
+                scannerCheckingView
+            case .permissionDenied:
+                scannerUnavailableView(
+                    icon: "camera.fill",
+                    title: "Camera access is off",
+                    message: "Allow camera access in Settings to scan a barcode. Your current logging context will still be here when you return.",
+                    primaryTitle: "Open Settings",
+                    primaryAction: openSettings
                 )
-                .ignoresSafeArea()
-
-                VStack {
-                    topControlBar
-                    Spacer()
-                    centerGuidanceFrame
-                    Spacer()
-                    bottomTraySection
-                }
+            case .restricted:
+                scannerUnavailableView(
+                    icon: "lock.shield",
+                    title: "Camera access is restricted",
+                    message: "This device currently prevents camera access. You can return and use search, a label photo, or manual entry instead."
+                )
+            case .unsupported:
+                scannerUnavailableView(
+                    icon: "barcode.viewfinder",
+                    title: "Barcode scanning is not available",
+                    message: "This device does not support live barcode recognition. Your food log has not changed."
+                )
+            case .temporarilyUnavailable:
+                scannerUnavailableView(
+                    icon: "camera.badge.ellipsis",
+                    title: "Camera is temporarily unavailable",
+                    message: "Another camera session or a system restriction may be active. Close it and try again.",
+                    primaryTitle: "Try Again",
+                    primaryAction: resolveCameraAvailability
+                )
             }
-        } else {
-            // Fallback for unsupported devices (like Simulators)
-            VStack(spacing: 20) {
-                Image(systemName: "camera.viewfinder")
-                    .appFont(size: 60)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                Text("Barcode scanning is not supported or camera access was denied on this device.")
-                    .font(.headline)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                Button("Close") {
-                    presentationMode.wrappedValue.dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding()
         }
+        .background(Color.black.ignoresSafeArea())
+        .onAppear(perform: resolveCameraAvailability)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                resolveCameraAvailability()
+            }
+        }
+    }
+
+    private var scannerContent: some View {
+        ZStack {
+            VisionKitScannerView(
+                isRapidMode: isRapidMode,
+                onBarcodeDetected: { barcode in
+                    if isRapidMode {
+                        handleRapidScan(barcode)
+                    } else {
+                        onBarcodeDetected(barcode)
+                    }
+                },
+                onUnavailable: {
+                    availability = .temporarilyUnavailable
+                }
+            )
+            .ignoresSafeArea()
+
+            VStack {
+                topControlBar
+                Spacer()
+                centerGuidanceFrame
+                Spacer()
+                bottomTraySection
+            }
+        }
+    }
+
+    private var scannerCheckingView: some View {
+        VStack(spacing: AppSpacing.group) {
+            ProgressView()
+                .tint(.white)
+
+            Text("Starting camera")
+                .appTextRole(.control)
+                .foregroundStyle(.white)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func scannerUnavailableView(
+        icon: String,
+        title: String,
+        message: String,
+        primaryTitle: String? = nil,
+        primaryAction: (() -> Void)? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.section) {
+            Spacer()
+
+            Image(systemName: icon)
+                .appTextRole(.display)
+                .foregroundStyle(.white)
+                .frame(width: 72, height: 72)
+                .background(Color.white.opacity(0.1), in: RoundedRectangle(
+                    cornerRadius: AppRadius.surface,
+                    style: .continuous
+                ))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                Text(title)
+                    .appTextRole(.display)
+                    .foregroundStyle(.white)
+
+                Text(message)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let primaryTitle, let primaryAction {
+                Button(primaryTitle, action: primaryAction)
+                    .buttonStyle(AppActionButtonStyle(.primary))
+            }
+
+            Button("Use another logging method") {
+                presentationMode.wrappedValue.dismiss()
+            }
+            .buttonStyle(AppActionButtonStyle(.ghost))
+            .tint(.white)
+
+            Spacer()
+        }
+        .padding(AppSpacing.section)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private func resolveCameraAvailability() {
+        guard DataScannerViewController.isSupported else {
+            availability = .unsupported
+            return
+        }
+
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            availability = DataScannerViewController.isAvailable ? .ready : .temporarilyUnavailable
+        case .denied:
+            availability = .permissionDenied
+        case .restricted:
+            availability = .restricted
+        case .notDetermined:
+            availability = .checking
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    availability = granted && DataScannerViewController.isAvailable
+                        ? .ready
+                        : (granted ? .temporarilyUnavailable : .permissionDenied)
+                }
+            }
+        @unknown default:
+            availability = .temporarilyUnavailable
+        }
+    }
+
+    private func openSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        openURL(url)
     }
 
     private var topControlBar: some View {
@@ -68,22 +206,22 @@ struct BarcodeScannerView: View {
             Spacer()
 
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7)) {
                     isRapidMode.toggle()
                 }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: isRapidMode ? "bolt.badge.clock.fill" : "bolt.slash.fill")
-                        .foregroundColor(isRapidMode ? .yellow : .white)
+                        .foregroundColor(isRapidMode ? AppPalette.onBrand : .white)
                     Text(isRapidMode ? "Rapid Scan ON" : "Rapid Scan OFF")
                         .font(.subheadline.bold())
-                        .foregroundColor(.white)
+                        .foregroundColor(isRapidMode ? AppPalette.onBrand : .white)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .background(isRapidMode ? Color.brandPrimary.opacity(0.9) : Color.black.opacity(0.6), in: Capsule())
                 .overlay(
-                    Capsule().stroke(isRapidMode ? Color.yellow : Color.white.opacity(0.3), lineWidth: 1.5)
+                    Capsule().stroke(isRapidMode ? AppPalette.achievement : Color.white.opacity(0.3), lineWidth: 1.5)
                 )
             }
             .buttonStyle(.plain)
@@ -95,7 +233,7 @@ struct BarcodeScannerView: View {
     private var centerGuidanceFrame: some View {
         VStack {
             RoundedRectangle(cornerRadius: 16)
-                .stroke(flashSuccess ? Color.green : Color.white.opacity(0.8), style: StrokeStyle(lineWidth: flashSuccess ? 5 : 3, dash: flashSuccess ? [] : [10, 5]))
+                .stroke(flashSuccess ? AppPalette.positive : Color.white.opacity(0.8), style: StrokeStyle(lineWidth: flashSuccess ? 5 : 3, dash: flashSuccess ? [] : [10, 5]))
                 .frame(width: 280, height: 160)
                 .overlay(
                     VStack(spacing: 4) {
@@ -106,7 +244,7 @@ struct BarcodeScannerView: View {
                         if let last = lastScannedBarcode, isRapidMode {
                             Text("Added: \(last)")
                                 .font(.caption.bold())
-                                .foregroundColor(.green)
+                                .foregroundColor(AppPalette.positive)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
                                 .background(Color.black.opacity(0.7), in: Capsule())
@@ -124,7 +262,7 @@ struct BarcodeScannerView: View {
             VStack(spacing: 12) {
                 HStack {
                     Image(systemName: "tray.full.fill")
-                        .foregroundColor(.brandPrimary)
+                        .foregroundColor(.brandForeground)
                     Text("Staging Tray (\(scannedBarcodes.count) items)")
                         .font(.headline.bold())
                         .foregroundColor(.white)
@@ -134,7 +272,7 @@ struct BarcodeScannerView: View {
                             withAnimation { scannedBarcodes.removeAll() }
                         }
                         .font(.caption.bold())
-                        .foregroundColor(.red)
+                        .foregroundColor(AppPalette.critical)
                     }
                 }
 
@@ -156,7 +294,7 @@ struct BarcodeScannerView: View {
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
                                 .background(Color.brandPrimary.opacity(0.8), in: Capsule())
-                                .foregroundColor(.white)
+                                .foregroundColor(AppPalette.onBrand)
                             }
                         }
                     }
@@ -180,7 +318,7 @@ struct BarcodeScannerView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(scannedBarcodes.isEmpty ? Color.gray.opacity(0.6) : Color.brandPrimary)
-                    .foregroundColor(.white)
+                    .foregroundColor(scannedBarcodes.isEmpty ? .white : AppPalette.onBrand)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .disabled(scannedBarcodes.isEmpty)
@@ -222,6 +360,7 @@ struct VisionKitScannerView: UIViewControllerRepresentable {
     @Environment(\.presentationMode) var presentationMode
     var isRapidMode: Bool
     var onBarcodeDetected: (String) -> Void
+    var onUnavailable: () -> Void
 
     func makeCoordinator() -> Coordinator {
         return Coordinator(parent: self)
@@ -239,8 +378,14 @@ struct VisionKitScannerView: UIViewControllerRepresentable {
         )
         viewController.delegate = context.coordinator
         
-        // Start scanning immediately
-        try? viewController.startScanning()
+        do {
+            try viewController.startScanning()
+        } catch {
+            AppLog.app.error("Unable to start barcode scanner: \(error.localizedDescription, privacy: .public)")
+            DispatchQueue.main.async {
+                onUnavailable()
+            }
+        }
         
         return viewController
     }

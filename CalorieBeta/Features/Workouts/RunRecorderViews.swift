@@ -184,7 +184,14 @@ final class RunRecorderViewModel: ObservableObject {
         store.save(run: run, locations: rawLocations, weightLbs: weightLbs) { [weak self] savedID in
             guard let self else { return }
             if savedID == nil {
-                ToastManager.shared.showToast(message: "Saved locally, but Health sync failed.")
+                if let userID = DIContainer.shared.authService.currentUserID,
+                   RunFallbackStore.shared.save(run, for: userID) {
+                    let shoeStore = RunningShoeStore()
+                    shoeStore.tagRun(runID: run.id, withShoeID: shoeStore.defaultShoe()?.id)
+                    ToastManager.shared.showToast(message: "Saved in MyFitPlate; Apple Health sync failed.")
+                } else {
+                    ToastManager.shared.showToast(message: "Apple Health sync failed. Keep this summary open while you review it.")
+                }
             }
             // New recordings get the CURRENT default shoe stamped at save time — history
             // is never retroactively re-tagged when the default changes.
@@ -204,7 +211,10 @@ final class RunRecorderViewModel: ObservableObject {
             // Records are judged against strictly-past runs so the just-saved copy of
             // this run (different HK UUID, same stats) can't mask its own achievement.
             let since = Calendar.current.date(byAdding: .year, value: -1, to: run.startDate) ?? run.startDate
-            RunImportService().fetchRuns(since: since) { history in
+            RunImportService().fetchRuns(
+                since: since,
+                userID: DIContainer.shared.authService.currentUserID
+            ) { history in
                 let past = history.filter { $0.endDate <= run.startDate }
                 self.finishedSetRecord = RunStats.setsRecord(run, against: past + [run])
                 HapticManager.instance.notification(.success)
@@ -228,7 +238,10 @@ final class RunRecorderViewModel: ObservableObject {
         do {
             liveActivity = try Activity.request(
                 attributes: RunActivityAttributes(),
-                content: .init(state: activityState(), staleDate: nil)
+                content: .init(
+                    state: activityState(),
+                    staleDate: Date().addingTimeInterval(10 * 60)
+                )
             )
         } catch {
             AppLog.liveActivity.error("Run Live Activity failed to start: \(error.localizedDescription, privacy: .public)")
@@ -245,7 +258,12 @@ final class RunRecorderViewModel: ObservableObject {
         lastActivityPush = Date()
         let state = activityState()
         Task {
-            await liveActivity.update(.init(state: state, staleDate: nil))
+            await liveActivity.update(
+                .init(
+                    state: state,
+                    staleDate: Date().addingTimeInterval(10 * 60)
+                )
+            )
         }
         #endif
     }
@@ -419,8 +437,11 @@ struct RunRecorderView: View {
 
     private var permissionView: some View {
         VStack(spacing: 12) {
-            Text("🏃")
-                .font(.system(size: 44))
+            Image(systemName: "figure.run")
+                .font(.system(size: 36, weight: .semibold))
+                .foregroundStyle(AppPalette.effort)
+                .frame(width: 64, height: 64)
+                .background(AppPalette.effort.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
                 .accessibilityHidden(true)
             Text("Location makes this a run tracker")
                 .appFont(size: 18, weight: .bold)
@@ -441,7 +462,7 @@ struct RunRecorderView: View {
                 } label: {
                     Text("Open Settings")
                         .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppPalette.onBrand)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
                         .background(Color.brandPrimary, in: Capsule())
@@ -487,7 +508,7 @@ struct RunRecorderView: View {
                         systemImage: viewModel.audioCoachEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill"
                     )
                     .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(viewModel.audioCoachEnabled ? .brandPrimary : Color(UIColor.secondaryLabel))
+                    .foregroundColor(viewModel.audioCoachEnabled ? .brandForeground : Color(UIColor.secondaryLabel))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
                     .background(Color.backgroundSecondary, in: Capsule())
@@ -521,7 +542,7 @@ struct RunRecorderView: View {
                 } label: {
                     Text("Finish run")
                         .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppPalette.onBrand)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 20)
                         .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -642,13 +663,13 @@ private struct RunWorkoutGuidanceCard: View {
     private var accentColor: Color {
         switch progress.currentStep?.kind {
         case .hard:
-            return .orange
+            return AppPalette.caution
         case .recovery:
-            return .blue
+            return AppPalette.recovery
         case .cooldown:
-            return .green
+            return AppPalette.positive
         case .warmup, .none:
-            return .brandPrimary
+            return AppPalette.brand
         }
     }
 }
@@ -656,87 +677,90 @@ private struct RunWorkoutGuidanceCard: View {
 struct RunWorkoutResultCard: View {
     let result: RunWorkoutResult
     let metric: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Workout steps")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    Text(result.planName)
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-                Spacer()
-                Text("\(result.steps.filter(\.isComplete).count)/\(result.steps.count)")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.brandPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Workout steps", subtitle: result.planName) {
+                Text("\(result.steps.filter(\.isComplete).count) of \(result.steps.count) complete")
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.brandText)
                     .monospacedDigit()
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Color.brandPrimary.opacity(0.12), in: Capsule())
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             ForEach(result.steps) { stepResult in
                 stepRow(stepResult)
             }
         }
-        .asCard()
+        .appSurface(.quiet)
+        .accessibilityIdentifier("run_detail_workout_steps")
     }
 
     private func stepRow(_ stepResult: RunWorkoutStepResult) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text("\(stepResult.stepIndex + 1)")
-                .appFont(size: 12, weight: .bold)
-                .foregroundColor(accentColor(for: stepResult.step.kind))
-                .frame(width: 28, height: 28)
-                .background(accentColor(for: stepResult.step.kind).opacity(0.14), in: Circle())
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text("\(stepResult.step.kind.displayName) · \(stepResult.step.title)")
-                        .appFont(size: 13, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                    if !stepResult.isComplete {
-                        Text("Partial")
-                            .appFont(size: 10, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color(UIColor.secondarySystemFill), in: Capsule())
-                    }
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    stepIdentity(stepResult)
+                    stepMetrics(stepResult)
+                        .padding(.leading, 38)
                 }
-
-                Text(planText(for: stepResult.step))
-                    .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 8)
-
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(RunFormat.durationText(seconds: stepResult.elapsedSeconds))
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .monospacedDigit()
-                Text(RunFormat.distanceText(meters: stepResult.distanceMeters, metric: metric))
-                    .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .monospacedDigit()
-                if let pace = RunFormat.paceText(secondsPerKm: stepResult.paceSecondsPerKm, metric: metric) {
-                    Text(pace)
-                        .appFont(size: 11, weight: .semibold)
-                        .foregroundColor(accentColor(for: stepResult.step.kind))
-                        .monospacedDigit()
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    stepIdentity(stepResult)
+                    Spacer(minLength: AppSpacing.compact)
+                    stepMetrics(stepResult)
                 }
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private func stepIdentity(_ stepResult: RunWorkoutStepResult) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(stepResult.stepIndex + 1)")
+                .appTextRole(.caption)
+                .foregroundStyle(accentColor(for: stepResult.step.kind))
+                .frame(width: 28, height: 28)
+                .background(accentColor(for: stepResult.step.kind).opacity(0.14), in: Circle())
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(stepResult.step.kind.displayName) · \(stepResult.step.title)")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !stepResult.isComplete {
+                    Label("Partial", systemImage: "circle.lefthalf.filled")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(planText(for: stepResult.step))
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func stepMetrics(_ stepResult: RunWorkoutStepResult) -> some View {
+        VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 3) {
+            Text(RunFormat.durationText(seconds: stepResult.elapsedSeconds))
+                .appTextRole(.secondary)
+                .foregroundStyle(AppPalette.text)
+                .monospacedDigit()
+            Text(RunFormat.distanceText(meters: stepResult.distanceMeters, metric: metric))
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+            if let pace = RunFormat.paceText(secondsPerKm: stepResult.paceSecondsPerKm, metric: metric) {
+                Text(pace)
+                    .appTextRole(.caption)
+                    .foregroundStyle(accentColor(for: stepResult.step.kind))
+                    .monospacedDigit()
+            }
+        }
     }
 
     private func planText(for step: RunWorkoutStep) -> String {
@@ -750,13 +774,13 @@ struct RunWorkoutResultCard: View {
     private func accentColor(for kind: RunWorkoutStep.Kind) -> Color {
         switch kind {
         case .hard:
-            return .orange
+            return AppPalette.caution
         case .recovery:
-            return .blue
+            return AppPalette.recovery
         case .cooldown:
-            return .green
+            return AppPalette.positive
         case .warmup:
-            return .brandPrimary
+            return AppPalette.brand
         }
     }
 }
@@ -781,12 +805,12 @@ private struct RunRecorderSummary: View {
                     if setRecord {
                         Text("🏅 New record — see the Records card in your history.")
                             .appFont(size: 13, weight: .semibold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.brandForeground)
                     }
                     if let workoutPlanName {
                         Text(workoutPlanName)
                             .appFont(size: 13, weight: .semibold)
-                            .foregroundColor(.brandPrimary)
+                            .foregroundColor(.brandForeground)
                     }
                     Text("Saved to Apple Health — it's in your run history now.")
                         .appFont(size: 13)
@@ -825,7 +849,7 @@ private struct RunRecorderSummary: View {
                             }
                         }
                     }
-                    .asCard()
+                    .appSurface(.emphasized)
                 }
 
                 Button {
@@ -833,7 +857,7 @@ private struct RunRecorderSummary: View {
                 } label: {
                     Text("Done")
                         .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppPalette.onBrand)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -866,7 +890,7 @@ private struct RunRecorderSummary: View {
                 .foregroundColor(Color(UIColor.secondaryLabel))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .asCard()
+        .appSurface(.emphasized)
     }
 }
 

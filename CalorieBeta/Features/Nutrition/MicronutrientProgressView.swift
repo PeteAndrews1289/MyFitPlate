@@ -55,7 +55,7 @@ struct MicronutrientProgressView: View {
         } else {
             VStack {
                 ProgressView()
-                    .tint(.blue)
+                    .tint(AppPalette.effort)
                 Text("Loading goals")
                     .font(.caption)
                     .foregroundColor(.gray)
@@ -130,7 +130,7 @@ struct MicronutrientRow: View {
     private func getPercentageColor() -> Color {
         guard percentage != nil else { return Color(UIColor.secondaryLabel) }
         if isSodium {
-            return progress >= 1.0 ? .red : .primary
+            return progress >= 1.0 ? AppPalette.critical : .primary
         } else {
             return progress >= 1.0 ? .accentPositive : .primary
         }
@@ -144,9 +144,9 @@ struct CustomProgressBar: View {
 
     private var fillColor: Color {
         if isSodium {
-            return value >= 1.0 ? .red : .orange
+            return value >= 1.0 ? AppPalette.critical : AppPalette.caution
         } else {
-            return value >= 1.0 ? .accentPositive : .blue
+            return value >= 1.0 ? .accentPositive : AppPalette.effort
         }
     }
 

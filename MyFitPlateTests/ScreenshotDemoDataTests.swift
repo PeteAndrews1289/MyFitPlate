@@ -1,3 +1,4 @@
+import MyFitPlateCore
 import XCTest
 @testable import MyFitPlate
 
@@ -27,5 +28,141 @@ final class ScreenshotDemoDataTests: XCTestCase {
         XCTAssertTrue(runs.allSatisfy { $0.distanceMeters >= 5_000 })
         XCTAssertTrue(runs.allSatisfy { !$0.splits.isEmpty })
         XCTAssertTrue(runs.allSatisfy(\.hasRoute))
+    }
+
+    func testGroceryFixtureCoversARealShoppingRun() {
+        let nutrition = MockNutritionRepository()
+        let workout = MockWorkoutRepository()
+        let settings = MockSettingsRepository()
+
+        ScreenshotDemoData.configureRepositories(
+            nutrition: nutrition,
+            workout: workout,
+            settings: settings
+        )
+
+        let items = nutrition.mockFetchGroceryListResult
+        XCTAssertEqual(items.count, 8)
+        XCTAssertEqual(Set(items.map(\.id)).count, items.count)
+        XCTAssertEqual(items.filter(\.isCompleted).count, 2)
+        XCTAssertTrue(items.allSatisfy {
+            GroceryListBuilder.standardCategories.contains($0.category)
+        })
+        XCTAssertTrue(items.contains { $0.source == "manual" })
+        XCTAssertTrue(items.contains { $0.category == "Meat & Seafood" })
+        XCTAssertTrue(items.contains { $0.category == "Pantry & Oils" })
+    }
+
+    func testAITextFixtureSupportsEditableReview() {
+        let items = ScreenshotDemoData.aiTextDemoFoods
+
+        XCTAssertEqual(items.count, 3)
+        XCTAssertEqual(Set(items.map(\.id)).count, items.count)
+        XCTAssertTrue(items.allSatisfy { $0.sourceMetadata?.sourceType == .aiText })
+        XCTAssertTrue(items.allSatisfy { $0.sourceMetadata?.reviewStatus == .unreviewed })
+        XCTAssertTrue(items.allSatisfy { !$0.servingSize.isEmpty })
+        XCTAssertEqual(items.reduce(0) { $0 + $1.calories }, 870, accuracy: 0.01)
+    }
+
+    func testReceiptFixtureSupportsDeterministicReview() {
+        let items = ScreenshotDemoData.receiptDemoItems
+
+        XCTAssertEqual(items.count, 3)
+        XCTAssertEqual(Set(items.map(\.id)).count, items.count)
+        XCTAssertTrue(items.allSatisfy { !$0.name.isEmpty })
+        XCTAssertTrue(items.allSatisfy { $0.quantity > 0 })
+        XCTAssertTrue(items.allSatisfy { !$0.unit.isEmpty && !$0.category.isEmpty })
+    }
+
+    func testPantryRecipeFixtureCoversMultipleUnsavedDrafts() {
+        let recipes = ScreenshotDemoData.pantryRecipeDrafts
+
+        XCTAssertEqual(recipes.count, 2)
+        XCTAssertTrue(recipes.allSatisfy { $0.id == nil })
+        XCTAssertEqual(Set(recipes.map(\.name)).count, recipes.count)
+    }
+
+    func testAchievementFixtureStartsAtAStableProgressState() {
+        let repository = MockAchievementRepository()
+
+        ScreenshotDemoData.configureAchievementRepository(repository)
+
+        XCTAssertEqual(repository.mockUserProfile?.points, 780)
+        XCTAssertEqual(repository.mockUserProfile?.level, 4)
+        XCTAssertEqual(repository.mockUserStatuses?.filter(\.isUnlocked).count, 4)
+        XCTAssertEqual(repository.mockChallenges?.count, 3)
+        XCTAssertEqual(repository.mockChallenges?.filter(\.isCompleted).count, 1)
+        XCTAssertEqual(repository.mockActiveChallenges.count, 3)
+    }
+
+    func testAYCEFixturesCoverLiveReviewAndWinningSummaryStates() {
+        let live = ScreenshotDemoData.ayceLiveSession
+        let summary = ScreenshotDemoData.ayceSummarySession
+
+        XCTAssertEqual(live.id, "screenshot-ayce-live")
+        XCTAssertGreaterThanOrEqual(live.entries.count, 3)
+        XCTAssertTrue(live.entries.contains { $0.item.isAIEstimated })
+        XCTAssertGreaterThan(summary.entries.count, live.entries.count)
+        XCTAssertGreaterThan(AYCERules.beatByAmount(session: summary), 0)
+        XCTAssertGreaterThan(AYCERules.totals(for: summary).calories, 0)
+    }
+
+    func testMealPlanningFixturesCoverPrepAndPantryReview() {
+        let service = MealPrepService()
+        service.aggregate(days: ScreenshotDemoData.mealPrepDemoDays)
+
+        XCTAssertGreaterThanOrEqual(service.bulkIngredients.values.flatMap { $0 }.count, 8)
+        XCTAssertGreaterThanOrEqual(service.prepSteps.count, 7)
+
+        let suggestion = ScreenshotDemoData.mealSuggestionDemo
+        let pantry = ScreenshotDemoData.mealSuggestionDemoPantry
+        let matches = MealSuggestionReviewRules.matchedIngredients(
+            ingredients: suggestion.ingredients,
+            pantryNames: pantry
+        )
+        XCTAssertEqual(matches.count, 3)
+        XCTAssertEqual(
+            MealSuggestionReviewRules.instructionSteps(suggestion.instructions).count,
+            3
+        )
+    }
+
+    func testReportUtilityFixturesProvideStableEvidence() {
+        let viewModel = ScreenshotDemoData.reportDemoViewModel(
+            dailyLogService: DailyLogService()
+        )
+        let summary = NutritionTrendRules.summary(
+            calories: viewModel.calorieTrend,
+            protein: viewModel.proteinTrend,
+            carbs: viewModel.carbTrend,
+            fat: viewModel.fatTrend
+        )
+
+        XCTAssertEqual(viewModel.calorieTrend.count, 7)
+        XCTAssertEqual(viewModel.micronutrientAverages.count, 5)
+        XCTAssertEqual(summary.observedDays, 7)
+        XCTAssertGreaterThan(summary.averageProtein ?? 0, 150)
+
+        let insights = ScreenshotDemoData.insightsDemo
+        XCTAssertEqual(insights.count, 4)
+        XCTAssertEqual(Set(insights.map(\.category)).count, 4)
+        XCTAssertTrue(insights.allSatisfy { !$0.title.isEmpty && !$0.message.isEmpty })
+        XCTAssertTrue(insights.allSatisfy { !($0.sourceData ?? "").isEmpty })
+    }
+
+    func testLivingDayFoodTransitionTargetsPersistedMealNode() {
+        let mealID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let food = FoodItem(id: "logged-food", name: "Chicken bowl", calories: 520)
+        let meal = Meal(id: mealID, name: "Lunch", foodItems: [food])
+        let createdAt = Date(timeIntervalSince1970: 100)
+
+        let transition = LivingDayTransition.foodLogged(food, meal: meal, createdAt: createdAt)
+
+        XCTAssertEqual(transition.kind, .foodLogged)
+        XCTAssertEqual(transition.eventID, "meal:\(mealID.uuidString)")
+        XCTAssertEqual(transition.title, "Added to Lunch")
+        XCTAssertEqual(transition.detail, "Chicken bowl")
+        XCTAssertTrue(transition.isRecent(at: createdAt.addingTimeInterval(8)))
+        XCTAssertFalse(transition.isRecent(at: createdAt.addingTimeInterval(8.01)))
     }
 }

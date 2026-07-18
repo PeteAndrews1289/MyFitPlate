@@ -1,386 +1,400 @@
 import SwiftUI
-struct UserProfileView: View {
-    @EnvironmentObject var dailyLogService: DailyLogService
-    @EnvironmentObject var goalSettings: GoalSettings
-    @EnvironmentObject var achievementService: AchievementService
-    @Environment(\.dismiss) var dismiss
 
-    @State private var errorMessage: ErrorMessage?
+struct UserProfileView: View {
+    @EnvironmentObject private var goalSettings: GoalSettings
+    @EnvironmentObject private var achievementService: AchievementService
+    @Environment(\.dismiss) private var dismiss
+
     @State private var showingChallenges = false
 
-    private var userLevelDisplay: String {
-        "Level \(achievementService.userAchievementLevel)"
+    private var levelProgress: AchievementRules.LevelProgress {
+        AchievementRules.levelProgress(
+            for: achievementService.userTotalAchievementPoints,
+            thresholds: achievementService.levelThresholds
+        )
     }
 
-    private var pointsToNextLevel: Int {
-        let currentLevelIndex = achievementService.userAchievementLevel - 1
-        guard currentLevelIndex >= 0 && currentLevelIndex < achievementService.levelThresholds.count - 1 else {
-            return 0
+    private var sortedDefinitions: [AchievementDefinition] {
+        achievementService.achievementDefinitions.sorted { first, second in
+            let firstStatus = achievementService.userStatuses[first.id]
+            let secondStatus = achievementService.userStatuses[second.id]
+            let firstUnlocked = firstStatus?.isUnlocked ?? false
+            let secondUnlocked = secondStatus?.isUnlocked ?? false
+
+            if firstUnlocked != secondUnlocked {
+                return firstUnlocked
+            }
+            if firstUnlocked {
+                return (firstStatus?.unlockedDate ?? .distantPast) >
+                    (secondStatus?.unlockedDate ?? .distantPast)
+            }
+
+            let firstProgress = firstStatus?.currentProgress ?? 0
+            let secondProgress = secondStatus?.currentProgress ?? 0
+            if firstProgress != secondProgress {
+                return firstProgress > secondProgress
+            }
+            if first.pointsValue != second.pointsValue {
+                return first.pointsValue > second.pointsValue
+            }
+            return first.title < second.title
         }
-        return achievementService.levelThresholds[currentLevelIndex + 1] - achievementService.userTotalAchievementPoints
-    }
-
-    private var progressToNextLevel: Double {
-        let currentLevelIndex = achievementService.userAchievementLevel - 1
-        guard currentLevelIndex >= 0 else { return 0.0 }
-
-        let currentLevelThreshold = currentLevelIndex < achievementService.levelThresholds.count ? achievementService.levelThresholds[currentLevelIndex] : achievementService.userTotalAchievementPoints
-        let pointsInCurrentLevel = achievementService.userTotalAchievementPoints - currentLevelThreshold
-
-        let nextLevelThresholdIndex = currentLevelIndex + 1
-        guard nextLevelThresholdIndex < achievementService.levelThresholds.count else { return 1.0 }
-
-        let pointsForNextLevelSpan = achievementService.levelThresholds[nextLevelThresholdIndex] - currentLevelThreshold
-
-        if pointsForNextLevelSpan <= 0 { return 1.0 }
-        return min(max(0.0, Double(pointsInCurrentLevel) / Double(pointsForNextLevelSpan)), 1.0)
     }
 
     var body: some View {
-        ZStack {
-            AnimatedBackgroundView()
-            
-            ScrollView {
-                VStack(spacing: 18) {
-                    profileHeader()
-                    userLevelAndPointsSection()
-                    weeklyChallengesSection()
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
+                AppScreenHeader(
+                    eyebrow: "Profile",
+                    title: "Your Progress",
+                    subtitle: "A clear view of your level, weekly momentum, and earned milestones."
+                )
 
-                    dailyStats()
-                    achievementsSection(
-                        definitions: achievementService.achievementDefinitions,
-                        statuses: achievementService.userStatuses,
-                        isLoading: achievementService.isLoading
-                    )
-                }
-                .padding()
+                progressSummary
+                levelProgressSection
+                weeklyChallengesLink
+                currentTargetsSection
+                achievementsSection
             }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.section)
         }
-        .onAppear {
-             if let userID = DIContainer.shared.authService.currentUserID {
-                  achievementService.fetchUserStatuses(userID: userID)
-                  achievementService.listenToUserProfile(userID: userID)
-             }
-        }
-        .alert(item: $errorMessage) { message in
-            Alert(title: Text("Error"), message: Text(message.text), dismissButton: .default(Text("OK")))
-        }
+        .background(AppPalette.canvas.ignoresSafeArea())
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showingChallenges) {
             ChallengesView()
         }
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {
                     dismiss()
                 }
             }
         }
+        .onAppear(perform: refreshProgressIfNeeded)
     }
 
-    func profileHeader() -> some View {
-         HStack(alignment: .top, spacing: 14) {
-              Image(systemName: "person.crop.circle.fill")
-                 .appFont(size: 58, weight: .regular)
-                 .foregroundColor(.brandPrimary)
-                 .frame(width: 72, height: 72)
-                 .background(Color.brandPrimary.opacity(0.10), in: Circle())
-
-              VStack(alignment: .leading, spacing: 5) {
-                  Text(goalSettings.gender == "Male" ? "Fitness Journey" : "Wellness Path")
-                      .appFont(size: 24, weight: .bold)
-                      .foregroundColor(.textPrimary)
-
-                  Text("MyFitPlate User")
-                      .foregroundColor(Color(UIColor.secondaryLabel))
-                      .appFont(size: 13)
-                      .lineLimit(1)
-
-                  Text(userLevelDisplay)
-                      .appFont(size: 12, weight: .bold)
-                      .foregroundColor(.white)
-                      .padding(.horizontal, 10)
-                      .padding(.vertical, 6)
-                      .background(Color.brandPrimary, in: Capsule())
-                      .shadow(color: .brandPrimary.opacity(0.4), radius: 4, x: 0, y: 2)
-              }
-
-             Spacer()
-          }
-         .padding(20)
-         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    private var progressSummary: some View {
+        AppMetricStrip(items: [
+            AppMetricItem(
+                label: "Level",
+                value: "\(levelProgress.level)",
+                accent: AppPalette.brand
+            ),
+            AppMetricItem(
+                label: "Points",
+                value: achievementService.userTotalAchievementPoints.formatted(),
+                accent: AppPalette.achievement
+            ),
+            AppMetricItem(
+                label: "Unlocked",
+                value: "\(achievementService.unlockedAchievementsCount)/\(achievementService.achievementDefinitions.count)",
+                accent: AppPalette.effort
+            )
+        ])
+        .appSurface(.emphasized)
+        .accessibilityIdentifier("profile_progress_summary")
     }
 
-    func userLevelAndPointsSection() -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Level Progress")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    Text("\(achievementService.userTotalAchievementPoints) total achievement points")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
+    private var levelProgressSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Level Progress",
+                subtitle: levelProgress.isMaximumLevel
+                    ? "You have reached the highest current level."
+                    : "Every unlocked achievement moves you toward Level \(levelProgress.level + 1)."
+            )
 
-                Spacer()
+            ProgressView(value: levelProgress.fraction)
+                .tint(AppPalette.brand)
+                .accessibilityLabel("Level progress")
+                .accessibilityValue(levelProgressAccessibilityValue)
 
-                Text(userLevelDisplay)
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                Text("Level \(levelProgress.level)")
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.text)
+
+                Spacer(minLength: AppSpacing.compact)
+
+                Text(levelProgressDetail)
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
             }
-
-            ProgressView(value: progressToNextLevel, total: 1.0)
-                .progressViewStyle(LinearProgressViewStyle(tint: .brandPrimary))
-                .scaleEffect(x: 1, y: 1.5, anchor: .center)
-
-            HStack {
-                Text("\(achievementService.userTotalAchievementPoints) pts")
-                    .appFont(size: 12)
-                Spacer()
-                if achievementService.userAchievementLevel <= achievementService.levelThresholds.count && pointsToNextLevel > 0 {
-                    Text("\(pointsToNextLevel) pts to next level")
-                        .appFont(size: 12)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                } else if !achievementService.levelThresholds.isEmpty && achievementService.userAchievementLevel > achievementService.levelThresholds.count - 1 {
-                     Text("Max Level!")
-                        .appFont(size: 12)
-                        .foregroundColor(.accentPositive)
-                }
-            }
+            .monospacedDigit()
         }
-        .padding(20)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .appSurface(.quiet)
     }
 
-    func weeklyChallengesSection() -> some View {
-        Button(action: { showingChallenges = true }) {
-            HStack(spacing: 12) {
-                Image(systemName: "flame.fill")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.orange)
-                    .frame(width: 40, height: 40)
-                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Weekly Challenges")
-                        .appFont(size: 18, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    Text("Keep momentum with focused goals.")
-                        .appFont(size: 12)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
-                if !achievementService.activeChallenges.isEmpty {
-                    Text("\(achievementService.activeChallenges.filter { $0.isCompleted }.count)/\(achievementService.activeChallenges.count)")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.brandPrimary)
-                }
-
+    private var weeklyChallengesLink: some View {
+        Button {
+            showingChallenges = true
+        } label: {
+            AppListRow(
+                icon: "flag.checkered",
+                iconColor: AppPalette.achievement,
+                title: "Weekly Challenges",
+                subtitle: weeklyChallengeSummary
+            ) {
                 Image(systemName: "chevron.right")
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
-            .padding(20)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .appSurface(.quiet, padding: 0)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("profile_weekly_challenges_button")
+        .accessibilityHint("Opens your active weekly challenges")
     }
 
-    func dailyStats() -> some View {
-         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-              statBox(title: calorieGoalText(), subtitle: "Calorie Goal", icon: "flame.fill", color: .orange)
-              statBox(title: calculateBMI(), subtitle: "BMI", icon: "scalemass.fill", color: .blue)
-          }
-    }
-    func calorieGoalText() -> String { goalSettings.calories == nil ? "..." : "\(Int(goalSettings.calories ?? 0))" }
-    func calculateBMI() -> String { let w = goalSettings.weight * 0.453592; let h = goalSettings.height / 100; guard h > 0 else { return "N/A" }; let bmi = w / (h * h); return String(format: "%.1f", bmi) }
-    func statBox(title: String, subtitle: String, icon: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: icon)
-                .appFont(size: 15, weight: .bold)
-                .foregroundColor(color)
-                .frame(width: 34, height: 34)
-                .background(color.opacity(0.12), in: Circle())
-            Text(title)
-                .appFont(size: 28, weight: .bold)
-                .foregroundColor(.textPrimary)
-            Text(subtitle)
-                .appFont(size: 12, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+    private var currentTargetsSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Current Targets",
+                subtitle: "The baseline currently used by your daily plan."
+            )
+
+            AppMetricStrip(items: [
+                AppMetricItem(
+                    label: "Calorie Target",
+                    value: calorieGoalText,
+                    accent: AppPalette.energy
+                ),
+                AppMetricItem(
+                    label: "BMI Estimate",
+                    value: bmiText,
+                    accent: AppPalette.effort
+                )
+            ])
+
+            Divider()
+
+            Text("BMI is a general screening estimate, not a diagnosis or a complete measure of health.")
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .appSurface(.quiet)
     }
 
-    func achievementsSection(definitions: [AchievementDefinition], statuses: [String: UserAchievementStatus], isLoading: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Achievements")
-                    .appFont(size: 22, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Text("\(achievementService.unlockedAchievementsCount) of \(definitions.count) unlocked")
-                    .appFont(size: 13)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
-            if isLoading {
-                HStack { Spacer(); ProgressView().tint(.brandPrimary); Spacer() }
-                    .padding(.vertical, 24)
-                    .asCard()
-            } else if definitions.isEmpty {
-                Text("No achievements defined yet.")
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .appFont(size: 15)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            } else {
-                 let sortedDefinitions = definitions.sorted { d1, d2 in
-                    let s1 = statuses[d1.id]
-                    let s2 = statuses[d2.id]
-                    let u1 = s1?.isUnlocked ?? false
-                    let u2 = s2?.isUnlocked ?? false
-                    if u1 != u2 { return u1 }
-                    if u1 {
-                        return (s1?.unlockedDate ?? Date.distantPast) > (s2?.unlockedDate ?? Date.distantPast)
-                    }
-                    let p1 = s1?.currentProgress ?? 0.0
-                    let p2 = s2?.currentProgress ?? 0.0
-                    if p1 != p2 { return p1 > p2 }
-                    if d1.pointsValue != d2.pointsValue {
-                        return d1.pointsValue > d2.pointsValue
-                    }
-                    return d1.title < d2.title
+    @ViewBuilder
+    private var achievementsSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Achievements",
+                subtitle: "\(achievementService.unlockedAchievementsCount) of \(achievementService.achievementDefinitions.count) unlocked"
+            )
+
+            if achievementService.isLoading {
+                HStack(spacing: AppSpacing.row) {
+                    ProgressView()
+                        .tint(AppPalette.brand)
+                    Text("Loading achievements")
+                        .appTextRole(.body)
+                        .foregroundStyle(.secondary)
                 }
-                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 150))], spacing: 15) {
-                     ForEach(sortedDefinitions) { definition in
-                        AchievementCardView(
+                .frame(maxWidth: .infinity, alignment: .center)
+                .appSurface(.quiet)
+            } else if sortedDefinitions.isEmpty {
+                GuidanceEmptyState(
+                    icon: "trophy",
+                    title: "No achievements yet",
+                    message: "Your available milestones will appear here."
+                )
+                .appSurface(.quiet)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(sortedDefinitions.enumerated()), id: \.element.id) { index, definition in
+                        AchievementProgressRow(
                             definition: definition,
-                            status: statuses[definition.id]
+                            status: achievementService.userStatuses[definition.id]
                         )
+
+                        if index < sortedDefinitions.count - 1 {
+                            Divider()
+                                .padding(.leading, 68)
+                        }
                     }
-                 }
+                }
+                .appSurface(.quiet, padding: 0)
+                .accessibilityIdentifier("profile_achievement_list")
             }
         }
-        .padding(.top)
+    }
+
+    private var levelProgressDetail: String {
+        if levelProgress.isMaximumLevel {
+            return "Maximum level"
+        }
+        return "\(levelProgress.pointsToNext.formatted()) points to next level"
+    }
+
+    private var levelProgressAccessibilityValue: String {
+        if levelProgress.isMaximumLevel {
+            return "Maximum level reached"
+        }
+        return "\(Int((levelProgress.fraction * 100).rounded())) percent, \(levelProgress.pointsToNext) points remaining"
+    }
+
+    private var weeklyChallengeSummary: String {
+        let challenges = achievementService.activeChallenges
+        guard !challenges.isEmpty else {
+            return "No active challenges right now"
+        }
+        let completed = challenges.filter(\.isCompleted).count
+        return "\(completed) of \(challenges.count) complete this week"
+    }
+
+    private var calorieGoalText: String {
+        guard let calories = goalSettings.calories, calories > 0 else {
+            return "Not set"
+        }
+        return "\(Int(calories).formatted()) cal"
+    }
+
+    private var bmiText: String {
+        let weightKilograms = goalSettings.weight * 0.453592
+        let heightMeters = goalSettings.height / 100
+        guard weightKilograms > 0, heightMeters > 0 else {
+            return "Not available"
+        }
+        return String(format: "%.1f", weightKilograms / (heightMeters * heightMeters))
+    }
+
+    private func refreshProgressIfNeeded() {
+        guard !ScreenshotDemoMode.isEnabled,
+              let userID = DIContainer.shared.authService.currentUserID else { return }
+        achievementService.fetchUserStatuses(userID: userID)
+        achievementService.listenToUserProfile(userID: userID)
     }
 }
 
-struct AchievementCardView: View {
+private struct AchievementProgressRow: View {
     let definition: AchievementDefinition
     let status: UserAchievementStatus?
-    var isUnlocked: Bool { status?.isUnlocked ?? false }
-    var progress: Double { status?.currentProgress ?? 0.0 }
-    var progressFraction: Double { guard definition.criteriaValue > 0 else { return isUnlocked ? 1.0 : 0.0 }; return min(max(0, progress / definition.criteriaValue), 1.0) }
-    var progressText: String { if definition.criteriaValue <= 1 && isUnlocked { return "Complete!" } else if definition.criteriaValue <= 1 { return "Not Yet"} else { return "\(Int(progress.rounded())) / \(Int(definition.criteriaValue.rounded()))" } }
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var isUnlocked: Bool {
+        status?.isUnlocked ?? false
+    }
+
+    private var progress: Double {
+        status?.currentProgress ?? 0
+    }
+
+    private var progressFraction: Double {
+        guard definition.criteriaValue > 0 else {
+            return isUnlocked ? 1 : 0
+        }
+        return min(max(progress / definition.criteriaValue, 0), 1)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: isUnlocked ? definition.iconName : "lock.fill")
-                    .font(.title2)
-                    .foregroundColor(isUnlocked ? .white : Color(UIColor.secondaryLabel))
-                    .frame(width: 38, height: 38)
-                    .background((isUnlocked ? Color.brandPrimary : Color(UIColor.secondaryLabel)).opacity(0.8), in: Circle())
-                    .shadow(color: isUnlocked ? .brandPrimary.opacity(0.5) : .clear, radius: 4, x: 0, y: 2)
-                    
-                Text(definition.title)
-                    .appFont(size: 15, weight: .bold)
-                    .foregroundColor(isUnlocked ? .textPrimary : Color(UIColor.secondaryLabel))
-                    .lineLimit(1)
-                Spacer()
-                Text("\(definition.pointsValue) pts")
-                    .appFont(size: 10, weight: .bold)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .background((isUnlocked ? Color.brandPrimary.opacity(0.2) : Color(UIColor.secondaryLabel).opacity(0.2)))
-                    .cornerRadius(5)
-                    .foregroundColor(isUnlocked ? .brandPrimary : Color(UIColor.secondaryLabel))
-            }
-            
-            Text(definition.description)
-                .appFont(size: 13)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .frame(minHeight: 35, alignment: .top)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if !isUnlocked && definition.criteriaValue > 0 && definition.criteriaType != .featureUsed {
-                VStack(spacing: 4) {
-                    ProgressView(value: progressFraction)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .brandPrimary))
-                        .frame(height: 6)
-                    
-                    if definition.criteriaValue > 1 || (definition.criteriaValue == 1 && progress > 0 && progress < 1 && definition.criteriaType != .featureUsed) {
-                        Text(progressText)
-                            .appFont(size: 11, weight: .semibold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                }.padding(.top, 6)
-             } else if isUnlocked {
-                 HStack {
-                     Image(systemName: "checkmark.seal.fill")
-                     Text("Unlocked")
-                     if let date = status?.unlockedDate {
-                         Text(date, style: .date)
-                     }
-
-                     Spacer()
-
-                     ShareLink(
-                        item: MyFitPlateLinks.appStoreURL,
-                        subject: Text("Achievement Unlocked!"),
-                        message: Text("I just unlocked the '\(definition.title)' achievement on MyFitPlate! 🏆")
-                     ) {
-                         Image(systemName: "square.and.arrow.up")
-                             .foregroundColor(.brandPrimary)
-                             .appFont(size: 16, weight: .bold)
-                             .padding(8)
-                             .background(Color.brandPrimary.opacity(0.15))
-                             .clipShape(Circle())
-                     }
-                 }
-                 .appFont(size: 12, weight: .bold)
-                 .foregroundColor(.brandPrimary)
-                 .padding(.top, 8)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    identity
+                    metadata
+                }
             } else {
-                 Spacer().frame(height: 12)
-            }
-             Spacer(minLength: 0)
-        }
-        .padding(16)
-        .frame(minHeight: 130)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(isUnlocked ? Color.brandPrimary.opacity(0.5) : Color.clear, lineWidth: 1.5)
-        )
-        .opacity(isUnlocked ? 1.0 : (definition.secret && !isUnlocked ? 0.35 : 0.8))
-        .overlay(
-            Group {
-                if definition.secret && !isUnlocked {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Image(systemName: "questionmark.diamond.fill")
-                                .appFont(size: 50)
-                                .foregroundColor(Color(UIColor.secondaryLabel).opacity(0.2))
-                                .padding()
-                            Spacer()
-                        }
-                        Spacer()
-                    }
+                HStack(alignment: .center, spacing: AppSpacing.row) {
+                    identity
+                        .layoutPriority(1)
+                    Spacer(minLength: AppSpacing.compact)
+                    metadata
                 }
             }
-        )
+
+            Text(definition.description)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if isUnlocked {
+                Label(unlockedText, systemImage: "checkmark.seal.fill")
+                    .appTextRole(.caption)
+                    .foregroundStyle(AppPalette.brandText)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    ProgressView(value: progressFraction)
+                        .tint(AppPalette.brand)
+
+                    Text(progressText)
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(definition.title) progress")
+                .accessibilityValue(progressText)
+            }
+        }
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
+    }
+
+    private var identity: some View {
+        HStack(spacing: AppSpacing.row) {
+            Image(systemName: definition.iconName)
+                .appFont(size: 18, weight: .semibold)
+                .foregroundStyle(isUnlocked ? AppPalette.brandText : Color.secondary)
+                .frame(width: 40, height: 40)
+                .background(
+                    (isUnlocked ? AppPalette.brand : Color.secondary).opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .accessibilityHidden(true)
+
+            Text(definition.title)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var metadata: some View {
+        HStack(spacing: AppSpacing.compact) {
+            Label("\(definition.pointsValue) points", systemImage: "star.fill")
+                .appTextRole(.caption)
+                .foregroundStyle(isUnlocked ? AppPalette.brandText : Color.secondary)
+
+            if isUnlocked {
+                ShareLink(
+                    item: MyFitPlateLinks.appStoreURL,
+                    subject: Text("Achievement Unlocked"),
+                    message: Text("I unlocked \(definition.title) in MyFitPlate.")
+                ) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .buttonStyle(AppIconButtonStyle(.plain))
+                .accessibilityLabel("Share \(definition.title)")
+            }
+        }
+    }
+
+    private var unlockedText: String {
+        guard let date = status?.unlockedDate else {
+            return "Unlocked"
+        }
+        return "Unlocked \(date.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    private var progressText: String {
+        guard definition.criteriaValue > 1 else {
+            return progress > 0 ? "In progress" : "Not started"
+        }
+        return "\(formatted(progress)) of \(formatted(definition.criteriaValue))"
+    }
+
+    private func formatted(_ value: Double) -> String {
+        if value.rounded() == value {
+            return Int(value).formatted()
+        }
+        return value.formatted(.number.precision(.fractionLength(1)))
     }
 }
-
-struct ErrorMessage: Identifiable { let id = UUID(); let text: String; init(_ text: String) { self.text = text } }

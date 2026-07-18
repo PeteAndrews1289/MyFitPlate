@@ -11,8 +11,10 @@ class FoodSearchViewModel: ObservableObject {
     @Published var selectedMeal: String
     
     @Published var searchResults: [FoodItem] = []
+    @Published var supplementResults: [FoodItem] = []
     @Published var isLoading = false
     @Published var searchErrorMessage: String?
+    @Published var searchCoverageMessage: String?
     @Published var activeSearchQuery = ""
     @Published var quickLoggedFoodIDs: Set<String> = []
     
@@ -46,10 +48,17 @@ class FoodSearchViewModel: ObservableObject {
 
     private let foodAPIService = FatSecretFoodAPIService()
     private let usdaService = USDAFoodAPIService()
+    private let healthCanadaService = HealthCanadaFoodAPIService()
+    private let supplementService = NIHDietarySupplementAPIService()
     private let openFoodFactsService = OpenFoodFactsAPIService()
     private var cancellables = Set<AnyCancellable>()
     private var dailyLogService: DailyLogService?
     private var searchTask: Task<Void, Never>?
+    private var loadedUserID: String?
+    private var savedFoodsRequestID: UUID?
+    private var recentFoodsRequestID: UUID?
+    private var recommendedFoodsRequestID: UUID?
+    private var yesterdayRequestID: UUID?
 
     init(selectedMeal: String? = nil) {
         self.selectedMeal = selectedMeal ?? Self.defaultMealName()
@@ -80,8 +89,10 @@ class FoodSearchViewModel: ObservableObject {
         guard !trimmed.isEmpty else {
             activeSearchQuery = ""
             searchResults = []
+            supplementResults = []
             isLoading = false
             searchErrorMessage = nil
+            searchCoverageMessage = nil
             searchTask?.cancel()
             return
         }
@@ -89,14 +100,18 @@ class FoodSearchViewModel: ObservableObject {
         guard trimmed.count >= 2 else {
             activeSearchQuery = ""
             searchResults = []
+            supplementResults = []
             isLoading = false
             searchErrorMessage = nil
+            searchCoverageMessage = nil
             return
         }
 
         activeSearchQuery = trimmed
         isLoading = true
         searchErrorMessage = nil
+        searchCoverageMessage = nil
+        supplementResults = []
         searchByQuery(query: trimmed, includeOpenFoodFacts: false)
     }
 
@@ -106,6 +121,8 @@ class FoodSearchViewModel: ObservableObject {
         activeSearchQuery = query
         isLoading = true
         searchErrorMessage = nil
+        searchCoverageMessage = nil
+        supplementResults = []
         searchByQuery(query: query, includeOpenFoodFacts: true)
     }
 
@@ -115,8 +132,19 @@ class FoodSearchViewModel: ObservableObject {
         if arguments.contains("-ui-testing-search-failure") {
             searchTask?.cancel()
             searchResults = []
+            supplementResults = []
             isLoading = false
             searchErrorMessage = Self.unavailableMessage
+            searchCoverageMessage = nil
+            return
+        }
+        if arguments.contains("-ui-testing-specialist-sources") {
+            searchTask?.cancel()
+            searchResults = [Self.healthCanadaTestFood]
+            supplementResults = [Self.nihSupplementTestFood]
+            isLoading = false
+            searchErrorMessage = nil
+            searchCoverageMessage = nil
             return
         }
         if arguments.contains("-ui-testing") {
@@ -133,57 +161,138 @@ class FoodSearchViewModel: ObservableObject {
                     servingWeight: 100
                 ).withDatabaseSource(.fatSecret, sourceName: "FatSecret", sourceID: "ui-test-apple")
             ]
+            supplementResults = []
             isLoading = false
             searchErrorMessage = nil
+            searchCoverageMessage = nil
             return
         }
         #endif
 
-        // FatSecret and USDA support the debounced interactive search. Open Food Facts asks
-        // clients not to perform search-as-you-type, so it joins only after an explicit submit.
+        // FatSecret, USDA, and Health Canada support debounced food search. Open Food Facts asks
+        // clients not to search as the user types, and NIH supplement records require label-detail
+        // hydration, so those two sources join only after an explicit submit.
         searchTask?.cancel()
         searchTask = Task { @MainActor [weak self] in
             guard let self else { return }
             async let usdaResults = self.usdaService.searchFoods(query: query)
+            async let canadaResults = self.healthCanadaService.searchFoods(query: query)
+            async let openFoodFactsResults: [FoodItem] = includeOpenFoodFacts
+                ? self.openFoodFactsService.searchFoods(query: query)
+                : []
+            async let nihResults: [FoodItem] = includeOpenFoodFacts
+                ? self.supplementService.searchSupplements(query: query)
+                : []
 
             let fatSecretResult: Result<[FoodItem], Error> = await withCheckedContinuation { continuation in
                 self.foodAPIService.fetchFoodByQuery(query: query) { continuation.resume(returning: $0) }
             }
-            let usda = await usdaResults
-            let off = includeOpenFoodFacts
-                ? await self.openFoodFactsService.searchFoods(query: query)
-                : []
+            let (usda, canada, off, supplements) = await (
+                usdaResults,
+                canadaResults,
+                openFoodFactsResults,
+                nihResults
+            )
 
             guard !Task.isCancelled, query == self.activeSearchQuery else { return }
             self.isLoading = false
+            self.supplementResults = supplements
 
             switch fatSecretResult {
             case .success(let foodItems):
                 self.searchErrorMessage = nil
+                self.searchCoverageMessage = nil
                 self.searchResults = FoodSearchRanking.mergedSearchResults(
                     fatSecret: foodItems,
                     usda: usda,
-                    openFoodFacts: off
+                    healthCanada: canada,
+                    openFoodFacts: off,
+                    query: query
                 )
             case .failure:
                 let fallback = FoodSearchRanking.mergedSearchResults(
                     fatSecret: [],
                     usda: usda,
-                    openFoodFacts: off
+                    healthCanada: canada,
+                    openFoodFacts: off,
+                    query: query
                 )
-                if fallback.isEmpty {
+                if fallback.isEmpty && supplements.isEmpty {
                     self.searchErrorMessage = Self.unavailableMessage
+                    self.searchCoverageMessage = nil
                     self.searchResults = []
                 } else {
                     self.searchErrorMessage = nil
+                    self.searchCoverageMessage = String(
+                        localized: "Showing matches from the sources that responded. One food database could not be reached."
+                    )
                     self.searchResults = fallback
                 }
             }
         }
     }
 
+    #if DEBUG
+    private static var healthCanadaTestFood: FoodItem {
+        let item = FoodItem(
+            id: "cnf_ui_4700",
+            name: "Salmon, Atlantic, baked",
+            calories: 206,
+            protein: 22.1,
+            carbs: 0,
+            fats: 12.4,
+            saturatedFat: 2.4,
+            servingSize: "100 g",
+            servingWeight: 100,
+            potassium: 384,
+            sodium: 61,
+            vitaminD: 13.1,
+            vitaminB12: 3.2,
+            selenium: 41.4
+        )
+        var metadata = FoodSourceMetadata.database(
+            .healthCanadaCNF,
+            sourceName: "Health Canada CNF",
+            sourceID: item.id,
+            evidenceLineage: .governmentCompilation,
+            sourceUpdatedAt: ISO8601DateFormatter().date(from: "2026-05-14T00:00:00Z")
+        )
+        metadata.notes = "Canadian Nutrient File release 2026-05-14. Food record last revised 2015-11-03."
+        return item.withSourceMetadata(metadata)
+    }
+
+    private static var nihSupplementTestFood: FoodItem {
+        let item = FoodItem(
+            id: "dsld_ui_42",
+            name: "Example Vitamin D3",
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fats: 0,
+            servingSize: "1 Softgel",
+            servingWeight: 0,
+            vitaminD: 25,
+            quantityValue: 1,
+            servingUnit: "serving"
+        )
+        var metadata = FoodSourceMetadata.database(
+            .nihDSLD,
+            sourceName: "NIH DSLD",
+            sourceID: item.id,
+            barcode: "012345678905",
+            evidenceLineage: .manufacturerLabel
+        )
+        metadata.notes = "Current manufacturer supplement label record; not laboratory verification. Label serving: 1 Softgel."
+        return item.withSourceMetadata(metadata)
+    }
+    #endif
+
     func fetchData() {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID else {
+            resetAccountData()
+            return
+        }
+        guard prepareForAccount(userID) else { return }
         fetchSavedFoods(userID: userID)
         fetchRecents(userID: userID)
         fetchRecommendedFoods(userID: userID)
@@ -191,47 +300,70 @@ class FoodSearchViewModel: ObservableObject {
     }
 
     func fetchSavedFoods(userID: String) {
+        guard prepareForAccount(userID) else { return }
+        let requestID = UUID()
+        savedFoodsRequestID = requestID
         dailyLogService?.customFoodStore.fetchMyFoodItems(for: userID) { [weak self] result in
             DispatchQueue.main.async {
+                guard let self,
+                      self.isCurrentRequest(requestID, storedRequestID: self.savedFoodsRequestID, userID: userID) else { return }
                 if case .success(let items) = result {
-                    self?.savedFoods = items
+                    self.savedFoods = items
                 }
             }
         }
     }
 
     func fetchRecents(userID: String) {
+        guard prepareForAccount(userID) else { return }
+        let requestID = UUID()
+        recentFoodsRequestID = requestID
         dailyLogService?.fetchRecentFoodItems(for: userID) { [weak self] result in
             DispatchQueue.main.async {
+                guard let self,
+                      self.isCurrentRequest(requestID, storedRequestID: self.recentFoodsRequestID, userID: userID) else { return }
                 if case .success(let items) = result {
-                    self?.recentFoods = items
+                    self.recentFoods = items
                 }
             }
         }
     }
 
     func fetchRecommendedFoods(userID: String) {
-        dailyLogService?.fetchRecommendedFoods(for: userID, mealName: selectedMeal) { [weak self] result in
+        guard prepareForAccount(userID) else { return }
+        let requestID = UUID()
+        let mealName = selectedMeal
+        recommendedFoodsRequestID = requestID
+        dailyLogService?.fetchRecommendedFoods(for: userID, mealName: mealName) { [weak self] result in
             DispatchQueue.main.async {
+                guard let self,
+                      self.selectedMeal == mealName,
+                      self.isCurrentRequest(requestID, storedRequestID: self.recommendedFoodsRequestID, userID: userID) else { return }
                 if case .success(let items) = result {
-                    self?.recommendedFoods = items
+                    self.recommendedFoods = items
                 }
             }
         }
     }
 
     func fetchYesterdayMeal(userID: String) {
+        guard prepareForAccount(userID) else { return }
         guard let service = dailyLogService else { return }
         guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: service.activelyViewedDate) else { return }
+        let requestID = UUID()
+        let mealName = selectedMeal
+        yesterdayRequestID = requestID
         isFetchingYesterday = true
         service.fetchLogInternal(for: userID, date: yesterday) { [weak self] result in
             DispatchQueue.main.async {
-                guard let self = self else { return }
+                guard let self,
+                      self.selectedMeal == mealName,
+                      self.isCurrentRequest(requestID, storedRequestID: self.yesterdayRequestID, userID: userID) else { return }
                 self.isFetchingYesterday = false
                 switch result {
                 case .success(let log):
                     self.yesterdaysLog = log
-                    if let meal = log.meals.first(where: { $0.name.lowercased() == self.selectedMeal.lowercased() }) {
+                    if let meal = log.meals.first(where: { $0.name.lowercased() == mealName.lowercased() }) {
                         self.yesterdaysMealItems = meal.foodItems
                     } else {
                         self.yesterdaysMealItems = []
@@ -255,12 +387,15 @@ class FoodSearchViewModel: ObservableObject {
         ])
 
         quickLoggedFoodIDs.insert(sourceFoodID)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+        // Keep success feedback visible long enough for VoiceOver and slower devices
+        // to announce it before the quick-log action becomes available again.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
             self.quickLoggedFoodIDs.remove(sourceFoodID)
         }
         HapticManager.instance.feedback(.medium)
 
         resolveNutritionIfNeeded(for: food) { resolved in
+            guard DIContainer.shared.authService.currentUserID == userID else { return }
             var itemToLog = resolved
             itemToLog.id = UUID().uuidString
             itemToLog.timestamp = Date()
@@ -272,6 +407,36 @@ class FoodSearchViewModel: ObservableObject {
                 source: source
             )
         }
+    }
+
+    private func prepareForAccount(_ userID: String) -> Bool {
+        guard DIContainer.shared.authService.currentUserID == userID else { return false }
+        guard loadedUserID != userID else { return true }
+
+        resetAccountData()
+        loadedUserID = userID
+        return true
+    }
+
+    private func isCurrentRequest(_ requestID: UUID, storedRequestID: UUID?, userID: String) -> Bool {
+        storedRequestID == requestID
+            && loadedUserID == userID
+            && DIContainer.shared.authService.currentUserID == userID
+    }
+
+    private func resetAccountData() {
+        loadedUserID = nil
+        savedFoodsRequestID = nil
+        recentFoodsRequestID = nil
+        recommendedFoodsRequestID = nil
+        yesterdayRequestID = nil
+        savedFoods = []
+        recentFoods = []
+        recommendedFoods = []
+        yesterdaysMealItems = []
+        yesterdaysLog = nil
+        isFetchingYesterday = false
+        quickLoggedFoodIDs = []
     }
 
     /// FatSecret search rows are previews parsed from a description string — no

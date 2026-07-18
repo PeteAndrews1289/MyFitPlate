@@ -47,8 +47,7 @@
             </BuildableReference>
          </TestableReference>
          <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
+            skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "4BC912E62FF0481C00C46AA9"
@@ -82,6 +81,14 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "-noFIRAnalyticsDebugEnabled"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-living-day-home"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "living-day-home"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

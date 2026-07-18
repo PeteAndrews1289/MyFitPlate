@@ -8,7 +8,7 @@ public class JournalEntryStore {
     }
 
     public func addJournalEntry(for userID: String, entry: JournalEntry) async {
-        guard let service = dailyLogService else { return }
+        guard let service = dailyLogService, service.isActiveAccount(userID) else { return }
         let dateToLog = service.activelyViewedDate
         let dateString = service.dateFormatter.string(from: dateToLog)
 
@@ -25,8 +25,10 @@ public class JournalEntryStore {
                 logToSave = DailyLog(id: dateString, date: dateToLog, meals: [], journalEntries: [entry])
             }
 
-            service.publishCurrentDailyLog(logToSave)
+            service.publishCurrentDailyLog(logToSave, for: userID)
             try await DIContainer.shared.nutritionRepository.saveDailyLog(userID: userID, log: logToSave)
+
+            guard service.isActiveAccount(userID) else { return }
 
             DIContainer.shared.analyticsManager?.logEvent("journal_entry_added", parameters: [
                 "category": entry.category
@@ -39,13 +41,13 @@ public class JournalEntryStore {
         } catch {
             AppLog.data.error("Failed to update journal entries: \(error.localizedDescription, privacy: .public)")
             await MainActor.run {
-                service.bannerService?.showBanner(title: "Error", message: "Failed to save journal entry.", iconName: "xmark.circle.fill", iconColor: .red)
+                service.bannerService?.showBanner(title: "Error", message: "Failed to save journal entry.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
             }
         }
     }
 
     public func deleteJournalEntry(for userID: String, entry: JournalEntry) {
-        guard let service = dailyLogService else { return }
+        guard let service = dailyLogService, service.isActiveAccount(userID) else { return }
         let dateToLog = service.activelyViewedDate
 
         guard var logToSave = service.currentDailyLog,
@@ -55,14 +57,16 @@ public class JournalEntryStore {
         }
 
         logToSave.journalEntries?.remove(at: index)
-        service.publishCurrentDailyLog(logToSave)
+        service.publishCurrentDailyLog(logToSave, for: userID)
 
         Task { @MainActor in
             do {
                 try await DIContainer.shared.nutritionRepository.saveDailyLog(userID: userID, log: logToSave)
+                guard service.isActiveAccount(userID) else { return }
                 AppLog.data.info("Journal entry deleted.")
             } catch {
-                service.bannerService?.showBanner(title: "Error", message: "Failed to delete entry.", iconName: "xmark.circle.fill", iconColor: .red)
+                guard service.isActiveAccount(userID) else { return }
+                service.bannerService?.showBanner(title: "Error", message: "Failed to delete entry.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                 AppLog.data.error("Failed to delete journal entry: \(error.localizedDescription, privacy: .public)")
             }
         }

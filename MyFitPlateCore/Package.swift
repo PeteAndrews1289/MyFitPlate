@@ -26,6 +26,9 @@ let package = Package(
             name: "MyFitPlateCore",
             dependencies: [
                 .product(name: "SwiftSoup", package: "SwiftSoup")
+            ],
+            resources: [
+                .copy("PrivacyInfo.xcprivacy")
             ]
         ),
         .testTarget(

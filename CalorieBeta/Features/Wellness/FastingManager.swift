@@ -1,5 +1,6 @@
 import Foundation
 import ActivityKit
+import MyFitPlateCore
 
 @MainActor
 public class FastingManager: ObservableObject {
@@ -19,15 +20,20 @@ public class FastingManager: ObservableObject {
     }
     
     public func startFast(hours: Int) {
-        guard !isFasting else { return }
+        guard !isFasting, (1..<24).contains(hours) else { return }
         
         let startTime = Date()
-        let targetEndTime = Calendar.current.date(byAdding: .hour, value: hours, to: startTime)!
+        guard let targetEndTime = Calendar.current.date(byAdding: .hour, value: hours, to: startTime) else {
+            return
+        }
         self.fastType = "\(hours):\(24 - hours) Fast"
         
         let attributes = FastingActivityAttributes(fastType: self.fastType)
         let contentState = FastingActivityAttributes.ContentState(startTime: startTime, targetEndTime: targetEndTime)
-        let content = ActivityContent(state: contentState, staleDate: nil)
+        let content = ActivityContent(
+            state: contentState,
+            staleDate: targetEndTime.addingTimeInterval(2 * 60 * 60)
+        )
         
         do {
             let activity = try Activity<FastingActivityAttributes>.request(
@@ -42,7 +48,9 @@ public class FastingManager: ObservableObject {
             self.isFasting = true
             
         } catch {
-            print("Error starting Fasting Live Activity: \(error.localizedDescription)")
+            AppLog.liveActivity.error(
+                "Error starting Fasting Live Activity: \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
     

@@ -14,6 +14,7 @@ struct WorkoutCompleteAnalyticsView: View {
     
     // The raw data source. Kept in state so past-session edits can refresh this screen in place.
     @State private var log: WorkoutSessionLog
+    @State private var ownerUserID: String?
     
     @StateObject var analyticsService = WorkoutAnalyticsService()
     @State private var analytics: WorkoutAnalytics?
@@ -30,11 +31,14 @@ struct WorkoutCompleteAnalyticsView: View {
     @State private var showingWorkoutEditor = false
     @State private var isSavingWorkoutEdit = false
     @State private var recoveryMealSuggestion: MealSuggestion?
+    @State private var recoverySuggestionUserID: String?
     @State private var didLogRecoveryHandoffViewed = false
+    @State private var analyticsLoadGeneration: UUID?
     private let isFreshCompletion: Bool
 
     init(log: WorkoutSessionLog, isFreshCompletion: Bool = false) {
         self._log = State(initialValue: log)
+        self._ownerUserID = State(initialValue: DIContainer.shared.authService.currentUserID)
         self.isFreshCompletion = isFreshCompletion
     }
 
@@ -77,65 +81,64 @@ struct WorkoutCompleteAnalyticsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 18) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
                 WorkoutSummaryHeroCard(
                     date: log.date,
-                    totalVolume: totalVolume,
+                    totalVolume: displayedAnalytics.totalVolume,
                     exerciseCount: log.completedExercises.count,
                     setCount: completedSetCount,
+                    repCount: totalRepCount,
+                    estimatedMinutes: estimatedDurationMinutes,
                     isAnimated: isAnimated
                 )
-                .padding(.horizontal)
-                .padding(.top, 14)
-
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    StatCard(title: "Total Volume", value: "\(Int(displayedAnalytics.totalVolume))", unit: "lbs", icon: "dumbbell.fill", color: .brandPrimary)
-                    StatCard(title: "Work Sets", value: "\(completedSetCount)", unit: "logged", icon: "checkmark.seal.fill", color: .accentPositive)
-                    StatCard(title: "Total Reps", value: "\(totalRepCount)", unit: totalRepCount == 1 ? "rep" : "reps", icon: "repeat", color: .orange)
-                    StatCard(title: "Est. Time", value: "\(estimatedDurationMinutes)", unit: "min", icon: "clock.fill", color: .blue)
-                }
-                .padding(.horizontal)
 
                 if shouldShowRecoveryHandoff {
                     workoutRecoveryHandoffCard(plan: workoutCompletionFuelPlan)
-                        .padding(.horizontal)
                 }
 
                 if let comp = comparison {
-                    HStack(spacing: 12) {
-                        StatCard(title: "Volume vs Last", value: formatPercent(comp.volumeDiffPercent), unit: comp.previousDate?.formatted(date: .abbreviated, time: .omitted) ?? "last time", icon: "chart.bar.fill", color: comp.volumeDiffPercent >= 0 ? .accentPositive : .orange)
-                        StatCard(title: "Pace vs Last", value: formatPercent(-comp.durationDiffPercent), unit: "estimated", icon: "speedometer", color: comp.durationDiffPercent <= 0 ? .accentPositive : .blue)
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        AppSectionHeader(
+                            title: "Compared With Last Time",
+                            subtitle: comp.previousDate?.formatted(date: .abbreviated, time: .omitted)
+                        )
+
+                        AppMetricStrip(items: [
+                            AppMetricItem(
+                                label: "Volume",
+                                value: formatPercent(comp.volumeDiffPercent),
+                                accent: comp.volumeDiffPercent >= 0 ? AppPalette.positive : AppPalette.caution
+                            ),
+                            AppMetricItem(
+                                label: "Estimated pace",
+                                value: formatPercent(-comp.durationDiffPercent),
+                                accent: comp.durationDiffPercent <= 0 ? AppPalette.positive : AppPalette.effort
+                            )
+                        ])
+                        .appSurface(.quiet)
                     }
-                    .padding(.horizontal)
                 }
 
                 SessionExerciseBreakdownCard(exercises: log.completedExercises)
-                    .padding(.horizontal)
 
                 if log.id != nil {
                     Button {
                         HapticManager.instance.feedback(.light)
                         showingWorkoutEditor = true
                     } label: {
-                        Label("Edit workout", systemImage: "pencil")
-                            .appFont(size: 15, weight: .bold)
-                            .foregroundColor(.textPrimary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 13)
-                            .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        Label("Edit Workout", systemImage: "pencil")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppActionButtonStyle(.secondary))
                     .disabled(isSavingWorkoutEdit)
-                    .padding(.horizontal)
+                    .accessibilityIdentifier("workout_summary_edit")
                 }
 
                 if !displayedAnalytics.personalRecords.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Image(systemName: "crown.fill").foregroundColor(.yellow)
-                            Text("New records").appFont(size: 20, weight: .bold)
-                        }
-                        .padding(.horizontal)
+                        AppSectionHeader(
+                            title: "New Records",
+                            subtitle: "Personal bests detected in this session."
+                        )
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 12) {
@@ -143,7 +146,7 @@ struct WorkoutCompleteAnalyticsView: View {
                                     PRCard(exerciseName: exerciseName, detail: prValue)
                                 }
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, 1)
                         }
                     }
                     // DESIGN.md §7: celebrate records once, at the moment of reveal — a
@@ -158,9 +161,10 @@ struct WorkoutCompleteAnalyticsView: View {
 
                 if !trendData.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Key gains")
-                            .appFont(size: 20, weight: .bold)
-                            .padding(.horizontal)
+                        AppSectionHeader(
+                            title: "Key Gains",
+                            subtitle: "Recent movement trends from your saved sessions."
+                        )
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 16) {
@@ -171,16 +175,17 @@ struct WorkoutCompleteAnalyticsView: View {
                                     }
                                 }
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, 1)
                         }
                     }
                 }
 
                 if !muscleSplit.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Muscle Focus")
-                            .appFont(size: 20, weight: .bold)
-                            .padding(.horizontal)
+                        AppSectionHeader(
+                            title: "Muscle Focus",
+                            subtitle: "Working-set distribution across this session."
+                        )
 
                         Chart(muscleSplit) { point in
                             BarMark(
@@ -190,51 +195,49 @@ struct WorkoutCompleteAnalyticsView: View {
                             .foregroundStyle(Color.brandPrimary.gradient)
                         }
                         .frame(height: 200)
-                        .padding()
-                        .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .padding(.horizontal)
+                        .frame(maxWidth: .infinity)
+                        .appSurface(.quiet)
                     }
                 }
 
                 if !displayedAnalytics.aiInsights.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "sparkles").foregroundColor(.brandPrimary)
-                            Text("Maia's Analysis").appFont(size: 20, weight: .bold)
-                        }
-                        .padding(.horizontal)
+                        AppSectionHeader(
+                            title: "Maia Analysis",
+                            subtitle: "Coaching notes grounded in this workout."
+                        )
 
                         ForEach(displayedAnalytics.aiInsights) { insight in
                             InsightCard(insight: insight)
                         }
-                        .padding(.horizontal)
                     }
                 } else if isLoading {
                     InlineAnalysisLoadingCard()
-                        .padding(.horizontal)
                 }
 
                 ShareLink(item: generateShareText(analytics: displayedAnalytics), preview: SharePreview("Workout Summary", image: Image(systemName: "trophy.fill"))) {
                     Label("Share Summary", systemImage: "square.and.arrow.up")
-                        .font(.headline)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .padding(.horizontal)
+                .buttonStyle(AppActionButtonStyle(.secondary))
+                .accessibilityIdentifier("workout_summary_share")
                 .simultaneousGesture(TapGesture().onEnded {
                     DIContainer.shared.analyticsManager?.logEvent("workout_summary_share_opened", parameters: nil)
                 })
-
-                Button("Done") {
-                    finishSummary()
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .padding(.horizontal)
             }
-            .padding(.bottom, 40)
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.group)
+            .padding(.bottom, AppSpacing.section)
         }
-        .background(Color.backgroundPrimary.ignoresSafeArea())
+        .accessibilityIdentifier("workout_summary")
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom) {
+            Button("Done", action: finishSummary)
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .accessibilityIdentifier("workout_summary_done")
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.compact)
+                .background(.bar)
+        }
         .sheet(isPresented: $showingRecoveryFoodSearch) {
             FoodSearchView(
                 dailyLog: $dailyLogService.currentDailyLog,
@@ -308,6 +311,25 @@ struct WorkoutCompleteAnalyticsView: View {
     private func loadData() {
         isLoading = true
         self.muscleSplit = analyticsService.calculateMuscleSplit(log: log)
+        let requestID = UUID()
+        analyticsLoadGeneration = requestID
+
+        if ScreenshotDemoMode.isEnabled {
+            analytics = localAnalytics
+            comparison = nil
+            trendData = [:]
+            isLoading = false
+            return
+        }
+
+        guard let userID = ownerUserID,
+              DIContainer.shared.authService.currentUserID == userID else {
+            analytics = localAnalytics
+            comparison = nil
+            trendData = [:]
+            isLoading = false
+            return
+        }
 
         // If insights were already generated and saved, use them immediately.
         if let saved = log.aiInsights, !saved.isEmpty {
@@ -317,13 +339,15 @@ struct WorkoutCompleteAnalyticsView: View {
                 aiInsights: saved
             )
             Task {
-                let uid = DIContainer.shared.authService.currentUserID
-                if let uid {
-                    self.comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: uid)
-                    for exercise in log.completedExercises.prefix(3) {
-                        let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: uid)
-                        self.trendData[exercise.exerciseName] = points
-                    }
+                let comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: userID)
+                guard analyticsLoadGeneration == requestID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
+                self.comparison = comparison
+                for exercise in log.completedExercises.prefix(3) {
+                    let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: userID)
+                    guard analyticsLoadGeneration == requestID,
+                          DIContainer.shared.authService.currentUserID == userID else { return }
+                    self.trendData[exercise.exerciseName] = points
                 }
                 self.isLoading = false
             }
@@ -334,21 +358,27 @@ struct WorkoutCompleteAnalyticsView: View {
         analytics = localAnalytics
 
         Task {
-            let uid = DIContainer.shared.authService.currentUserID
-            let generated = await analyticsService.generateAnalytics(for: log, userID: uid)
+            let generated = await analyticsService.generateAnalytics(for: log, userID: userID)
+            guard analyticsLoadGeneration == requestID,
+                  DIContainer.shared.authService.currentUserID == userID else { return }
             self.analytics = generated
 
             // Persist so the History view can show them without re-generating.
-            if let uid, let sessionID = log.id, !generated.aiInsights.isEmpty {
-                await analyticsService.saveInsights(generated.aiInsights, forSessionID: sessionID, userID: uid)
+            if let sessionID = log.id, !generated.aiInsights.isEmpty {
+                await analyticsService.saveInsights(generated.aiInsights, forSessionID: sessionID, userID: userID)
+                guard analyticsLoadGeneration == requestID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
             }
 
-            if let uid {
-                self.comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: uid)
-                for exercise in log.completedExercises.prefix(3) {
-                    let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: uid)
-                    self.trendData[exercise.exerciseName] = points
-                }
+            let comparison = await analyticsService.compareAgainstPrevious(currentLog: log, userID: userID)
+            guard analyticsLoadGeneration == requestID,
+                  DIContainer.shared.authService.currentUserID == userID else { return }
+            self.comparison = comparison
+            for exercise in log.completedExercises.prefix(3) {
+                let points = await analyticsService.fetchTrends(for: exercise.exerciseName, userID: userID)
+                guard analyticsLoadGeneration == requestID,
+                      DIContainer.shared.authService.currentUserID == userID else { return }
+                self.trendData[exercise.exerciseName] = points
             }
 
             self.isLoading = false
@@ -372,7 +402,7 @@ struct WorkoutCompleteAnalyticsView: View {
     private func shouldRequestAppReview() -> Bool {
         guard isFreshCompletion,
               !ScreenshotDemoMode.isEnabled,
-              !ProcessInfo.processInfo.arguments.contains("-ui-testing"),
+              !AppRuntime.isUITesting(),
               let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String else {
             return false
         }
@@ -386,7 +416,8 @@ struct WorkoutCompleteAnalyticsView: View {
 
     @MainActor
     private func saveEditedWorkout(_ updatedLog: WorkoutSessionLog) async {
-        guard let userID = DIContainer.shared.authService.currentUserID else {
+        guard let userID = ownerUserID,
+              DIContainer.shared.authService.currentUserID == userID else {
             ToastManager.shared.showToast(message: "Sign in to edit workout history.")
             return
         }
@@ -397,6 +428,10 @@ struct WorkoutCompleteAnalyticsView: View {
 
         do {
             try await DIContainer.shared.workoutRepository.saveWorkoutSessionLog(userID: userID, log: logToSave)
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                isSavingWorkoutEdit = false
+                return
+            }
             log = logToSave
             analytics = nil
             comparison = nil
@@ -453,144 +488,104 @@ struct WorkoutCompleteAnalyticsView: View {
     }
 
     private func workoutRecoveryHandoffCard(plan: TodayFuelPlan) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: recoveryHandoffIcon(for: plan.kind))
-                    .appFont(size: 20, weight: .bold)
-                    .foregroundColor(recoveryHandoffColor(for: plan.kind))
-                    .frame(width: 42, height: 42)
-                    .background(recoveryHandoffColor(for: plan.kind).opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(plan.kind == .overTargetReview ? "Today fuel check" : "Recovery meal")
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(recoveryHandoffColor(for: plan.kind))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(recoveryHandoffColor(for: plan.kind).opacity(0.12), in: Capsule())
-
-                    Text(plan.title)
-                        .appFont(size: 18, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text(plan.summary)
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: plan.title, subtitle: plan.summary) {
+                Label(
+                    plan.kind == .overTargetReview ? "Fuel Check" : "Recovery Meal",
+                    systemImage: recoveryHandoffIcon(for: plan.kind)
+                )
+                .appTextRole(.caption)
+                .foregroundStyle(recoveryHandoffColor(for: plan.kind))
             }
 
             Text(plan.detail)
-                .appFont(size: 12, weight: .medium)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: 8) {
-                recoveryMetricPill(
-                    title: plan.remainingCalories >= 0 ? "Budget" : "Over",
-                    value: "\(Int(abs(plan.remainingCalories).rounded()).formatted()) cal",
-                    color: plan.remainingCalories >= 0 ? .brandPrimary : .orange
-                )
-
-                if let protein = plan.targetProteinGrams {
-                    recoveryMetricPill(title: "Protein", value: "\(protein)g", color: .accentProtein)
-                }
-
-                if let carbs = plan.targetCarbGrams {
-                    recoveryMetricPill(title: "Carbs", value: "\(carbs)g", color: .accentCarbs)
-                }
-            }
+            AppMetricStrip(items: recoveryMetricItems(for: plan))
 
             recoveryHandoffActions(for: plan)
         }
-        .padding(16)
-        .frame(maxWidth: 520, alignment: .leading)
-        .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .appSurface(.emphasized)
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
                 .stroke(recoveryHandoffColor(for: plan.kind).opacity(0.16), lineWidth: 1)
         )
+        .accessibilityIdentifier("workout_summary_recovery")
     }
 
     @ViewBuilder
     private func recoveryHandoffActions(for plan: TodayFuelPlan) -> some View {
         switch plan.action {
         case .fillMacros:
-            HStack(spacing: 10) {
-                Button(action: openRecoveryFoodSearch) {
-                    Label("Find food", systemImage: "magnifyingglass")
-                        .appFont(size: 13, weight: .bold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .background(Color.backgroundPrimary.opacity(0.82), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppSpacing.compact) {
+                    recoveryFoodSearchButton
+                    recoveryFillMacrosButton
                 }
-                .buttonStyle(.plain)
 
-                Button(action: generateRecoveryMealSuggestion) {
-                    HStack(spacing: 6) {
-                        if insightsService.isGeneratingSuggestion {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "sparkles")
-                                .appFont(size: 12, weight: .bold)
-                        }
-                        Text("Fill macros")
-                            .appFont(size: 13, weight: .bold)
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-                    .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                VStack(spacing: AppSpacing.compact) {
+                    recoveryFoodSearchButton
+                    recoveryFillMacrosButton
                 }
-                .buttonStyle(.plain)
-                .disabled(insightsService.isGeneratingSuggestion)
             }
 
         case .reviewDay:
             Button(action: reviewTodayFromRecoveryHandoff) {
                 Label("Review today", systemImage: "checklist")
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-                    .background(Color.backgroundPrimary.opacity(0.82), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppActionButtonStyle(.secondary))
 
         case .openRecoverySearch:
             Button(action: openRecoveryFoodSearch) {
                 Label("Find recovery food", systemImage: "magnifyingglass")
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-                    .background(Color.backgroundPrimary.opacity(0.82), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppActionButtonStyle(.secondary))
 
         case .none:
             EmptyView()
         }
     }
 
-    private func recoveryMetricPill(title: String, value: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(color)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-            Text(title)
-                .appFont(size: 10, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .lineLimit(1)
+    private func recoveryMetricItems(for plan: TodayFuelPlan) -> [AppMetricItem] {
+        var items = [
+            AppMetricItem(
+                label: plan.remainingCalories >= 0 ? "Budget" : "Over",
+                value: "\(Int(abs(plan.remainingCalories).rounded()).formatted()) cal",
+                accent: plan.remainingCalories >= 0 ? AppPalette.brand : AppPalette.caution
+            )
+        ]
+        if let protein = plan.targetProteinGrams {
+            items.append(AppMetricItem(label: "Protein", value: "\(protein) g", accent: AppPalette.effort))
         }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        .padding(.horizontal, 10)
-        .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        if let carbs = plan.targetCarbGrams {
+            items.append(AppMetricItem(label: "Carbs", value: "\(carbs) g", accent: AppPalette.achievement))
+        }
+        return items
+    }
+
+    private var recoveryFoodSearchButton: some View {
+        Button(action: openRecoveryFoodSearch) {
+            Label("Find Food", systemImage: "magnifyingglass")
+        }
+        .buttonStyle(AppActionButtonStyle(.secondary))
+    }
+
+    private var recoveryFillMacrosButton: some View {
+        Button(action: generateRecoveryMealSuggestion) {
+            HStack(spacing: AppSpacing.compact) {
+                if insightsService.isGeneratingSuggestion {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: "sparkles")
+                }
+                Text("Fill Macros")
+            }
+        }
+        .buttonStyle(AppActionButtonStyle(.primary))
+        .disabled(insightsService.isGeneratingSuggestion)
     }
 
     private func recoveryHandoffIcon(for kind: TodayFuelPlan.Kind) -> String {
@@ -598,31 +593,38 @@ struct WorkoutCompleteAnalyticsView: View {
     }
 
     private func recoveryHandoffColor(for kind: TodayFuelPlan.Kind) -> Color {
-        kind == .overTargetReview ? .orange : .brandPrimary
+        kind == .overTargetReview ? AppPalette.caution : AppPalette.brand
     }
 
     private func openRecoveryFoodSearch() {
+        guard ownerUserID == DIContainer.shared.authService.currentUserID else { return }
         HapticManager.instance.feedback(.light)
         logRecoveryHandoffAction("search")
         showingRecoveryFoodSearch = true
     }
 
     private func generateRecoveryMealSuggestion() {
+        guard let userID = ownerUserID,
+              DIContainer.shared.authService.currentUserID == userID else { return }
         HapticManager.instance.feedback(.light)
         logRecoveryHandoffAction("fill_macros")
 
         Task {
             let pantryNames = pantryService.pantryItems.map(\.name)
             if let suggestion = await insightsService.generateSingleMealSuggestion(pantryItems: pantryNames) {
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 self.recoveryMealSuggestion = suggestion
+                self.recoverySuggestionUserID = userID
                 self.showingRecoveryMealDetail = true
             } else {
+                guard DIContainer.shared.authService.currentUserID == userID else { return }
                 ToastManager.shared.showToast(message: "Maia couldn't build a meal right now. Check your connection and try again.")
             }
         }
     }
 
     private func reviewTodayFromRecoveryHandoff() {
+        guard ownerUserID == DIContainer.shared.authService.currentUserID else { return }
         HapticManager.instance.feedback(.light)
         logRecoveryHandoffAction("review_day")
         if currentTodayLog != nil {
@@ -633,7 +635,14 @@ struct WorkoutCompleteAnalyticsView: View {
     }
 
     private func logRecoveryMealSuggestion(_ suggestion: MealSuggestion) {
-        guard let userID = DIContainer.shared.authService.currentUserID else { return }
+        guard let userID = DIContainer.shared.authService.currentUserID,
+              ownerUserID == userID,
+              recoverySuggestionUserID == userID else {
+            recoveryMealSuggestion = nil
+            recoverySuggestionUserID = nil
+            showingRecoveryMealDetail = false
+            return
+        }
 
         let foodItem = FoodItem(
             id: UUID().uuidString,
@@ -656,6 +665,7 @@ struct WorkoutCompleteAnalyticsView: View {
 
         withAnimation {
             self.recoveryMealSuggestion = nil
+            self.recoverySuggestionUserID = nil
             self.showingRecoveryMealDetail = false
         }
     }
@@ -712,46 +722,107 @@ private struct WorkoutSessionLogEditorSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Session") {
+        AppEditorScaffold(
+            title: "Edit Workout",
+            subtitle: "Correct the saved session without changing the original Apple Health workout.",
+            dismiss: {
+                guard !isSaving else { return }
+                dismiss()
+            }
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(
+                        title: "Session",
+                        subtitle: "Changes update this MyFitPlate history record."
+                    )
+
                     DatePicker("Date", selection: $draft.date, displayedComponents: [.date, .hourAndMinute])
-                }
+                        .appTextRole(.control)
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        )
 
-                ForEach(draft.completedExercises.indices, id: \.self) { exerciseIndex in
-                    let exercise = draft.completedExercises[exerciseIndex]
-                    Section(exercise.exerciseName) {
-                        ForEach(draft.completedExercises[exerciseIndex].sets.indices, id: \.self) { setIndex in
-                            CompletedSetEditorRow(
-                                set: $draft.completedExercises[exerciseIndex].sets[setIndex],
-                                setIndex: setIndex + 1,
-                                exerciseType: exercise.exercise.type
+                    AppMetricStrip(items: [
+                        AppMetricItem(
+                            label: "Exercises",
+                            value: draft.completedExercises.count.formatted(),
+                            accent: AppPalette.effort
+                        ),
+                        AppMetricItem(
+                            label: "Sets",
+                            value: draft.completedExercises.reduce(0) { $0 + $1.sets.count }.formatted(),
+                            accent: AppPalette.brand
+                        )
+                    ])
+                }
+                .appSurface(.emphasized)
+
+                if draft.completedExercises.isEmpty {
+                    AppListRow(
+                        icon: AppDataAvailabilityReason.notProvided.icon,
+                        iconColor: AppPalette.caution,
+                        title: "No exercises in this session",
+                        subtitle: "Close this editor and add a new workout instead."
+                    )
+                    .appSurface(.quiet, padding: 0)
+                } else {
+                    ForEach(draft.completedExercises.indices, id: \.self) { exerciseIndex in
+                        let exercise = draft.completedExercises[exerciseIndex]
+
+                        VStack(alignment: .leading, spacing: AppSpacing.row) {
+                            AppSectionHeader(
+                                title: exercise.exerciseName,
+                                subtitle: "\(exercise.sets.count) \(exercise.sets.count == 1 ? "set" : "sets") · \(exerciseTypeLabel(exercise.exercise.type))"
                             )
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Edit Workout")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .disabled(isSaving)
-                }
 
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        onSave(sanitizedDraft())
-                    } label: {
-                        if isSaving {
-                            ProgressView()
-                        } else {
-                            Text("Save")
+                            VStack(spacing: 0) {
+                                ForEach(draft.completedExercises[exerciseIndex].sets.indices, id: \.self) { setIndex in
+                                    CompletedSetEditorRow(
+                                        set: $draft.completedExercises[exerciseIndex].sets[setIndex],
+                                        setIndex: setIndex + 1,
+                                        exerciseType: exercise.exercise.type
+                                    )
+                                    .padding(AppSpacing.group)
+
+                                    if setIndex < draft.completedExercises[exerciseIndex].sets.count - 1 {
+                                        Divider().padding(.leading, AppSpacing.group)
+                                    }
+                                }
+                            }
+                            .appSurface(.quiet, padding: 0)
                         }
                     }
-                    .disabled(isSaving)
                 }
             }
+        } actions: {
+            Button {
+                onSave(sanitizedDraft())
+            } label: {
+                if isSaving {
+                    HStack {
+                        ProgressView()
+                        Text("Saving Workout")
+                    }
+                } else {
+                    Label("Save Workout", systemImage: "checkmark")
+                }
+            }
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .disabled(isSaving || draft.completedExercises.isEmpty)
+            .accessibilityIdentifier("workout_editor_save")
+        }
+        .interactiveDismissDisabled(isSaving)
+        .tint(AppPalette.brand)
+    }
+
+    private func exerciseTypeLabel(_ type: ExerciseType) -> String {
+        switch type {
+        case .strength: "Strength"
+        case .cardio: "Cardio"
+        case .flexibility: "Mobility"
         }
     }
 
@@ -807,34 +878,36 @@ private struct CompletedSetEditorRow: View {
 
             switch exerciseType {
             case .strength:
-                HStack(spacing: 12) {
-                    editableNumberField(title: "Weight", unit: "lb") {
-                        TextField("0", value: $set.weight, format: .number.precision(.fractionLength(0...1)))
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppSpacing.row) {
+                        strengthWeightField
+                        strengthRepsField
                     }
 
-                    editableNumberField(title: "Reps", unit: "reps") {
-                        TextField("0", value: $set.reps, format: .number)
+                    VStack(spacing: AppSpacing.row) {
+                        strengthWeightField
+                        strengthRepsField
                     }
                 }
 
             case .cardio:
-                HStack(spacing: 12) {
-                    editableNumberField(title: "Distance", unit: "mi") {
-                        TextField("0", value: distanceBinding, format: .number.precision(.fractionLength(0...2)))
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppSpacing.row) {
+                        cardioDistanceField
+                        durationField
                     }
 
-                    editableNumberField(title: "Duration", unit: "min") {
-                        TextField("0", value: durationMinutesBinding, format: .number)
+                    VStack(spacing: AppSpacing.row) {
+                        cardioDistanceField
+                        durationField
                     }
                 }
 
             case .flexibility:
-                editableNumberField(title: "Duration", unit: "min") {
-                    TextField("0", value: durationMinutesBinding, format: .number)
-                }
+                durationField
             }
         }
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func editableNumberField<Field: View>(
@@ -859,9 +932,36 @@ private struct CompletedSetEditorRow: View {
             }
             .padding(.horizontal, 10)
             .frame(height: 42)
-            .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(
+                AppPalette.control,
+                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+            )
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var strengthWeightField: some View {
+        editableNumberField(title: "Weight", unit: "lb") {
+            TextField("0", value: $set.weight, format: .number.precision(.fractionLength(0...1)))
+        }
+    }
+
+    private var strengthRepsField: some View {
+        editableNumberField(title: "Reps", unit: "reps") {
+            TextField("0", value: $set.reps, format: .number)
+        }
+    }
+
+    private var cardioDistanceField: some View {
+        editableNumberField(title: "Distance", unit: "mi") {
+            TextField("0", value: distanceBinding, format: .number.precision(.fractionLength(0...2)))
+        }
+    }
+
+    private var durationField: some View {
+        editableNumberField(title: "Duration", unit: "min") {
+            TextField("0", value: durationMinutesBinding, format: .number)
+        }
     }
 
     private func formatEffort(_ value: Double) -> String {
@@ -874,66 +974,40 @@ struct WorkoutSummaryHeroCard: View {
     let totalVolume: Double
     let exerciseCount: Int
     let setCount: Int
+    let repCount: Int
+    let estimatedMinutes: Int
     let isAnimated: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Workout Complete")
-                        .appFont(size: 30, weight: .black)
-                        .foregroundColor(.textPrimary)
-
-                    Text(date.formatted(date: .abbreviated, time: .shortened))
-                        .appFont(size: 14, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppScreenHeader(
+                eyebrow: "Session Review",
+                title: "Workout Complete",
+                subtitle: date.formatted(date: .abbreviated, time: .shortened)
+            ) {
                 Image(systemName: "trophy.fill")
-                    .appFont(size: 36, weight: .bold)
-                    .foregroundColor(.yellow)
+                    .appFont(size: 24, weight: .bold)
+                    .foregroundStyle(AppPalette.achievement)
+                    .frame(width: 52, height: 52)
+                    .background(
+                        AppPalette.achievement.opacity(0.12),
+                        in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                    )
                     .scaleEffect(isAnimated ? 1.0 : 0.65)
-                    .animation(.spring(response: 0.45, dampingFraction: 0.62), value: isAnimated)
+                    .animation(AppMotion.standard, value: isAnimated)
+                    .accessibilityHidden(true)
             }
 
-            HStack(spacing: 12) {
-                SummaryHeroPill(title: "Volume", value: "\(Int(totalVolume)) lbs", icon: "dumbbell.fill")
-                SummaryHeroPill(title: "Logged", value: "\(exerciseCount) ex / \(setCount) sets", icon: "list.bullet.clipboard.fill")
-            }
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Volume", value: "\(Int(totalVolume).formatted()) lb", accent: AppPalette.effort),
+                AppMetricItem(label: "Exercises", value: exerciseCount.formatted(), accent: Color.secondary),
+                AppMetricItem(label: "Working sets", value: setCount.formatted(), accent: AppPalette.positive),
+                AppMetricItem(label: "Reps", value: repCount.formatted(), accent: AppPalette.effort),
+                AppMetricItem(label: "Estimated time", value: "\(estimatedMinutes) min", accent: AppPalette.recovery)
+            ])
+            .appSurface(.emphasized)
         }
-        .asCard()
-    }
-}
-
-private struct SummaryHeroPill: View {
-    let title: String
-    let value: String
-    let icon: String
-
-    var body: some View {
-        HStack(spacing: 9) {
-            Image(systemName: icon)
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(.brandPrimary)
-                .frame(width: 30, height: 30)
-                .background(Color.brandPrimary.opacity(0.12), in: Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .appFont(size: 10, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                Text(value)
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(Color.backgroundPrimary.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityIdentifier("workout_summary_header")
     }
 }
 
@@ -941,30 +1015,20 @@ private struct SessionExerciseBreakdownCard: View {
     let exercises: [CompletedExercise]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Session Breakdown")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.textPrimary)
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Session Breakdown",
+                subtitle: "\(exercises.count) exercises completed"
+            )
 
-                    Text("\(exercises.count) exercises completed")
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
-                Image(systemName: "list.bullet.rectangle.fill")
-                    .appFont(size: 15, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-                    .frame(width: 34, height: 34)
-                    .background(Color.brandPrimary.opacity(0.12), in: Circle())
-            }
-
-            VStack(spacing: 10) {
-                ForEach(Array(exercises.prefix(8))) { exercise in
+            VStack(spacing: 0) {
+                ForEach(Array(exercises.prefix(8).enumerated()), id: \.element.id) { index, exercise in
                     SessionExerciseRow(exercise: exercise)
+
+                    if index < min(exercises.count, 8) - 1 {
+                        Divider()
+                            .padding(.leading, 64)
+                    }
                 }
 
                 if exercises.count > 8 {
@@ -972,16 +1036,18 @@ private struct SessionExerciseBreakdownCard: View {
                         .appFont(size: 12, weight: .semibold)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, 2)
+                        .padding(AppSpacing.row)
                 }
             }
+            .appSurface(.quiet, padding: 0)
         }
-        .asCard()
+        .accessibilityIdentifier("workout_summary_breakdown")
     }
 }
 
 private struct SessionExerciseRow: View {
     let exercise: CompletedExercise
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var volume: Double {
         exercise.sets.reduce(0) { $0 + ($1.weight * Double($1.reps)) }
@@ -1013,37 +1079,56 @@ private struct SessionExerciseRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(ExerciseEmojiMapper.getEmoji(for: exercise.exerciseName))
-                .font(.title3)
-                .frame(width: 38, height: 38)
-                .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    exerciseIdentity
+                    if volume > 0 {
+                        Text("\(Int(volume).formatted()) lb volume")
+                            .appTextRole(.caption)
+                            .foregroundStyle(AppPalette.brandText)
+                    }
+                }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    exerciseIdentity
+                    Spacer(minLength: AppSpacing.compact)
+
+                    if volume > 0 {
+                        Text("\(Int(volume).formatted()) lb")
+                            .appTextRole(.caption)
+                            .foregroundStyle(AppPalette.brandText)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
+    }
+
+    private var exerciseIdentity: some View {
+        HStack(spacing: AppSpacing.row) {
+            Image(systemName: exercise.exercise.type.icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(exercise.exercise.type.color)
+                .frame(width: 40, height: 40)
+                .background(
+                    exercise.exercise.type.color.opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(exercise.exerciseName)
-                    .appFont(size: 15, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .lineLimit(1)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
 
-                Text("\(exercise.sets.count) sets - \(bestSetText)")
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            if volume > 0 {
-                Text("\(Int(volume))")
-                    .appFont(size: 13, weight: .bold)
-                    .foregroundColor(.brandPrimary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                Text("\(exercise.sets.count) sets · \(bestSetText)")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             }
         }
-        .padding(10)
-        .background(Color.backgroundPrimary.opacity(0.64), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -1062,46 +1147,36 @@ private struct InlineAnalysisLoadingCard: View {
                     .foregroundColor(Color(UIColor.secondaryLabel))
             }
         }
-        .padding()
-        .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-struct StatCard: View {
-    let title: String, value: String, unit: String, icon: String, color: Color
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack { Image(systemName: icon).foregroundColor(color); Spacer() }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value).appFont(size: 24, weight: .bold)
-                Text(unit).appFont(size: 12).foregroundColor(.secondary)
-            }
-            Text(title).appFont(size: 14, weight: .medium).foregroundColor(.secondary).opacity(0.8)
-        }
-        .padding()
-        .background(Color.backgroundSecondary)
-        .cornerRadius(16)
+        .appSurface(.quiet)
     }
 }
 
 struct PRCard: View {
     let exerciseName: String, detail: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack { Image(systemName: "crown.fill").foregroundColor(.yellow); Spacer() }
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Label("Personal Record", systemImage: "crown.fill")
+                .appTextRole(.caption)
+                .foregroundStyle(AppPalette.achievement)
             Text(exerciseName)
-                .appFont(size: 14, weight: .bold)
-                .lineLimit(2)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 .multilineTextAlignment(.leading)
             Text(detail)
-                .appFont(size: 12)
-                .foregroundColor(.secondary)
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding()
-        .frame(width: 140, height: 110)
-        .background(Color.backgroundSecondary)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.yellow.opacity(0.3), lineWidth: 2))
-        .cornerRadius(16)
+        .frame(width: dynamicTypeSize.isAccessibilitySize ? 260 : 180, alignment: .leading)
+        .frame(minHeight: 120, alignment: .topLeading)
+        .appSurface(.quiet)
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                .stroke(AppPalette.achievement.opacity(0.24), lineWidth: 1)
+        }
     }
 }
 
@@ -1115,27 +1190,29 @@ struct InsightCard: View {
         default: return "lightbulb.fill"
         }
     }
-    var categoryColor: Color {
+    var categoryRole: AppSignalRole {
         switch insight.category {
-        case "Performance": return .blue
-        case "Recovery": return .indigo
-        case "Nutrition": return .green
-        default: return .orange
+        case "Performance": return .effort
+        case "Recovery": return .recovery
+        case "Nutrition": return .current
+        default: return .caution
         }
     }
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            ZStack {
-                Circle().fill(categoryColor.opacity(0.15)).frame(width: 40, height: 40)
-                Image(systemName: categoryIcon).foregroundColor(categoryColor)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                Text(insight.title).appFont(size: 16, weight: .bold)
-                Text(insight.message).appFont(size: 14).foregroundColor(.secondary).lineSpacing(2)
-            }
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Label(insight.category, systemImage: categoryIcon)
+                .appTextRole(.caption)
+                .foregroundStyle(categoryRole.color)
+
+            Text(insight.title)
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+
+            Text(insight.message)
+                .appTextRole(.body)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding()
-        .background(Color.backgroundSecondary)
-        .cornerRadius(16)
+        .appSurface(.quiet)
     }
 }

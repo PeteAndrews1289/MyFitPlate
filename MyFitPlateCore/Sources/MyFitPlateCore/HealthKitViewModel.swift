@@ -227,7 +227,7 @@ public class HealthKitViewModel: ObservableObject {
             self.sleepSamples = samples
             self.sleepSummary = self.makeSleepSummary(from: samples)
             if !samples.isEmpty { self.lastSyncedAt = Date() }
-            AppLog.health.info("Fetched \(samples.count, privacy: .public) HealthKit sleep samples across \(self.sleepSummary.nightCount, privacy: .public) nights.")
+            AppLog.health.info("Fetched \(samples.count, privacy: .private) HealthKit sleep samples across \(self.sleepSummary.nightCount, privacy: .private) nights.")
         }
     }
 
@@ -252,7 +252,7 @@ public class HealthKitViewModel: ObservableObject {
             let values = samples.map { $0.quantity.doubleValue(for: unit) }
             self.hrvAverage = values.reduce(0, +) / Double(values.count)
             self.lastSyncedAt = Date()
-            AppLog.health.info("Fetched \(samples.count, privacy: .public) HealthKit HRV samples with avg \(self.hrvAverage ?? 0, privacy: .public) ms.")
+            AppLog.health.info("Fetched \(samples.count, privacy: .private) HealthKit HRV samples with avg \(self.hrvAverage ?? 0, privacy: .private) ms.")
         }
     }
 

@@ -10,7 +10,7 @@ higher.
 
 1. Do Review/Low entries produce more material corrections than Strong/Excellent entries?
 2. Within a Trust band, is one provider corrected more often than another?
-3. Does independent cross-verification predict fewer corrections than a single database?
+3. Does cross-database agreement predict fewer corrections than a single database record?
 4. Which coarse field groups are corrected: identity, serving, core nutrition, or detail
    nutrition?
 5. Does the correction flow resolve warnings, fail to save, or get abandoned?
@@ -56,6 +56,11 @@ Every Trust/correction event carries `source`, `trust_score`, `trust_level`,
 `review_status`, `evidence_class`, `serving_evidence`, `sanity_profile`, and
 `sanity_finding_count`. Profiles are warning-first and length-bounded for stable ingestion; counts
 preserve the full number of findings.
+
+Current `evidence_class` values distinguish `cross_database_agreement`, `single_database`,
+`government_reference`, `manufacturer_label`, `community_consensus`, `personal_or_curated`,
+`user_confirmed`, `user_edited`, and `estimate`. A DSLD non-mass serving reports
+`serving_evidence=label_serving`; it is not grouped with missing gram evidence.
 
 Submitted/saved events also carry `correction_scope`. Its ordered values are any combination of
 `identity`, `serving`, `core_nutrition`, and `detail_nutrition`, or `no_material_change`. Successful
@@ -187,8 +192,8 @@ LEFT JOIN reuse ON saves.user_pseudo_id = reuse.reuse_user_pseudo_id;
   friction, unclear warnings, or low perceived value.
 - Do not count `correction_submitted` as success, and do not count `no_material_change` as a
   material correction.
-- Compare independent cross-verification with single-database evidence inside the same provider
-  and Trust band where possible.
+- Compare cross-database agreement with single-database evidence inside the same provider and
+  Trust band where possible. Do not infer independent upstream evidence from provider count.
 - Change a weight only when a repeated, adequately sized cohort shows the same direction. Record
   the evidence and increment `FoodTrustEvaluation.modelVersion` in the same release.
 

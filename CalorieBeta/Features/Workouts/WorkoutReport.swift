@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 struct WorkoutReport {
@@ -10,45 +12,27 @@ struct WorkoutReportCard: View {
     let report: WorkoutReport
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "figure.run")
-                    .appFont(size: 18, weight: .bold)
-                    .foregroundColor(.blue)
-                    .frame(width: 42, height: 42)
-                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Workout summary")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("Training volume and most frequent activity.")
-                        .appFont(size: 13)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Workout summary",
+                subtitle: "Training volume and most frequent activity."
+            ) {
                 Image(systemName: "chevron.right")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                    .appTextRole(.caption)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
-            
-            HStack(spacing: 10) {
-                workoutStatBox(
-                    value: report.totalWorkouts.formatted(),
-                    label: "Workouts",
-                    icon: "calendar.badge.checkmark",
-                    color: .blue
-                )
-                workoutStatBox(
-                    value: Int(report.totalCaloriesBurned.rounded()).formatted(),
+
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Workouts", value: report.totalWorkouts.formatted(), accent: AppPalette.effort),
+                AppMetricItem(
                     label: "Calories",
-                    icon: "flame.fill",
-                    color: .orange
+                    value: "\(Int(report.totalCaloriesBurned.rounded()).formatted()) cal",
+                    accent: AppPalette.caution
                 )
-            }
+            ])
+
+            Divider()
 
             HStack(spacing: 10) {
                 Image(systemName: "star.fill")
@@ -59,41 +43,15 @@ struct WorkoutReportCard: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Most frequent")
-                        .appFont(size: 11, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
                     Text(report.mostFrequentWorkout)
-                        .appFont(size: 15, weight: .semibold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
+                        .appTextRole(.body)
+                        .foregroundStyle(AppPalette.text)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(12)
-            .background(Color.backgroundSecondary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .asCard()
-    }
-    
-    @ViewBuilder
-    private func workoutStatBox(value: String, label: String, icon: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon)
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(color)
-                .frame(width: 28, height: 28)
-                .background(color.opacity(0.12), in: Circle())
-
-            Text(value)
-                .appFont(size: 22, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-
-            Text(label)
-                .appFont(size: 12, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.backgroundSecondary.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .appSurface(.quiet)
     }
 }

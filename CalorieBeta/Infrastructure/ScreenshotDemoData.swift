@@ -1,5 +1,6 @@
 import Foundation
 import MyFitPlateCore
+import SwiftUI
 
 enum ScreenshotDemoMode {
     static var isEnabled: Bool {
@@ -37,6 +38,13 @@ enum ScreenshotDemoData {
         let source: Run.Source
     }
 
+    private struct AchievementProgressFixture {
+        let statuses: [String: UserAchievementStatus]
+        let points: Int
+        let level: Int
+        let challenges: [Challenge]
+    }
+
     private static let calendar = Calendar.current
     private static var today: Date { calendar.startOfDay(for: Date()) }
 
@@ -54,6 +62,111 @@ enum ScreenshotDemoData {
         return "home"
     }
 
+    static var wellnessDemoScore: WellnessScore {
+        WellnessScore(
+            overallScore: 84,
+            nutritionScore: 82,
+            sleepScore: 86,
+            recoveryScore: 85,
+            summary: "Your signals support a steady, productive day.",
+            color: AppPalette.brand
+        )
+    }
+
+    static var wellnessDemoMealScore: MealScore {
+        MealScore(
+            grade: "B+",
+            summary: "Strong protein and calorie consistency with room for more fiber.",
+            color: AppPalette.brand,
+            calorieScore: 88,
+            macroScore: 84,
+            qualityScore: 74,
+            overallScore: 82,
+            personalizedAISummary: "Yesterday supported your goals with a reliable protein base.",
+            improvementTips: [
+                ImprovementTip(
+                    category: "Fiber",
+                    advice: "Add fruit, beans, or vegetables to close the remaining fiber gap.",
+                    icon: "leaf",
+                    color: AppPalette.brand
+                ),
+                ImprovementTip(
+                    category: "Sodium",
+                    advice: "Balance the higher-sodium meal with minimally processed foods today.",
+                    icon: "drop",
+                    color: AppPalette.hydration
+                )
+            ],
+            actualCalories: 2_040,
+            goalCalories: 2_100,
+            actualProtein: 156,
+            goalProtein: 160,
+            actualCarbs: 218,
+            goalCarbs: 230,
+            actualFats: 62,
+            goalFats: 60,
+            actualFiber: 24,
+            goalFiber: 30,
+            actualSaturatedFat: 15,
+            goalSaturatedFat: 20,
+            actualSodium: 2_460,
+            goalSodium: 2_300
+        )
+    }
+
+    static var wellnessDemoSleepReport: EnhancedSleepReport {
+        var dailyData: [EnhancedSleepReport.DailySleepStageData] = []
+        for offset in 0..<7 {
+            let date = calendar.date(byAdding: .day, value: -offset, to: today) ?? today
+            let timeInBed = (7.7 + Double(offset % 3) * 0.12) * 3_600
+            let timeAsleep = (7.1 + Double(offset % 2) * 0.18) * 3_600
+            let timeDeep = (1.0 + Double(offset % 2) * 0.12) * 3_600
+            let day = EnhancedSleepReport.DailySleepStageData(
+                date: date,
+                timeInBed: timeInBed,
+                timeAsleep: timeAsleep,
+                timeCore: 4.2 * 3_600,
+                timeDeep: timeDeep,
+                timeREM: 1.8 * 3_600,
+                timeAwake: 0.45 * 3_600
+            )
+            dailyData.append(day)
+        }
+
+        return EnhancedSleepReport(
+            dateRange: "Last 7 nights",
+            averageSleepScore: 86,
+            averageTimeInBed: 7.9 * 3_600,
+            averageTimeAsleep: 7.3 * 3_600,
+            averageTimeInCore: 4.2 * 3_600,
+            averageTimeInDeep: 1.1 * 3_600,
+            averageTimeInREM: 1.8 * 3_600,
+            averageTimeAwake: 0.5 * 3_600,
+            sleepConsistencyScore: 88,
+            sleepConsistencyMessage: "Bedtime and wake time stayed within a consistent range.",
+            dailySleepData: dailyData
+        )
+    }
+
+    static var cycleDemoDay: CycleDay {
+        CycleDay(date: today, cycleDayNumber: 17, phase: .luteal)
+    }
+
+    static var cycleDemoInsight: AIInsight {
+        AIInsight(
+            phaseTitle: "Protect Your Baseline",
+            phaseDescription: "Energy and appetite can shift during the luteal phase. Treat the pattern as context, then respond to how you actually feel today.",
+            trainingFocus: AIInsight.TrainingFocus(
+                title: "Keep Quality High",
+                description: "Use your planned loads, but leave room to reduce volume if recovery feels lower than usual."
+            ),
+            hormonalState: "Typical luteal pattern",
+            energyLevel: "Moderate",
+            nutritionTip: "Keep protein steady and plan a satisfying high-fiber snack before hunger becomes distracting.",
+            symptomTip: "Hydration, sleep consistency, and a lighter session can help when symptoms are more noticeable."
+        )
+    }
+
     static func canonicalScreenName(_ name: String) -> String {
         switch name.lowercased() {
         case "cpp-trust": return "trust"
@@ -69,6 +182,686 @@ enum ScreenshotDemoData {
 
     static var trustDemoFood: FoodItem {
         discoveryFoods()[0]
+    }
+
+    static var trustHubDemoLog: DailyLog {
+        nutritionHistory()[0]
+    }
+
+    static var manualFoodDemoFood: FoodItem {
+        FoodItem(
+            id: "demo-manual-power-bowl",
+            name: "Chicken Power Bowl",
+            calories: 540,
+            protein: 46,
+            carbs: 58,
+            fats: 14,
+            saturatedFat: 3.5,
+            fiber: 9,
+            servingSize: "1 bowl",
+            servingWeight: 420,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                originSourceType: .manual,
+                confidence: .userVerified,
+                reviewStatus: .userEdited,
+                sourceName: "My Foods"
+            )
+        )
+    }
+
+    static var aiTextDemoFoods: [FoodItem] {
+        [
+            FoodItem(
+                id: "demo-ai-text-bowl",
+                name: "Chicken Burrito Bowl",
+                calories: 620,
+                protein: 42,
+                carbs: 70,
+                fats: 20,
+                saturatedFat: 5,
+                fiber: 13,
+                servingSize: "1 bowl",
+                servingWeight: 510,
+                sourceMetadata: FoodSourceMetadata(
+                    sourceType: .aiText,
+                    confidence: .needsReview,
+                    reviewStatus: .unreviewed,
+                    sourceName: "Maia text estimate"
+                )
+            ),
+            FoodItem(
+                id: "demo-ai-text-guacamole",
+                name: "Guacamole",
+                calories: 110,
+                protein: 2,
+                carbs: 6,
+                fats: 10,
+                saturatedFat: 1.5,
+                fiber: 4,
+                servingSize: "1/4 cup",
+                servingWeight: 60,
+                sourceMetadata: FoodSourceMetadata(
+                    sourceType: .aiText,
+                    confidence: .needsReview,
+                    reviewStatus: .unreviewed,
+                    sourceName: "Maia text estimate"
+                )
+            ),
+            FoodItem(
+                id: "demo-ai-text-chips",
+                name: "Tortilla Chips",
+                calories: 140,
+                protein: 2,
+                carbs: 19,
+                fats: 7,
+                saturatedFat: 1,
+                fiber: 2,
+                servingSize: "1 small handful",
+                servingWeight: 28,
+                sourceMetadata: FoodSourceMetadata(
+                    sourceType: .aiText,
+                    confidence: .needsReview,
+                    reviewStatus: .unreviewed,
+                    sourceName: "Maia text estimate"
+                )
+            )
+        ]
+    }
+
+    static var myFoodsDemoFoods: [FoodItem] {
+        let oats = FoodItem(
+            id: "demo-library-oats",
+            name: "Power Protein Oats",
+            calories: 445,
+            protein: 34,
+            carbs: 55,
+            fats: 11,
+            saturatedFat: 2,
+            fiber: 9,
+            servingSize: "1 bowl",
+            servingWeight: 360,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                originSourceType: .manual,
+                confidence: .userVerified,
+                reviewStatus: .userEdited,
+                sourceName: "My Foods"
+            )
+        )
+        var duplicateOats = oats
+        duplicateOats.id = "demo-library-oats-copy"
+
+        let shake = FoodItem(
+            id: "demo-library-shake",
+            name: "Post-Workout Shake",
+            calories: 310,
+            protein: 42,
+            carbs: 29,
+            fats: 4,
+            saturatedFat: 1,
+            fiber: 4,
+            servingSize: "20 fl oz",
+            servingWeight: 590,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                originSourceType: .manual,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                sourceName: "Personal barcode correction",
+                barcode: "0044000087579"
+            )
+        )
+
+        let recipe = FoodItem(
+            id: "demo-library-recipe",
+            name: "Weeknight Chicken Bowl",
+            calories: 610,
+            protein: 51,
+            carbs: 68,
+            fats: 18,
+            saturatedFat: 4,
+            fiber: 10,
+            servingSize: "1 recipe serving",
+            servingWeight: 475,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                originSourceType: .recipe,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                sourceName: "My Recipes"
+            )
+        )
+
+        let needsReview = FoodItem(
+            id: "demo-library-review",
+            name: "Granola Label Scan",
+            calories: 260,
+            protein: 8,
+            carbs: 38,
+            fats: 9,
+            saturatedFat: 2,
+            fiber: 5,
+            servingSize: "2/3 cup",
+            servingWeight: 62,
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                originSourceType: .aiImage,
+                confidence: .needsReview,
+                reviewStatus: .unreviewed,
+                sourceName: "Nutrition label scan"
+            )
+        )
+
+        return [oats, duplicateOats, shake, recipe, needsReview]
+    }
+
+    static var myFoodsDemoRecentFoods: [FoodItem] {
+        var oats = myFoodsDemoFoods[0]
+        oats.timestamp = Date().addingTimeInterval(-2 * 60 * 60)
+        var shake = myFoodsDemoFoods[2]
+        shake.timestamp = Date().addingTimeInterval(-24 * 60 * 60)
+        return [oats, shake]
+    }
+
+    static var recipeDemoRecipes: [Recipe] {
+        func ingredient(
+            id: String,
+            name: String,
+            calories: Double,
+            protein: Double,
+            carbs: Double,
+            fats: Double,
+            fiber: Double,
+            quantity: Double,
+            unit: String
+        ) -> FoodItem {
+            var item = trustedFood(
+                id: id,
+                name: name,
+                calories: calories,
+                protein: protein,
+                carbs: carbs,
+                fats: fats,
+                fiber: fiber,
+                servingSize: "\(quantity.formatted()) \(unit)",
+                servingWeight: unit == "g" ? quantity : 0,
+                sourceType: .usda,
+                sourceName: "USDA FoodData Central"
+            )
+            item.quantityValue = quantity
+            item.servingUnit = unit
+            return item
+        }
+
+        let chickenBowlIngredients = [
+            ingredient(
+                id: "demo-recipe-chicken",
+                name: "Grilled Chicken Breast",
+                calories: 245,
+                protein: 46,
+                carbs: 0,
+                fats: 5,
+                fiber: 0,
+                quantity: 170,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-rice",
+                name: "Jasmine Rice",
+                calories: 180,
+                protein: 4,
+                carbs: 40,
+                fats: 0.5,
+                fiber: 1,
+                quantity: 140,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-beans",
+                name: "Black Beans",
+                calories: 90,
+                protein: 6,
+                carbs: 16,
+                fats: 0.5,
+                fiber: 6,
+                quantity: 85,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-salsa",
+                name: "Avocado Salsa",
+                calories: 95,
+                protein: 2,
+                carbs: 10,
+                fats: 6,
+                fiber: 4,
+                quantity: 95,
+                unit: "g"
+            )
+        ]
+
+        let oatsIngredients = [
+            ingredient(
+                id: "demo-recipe-oats",
+                name: "Rolled Oats",
+                calories: 225,
+                protein: 8,
+                carbs: 40,
+                fats: 4,
+                fiber: 6,
+                quantity: 60,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-yogurt",
+                name: "Greek Yogurt",
+                calories: 130,
+                protein: 23,
+                carbs: 9,
+                fats: 0,
+                fiber: 0,
+                quantity: 225,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-berries",
+                name: "Blueberries",
+                calories: 85,
+                protein: 1,
+                carbs: 21,
+                fats: 0.5,
+                fiber: 4,
+                quantity: 150,
+                unit: "g"
+            )
+        ]
+
+        let salmonIngredients = [
+            ingredient(
+                id: "demo-recipe-salmon",
+                name: "Baked Atlantic Salmon",
+                calories: 300,
+                protein: 34,
+                carbs: 0,
+                fats: 18,
+                fiber: 0,
+                quantity: 145,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-quinoa",
+                name: "Cooked Quinoa",
+                calories: 185,
+                protein: 7,
+                carbs: 32,
+                fats: 3,
+                fiber: 4,
+                quantity: 155,
+                unit: "g"
+            ),
+            ingredient(
+                id: "demo-recipe-vegetables",
+                name: "Roasted Mixed Vegetables",
+                calories: 120,
+                protein: 4,
+                carbs: 21,
+                fats: 3,
+                fiber: 7,
+                quantity: 220,
+                unit: "g"
+            )
+        ]
+
+        return [
+            Recipe(
+                id: "demo-recipe-chicken-bowl",
+                name: "Weeknight Chicken Power Bowl",
+                ingredients: [
+                    "170 g grilled chicken breast",
+                    "140 g cooked jasmine rice",
+                    "85 g black beans",
+                    "95 g avocado salsa"
+                ],
+                detailedIngredients: chickenBowlIngredients,
+                instructions: [
+                    "Warm the rice and black beans together.",
+                    "Slice the grilled chicken and arrange it over the rice.",
+                    "Finish with avocado salsa and serve."
+                ],
+                nutrition: Nutrition.total(for: chickenBowlIngredients),
+                servings: 1
+            ),
+            Recipe(
+                id: "demo-recipe-oats",
+                name: "Blueberry Protein Overnight Oats",
+                ingredients: [
+                    "60 g rolled oats",
+                    "225 g nonfat Greek yogurt",
+                    "150 g blueberries"
+                ],
+                detailedIngredients: oatsIngredients,
+                instructions: [
+                    "Stir the oats and Greek yogurt together.",
+                    "Fold in half of the blueberries and refrigerate overnight.",
+                    "Top with the remaining berries before serving."
+                ],
+                nutrition: Nutrition.total(for: oatsIngredients),
+                servings: 1
+            ),
+            Recipe(
+                id: "demo-recipe-salmon",
+                name: "Lemon Salmon Quinoa Plate",
+                ingredients: [
+                    "145 g baked Atlantic salmon",
+                    "155 g cooked quinoa",
+                    "220 g roasted mixed vegetables"
+                ],
+                detailedIngredients: salmonIngredients,
+                instructions: [
+                    "Season the salmon with lemon and bake until just cooked through.",
+                    "Warm the quinoa and vegetables.",
+                    "Plate together and spoon the pan juices over the salmon."
+                ],
+                nutrition: Nutrition.total(for: salmonIngredients),
+                servings: 1
+            )
+        ]
+    }
+
+    static var receiptDemoItems: [PantryItem] {
+        [
+            PantryItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!,
+                name: "Greek Yogurt",
+                quantity: 2,
+                unit: "tubs",
+                category: "Dairy",
+                dateAdded: Date(timeIntervalSince1970: 100)
+            ),
+            PantryItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!,
+                name: "Baby Spinach",
+                quantity: 1,
+                unit: "bag",
+                category: "Produce",
+                dateAdded: Date(timeIntervalSince1970: 100)
+            ),
+            PantryItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000203")!,
+                name: "Jasmine Rice",
+                quantity: 1,
+                unit: "bag",
+                category: "Grains",
+                dateAdded: Date(timeIntervalSince1970: 100)
+            )
+        ]
+    }
+
+    static var mealSuggestionDemo: MealSuggestion {
+        MealSuggestion(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000301")!,
+            title: "Lemon Herb Chicken Grain Bowl",
+            calories: 615,
+            mealName: "Lemon Herb Chicken Grain Bowl",
+            protein: 52,
+            carbs: 64,
+            fats: 17,
+            ingredients: [
+                "6 oz lemon herb chicken breast",
+                "1 cup cooked quinoa",
+                "2 cups baby spinach",
+                "1/2 cup cherry tomatoes",
+                "2 tbsp tzatziki"
+            ],
+            instructions: """
+            1. Season the chicken and cook until it reaches a safe internal temperature.
+            2. Warm the quinoa and wilt the spinach.
+            3. Add the tomatoes, slice the chicken, and finish with tzatziki.
+            """
+        )
+    }
+
+    static var mealSuggestionDemoPantry: [String] {
+        ["Chicken breast", "Quinoa", "Baby spinach", "Greek yogurt"]
+    }
+
+    static var mealPrepDemoDays: [MealPlanDay] {
+        let chicken = trustedFood(
+            id: "meal-prep-chicken",
+            name: "Ginger Chicken Rice Bowls",
+            calories: 610,
+            protein: 51,
+            carbs: 72,
+            fats: 14,
+            fiber: 9,
+            servingSize: "1 bowl"
+        )
+        let salmon = trustedFood(
+            id: "meal-prep-salmon",
+            name: "Lemon Salmon Quinoa",
+            calories: 680,
+            protein: 47,
+            carbs: 61,
+            fats: 27,
+            fiber: 8,
+            servingSize: "1 plate"
+        )
+        let oats = trustedFood(
+            id: "meal-prep-oats",
+            name: "Blueberry Protein Oats",
+            calories: 460,
+            protein: 34,
+            carbs: 58,
+            fats: 11,
+            fiber: 10,
+            servingSize: "1 jar"
+        )
+
+        return [
+            MealPlanDay(
+                id: "meal-prep-day-one",
+                date: day(offset: 0),
+                meals: [
+                    PlannedMeal(
+                        id: "meal-prep-chicken-one",
+                        mealType: "Lunch",
+                        foodItem: chicken,
+                        ingredients: [
+                            "680 g chicken breast",
+                            "2 cup jasmine rice",
+                            "3 cup broccoli",
+                            "2 tbsp low-sodium soy sauce"
+                        ],
+                        instructions: """
+                        1. Start the rice and divide it between containers.
+                        2. Cook the chicken with ginger and soy sauce.
+                        3. Steam the broccoli and portion everything together.
+                        """
+                    ),
+                    PlannedMeal(
+                        id: "meal-prep-oats-one",
+                        mealType: "Breakfast",
+                        foodItem: oats,
+                        ingredients: [
+                            "2 cup rolled oats",
+                            "2 cup Greek yogurt",
+                            "1 cup blueberries"
+                        ],
+                        instructions: "Mix the oats and yogurt, then chill overnight."
+                    )
+                ]
+            ),
+            MealPlanDay(
+                id: "meal-prep-day-two",
+                date: day(offset: 1),
+                meals: [
+                    PlannedMeal(
+                        id: "meal-prep-salmon-one",
+                        mealType: "Dinner",
+                        foodItem: salmon,
+                        ingredients: [
+                            "450 g Atlantic salmon",
+                            "2 cup cooked quinoa",
+                            "2 tbsp olive oil",
+                            "1 item lemon",
+                            "2 cup spinach"
+                        ],
+                        instructions: """
+                        1. Roast the salmon with lemon until safely cooked.
+                        2. Warm the quinoa and wilt the spinach.
+                        3. Portion the salmon over the quinoa and vegetables.
+                        """
+                    )
+                ]
+            )
+        ]
+    }
+
+    static func reportDemoViewModel(dailyLogService: DailyLogService) -> ReportsViewModel {
+        let viewModel = ReportsViewModel(dailyLogService: dailyLogService)
+        let values: [(calories: Double, protein: Double, carbs: Double, fat: Double)] = [
+            (1_940, 142, 210, 61),
+            (2_080, 158, 224, 66),
+            (2_160, 164, 238, 68),
+            (1_990, 151, 214, 63),
+            (2_120, 169, 226, 70),
+            (2_240, 171, 249, 72),
+            (2_050, 162, 218, 65)
+        ]
+
+        for (offset, value) in values.enumerated() {
+            let daysAgo = values.count - 1 - offset
+            let date = calendar.date(byAdding: .day, value: -daysAgo, to: today) ?? today
+            viewModel.calorieTrend.append(DateValuePoint(date: date, value: value.calories))
+            viewModel.proteinTrend.append(DateValuePoint(date: date, value: value.protein))
+            viewModel.carbTrend.append(DateValuePoint(date: date, value: value.carbs))
+            viewModel.fatTrend.append(DateValuePoint(date: date, value: value.fat))
+        }
+
+        viewModel.micronutrientAverages = [
+            MicroAverageDataPoint(
+                name: "Calcium",
+                unit: "mg",
+                averageValue: 860,
+                goalValue: 1_000,
+                reportedDayCount: 6,
+                totalDayCount: 7
+            ),
+            MicroAverageDataPoint(
+                name: "Iron",
+                unit: "mg",
+                averageValue: 16.4,
+                goalValue: 18,
+                reportedDayCount: 7,
+                totalDayCount: 7
+            ),
+            MicroAverageDataPoint(
+                name: "Potassium",
+                unit: "mg",
+                averageValue: 3_180,
+                goalValue: 3_500,
+                reportedDayCount: 5,
+                totalDayCount: 7
+            ),
+            MicroAverageDataPoint(
+                name: "Sodium",
+                unit: "mg",
+                averageValue: 2_410,
+                goalValue: 2_300,
+                reportedDayCount: 7,
+                totalDayCount: 7
+            ),
+            MicroAverageDataPoint(
+                name: "Fiber",
+                unit: "g",
+                averageValue: 27.2,
+                goalValue: 30,
+                reportedDayCount: 7,
+                totalDayCount: 7
+            )
+        ]
+        return viewModel
+    }
+
+    static var insightsDemo: [UserInsight] {
+        [
+            UserInsight(
+                title: "Protein Stayed Reliable",
+                message: "You reached at least 90% of your protein target on six of seven logged days, including both training days.",
+                category: .macroBalance,
+                priority: 90,
+                sourceData: "6 of 7 logged days at or above 90% of the current protein target."
+            ),
+            UserInsight(
+                title: "Fiber Improved Late in the Week",
+                message: "Fiber intake moved closer to target after beans, berries, and vegetables appeared more often in the diary.",
+                category: .fiberIntake,
+                priority: 72,
+                sourceData: "Four-day average: 29 g. First three logged days: 21 g."
+            ),
+            UserInsight(
+                title: "Recovery Meals Followed Training",
+                message: "Both demanding sessions were followed by logged protein and carbohydrate within the recovery window.",
+                category: .postWorkout,
+                priority: 64,
+                sourceData: "2 of 2 eligible training sessions had a matching recovery meal."
+            ),
+            UserInsight(
+                title: "Hydration Was Less Consistent",
+                message: "Water logging fell below your usual pattern on the weekend. This may reflect missing entries rather than lower intake.",
+                category: .hydration,
+                priority: 48,
+                sourceData: "Five weekdays reported water; one of two weekend days reported water."
+            )
+        ]
+    }
+
+    static var ayceLiveSession: AYCESession {
+        let nigiri = AYCECatalog.item(id: "sushi_salmon_nigiri") ?? AYCECatalog.all[0]
+        let roll = AYCECatalog.item(id: "sushi_california_roll") ?? AYCECatalog.all[0]
+        let scanned = AYCEPricingRules.reviewedCatalogItem(
+            name: "Dragon Roll",
+            unit: "roll",
+            cuisine: .sushi,
+            calories: 480,
+            protein: 18,
+            carbs: 62,
+            fats: 18,
+            restaurantPrice: 13.50,
+            homeCost: 4.25
+        ) ?? nigiri
+
+        return AYCESession(
+            id: "screenshot-ayce-live",
+            cuisine: .sushi,
+            buffetPrice: 34.99,
+            startedAt: Date(timeIntervalSince1970: 1_780_000_000),
+            entries: [
+                AYCESessionEntry(id: "ayce-live-nigiri", item: nigiri, count: 4),
+                AYCESessionEntry(id: "ayce-live-roll", item: roll, count: 1),
+                AYCESessionEntry(id: "ayce-live-scan", item: scanned, count: 1)
+            ],
+            citySlug: "nyc"
+        )
+    }
+
+    static var ayceSummarySession: AYCESession {
+        var session = ayceLiveSession
+        if let soup = AYCECatalog.item(id: "sushi_miso_soup") {
+            session.entries.append(
+                AYCESessionEntry(id: "ayce-summary-soup", item: soup, count: 2)
+            )
+        }
+        return session
+    }
+
+    static var pantryRecipeDrafts: [Recipe] {
+        recipeDemoRecipes.prefix(2).map { recipe in
+            var draft = recipe
+            draft.id = nil
+            return draft
+        }
     }
 
     static var runningDemoRuns: [Run] {
@@ -132,10 +925,20 @@ enum ScreenshotDemoData {
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: "cached_user_goals_\(userID)")
         defaults.removeObject(forKey: "chatHistory_\(userID)")
+        if let goalCacheKey = AccountScopedStorageKey.make(prefix: "cached_user_goals", userID: userID) {
+            defaults.removeObject(forKey: goalCacheKey)
+        }
+        if let chatCacheKey = AccountScopedStorageKey.make(prefix: "chatHistory", userID: userID) {
+            defaults.removeObject(forKey: chatCacheKey)
+        }
         defaults.removeObject(forKey: "mealPlanCache")
+        if let mealPlanCacheKey = AccountScopedStorageKey.make(prefix: "mealPlanCache", userID: userID) {
+            defaults.removeObject(forKey: mealPlanCacheKey)
+        }
         defaults.set(programID, forKey: "activeWorkoutProgramID")
         defaults.set(false, forKey: "activeWorkoutProgramCleared")
         defaults.set(false, forKey: "useMetricBodyUnits")
+        defaults.set(GroceryUnitSystem.imperial.rawValue, forKey: "groceryUnitSystem")
         defaults.set(false, forKey: "hasRequestedAppleHealthAccess")
         defaults.set(true, forKey: "firstSessionChoiceCompleted")
         defaults.set(false, forKey: "firstSessionChoicePending")
@@ -151,6 +954,7 @@ enum ScreenshotDemoData {
         nutrition.mockLogsByDay = logs
         nutrition.mockFetchDailyHistoryResult = .success(logs)
         nutrition.filtersHistoryByRequestedRange = true
+        nutrition.mockRecipes = recipeDemoRecipes
 
         let foods = discoveryFoods()
         nutrition.mockRecommendedFoods = Array(foods.prefix(5))
@@ -194,12 +998,81 @@ enum ScreenshotDemoData {
         nutrition.mockMealPlansByDateString = Dictionary(
             uniqueKeysWithValues: plans.map { (dateString($0.date), $0) }
         )
+        let groceryPlanStart = Calendar.current.startOfDay(for: Date())
         nutrition.mockFetchGroceryListResult = [
-            GroceryListItem(name: "Salmon fillets", quantity: 4, unit: "fillets", category: "Protein", source: "Meal plan"),
-            GroceryListItem(name: "Chicken breast", quantity: 3, unit: "lb", category: "Protein", source: "Meal plan"),
-            GroceryListItem(name: "Greek yogurt", quantity: 2, unit: "tubs", category: "Dairy", source: "Meal plan"),
-            GroceryListItem(name: "Jasmine rice", quantity: 2, unit: "lb", category: "Grains", source: "Meal plan"),
-            GroceryListItem(name: "Mixed vegetables", quantity: 3, unit: "bags", category: "Produce", source: "Meal plan")
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000101") ?? UUID(),
+                name: "Blueberries",
+                quantity: 2,
+                unit: "pints",
+                isCompleted: true,
+                category: "Produce",
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000102") ?? UUID(),
+                name: "Avocados",
+                quantity: 4,
+                unit: "item",
+                category: "Produce",
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000103") ?? UUID(),
+                name: "Chicken breast",
+                quantity: 3,
+                unit: "lb",
+                category: "Meat & Seafood",
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000104") ?? UUID(),
+                name: "Salmon fillets",
+                quantity: 4,
+                unit: "fillets",
+                category: "Meat & Seafood",
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000105") ?? UUID(),
+                name: "Greek yogurt",
+                quantity: 2,
+                unit: "tubs",
+                isCompleted: true,
+                category: "Dairy & Eggs",
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000106") ?? UUID(),
+                name: "Jasmine rice",
+                quantity: 2,
+                unit: "lb",
+                category: "Carbohydrates",
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000107") ?? UUID(),
+                name: "Extra virgin olive oil",
+                quantity: 1,
+                unit: "bottle",
+                category: "Pantry & Oils",
+                source: "mealPlan",
+                sourcePlanStart: groceryPlanStart
+            ),
+            GroceryListItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000108") ?? UUID(),
+                name: "Electrolyte packets",
+                quantity: 6,
+                unit: "item",
+                category: "Misc",
+                source: "manual"
+            )
         ]
 
         let program = strengthProgram()
@@ -220,16 +1093,34 @@ enum ScreenshotDemoData {
         settings.mockWeightHistory = weightHistory()
     }
 
+    static func configureAchievementRepository(_ repository: MockAchievementRepository) {
+        let fixture = achievementProgressFixture(
+            definitions: AchievementRules.defaultDefinitions(),
+            thresholds: AchievementRules.defaultLevelThresholds
+        )
+
+        repository.mockUserProfile = (points: fixture.points, level: fixture.level)
+        repository.mockUserStatuses = fixture.statuses.values.sorted {
+            $0.achievementID < $1.achievementID
+        }
+        repository.mockChallenges = fixture.challenges
+        repository.mockActiveChallenges = fixture.challenges
+    }
+
     static func configureServices(
         goalSettings: GoalSettings,
         dailyLogService: DailyLogService,
+        achievementService: AchievementService,
         healthKitViewModel: HealthKitViewModel,
+        cycleTrackingService: CycleTrackingService,
+        adaptiveGoalService: AdaptiveGoalService,
         appState: AppState
     ) {
         applyGoals(to: goalSettings)
         goalSettings.weightHistory = weightHistory()
         dailyLogService.activelyViewedDate = today
         dailyLogService.publishCurrentDailyLog(nutritionHistory()[0])
+        applyAchievementProgress(to: achievementService)
 
         healthKitViewModel.isAuthorized = false
         healthKitViewModel.lastSyncedAt = Date().addingTimeInterval(-8 * 60)
@@ -240,16 +1131,108 @@ enum ScreenshotDemoData {
         healthKitViewModel.weeklyRestingHeartRate = [61, 60, 60, 59, 60, 62, 60]
         healthKitViewModel.weeklyHRV = [48, 52, 55, 51, 58, 46, 54]
 
+        cycleTrackingService.cycleSettings = CycleSettings(typicalCycleLength: 28, typicalPeriodLength: 5)
+        cycleTrackingService.cycleDay = cycleDemoDay
+        cycleTrackingService.aiInsight = cycleDemoInsight
+
+        if requestedScreen == "adaptive-tdee-guardrail" {
+            adaptiveGoalService.calculatedTDEE = nil
+            adaptiveGoalService.last21DaysCalorieAverage = 6_420
+            adaptiveGoalService.weightChangeRatePerDay = 0.02
+            adaptiveGoalService.dataConfidence = .low
+            adaptiveGoalService.recentWeighInCount = 18
+            adaptiveGoalService.recentLogCount = 21
+            adaptiveGoalService.recentValidLogCount = 21
+            adaptiveGoalService.partialLogCount = 0
+            adaptiveGoalService.isEstimateActionable = false
+            adaptiveGoalService.tdeeGuardrailMessage = "The result falls outside MyFitPlate's supported TDEE range. Check for missing food entries or unusual weigh-ins before using it."
+        }
+
         switch requestedScreen {
         case "maia": appState.selectedTab = 1
-        case "train": appState.selectedTab = 2
-        case "runs": appState.selectedTab = 2
+        case "train", "runs", "saved-programs", "program-builder", "routine-builder", "workout-player",
+             "program-detail", "workout-history", "workout-summary":
+            appState.selectedTab = 2
         case "meal-plan": appState.selectedTab = 3
         case "reports": appState.selectedTab = 4
         default: appState.selectedTab = 0
         }
         appState.isDarkModeEnabled = ProcessInfo.processInfo.arguments.contains("-screenshot-dark-mode")
         appState.isUserLoggedIn = true
+    }
+
+    private static func applyAchievementProgress(to service: AchievementService) {
+        let fixture = achievementProgressFixture(
+            definitions: service.achievementDefinitions,
+            thresholds: service.levelThresholds
+        )
+
+        service.userStatuses = fixture.statuses
+        service.unlockedAchievementsCount = fixture.statuses.values.filter(\.isUnlocked).count
+        service.userTotalAchievementPoints = fixture.points
+        service.userAchievementLevel = fixture.level
+        service.userXp = fixture.points
+        service.activeChallenges = fixture.challenges
+        service.isLoading = false
+    }
+
+    private static func achievementProgressFixture(
+        definitions: [AchievementDefinition],
+        thresholds: [Int]
+    ) -> AchievementProgressFixture {
+        var statuses = AchievementRules.mergedStatuses(
+            definitions: definitions,
+            fetchedStatuses: []
+        )
+
+        func updateStatus(
+            _ id: String,
+            progress: Double,
+            unlockedDaysAgo: Int? = nil
+        ) {
+            guard var status = statuses[id] else { return }
+            status.currentProgress = progress
+            status.lastProgressUpdate = calendar.date(byAdding: .day, value: -1, to: today)
+            if let unlockedDaysAgo {
+                status.isUnlocked = true
+                status.unlockedDate = calendar.date(byAdding: .day, value: -unlockedDaysAgo, to: today)
+            }
+            statuses[id] = status
+        }
+
+        updateStatus("first_workout", progress: 1, unlockedDaysAgo: 2)
+        updateStatus("on_the_weigh", progress: 1, unlockedDaysAgo: 5)
+        updateStatus("goal_setter", progress: 1, unlockedDaysAgo: 9)
+        updateStatus("first_log", progress: 1, unlockedDaysAgo: 12)
+        updateStatus("workout_streak_7", progress: 4)
+        updateStatus("apprentice_chef", progress: 6)
+        updateStatus("log_streak_7", progress: 5)
+
+        var challenges = AchievementRules.potentialWeeklyChallenges(currentDate: today)
+            .filter { ["Workout Warrior", "Protein Power", "Dedicated Dieter"].contains($0.title) }
+        for index in challenges.indices {
+            challenges[index].id = "demo-challenge-\(index)"
+            challenges[index].expiresAt = calendar.date(byAdding: .day, value: 3, to: today) ?? today
+            switch challenges[index].title {
+            case "Workout Warrior":
+                challenges[index].progress = 2
+            case "Protein Power":
+                challenges[index].progress = 4
+                challenges[index].isCompleted = true
+            case "Dedicated Dieter":
+                challenges[index].progress = 5
+            default:
+                break
+            }
+        }
+
+        let points = 780
+        return AchievementProgressFixture(
+            statuses: statuses,
+            points: points,
+            level: AchievementRules.level(for: points, thresholds: thresholds),
+            challenges: challenges
+        )
     }
 
     private static func applyGoals(to goals: GoalSettings) {
@@ -510,6 +1493,52 @@ enum ScreenshotDemoData {
         program.currentProgressIndex = 5
         program.routines.forEach { $0.userID = userID }
         return program
+    }
+
+    static var workoutBuilderProgram: WorkoutProgram {
+        strengthProgram()
+    }
+
+    static var routineBuilderRoutine: WorkoutRoutine {
+        strengthProgram().routines.first ?? WorkoutRoutine(
+            userID: userID,
+            name: "Upper Strength",
+            dateCreated: today
+        )
+    }
+
+    static var programDetailProgram: WorkoutProgram {
+        strengthProgram()
+    }
+
+    static var workoutHistoryLogs: [WorkoutSessionLog] {
+        workoutLogs(for: strengthProgram()).sorted { $0.date > $1.date }
+    }
+
+    static var workoutSummaryLog: WorkoutSessionLog? {
+        workoutHistoryLogs.first
+    }
+
+    static var muscleRecoveryEstimates: [MuscleRecoveryEstimate] {
+        let asOf = today.addingTimeInterval(20 * 60 * 60)
+        let fixtures: [(RecoveryMuscleGroup, Double?, Int?)] = [
+            (.chest, 12, 12),
+            (.back, 35, 10),
+            (.legs, 50, 8),
+            (.arms, 70, 6),
+            (.core, nil, nil),
+            (.shoulders, 28, 8)
+        ]
+
+        return fixtures.map { group, hoursAgo, sets in
+            MuscleRecoveryRules.estimate(
+                group: group,
+                lastTrained: hoursAgo.map { asOf.addingTimeInterval(-$0 * 3_600) },
+                sets: sets,
+                sleepScore: 84,
+                asOf: asOf
+            )
+        }
     }
 
     private static func workoutLogs(for program: WorkoutProgram) -> [WorkoutSessionLog] {

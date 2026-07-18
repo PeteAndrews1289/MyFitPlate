@@ -20,7 +20,7 @@ public protocol HealthKitManaging {
     func deleteNutrition(for foodItem: FoodItem, completion: ((Bool) -> Void)?)
     func replaceNutrition(oldItem: FoodItem, newItem: FoodItem)
     func saveWeightSample(weightLbs: Double, date: Date)
-    func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping (HKAuthorizationRequestStatus, Error?) -> Void)
+    func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping @Sendable (HKAuthorizationRequestStatus, Error?) -> Void)
     func fetch7DayTrend(for typeIdentifier: HKQuantityTypeIdentifier, options: HKStatisticsOptions, unit: HKUnit, completion: @escaping ([Double]) -> Void)
     func saveWater(ounces: Double, date: Date)
     func isHealthDataAvailable() -> Bool
@@ -50,7 +50,7 @@ public class HealthKitManager: HealthKitManaging {
         self.store = store
     }
 
-    public func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping (HKAuthorizationRequestStatus, Error?) -> Void) {
+    public func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping @Sendable (HKAuthorizationRequestStatus, Error?) -> Void) {
         store.getRequestStatusForAuthorization(toShare: typesToShare, read: typesToRead, completion: completion)
     }
 
@@ -458,34 +458,23 @@ public class HealthKitManager: HealthKitManaging {
 
         let predicate = appFoodMetadataPredicate(for: foodItem)
         let group = DispatchGroup()
-        let stateLock = NSLock()
-        var deletionSucceeded = true
-        var deletedSamples = 0
+        let state = NutritionDeletionState()
 
         for sampleType in sampleTypes {
             group.enter()
             store.deleteObjects(of: sampleType, predicate: predicate) { success, deletedCount, error in
-                stateLock.lock()
-                defer {
-                    stateLock.unlock()
-                    group.leave()
-                }
-
                 if let error {
-                    deletionSucceeded = false
+                    state.record(success: false, deletedCount: 0)
                     AppLog.health.error("Failed to delete MyFitPlate nutrition samples from HealthKit: \(error.localizedDescription, privacy: .public)")
                 } else {
-                    deletedSamples += deletedCount
-                    if !success { deletionSucceeded = false }
+                    state.record(success: success, deletedCount: deletedCount)
                 }
+                group.leave()
             }
         }
 
         group.notify(queue: .main) {
-            stateLock.lock()
-            let didSucceed = deletionSucceeded
-            let totalDeleted = deletedSamples
-            stateLock.unlock()
+            let (didSucceed, totalDeleted) = state.snapshot()
 
             if totalDeleted > 0 {
                 AppLog.health.info("Deleted \(totalDeleted, privacy: .public) MyFitPlate nutrition sample(s) from HealthKit.")
@@ -495,8 +484,16 @@ public class HealthKitManager: HealthKitManaging {
     }
 
     public func replaceNutrition(oldItem: FoodItem, newItem: FoodItem) {
-        deleteNutrition(for: oldItem) { [weak self] _ in
-            self?.saveNutrition(for: newItem)
+        deleteNutrition(for: oldItem) { [weak self] didDelete in
+            guard let self else { return }
+            guard didDelete else {
+                AppLog.health.error("Nutrition replacement stopped because the prior Apple Health samples could not be removed.")
+                ToastManager.shared.showToast(
+                    message: "Food updated, but Apple Health couldn't replace the previous nutrition entry."
+                )
+                return
+            }
+            self.saveNutrition(for: newItem)
         }
     }
 
@@ -523,5 +520,24 @@ public class HealthKitManager: HealthKitManaging {
                 AppLog.health.error("Failed to save weight to HealthKit: \(error.localizedDescription, privacy: .public)")
             }
         }
+    }
+}
+
+private final class NutritionDeletionState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var succeeded = true
+    private var deletedCount = 0
+
+    func record(success: Bool, deletedCount: Int) {
+        lock.lock()
+        succeeded = succeeded && success
+        self.deletedCount += deletedCount
+        lock.unlock()
+    }
+
+    func snapshot() -> (succeeded: Bool, deletedCount: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (succeeded, deletedCount)
     }
 }

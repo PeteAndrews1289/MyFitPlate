@@ -108,6 +108,15 @@ public enum RunStats {
     /// Determines if a run achieved a "Negative Split" (running the second half faster than the first half).
     public static func isNegativeSplit(splits: [RunSplit]) -> Bool {
         guard let delta = negativeSplitDeltaSecondsPerKm(splits: splits) else { return false }
+        let fullSplitPaces = splits
+            .filter { $0.distanceMeters >= 800 }
+            .compactMap(\.paceSecondsPerKm)
+        if let fastest = fullSplitPaces.min(),
+           let slowest = fullSplitPaces.max(),
+           fastest > 0,
+           slowest / fastest > 1.8 {
+            return false
+        }
         return delta > 0.5 // At least 0.5s/km faster in the second half
     }
 

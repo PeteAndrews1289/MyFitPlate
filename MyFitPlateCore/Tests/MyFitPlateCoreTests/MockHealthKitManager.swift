@@ -127,7 +127,7 @@ public final class MockHealthKitManager: HealthKitManaging, @unchecked Sendable 
         savedWeightSamples.append((weightLbs, date))
     }
 
-    public func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping (HKAuthorizationRequestStatus, Error?) -> Void) {
+    public func getRequestStatusForAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>, completion: @escaping @Sendable (HKAuthorizationRequestStatus, Error?) -> Void) {
         let result = authorizationStatusResult
         let error = authorizationStatusError
         DispatchQueue.main.async { completion(result, error) }

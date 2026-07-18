@@ -36,6 +36,37 @@ final class AchievementRulesTests: XCTestCase {
         XCTAssertEqual(AchievementRules.level(for: 50, thresholds: []), 1)
     }
 
+    func testLevelProgressUsesTheCurrentThresholdSpan() {
+        let progress = AchievementRules.levelProgress(for: 625)
+
+        XCTAssertEqual(progress.level, 4)
+        XCTAssertEqual(progress.currentThreshold, 500)
+        XCTAssertEqual(progress.nextThreshold, 1_000)
+        XCTAssertEqual(progress.pointsToNext, 375)
+        XCTAssertEqual(progress.fraction, 0.25, accuracy: 0.001)
+        XCTAssertFalse(progress.isMaximumLevel)
+    }
+
+    func testLevelProgressClampsBeforeFirstAndAtMaximumLevel() {
+        let beforeFirst = AchievementRules.levelProgress(for: -25)
+        XCTAssertEqual(beforeFirst.level, 1)
+        XCTAssertEqual(beforeFirst.pointsToNext, 125)
+        XCTAssertEqual(beforeFirst.fraction, 0, accuracy: 0.001)
+
+        let maximum = AchievementRules.levelProgress(for: 8_000)
+        XCTAssertEqual(maximum.level, 7)
+        XCTAssertEqual(maximum.currentThreshold, 5_000)
+        XCTAssertNil(maximum.nextThreshold)
+        XCTAssertEqual(maximum.pointsToNext, 0)
+        XCTAssertEqual(maximum.fraction, 1, accuracy: 0.001)
+        XCTAssertTrue(maximum.isMaximumLevel)
+
+        let missingThresholds = AchievementRules.levelProgress(for: 20, thresholds: [])
+        XCTAssertEqual(missingThresholds.level, 1)
+        XCTAssertTrue(missingThresholds.isMaximumLevel)
+        XCTAssertEqual(missingThresholds.fraction, 1, accuracy: 0.001)
+    }
+
     func testMergedStatusesCreatesDefaultsAndPreservesFetchedProgress() {
         let definitions = AchievementRules.defaultDefinitions()
         let fetched = UserAchievementStatus(

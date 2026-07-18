@@ -164,13 +164,49 @@ final class TTSManagerTests: XCTestCase {
                 language: "en-AU",
                 quality: .premium,
                 gender: .female
+            ),
+            MaiaVoiceOption(
+                id: "french-enhanced",
+                name: "Audrey",
+                language: "fr-FR",
+                quality: .enhanced,
+                gender: .female
             )
         ]
 
         XCTAssertEqual(
             TTSManager.rankEligibleVoiceOptions(options).map(\.id),
-            ["ava-premium", "male-premium", "samantha-enhanced"]
+            ["ava-premium", "australian", "male-premium", "samantha-enhanced", "french-enhanced"]
         )
+    }
+
+    func testOnlineVoiceUsesExplicitNaturalLabel() {
+        let option = MaiaVoiceOption(
+            id: TTSManager.onlineVoiceIdentifier,
+            name: "Maia Natural",
+            language: "en-US",
+            quality: .premium,
+            gender: .female,
+            isOnline: true
+        )
+
+        XCTAssertEqual(option.pickerLabel, "Maia Natural · Online · Natural")
+        XCTAssertTrue(option.isOnline)
+    }
+
+    func testOnlineSpeechNeverSilentlyTruncatesLongResponses() {
+        XCTAssertTrue(TTSManager.canUseOnlineSpeech(String(repeating: "a", count: 1_800)))
+        XCTAssertFalse(TTSManager.canUseOnlineSpeech(String(repeating: "a", count: 1_801)))
+        XCTAssertFalse(TTSManager.canUseOnlineSpeech(String(repeating: "🙂", count: 901)))
+    }
+
+    func testSpeechCacheScopeIsHashedAndAccountSpecific() {
+        let first = TTSManager.cacheScopeIdentifier(for: "user-one@example.com")
+        let second = TTSManager.cacheScopeIdentifier(for: "user-two@example.com")
+
+        XCTAssertEqual(first.count, 64)
+        XCTAssertNotEqual(first, second)
+        XCTAssertFalse(first.contains("user-one"))
     }
 
     func testConversationStyleExplainsEachToneWithoutCannedOpeners() {

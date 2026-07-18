@@ -36,49 +36,63 @@ struct HomeDashboardHeader: View {
             )
         }
         .frame(maxWidth: 520)
-        .asCard()
+        .appSurface(.interpreted)
         .featureSpotlight(isActive: isHeaderSpotlightActive)
     }
 }
 
 struct HomeDailyLogSummaryStrip: View {
     var log: DailyLog
+
+    @EnvironmentObject private var goalSettings: GoalSettings
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible()),
+            count: dynamicTypeSize.isAccessibilitySize ? 1 : 2
+        )
+    }
+
     var body: some View {
-        let foodItems = log.meals.flatMap(\.foodItems)
         let exercises = (log.exercises ?? []).dedupedAgainstHealthKit()
         let calories = log.totalCalories()
-        let exerciseCalories = exercises.reduce(0) { $0 + $1.caloriesBurned }
+        let protein = log.totalMacros().protein
+        let water = log.waterTracker?.totalOunces ?? 0
 
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            DiaryMetricPill(
-                title: "Food",
-                value: foodItems.count.formatted(),
-                subtitle: foodItems.count == 1 ? "item" : "items",
-                icon: "fork.knife",
-                color: Color(UIColor.secondaryLabel)
-            )
+        LazyVGrid(columns: columns, spacing: 10) {
             DiaryMetricPill(
                 title: "Calories",
-                value: Int(calories.rounded()).formatted(),
-                subtitle: "cal logged",
-                icon: "flame.fill",
-                color: .orange
+                value: goalProgress(current: calories, goal: goalSettings.calories),
+                subtitle: "cal",
+                icon: "flame.fill"
+            )
+            DiaryMetricPill(
+                title: "Protein",
+                value: goalProgress(current: protein, goal: goalSettings.protein),
+                subtitle: "g",
+                icon: "bolt.heart.fill"
+            )
+            DiaryMetricPill(
+                title: "Water",
+                value: goalProgress(current: water, goal: goalSettings.waterGoal),
+                subtitle: "oz",
+                icon: "drop.fill"
             )
             DiaryMetricPill(
                 title: "Activity",
                 value: exercises.count.formatted(),
                 subtitle: exercises.count == 1 ? "session" : "sessions",
-                icon: "figure.run",
-                color: .blue
-            )
-            DiaryMetricPill(
-                title: "Burned",
-                value: Int(exerciseCalories.rounded()).formatted(),
-                subtitle: "cal",
-                icon: "bolt.fill",
-                color: .accentPositive
+                icon: "figure.run"
             )
         }
+        .accessibilityIdentifier("home_daily_log_summary")
+    }
+
+    private func goalProgress(current: Double, goal: Double?) -> String {
+        let currentValue = Int(current.rounded()).formatted()
+        guard let goal, goal.isFinite, goal > 0 else { return currentValue }
+        return "\(currentValue) / \(Int(goal.rounded()).formatted())"
     }
 }
 
@@ -104,13 +118,15 @@ struct HomeActivityWidget: View {
 
                 Spacer()
 
-                Button("Add") { showingAddExerciseView = true }
-                    .appFont(size: 15, weight: .semibold)
-                    .foregroundColor(.textPrimary)
+                Button { showingAddExerciseView = true } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(AppIconButtonStyle(.plain))
+                .accessibilityLabel("Add activity")
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(exercises) { exercise in
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(exercises.enumerated()), id: \.element.id) { index, exercise in
                     SwipeableExerciseRowView(
                         exercise: exercise,
                         onDelete: { exerciseID in onDeleteExercise(exerciseID) },
@@ -119,6 +135,11 @@ struct HomeActivityWidget: View {
                             showingWorkoutDetail = true
                         }
                     )
+
+                    if index < exercises.count - 1 {
+                        Divider()
+                            .padding(.leading, 50)
+                    }
                 }
             }
         }
@@ -185,7 +206,7 @@ struct DailySnapshotStrip: View {
                 "Start the day clean",
                 isToday ? "Log your first meal so the rest of today has a real baseline." : "No food was logged for this day.",
                 "fork.knife",
-                .blue
+                AppPalette.effort
             )
         }
 
@@ -194,7 +215,7 @@ struct DailySnapshotStrip: View {
                 "Protect the rest of the day",
                 "You are \(Int(abs(caloriesRemaining).rounded()).formatted()) calories over. Keep the next choice simple and protein-forward.",
                 "exclamationmark.circle.fill",
-                .orange
+                AppPalette.caution
             )
         }
 
@@ -203,7 +224,7 @@ struct DailySnapshotStrip: View {
                 "Hydration is the easy win",
                 "You are at \(Int(waterIntake.rounded()).formatted()) oz. One quick water log gets the day moving.",
                 "drop.fill",
-                .cyan
+                AppPalette.recovery
             )
         }
 
@@ -221,7 +242,7 @@ struct DailySnapshotStrip: View {
                 "Movement slot is open",
                 "No workouts are logged yet. Even a short walk keeps the daily picture more complete.",
                 "figure.walk",
-                .blue
+                AppPalette.positive
             )
         }
 
@@ -300,30 +321,53 @@ struct DiaryMetricPill: View {
     let icon: String
     let color: Color
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var scaleReference: CGFloat = 100
+
+    init(
+        title: String,
+        value: String,
+        subtitle: String,
+        icon: String,
+        color: Color = AppPalette.brandText
+    ) {
+        self.title = title
+        self.value = value
+        self.subtitle = subtitle
+        self.icon = icon
+        self.color = color
+    }
+
     var body: some View {
-        HStack(spacing: 10) {
+        let fontScale = min(max(scaleReference / 100, 0.95), 1.35)
+
+        HStack(alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center, spacing: 10) {
             Image(systemName: icon)
                 .appFont(size: 13, weight: .bold)
-                .foregroundColor(color)
-                .frame(width: 30, height: 30)
-                .background(color.opacity(0.12), in: Circle())
+                .foregroundStyle(color)
+                .frame(
+                    width: dynamicTypeSize.isAccessibilitySize ? 44 : 30,
+                    height: dynamicTypeSize.isAccessibilitySize ? 44 : 30
+                )
+                .background(color.opacity(0.10), in: Circle())
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .appFont(size: 11, weight: .semibold)
+            (
+                Text(verbatim: "\(title)\n")
+                    .font(.system(size: 11 * fontScale, weight: .semibold, design: .rounded))
                     .foregroundColor(Color(UIColor.secondaryLabel))
-                Text("\(value) \(subtitle)")
-                    .appFont(size: 14, weight: .bold)
+                + Text(verbatim: "\(value) \(subtitle)")
+                    .font(.system(size: 14 * fontScale, weight: .bold, design: .rounded))
                     .foregroundColor(.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-
-            Spacer(minLength: 0)
+            )
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("home_daily_metric_visual_\(title.lowercased())")
+            .accessibilityHidden(true)
         }
-        .padding(10)
-        .background(Color.backgroundSecondary.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .accessibilityElement(children: .combine)
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("home_daily_metric_\(title.lowercased())")
         .accessibilityLabel("\(title): \(value) \(subtitle)")
     }
 }

@@ -3,7 +3,6 @@ import MyFitPlateCore
 import SwiftUI
 
 struct HomeQuickActionsView: View {
-    @Binding var showingWorkoutRoutines: Bool
     @Binding var showingCoachingDashboard: Bool
     @Binding var showingMenuScanner: Bool
     @Binding var showingWeightEntrySheet: Bool
@@ -12,6 +11,11 @@ struct HomeQuickActionsView: View {
 
     var isMenuScannerEnabled: Bool
     var isMenuScannerSpotlightActive: Bool
+    var waterIntake: Double
+    var waterGoal: Double
+    var canLogWater: Bool
+    var onOpenWorkouts: () -> Void
+    var onLogWater: () -> Void
     var onRepeatYesterdayMeals: () -> Void
 
     var body: some View {
@@ -32,15 +36,31 @@ struct HomeQuickActionsView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
+                    if canLogWater {
+                        Button(action: {
+                            HapticManager.instance.feedback(.medium)
+                            onLogWater()
+                        }) {
+                            QuickActionButton(
+                                icon: "drop.fill",
+                                label: "Add water",
+                                subtitle: "\(Int(waterIntake.rounded()).formatted()) / \(Int(max(1, waterGoal).rounded()).formatted()) oz"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Add 8 ounces of water")
+                        .accessibilityValue("\(Int(waterIntake.rounded()).formatted()) of \(Int(max(1, waterGoal).rounded()).formatted()) ounces")
+                        .accessibilityIdentifier("home_add_water_button")
+                    }
+
                     Button(action: {
                         HapticManager.instance.feedback(.light)
-                        showingWorkoutRoutines = true
+                        onOpenWorkouts()
                     }) {
                         QuickActionButton(
                             icon: "dumbbell.fill",
                             label: "Workouts",
-                            subtitle: "Train or resume a plan",
-                            color: .blue
+                            subtitle: "Train or resume a plan"
                         )
                     }
                     .buttonStyle(.plain)
@@ -53,8 +73,7 @@ struct HomeQuickActionsView: View {
                         QuickActionButton(
                             icon: "brain.head.profile",
                             label: "Coaching",
-                            subtitle: "Maia's strategy",
-                            color: .indigo
+                            subtitle: "Maia's strategy"
                         )
                     }
                     .buttonStyle(.plain)
@@ -66,8 +85,7 @@ struct HomeQuickActionsView: View {
                         QuickActionButton(
                             icon: "clock.arrow.circlepath",
                             label: "Yesterday",
-                            subtitle: "Repeat meals",
-                            color: Color(UIColor.secondaryLabel)
+                            subtitle: "Repeat meals"
                         )
                     }
                     .buttonStyle(.plain)
@@ -80,8 +98,7 @@ struct HomeQuickActionsView: View {
                             QuickActionButton(
                                 icon: "menucard.fill",
                                 label: "Menu Scan",
-                                subtitle: "Find best macros",
-                                color: .orange
+                                subtitle: "Find best macros"
                             )
                         }
                         .buttonStyle(.plain)
@@ -95,8 +112,7 @@ struct HomeQuickActionsView: View {
                         QuickActionButton(
                             icon: "scalemass.fill",
                             label: "Log weight",
-                            subtitle: "Track body metrics",
-                            color: .teal
+                            subtitle: "Track body metrics"
                         )
                     }
                     .buttonStyle(.plain)
@@ -108,8 +124,7 @@ struct HomeQuickActionsView: View {
                         QuickActionButton(
                             icon: "timer",
                             label: "Fasting",
-                            subtitle: "Start or track a fast",
-                            color: .orange
+                            subtitle: "Start or track a fast"
                         )
                     }
                     .buttonStyle(.plain)
@@ -118,8 +133,7 @@ struct HomeQuickActionsView: View {
                         QuickActionButton(
                             icon: "gearshape.fill",
                             label: "Settings",
-                            subtitle: "Manage your goals",
-                            color: .gray
+                            subtitle: "Manage your goals"
                         )
                     }
                     .buttonStyle(.plain)
@@ -135,17 +149,15 @@ struct QuickActionButton: View {
     let icon: String
     let label: String
     let subtitle: String
-    let color: Color
-    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: icon)
                     .appFont(size: 17, weight: .semibold)
-                    .foregroundColor(color)
+                    .foregroundStyle(AppPalette.brandText)
                     .frame(width: 38, height: 38)
-                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
 
                 Spacer()
 
@@ -167,15 +179,14 @@ struct QuickActionButton: View {
         }
         .padding(12)
         .frame(width: 136, height: 136, alignment: .topLeading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .background(
-            colorScheme == .dark ? Color.backgroundPrimary.opacity(0.76) : Color.backgroundSecondary.opacity(0.62),
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            AppPalette.control,
+            in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                .stroke(AppPalette.separator, lineWidth: 1)
         )
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous))
     }
 }

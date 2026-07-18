@@ -1,7 +1,10 @@
+import MyFitPlateCore
 import SwiftUI
 
 struct MealSuggestionDetailView: View {
-    @Environment(\.dismiss) var dismiss
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var showsMacroDetails = false
 
     let suggestion: MealSuggestion
     var pantryItemNames: [String] = []
@@ -11,52 +14,38 @@ struct MealSuggestionDetailView: View {
     var remainingFats: Double?
     var onLog: (MealSuggestion) -> Void
     var onRegenerate: (() -> Void)?
-    var isRegenerating: Bool = false
-
-    private var normalizedPantryNames: [String] {
-        pantryItemNames
-            .map(normalizedIngredient)
-            .filter { $0.count >= 3 }
-    }
-
-    private var matchedIngredients: [String] {
-        suggestion.ingredients.filter(ingredientUsesPantry)
-    }
-
-    private var optionalIngredients: [String] {
-        suggestion.ingredients.filter { !ingredientUsesPantry($0) }
-    }
+    var isRegenerating = false
 
     private var macroRows: [MealSuggestionMacroFitRow.Model] {
         [
             MealSuggestionMacroFitRow.Model(
                 title: "Calories",
-                planned: suggestion.calories,
-                target: remainingCalories,
+                planned: safe(suggestion.calories),
+                target: MealSuggestionReviewRules.safeTarget(remainingCalories),
                 unit: "cal",
-                color: .orange,
+                color: AppPalette.energy,
                 tolerance: 75
             ),
             MealSuggestionMacroFitRow.Model(
                 title: "Protein",
-                planned: suggestion.protein,
-                target: remainingProtein,
+                planned: safe(suggestion.protein),
+                target: MealSuggestionReviewRules.safeTarget(remainingProtein),
                 unit: "g",
                 color: .accentProtein,
                 tolerance: 8
             ),
             MealSuggestionMacroFitRow.Model(
                 title: "Carbs",
-                planned: suggestion.carbs,
-                target: remainingCarbs,
+                planned: safe(suggestion.carbs),
+                target: MealSuggestionReviewRules.safeTarget(remainingCarbs),
                 unit: "g",
                 color: .accentCarbs,
                 tolerance: 12
             ),
             MealSuggestionMacroFitRow.Model(
-                title: "Fats",
-                planned: suggestion.fats,
-                target: remainingFats,
+                title: "Fat",
+                planned: safe(suggestion.fats),
+                target: MealSuggestionReviewRules.safeTarget(remainingFats),
                 unit: "g",
                 color: .accentFats,
                 tolerance: 6
@@ -65,200 +54,306 @@ struct MealSuggestionDetailView: View {
     }
 
     private var fitSummary: String {
-        guard let remainingCalories else {
-            return "Review the estimate and adjust portions before logging."
-        }
-
-        let delta = suggestion.calories - remainingCalories
-        if abs(delta) <= 75 {
-            return "Fits your remaining calories closely."
-        }
-
-        if delta < 0 {
-            return "\(Int(abs(delta).rounded()).formatted()) cal under your remaining target."
-        }
-
-        return "\(Int(delta.rounded()).formatted()) cal over your remaining target; adjust portions if you need a tighter day."
+        MealSuggestionReviewRules.fitSummary(
+            calories: suggestion.calories,
+            remainingCalories: remainingCalories
+        )
     }
 
     private var pantrySummary: String {
-        guard !suggestion.ingredients.isEmpty else {
-            return "Maia did not return ingredient detail for this estimate."
-        }
-
-        guard !pantryItemNames.isEmpty else {
-            return "No pantry context was used; treat this as a general meal idea."
-        }
-
-        if optionalIngredients.isEmpty {
-            return "Everything Maia listed appears to match your pantry."
-        }
-
-        return "\(matchedIngredients.count) pantry match\(matchedIngredients.count == 1 ? "" : "es"), \(optionalIngredients.count) optional item\(optionalIngredients.count == 1 ? "" : "s")."
+        MealSuggestionReviewRules.pantrySummary(
+            ingredients: suggestion.ingredients,
+            pantryNames: pantryItemNames
+        )
     }
 
     private var substitutionGuidance: [String] {
-        var guidance: [String] = []
+        MealSuggestionReviewRules.substitutionGuidance(
+            calories: suggestion.calories,
+            protein: suggestion.protein,
+            carbs: suggestion.carbs,
+            ingredients: suggestion.ingredients,
+            pantryNames: pantryItemNames,
+            remainingCalories: remainingCalories,
+            remainingProtein: remainingProtein,
+            remainingCarbs: remainingCarbs
+        )
+    }
 
-        if let remainingCalories, suggestion.calories > remainingCalories + 100 {
-            guidance.append("Lower calories by reducing oil, cheese, nuts, sauces, or the starch portion.")
-        }
-
-        if let remainingProtein, suggestion.protein + 8 < remainingProtein, remainingProtein >= 15 {
-            guidance.append("Add a protein anchor: Greek yogurt, egg whites, tuna, tofu, lean meat, or a protein shake.")
-        }
-
-        if let remainingCarbs, suggestion.carbs > remainingCarbs + 15 {
-            guidance.append("Swap part of the starch for vegetables or berries.")
-        }
-
-        if !optionalIngredients.isEmpty && !pantryItemNames.isEmpty {
-            guidance.append("Swap optional items for similar pantry staples before logging.")
-        }
-
-        if guidance.isEmpty {
-            guidance.append("Looks close enough to log; adjust portions if your actual serving changes.")
-        }
-
-        return guidance
+    private var instructionSteps: [String] {
+        MealSuggestionReviewRules.instructionSteps(suggestion.instructions)
     }
 
     var body: some View {
-        NavigationView {
+        AppSheetScaffold(
+            title: "Meal Suggestion",
+            subtitle: "Review Maia's estimate against today's remaining targets.",
+            dismiss: { dismiss() }
+        ) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    heroSection
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    suggestionHeader
+                    nutritionSummary
                     macroFitSection
                     pantrySection
                     substitutionSection
                     instructionsSection
+                }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.section)
+                .padding(.bottom, AppSpacing.section)
+            }
+            .safeAreaInset(edge: .bottom) {
+                bottomActionBar
+            }
+        }
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .interactiveDismissDisabled(isRegenerating)
+        .accessibilityIdentifier("meal_suggestion_detail_screen")
+    }
+
+    private var suggestionHeader: some View {
+        AppScreenHeader(
+            eyebrow: "Maia Estimate",
+            title: suggestion.mealName,
+            subtitle: fitSummary
+        ) {
+            HStack(spacing: 5) {
+                Image(systemName: "wand.and.stars")
+                    .accessibilityHidden(true)
+                Text("AI Estimate")
+            }
+            .appTextRole(.caption)
+            .foregroundStyle(AppPalette.caution)
+            .padding(.horizontal, AppSpacing.row)
+            .padding(.vertical, AppSpacing.compact)
+            .background(
+                AppPalette.caution.opacity(0.10),
+                in: Capsule()
+            )
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityElement(children: .combine)
+        }
+        .accessibilityIdentifier("meal_suggestion_header")
+    }
+
+    private var nutritionSummary: some View {
+        AppMetricStrip(items: [
+            AppMetricItem(label: "Calories", value: "\(formatted(suggestion.calories)) cal", accent: AppPalette.energy),
+            AppMetricItem(label: "Protein", value: "\(formatted(suggestion.protein)) g", accent: .accentProtein),
+            AppMetricItem(label: "Carbs", value: "\(formatted(suggestion.carbs)) g", accent: .accentCarbs),
+            AppMetricItem(label: "Fat", value: "\(formatted(suggestion.fats)) g", accent: .accentFats)
+        ])
+        .appSurface(.interpreted)
+        .accessibilityIdentifier("meal_suggestion_nutrition_summary")
+    }
+
+    private var macroFitSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Macro Fit",
+                subtitle: "Estimated serving compared with today's remaining targets."
+            )
+
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    Text(accessibilityMacroSummary)
+                        .appTextRole(.body)
+                        .foregroundStyle(AppPalette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    DisclosureGroup(isExpanded: $showsMacroDetails) {
+                        macroFitRows
+                            .padding(.top, AppSpacing.compact)
+                    } label: {
+                        Text(showsMacroDetails ? "Hide macro details" : "Review all macro details")
+                            .appTextRole(.control)
+                            .foregroundStyle(AppPalette.brandText)
+                    }
+                }
+                .appSurface(.quiet)
+            } else {
+                macroFitRows
+                    .background(
+                        AppPalette.control,
+                        in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                            .stroke(AppPalette.separator, lineWidth: 1)
+                    }
+            }
+        }
+        .accessibilityIdentifier("meal_suggestion_macro_fit")
+    }
+
+    private var macroFitRows: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(macroRows.enumerated()), id: \.element.id) { index, row in
+                MealSuggestionMacroFitRow(model: row)
+
+                if index < macroRows.count - 1 {
+                    Divider()
+                        .padding(.leading, 52)
+                }
+            }
+        }
+    }
+
+    private var accessibilityMacroSummary: String {
+        let values = macroRows.prefix(2).map { row in
+            guard let target = row.target else {
+                return "\(row.title) \(Int(row.planned.rounded())) \(row.unit)"
+            }
+            return "\(row.title) \(Int(row.planned.rounded())) of \(Int(target.rounded())) \(row.unit)"
+        }
+        return values.joined(separator: " · ")
+    }
+
+    private var pantrySection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(title: "Pantry Fit", subtitle: pantrySummary)
+
+            if !suggestion.ingredients.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(Array(suggestion.ingredients.enumerated()), id: \.offset) { index, ingredient in
+                        MealSuggestionIngredientRow(
+                            ingredient: ingredient,
+                            isPantryMatch: ingredientUsesPantry(ingredient),
+                            hasPantryContext: hasPantryContext
+                        )
+
+                        if index < suggestion.ingredients.count - 1 {
+                            Divider()
+                                .padding(.leading, 52)
+                        }
+                    }
+                }
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                        .stroke(AppPalette.separator, lineWidth: 1)
+                }
+            }
+        }
+        .accessibilityIdentifier("meal_suggestion_pantry_fit")
+    }
+
+    private var substitutionSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            AppSectionHeader(
+                title: "Adjust Before Logging",
+                subtitle: "Use the serving you actually prepare."
+            )
+
+            VStack(spacing: 0) {
+                ForEach(Array(substitutionGuidance.enumerated()), id: \.offset) { index, note in
+                    AppListRow(
+                        icon: "slider.horizontal.3",
+                        iconColor: AppPalette.brand,
+                        title: note
+                    )
+
+                    if index < substitutionGuidance.count - 1 {
+                        Divider()
+                            .padding(.leading, 68)
+                    }
+                }
+            }
+            .background(
+                AppPalette.control,
+                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                    .stroke(AppPalette.separator, lineWidth: 1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var instructionsSection: some View {
+        if !instructionSteps.isEmpty {
+            VStack(alignment: .leading, spacing: AppSpacing.row) {
+                AppSectionHeader(
+                    title: "Preparation",
+                    subtitle: "Maia-generated steps; verify doneness and food safety yourself."
+                )
+
+                VStack(spacing: 0) {
+                    ForEach(Array(instructionSteps.enumerated()), id: \.offset) { index, step in
+                        HStack(alignment: .top, spacing: AppSpacing.row) {
+                            Text((index + 1).formatted())
+                                .appTextRole(.caption)
+                                .foregroundStyle(AppPalette.brandText)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    AppPalette.brand.opacity(0.10),
+                                    in: Circle()
+                                )
+                                .accessibilityHidden(true)
+
+                            Text(step)
+                                .appTextRole(.body)
+                                .foregroundStyle(AppPalette.text)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, AppSpacing.group)
+                        .padding(.vertical, AppSpacing.row)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Step \(index + 1), \(step)")
+
+                        if index < instructionSteps.count - 1 {
+                            Divider()
+                                .padding(.leading, 56)
+                        }
+                    }
+                }
+                .background(
+                    AppPalette.control,
+                    in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                        .stroke(AppPalette.separator, lineWidth: 1)
+                }
+            }
+            .accessibilityIdentifier("meal_suggestion_instructions")
+        }
+    }
+
+    private var bottomActionBar: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: AppSpacing.compact) {
                     logButton
                     if onRegenerate != nil {
                         regenerateButton
                     }
                 }
-                .padding()
-            }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Meal suggestion")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-    }
-
-    private var heroSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "fork.knife.circle.fill")
-                    .appFont(size: 22, weight: .bold)
-                    .foregroundColor(.orange)
-                    .frame(width: 42, height: 42)
-                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(suggestion.mealName)
-                        .appFont(size: 24, weight: .heavy)
-                        .foregroundColor(.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(fitSummary)
-                        .appFont(size: 13, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            HStack(spacing: 8) {
-                MealSuggestionMetricPill(title: "Cal", value: formatted(suggestion.calories), color: .orange)
-                MealSuggestionMetricPill(title: "P", value: "\(formatted(suggestion.protein))g", color: .accentProtein)
-                MealSuggestionMetricPill(title: "C", value: "\(formatted(suggestion.carbs))g", color: .accentCarbs)
-                MealSuggestionMetricPill(title: "F", value: "\(formatted(suggestion.fats))g", color: .accentFats)
-            }
-        }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private var macroFitSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Macro fit", systemImage: "target")
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.textPrimary)
-
-            VStack(spacing: 10) {
-                ForEach(macroRows) { row in
-                    MealSuggestionMacroFitRow(model: row)
-                }
-            }
-        }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private var pantrySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Pantry fit", systemImage: pantryItemNames.isEmpty ? "cabinet" : "cabinet.fill")
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.textPrimary)
-
-            Text(pantrySummary)
-                .appFont(size: 13, weight: .semibold)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .fixedSize(horizontal: false, vertical: true)
-
-            if !suggestion.ingredients.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(suggestion.ingredients, id: \.self) { ingredient in
-                        MealSuggestionIngredientRow(
-                            ingredient: ingredient,
-                            isPantryMatch: ingredientUsesPantry(ingredient),
-                            hasPantryContext: !pantryItemNames.isEmpty
-                        )
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    if onRegenerate != nil {
+                        regenerateButton
                     }
+                    logButton
                 }
             }
         }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private var substitutionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Adjust before logging", systemImage: "slider.horizontal.3")
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.textPrimary)
-
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(substitutionGuidance, id: \.self) { note in
-                    Label(note, systemImage: "arrow.triangle.2.circlepath")
-                        .appFont(size: 12, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+        .padding(.horizontal, AppSpacing.screenHorizontal)
+        .padding(.vertical, AppSpacing.compact)
+        .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(AppPalette.separator)
+                .frame(height: 1)
         }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    @ViewBuilder
-    private var instructionsSection: some View {
-        if !suggestion.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Instructions", systemImage: "list.bullet.clipboard")
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Text(suggestion.instructions)
-                    .appFont(size: 14)
-                    .foregroundColor(.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(16)
-            .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
+        .dynamicTypeSize(.xSmall ... .accessibility1)
     }
 
     private var logButton: some View {
@@ -266,74 +361,51 @@ struct MealSuggestionDetailView: View {
             onLog(suggestion)
             dismiss()
         } label: {
-            Label("Log estimate", systemImage: "plus.circle.fill")
+            Label("Log Estimate", systemImage: "plus.circle.fill")
         }
-        .buttonStyle(PrimaryButtonStyle())
-        .padding(.top, 4)
+        .buttonStyle(AppActionButtonStyle(.primary))
+        .disabled(isRegenerating)
+        .accessibilityIdentifier("meal_suggestion_log")
     }
 
     private var regenerateButton: some View {
         Button {
             onRegenerate?()
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: AppSpacing.compact) {
                 if isRegenerating {
-                    ProgressView().controlSize(.small)
+                    ProgressView()
+                        .controlSize(.small)
                 } else {
                     Image(systemName: "arrow.triangle.2.circlepath")
                 }
-                Text(isRegenerating ? "Finding another idea…" : "Suggest another")
-                    .appFont(size: 15, weight: .bold)
+                Text(isRegenerating ? "Finding Another" : "Suggest Another")
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 13)
-            .background(Color.backgroundSecondary.opacity(0.86), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .foregroundColor(.textPrimary)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppActionButtonStyle(.secondary))
         .disabled(isRegenerating)
+        .accessibilityIdentifier("meal_suggestion_regenerate")
+    }
+
+    private var hasPantryContext: Bool {
+        pantryItemNames.contains {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
     }
 
     private func ingredientUsesPantry(_ ingredient: String) -> Bool {
-        let normalized = normalizedIngredient(ingredient)
-        guard normalized.count >= 3 else { return false }
-        return normalizedPantryNames.contains { pantryName in
-            normalized.contains(pantryName) || pantryName.contains(normalized)
-        }
+        MealSuggestionReviewRules.ingredientUsesPantry(
+            ingredient,
+            pantryNames: pantryItemNames
+        )
     }
 
-    private func normalizedIngredient(_ value: String) -> String {
-        value
-            .lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
+    private func safe(_ value: Double) -> Double {
+        MealSuggestionReviewRules.safeValue(value)
     }
 
     private func formatted(_ value: Double) -> String {
-        Int(value.rounded()).formatted()
-    }
-}
-
-private struct MealSuggestionMetricPill: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .appFont(size: 10, weight: .bold)
-                .foregroundColor(color)
-            Text(value)
-                .appFont(size: 13, weight: .heavy)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        Int(safe(value).rounded()).formatted()
     }
 }
 
@@ -349,6 +421,7 @@ private struct MealSuggestionMacroFitRow: View {
     }
 
     let model: Model
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var delta: Double? {
         guard let target = model.target else { return nil }
@@ -356,54 +429,73 @@ private struct MealSuggestionMacroFitRow: View {
     }
 
     private var statusText: String {
-        guard let delta else { return "No target" }
-        if abs(delta) <= model.tolerance { return "On target" }
+        guard let delta else { return "No Target" }
+        if abs(delta) <= model.tolerance { return "On Target" }
         return delta > 0
             ? "+\(Int(delta.rounded()).formatted()) \(model.unit)"
-            : "-\(Int(abs(delta.rounded())).formatted()) \(model.unit)"
+            : "-\(Int(abs(delta).rounded()).formatted()) \(model.unit)"
     }
 
     private var statusColor: Color {
-        guard let delta else { return Color(UIColor.secondaryLabel) }
-        return abs(delta) <= model.tolerance ? .accentPositive : .orange
+        guard let delta else { return .secondary }
+        return abs(delta) <= model.tolerance ? .accentPositive : AppPalette.caution
     }
 
     var body: some View {
-        HStack(spacing: 10) {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                    metricIdentity
+                    statusLabel
+                }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    metricIdentity
+                    Spacer(minLength: AppSpacing.compact)
+                    statusLabel
+                }
+            }
+        }
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(model.title), \(targetText), \(statusText)")
+    }
+
+    private var metricIdentity: some View {
+        HStack(spacing: AppSpacing.row) {
             Circle()
-                .fill(model.color.opacity(0.16))
-                .frame(width: 30, height: 30)
-                .overlay(
-                    Text(String(model.title.prefix(1)))
-                        .appFont(size: 12, weight: .heavy)
-                        .foregroundColor(model.color)
-                )
+                .fill(model.color)
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.title)
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.textPrimary)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
                 Text(targetText)
-                    .appFont(size: 11, weight: .medium)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
-
-            Spacer()
-
-            Text(statusText)
-                .appFont(size: 12, weight: .heavy)
-                .foregroundColor(statusColor)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(statusColor.opacity(0.10), in: Capsule())
         }
+    }
+
+    private var statusLabel: some View {
+        Text(statusText)
+            .appTextRole(.caption)
+            .foregroundStyle(statusColor)
+            .padding(.horizontal, AppSpacing.compact)
+            .padding(.vertical, 5)
+            .background(statusColor.opacity(0.10), in: Capsule())
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var targetText: String {
         guard let target = model.target else {
-            return "\(Int(model.planned.rounded()).formatted()) \(model.unit)"
+            return "\(Int(model.planned.rounded()).formatted()) \(model.unit) estimated"
         }
-        return "\(Int(model.planned.rounded()).formatted()) / \(Int(target.rounded()).formatted()) \(model.unit)"
+        return "\(Int(model.planned.rounded()).formatted()) of \(Int(target.rounded()).formatted()) \(model.unit)"
     }
 }
 
@@ -413,7 +505,7 @@ private struct MealSuggestionIngredientRow: View {
     let hasPantryContext: Bool
 
     private var tint: Color {
-        isPantryMatch ? .accentPositive : Color(UIColor.secondaryLabel)
+        isPantryMatch ? .accentPositive : .secondary
     }
 
     private var icon: String {
@@ -422,15 +514,26 @@ private struct MealSuggestionIngredientRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: AppSpacing.row) {
             Image(systemName: icon)
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(tint)
-                .frame(width: 18)
+                .appFont(size: 17, weight: .semibold)
+                .foregroundStyle(tint)
+                .frame(width: 28)
+                .accessibilityHidden(true)
+
             Text(ingredient)
-                .appFont(size: 13, weight: .semibold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.body)
+                .foregroundStyle(AppPalette.text)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, AppSpacing.group)
+        .padding(.vertical, AppSpacing.row)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ingredient)
+        .accessibilityValue(
+            hasPantryContext ? (isPantryMatch ? "Pantry match" : "Optional item") : "No pantry context"
+        )
     }
 }

@@ -1,57 +1,105 @@
 import SwiftUI
 
 struct AITextResultsView: View {
-    @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var dailyLogService: DailyLogService
-    
-    @Binding var foodItems: [FoodItem]
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var dailyLogService: DailyLogService
+
+    @State private var foodItems: [FoodItem]
     @State private var itemToEdit: FoodItem?
-    
-    var onLogComplete: () -> Void
+
+    let onLogComplete: () -> Void
+
+    init(foodItems: [FoodItem], onLogComplete: @escaping () -> Void) {
+        _foodItems = State(initialValue: foodItems)
+        self.onLogComplete = onLogComplete
+    }
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                AIEstimateReviewBanner(
-                    title: "Text Estimate",
-                    message: "Maia parsed this from your description. Review portions before logging, especially sauces, oils, and shared plates."
+        NavigationStack {
+            List {
+                Section {
+                    AIReviewOverview(
+                        eyebrow: "Maia Text Estimate",
+                        title: "Review Your Meal",
+                        subtitle: "Maia separated your description into foods. Nothing is logged until you confirm this list.",
+                        reviewMessage: "Check portions closely, especially sauces, oils, drinks, and shared plates.",
+                        items: foodItems
+                    )
+                    .accessibilityIdentifier("ai_text_results_overview")
+                }
+                .listRowInsets(
+                    EdgeInsets(
+                        top: AppSpacing.group,
+                        leading: AppSpacing.screenHorizontal,
+                        bottom: AppSpacing.section,
+                        trailing: AppSpacing.screenHorizontal
+                    )
                 )
-                .padding([.horizontal, .top])
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
 
-                List {
-                    Section(header: Text("Review Items")) {
-                        ForEach($foodItems) { $item in
-                            Button(action: {
-                                self.itemToEdit = item
-                            }) {
-                                itemRow(for: item)
+                Section {
+                    ForEach(foodItems) { item in
+                        Button {
+                            itemToEdit = item
+                        } label: {
+                            AIReviewItemRow(item: item, showsEditIndicator: true)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("ai_review_item_\(item.id)")
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                delete(item)
+                            } label: {
+                                Label("Remove", systemImage: "trash")
                             }
                         }
-                        .onDelete(perform: deleteItem)
                     }
+                } header: {
+                    AppSectionHeader(
+                        title: "Estimated Items",
+                        subtitle: "Tap an item to edit it, or swipe to remove it."
+                    )
+                    .textCase(nil)
+                    .padding(.bottom, AppSpacing.compact)
                 }
-                
-                Text("Tap an item to edit it, or swipe to remove anything Maia inferred incorrectly.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                
-                Button("Log All Items") {
-                    logAllItems()
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .padding()
-                .disabled(foodItems.isEmpty)
+                .listRowInsets(
+                    EdgeInsets(
+                        top: AppSpacing.row,
+                        leading: AppSpacing.screenHorizontal,
+                        bottom: AppSpacing.row,
+                        trailing: AppSpacing.screenHorizontal
+                    )
+                )
+                .listRowBackground(AppPalette.control)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(AppPalette.canvas.ignoresSafeArea())
             .navigationTitle("Confirm Meal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
+                        .tint(AppPalette.brand)
                 }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button(action: logAllItems) {
+                    Label(logButtonTitle, systemImage: "checkmark.circle.fill")
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(foodItems.isEmpty)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.row)
+                .padding(.bottom, AppSpacing.compact)
+                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AppPalette.separator)
+                        .frame(height: 1)
+                }
+                .accessibilityIdentifier("ai_text_log_action")
             }
             .sheet(item: $itemToEdit) { item in
                 FoodDetailView(
@@ -60,57 +108,42 @@ struct AITextResultsView: View {
                     date: dailyLogService.activelyViewedDate,
                     source: "ai_text_edit",
                     onLogUpdated: {},
-                    onUpdate: { updatedItem in
-                        // When the user saves in FoodDetailView, this updates our local list
-                        if let index = foodItems.firstIndex(where: { $0.id == updatedItem.id }) {
-                            foodItems[index] = updatedItem
-                        }
-                    }
+                    onUpdate: update
                 )
             }
         }
+        .accessibilityIdentifier("ai_text_results")
     }
-    
-    @ViewBuilder
-    private func itemRow(for item: FoodItem) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text(item.name)
-                    .appFont(size: 17, weight: .semibold)
-                    .foregroundColor(.primary)
-                    .lineLimit(2)
-                AIReviewStatusPill(item: item)
-            }
-            Text("Serving: \(item.servingSize)")
-                .appFont(size: 14)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-            Text("Est: \(Int(item.calories)) cal, P:\(Int(item.protein))g, C:\(Int(item.carbs))g, F:\(Int(item.fats))g")
-                .appFont(size: 12)
-                .foregroundColor(Color(UIColor.tertiaryLabel))
-            AIItemTrustNotes(item: item)
-        }
-        .padding(.vertical, 4)
+
+    private var logButtonTitle: String {
+        let noun = foodItems.count == 1 ? "Item" : "Items"
+        return "Log \(foodItems.count.formatted()) \(noun)"
     }
-    
-    private func deleteItem(at offsets: IndexSet) {
-        foodItems.remove(atOffsets: offsets)
+
+    private func update(_ updatedItem: FoodItem) {
+        guard let index = foodItems.firstIndex(where: { $0.id == updatedItem.id }) else { return }
+        foodItems[index] = updatedItem
     }
-    
+
+    private func delete(_ item: FoodItem) {
+        foodItems.removeAll { $0.id == item.id }
+        HapticManager.instance.feedback(.light)
+    }
+
     private func logAllItems() {
         guard let userID = DIContainer.shared.authService.currentUserID, !foodItems.isEmpty else { return }
-        
-        let mealName = "AI Quick Log"
+
         let reviewedItems = foodItems.map { item in
             item.markedUserConfirmed(sourceType: item.sourceMetadata?.sourceType ?? .aiText)
         }
         dailyLogService.addMealToLog(
             for: userID,
             date: dailyLogService.activelyViewedDate,
-            mealName: mealName,
+            mealName: "AI Quick Log",
             foodItems: reviewedItems,
             source: "ai_text"
         )
-        
+
         onLogComplete()
         dismiss()
     }

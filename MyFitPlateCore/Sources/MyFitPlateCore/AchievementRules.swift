@@ -1,6 +1,32 @@
 import Foundation
 
 public enum AchievementRules {
+    public struct LevelProgress: Equatable, Sendable {
+        public let level: Int
+        public let currentThreshold: Int
+        public let nextThreshold: Int?
+        public let pointsToNext: Int
+        public let fraction: Double
+
+        public init(
+            level: Int,
+            currentThreshold: Int,
+            nextThreshold: Int?,
+            pointsToNext: Int,
+            fraction: Double
+        ) {
+            self.level = level
+            self.currentThreshold = currentThreshold
+            self.nextThreshold = nextThreshold
+            self.pointsToNext = pointsToNext
+            self.fraction = fraction
+        }
+
+        public var isMaximumLevel: Bool {
+            nextThreshold == nil
+        }
+    }
+
     public struct DailyGoalTargets: Equatable {
         public let calorieGoal: Double?
         public let protein: Double
@@ -64,6 +90,57 @@ public enum AchievementRules {
             break
         }
         return max(1, level)
+    }
+
+    public static func levelProgress(
+        for points: Int,
+        thresholds: [Int] = defaultLevelThresholds
+    ) -> LevelProgress {
+        guard !thresholds.isEmpty else {
+            return LevelProgress(
+                level: 1,
+                currentThreshold: 0,
+                nextThreshold: nil,
+                pointsToNext: 0,
+                fraction: 1
+            )
+        }
+
+        let currentLevel = level(for: points, thresholds: thresholds)
+        let currentIndex = min(max(currentLevel - 1, 0), thresholds.count - 1)
+        let currentThreshold = thresholds[currentIndex]
+        let nextIndex = currentIndex + 1
+
+        guard nextIndex < thresholds.count else {
+            return LevelProgress(
+                level: currentLevel,
+                currentThreshold: currentThreshold,
+                nextThreshold: nil,
+                pointsToNext: 0,
+                fraction: 1
+            )
+        }
+
+        let nextThreshold = thresholds[nextIndex]
+        let span = nextThreshold - currentThreshold
+        guard span > 0 else {
+            return LevelProgress(
+                level: currentLevel,
+                currentThreshold: currentThreshold,
+                nextThreshold: nextThreshold,
+                pointsToNext: max(0, nextThreshold - points),
+                fraction: points >= nextThreshold ? 1 : 0
+            )
+        }
+
+        let pointsInLevel = max(0, points - currentThreshold)
+        return LevelProgress(
+            level: currentLevel,
+            currentThreshold: currentThreshold,
+            nextThreshold: nextThreshold,
+            pointsToNext: max(0, nextThreshold - points),
+            fraction: min(max(Double(pointsInLevel) / Double(span), 0), 1)
+        )
     }
 
     public static func mergedStatuses(

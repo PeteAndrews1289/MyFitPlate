@@ -1,8 +1,10 @@
 import Foundation
 
-/// Cross-database agreement for barcode lookups. The Cross-Verified state requires two
-/// recognized databases to return the same checksum-valid product identifier and comparable
-/// calories, protein, carbohydrate, and fat after serving-weight normalization.
+/// Cross-database agreement for food records. The Cross-Verified state requires recognized
+/// databases to report comparable calories, protein, carbohydrate, and fat after serving-weight
+/// normalization. Product-barcode matches and generic composition matches have different identity
+/// strength, which the Trust Receipt explains. Agreement does not by itself prove independent
+/// lineage: two providers may both reproduce a manufacturer label.
 public enum FoodSourceAgreement {
 
     /// Databases report different serving sizes for the same product, so agreement is
@@ -77,17 +79,43 @@ public enum FoodSourceAgreement {
         primary: FoodItem,
         candidates: [(sourceName: String, item: FoodItem?)]
     ) -> [String] {
-        let agreeingNames: [String] = candidates.compactMap { candidate -> String? in
-            guard let item = candidate.item, agrees(primary, item) else { return nil }
-            return candidate.sourceName
-        }
-        return canonicalizedSourceNames(
-            agreeingNames,
-            excluding: sourceIdentity(for: primary.sourceMetadata?.sourceType)
-        )
+        agreeingEvidence(primary: primary, candidates: candidates).map(\.sourceName)
     }
 
-    /// Only recognized, independent database names can become durable verification evidence.
+    /// Durable evidence records for agreeing candidates, including provider lineage and dates.
+    public static func agreeingEvidence(
+        primary: FoodItem,
+        candidates: [(sourceName: String, item: FoodItem?)]
+    ) -> [FoodVerificationEvidence] {
+        let primaryIdentity = sourceIdentity(for: primary.sourceMetadata?.sourceType)
+        var seen = Set<String>()
+        var result: [FoodVerificationEvidence] = []
+
+        for candidate in candidates {
+            guard let item = candidate.item,
+                  agrees(primary, item),
+                  let canonical = canonicalSource(for: candidate.sourceName),
+                  canonical.identity != primaryIdentity,
+                  seen.insert(canonical.identity).inserted else {
+                continue
+            }
+            let sourceType = item.sourceMetadata?.sourceType ?? sourceType(for: canonical.identity)
+            let lineage = item.sourceMetadata?.effectiveEvidenceLineage ??
+                FoodSourceMetadata.inferredLineage(sourceType: sourceType)
+            result.append(FoodVerificationEvidence(
+                sourceName: canonical.displayName,
+                sourceType: sourceType,
+                lineage: lineage,
+                sourceID: item.sourceMetadata?.sourceID ?? item.id,
+                observedAt: item.sourceMetadata?.sourceObservedAt ?? item.sourceMetadata?.createdAt,
+                sourceUpdatedAt: item.sourceMetadata?.sourceUpdatedAt
+            ))
+            if result.count == 2 { break }
+        }
+        return result
+    }
+
+    /// Only recognized database names can become durable verification evidence.
     /// This intentionally ignores arbitrary strings and cross-check metadata attached to custom,
     /// planned, community, or estimated foods.
     public static func validatedSourceNames(
@@ -96,7 +124,7 @@ public enum FoodSourceAgreement {
     ) -> [String] {
         guard let metadata else { return [] }
         switch metadata.sourceType {
-        case .usda, .fatSecret, .openFoodFacts:
+        case .usda, .healthCanadaCNF, .fatSecret, .openFoodFacts:
             break
         default:
             return []
@@ -112,6 +140,36 @@ public enum FoodSourceAgreement {
             sourceNames,
             excluding: sourceIdentity(for: metadata.sourceType)
         )
+    }
+
+    public static func validatedEvidence(
+        _ evidence: [FoodVerificationEvidence],
+        sourceNames: [String],
+        for metadata: FoodSourceMetadata?
+    ) -> [FoodVerificationEvidence] {
+        let validatedNames = validatedSourceNames(sourceNames, for: metadata)
+        return validatedNames.compactMap { name in
+            guard let canonical = canonicalSource(for: name) else { return nil }
+            let expectedType = sourceType(for: canonical.identity)
+            if let stored = evidence.first(where: {
+                canonicalSource(for: $0.sourceName)?.identity == canonical.identity &&
+                    $0.sourceType == expectedType
+            }) {
+                return FoodVerificationEvidence(
+                    sourceName: canonical.displayName,
+                    sourceType: stored.sourceType,
+                    lineage: stored.lineage,
+                    sourceID: stored.sourceID,
+                    observedAt: stored.observedAt,
+                    sourceUpdatedAt: stored.sourceUpdatedAt
+                )
+            }
+            return FoodVerificationEvidence(
+                sourceName: canonical.displayName,
+                sourceType: expectedType,
+                lineage: FoodSourceMetadata.inferredLineage(sourceType: expectedType)
+            )
+        }
     }
 
     private static func withinTolerance(
@@ -152,7 +210,7 @@ public enum FoodSourceAgreement {
         return result
     }
 
-    private static func canonicalSource(for sourceName: String) -> (identity: String, displayName: String)? {
+    static func canonicalSource(for sourceName: String) -> (identity: String, displayName: String)? {
         let normalized = sourceName
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -164,22 +222,39 @@ public enum FoodSourceAgreement {
         if normalized == "fatsecret" || normalized == "fat secret" {
             return ("fatsecret", "FatSecret")
         }
+        if normalized == "health canada" ||
+            normalized == "health canada cnf" ||
+            normalized == "canadian nutrient file" {
+            return ("health_canada_cnf", "Health Canada CNF")
+        }
         if normalized == "open food facts" {
             return ("open_food_facts", "Open Food Facts")
         }
         return nil
     }
 
-    private static func sourceIdentity(for sourceType: FoodSourceType?) -> String? {
+    static func sourceIdentity(for sourceType: FoodSourceType?) -> String? {
         switch sourceType {
         case .usda:
             return "usda"
+        case .healthCanadaCNF:
+            return "health_canada_cnf"
         case .fatSecret:
             return "fatsecret"
         case .openFoodFacts:
             return "open_food_facts"
         default:
             return nil
+        }
+    }
+
+    private static func sourceType(for identity: String) -> FoodSourceType {
+        switch identity {
+        case "usda": return .usda
+        case "health_canada_cnf": return .healthCanadaCNF
+        case "fatsecret": return .fatSecret
+        case "open_food_facts": return .openFoodFacts
+        default: return .unknown
         }
     }
 }
@@ -189,14 +264,31 @@ public extension FoodSourceMetadata {
         FoodSourceAgreement.validatedSourceNames(crossVerifiedBy ?? [], for: self)
     }
 
+    var validatedCrossVerificationEvidence: [FoodVerificationEvidence] {
+        let sourceNames = crossVerifiedBy?.isEmpty == false
+            ? (crossVerifiedBy ?? [])
+            : (crossVerificationEvidence ?? []).map(\.sourceName)
+        return FoodSourceAgreement.validatedEvidence(
+            crossVerificationEvidence ?? [],
+            sourceNames: sourceNames,
+            for: self
+        )
+    }
+
+    var hasCrossDatabaseAgreement: Bool {
+        !validatedCrossVerificationEvidence.isEmpty
+    }
+
+    /// Kept for source compatibility. Cross-database agreement does not necessarily imply
+    /// independent upstream lineage.
     var hasIndependentCrossVerification: Bool {
-        !validatedCrossVerifiedBy.isEmpty
+        hasCrossDatabaseAgreement
     }
 }
 
 public extension FoodItem {
-    /// Attaches the list of independent databases that confirmed this entry's nutrition.
-    /// Clears stale or invalid evidence when nothing independently agreed.
+    /// Attaches the list of databases that confirmed this entry's core nutrition.
+    /// Clears stale or invalid evidence when nothing agreed.
     func withCrossVerification(_ agreeingSourceNames: [String]) -> FoodItem {
         guard var metadata = sourceMetadata else { return self }
         let validatedNames = FoodSourceAgreement.validatedSourceNames(
@@ -204,6 +296,25 @@ public extension FoodItem {
             for: metadata
         )
         metadata.crossVerifiedBy = validatedNames.isEmpty ? nil : validatedNames
+        metadata.crossVerificationEvidence = validatedNames.isEmpty ? nil :
+            FoodSourceAgreement.validatedEvidence(
+                [],
+                sourceNames: validatedNames,
+                for: metadata
+            )
+        return withSourceMetadata(metadata)
+    }
+
+    func withCrossVerificationEvidence(_ evidence: [FoodVerificationEvidence]) -> FoodItem {
+        guard var metadata = sourceMetadata else { return self }
+        let sourceNames = evidence.map(\.sourceName)
+        let validatedEvidence = FoodSourceAgreement.validatedEvidence(
+            evidence,
+            sourceNames: sourceNames,
+            for: metadata
+        )
+        metadata.crossVerifiedBy = validatedEvidence.isEmpty ? nil : validatedEvidence.map(\.sourceName)
+        metadata.crossVerificationEvidence = validatedEvidence.isEmpty ? nil : validatedEvidence
         return withSourceMetadata(metadata)
     }
 }

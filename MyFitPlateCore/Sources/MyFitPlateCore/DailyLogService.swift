@@ -8,6 +8,14 @@ private enum DailyLogMutationFailure: LocalizedError {
     }
 }
 
+private enum DailyLogListenerFailure: LocalizedError {
+    case accountChanged
+
+    var errorDescription: String? {
+        "The active account changed before the daily log finished loading."
+    }
+}
+
 @MainActor
 public class DailyLogService: ObservableObject, DailyLogServicing {
     @Published public var currentDailyLog: DailyLog?
@@ -24,7 +32,10 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     public weak var bannerService: BannerService?
     public weak var goalSettings: GoalSettings?
     public weak var trainingFuelPlanStore: TrainingFuelPlanStore?
+    private var activeAccountID: String?
     private var activeListenerDate: Date?
+    private var activeListenerUserID: String?
+    private var pendingLogCompletions: [(Result<DailyLog, Error>) -> Void] = []
     private var mutationTails: [String: Task<Void, Never>] = [:]
     private var mutationTokens: [String: Int] = [:]
     private var mutationSnapshots: [String: DailyLog] = [:]
@@ -37,6 +48,16 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     }()
 
     public init() {}
+
+    public func activateAccount(_ userID: String?) {
+        guard activeAccountID != userID else { return }
+
+        cancelActiveLogListener()
+        activeAccountID = userID
+        currentDailyLog = nil
+        smartSuggestions = []
+        activelyViewedDate = Calendar.current.startOfDay(for: Date())
+    }
 
     public func setupDependencies(goalSettings: GoalSettings, bannerService: BannerService, achievementService: AchievementService) {
         self.goalSettings = goalSettings
@@ -53,6 +74,40 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         syncCurrentDailyLogToWidgets()
     }
 
+    func publishCurrentDailyLog(_ log: DailyLog, for userID: String) {
+        guard isActiveAccount(userID) else { return }
+        publishCurrentDailyLog(log)
+    }
+
+    func isActiveAccount(_ userID: String) -> Bool {
+        activeAccountID == userID && DIContainer.shared.authService.currentUserID == userID
+    }
+
+    private func activateCurrentAccountIfNeeded(_ userID: String) {
+        guard DIContainer.shared.authService.currentUserID == userID,
+              activeAccountID != userID else { return }
+        activateAccount(userID)
+    }
+
+    private func cancelActiveLogListener() {
+        if let listener = logListener {
+            DIContainer.shared.nutritionRepository.removeLogSnapshotListener(listener)
+        }
+        logListener = nil
+        activeListenerDate = nil
+        activeListenerUserID = nil
+
+        let completions = pendingLogCompletions
+        pendingLogCompletions = []
+        completions.forEach { $0(.failure(DailyLogListenerFailure.accountChanged)) }
+    }
+
+    private func finishPendingLogLoads(with result: Result<DailyLog, Error>) {
+        let completions = pendingLogCompletions
+        pendingLogCompletions = []
+        completions.forEach { $0(result) }
+    }
+
     private func syncCurrentDailyLogToWidgets() {
         EcosystemSyncManager.shared.updateWidgetData(
             log: self.currentDailyLog,
@@ -64,7 +119,7 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     private func normalizedFoodForLogging(_ foodItem: FoodItem, source: String) -> FoodItem {
         let normalizedItem = foodItem.normalizedForEstimatedSource(source)
         if abs(normalizedItem.calories - foodItem.calories) >= 1 {
-            AppLog.data.info("Adjusted estimated food calories from \(foodItem.calories, privacy: .public) to \(normalizedItem.calories, privacy: .public) for source \(source, privacy: .public).")
+            AppLog.data.info("Adjusted estimated food calories from \(foodItem.calories, privacy: .private) to \(normalizedItem.calories, privacy: .private) for source \(source, privacy: .public).")
         }
         return normalizedItem
     }
@@ -87,11 +142,12 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     }
 
     public func repeatFoods(from sourceDate: Date, to targetDate: Date, for userID: String) {
+        guard isActiveAccount(userID) else { return }
         let sourceDay = Calendar.current.startOfDay(for: sourceDate)
         let targetDay = Calendar.current.startOfDay(for: targetDate)
 
         fetchLogInternal(for: userID, date: sourceDay) { [weak self] result in
-            guard let self else { return }
+            guard let self, self.isActiveAccount(userID) else { return }
 
             switch result {
             case .success(let sourceLog):
@@ -118,17 +174,25 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
             case .failure(let error):
                 AppLog.data.error("Failed to fetch source day for repeat logging: \(error.localizedDescription, privacy: .public)")
                 Task { @MainActor in
-                    self.bannerService?.showBanner(title: "Could not repeat meals", message: "Yesterday's log could not be loaded.", iconName: "xmark.circle.fill", iconColor: .red)
+                    self.bannerService?.showBanner(title: "Could not repeat meals", message: "Yesterday's log could not be loaded.", iconName: "xmark.circle.fill", iconColor: AppPalette.critical)
                 }
             }
         }
     }
 
     public func fetchYesterdayMeal(for userID: String, mealName: String, completion: @escaping ([FoodItem]) -> Void) {
+        guard isActiveAccount(userID) else {
+            completion([])
+            return
+        }
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date().addingTimeInterval(-86400)
         let yesterdayStart = Calendar.current.startOfDay(for: yesterday)
 
-        fetchLogInternal(for: userID, date: yesterdayStart) { result in
+        fetchLogInternal(for: userID, date: yesterdayStart) { [weak self] result in
+            guard let self, self.isActiveAccount(userID) else {
+                completion([])
+                return
+            }
             switch result {
             case .success(let log):
                 let items = DailyLogRules.repeatMeal(from: log, mealName: mealName)
@@ -207,7 +271,9 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
 
 
     private func fetchLogInternalAsync(for userID: String, date: Date) async throws -> DailyLog {
-        if Calendar.current.isDate(date, inSameDayAs: activelyViewedDate), let currentLog = currentDailyLog {
+        if activeAccountID == userID,
+           Calendar.current.isDate(date, inSameDayAs: activelyViewedDate),
+           let currentLog = currentDailyLog {
             return currentLog
         }
 
@@ -242,6 +308,11 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
         onSuccess: @escaping @MainActor (Value, DailyLog) -> Void,
         completion: (@MainActor (Bool) -> Void)? = nil
     ) {
+        activateCurrentAccountIfNeeded(userID)
+        guard isActiveAccount(userID) else {
+            completion?(false)
+            return
+        }
         let normalizedDate = Calendar.current.startOfDay(for: date)
         let key = "\(userID):\(dateFormatter.string(from: normalizedDate))"
         let previous = mutationTails[key]
@@ -260,7 +331,8 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                 var log: DailyLog
                 if let snapshot = self.mutationSnapshots[key] {
                     log = snapshot
-                } else if let currentLog = self.currentDailyLog,
+                } else if self.activeAccountID == userID,
+                          let currentLog = self.currentDailyLog,
                           Calendar.current.isDate(currentLog.date, inSameDayAs: normalizedDate) {
                     log = currentLog
                 } else {
@@ -275,32 +347,38 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
                 let success = await self.updateDailyLogAsync(for: userID, updatedLog: log)
                 if success {
                     self.mutationSnapshots[key] = log
-                    if Calendar.current.isDate(normalizedDate, inSameDayAs: self.activelyViewedDate) {
-                        self.publishCurrentDailyLog(log)
+                    if self.isActiveAccount(userID) {
+                        if Calendar.current.isDate(normalizedDate, inSameDayAs: self.activelyViewedDate) {
+                            self.publishCurrentDailyLog(log)
+                        }
+                        onSuccess(value, log)
                     }
-                    onSuccess(value, log)
                 } else {
                     self.recordDailyLogMutationFailure(
                         DailyLogMutationFailure.persistenceRejected,
                         stage: "persist"
                     )
-                    self.bannerService?.showBanner(
-                        title: "Error",
-                        message: failureMessage,
-                        iconName: "xmark.circle.fill",
-                        iconColor: .red
-                    )
+                    if self.isActiveAccount(userID) {
+                        self.bannerService?.showBanner(
+                            title: "Error",
+                            message: failureMessage,
+                            iconName: "xmark.circle.fill",
+                            iconColor: AppPalette.critical
+                        )
+                    }
                 }
                 completion?(success)
             } catch {
                 AppLog.data.error("Daily log mutation failed: \(error.localizedDescription, privacy: .public)")
                 self.recordDailyLogMutationFailure(error, stage: "prepare")
-                self.bannerService?.showBanner(
-                    title: "Error",
-                    message: failureMessage,
-                    iconName: "xmark.circle.fill",
-                    iconColor: .red
-                )
+                if self.isActiveAccount(userID) {
+                    self.bannerService?.showBanner(
+                        title: "Error",
+                        message: failureMessage,
+                        iconName: "xmark.circle.fill",
+                        iconColor: AppPalette.critical
+                    )
+                }
                 completion?(false)
             }
             self.finishMutation(key: key, token: token)
@@ -316,10 +394,15 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     }
 
     public func updateDailyLog(for userID: String, updatedLog: DailyLog, completion: ((Bool) -> Void)? = nil) {
+        guard DIContainer.shared.authService.currentUserID == userID else {
+            completion?(false)
+            return
+        }
         DIContainer.shared.nutritionRepository.updateDailyLog(userID: userID, log: updatedLog) { [weak self] success in
             if success {
                 DispatchQueue.main.async {
-                    self?.syncCurrentDailyLogToWidgets()
+                    guard let self, self.isActiveAccount(userID) else { return }
+                    self.syncCurrentDailyLogToWidgets()
                 }
             } else {
                 AppLog.data.error("Failed to update daily log via repository")
@@ -338,42 +421,66 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
 
 
     public func fetchLog(for userID: String, date: Date, completion: @escaping (Result<DailyLog, Error>) -> Void) {
+        guard DIContainer.shared.authService.currentUserID == userID else {
+            completion(.failure(DailyLogListenerFailure.accountChanged))
+            return
+        }
+        activateCurrentAccountIfNeeded(userID)
         let startOfDayForRequestedDate = Calendar.current.startOfDay(for: date)
 
-        if let listeningDate = activeListenerDate, Calendar.current.isDate(listeningDate, inSameDayAs: startOfDayForRequestedDate) {
+        if activeListenerUserID == userID,
+           let listeningDate = activeListenerDate,
+           Calendar.current.isDate(listeningDate, inSameDayAs: startOfDayForRequestedDate) {
             if let log = self.currentDailyLog, Calendar.current.isDate(log.date, inSameDayAs: startOfDayForRequestedDate) {
-                 completion(.success(log))
+                completion(.success(log))
+            } else {
+                pendingLogCompletions.append(completion)
             }
             return
         }
 
         self.activelyViewedDate = startOfDayForRequestedDate
-
-        if let listener = logListener {
-            DIContainer.shared.nutritionRepository.removeLogSnapshotListener(listener)
-        }
+        cancelActiveLogListener()
+        pendingLogCompletions = [completion]
+        self.activeListenerUserID = userID
         self.activeListenerDate = startOfDayForRequestedDate
 
         logListener = DIContainer.shared.nutritionRepository.addLogSnapshotListener(userID: userID, date: startOfDayForRequestedDate) { [weak self] result in
-            guard let self = self else { return }
+            Task { @MainActor in
+                guard let self,
+                      self.isActiveAccount(userID),
+                      self.activeListenerUserID == userID,
+                      let listenerDate = self.activeListenerDate,
+                      Calendar.current.isDate(listenerDate, inSameDayAs: startOfDayForRequestedDate) else { return }
 
-            DispatchQueue.main.async {
                 switch result {
                 case .success(let fetchedLog):
                     if Calendar.current.isDate(fetchedLog.date, inSameDayAs: self.activelyViewedDate) {
                         self.publishCurrentDailyLog(fetchedLog)
-                        completion(.success(fetchedLog))
+                        self.finishPendingLogLoads(with: .success(fetchedLog))
                     }
                 case .failure(let error):
                     AppLog.data.error("Daily log listener failed: \(error.localizedDescription, privacy: .public)")
-                    completion(.failure(error))
+                    self.finishPendingLogLoads(with: .failure(error))
                 }
             }
         }
     }
 
     public func fetchLogInternal(for userID: String, date: Date, completion: @escaping (Result<DailyLog, Error>) -> Void) {
-        DIContainer.shared.nutritionRepository.fetchLogInternal(userID: userID, date: date, completion: completion)
+        guard DIContainer.shared.authService.currentUserID == userID else {
+            completion(.failure(DailyLogListenerFailure.accountChanged))
+            return
+        }
+        DIContainer.shared.nutritionRepository.fetchLogInternal(userID: userID, date: date) { result in
+            Task { @MainActor in
+                guard DIContainer.shared.authService.currentUserID == userID else {
+                    completion(.failure(DailyLogListenerFailure.accountChanged))
+                    return
+                }
+                completion(result)
+            }
+        }
     }
 
     public func fetchOrCreateTodayLog(for userID: String, completion: @escaping (Result<DailyLog, Error>) -> Void) {
@@ -382,7 +489,20 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
 
 
     public func fetchRecommendedFoods(for userID: String, mealName: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        DIContainer.shared.nutritionRepository.fetchRecommendedFoods(userID: userID, mealName: mealName, completion: completion)
+        guard isActiveAccount(userID) else {
+            completion(.failure(DailyLogListenerFailure.accountChanged))
+            return
+        }
+
+        DIContainer.shared.nutritionRepository.fetchRecommendedFoods(userID: userID, mealName: mealName) { [weak self] result in
+            Task { @MainActor in
+                guard let self, self.isActiveAccount(userID) else {
+                    completion(.failure(DailyLogListenerFailure.accountChanged))
+                    return
+                }
+                completion(result)
+            }
+        }
     }
 
     public func addFoodToCurrentLog(for userID: String, foodItem: FoodItem, source: String = "unknown") {
@@ -634,15 +754,30 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     }
 
     public func fetchRecentFoodItems(for userID: String, completion: @escaping (Result<[FoodItem], Error>) -> Void) {
-        recentFoodStore.fetchRecentFoodItems(for: userID, completion: completion)
+        guard isActiveAccount(userID) else {
+            completion(.failure(DailyLogListenerFailure.accountChanged))
+            return
+        }
+
+        recentFoodStore.fetchRecentFoodItems(for: userID) { [weak self] result in
+            Task { @MainActor in
+                guard let self, self.isActiveAccount(userID) else {
+                    completion(.failure(DailyLogListenerFailure.accountChanged))
+                    return
+                }
+                completion(result)
+            }
+        }
     }
 
     public func loadSmartSuggestions(for userID: String) {
+        activateCurrentAccountIfNeeded(userID)
         fetchRecentFoodItems(for: userID) { [weak self] result in
             DispatchQueue.main.async {
+                guard let self, self.isActiveAccount(userID) else { return }
                 switch result {
                 case .success(let items):
-                    self?.smartSuggestions = SmartSuggestionBuilder.uniqueRecentFoods(from: items)
+                    self.smartSuggestions = SmartSuggestionBuilder.uniqueRecentFoods(from: items)
                 case .failure(let error):
                     AppLog.data.error("Failed to load smart suggestions: \(error.localizedDescription, privacy: .public)")
                 }
@@ -651,8 +786,14 @@ public class DailyLogService: ObservableObject, DailyLogServicing {
     }
 
     public func fetchDailyHistory(for userID: String, startDate: Date? = nil, endDate: Date? = nil) async -> Result<[DailyLog], Error> {
+        guard DIContainer.shared.authService.currentUserID == userID else {
+            return .failure(DailyLogListenerFailure.accountChanged)
+        }
         do {
             let logs = try await DIContainer.shared.nutritionRepository.fetchDailyHistory(userID: userID, startDate: startDate, endDate: endDate)
+            guard DIContainer.shared.authService.currentUserID == userID else {
+                return .failure(DailyLogListenerFailure.accountChanged)
+            }
             return .success(logs)
         } catch {
             return .failure(error)

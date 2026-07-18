@@ -3,6 +3,7 @@
   "scripts": {
     "build": "tsc",
     "test": "npm run build && node --test test/*.test.js",
+    "preflight:openai-models": "npm run build && node scripts/checkOpenAIModelAccess.js",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",

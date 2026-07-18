@@ -25,7 +25,7 @@ struct ExerciseTrendChartView: View {
                 if let first = dataPoints.first, let last = dataPoints.last, dataPoints.count > 1 {
                     let diff = last.value - first.value
                     let isPositive = diff >= 0
-                    Text("\(isPositive ? "+" : "")\(Int(diff))").font(.subheadline).fontWeight(.bold).foregroundColor(isPositive ? .accentPositive : .red).padding(.horizontal, 8).padding(.vertical, 4).background(isPositive ? Color.accentPositive.opacity(0.1) : Color.red.opacity(0.1)).cornerRadius(8)
+                    Text("\(isPositive ? "+" : "")\(Int(diff))").font(.subheadline).fontWeight(.bold).foregroundColor(isPositive ? AppPalette.positive : AppPalette.critical).padding(.horizontal, 8).padding(.vertical, 4).background((isPositive ? AppPalette.positive : AppPalette.critical).opacity(0.1)).cornerRadius(8)
                 }
             }
 

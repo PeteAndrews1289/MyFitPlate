@@ -5,14 +5,18 @@ import XCTest
 final class ExerciseLogStoreTests: XCTestCase {
     private var service: DailyLogService!
     private var mockRepo: MockNutritionRepository!
+    private var authService: MockAuthService!
     private var store: ExerciseLogStore!
 
     override func setUp() {
         super.setUp()
         mockRepo = MockNutritionRepository()
         DIContainer.shared.nutritionRepository = mockRepo
-        DIContainer.shared.authService = MockAuthService()
+        authService = MockAuthService()
+        authService.currentUserID = "user-1"
+        DIContainer.shared.authService = authService
         service = DailyLogService()
+        service.activateAccount("user-1")
         store = ExerciseLogStore(dailyLogService: service)
     }
 
@@ -20,6 +24,7 @@ final class ExerciseLogStoreTests: XCTestCase {
         store = nil
         service = nil
         mockRepo = nil
+        authService = nil
         super.tearDown()
     }
 
@@ -184,5 +189,20 @@ final class ExerciseLogStoreTests: XCTestCase {
 
         await fulfillment(of: [finished], timeout: 1.0)
         XCTAssertNil(mockRepo.lastUpdatedLog)
+    }
+
+    func testExerciseMutationForAnotherAccountIsIgnored() async throws {
+        mockRepo.mockFetchLogResult = .success(
+            DailyLog(id: "other", date: fixedDay(), meals: [])
+        )
+
+        store.addExerciseToLog(
+            for: "user-2",
+            exercise: exercise(id: "private", name: "Private", date: fixedDay())
+        )
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertNil(mockRepo.lastUpdatedLog)
+        XCTAssertNil(service.currentDailyLog)
     }
 }

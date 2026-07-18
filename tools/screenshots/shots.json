@@ -1,12 +1,12 @@
 {
   "shots": [
-    { "file": "1.png", "headline": "Nutrition built\nfor training", "subline": "Calories, macros, hydration, and today's next move" },
-    { "file": "2.png", "headline": "Know what you\ncan trust", "subline": "Sources, cross-checks, review status, and nutrition sanity" },
-    { "file": "3.png", "headline": "Log meals\nin seconds", "subline": "Repeat yesterday or search three trusted databases" },
-    { "file": "4.png", "headline": "Build the meal\nyou ordered", "subline": "Choose portions across 25 chains, then review every macro" },
-    { "file": "5.png", "headline": "Your next workout,\nready", "subline": "Programs, progression, sets, and one clear next step" },
-    { "file": "6.png", "headline": "Meet Maia,\nyour action coach", "subline": "Turn remaining macros and training into practical actions" },
-    { "file": "7.png", "headline": "Plan a week\nthat fits", "subline": "Every meal measured against your calorie and macro targets" },
-    { "file": "8.png", "headline": "See whether\nit's working", "subline": "Smoothed weight, nutrition scores, and training consistency" }
+    { "file": "1.png", "headline": "See your whole day\nin motion", "subline": "Food, training, hydration, and one clear next step" },
+    { "file": "2.png", "headline": "Know what you\ncan trust", "subline": "Field-level sources, checks, and corrections you control" },
+    { "file": "3.png", "headline": "Act on what\nmatters next", "subline": "Food and training context, turned into a practical next step" },
+    { "file": "4.png", "headline": "Review before\nyou log", "subline": "Edit every estimate before anything enters your diary" },
+    { "file": "5.png", "headline": "Build the order\nyou ate", "subline": "Choose portions across 25 chains and watch macros update" },
+    { "file": "6.png", "headline": "Run every set\nwith context", "subline": "Log load, reps, effort, rest, and progression in one flow" },
+    { "file": "7.png", "headline": "See recovery\nby region", "subline": "Select a region and inspect the training evidence behind it" },
+    { "file": "8.png", "headline": "See whether\nit's working", "subline": "Weight, nutrition, training, and data quality in one view" }
   ]
 }

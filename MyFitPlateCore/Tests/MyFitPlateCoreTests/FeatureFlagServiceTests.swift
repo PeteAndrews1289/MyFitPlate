@@ -16,8 +16,14 @@ final class FeatureFlagServiceTests: XCTestCase {
         let service = FeatureFlagService()
         XCTAssertEqual(service.boolValue(for: .newMealPlanner), FeatureFlag.newMealPlanner.defaultValue)
         XCTAssertEqual(service.isFeatureEnabled(.premiumFeatures), FeatureFlag.premiumFeatures.defaultValue)
+        XCTAssertTrue(service.isFeatureEnabled(.mealPhotoLogging))
+        XCTAssertTrue(service.isFeatureEnabled(.nutritionLabelScanner))
         XCTAssertTrue(service.isFeatureEnabled(.menuScanner))
         XCTAssertTrue(service.isFeatureEnabled(.receiptScanner))
+        XCTAssertTrue(service.isFeatureEnabled(.recipePhotoScanner))
+        XCTAssertTrue(service.isFeatureEnabled(.livingDayHome))
+        XCTAssertTrue(service.isFeatureEnabled(.healthCanadaFoodSearch))
+        XCTAssertTrue(service.isFeatureEnabled(.nihSupplementLabels))
     }
 
     func testRemoteValueOverridesDefault() {
@@ -59,7 +65,22 @@ final class FeatureFlagServiceTests: XCTestCase {
         let keys = FeatureFlag.allCases.map(\.remoteConfigKey)
         XCTAssertEqual(Set(keys).count, FeatureFlag.allCases.count, "Remote config keys must be unique.")
         XCTAssertEqual(FeatureFlag.newMealPlanner.remoteConfigKey, "feature_newMealPlanner")
+        XCTAssertEqual(FeatureFlag.mealPhotoLogging.remoteConfigKey, "feature_mealPhotoLogging")
+        XCTAssertEqual(
+            FeatureFlag.nutritionLabelScanner.remoteConfigKey,
+            "feature_nutritionLabelScanner"
+        )
         XCTAssertEqual(FeatureFlag.menuScanner.remoteConfigKey, "feature_menuScanner")
         XCTAssertEqual(FeatureFlag.receiptScanner.remoteConfigKey, "feature_receiptScanner")
+        XCTAssertEqual(FeatureFlag.recipePhotoScanner.remoteConfigKey, "feature_recipePhotoScanner")
+        XCTAssertEqual(FeatureFlag.livingDayHome.remoteConfigKey, "feature_livingDayHome")
+        XCTAssertEqual(
+            FeatureFlag.healthCanadaFoodSearch.remoteConfigKey,
+            "feature_healthCanadaFoodSearch"
+        )
+        XCTAssertEqual(
+            FeatureFlag.nihSupplementLabels.remoteConfigKey,
+            "feature_nihSupplementLabels"
+        )
     }
 }

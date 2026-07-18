@@ -8,19 +8,52 @@ struct WorkoutRoutinesView: View {
     @EnvironmentObject var dailyLogService: DailyLogService
     @EnvironmentObject var achievementService: AchievementService
     @EnvironmentObject var trainingFuelPlanStore: TrainingFuelPlanStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var routineToPlay: WorkoutRoutine?
     @State private var showingAIGenerator = false
     @State private var routineToEdit: WorkoutRoutine?
     @State private var reviewLog: WorkoutSessionLog?
     @State private var showingDeleteCurrentProgramAlert = false
+    @State private var showingProgramBuilder = false
+    @State private var showingSavedPrograms = false
+    @State private var screenshotProgramToEdit: WorkoutProgram?
+    @State private var showingScreenshotProgramDetail = false
+    @State private var showingScreenshotWorkoutHistory = false
+    @State private var screenshotProgramDetail: WorkoutProgram?
+    @State private var screenshotHistoryLogs: [WorkoutSessionLog]?
 
     @StateObject private var viewModel = WorkoutDashboardViewModel()
 
-    private let planLibraryColumns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
+    private let planLibraryColumns = [GridItem(.flexible())]
+
+    #if DEBUG
+    init() {
+        let screen = ScreenshotDemoData.requestedScreen
+        _routineToPlay = State(
+            initialValue: screen == "workout-player" ? ScreenshotDemoData.routineBuilderRoutine : nil
+        )
+        _showingProgramBuilder = State(initialValue: screen == "program-builder")
+        _showingSavedPrograms = State(initialValue: screen == "saved-programs")
+        _screenshotProgramToEdit = State(
+            initialValue: screen == "program-builder" ? ScreenshotDemoData.workoutBuilderProgram : nil
+        )
+        _routineToEdit = State(
+            initialValue: screen == "routine-builder" ? ScreenshotDemoData.routineBuilderRoutine : nil
+        )
+        _showingScreenshotProgramDetail = State(initialValue: screen == "program-detail")
+        _showingScreenshotWorkoutHistory = State(initialValue: screen == "workout-history")
+        _screenshotProgramDetail = State(
+            initialValue: screen == "program-detail" ? ScreenshotDemoData.programDetailProgram : nil
+        )
+        _screenshotHistoryLogs = State(
+            initialValue: screen == "workout-history" ? ScreenshotDemoData.workoutHistoryLogs : nil
+        )
+        _reviewLog = State(
+            initialValue: screen == "workout-summary" ? ScreenshotDemoData.workoutSummaryLog : nil
+        )
+    }
+    #endif
 
     static let trainTourSteps: [SpotlightTourStep] = [
         SpotlightTourStep(id: "train-next-step", title: "Training hub",
@@ -36,12 +69,26 @@ struct WorkoutRoutinesView: View {
         NavigationStack {
             ScrollViewReader { scrollProxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
                     let nextWorkout = viewModel.nextWorkoutInfo(for: workoutService.activeProgram)
 
                     let todayLog = dailyLogService.currentDailyLog.flatMap { log in
                         Calendar.current.isDateInToday(log.date) ? log : nil
                     }
+
+                    AppScreenHeader(
+                        title: "Train",
+                        subtitle: dynamicTypeSize.isAccessibilitySize
+                            ? nil
+                            : "Your next workout, readiness, and recovery."
+                    ) {
+                        NavigationLink(destination: WorkoutHistoryView()) {
+                            Image(systemName: "clock.arrow.circlepath")
+                        }
+                        .buttonStyle(AppIconButtonStyle(.neutral))
+                        .accessibilityLabel("Workout history")
+                    }
+                    .accessibilityIdentifier("train_screen_header")
 
                     // DESIGN.md rule 1: the Train screen answers "what do I do right now?"
                     // With a program, the slider is the single hero; the Training Hub banner
@@ -211,7 +258,7 @@ struct WorkoutRoutinesView: View {
                                 } label: {
                                     Label("Create a Routine", systemImage: "plus")
                                 }
-                                .buttonStyle(SecondaryButtonStyle())
+                                .buttonStyle(AppActionButtonStyle(.secondary))
                             } else {
                                 ForEach(workoutService.userRoutines) { routine in
                                     routineRow(routine)
@@ -222,20 +269,20 @@ struct WorkoutRoutinesView: View {
                     }
 
                 }
-                .padding()
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.section)
             }
             }
             .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Train")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink(destination: WorkoutHistoryView()) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .foregroundColor(.brandPrimary)
-                    }
-                    .accessibilityLabel("Workout history")
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $showingScreenshotProgramDetail) {
+                if let screenshotProgramDetail {
+                    ProgramDetailView(program: screenshotProgramDetail)
                 }
+            }
+            .navigationDestination(isPresented: $showingScreenshotWorkoutHistory) {
+                WorkoutHistoryView(fixtureLogs: screenshotHistoryLogs)
             }
             .alert("Delete Current Program?", isPresented: $showingDeleteCurrentProgramAlert) {
                 Button("Delete Program", role: .destructive) {
@@ -288,6 +335,23 @@ struct WorkoutRoutinesView: View {
                     .environmentObject(workoutService)
                     .environmentObject(goalSettings)
             }
+            .sheet(isPresented: $showingProgramBuilder) {
+                NavigationStack {
+                    ProgramCreatorView(
+                        workoutService: workoutService,
+                        programToEdit: screenshotProgramToEdit,
+                        isPresentedModally: true
+                    )
+                }
+            }
+            .sheet(isPresented: $showingSavedPrograms) {
+                NavigationStack {
+                    ProgramListView(workoutService: workoutService)
+                        .environmentObject(goalSettings)
+                        .environmentObject(dailyLogService)
+                        .environmentObject(achievementService)
+                }
+            }
             .sheet(item: $routineToEdit) { routine in
                 RoutineEditorView(
                     workoutService: workoutService,
@@ -304,11 +368,6 @@ struct WorkoutRoutinesView: View {
                     WorkoutCompleteAnalyticsView(log: log)
                         .navigationTitle("Session Review")
                         .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarTrailing) {
-                                Button("Done") { reviewLog = nil }
-                            }
-                        }
                 }
             }
         }
@@ -336,35 +395,36 @@ struct WorkoutRoutinesView: View {
 
     @ViewBuilder
     private func routineRow(_ routine: WorkoutRoutine) -> some View {
-        HStack(spacing: 12) {
-            Text(ExerciseEmojiMapper.getEmoji(for: routine.exercises.first?.name ?? routine.name))
-                .font(.title3)
-                .frame(width: 42, height: 42)
-                .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        let primaryType = routine.exercises.first?.type
+            ?? RoutineEditorDefaults.inferredType(name: routine.name, category: nil)
+        HStack(spacing: AppSpacing.row) {
+            Image(systemName: primaryType.icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(primaryType.color)
+                .frame(width: 40, height: 40)
+                .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(routine.name)
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .lineLimit(1)
+                    .appTextRole(.control)
+                    .foregroundStyle(AppPalette.text)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text("\(routine.exercises.count) exercises • \(routine.exercises.reduce(0) { $0 + $1.sets.count }) sets")
-                    .appFont(size: 12)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
-            Spacer()
+            Spacer(minLength: AppSpacing.compact)
 
             Button {
                 routineToPlay = routine
             } label: {
                 Image(systemName: "play.fill")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(width: 34, height: 34)
-                    .background(Color.brandPrimary, in: Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppIconButtonStyle(.brand))
+            .accessibilityLabel("Start \(routine.name)")
 
             Menu {
                 Button("Edit") {
@@ -375,13 +435,14 @@ struct WorkoutRoutinesView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .frame(width: 32, height: 32)
-                    .background(Color.backgroundPrimary.opacity(0.68), in: Circle())
+                    .appFont(size: 17, weight: .semibold)
+                    .foregroundStyle(AppPalette.text)
+                    .frame(width: 44, height: 44)
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
             }
+            .accessibilityLabel("Options for \(routine.name)")
         }
-        .padding(12)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(AppSpacing.row)
+        .appSurface(.quiet, padding: 0)
     }
 }

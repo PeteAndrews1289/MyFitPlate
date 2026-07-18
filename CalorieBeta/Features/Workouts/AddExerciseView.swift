@@ -11,8 +11,14 @@ struct AddExerciseView: View {
     var onSave: (LoggedExercise) -> Void
     
     @State private var isEditing: Bool = false
-    @State private var alertMessage: String?
-    @State private var showingAlert = false
+    @State private var attemptedSave = false
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case name
+        case duration
+        case calories
+    }
 
     init(exerciseToEdit: LoggedExercise? = nil, onSave: @escaping (LoggedExercise) -> Void) {
         self.exerciseToEdit = exerciseToEdit
@@ -34,68 +40,90 @@ struct AddExerciseView: View {
     }
 
     var body: some View {
-        NavigationView {
-            Form {
-                Section(header: Text("Exercise Details")) {
-                    TextField("Exercise Name (e.g., Running)", text: $exerciseName)
-                        .textFieldStyle(AppTextFieldStyle(iconName: "figure.walk"))
+        AppEditorScaffold(
+            title: isEditing ? "Edit Exercise" : "Add Exercise",
+            subtitle: isEditing
+                ? "Correct the activity stored in MyFitPlate."
+                : "Log an activity that was not imported automatically.",
+            dismiss: { dismiss() }
+        ) {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    AppSectionHeader(
+                        title: "Activity",
+                        subtitle: "Use a name you will recognize in your daily log."
+                    )
 
-                    HStack {
-                        TextField("Duration", text: $duration)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(AppTextFieldStyle(iconName: "clock"))
-                        Text("min")
+                    TextField("Exercise name", text: $exerciseName)
+                        .textInputAutocapitalization(.words)
+                        .focused($focusedField, equals: .name)
+                        .appTextRole(.control)
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        )
+                        .accessibilityIdentifier("manual_exercise_name")
+
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: AppSpacing.row) {
+                            durationField
+                            calorieField
+                        }
+                        VStack(spacing: AppSpacing.row) {
+                            durationField
+                            calorieField
+                        }
                     }
-                    HStack {
-                        TextField("Calories Burned", text: $caloriesBurned)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(AppTextFieldStyle(iconName: "flame.fill"))
-                        Text("kcal")
-                    }
-                    DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
+
+                    DatePicker("Activity date", selection: $selectedDate, displayedComponents: .date)
+                        .appTextRole(.control)
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        )
+                }
+                .appSurface(.emphasized)
+
+                if isEditing, exerciseToEdit?.source != "manual" {
+                    AppListRow(
+                        icon: "heart.text.square",
+                        iconColor: AppPalette.caution,
+                        title: "MyFitPlate copy only",
+                        subtitle: "This edit changes your MyFitPlate log. It does not alter the original Apple Health workout."
+                    )
+                    .appSurface(.quiet, padding: 0)
                 }
 
-                Button(isEditing ? "Update Exercise" : "Log Exercise") {
-                    saveExercise()
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(exerciseName.isEmpty || caloriesBurned.isEmpty)
-                .listRowInsets(EdgeInsets())
-                .padding(.vertical)
-            }
-            .navigationTitle(isEditing ? "Edit Exercise" : "Add Exercise")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                if attemptedSave, let validationMessage {
+                    Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
+                        .appTextRole(.secondary)
+                        .foregroundStyle(AppPalette.critical)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .appSurface(.quiet)
+                        .accessibilityIdentifier("manual_exercise_validation")
                 }
             }
-            .alert("Input Error", isPresented: $showingAlert) {
-                Button("OK") { }
-            } message: {
-                Text(alertMessage ?? "An unknown error occurred.")
+        } actions: {
+            Button(isEditing ? "Update Exercise" : "Log Exercise", action: saveExercise)
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(!canSave)
+                .accessibilityIdentifier("manual_exercise_save")
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { focusedField = nil }
             }
         }
+        .tint(AppPalette.brand)
     }
 
     private func saveExercise() {
-        guard !exerciseName.isEmpty else {
-            alertMessage = "Please enter an exercise name."
-            showingAlert = true
-            return
-        }
-        guard let calories = Double(caloriesBurned), calories > 0 else {
-            alertMessage = "Please enter valid calories burned (must be a number greater than 0)."
-            showingAlert = true
-            return
-        }
+        attemptedSave = true
+        guard canSave, let calories = Double(caloriesBurned) else { return }
         let durationMinutes = Int(duration)
-
-        if let durationVal = durationMinutes, durationVal <= 0 && !duration.isEmpty {
-            alertMessage = "Duration must be a positive number if entered."
-            showingAlert = true
-            return
-        }
 
         let exercise = LoggedExercise(
             id: exerciseToEdit?.id ?? UUID().uuidString,
@@ -107,5 +135,65 @@ struct AddExerciseView: View {
         )
         onSave(exercise)
         dismiss()
+    }
+
+    private var durationField: some View {
+        editorField(title: "Duration", unit: "min") {
+            TextField("Optional", text: $duration)
+                .keyboardType(.numberPad)
+                .focused($focusedField, equals: .duration)
+                .accessibilityIdentifier("manual_exercise_duration")
+        }
+    }
+
+    private var calorieField: some View {
+        editorField(title: "Active calories", unit: "cal") {
+            TextField("Required", text: $caloriesBurned)
+                .keyboardType(.decimalPad)
+                .focused($focusedField, equals: .calories)
+                .accessibilityIdentifier("manual_exercise_calories")
+        }
+    }
+
+    private func editorField<Content: View>(
+        title: String,
+        unit: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text(title)
+                .appTextRole(.caption)
+                .foregroundStyle(.secondary)
+            HStack(spacing: AppSpacing.compact) {
+                content()
+                    .appTextRole(.control)
+                Text(unit)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(AppSpacing.group)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            AppPalette.control,
+            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+        )
+    }
+
+    private var validationMessage: String? {
+        if exerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Enter an exercise name."
+        }
+        guard let calories = Double(caloriesBurned), calories > 0 else {
+            return "Active calories must be a number greater than zero."
+        }
+        if !duration.isEmpty, (Int(duration) ?? 0) <= 0 {
+            return "Duration must be a positive whole number when provided."
+        }
+        return nil
+    }
+
+    private var canSave: Bool {
+        validationMessage == nil
     }
 }

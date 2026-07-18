@@ -45,7 +45,7 @@ public struct FoodTrustReason: Hashable, Identifiable, Sendable {
 
 public struct FoodTrustEvaluation: Equatable, Sendable {
     /// Increment whenever score semantics change so analytics from different models are not mixed.
-    public static let modelVersion = 2
+    public static let modelVersion = 3
 
     public enum Level: String, Equatable, Sendable {
         case excellent
@@ -85,17 +85,24 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
     public static func evaluate(
         item: FoodItem,
         descriptor: FoodSourceDescriptor,
-        metadata: FoodSourceMetadata? = nil
+        metadata: FoodSourceMetadata? = nil,
+        now: Date = Date()
     ) -> FoodTrustEvaluation {
         let sourceKey = trustedSourceKey(descriptor: descriptor, metadata: metadata)
         let isEstimated = descriptor.isEstimated || metadata?.confidence == .estimated
         let wasReviewed = metadata?.reviewStatus == .userConfirmed ||
             metadata?.reviewStatus == .userEdited
         let verifiedSources = metadata?.validatedCrossVerifiedBy ?? []
-        let hasComparableServing = item.servingWeight.isFinite &&
-            item.servingWeight >= FoodSourceAgreement.minimumComparableServingWeight
+        let requiresMassServing = metadata?.sourceType != .nihDSLD
+        let hasComparableServing = !requiresMassServing || (
+            item.servingWeight.isFinite &&
+                item.servingWeight >= FoodSourceAgreement.minimumComparableServingWeight
+        )
         let findings = FoodDataSanity.findings(for: item)
         let requiresCorrection = findings.contains { $0.severity == .warning }
+        let sourceIsExplicitlyStale = metadata?.sourceUpdatedAt.map {
+            now.timeIntervalSince($0) > 36 * 30 * 24 * 60 * 60
+        } ?? false
 
         var score = baseScore(for: sourceKey)
         var evidenceReasons = baseReasons(
@@ -138,6 +145,14 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
             ))
         }
 
+        if sourceIsExplicitlyStale {
+            score -= 12
+            cautionReasons.append(FoodTrustReason(
+                "Provider record may describe an older product formulation",
+                kind: .caution
+            ))
+        }
+
         if requiresCorrection {
             score = min(score, 34)
             correctionReasons.append(FoodTrustReason(
@@ -152,14 +167,14 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
             ))
         }
 
-        // Excellent is reserved for current, independently corroborated database nutrition.
+        // Excellent is reserved for current nutrition corroborated by another database.
         if verifiedSources.isEmpty {
             score = min(score, 89)
         }
         if isEstimated || sourceKey == "community_barcode" {
             score = min(score, 74)
         }
-        if !hasComparableServing || !findings.isEmpty {
+        if !hasComparableServing || !findings.isEmpty || sourceIsExplicitlyStale {
             score = min(score, 89)
         }
 
@@ -179,6 +194,8 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
     private static func baseScore(for sourceKey: String) -> Int {
         switch sourceKey {
         case "usda": return 86
+        case "health_canada_cnf": return 86
+        case "nih_dsld": return 76
         case "fatsecret": return 74
         case "open_food_facts": return 68
         case "custom_barcode": return 82
@@ -199,6 +216,10 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
         switch sourceKey {
         case "usda":
             return ["USDA sourced nutrition"]
+        case "health_canada_cnf":
+            return ["Health Canada composition record"]
+        case "nih_dsld":
+            return ["Current NIH supplement label record"]
         case "fatsecret":
             return ["Packaged-food database match"]
         case "open_food_facts":
@@ -246,7 +267,7 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
                 score: score,
                 level: .excellent,
                 label: "Excellent trust",
-                summary: "Independent databases agree on calories and macros, with no nutrition warnings found.",
+                summary: "Multiple databases agree on calories and macros, with no nutrition warnings found.",
                 reasonDetails: reasonDetails,
                 requiresCorrection: false
             )
@@ -274,13 +295,13 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
             if isReviewedEstimate {
                 summary = hasComparableServing
                     ? "This remains an estimate, but you reviewed its serving or nutrition. A package or database match is still stronger."
-                    : "You reviewed this estimate, but its serving weight is still unavailable for an independent comparison."
+                    : "You reviewed this estimate, but its serving weight is still unavailable for a database comparison."
             } else if isEstimated {
                 summary = "This is an estimate. Review the serving and nutrition before relying on it."
             } else if isReviewed {
                 summary = hasComparableServing
-                    ? "You reviewed this entry. It is still supported by a single source rather than an independent match."
-                    : "You reviewed this entry, but its serving weight is still unavailable for an independent comparison."
+                    ? "You reviewed this entry. It is still supported by a single source rather than a second database match."
+                    : "You reviewed this entry, but its serving weight is still unavailable for a database comparison."
             } else {
                 summary = "This entry is usable, but one or more trust checks deserve a look."
             }
@@ -317,7 +338,7 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
 
                 let summary: String
                 if isReviewedEstimate {
-                    summary = "You reviewed this estimate, but its serving weight is still unavailable for an independent comparison."
+                    summary = "You reviewed this estimate, but its serving weight is still unavailable for a database comparison."
                 } else if isEstimated {
                     summary = "This estimate needs your review before it should guide your totals."
                 } else if isReviewed {
@@ -370,6 +391,8 @@ public struct FoodTrustEvaluation: Equatable, Sendable {
 
 public enum FoodSourceType: String, Codable, Sendable {
     case usda
+    case healthCanadaCNF
+    case nihDSLD
     case fatSecret
     case openFoodFacts
     case aiImage
@@ -400,6 +423,90 @@ public enum FoodReviewStatus: String, Codable, Sendable {
     case userEdited
 }
 
+/// Describes where the underlying evidence originated. Two providers can expose the same
+/// manufacturer label, so provider count alone must never be presented as independent evidence.
+public enum FoodEvidenceLineage: String, Codable, Hashable, Sendable {
+    case analyticalReference
+    case governmentCompilation
+    case manufacturerLabel
+    case licensedDatabase
+    case publicDatabase
+    case personalReview
+    case communityConsensus
+    case modelEstimate
+    case derivedEntry
+    case restaurantCatalog
+    case unknown
+
+    public var title: String {
+        switch self {
+        case .analyticalReference: return "Analytical reference"
+        case .governmentCompilation: return "Government composition data"
+        case .manufacturerLabel: return "Manufacturer label"
+        case .licensedDatabase: return "Licensed food database"
+        case .publicDatabase: return "Public label database"
+        case .personalReview: return "Personal review"
+        case .communityConsensus: return "Private community consensus"
+        case .modelEstimate: return "Model estimate"
+        case .derivedEntry: return "Derived entry"
+        case .restaurantCatalog: return "Restaurant catalog"
+        case .unknown: return "Provenance unavailable"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .analyticalReference:
+            return "Nutrients originate from analytical or reference composition data."
+        case .governmentCompilation:
+            return "Nutrients originate from a government food-composition dataset."
+        case .manufacturerLabel:
+            return "Nutrients originate from a product label supplied by a manufacturer."
+        case .licensedDatabase:
+            return "Nutrients are supplied by a licensed food-data provider."
+        case .publicDatabase:
+            return "Nutrients are reported in a public product-label database."
+        case .personalReview:
+            return "This entry was entered, confirmed, or corrected by you."
+        case .communityConsensus:
+            return "Multiple private corrections agreed without exposing contributor identities."
+        case .modelEstimate:
+            return "Nutrition was estimated rather than read from a verified product record."
+        case .derivedEntry:
+            return "Nutrition was calculated from another saved meal, recipe, or history entry."
+        case .restaurantCatalog:
+            return "Nutrition comes from a curated restaurant menu catalog."
+        case .unknown:
+            return "The original evidence type was not recorded."
+        }
+    }
+}
+
+public struct FoodVerificationEvidence: Codable, Hashable, Sendable {
+    public var sourceName: String
+    public var sourceType: FoodSourceType
+    public var lineage: FoodEvidenceLineage
+    public var sourceID: String?
+    public var observedAt: Date?
+    public var sourceUpdatedAt: Date?
+
+    public init(
+        sourceName: String,
+        sourceType: FoodSourceType,
+        lineage: FoodEvidenceLineage,
+        sourceID: String? = nil,
+        observedAt: Date? = nil,
+        sourceUpdatedAt: Date? = nil
+    ) {
+        self.sourceName = sourceName
+        self.sourceType = sourceType
+        self.lineage = lineage
+        self.sourceID = sourceID
+        self.observedAt = observedAt
+        self.sourceUpdatedAt = sourceUpdatedAt
+    }
+}
+
 public struct FoodNutritionSnapshot: Codable, Hashable, Sendable {
     public var calories: Double
     public var protein: Double
@@ -407,6 +514,8 @@ public struct FoodNutritionSnapshot: Codable, Hashable, Sendable {
     public var fats: Double
     public var servingSize: String
     public var servingWeight: Double
+    public var saturatedFat: Double?
+    public var fiber: Double?
 
     public init(
         calories: Double,
@@ -414,7 +523,9 @@ public struct FoodNutritionSnapshot: Codable, Hashable, Sendable {
         carbs: Double,
         fats: Double,
         servingSize: String,
-        servingWeight: Double
+        servingWeight: Double,
+        saturatedFat: Double? = nil,
+        fiber: Double? = nil
     ) {
         self.calories = calories
         self.protein = protein
@@ -422,11 +533,16 @@ public struct FoodNutritionSnapshot: Codable, Hashable, Sendable {
         self.fats = fats
         self.servingSize = servingSize
         self.servingWeight = servingWeight
+        self.saturatedFat = saturatedFat
+        self.fiber = fiber
     }
 }
 
 public struct FoodSourceMetadata: Codable, Hashable, Sendable {
     public var sourceType: FoodSourceType
+    /// Source category before an item was saved into My Foods. Optional so existing documents
+    /// decode unchanged and saved recipes remain filterable after becoming custom foods.
+    public var originSourceType: FoodSourceType?
     public var confidence: FoodConfidenceLevel
     public var reviewStatus: FoodReviewStatus
     public var sourceName: String?
@@ -434,15 +550,29 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
     public var barcode: String?
     public var matchedFoodID: String?
     public var createdAt: Date?
+    /// When MyFitPlate retrieved or observed this provider record. This is not a claim that the
+    /// package formulation itself changed on this date.
+    public var sourceObservedAt: Date?
+    /// Provider-supplied formulation or record update date when one is available.
+    public var sourceUpdatedAt: Date?
+    /// Evidence origin, kept separate from provider identity so duplicate label feeds are honest.
+    public var evidenceLineage: FoodEvidenceLineage?
     public var notes: String?
     public var originalEstimate: FoodNutritionSnapshot?
     public var userCorrection: FoodNutritionSnapshot?
-    /// Independent databases whose entries agreed with this one at lookup time
+    /// Other recognized databases whose entries agreed with this one at lookup time
     /// (see FoodSourceAgreement). Optional so previously stored metadata decodes unchanged.
     public var crossVerifiedBy: [String]?
+    /// Durable provenance for agreeing records. `crossVerifiedBy` remains for compatibility with
+    /// records created before evidence lineage was persisted.
+    public var crossVerificationEvidence: [FoodVerificationEvidence]?
+    /// A composition record used to calculate an estimated entry. This is not identity
+    /// verification: for a meal photo, the model still estimated the food and portion.
+    public var nutrientReferenceEvidence: FoodVerificationEvidence?
 
     public init(
         sourceType: FoodSourceType,
+        originSourceType: FoodSourceType? = nil,
         confidence: FoodConfidenceLevel,
         reviewStatus: FoodReviewStatus,
         sourceName: String? = nil,
@@ -450,12 +580,18 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
         barcode: String? = nil,
         matchedFoodID: String? = nil,
         createdAt: Date? = Date(),
+        sourceObservedAt: Date? = nil,
+        sourceUpdatedAt: Date? = nil,
+        evidenceLineage: FoodEvidenceLineage? = nil,
         notes: String? = nil,
         originalEstimate: FoodNutritionSnapshot? = nil,
         userCorrection: FoodNutritionSnapshot? = nil,
-        crossVerifiedBy: [String]? = nil
+        crossVerifiedBy: [String]? = nil,
+        crossVerificationEvidence: [FoodVerificationEvidence]? = nil,
+        nutrientReferenceEvidence: FoodVerificationEvidence? = nil
     ) {
         self.sourceType = sourceType
+        self.originSourceType = originSourceType
         self.confidence = confidence
         self.reviewStatus = reviewStatus
         self.sourceName = sourceName
@@ -463,10 +599,15 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
         self.barcode = barcode
         self.matchedFoodID = matchedFoodID
         self.createdAt = createdAt
+        self.sourceObservedAt = sourceObservedAt
+        self.sourceUpdatedAt = sourceUpdatedAt
+        self.evidenceLineage = evidenceLineage
         self.notes = notes
         self.originalEstimate = originalEstimate
         self.userCorrection = userCorrection
         self.crossVerifiedBy = crossVerifiedBy
+        self.crossVerificationEvidence = crossVerificationEvidence
+        self.nutrientReferenceEvidence = nutrientReferenceEvidence
     }
 
     public static func database(
@@ -474,7 +615,9 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
         sourceName: String,
         sourceID: String?,
         barcode: String? = nil,
-        matchedFoodID: String? = nil
+        matchedFoodID: String? = nil,
+        evidenceLineage: FoodEvidenceLineage? = nil,
+        sourceUpdatedAt: Date? = nil
     ) -> FoodSourceMetadata {
         FoodSourceMetadata(
             sourceType: sourceType,
@@ -483,7 +626,13 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
             sourceName: sourceName,
             sourceID: sourceID,
             barcode: barcode,
-            matchedFoodID: matchedFoodID ?? sourceID
+            matchedFoodID: matchedFoodID ?? sourceID,
+            sourceObservedAt: Date(),
+            sourceUpdatedAt: sourceUpdatedAt,
+            evidenceLineage: evidenceLineage ?? FoodSourceMetadata.inferredLineage(
+                sourceType: sourceType,
+                confidence: sourceType == .usda ? .verified : .databaseMatch
+            )
         )
     }
 
@@ -498,6 +647,8 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
             confidence: .estimated,
             reviewStatus: .unreviewed,
             sourceName: sourceName,
+            sourceObservedAt: Date(),
+            evidenceLineage: .modelEstimate,
             notes: notes,
             originalEstimate: originalEstimate
         )
@@ -508,7 +659,479 @@ public struct FoodSourceMetadata: Codable, Hashable, Sendable {
             sourceType: .manual,
             confidence: .userVerified,
             reviewStatus: .userConfirmed,
-            sourceName: sourceName
+            sourceName: sourceName,
+            sourceObservedAt: Date(),
+            evidenceLineage: .personalReview
+        )
+    }
+
+    public var effectiveEvidenceLineage: FoodEvidenceLineage {
+        if let evidenceLineage { return evidenceLineage }
+        if sourceType == .custom, let originSourceType {
+            return Self.inferredLineage(sourceType: originSourceType, confidence: confidence)
+        }
+        return Self.inferredLineage(sourceType: sourceType, confidence: confidence)
+    }
+
+    public static func inferredLineage(
+        sourceType: FoodSourceType,
+        confidence: FoodConfidenceLevel = .databaseMatch
+    ) -> FoodEvidenceLineage {
+        switch sourceType {
+        case .usda:
+            return confidence == .verified ? .analyticalReference : .manufacturerLabel
+        case .healthCanadaCNF:
+            return .governmentCompilation
+        case .nihDSLD:
+            return .manufacturerLabel
+        case .fatSecret:
+            return .licensedDatabase
+        case .openFoodFacts:
+            return .publicDatabase
+        case .aiImage, .aiMenu, .aiText, .aiChat:
+            return .modelEstimate
+        case .manual, .custom:
+            return .personalReview
+        case .chainBuilder:
+            return .restaurantCatalog
+        case .recipe, .mealPlan, .recent:
+            return .derivedEntry
+        case .unknown:
+            return .unknown
+        }
+    }
+}
+
+public enum FoodTrustEvidenceState: String, Codable, Hashable, Sendable {
+    case crossDatabaseAgreement
+    case userReviewed
+    case sourceReported
+    case estimated
+    case needsCorrection
+    case unavailable
+    case notChecked
+
+    public var label: String {
+        switch self {
+        case .crossDatabaseAgreement: return "Cross-database match"
+        case .userReviewed: return "Reviewed by you"
+        case .sourceReported: return "Source reported"
+        case .estimated: return "Estimated"
+        case .needsCorrection: return "Needs correction"
+        case .unavailable: return "Unavailable"
+        case .notChecked: return "Not checked"
+        }
+    }
+}
+
+public struct FoodTrustEvidenceScope: Identifiable, Codable, Hashable, Sendable {
+    public enum Field: String, Codable, Hashable, Sendable {
+        case identity
+        case serving
+        case coreNutrition
+        case detailedNutrition
+        case ingredientsAndAllergens
+    }
+
+    public let field: Field
+    public let title: String
+    public let state: FoodTrustEvidenceState
+    public let detail: String
+
+    public var id: Field { field }
+
+    public init(field: Field, title: String, state: FoodTrustEvidenceState, detail: String) {
+        self.field = field
+        self.title = title
+        self.state = state
+        self.detail = detail
+    }
+}
+
+public struct FoodTrustFreshness: Codable, Hashable, Sendable {
+    public enum State: String, Codable, Hashable, Sendable {
+        case current
+        case aging
+        case stale
+        case retrieved
+        case unknown
+    }
+
+    public let state: State
+    public let date: Date?
+
+    public init(state: State, date: Date?) {
+        self.state = state
+        self.date = date
+    }
+}
+
+/// Field-level evidence behind a food entry. This deliberately separates product identity,
+/// serving, core macros, detailed nutrients, and ingredients instead of allowing one source badge
+/// or score to imply that every field was verified.
+public struct FoodTrustPassport: Equatable, Sendable {
+    public static let modelVersion = 1
+
+    public let lineage: FoodEvidenceLineage
+    public let scopes: [FoodTrustEvidenceScope]
+    public let freshness: FoodTrustFreshness
+    public let detailedNutrientCount: Int
+
+    public var coreNutrition: FoodTrustEvidenceScope {
+        scopes.first { $0.field == .coreNutrition } ?? FoodTrustEvidenceScope(
+            field: .coreNutrition,
+            title: "Core nutrition",
+            state: .unavailable,
+            detail: "Core nutrition evidence is unavailable."
+        )
+    }
+
+    /// Deliberately narrow: a single provider record or serving confirmation alone does not count.
+    public var supportsCoreNutrition: Bool {
+        coreNutrition.state == .crossDatabaseAgreement || coreNutrition.state == .userReviewed
+    }
+
+    public static func evaluate(
+        item: FoodItem,
+        descriptor: FoodSourceDescriptor,
+        metadata explicitMetadata: FoodSourceMetadata? = nil,
+        now: Date = Date()
+    ) -> FoodTrustPassport {
+        let metadata = explicitMetadata ?? item.sourceMetadata
+        let findings = FoodDataSanity.findings(for: item)
+        let evidence = metadata?.validatedCrossVerificationEvidence ?? []
+        let reviewedCore = hasReviewedCoreNutrition(metadata)
+        let reviewedDetails = hasReviewedDetailedNutrition(metadata)
+        let detailCount = detailedNutrientCount(item)
+        let requiresMassServing = metadata?.sourceType != .nihDSLD
+        let hasComparableServing = !requiresMassServing || (
+            item.servingWeight.isFinite &&
+                item.servingWeight >= FoodSourceAgreement.minimumComparableServingWeight
+        )
+
+        let detailFindingIDs: Set<String> = [
+            "saturated_fat_exceeds_total",
+            "fiber_exceeds_carbs",
+            "sodium_unit_suspect",
+            "sodium_high_for_entry",
+            "potassium_unit_suspect",
+            "potassium_high_for_entry"
+        ]
+        let detailNeedsCorrection = findings.contains {
+            $0.severity == .warning && detailFindingIDs.contains($0.id)
+        }
+        let coreNeedsCorrection = findings.contains {
+            $0.severity == .warning && !detailFindingIDs.contains($0.id)
+        }
+
+        let identityScope: FoodTrustEvidenceScope
+        let barcode = BarcodeCorrectionRules.normalizedBarcode(metadata?.barcode ?? "")
+        if BarcodeCorrectionRules.isValidGTIN(barcode), !evidence.isEmpty {
+            identityScope = FoodTrustEvidenceScope(
+                field: .identity,
+                title: "Product identity",
+                state: .crossDatabaseAgreement,
+                detail: "The same checksum-valid barcode was returned by multiple databases."
+            )
+        } else if BarcodeCorrectionRules.isValidGTIN(barcode) {
+            identityScope = FoodTrustEvidenceScope(
+                field: .identity,
+                title: "Product identity",
+                state: .sourceReported,
+                detail: "A checksum-valid product barcode is attached to this source record."
+            )
+        } else if metadata?.sourceID?.isEmpty == false || metadata?.matchedFoodID?.isEmpty == false {
+            identityScope = FoodTrustEvidenceScope(
+                field: .identity,
+                title: "Product identity",
+                state: .sourceReported,
+                detail: "A provider record is attached, but no verified product barcode is available."
+            )
+        } else {
+            identityScope = FoodTrustEvidenceScope(
+                field: .identity,
+                title: "Product identity",
+                state: .unavailable,
+                detail: "No provider record or verified barcode is attached."
+            )
+        }
+
+        let servingScope: FoodTrustEvidenceScope
+        if metadata?.reviewStatus == .userConfirmed {
+            servingScope = FoodTrustEvidenceScope(
+                field: .serving,
+                title: "Serving",
+                state: .userReviewed,
+                detail: "You confirmed the serving used for this entry."
+            )
+        } else if metadata?.sourceType == .nihDSLD {
+            servingScope = FoodTrustEvidenceScope(
+                field: .serving,
+                title: "Serving",
+                state: .sourceReported,
+                detail: "The manufacturer label reports \(item.servingSize); a gram weight is not required for this supplement."
+            )
+        } else if hasComparableServing {
+            servingScope = FoodTrustEvidenceScope(
+                field: .serving,
+                title: "Serving",
+                state: .sourceReported,
+                detail: "A \(formattedNumber(item.servingWeight)) g serving weight supports comparisons."
+            )
+        } else {
+            servingScope = FoodTrustEvidenceScope(
+                field: .serving,
+                title: "Serving",
+                state: .unavailable,
+                detail: "Serving weight is unavailable, so records cannot be normalized reliably."
+            )
+        }
+
+        let coreScope: FoodTrustEvidenceScope
+        if coreNeedsCorrection {
+            coreScope = FoodTrustEvidenceScope(
+                field: .coreNutrition,
+                title: "Core nutrition",
+                state: .needsCorrection,
+                detail: "Calories or core macros failed a nutrition consistency check."
+            )
+        } else if !evidence.isEmpty {
+            let names = evidence.prefix(2).map(\.sourceName).joined(separator: ", ")
+            coreScope = FoodTrustEvidenceScope(
+                field: .coreNutrition,
+                title: "Core nutrition",
+                state: .crossDatabaseAgreement,
+                detail: "Calories, protein, carbs, and fat agreed with \(names)."
+            )
+        } else if reviewedCore {
+            coreScope = FoodTrustEvidenceScope(
+                field: .coreNutrition,
+                title: "Core nutrition",
+                state: .userReviewed,
+                detail: "Your saved correction changed calories or core macros."
+            )
+        } else if let reference = metadata?.nutrientReferenceEvidence {
+            coreScope = FoodTrustEvidenceScope(
+                field: .coreNutrition,
+                title: "Core nutrition",
+                state: .estimated,
+                detail: "Composition came from \(reference.sourceName), scaled to a photo-estimated food and portion."
+            )
+        } else if descriptor.isEstimated || metadata?.confidence == .estimated || metadata?.confidence == .needsReview {
+            coreScope = FoodTrustEvidenceScope(
+                field: .coreNutrition,
+                title: "Core nutrition",
+                state: .estimated,
+                detail: "Calories and macros were estimated rather than matched to a product record."
+            )
+        } else if metadata?.sourceType == .nihDSLD {
+            coreScope = FoodTrustEvidenceScope(
+                field: .coreNutrition,
+                title: "Core nutrition",
+                state: .sourceReported,
+                detail: "Calories and macros are included only when declared on the supplement label."
+            )
+        } else if metadata != nil {
+            coreScope = FoodTrustEvidenceScope(
+                field: .coreNutrition,
+                title: "Core nutrition",
+                state: .sourceReported,
+                detail: "Calories and macros are supported by one source record."
+            )
+        } else {
+            coreScope = FoodTrustEvidenceScope(
+                field: .coreNutrition,
+                title: "Core nutrition",
+                state: .unavailable,
+                detail: "No durable source evidence is attached to these values."
+            )
+        }
+
+        let detailedScope: FoodTrustEvidenceScope
+        if detailNeedsCorrection {
+            detailedScope = FoodTrustEvidenceScope(
+                field: .detailedNutrition,
+                title: "Detailed nutrition",
+                state: .needsCorrection,
+                detail: "One or more fat, fiber, sodium, or potassium values need correction."
+            )
+        } else if detailCount == 0 {
+            detailedScope = FoodTrustEvidenceScope(
+                field: .detailedNutrition,
+                title: "Detailed nutrition",
+                state: .unavailable,
+                detail: "No optional fats, fiber, vitamins, or minerals were reported."
+            )
+        } else if reviewedDetails {
+            detailedScope = FoodTrustEvidenceScope(
+                field: .detailedNutrition,
+                title: "Detailed nutrition",
+                state: .userReviewed,
+                detail: "Your correction updated detailed nutrition; \(detailCount) values are present."
+            )
+        } else if let reference = metadata?.nutrientReferenceEvidence {
+            detailedScope = FoodTrustEvidenceScope(
+                field: .detailedNutrition,
+                title: "Detailed nutrition",
+                state: .estimated,
+                detail: "\(detailCount) values came from \(reference.sourceName) and were scaled to the estimated portion."
+            )
+        } else if descriptor.isEstimated || metadata?.confidence == .estimated || metadata?.confidence == .needsReview {
+            detailedScope = FoodTrustEvidenceScope(
+                field: .detailedNutrition,
+                title: "Detailed nutrition",
+                state: .estimated,
+                detail: "\(detailCount) detailed values are present, but they remain estimates."
+            )
+        } else {
+            detailedScope = FoodTrustEvidenceScope(
+                field: .detailedNutrition,
+                title: "Detailed nutrition",
+                state: .sourceReported,
+                detail: "\(detailCount) optional fats, fiber, vitamins, or minerals were reported by one source."
+            )
+        }
+
+        let ingredientScope = FoodTrustEvidenceScope(
+            field: .ingredientsAndAllergens,
+            title: "Ingredients & allergens",
+            state: .notChecked,
+            detail: "This entry does not currently preserve ingredient or allergen evidence."
+        )
+
+        return FoodTrustPassport(
+            lineage: metadata?.effectiveEvidenceLineage ?? .unknown,
+            scopes: [identityScope, servingScope, coreScope, detailedScope, ingredientScope],
+            freshness: freshness(metadata: metadata, now: now),
+            detailedNutrientCount: detailCount
+        )
+    }
+
+    private static func hasReviewedCoreNutrition(_ metadata: FoodSourceMetadata?) -> Bool {
+        guard metadata?.reviewStatus == .userEdited,
+              let original = metadata?.originalEstimate,
+              let correction = metadata?.userCorrection else { return false }
+        return original.calories != correction.calories ||
+            original.protein != correction.protein ||
+            original.carbs != correction.carbs ||
+            original.fats != correction.fats
+    }
+
+    private static func hasReviewedDetailedNutrition(_ metadata: FoodSourceMetadata?) -> Bool {
+        guard metadata?.reviewStatus == .userEdited,
+              let original = metadata?.originalEstimate,
+              let correction = metadata?.userCorrection else { return false }
+        return original.saturatedFat != correction.saturatedFat || original.fiber != correction.fiber
+    }
+
+    private static func detailedNutrientCount(_ item: FoodItem) -> Int {
+        let values: [Double?] = [
+            item.saturatedFat, item.polyunsaturatedFat, item.monounsaturatedFat, item.fiber,
+            item.calcium, item.iron, item.potassium, item.sodium, item.vitaminA, item.vitaminC,
+            item.vitaminD, item.vitaminB12, item.folate, item.magnesium, item.phosphorus,
+            item.zinc, item.copper, item.manganese, item.selenium, item.vitaminB1,
+            item.vitaminB2, item.vitaminB3, item.vitaminB5, item.vitaminB6, item.vitaminE,
+            item.vitaminK
+        ]
+        return values.compactMap { value -> Double? in
+            guard let value, value.isFinite, value >= 0 else { return nil }
+            return value
+        }.count
+    }
+
+    private static func freshness(metadata: FoodSourceMetadata?, now: Date) -> FoodTrustFreshness {
+        if let updatedAt = metadata?.sourceUpdatedAt {
+            let age = max(0, now.timeIntervalSince(updatedAt))
+            if age <= 18 * 30 * 24 * 60 * 60 {
+                return FoodTrustFreshness(state: .current, date: updatedAt)
+            }
+            if age <= 36 * 30 * 24 * 60 * 60 {
+                return FoodTrustFreshness(state: .aging, date: updatedAt)
+            }
+            return FoodTrustFreshness(state: .stale, date: updatedAt)
+        }
+        if let observedAt = metadata?.sourceObservedAt ?? metadata?.createdAt {
+            return FoodTrustFreshness(state: .retrieved, date: observedAt)
+        }
+        return FoodTrustFreshness(state: .unknown, date: nil)
+    }
+
+    private static func formattedNumber(_ value: Double) -> String {
+        value.rounded() == value ? String(Int(value)) : String(format: "%.1f", value)
+    }
+}
+
+public struct FoodTrustCoverage: Equatable, Sendable {
+    public let supportedCalories: Double
+    public let totalCalories: Double
+    public let supportedProtein: Double
+    public let totalProtein: Double
+    public let supportedFoodCount: Int
+    public let totalFoodCount: Int
+
+    public var calorieFraction: Double {
+        guard totalCalories > 0 else { return 0 }
+        return min(max(supportedCalories / totalCalories, 0), 1)
+    }
+
+    public var proteinFraction: Double {
+        guard totalProtein > 0 else { return 0 }
+        return min(max(supportedProtein / totalProtein, 0), 1)
+    }
+
+    public init(
+        supportedCalories: Double,
+        totalCalories: Double,
+        supportedProtein: Double,
+        totalProtein: Double,
+        supportedFoodCount: Int,
+        totalFoodCount: Int
+    ) {
+        self.supportedCalories = supportedCalories
+        self.totalCalories = totalCalories
+        self.supportedProtein = supportedProtein
+        self.totalProtein = totalProtein
+        self.supportedFoodCount = supportedFoodCount
+        self.totalFoodCount = totalFoodCount
+    }
+
+    public static func evaluate(items: [FoodItem]) -> FoodTrustCoverage {
+        var supportedCalories = 0.0
+        var totalCalories = 0.0
+        var supportedProtein = 0.0
+        var totalProtein = 0.0
+        var supportedFoodCount = 0
+
+        for item in items {
+            let calories = item.calories.isFinite ? max(0, item.calories) : 0
+            let protein = item.protein.isFinite ? max(0, item.protein) : 0
+            totalCalories += calories
+            totalProtein += protein
+
+            let descriptor = FoodSourceClassifier.descriptor(
+                for: "trust_coverage",
+                foodID: item.id,
+                metadata: item.sourceMetadata
+            )
+            let passport = FoodTrustPassport.evaluate(
+                item: item,
+                descriptor: descriptor,
+                metadata: item.sourceMetadata
+            )
+            if passport.supportsCoreNutrition {
+                supportedCalories += calories
+                supportedProtein += protein
+                supportedFoodCount += 1
+            }
+        }
+
+        return FoodTrustCoverage(
+            supportedCalories: supportedCalories,
+            totalCalories: totalCalories,
+            supportedProtein: supportedProtein,
+            totalProtein: totalProtein,
+            supportedFoodCount: supportedFoodCount,
+            totalFoodCount: items.count
         )
     }
 }
@@ -546,6 +1169,30 @@ public enum FoodSourceClassifier {
                 detail: "Matched from USDA FoodData Central.",
                 confidence: "High Trust",
                 systemImage: "checkmark.seal.fill"
+            )
+        }
+
+        if normalizedSource.contains("health_canada") ||
+            normalizedSource.contains("cnf") ||
+            foodID?.hasPrefix("cnf_") == true {
+            return FoodSourceDescriptor(
+                sourceKey: "health_canada_cnf",
+                title: "Health Canada CNF",
+                detail: "Matched from the Canadian Nutrient File 2026 composition data.",
+                confidence: "Government Reference",
+                systemImage: "checkmark.seal.fill"
+            )
+        }
+
+        if normalizedSource.contains("nih") ||
+            normalizedSource.contains("dsld") ||
+            foodID?.hasPrefix("dsld_") == true {
+            return FoodSourceDescriptor(
+                sourceKey: "nih_dsld",
+                title: "NIH Supplement Label",
+                detail: "Matched to a current manufacturer label in NIH DSLD; not laboratory verification.",
+                confidence: "Label Record",
+                systemImage: "pills.fill"
             )
         }
 
@@ -622,6 +1269,30 @@ public enum FoodSourceClassifier {
                 ),
                 confidence: confidenceText(for: metadata),
                 systemImage: "checkmark.seal.fill"
+            )
+
+        case .healthCanadaCNF:
+            return trustedDatabaseDescriptor(
+                sourceKey: "health_canada_cnf",
+                title: "Health Canada CNF",
+                detail: sourceDetail(
+                    metadata,
+                    defaultDetail: "Matched from the Canadian Nutrient File 2026 composition data."
+                ),
+                confidence: confidenceText(for: metadata),
+                systemImage: "checkmark.seal.fill"
+            )
+
+        case .nihDSLD:
+            return trustedDatabaseDescriptor(
+                sourceKey: "nih_dsld",
+                title: "NIH Supplement Label",
+                detail: sourceDetail(
+                    metadata,
+                    defaultDetail: "Matched to a current manufacturer label in NIH DSLD; not laboratory verification."
+                ),
+                confidence: confidenceText(for: metadata),
+                systemImage: "pills.fill"
             )
 
         case .fatSecret:
@@ -737,6 +1408,14 @@ public enum FoodSourceClassifier {
             return descriptor(for: "open_food_facts", foodID: foodID)
         }
 
+        if foodID.hasPrefix("cnf_") {
+            return descriptor(for: "health_canada_cnf", foodID: foodID)
+        }
+
+        if foodID.hasPrefix("dsld_") {
+            return descriptor(for: "nih_dsld", foodID: foodID)
+        }
+
         if !foodID.isEmpty && foodID.allSatisfy(\.isNumber) {
             return descriptor(for: "fatsecret", foodID: foodID)
         }
@@ -800,8 +1479,8 @@ public enum FoodSourceClassifier {
             break
         }
 
-        // Two independent databases agreeing beats either database's solo confidence.
-        if metadata.hasIndependentCrossVerification {
+        // Two recognized databases agreeing beats either database's solo confidence.
+        if metadata.hasCrossDatabaseAgreement {
             return "Cross-Verified"
         }
 
@@ -830,7 +1509,9 @@ public extension FoodItem {
             carbs: carbs,
             fats: fats,
             servingSize: servingSize,
-            servingWeight: servingWeight
+            servingWeight: servingWeight,
+            saturatedFat: saturatedFat,
+            fiber: fiber
         )
     }
 
@@ -849,6 +1530,9 @@ public extension FoodItem {
         let normalizedBarcode = BarcodeCorrectionRules.normalizedBarcode(barcode ?? metadata.barcode ?? "")
         let originalSnapshot = originalItem?.nutritionSnapshot ?? metadata.originalEstimate
 
+        if metadata.sourceType != .custom && metadata.sourceType != .manual {
+            metadata.originSourceType = metadata.originSourceType ?? metadata.sourceType
+        }
         metadata.sourceType = .custom
         metadata.confidence = .userVerified
         metadata.reviewStatus = originalSnapshot == nil || originalSnapshot == nutritionSnapshot ? .userConfirmed : .userEdited
@@ -857,6 +1541,7 @@ public extension FoodItem {
         metadata.matchedFoodID = metadata.matchedFoodID ?? originalItem?.id ?? id
         metadata.barcode = normalizedBarcode.isEmpty ? nil : normalizedBarcode
         metadata.crossVerifiedBy = nil
+        metadata.crossVerificationEvidence = nil
 
         if metadata.reviewStatus == .userEdited {
             metadata.originalEstimate = metadata.originalEstimate ?? originalSnapshot
@@ -936,12 +1621,13 @@ public extension FoodItem {
             metadata.sourceType = fallbackSourceType
         }
         metadata.reviewStatus = reviewStatus
-        if metadata.crossVerifiedBy?.isEmpty == false {
+        if metadata.crossVerifiedBy?.isEmpty == false || metadata.crossVerificationEvidence?.isEmpty == false {
             let preservesEvidence = originalItem.map {
                 FoodSourceAgreement.preservesAgreementEvidence(self, $0)
             } ?? false
             if !preservesEvidence && (reviewStatus == .userEdited || originalItem != nil) {
                 metadata.crossVerifiedBy = nil
+                metadata.crossVerificationEvidence = nil
             }
         }
         if reviewStatus == .userEdited {
@@ -1207,7 +1893,7 @@ public enum BarcodeCorrectionRules {
             .sorted { lhs, rhs in
                 let lhsScore = correctionScore(for: lhs, candidates: candidates)
                 let rhsScore = correctionScore(for: rhs, candidates: candidates)
-                return lhsScore > rhsScore
+                return lhsScore == rhsScore ? lhs.id < rhs.id : lhsScore > rhsScore
             }
             .first
             .map { correctedFood(from: $0, barcode: candidates[0]) }
@@ -1282,17 +1968,20 @@ public final class BarcodeFoodLookupService {
     private let fatSecretService: FatSecretFoodAPIService
     private let usdaService: USDAFoodAPIService
     private let openFoodFactsService: OpenFoodFactsAPIService
+    private let supplementService: NIHDietarySupplementAPIService
     private let correctionStore: BarcodeCorrectionStoreProtocol?
 
     public init(
         fatSecretService: FatSecretFoodAPIService = FatSecretFoodAPIService(),
         usdaService: USDAFoodAPIService = USDAFoodAPIService(),
         openFoodFactsService: OpenFoodFactsAPIService = OpenFoodFactsAPIService(),
+        supplementService: NIHDietarySupplementAPIService = NIHDietarySupplementAPIService(),
         correctionStore: BarcodeCorrectionStoreProtocol? = CustomFoodBarcodeCorrectionStore()
     ) {
         self.fatSecretService = fatSecretService
         self.usdaService = usdaService
         self.openFoodFactsService = openFoodFactsService
+        self.supplementService = supplementService
         self.correctionStore = correctionStore
     }
 
@@ -1342,9 +2031,9 @@ public final class BarcodeFoodLookupService {
                     scannedBarcode: trimmedBarcode,
                     matchedBarcode: candidate
                 )
-                let confirmedBy: [String]
+                let confirmationEvidence: [FoodVerificationEvidence]
                 if BarcodeCorrectionRules.isValidGTIN(candidate) {
-                    confirmedBy = FoodSourceAgreement.agreeingSourceNames(
+                    confirmationEvidence = FoodSourceAgreement.agreeingEvidence(
                         primary: primary,
                         candidates: [
                             ("USDA", matches.usda),
@@ -1352,14 +2041,14 @@ public final class BarcodeFoodLookupService {
                         ]
                     )
                 } else {
-                    confirmedBy = []
+                    confirmationEvidence = []
                 }
                 let enriched = FoodMicronutrientEnrichment.enrichExactProduct(
                     primary: primary,
                     with: [matches.usda, matches.openFoodFacts]
                 )
                 return BarcodeFoodLookupResult(
-                    item: enriched.withCrossVerification(confirmedBy),
+                    item: enriched.withCrossVerificationEvidence(confirmationEvidence),
                     source: "barcode_result",
                     scannedBarcode: trimmedBarcode,
                     matchedBarcode: candidate,
@@ -1375,21 +2064,21 @@ public final class BarcodeFoodLookupService {
                     scannedBarcode: trimmedBarcode,
                     matchedBarcode: candidate
                 )
-                let confirmedBy: [String]
+                let confirmationEvidence: [FoodVerificationEvidence]
                 if BarcodeCorrectionRules.isValidGTIN(candidate) {
-                    confirmedBy = FoodSourceAgreement.agreeingSourceNames(
+                    confirmationEvidence = FoodSourceAgreement.agreeingEvidence(
                         primary: primary,
                         candidates: [("Open Food Facts", matches.openFoodFacts)]
                     )
                 } else {
-                    confirmedBy = []
+                    confirmationEvidence = []
                 }
                 let enriched = FoodMicronutrientEnrichment.enrichExactProduct(
                     primary: primary,
                     with: [matches.openFoodFacts]
                 )
                 return BarcodeFoodLookupResult(
-                    item: enriched.withCrossVerification(confirmedBy),
+                    item: enriched.withCrossVerificationEvidence(confirmationEvidence),
                     source: "usda_barcode",
                     scannedBarcode: trimmedBarcode,
                     matchedBarcode: candidate,
@@ -1412,6 +2101,24 @@ public final class BarcodeFoodLookupService {
                     candidateCount: barcodeCandidates.count
                 )
             }
+        }
+
+        // Supplements have different serving semantics and label provenance, so query NIH only
+        // after the established food providers miss instead of adding latency to every scan.
+        if let item = await supplementService.lookupBarcode(trimmedBarcode) {
+            return BarcodeFoodLookupResult(
+                item: databaseSourcedItem(
+                    item,
+                    sourceType: .nihDSLD,
+                    sourceName: "NIH DSLD",
+                    scannedBarcode: trimmedBarcode,
+                    matchedBarcode: item.sourceMetadata?.barcode ?? trimmedBarcode
+                ),
+                source: "nih_dsld_barcode",
+                scannedBarcode: trimmedBarcode,
+                matchedBarcode: item.sourceMetadata?.barcode ?? trimmedBarcode,
+                candidateCount: barcodeCandidates.count
+            )
         }
 
         // A single community submission is useful recovery evidence, but it is not stronger
@@ -1459,9 +2166,16 @@ public final class BarcodeFoodLookupService {
         if item.sourceMetadata?.sourceType == sourceType,
            let sourceConfidence = item.sourceMetadata?.confidence {
             metadata.confidence = sourceConfidence
+            metadata.evidenceLineage = item.sourceMetadata?.evidenceLineage
+            metadata.sourceObservedAt = item.sourceMetadata?.sourceObservedAt ?? metadata.sourceObservedAt
+            metadata.sourceUpdatedAt = item.sourceMetadata?.sourceUpdatedAt
+            metadata.notes = item.sourceMetadata?.notes
         }
         if scannedBarcode != matchedBarcode {
-            metadata.notes = "Matched using related barcode \(matchedBarcode)."
+            let relatedBarcodeNote = "Matched using related barcode \(matchedBarcode)."
+            metadata.notes = [metadata.notes, relatedBarcodeNote]
+                .compactMap { $0 }
+                .joined(separator: " ")
         }
         return item.withSourceMetadata(metadata)
     }

@@ -1,3 +1,5 @@
+import MyFitPlateCore
+
 import SwiftUI
 
 func dateKey(for date: Date) -> String {
@@ -11,13 +13,6 @@ struct MealPlanSummaryCard: View {
     let meals: [PlannedMeal]
     let goals: GoalSettings
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private var metricColumns: [GridItem] {
-        let columnCount = dynamicTypeSize.isAccessibilitySize ? 2 : 3
-        return Array(repeating: GridItem(.flexible()), count: columnCount)
-    }
-
     private var foodItems: [FoodItem] {
         meals.compactMap(\.foodItem)
     }
@@ -28,14 +23,6 @@ struct MealPlanSummaryCard: View {
 
     private var totalProtein: Double {
         foodItems.reduce(0) { $0 + $1.protein }
-    }
-
-    private var totalCarbs: Double {
-        foodItems.reduce(0) { $0 + $1.carbs }
-    }
-
-    private var totalFats: Double {
-        foodItems.reduce(0) { $0 + $1.fats }
     }
 
     private var calorieGoal: Double {
@@ -58,7 +45,7 @@ struct MealPlanSummaryCard: View {
     }
 
     private var calorieStatusColor: Color {
-        abs(calorieDelta) <= 75 ? .accentPositive : .orange
+        abs(calorieDelta) <= 75 ? .accentPositive : AppPalette.caution
     }
 
     private var dateTitle: String {
@@ -71,82 +58,44 @@ struct MealPlanSummaryCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(dateTitle)'s meal plan")
-                        .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text(date, formatter: DateFormatter.longDate)
-                        .appFont(size: 13, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
-                Image(systemName: "calendar.badge.clock")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.blue)
-                    .frame(width: 38, height: 38)
-                    .background(Color(UIColor.secondarySystemFill), in: Circle())
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "\(dateTitle)'s meal plan",
+                subtitle: DateFormatter.longDate.string(from: date)
+            ) {
+                Text(calorieStatusText)
+                    .appTextRole(.caption)
+                    .foregroundStyle(calorieStatusColor)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(calorieStatusColor.opacity(0.12), in: Capsule())
             }
 
-            LazyVGrid(columns: metricColumns, spacing: 10) {
-                MealPlanMetric(title: "Meals", value: meals.count.formatted(), color: .blue)
-                MealPlanMetric(title: "Calories", value: "\(Int(totalCalories.rounded()).formatted()) cal", color: .orange)
-                MealPlanMetric(title: "Protein", value: "\(Int(totalProtein.rounded()).formatted()) g", color: .accentProtein)
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Daily fit")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Spacer()
-
-                    Text(calorieStatusText)
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(calorieStatusColor)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(calorieStatusColor.opacity(0.12), in: Capsule())
-                }
-
-                MealPlanProgressRow(
-                    title: "Calories",
-                    value: totalCalories,
-                    goal: calorieGoal,
-                    unit: "cal",
-                    color: .orange
+            AppMetricStrip(items: [
+                AppMetricItem(label: "Meals", value: meals.count.formatted(), accent: AppPalette.brand),
+                AppMetricItem(
+                    label: "Calories",
+                    value: "\(Int(totalCalories.rounded()).formatted()) cal",
+                    accent: AppPalette.energy
+                ),
+                AppMetricItem(
+                    label: "Protein",
+                    value: "\(Int(totalProtein.rounded()).formatted()) g",
+                    accent: .accentProtein
                 )
-                MealPlanProgressRow(
-                    title: "Protein",
-                    value: totalProtein,
-                    goal: max(goals.protein, 1),
-                    unit: "g",
-                    color: .accentProtein
-                )
-                MealPlanProgressRow(
-                    title: "Carbs",
-                    value: totalCarbs,
-                    goal: max(goals.carbs, 1),
-                    unit: "g",
-                    color: .accentCarbs
-                )
-                MealPlanProgressRow(
-                    title: "Fats",
-                    value: totalFats,
-                    goal: max(goals.fats, 1),
-                    unit: "g",
-                    color: .accentFats
-                )
-            }
-            .padding(12)
-            .background(Color.backgroundPrimary.opacity(0.58), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            ])
+
+            MealPlanProgressRow(
+                title: "Planned calories",
+                value: totalCalories,
+                goal: calorieGoal,
+                unit: "cal",
+                color: AppPalette.energy
+            )
         }
-        .asCard()
+        .padding(.vertical, AppSpacing.compact)
+        .overlay(alignment: .bottom) { Divider() }
+        .accessibilityIdentifier("meal_plan_summary")
     }
 }
 
@@ -165,14 +114,15 @@ struct MealPlanProgressRow: View {
         VStack(spacing: 6) {
             HStack {
                 Text(title)
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
 
                 Spacer()
 
                 Text("\(Int(value.rounded()).formatted()) / \(Int(goal.rounded()).formatted()) \(unit)")
-                    .appFont(size: 12, weight: .bold)
-                    .foregroundColor(.textPrimary)
+                    .appTextRole(.secondary)
+                    .foregroundStyle(AppPalette.text)
+                    .monospacedDigit()
             }
 
             GeometryReader { geometry in
@@ -187,36 +137,6 @@ struct MealPlanProgressRow: View {
             }
             .frame(height: 7)
         }
-    }
-}
-
-struct MealPlanMetric: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(value)
-                .appFont(size: 19, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-
-            HStack(spacing: 5) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 6, height: 6)
-
-                Text(title)
-                    .appFont(size: 11, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(1)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(Color.backgroundPrimary.opacity(0.58), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -247,28 +167,17 @@ struct WeeklyPlanOverviewCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Week at a glance")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text(plannedDays == 0 ? "No meals planned yet." : "\(plannedDays) planned \(plannedDays == 1 ? "day" : "days").")
-                        .appFont(size: 13, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Spacer()
-
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            AppSectionHeader(
+                title: "Week at a glance",
+                subtitle: plannedDays == 0
+                    ? "No meals planned yet."
+                    : "\(plannedDays) planned \(plannedDays == 1 ? "day" : "days")."
+            ) {
                 Button(action: onOpenGrocery) {
                     Image(systemName: "list.bullet.clipboard")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(width: 38, height: 38)
-                        .background(Color(UIColor.secondarySystemFill), in: Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppIconButtonStyle(.neutral))
                 .accessibilityLabel("Open grocery list")
             }
 
@@ -278,33 +187,35 @@ struct WeeklyPlanOverviewCard: View {
                         .fill(Color.primary.opacity(0.08))
 
                     Capsule()
-                        .fill(plannedDays >= 7 ? Color.accentPositive : Color.blue)
+                        .fill(plannedDays >= 7 ? AppPalette.positive : AppPalette.effort)
                         .frame(width: geometry.size.width * progress)
                 }
             }
             .frame(height: 8)
 
-            HStack(spacing: 10) {
-                MealPlanMetric(title: "Days", value: plannedDays == 1 ? "1 day" : "\(plannedDays) days", color: .blue)
-                MealPlanMetric(title: "Meals", value: mealCount.formatted(), color: .purple)
-                MealPlanMetric(
-                    title: "Avg calories",
-                    value: averageCalories > 0 ? "\(Int(averageCalories.rounded()).formatted()) cal/day" : "--",
-                    color: .orange
+            AppMetricStrip(items: [
+                AppMetricItem(
+                    label: "Days",
+                    value: plannedDays == 1 ? "1 day" : "\(plannedDays) days",
+                    accent: AppPalette.brand
+                ),
+                AppMetricItem(label: "Meals", value: mealCount.formatted(), accent: AppPalette.effort),
+                AppMetricItem(
+                    label: "Avg calories",
+                    value: averageCalories > 0 ? "\(Int(averageCalories.rounded()).formatted()) cal" : "--",
+                    accent: AppPalette.energy
                 )
-            }
+            ])
 
             if plannedDays > 0 {
                 Button(action: onStartMealPrep) {
                     Label("Start meal prep", systemImage: "flame.fill")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(SecondaryButtonStyle())
-                .tint(.orange)
+                .buttonStyle(AppActionButtonStyle(.secondary))
             }
         }
-        .padding(16)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.vertical, AppSpacing.compact)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
@@ -315,16 +226,16 @@ struct MealPlanLoadingState: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.gray.opacity(0.3))
+                    .fill(AppPalette.control)
                     .frame(width: 42, height: 42)
                 
                 VStack(alignment: .leading, spacing: 8) {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.gray.opacity(0.3))
+                        .fill(AppPalette.control)
                         .frame(width: 80, height: 14)
                     
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.gray.opacity(0.3))
+                        .fill(AppPalette.control)
                         .frame(width: 140, height: 20)
 
                     Text(message)
@@ -336,12 +247,13 @@ struct MealPlanLoadingState: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(0..<4, id: \.self) { _ in
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.gray.opacity(0.3))
+                        .fill(AppPalette.control)
                         .frame(height: 48)
                 }
             }
         }
-        .asCard()
+        .padding(.vertical, AppSpacing.group)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
@@ -353,33 +265,34 @@ struct MealPlannerEmptyState: View {
         VStack(spacing: 16) {
             Image(systemName: "wand.and.stars")
                 .appFont(size: 32, weight: .semibold)
-                .foregroundColor(.orange)
+                .foregroundStyle(AppPalette.brandText)
                 .frame(width: 68, height: 68)
-                .background(Color(UIColor.secondarySystemFill), in: Circle())
+                .background(AppPalette.control, in: Circle())
 
             VStack(spacing: 5) {
                 Text("No plan for this day yet")
-                    .appFont(size: 22, weight: .bold)
-                    .foregroundColor(.textPrimary)
+                    .appTextRole(.sectionTitle)
+                    .foregroundStyle(AppPalette.text)
 
                 Text("Generate a weekly plan from your goals and preferences, or place a saved recipe into this day manually.")
-                    .appFont(size: 14)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
+                    .appTextRole(.body)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(spacing: 10) {
                 Button("Generate meal plan", action: onGenerate)
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(AppActionButtonStyle(.primary))
 
                 Button("Add saved recipe", action: onAddRecipe)
-                    .buttonStyle(SecondaryButtonStyle())
+                    .buttonStyle(AppActionButtonStyle(.secondary))
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 34)
-        .asCard()
+        .padding(.vertical, AppSpacing.group)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
@@ -391,6 +304,8 @@ struct MealCardView: View {
     var onRegenerate: () -> Void
     var onDelete: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private var displayName: String {
         meal.foodItem?.name ?? "Unnamed meal"
     }
@@ -400,7 +315,7 @@ struct MealCardView: View {
     }
 
     private var sourceColor: Color {
-        meal.recipeID == nil ? .orange : .blue
+        meal.recipeID == nil ? AppPalette.caution : AppPalette.effort
     }
 
     private var mealIcon: String {
@@ -419,19 +334,20 @@ struct MealCardView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppSpacing.group) {
+            HStack(alignment: .top, spacing: AppSpacing.row) {
                 Image(systemName: mealIcon)
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.orange)
+                    .foregroundStyle(AppPalette.caution)
                     .frame(width: 42, height: 42)
-                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(meal.mealType)
-                            .appFont(size: 12, weight: .bold)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .appTextRole(.caption)
+                            .foregroundStyle(.secondary)
                             .textCase(.uppercase)
 
                         Text(sourceLabel)
@@ -443,8 +359,8 @@ struct MealCardView: View {
                     }
 
                     Text(displayName)
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                        .appTextRole(.sectionTitle)
+                        .foregroundStyle(AppPalette.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -453,20 +369,23 @@ struct MealCardView: View {
                 Button(role: .destructive, action: onDelete) {
                     Image(systemName: "trash")
                         .appFont(size: 14, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .frame(width: 34, height: 34)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Remove \(displayName) from meal plan")
             }
 
             if let foodItem = meal.foodItem {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    nutrientPill(label: "Cal", valueText: "\(Int(foodItem.calories.rounded()).formatted()) cal", color: .orange)
-                    nutrientPill(label: "Protein", valueText: "\(Int(foodItem.protein.rounded()).formatted()) g", color: .accentProtein)
-                    nutrientPill(label: "Carbs", valueText: "\(Int(foodItem.carbs.rounded()).formatted()) g", color: .accentCarbs)
-                    nutrientPill(label: "Fats", valueText: "\(Int(foodItem.fats.rounded()).formatted()) g", color: .accentFats)
-                }
+                Text(
+                    "\(Int(foodItem.calories.rounded()).formatted()) cal  ·  " +
+                    "\(Int(foodItem.protein.rounded()).formatted())g protein  ·  " +
+                    "\(Int(foodItem.carbs.rounded()).formatted())g carbs  ·  " +
+                    "\(Int(foodItem.fats.rounded()).formatted())g fat"
+                )
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             if let ingredients = meal.ingredients, let instructions = meal.instructions, !ingredients.isEmpty, !instructions.isEmpty {
@@ -485,129 +404,200 @@ struct MealCardView: View {
                     }
                     .padding(.top, 8)
                 }
-                .tint(.blue)
+                .tint(AppPalette.effort)
             }
 
-            HStack(spacing: 10) {
-                Button(action: { onLog(meal) }) {
-                    Label(isLogged ? "Logged" : "Log meal", systemImage: isLogged ? "checkmark.circle.fill" : "plus.circle.fill")
-                }
-                .buttonStyle(.bordered)
-                .tint(isLogged ? .accentPositive : .brandPrimary)
-                .disabled(isLogged)
-
-                Button(action: onRegenerate) {
-                    if isRegenerating {
-                        ProgressView()
-                            .tint(Color(UIColor.secondaryLabel))
-                    } else {
-                        Label("Regenerate", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                }
-                .buttonStyle(.bordered)
-                .tint(Color(UIColor.secondaryLabel))
-                .disabled(isRegenerating)
-            }
-            .padding(.top, 5)
+            mealActions
 
         }
-        .asCard()
+        .padding(.vertical, AppSpacing.compact)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     @ViewBuilder
-    private func nutrientPill(label: String, valueText: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .appFont(size: 10, weight: .bold)
-                .foregroundColor(color)
-            Text(valueText)
-                .appFont(size: 13, weight: .bold)
-                .foregroundColor(.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+    private var mealActions: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: AppSpacing.compact) {
+                mealActionButtons
+            }
+        } else {
+            HStack(spacing: AppSpacing.compact) {
+                mealActionButtons
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var mealActionButtons: some View {
+        Button(action: { onLog(meal) }) {
+            Label(
+                isLogged ? "Logged" : "Log meal",
+                systemImage: isLogged ? "checkmark.circle.fill" : "plus.circle.fill"
+            )
+        }
+        .buttonStyle(AppActionButtonStyle(.secondary))
+        .disabled(isLogged)
+
+        Button(action: onRegenerate) {
+            if isRegenerating {
+                ProgressView()
+            } else {
+                Label("Regenerate", systemImage: "arrow.triangle.2.circlepath")
+            }
+        }
+        .buttonStyle(AppActionButtonStyle(.ghost))
+        .disabled(isRegenerating)
     }
 }
 
-struct WeekView: View {
+struct MealPlanWeekStrip: View {
     @Binding var selectedDate: Date
     let mealCountsByDay: [String: Int]
-    @Namespace private var animationNamespace
-    let calendar = Calendar.current
 
+    @Namespace private var animationNamespace
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private let calendar = Calendar.current
+
+    @ViewBuilder
     var body: some View {
         let today = calendar.startOfDay(for: Date())
         let dates = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
 
-        HStack(spacing: 8) {
-            ForEach(dates, id: \.self) { date in
-                let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
-                let isToday = calendar.isDateInToday(date)
-                let mealCount = mealCountsByDay[dateKey(for: date)] ?? 0
-
-                VStack(spacing: 7) {
-                    Text(dayOfWeek(for: date))
-                        .appFont(size: 11, weight: .semibold)
-                        .foregroundColor(isSelected ? .blue : Color(UIColor.secondaryLabel))
-
-                    Text(dayOfMonth(for: date))
-                        .appFont(size: 17, weight: .bold)
-                        .frame(width: 34, height: 34)
-                        .background(
-                            Group {
-                                if isSelected {
-                                    Circle()
-                                        .fill(Color.blue)
-                                        .matchedGeometryEffect(id: "selectedDay", in: animationNamespace)
-                                } else {
-                                    Circle().fill(Color.clear)
-                                }
-                            }
+        if dynamicTypeSize.isAccessibilitySize {
+            accessibilityDayPicker(dates)
+        } else {
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 6) {
+                    ForEach(dates, id: \.self) { date in
+                        dayButton(
+                            date,
+                            isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
+                            isToday: calendar.isDateInToday(date),
+                            mealCount: mealCountsByDay[dateKey(for: date)] ?? 0
                         )
-                        .foregroundColor(isSelected ? .white : .textPrimary)
-
-                    if mealCount > 0 {
-                        Text("\(mealCount)")
-                            .appFont(size: 10, weight: .bold)
-                            .foregroundColor(isSelected ? .blue : Color(UIColor.secondaryLabel))
-                            .frame(width: 26, height: 16)
-                            .background(
-                                (isSelected ? Color.blue.opacity(0.14) : Color(UIColor.secondarySystemFill)),
-                                in: Capsule()
-                            )
-                    } else if isToday {
-                        Capsule()
-                            .fill(isSelected ? Color.blue.opacity(0.2) : Color.brandPrimary.opacity(0.18))
-                            .frame(width: 26, height: 4)
-                    } else {
-                        Capsule()
-                            .fill(Color.clear)
-                            .frame(width: 26, height: 16)
+                        .id(date)
                     }
                 }
-                .frame(maxWidth: .infinity, minHeight: 82)
-                .background(isSelected ? Color.blue.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedDate = date }
-                    HapticManager.instance.feedback(.light)
-                }
+                .padding(.vertical, 2)
             }
+            .scrollIndicators(.hidden)
+            .accessibilityIdentifier("meal_plan_week")
         }
-        .padding(10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.14), lineWidth: 1)
-        )
     }
 
-    private func dayOfWeek(for date: Date) -> String { let formatter = DateFormatter(); formatter.dateFormat = "EEE"; return formatter.string(from: date) }
-    private func dayOfMonth(for date: Date) -> String { let formatter = DateFormatter(); formatter.dateFormat = "d"; return formatter.string(from: date) }
+    private func dayButton(_ date: Date, isSelected: Bool, isToday: Bool, mealCount: Int) -> some View {
+        Button {
+            withAnimation(AppMotion.standard) { selectedDate = date }
+            HapticManager.instance.feedback(.light)
+        } label: {
+            dayLabel(date, isSelected: isSelected, isToday: isToday, mealCount: mealCount)
+            .frame(width: 40)
+            .frame(minHeight: 82)
+            .background(
+                isSelected ? AppPalette.control : Color.clear,
+                in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel(for: date, mealCount: mealCount, isSelected: isSelected))
+    }
+
+    @ViewBuilder
+    private func dayLabel(_ date: Date, isSelected: Bool, isToday: Bool, mealCount: Int) -> some View {
+        VStack(spacing: 6) {
+            Text(dayOfWeek(for: date))
+                .appTextRole(.caption)
+                .foregroundStyle(isSelected ? AppPalette.brandText : Color.secondary)
+
+            Text(dayOfMonth(for: date))
+                .appTextRole(.control)
+                .foregroundStyle(isSelected ? AppPalette.onBrand : AppPalette.text)
+                .frame(width: 34, height: 34)
+                .background {
+                    if isSelected {
+                        Circle()
+                            .fill(AppPalette.brand)
+                            .matchedGeometryEffect(id: "selectedMealPlanDay", in: animationNamespace)
+                    }
+                }
+
+            HStack(spacing: 3) {
+                Circle()
+                    .fill(mealCount > 0 ? AppPalette.brand : Color.clear)
+                    .frame(width: 5, height: 5)
+
+                Text(mealCount > 0 ? "\(mealCount)" : (isToday ? "Today" : " "))
+                    .appTextRole(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(height: 16)
+        }
+    }
+
+    private func accessibilityDayPicker(_ dates: [Date]) -> some View {
+        Menu {
+            ForEach(dates, id: \.self) { date in
+                Button {
+                    selectedDate = date
+                    HapticManager.instance.feedback(.light)
+                } label: {
+                    let mealCount = mealCountsByDay[dateKey(for: date)] ?? 0
+                    Label(
+                        "\(dayOfWeek(for: date)) \(monthAndDay(for: date)) · \(mealCount) \(mealCount == 1 ? "meal" : "meals")",
+                        systemImage: calendar.isDate(date, inSameDayAs: selectedDate)
+                            ? "checkmark.circle.fill"
+                            : "circle"
+                    )
+                }
+            }
+        } label: {
+            let mealCount = mealCountsByDay[dateKey(for: selectedDate)] ?? 0
+            AppListRow(
+                icon: "calendar",
+                iconColor: AppPalette.brand,
+                title: selectedDate.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()),
+                subtitle: mealCount == 1 ? "1 planned meal" : "\(mealCount) planned meals"
+            ) {
+                Image(systemName: "chevron.up.chevron.down")
+                    .appTextRole(.control)
+                    .foregroundStyle(.secondary)
+            }
+            .appSurface(.quiet, padding: 0)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Meal plan day")
+        .accessibilityValue(accessibilityLabel(
+            for: selectedDate,
+            mealCount: mealCountsByDay[dateKey(for: selectedDate)] ?? 0,
+            isSelected: true
+        ))
+        .accessibilityIdentifier("meal_plan_week")
+    }
+
+    private func accessibilityLabel(for date: Date, mealCount: Int, isSelected: Bool) -> String {
+        let mealText = mealCount == 1 ? "1 planned meal" : "\(mealCount) planned meals"
+        return "\(dayOfWeek(for: date)) \(monthAndDay(for: date)), \(mealText)\(isSelected ? ", selected" : "")"
+    }
+
+    private func dayOfWeek(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: date)
+    }
+
+    private func dayOfMonth(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter.string(from: date)
+    }
+
+    private func monthAndDay(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: date)
+    }
 }
 
 extension DateFormatter {

@@ -1,6 +1,5 @@
-import MyFitPlateCore
-
 import SwiftUI
+import MyFitPlateCore
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
@@ -76,94 +75,97 @@ struct SettingsView: View {
     @State private var showingResetTourConfirmation = false
     @State private var isDeletingAccount = false
     @State private var showingAIDataConsent = false
+    @State private var didPresentScreenshotDestination = false
 
     var body: some View {
-        Group {
-        ZStack {
-            AnimatedBackgroundView()
-            
-            ScrollView {
-                VStack(spacing: 24) {
-                    SettingsHeaderCard(
-                        calorieGoal: goalSettings.calories,
-                        waterGoal: goalSettings.waterGoal,
-                        heightText: useMetricBodyUnits ? "\(Int(goalSettings.height.rounded())) cm" : "\(goalSettings.getHeightInFeetAndInches().feet)'\(goalSettings.getHeightInFeetAndInches().inches)\""
-                    )
+        ScrollView {
+            LazyVStack(spacing: AppSpacing.section) {
+                SettingsHeaderCard(
+                    calorieGoal: goalSettings.calories,
+                    waterGoal: goalSettings.waterGoal,
+                    heightText: useMetricBodyUnits ? "\(Int(goalSettings.height.rounded())) cm" : "\(goalSettings.getHeightInFeetAndInches().feet)'\(goalSettings.getHeightInFeetAndInches().inches)\""
+                )
 
-                    SettingsAppearanceSection(
-                        useMetricBodyUnits: $useMetricBodyUnits
-                    )
-                    
-                    SettingsPreferencesSection(
-                        includeActiveCaloriesInGoal: $includeActiveCaloriesInGoal,
-                        hydrationRemindersEnabled: $hydrationRemindersEnabled,
-                        weighInReminderEnabled: $weighInReminderEnabled,
-                        notificationTimeBinding: notificationTimeBinding,
-                        preSessionFuelRemindersEnabled: $preSessionFuelRemindersEnabled,
-                        recoveryFuelRemindersEnabled: $recoveryFuelRemindersEnabled,
-                        eveningProteinRemindersEnabled: $eveningProteinRemindersEnabled,
-                        quietStartBinding: trainingFuelQuietStartBinding,
-                        quietEndBinding: trainingFuelQuietEndBinding,
-                        eveningProteinTimeBinding: eveningProteinReminderBinding
-                    )
+                SettingsAccountSection(
+                    showCaloricCalculator: $showCaloricCalculator,
+                    feetInput: $feetInput,
+                    inchesInput: $inchesInput,
+                    showHeightEditor: $showHeightEditor,
+                    waterGoalInput: $waterGoalInput,
+                    showingWaterGoalSheet: $showingWaterGoalSheet
+                )
 
-                    SettingsAccountSection(
-                        showCaloricCalculator: $showCaloricCalculator,
-                        feetInput: $feetInput,
-                        inchesInput: $inchesInput,
-                        showHeightEditor: $showHeightEditor,
-                        waterGoalInput: $waterGoalInput,
-                        showingWaterGoalSheet: $showingWaterGoalSheet
-                    )
-                    
-                    SettingsSupportSection(
-                        showingHealthDisclaimer: $showingHealthDisclaimer,
-                        showingResetTourConfirmation: $showingResetTourConfirmation,
-                        showingAIDataConsent: $showingAIDataConsent,
-                        showingSignOutAlert: $showingSignOutAlert,
-                        showingDeleteAccountAlert: $showingDeleteAccountAlert,
-                        isDeletingAccount: isDeletingAccount
-                    )
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 24)
+                SettingsAppearanceSection(
+                    useMetricBodyUnits: $useMetricBodyUnits
+                )
+
+                SettingsPreferencesSection(
+                    includeActiveCaloriesInGoal: $includeActiveCaloriesInGoal,
+                    hydrationRemindersEnabled: $hydrationRemindersEnabled,
+                    weighInReminderEnabled: $weighInReminderEnabled,
+                    notificationTimeBinding: notificationTimeBinding,
+                    preSessionFuelRemindersEnabled: $preSessionFuelRemindersEnabled,
+                    recoveryFuelRemindersEnabled: $recoveryFuelRemindersEnabled,
+                    eveningProteinRemindersEnabled: $eveningProteinRemindersEnabled,
+                    quietStartBinding: trainingFuelQuietStartBinding,
+                    quietEndBinding: trainingFuelQuietEndBinding,
+                    eveningProteinTimeBinding: eveningProteinReminderBinding
+                )
+
+                SettingsSupportSection(
+                    showingHealthDisclaimer: $showingHealthDisclaimer,
+                    showingResetTourConfirmation: $showingResetTourConfirmation,
+                    showingAIDataConsent: $showingAIDataConsent,
+                    showingSignOutAlert: $showingSignOutAlert,
+                    showingDeleteAccountAlert: $showingDeleteAccountAlert,
+                    isDeletingAccount: isDeletingAccount
+                )
             }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.group)
         }
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .accessibilityIdentifier("settings_screen")
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Done") { showSettings = false } } }
-        .tint(.blue)
-        // Sheets
-        .sheet(isPresented: $showCaloricCalculator) { CaloricCalculatorView().environmentObject(goalSettings) }
-        .sheet(isPresented: $showHeightEditor) { 
-            SetHeightView(feetInput: $feetInput, inchesInput: $inchesInput, onSave: updateHeight)
-                .environmentObject(goalSettings) 
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { showSettings = false }
+                    .disabled(isDeletingAccount)
+            }
         }
-        .sheet(isPresented: $showingWaterGoalSheet) { 
+        .tint(AppPalette.brand)
+        .interactiveDismissDisabled(isDeletingAccount)
+        .sheet(isPresented: $showCaloricCalculator) {
+            CaloricCalculatorView()
+                .environmentObject(goalSettings)
+        }
+        .sheet(isPresented: $showHeightEditor) {
+            SetHeightView(feetInput: $feetInput, inchesInput: $inchesInput, onSave: updateHeight)
+                .environmentObject(goalSettings)
+        }
+        .sheet(isPresented: $showingWaterGoalSheet) {
             SetWaterGoalView(waterGoalInput: $waterGoalInput, onSave: updateWaterGoal)
-                .environmentObject(goalSettings) 
+                .environmentObject(goalSettings)
         }
         .sheet(isPresented: $showingHealthDisclaimer) {
-            NavigationView {
-                HealthDisclaimerView()
-            }
+            HealthDisclaimerView()
         }
         .sheet(isPresented: $showingAIDataConsent) {
             AIDataConsentSheet()
         }
-        }
-        // Alerts
+        .onAppear(perform: presentScreenshotDestinationIfNeeded)
         .alert("Sign out", isPresented: $showingSignOutAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Sign out", role: .destructive) { appState.signOut() }
         } message: {
-            Text("Are you sure you want to sign out?")
+            Text("This signs out on this iPhone and clears account details from widgets and Apple Watch. Your cloud data stays saved and returns when you sign in again.")
         }
         .alert("Delete account", isPresented: $showingDeleteAccountAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { DispatchQueue.main.async { showingReauthForDelete = true } }
         } message: {
-            Text("Are you sure you want to delete your account? This will permanently delete your profile, logs, recipes, workouts, and account data. This cannot be undone.")
+            Text("After password confirmation, MyFitPlate will permanently remove your profile, logs, recipes, workouts, cloud data, and sign-in. Keep the app open until deletion finishes. This cannot be undone.")
         }
         .modifier(DeleteAccountAlerts(
             showingReauthForDelete: $showingReauthForDelete,
@@ -182,6 +184,32 @@ struct SettingsView: View {
         } message: {
             Text("Closes Settings and plays the guided tips again from the Home screen.")
         }
+    }
+
+    private func presentScreenshotDestinationIfNeeded() {
+        #if DEBUG
+        guard ScreenshotDemoMode.isEnabled, !didPresentScreenshotDestination else { return }
+        didPresentScreenshotDestination = true
+
+        switch ScreenshotDemoData.requestedScreen {
+        case "settings-goals":
+            showCaloricCalculator = true
+        case "settings-height":
+            let currentHeight = goalSettings.getHeightInFeetAndInches()
+            feetInput = "\(currentHeight.feet)"
+            inchesInput = "\(currentHeight.inches)"
+            showHeightEditor = true
+        case "settings-water":
+            waterGoalInput = "\(Int(goalSettings.waterGoal.rounded()))"
+            showingWaterGoalSheet = true
+        case "settings-disclaimer":
+            showingHealthDisclaimer = true
+        case "settings-ai-data":
+            showingAIDataConsent = true
+        default:
+            break
+        }
+        #endif
     }
 
     private func minuteOfDayBinding(
@@ -217,7 +245,7 @@ struct SettingsView: View {
         if let goalValue = Double(waterGoalInput), goalValue > 0 {
             goalSettings.waterGoal = goalValue
             if let userID = DIContainer.shared.authService.currentUserID { goalSettings.saveUserGoals(userID: userID) }
-             if var currentLog = goalSettings.dailyLogService?.currentDailyLog {
+            if var currentLog = goalSettings.dailyLogService?.currentDailyLog {
                 if var waterTracker = currentLog.waterTracker {
                     waterTracker.goalOunces = goalValue
                     currentLog.waterTracker = waterTracker
@@ -256,7 +284,7 @@ struct SettingsView: View {
             } catch {
                 await MainActor.run {
                     isDeletingAccount = false
-                    deleteErrorMessage = error.localizedDescription
+                    deleteErrorMessage = "\(error.localizedDescription)\n\nNo additional deletion is assumed. Try again, or contact \(MyFitPlateLinks.supportEmailAddress) if the problem continues."
                     DIContainer.shared.analyticsManager?.logEvent(
                         ProductAnalytics.Event.accountDeletionFailed.rawValue,
                         parameters: [
@@ -269,10 +297,11 @@ struct SettingsView: View {
     }
 
     private func clearLocalAccountData(userID: String) {
+        TTSManager.shared.clearCachedSpeech(for: userID)
         let defaults = UserDefaults.standard
         if let bundleIdentifier = Bundle.main.bundleIdentifier {
             defaults.removePersistentDomain(forName: bundleIdentifier)
         }
-        SharedDataManager.shared.clearWidgetData()
+        EcosystemSyncManager.shared.clearAccountWidgetData()
     }
 }

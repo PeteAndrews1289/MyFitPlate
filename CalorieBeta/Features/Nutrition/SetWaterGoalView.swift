@@ -1,106 +1,129 @@
 import SwiftUI
 
 struct SetWaterGoalView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject var goalSettings: GoalSettings
     @Binding var waterGoalInput: String
+    @FocusState private var inputIsFocused: Bool
     var onSave: () -> Void
 
-    let presetGoals = [64, 80, 100, 128]
+    private let presetGoals = [64, 80, 100, 128]
 
     var body: some View {
-        ZStack {
-            AnimatedBackgroundView()
-            
-            VStack(spacing: 24) {
-                ZStack {
-                    Circle()
-                        .fill(Color(UIColor.secondarySystemFill))
-                        .frame(width: 100, height: 100)
-                    
-                    Image(systemName: "drop.fill")
-                        .appFont(size: 44, weight: .bold)
-                        .foregroundColor(.cyan)
-                }
-                .padding(.top, 24)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    AppScreenHeader(
+                        eyebrow: "Hydration",
+                        title: "Daily Water Goal",
+                        subtitle: "Choose a target that matches the amount you want to track each day."
+                    )
 
-                VStack(spacing: 8) {
-                    Text("Daily water goal")
-                        .appFont(size: 21, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                    
-                    Text("Set your daily hydration target to feel your best.")
-                        .appFont(size: 15)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                }
+                    VStack(alignment: .leading, spacing: AppSpacing.row) {
+                        AppSectionHeader(
+                            title: "Target",
+                            subtitle: "Enter fluid ounces or choose a common target."
+                        )
 
-                HStack(alignment: .bottom, spacing: 8) {
-                    TextField("0", text: $waterGoalInput)
-                        .keyboardType(.numberPad)
-                        .appFont(size: 54, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .multilineTextAlignment(.center)
-                        .frame(width: 120)
-                        .padding(.bottom, -8)
+                        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.compact) {
+                            TextField("0", text: $waterGoalInput)
+                                .keyboardType(.numberPad)
+                                .appTextRole(.metric)
+                                .foregroundStyle(AppPalette.text)
+                                .monospacedDigit()
+                                .focused($inputIsFocused)
 
-                    Text("oz")
-                        .appFont(size: 20, weight: .bold)
-                        .foregroundColor(.cyan)
-                        .padding(.bottom, 6)
-                }
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white.opacity(0.15), lineWidth: 1))
-                .padding(.horizontal, 40)
+                            Text("oz")
+                                .appTextRole(.control)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(AppSpacing.group)
+                        .background(
+                            AppPalette.control,
+                            in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                                .stroke(AppPalette.separator, lineWidth: 1)
+                        }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Quick select")
-                        .appFont(size: 14, weight: .semibold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .padding(.horizontal, 32)
-                    
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(presetGoals, id: \.self) { preset in
-                                Button(action: {
-                                    withAnimation {
-                                        waterGoalInput = "\(preset)"
-                                    }
-                                }) {
+                        if dynamicTypeSize.isAccessibilitySize {
+                            Picker("Common target", selection: presetSelection) {
+                                ForEach(presetGoals, id: \.self) { preset in
                                     Text("\(preset.formatted()) oz")
-                                        .appFont(size: 15, weight: .semibold)
-                                        .foregroundColor(waterGoalInput == "\(preset)" ? .white : .cyan)
-                                        .padding(.vertical, 10)
-                                        .padding(.horizontal, 20)
-                                        .background(
-                                            waterGoalInput == "\(preset)" ? Color.cyan : Color.cyan.opacity(0.15),
-                                            in: Capsule()
-                                        )
+                                        .tag(Optional(preset))
                                 }
                             }
+                            .pickerStyle(.menu)
+                        } else {
+                            Picker("Common target", selection: presetSelection) {
+                                ForEach(presetGoals, id: \.self) { preset in
+                                    Text(preset.formatted())
+                                        .tag(Optional(preset))
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .accessibilityLabel("Common water target")
                         }
-                        .padding(.horizontal, 32)
                     }
                 }
-                .padding(.top, 8)
-
-                Spacer()
-
-                Button(action: {
-                    self.onSave()
-                }) {
-                    Text("Save goal")
-                        .appFont(size: 17, weight: .bold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.cyan, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .foregroundColor(.white)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.vertical, AppSpacing.group)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Water Goal")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 34)
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { inputIsFocused = false }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button("Save Goal") {
+                    inputIsFocused = false
+                    onSave()
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(!hasValidGoal)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.row)
+                .padding(.bottom, AppSpacing.compact)
+                .background(AppPalette.canvas.opacity(0.98).ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AppPalette.separator)
+                        .frame(height: 1)
+                }
+                .accessibilityIdentifier("settings_water_save")
             }
         }
+        .tint(AppPalette.brand)
+        .background(AppPalette.canvas.ignoresSafeArea())
+        .accessibilityIdentifier("settings_water_screen")
+    }
+
+    private var presetSelection: Binding<Int?> {
+        Binding(
+            get: {
+                guard let value = Int(waterGoalInput), presetGoals.contains(value) else { return nil }
+                return value
+            },
+            set: { value in
+                guard let value else { return }
+                waterGoalInput = "\(value)"
+            }
+        )
+    }
+
+    private var hasValidGoal: Bool {
+        guard let value = Double(waterGoalInput) else { return false }
+        return (1...512).contains(value)
     }
 }

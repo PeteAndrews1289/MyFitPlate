@@ -26,7 +26,7 @@ separate decision and `feature_communityBarcodeCorrections` stays off by default
   both Firestore Rules and the app parser.
 - Established sources and the user's own saved correction remain ahead of community data in the
   lookup chain. A community match stays capped at the Review Trust band and is not described as
-  independent database verification.
+  database corroboration.
 
 ## Validation and consensus
 

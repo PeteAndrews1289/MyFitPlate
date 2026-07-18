@@ -19,7 +19,7 @@ final class FoodTrustCalibrationTelemetryTests: XCTestCase {
         )
 
         XCTAssertEqual(context.source, "usda")
-        XCTAssertEqual(context.evidenceClass, "independent_cross_verification")
+        XCTAssertEqual(context.evidenceClass, "cross_database_agreement")
         XCTAssertEqual(context.crossVerifiedCount, 1)
         XCTAssertEqual(context.servingEvidence, "comparable")
         XCTAssertEqual(context.sanityProfile, "none")
@@ -39,6 +39,38 @@ final class FoodTrustCalibrationTelemetryTests: XCTestCase {
         XCTAssertNil(parameters["protein"])
         XCTAssertNil(parameters["barcode"])
         XCTAssertNil(parameters["food_id"])
+    }
+
+    func testSpecialistSourcesRetainTheirActualEvidenceClassAndServingSemantics() {
+        let canadaMetadata = FoodSourceMetadata.database(
+            .healthCanadaCNF,
+            sourceName: "Health Canada CNF",
+            sourceID: "cnf_1",
+            evidenceLineage: .governmentCompilation
+        )
+        let canadaContext = FoodTrustCalibrationContext(
+            item: food(metadata: canadaMetadata),
+            descriptor: FoodSourceClassifier.descriptor(for: canadaMetadata),
+            metadata: canadaMetadata
+        )
+        XCTAssertEqual(canadaContext.evidenceClass, "government_reference")
+        XCTAssertEqual(canadaContext.servingEvidence, "comparable")
+
+        let supplementMetadata = FoodSourceMetadata.database(
+            .nihDSLD,
+            sourceName: "NIH DSLD",
+            sourceID: "dsld_1",
+            evidenceLineage: .manufacturerLabel
+        )
+        var supplement = food(metadata: supplementMetadata)
+        supplement.servingWeight = 0
+        let supplementContext = FoodTrustCalibrationContext(
+            item: supplement,
+            descriptor: FoodSourceClassifier.descriptor(for: supplementMetadata),
+            metadata: supplementMetadata
+        )
+        XCTAssertEqual(supplementContext.evidenceClass, "manufacturer_label")
+        XCTAssertEqual(supplementContext.servingEvidence, "label_serving")
     }
 
     func testContextClassifiesEstimateAndWarningProfile() {

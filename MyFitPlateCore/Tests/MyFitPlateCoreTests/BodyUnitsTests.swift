@@ -17,4 +17,33 @@ final class BodyUnitsTests: XCTestCase {
     func testHeightConversionFromFeetAndInchesToCentimeters() {
         XCTAssertEqual(BodyUnits.cm(feet: 5, inches: 10), 177.8, accuracy: 0.001)
     }
+
+    func testMetricPreferenceUsesLocaleWhenNoPreferenceIsStored() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: #function))
+        defaults.removePersistentDomain(forName: #function)
+        defer { defaults.removePersistentDomain(forName: #function) }
+
+        XCTAssertTrue(
+            BodyUnits.prefersMetric(defaults: defaults, locale: Locale(identifier: "fr_FR"))
+        )
+        XCTAssertFalse(
+            BodyUnits.prefersMetric(defaults: defaults, locale: Locale(identifier: "en_US"))
+        )
+    }
+
+    func testStoredMetricPreferenceOverridesLocale() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: #function))
+        defaults.removePersistentDomain(forName: #function)
+        defer { defaults.removePersistentDomain(forName: #function) }
+
+        defaults.set(false, forKey: BodyUnits.preferenceKey)
+        XCTAssertFalse(
+            BodyUnits.prefersMetric(defaults: defaults, locale: Locale(identifier: "fr_FR"))
+        )
+
+        defaults.set(true, forKey: BodyUnits.preferenceKey)
+        XCTAssertTrue(
+            BodyUnits.prefersMetric(defaults: defaults, locale: Locale(identifier: "en_US"))
+        )
+    }
 }

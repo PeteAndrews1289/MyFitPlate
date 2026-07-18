@@ -36,12 +36,14 @@ final class InsightsServiceTests: XCTestCase {
             bannerService: BannerService(),
             achievementService: AchievementService()
         )
+        dailyLogService.activateAccount("testUser123")
         
         service = InsightsService(
             dailyLogService: dailyLogService,
             goalSettings: mockGoalSettings,
             healthKitViewModel: mockHealthKit
         )
+        service.activateAccount("testUser123")
     }
     
     override func tearDown() {
@@ -114,6 +116,63 @@ final class InsightsServiceTests: XCTestCase {
         XCTAssertFalse(service.currentInsights.isEmpty)
         XCTAssertTrue(mockAI.lastMessages.isEmpty, "Passive insights must not contact AI before consent.")
     }
+
+    func testAccountSwitchCancelsPreviousAccountsDelayedInsights() async {
+        mockRepo.mockFetchDailyHistoryResult = .success([
+            DailyLog(id: "old-1", date: Date(), meals: []),
+            DailyLog(id: "old-2", date: Date().addingTimeInterval(-86_400), meals: []),
+            DailyLog(id: "old-3", date: Date().addingTimeInterval(-172_800), meals: [])
+        ])
+        mockRepo.fetchDailyHistoryDelayNanoseconds = 100_000_000
+        mockAI.mockResult = .success(#"{"insights":[{"title":"Old account","message":"Private","category":"nutritionGeneral"}]}"#)
+
+        service.generateAndFetchInsights()
+        mockAuth.currentUserID = "new-user"
+        dailyLogService.activateAccount("new-user")
+        service.activateAccount("new-user")
+
+        try? await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertTrue(service.currentInsights.isEmpty)
+        XCTAssertNil(service.currentCoachingPlan)
+        XCTAssertFalse(service.isLoadingInsights)
+    }
+
+    func testDelayedOperatorResponseIsDiscardedAfterAccountSwitch() async {
+        mockAI.responseDelayNanoseconds = 100_000_000
+        mockAI.mockResult = .success(#"{"reply":"Old account","actions":[]}"#)
+
+        let task = Task {
+            await service.processOperatorMessage(message: "Help", context: "Private old context")
+        }
+        await Task.yield()
+        mockAuth.currentUserID = "new-user"
+        service.activateAccount("new-user")
+
+        let response = await task.value
+        XCTAssertNil(response)
+    }
+
+    func testOperatorActionsCannotApplyToDifferentActiveAccount() async {
+        mockGoalSettings.calories = 2_000
+        mockAuth.currentUserID = "new-user"
+        service.activateAccount("new-user")
+
+        await service.executeOperatorActions([
+            MaiaOperatorAction(
+                actionType: "adjust_goal",
+                foodName: nil,
+                calories: nil,
+                protein: nil,
+                carbs: nil,
+                fats: nil,
+                target: "calories",
+                value: 3_000
+            )
+        ], userID: "testUser123")
+
+        XCTAssertEqual(mockGoalSettings.calories, 2_000)
+    }
     
     // MARK: - Operator Actions
     func testProcessOperatorMessageSuccess() async {
@@ -171,7 +230,7 @@ final class InsightsServiceTests: XCTestCase {
             )
         ]
         
-        await service.executeOperatorActions(actions, userID: "user1")
+        await service.executeOperatorActions(actions, userID: "testUser123")
         
         XCTAssertEqual(mockGoalSettings.calories, 2500)
     }
@@ -210,7 +269,7 @@ final class InsightsServiceTests: XCTestCase {
         """
         mockAI.mockResult = .success(json)
         
-        let briefing = await service.generateDailyBriefing(for: "user1", wellnessScoreSummary: "Fair recovery", todaysWorkout: "Push day")
+        let briefing = await service.generateDailyBriefing(for: "testUser123", wellnessScoreSummary: "Fair recovery", todaysWorkout: "Push day")
 
         XCTAssertNotNil(briefing)
         XCTAssertEqual(briefing?.title, "Morning Briefing")
@@ -219,7 +278,7 @@ final class InsightsServiceTests: XCTestCase {
 
     func testGenerateDailyBriefingLogsAndReturnsNilOnMalformedResponse() async {
         mockAI.mockResult = .success("not json at all")
-        let briefing = await service.generateDailyBriefing(for: "user1", wellnessScoreSummary: "Fair", todaysWorkout: "Rest")
+        let briefing = await service.generateDailyBriefing(for: "testUser123", wellnessScoreSummary: "Fair", todaysWorkout: "Rest")
         XCTAssertNil(briefing, "A malformed AI response yields nil, not a crash")
     }
     

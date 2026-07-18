@@ -4,63 +4,75 @@ struct WelcomeView: View {
     @State private var showLoginView = false
     @State private var showSignUpView = false
 
+    private let features = [
+        WelcomeFeature(
+            icon: "square.and.arrow.down",
+            title: "Bring your history",
+            subtitle: "Import MyFitnessPal diary and weight data after setup.",
+            color: AppPalette.brand
+        ),
+        WelcomeFeature(
+            icon: "checkmark.seal.fill",
+            title: "Know what to trust",
+            subtitle: "Review food sources, correct nutrition, and keep the better match.",
+            color: .accentProtein
+        ),
+        WelcomeFeature(
+            icon: "figure.run",
+            title: "Fuel the work",
+            subtitle: "Connect meals, recovery, lifting, and runs in one daily view.",
+            color: .accentSignal
+        )
+    ]
+
     var body: some View {
-        ZStack {
-            AnimatedBackgroundView()
-
-            ScrollView {
-                VStack(spacing: 24) {
-                    VStack(spacing: 16) {
-                        Image("mfp logo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 122, height: 122)
-                            .clipShape(Circle())
-                            .shadow(color: Color.black.opacity(0.12), radius: 18, x: 0, y: 10)
-
-                        VStack(spacing: 8) {
-                            Text("MyFitPlate")
-                                .appFont(size: 38, weight: .bold)
-                                .foregroundColor(.textPrimary)
-                                .multilineTextAlignment(.center)
-
-                            Text("A food log you can trust, built for training days.")
-                                .appFont(size: 16)
-                                .foregroundColor(Color(UIColor.secondaryLabel))
-                                .multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .padding(.top, 44)
-
-                    VStack(spacing: 12) {
-                        WelcomeFeatureRow(icon: "square.and.arrow.down", title: "Switch without starting over", subtitle: "Import MyFitnessPal diary and weight history.", color: .brandPrimary)
-                        WelcomeFeatureRow(icon: "checkmark.seal.fill", title: "Trust every entry", subtitle: "Barcode matches can be checked, corrected, and remembered.", color: .accentProtein)
-                        WelcomeFeatureRow(icon: "figure.run", title: "Fuel your training", subtitle: "Maia links food, recovery, lifting, and runs.", color: .accentSignal)
-                    }
-
-                    VStack(spacing: 16) {
-                        Button("Create account") {
-                            showSignUpView = true
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-
-                        Button("Sign in") {
-                            showLoginView = true
-                        }
-                        .buttonStyle(SecondaryButtonStyle())
-
-                        Text("Your data stays tied to your account so your plan follows you.")
-                            .appFont(size: 12)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.top, 8)
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.section) {
+                AppScreenHeader(
+                    eyebrow: "Nutrition you can inspect",
+                    title: "MyFitPlate",
+                    subtitle: "A food log you can trust, built for people who train."
+                ) {
+                    MyFitPlateLaunchMark()
+                        .accessibilityHidden(true)
                 }
-                .padding(.horizontal, 28)
-                .padding(.bottom, 34)
+                .padding(.top, AppSpacing.section)
+
+                VStack(alignment: .leading, spacing: AppSpacing.group) {
+                    AppSectionHeader(
+                        title: "Start with evidence",
+                        subtitle: "Your plan stays useful because every signal has a source."
+                    )
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(features.enumerated()), id: \.element.title) { index, feature in
+                            WelcomeFeatureRow(feature: feature)
+
+                            if index < features.count - 1 {
+                                Divider()
+                                    .padding(.leading, 68)
+                            }
+                        }
+                    }
+                    .appSurface(.emphasized, padding: 0)
+                }
+
+                Text("Your nutrition, training, and wellness data stay attached to your account so your plan follows you between devices.")
+                    .appTextRole(.secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, AppSpacing.compact)
             }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.bottom, AppSpacing.section)
         }
+        .safeAreaInset(edge: .bottom) {
+            WelcomeActions(
+                createAccount: { showSignUpView = true },
+                signIn: { showLoginView = true }
+            )
+        }
+        .background(AppPalette.canvas.ignoresSafeArea())
         .sheet(isPresented: $showLoginView) {
             LoginView()
         }
@@ -72,41 +84,73 @@ struct WelcomeView: View {
 
 struct AnimatedBackgroundView: View {
     var body: some View {
-        Color.backgroundPrimary.ignoresSafeArea()
+        AppPalette.canvas.ignoresSafeArea()
     }
 }
 
-private struct WelcomeFeatureRow: View {
+private struct WelcomeFeature {
     let icon: String
     let title: String
     let subtitle: String
     let color: Color
+}
+
+private struct WelcomeFeatureRow: View {
+    let feature: WelcomeFeature
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .appFont(size: 18, weight: .bold)
-                .foregroundColor(color)
-                .frame(width: 42, height: 42)
-                .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .appFont(size: 16, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                Text(subtitle)
-                    .appFont(size: 13)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer()
-        }
-        .padding(14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        AppListRow(
+            icon: feature.icon,
+            iconColor: feature.color,
+            title: feature.title,
+            subtitle: feature.subtitle
         )
+    }
+}
+
+private struct WelcomeActions: View {
+    let createAccount: () -> Void
+    let signIn: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: AppSpacing.compact) {
+                    createButton
+                    signInButton
+                }
+            } else {
+                HStack(spacing: AppSpacing.row) {
+                    signInButton
+                    createButton
+                }
+            }
+        }
+        .padding(.horizontal, AppSpacing.screenHorizontal)
+        .padding(.vertical, AppSpacing.row)
+        .background(AppPalette.canvas)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    private var createButton: some View {
+        Button(action: createAccount) {
+            if dynamicTypeSize.isAccessibilitySize {
+                Text("Create account")
+            } else {
+                Label("Create account", systemImage: "person.badge.plus")
+            }
+        }
+        .buttonStyle(AppActionButtonStyle(.primary))
+        .accessibilityIdentifier("welcome_create_account")
+    }
+
+    private var signInButton: some View {
+        Button(action: signIn) {
+            Text("Sign in")
+        }
+        .buttonStyle(AppActionButtonStyle(.secondary))
+        .accessibilityIdentifier("welcome_sign_in")
     }
 }

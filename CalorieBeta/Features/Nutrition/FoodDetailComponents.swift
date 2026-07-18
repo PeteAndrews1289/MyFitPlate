@@ -4,32 +4,56 @@ struct FoodDetailHeroCard: View {
     let foodName: String
     let servingDescription: String
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Text(FoodEmojiMapper.getEmoji(for: foodName))
-                .appFont(size: 34)
-                .frame(width: 62, height: 62)
-                .background(
-                    Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
-
-            VStack(alignment: .leading, spacing: 7) {
-                Text(foodName)
-                    .appFont(size: 24, weight: .bold)
-                    .foregroundColor(.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Label(servingDescription, systemImage: "scalemass.fill")
-                    .appFont(size: 13, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-                    .lineLimit(2)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.row) {
+                    foodEmoji
+                    foodIdentity
+                }
+            } else {
+                HStack(alignment: .top, spacing: AppSpacing.group) {
+                    foodEmoji
+                    foodIdentity
+                    Spacer(minLength: 0)
+                }
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(18)
-        .background(Color.backgroundSecondary.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appSurface(.quiet, radius: AppRadius.hero)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("food_detail_identity")
+    }
+
+    private var foodEmoji: some View {
+        Text(FoodEmojiMapper.getEmoji(for: foodName))
+            .font(.system(size: 30))
+            .frame(width: 54, height: 54)
+            .background(
+                AppPalette.control,
+                in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                    .stroke(AppPalette.separator.opacity(0.55), lineWidth: 0.5)
+            }
+            .accessibilityHidden(true)
+    }
+
+    private var foodIdentity: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Text(foodName)
+                .appTextRole(.sectionTitle)
+                .foregroundStyle(AppPalette.text)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Label(servingDescription, systemImage: "scalemass.fill")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 
@@ -40,36 +64,30 @@ struct FoodDetailMacroGrid: View {
     let fats: Double
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            FoodDetailMacroTile(
-                title: "Calories",
-                value: Int(calories.rounded()).formatted(),
-                unit: "cal",
-                icon: "flame.fill",
-                color: .orange
+        AppMetricStrip(items: [
+            AppMetricItem(
+                label: "Calories",
+                value: "\(Int(calories.rounded()).formatted()) cal",
+                accent: AppPalette.energy
+            ),
+            AppMetricItem(
+                label: "Protein",
+                value: "\(macroValue(protein)) g",
+                accent: .accentProtein
+            ),
+            AppMetricItem(
+                label: "Carbs",
+                value: "\(macroValue(carbs)) g",
+                accent: .accentCarbs
+            ),
+            AppMetricItem(
+                label: "Fat",
+                value: "\(macroValue(fats)) g",
+                accent: .accentFats
             )
-            FoodDetailMacroTile(
-                title: "Protein",
-                value: macroValue(protein),
-                unit: "g",
-                icon: "bolt.fill",
-                color: .accentProtein
-            )
-            FoodDetailMacroTile(
-                title: "Carbs",
-                value: macroValue(carbs),
-                unit: "g",
-                icon: "leaf.fill",
-                color: .accentCarbs
-            )
-            FoodDetailMacroTile(
-                title: "Fat",
-                value: macroValue(fats),
-                unit: "g",
-                icon: "drop.fill",
-                color: .accentFats
-            )
-        }
+        ])
+        .appSurface(.quiet)
+        .accessibilityIdentifier("food_detail_macro_summary")
     }
 
     private func macroValue(_ value: Double) -> String {
@@ -81,54 +99,11 @@ struct FoodDetailMacroGrid: View {
     }
 }
 
-struct FoodDetailMacroTile: View {
-    let title: String
-    let value: String
-    let unit: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: icon)
-                    .appFont(size: 14, weight: .bold)
-                    .foregroundColor(color)
-                    .frame(width: 30, height: 30)
-                    .background(color.opacity(0.12), in: Circle())
-
-                Spacer()
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(value)
-                        .appFont(size: 24, weight: .bold)
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-
-                    Text(unit)
-                        .appFont(size: 12, weight: .bold)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                }
-
-                Text(title)
-                    .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(Color(UIColor.secondaryLabel))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
 struct FoodDetailLoadingCard: View {
     var body: some View {
         VStack(spacing: 13) {
             ProgressView()
-                .tint(.blue)
+                .tint(AppPalette.effort)
 
             Text("Loading serving options")
                 .appFont(size: 17, weight: .bold)
@@ -154,9 +129,9 @@ struct FoodDetailNoticeCard: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .appFont(size: 16, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .frame(width: 34, height: 34)
-                .background(Color.orange.opacity(0.12), in: Circle())
+                .background(AppPalette.caution.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -170,7 +145,39 @@ struct FoodDetailNoticeCard: View {
             }
         }
         .padding(14)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(AppPalette.caution.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+struct LabelScanFailureCard: View {
+    let retry: () -> Void
+    let continueManually: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            Label("Label details were not clear enough", systemImage: "doc.text.viewfinder")
+                .appTextRole(.control)
+                .foregroundStyle(AppPalette.text)
+
+            Text("Try a flatter, brighter photo with the full Nutrition Facts panel visible. Your current serving and nutrient values have not been changed.")
+                .appTextRole(.secondary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: AppSpacing.compact) {
+                Button("Try Another Photo", action: retry)
+                    .buttonStyle(AppActionButtonStyle(.secondary, fillsWidth: false))
+                Button("Edit Manually", action: continueManually)
+                    .buttonStyle(AppActionButtonStyle(.ghost, fillsWidth: false))
+            }
+        }
+        .appSurface(.quiet)
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                .stroke(AppPalette.caution.opacity(0.45), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("label_scan_failure")
     }
 }
 
@@ -182,9 +189,9 @@ struct FoodDetailLabelScanCard: View {
             HStack(spacing: 12) {
                 Image(systemName: "camera.viewfinder")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.blue)
+                    .foregroundColor(AppPalette.effort)
                     .frame(width: 42, height: 42)
-                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(AppPalette.effort.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Nutrition label looks different?")
@@ -209,173 +216,55 @@ struct FoodDetailLabelScanCard: View {
     }
 }
 
-struct FoodDetailBarcodeCorrectionCard: View {
-    let fixAction: () -> Void
+struct FoodDetailBarcodeMemoryAction: View {
     let rememberAction: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        Button(action: rememberAction) {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "barcode.viewfinder")
                     .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.blue)
-                    .frame(width: 42, height: 42)
-                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .foregroundColor(AppPalette.effort)
+                    .frame(width: 38, height: 38)
+                    .background(AppPalette.effort.opacity(0.10), in: Circle())
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Barcode match")
+                    Text("Use for future scans")
                         .appFont(size: 15, weight: .bold)
                         .foregroundColor(.textPrimary)
 
-                    Text("Fix the match or save this version for future scans.")
+                    Text("Save this reviewed entry as the match for this barcode.")
                         .appFont(size: 12, weight: .medium)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 0)
+                Image(systemName: "bookmark")
+                    .appFont(size: 14, weight: .bold)
+                    .foregroundColor(AppPalette.effort)
             }
-
-            HStack(spacing: 10) {
-                Button(action: fixAction) {
-                    Label("Fix", systemImage: "pencil")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
-
-                Button(action: rememberAction) {
-                    Label("Remember", systemImage: "bookmark.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .blue, isFilled: false))
-                .accessibilityHint("Saves this food as the match for this barcode.")
-            }
-        }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-private struct FoodDetailCorrectionButtonStyle: ButtonStyle {
-    let tint: Color
-    let isFilled: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .appFont(size: 13, weight: .bold)
-            .foregroundColor(isFilled ? .white : tint)
             .padding(.vertical, 10)
-            .background(
-                (isFilled ? tint : tint.opacity(0.12)),
-                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-            )
-            .opacity(configuration.isPressed ? 0.72 : 1)
-    }
-}
-
-struct FoodDetailAIRefineCard: View {
-    let refineAction: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: "sparkles")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(.orange)
-                    .frame(width: 42, height: 42)
-                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("This is an AI estimate")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("Portions and hidden ingredients vary. A 30-second refine makes it yours.")
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-            }
-
-            Button(action: refineAction) {
-                Label("Refine estimate", systemImage: "slider.horizontal.3")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
-            .accessibilityHint("Opens an editor to adjust this estimate's name, serving, and macros.")
         }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-struct FoodDataSanityCard: View {
-    let findings: [FoodDataSanity.Finding]
-    let fixAction: () -> Void
-
-    private var hasWarning: Bool {
-        findings.contains { $0.severity == .warning }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: hasWarning ? "exclamationmark.triangle.fill" : "info.circle.fill")
-                    .appFont(size: 17, weight: .bold)
-                    .foregroundColor(hasWarning ? .orange : .blue)
-                    .frame(width: 42, height: 42)
-                    .background((hasWarning ? Color.orange : Color.blue).opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(hasWarning ? "This data looks off" : "Worth a quick look")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
-
-                    Text("MyFitPlate checks every food against nutrition math.")
-                        .appFont(size: 12, weight: .medium)
-                        .foregroundColor(Color(UIColor.secondaryLabel))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(findings) { finding in
-                    HStack(alignment: .top, spacing: 7) {
-                        Image(systemName: finding.severity == .warning ? "exclamationmark.circle.fill" : "info.circle")
-                            .appFont(size: 11, weight: .bold)
-                            .foregroundColor(finding.severity == .warning ? .orange : Color(UIColor.secondaryLabel))
-                            .padding(.top, 1)
-
-                        Text(finding.message)
-                            .appFont(size: 12, weight: .medium)
-                            .foregroundColor(.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-
-            if hasWarning {
-                Button(action: fixAction) {
-                    Label("Fix this data", systemImage: "pencil")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(FoodDetailCorrectionButtonStyle(tint: .orange, isFilled: true))
-                .accessibilityHint("Opens an editor to correct this food's nutrition data.")
-            }
-        }
-        .padding(14)
-        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .buttonStyle(.plain)
+        .overlay(alignment: .top) { Divider() }
+        .overlay(alignment: .bottom) { Divider() }
+        .accessibilityHint("Saves this food as the match for this barcode.")
     }
 }
 
 struct FoodDetailCorrectionSheet: View {
+    private struct CorrectionChange: Identifiable {
+        let id: String
+        let title: String
+        let before: String
+        let after: String
+    }
+
     let serving: ServingSizeOption
     let barcode: String?
     let onSave: (String, ServingSizeOption) -> Void
+    private let originalName: String
 
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
@@ -397,6 +286,7 @@ struct FoodDetailCorrectionSheet: View {
         self.serving = serving
         self.barcode = barcode
         self.onSave = onSave
+        self.originalName = foodName
         self._name = State(initialValue: foodName)
         self._servingDescription = State(initialValue: serving.description)
         self._servingWeight = State(initialValue: Self.text(for: serving.servingWeightGrams))
@@ -436,6 +326,9 @@ struct FoodDetailCorrectionSheet: View {
                     correctionHeader
                     identityFields
                     macroFields
+                    if !correctionChanges.isEmpty {
+                        changeSummary
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
@@ -465,9 +358,9 @@ struct FoodDetailCorrectionSheet: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "pencil.and.scribble")
                 .appFont(size: 18, weight: .bold)
-                .foregroundColor(.orange)
+                .foregroundColor(AppPalette.caution)
                 .frame(width: 42, height: 42)
-                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(AppPalette.caution.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Correct barcode match")
@@ -519,12 +412,100 @@ struct FoodDetailCorrectionSheet: View {
             if let saturatedFatValidationMessage {
                 Label(saturatedFatValidationMessage, systemImage: "exclamationmark.circle.fill")
                     .appFont(size: 12, weight: .semibold)
-                    .foregroundColor(.red)
+                    .foregroundColor(AppPalette.critical)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(16)
         .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var changeSummary: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.left.arrow.right")
+                    .appFont(size: 13, weight: .bold)
+                    .foregroundColor(.accentProtein)
+                Text("Changes to Save")
+                    .appFont(size: 17, weight: .bold)
+                    .foregroundColor(.textPrimary)
+            }
+
+            ForEach(correctionChanges) { change in
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(change.title)
+                        .appFont(size: 11, weight: .bold)
+                        .foregroundColor(Color(UIColor.secondaryLabel))
+
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(change.before)
+                            .appFont(size: 12, weight: .semibold)
+                            .foregroundColor(Color(UIColor.secondaryLabel))
+                            .lineLimit(2)
+                        Image(systemName: "arrow.right")
+                            .appFont(size: 9, weight: .bold)
+                            .foregroundColor(.accentProtein)
+                            .accessibilityHidden(true)
+                        Text(change.after)
+                            .appFont(size: 12, weight: .bold)
+                            .foregroundColor(.textPrimary)
+                            .lineLimit(2)
+                        Spacer(minLength: 0)
+                    }
+                }
+                .padding(.vertical, 3)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(change.title), \(change.before), changed to \(change.after)")
+            }
+        }
+        .padding(16)
+        .background(Color.backgroundSecondary.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var correctionChanges: [CorrectionChange] {
+        var changes: [CorrectionChange] = []
+
+        func addText(_ id: String, _ title: String, original: String, current: String) {
+            let old = original.trimmingCharacters(in: .whitespacesAndNewlines)
+            let new = current.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard old != new, !new.isEmpty else { return }
+            changes.append(CorrectionChange(
+                id: id,
+                title: title,
+                before: old.isEmpty ? "Not reported" : old,
+                after: new
+            ))
+        }
+
+        func addNumber(
+            _ id: String,
+            _ title: String,
+            original: Double?,
+            currentText: String,
+            unit: String
+        ) {
+            let current = doubleValue(currentText)
+            if let original, let current {
+                let tolerance = max(0.0001, abs(original) * 0.00001)
+                guard abs(original - current) > tolerance else { return }
+            } else if original == nil, current == nil {
+                return
+            }
+            let before = original.map { "\(Self.displayNumber($0)) \(unit)" } ?? "Not reported"
+            let after = current.map { "\(Self.displayNumber($0)) \(unit)" } ?? "Not reported"
+            changes.append(CorrectionChange(id: id, title: title, before: before, after: after))
+        }
+
+        addText("name", "Food name", original: originalName, current: name)
+        addText("serving", "Serving", original: serving.description, current: servingDescription)
+        addNumber("weight", "Serving weight", original: serving.servingWeightGrams, currentText: servingWeight, unit: "g")
+        addNumber("calories", "Calories", original: serving.calories, currentText: calories, unit: "cal")
+        addNumber("protein", "Protein", original: serving.protein, currentText: protein, unit: "g")
+        addNumber("carbs", "Carbs", original: serving.carbs, currentText: carbs, unit: "g")
+        addNumber("fat", "Total fat", original: serving.fats, currentText: fats, unit: "g")
+        addNumber("saturated-fat", "Saturated fat", original: serving.saturatedFat, currentText: saturatedFat, unit: "g")
+        addNumber("fiber", "Fiber", original: serving.fiber, currentText: fiber, unit: "g")
+        return changes
     }
 
     private var correctedServing: ServingSizeOption? {
@@ -609,6 +590,14 @@ struct FoodDetailCorrectionSheet: View {
         String(format: "%g", max(0, value))
     }
 
+    private static func displayNumber(_ value: Double) -> String {
+        guard value.isFinite else { return "Invalid" }
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.1f", value)
+    }
+
     private func doubleValue(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -640,19 +629,17 @@ struct FoodDetailActionBar: View {
     let action: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            Button(title, action: action)
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(!isEnabled)
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .background(Color.backgroundPrimary.opacity(0.98).ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.primary.opacity(0.06))
-                .frame(height: 1)
-        }
+        Button(title, action: action)
+            .buttonStyle(AppActionButtonStyle(.primary))
+            .disabled(!isEnabled)
+            .accessibilityIdentifier("food_detail_log_action")
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.vertical, AppSpacing.row)
+            .background(AppPalette.canvas.ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(AppPalette.separator)
+                    .frame(height: 1)
+            }
     }
 }

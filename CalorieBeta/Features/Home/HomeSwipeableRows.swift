@@ -21,17 +21,19 @@ struct SwipeableExerciseRowView: View {
                     } label: {
                         Image(systemName: "trash").foregroundColor(.white).frame(width: 60, height: 40, alignment: .center)
                     }
-                    .buttonStyle(PlainButtonStyle()).background(Color.red).contentShape(Rectangle()).cornerRadius(8)
+                    .buttonStyle(PlainButtonStyle()).background(AppPalette.critical).contentShape(Rectangle()).cornerRadius(8)
                 }
                 .padding(.vertical, 4)
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             }
 
             HStack(spacing: 12) {
-                Text(ExerciseEmojiMapper.getEmoji(for: exercise.name))
-                    .font(.title3)
+                let exerciseType = RoutineEditorDefaults.inferredType(name: exercise.name, category: nil)
+                Image(systemName: exerciseType.icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(AppPalette.effort)
                     .frame(width: 38, height: 38)
-                    .background(Color.blue.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(AppPalette.effort.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
@@ -59,7 +61,7 @@ struct SwipeableExerciseRowView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(Int(exercise.caloriesBurned.rounded()))")
                         .appFont(size: 16, weight: .bold)
-                        .foregroundColor(.accentPositive)
+                        .foregroundStyle(AppPalette.text)
                     Text("cal")
                         .appFont(size: 11)
                         .foregroundColor(Color(UIColor.secondaryLabel))
@@ -70,8 +72,6 @@ struct SwipeableExerciseRowView: View {
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(Color.backgroundSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .contentShape(Rectangle())
             .offset(x: offset)
             .onTapGesture {
@@ -125,6 +125,7 @@ struct SwipeableFoodItemView: View {
     @State private var offset: CGFloat = 0
     @State private var isSwiped: Bool = false
     @State private var showDetailView = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ZStack(alignment: .trailing) {
@@ -143,7 +144,7 @@ struct SwipeableFoodItemView: View {
                             .frame(width: 60, height: 58, alignment: .center)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .background(Color.red)
+                    .background(AppPalette.critical)
                     .contentShape(Rectangle())
                     .cornerRadius(12)
                 }
@@ -152,26 +153,36 @@ struct SwipeableFoodItemView: View {
             }
 
             HStack(spacing: 12) {
-                Text(FoodEmojiMapper.getEmoji(for: initialFoodItem.name))
-                    .font(.title3)
+                Image(systemName: "fork.knife")
+                    .appFont(size: 15, weight: .semibold)
+                    .foregroundStyle(AppPalette.brandText)
                     .frame(width: 38, height: 38)
-                    .background(Color.brandPrimary.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(AppPalette.brand.opacity(0.10), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(initialFoodItem.name)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                        .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
                         .appFont(size: 16, weight: .semibold)
                         .foregroundColor(.textPrimary)
 
-                    HStack(spacing: 6) {
-                        Text(macroSummary)
-                            .appFont(size: 12)
-                            .foregroundColor(Color(UIColor.secondaryLabel))
-                            .lineLimit(1)
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 4) {
+                            macroSummaryText
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
 
-                        FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
+                            FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
+                        }
+                    } else {
+                        HStack(spacing: 6) {
+                            macroSummaryText
+
+                            FoodTrustMiniBadge(food: initialFoodItem, source: "recent_tap")
+                        }
+                        .lineLimit(1)
                     }
-                    .lineLimit(1)
                 }
 
                 Spacer()
@@ -190,8 +201,6 @@ struct SwipeableFoodItemView: View {
                     .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(Color.backgroundSecondary.opacity(0.58), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .contentShape(Rectangle())
             .offset(x: offset)
             .onTapGesture {
@@ -240,5 +249,11 @@ struct SwipeableFoodItemView: View {
 
     private var macroSummary: String {
         "P \(Int(initialFoodItem.protein.rounded()))g • C \(Int(initialFoodItem.carbs.rounded()))g • F \(Int(initialFoodItem.fats.rounded()))g"
+    }
+
+    private var macroSummaryText: some View {
+        Text(macroSummary)
+            .appFont(size: 12)
+            .foregroundColor(Color(UIColor.secondaryLabel))
     }
 }

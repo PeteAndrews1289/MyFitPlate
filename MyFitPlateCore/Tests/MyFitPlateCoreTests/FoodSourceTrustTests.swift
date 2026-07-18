@@ -212,6 +212,37 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(FoodSourceClassifier.descriptor(for: match!.sourceMetadata!).title, "My Foods Match")
     }
 
+    func testBarcodeCorrectionRulesBreakEqualEvidenceTiesByStableIdentity() {
+        let barcode = "000777"
+        let laterID = FoodItem(
+            id: "z-entry",
+            name: "Later ID",
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                barcode: barcode
+            )
+        )
+        let earlierID = FoodItem(
+            id: "a-entry",
+            name: "Earlier ID",
+            sourceMetadata: FoodSourceMetadata(
+                sourceType: .custom,
+                confidence: .userVerified,
+                reviewStatus: .userConfirmed,
+                barcode: barcode
+            )
+        )
+
+        let match = BarcodeCorrectionRules.bestCorrectedFood(
+            in: [laterID, earlierID],
+            barcode: barcode
+        )
+
+        XCTAssertEqual(match?.id, "a-entry")
+    }
+
     func testBarcodeLookupCandidatesBridgeUPCAAndEAN13() {
         XCTAssertEqual(
             BarcodeCorrectionRules.lookupCandidates(for: "012345678905"),
@@ -818,6 +849,206 @@ final class FoodSourceTrustTests: XCTestCase {
         XCTAssertEqual(params["trust_model_version"] as? String, String(FoodTrustEvaluation.modelVersion))
         XCTAssertNotNil(params["trust_score"])
         XCTAssertNil(params["barcode"], "Created-food telemetry should avoid raw barcode values.")
+    }
+
+    func testFoodPassportSeparatesCrossCheckedCoreFromUncheckedIngredients() {
+        var metadata = FoodSourceMetadata.database(
+            .usda,
+            sourceName: "USDA FoodData Central",
+            sourceID: "usda_1",
+            barcode: "012345678905",
+            evidenceLineage: .manufacturerLabel
+        )
+        metadata.confidence = .databaseMatch
+        metadata.crossVerifiedBy = ["Open Food Facts"]
+        let item = FoodItem(
+            name: "Protein bar",
+            calories: 220,
+            protein: 20,
+            carbs: 24,
+            fats: 7,
+            saturatedFat: 2,
+            fiber: 5,
+            servingSize: "1 bar",
+            servingWeight: 60,
+            sourceMetadata: metadata
+        )
+        let descriptor = FoodSourceClassifier.descriptor(for: metadata)
+
+        let passport = FoodTrustPassport.evaluate(item: item, descriptor: descriptor)
+
+        XCTAssertEqual(passport.lineage, .manufacturerLabel)
+        XCTAssertEqual(passport.coreNutrition.state, .crossDatabaseAgreement)
+        XCTAssertTrue(passport.supportsCoreNutrition)
+        XCTAssertEqual(
+            passport.scopes.first { $0.field == .identity }?.state,
+            .crossDatabaseAgreement
+        )
+        XCTAssertEqual(
+            passport.scopes.first { $0.field == .ingredientsAndAllergens }?.state,
+            .notChecked
+        )
+    }
+
+    func testFoodPassportDoesNotTreatDetailedCorrectionAsCoreReview() {
+        let original = FoodNutritionSnapshot(
+            calories: 150,
+            protein: 2,
+            carbs: 21,
+            fats: 7,
+            servingSize: "2 cookies",
+            servingWeight: 29,
+            saturatedFat: 10,
+            fiber: 1
+        )
+        let correction = FoodNutritionSnapshot(
+            calories: 150,
+            protein: 2,
+            carbs: 21,
+            fats: 7,
+            servingSize: "2 cookies",
+            servingWeight: 29,
+            saturatedFat: 3,
+            fiber: 1
+        )
+        let metadata = FoodSourceMetadata(
+            sourceType: .custom,
+            confidence: .userVerified,
+            reviewStatus: .userEdited,
+            sourceName: "My Foods",
+            originalEstimate: original,
+            userCorrection: correction
+        )
+        let item = FoodItem(
+            name: "Cookies",
+            calories: 150,
+            protein: 2,
+            carbs: 21,
+            fats: 7,
+            saturatedFat: 3,
+            fiber: 1,
+            servingSize: "2 cookies",
+            servingWeight: 29,
+            sourceMetadata: metadata
+        )
+        let descriptor = FoodSourceClassifier.descriptor(for: metadata)
+
+        let passport = FoodTrustPassport.evaluate(item: item, descriptor: descriptor)
+
+        XCTAssertEqual(passport.coreNutrition.state, .sourceReported)
+        XCTAssertFalse(passport.supportsCoreNutrition)
+        XCTAssertEqual(
+            passport.scopes.first { $0.field == .detailedNutrition }?.state,
+            .userReviewed
+        )
+    }
+
+    func testFoodTrustCoverageWeightsSupportedCaloriesAndProtein() {
+        var supportedMetadata = FoodSourceMetadata.database(
+            .usda,
+            sourceName: "USDA FoodData Central",
+            sourceID: "usda_2",
+            barcode: "012345678905"
+        )
+        supportedMetadata.crossVerifiedBy = ["Open Food Facts"]
+        let supported = FoodItem(
+            name: "Supported meal",
+            calories: 800,
+            protein: 80,
+            carbs: 80,
+            fats: 18,
+            servingSize: "1 meal",
+            servingWeight: 400,
+            sourceMetadata: supportedMetadata
+        )
+        let estimated = FoodItem(
+            name: "Estimated snack",
+            calories: 200,
+            protein: 20,
+            carbs: 20,
+            fats: 4,
+            servingSize: "1 snack",
+            servingWeight: 100
+        ).withAIEstimateSource(.aiImage, sourceName: "Maia Vision")
+
+        let coverage = FoodTrustCoverage.evaluate(items: [supported, estimated])
+
+        XCTAssertEqual(coverage.calorieFraction, 0.8, accuracy: 0.0001)
+        XCTAssertEqual(coverage.proteinFraction, 0.8, accuracy: 0.0001)
+        XCTAssertEqual(coverage.supportedFoodCount, 1)
+        XCTAssertEqual(coverage.totalFoodCount, 2)
+    }
+
+    func testFoodPassportFlagsExplicitlyOldProviderDateWithoutTreatingRetrievalAsUpdate() {
+        let oldDate = Date(timeIntervalSince1970: 1_577_836_800) // Jan 1, 2020 UTC
+        let now = Date(timeIntervalSince1970: 1_767_225_600) // Jan 1, 2026 UTC
+        let metadata = FoodSourceMetadata(
+            sourceType: .openFoodFacts,
+            confidence: .databaseMatch,
+            reviewStatus: .notRequired,
+            sourceName: "Open Food Facts",
+            sourceID: "off_1",
+            sourceObservedAt: now,
+            sourceUpdatedAt: oldDate,
+            evidenceLineage: .publicDatabase
+        )
+        let item = FoodItem(
+            name: "Cereal",
+            calories: 120,
+            protein: 3,
+            carbs: 24,
+            fats: 2,
+            servingSize: "30 g",
+            servingWeight: 30,
+            sourceMetadata: metadata
+        )
+        let descriptor = FoodSourceClassifier.descriptor(for: metadata)
+
+        let passport = FoodTrustPassport.evaluate(
+            item: item,
+            descriptor: descriptor,
+            now: now
+        )
+
+        XCTAssertEqual(passport.freshness.state, .stale)
+        XCTAssertEqual(passport.freshness.date, oldDate)
+    }
+
+    func testExplicitlyStaleProviderRecordCannotReceiveExcellentTrust() {
+        let oldDate = Date(timeIntervalSince1970: 1_577_836_800)
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        var metadata = FoodSourceMetadata.database(
+            .usda,
+            sourceName: "USDA FoodData Central",
+            sourceID: "usda_old",
+            barcode: "012345678905",
+            evidenceLineage: .manufacturerLabel,
+            sourceUpdatedAt: oldDate
+        )
+        metadata.confidence = .databaseMatch
+        metadata.crossVerifiedBy = ["Open Food Facts"]
+        let item = FoodItem(
+            name: "Old formulation",
+            calories: 220,
+            protein: 20,
+            carbs: 24,
+            fats: 7,
+            servingSize: "1 bar",
+            servingWeight: 60,
+            sourceMetadata: metadata
+        )
+        let descriptor = FoodSourceClassifier.descriptor(for: metadata)
+
+        let evaluation = FoodTrustEvaluation.evaluate(
+            item: item,
+            descriptor: descriptor,
+            metadata: metadata,
+            now: now
+        )
+
+        XCTAssertLessThanOrEqual(evaluation.score, 89)
+        XCTAssertNotEqual(evaluation.level, .excellent)
+        XCTAssertTrue(evaluation.reasons.contains { $0.contains("older product formulation") })
     }
 
     @MainActor

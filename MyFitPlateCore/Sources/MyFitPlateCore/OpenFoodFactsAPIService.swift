@@ -1,29 +1,92 @@
 import Foundation
 
+enum OpenFoodFactsRequestBuilder {
+    private static let maximumBarcodeCharacters = 32
+    private static let maximumSearchCharacters = 160
+
+    static func userAgent(appVersion: String? = nil) -> String {
+        let bundleVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let candidate = (appVersion ?? bundleVersion ?? "unknown")
+            .components(separatedBy: .whitespacesAndNewlines)
+            .joined()
+        let version = candidate.isEmpty ? "unknown" : String(candidate.prefix(32))
+        return "MyFitPlate/\(version) (iOS; contact: peteandrews1289@gmail.com)"
+    }
+
+    static func productURL(barcode: String) -> URL? {
+        let normalized = BarcodeCorrectionRules.normalizedBarcode(barcode)
+        guard !normalized.isEmpty,
+              normalized.count <= maximumBarcodeCharacters,
+              normalized.allSatisfy(\.isNumber),
+              let baseURL = URL(string: "https://world.openfoodfacts.org/api/v2/product/") else {
+            return nil
+        }
+        return baseURL.appendingPathComponent("\(normalized).json")
+    }
+
+    static func searchURL(query: String) -> URL? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "world.openfoodfacts.org"
+        components.path = "/cgi/search.pl"
+        components.queryItems = [
+            URLQueryItem(name: "search_terms", value: String(trimmed.prefix(maximumSearchCharacters))),
+            URLQueryItem(name: "search_simple", value: "1"),
+            URLQueryItem(name: "action", value: "process"),
+            URLQueryItem(name: "json", value: "1"),
+            URLQueryItem(name: "page_size", value: "25")
+        ]
+        return components.url
+    }
+}
+
 public class OpenFoodFactsAPIService {
 
-    private let baseURL = "https://world.openfoodfacts.org/api/v2/product/"
-    private let userAgent = "MyFitPlate/2.2 (iOS; contact: peteandrews1289@gmail.com)"
+    private let userAgent = OpenFoodFactsRequestBuilder.userAgent()
     private let requestTimeout: TimeInterval = 6
+    private let session: URLSession
 
-    public init() {}
+    public init() {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.urlCache = nil
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        session = URLSession(configuration: configuration)
+    }
 
     public func fetchFoodItem(barcode: String, completion: @escaping (Result<FoodItem, APIError>) -> Void) {
 
-        let urlString = "\(baseURL)\(barcode).json"
-
-        guard let url = URL(string: urlString) else {
+        guard let url = OpenFoodFactsRequestBuilder.productURL(barcode: barcode) else {
             completion(.failure(.invalidURL))
             return
         }
 
         var request = URLRequest(url: url, timeoutInterval: requestTimeout)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        session.dataTask(with: request) { data, response, error in
 
             if let error = error {
                 DispatchQueue.main.async { completion(.failure(.networkError(error))) }
+                return
+            }
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                DispatchQueue.main.async {
+                    completion(.failure(.apiError("Open Food Facts did not return an HTTP response.")))
+                }
+                return
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                DispatchQueue.main.async {
+                    completion(.failure(.apiError("Open Food Facts returned HTTP \(httpResponse.statusCode).")))
+                }
                 return
             }
 
@@ -46,17 +109,15 @@ public class OpenFoodFactsAPIService {
 
     /// Asynchronous text search across Open Food Facts global database (~3.2M products).
     public func searchFoods(query: String) async -> [FoodItem] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://world.openfoodfacts.org/cgi/search.pl?search_terms=\(encoded)&search_simple=1&action=process&json=1&page_size=25") else {
+        guard let url = OpenFoodFactsRequestBuilder.searchURL(query: query) else {
             return []
         }
 
         do {
             var request = URLRequest(url: url, timeoutInterval: requestTimeout)
             request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-            let (data, response) = try await URLSession.shared.data(for: request)
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
                 return []
@@ -116,7 +177,7 @@ public enum OpenFoodFactsParser {
             ? servingDescription!
             : "\(Int(servingWeight.rounded())) g"
 
-        return FoodItem(
+        let item = FoodItem(
             id: "off_\(product.id)",
             name: trimmedName.isEmpty ? "Unknown Product" : trimmedName,
             calories: preferred(n.energyKcalServing, n.energyKcal100g),
@@ -164,12 +225,20 @@ public enum OpenFoodFactsParser {
             vitaminB6: converted(n.vitaminB6Serving, n.vitaminB6100g, multiplier: 1_000),
             vitaminE: converted(n.vitaminEServing, n.vitaminE100g, multiplier: 1_000),
             vitaminK: converted(n.vitaminKServing, n.vitaminK100g, multiplier: 1_000_000)
-        ).withDatabaseSource(
+        )
+        let updatedAt = product.lastModifiedTimestamp.flatMap { timestamp -> Date? in
+            guard timestamp.isFinite, timestamp > 0 else { return nil }
+            return Date(timeIntervalSince1970: timestamp)
+        }
+        let metadata = FoodSourceMetadata.database(
             .openFoodFacts,
             sourceName: "Open Food Facts",
             sourceID: "off_\(product.id)",
-            barcode: product.id
+            barcode: product.id,
+            evidenceLineage: .publicDatabase,
+            sourceUpdatedAt: updatedAt
         )
+        return item.withSourceMetadata(metadata)
     }
 
     private static func resolvedServingWeight(for product: Product) -> Double {
@@ -204,6 +273,7 @@ private struct Product: Codable {
     public let productName: String?
     public let servingSize: String?
     public let servingQuantity: Double?
+    public let lastModifiedTimestamp: Double?
     public let nutriments: Nutriments
 
     public enum CodingKeys: String, CodingKey {
@@ -211,6 +281,7 @@ private struct Product: Codable {
         case productName = "product_name"
         case servingSize = "serving_size"
         case servingQuantity = "serving_quantity"
+        case lastModifiedTimestamp = "last_modified_t"
         case nutriments
     }
 }

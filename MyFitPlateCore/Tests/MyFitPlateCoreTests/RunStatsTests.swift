@@ -156,6 +156,18 @@ final class RunStatsTests: XCTestCase {
         XCTAssertEqual(RunStats.negativeSplitDeltaSecondsPerKm(splits: negativeSplits) ?? 0, 20.0, accuracy: 0.1)
     }
 
+    func testNegativeSplitBadgeIsSuppressedForStopHeavySplits() {
+        let stopHeavySplits = [
+            RunSplit(index: 1, distanceMeters: 1_000, seconds: 980),
+            RunSplit(index: 2, distanceMeters: 1_000, seconds: 2_772),
+            RunSplit(index: 3, distanceMeters: 1_000, seconds: 1_103),
+            RunSplit(index: 4, distanceMeters: 100, seconds: 373)
+        ]
+
+        XCTAssertGreaterThan(RunStats.negativeSplitDeltaSecondsPerKm(splits: stopHeavySplits) ?? 0, 0)
+        XCTAssertFalse(RunStats.isNegativeSplit(splits: stopHeavySplits))
+    }
+
     func testFastestSplit() {
         let splits = [
             RunSplit(index: 1, distanceMeters: 1000, seconds: 300),

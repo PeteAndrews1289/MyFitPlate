@@ -6,7 +6,7 @@ public struct BannerData: Equatable {
     public var iconName: String
     public var iconColor: Color
     
-    public init(title: String, message: String, iconName: String = "checkmark.circle.fill", iconColor: Color = .green) {
+    public init(title: String, message: String, iconName: String = "checkmark.circle.fill", iconColor: Color = AppPalette.brand) {
         self.title = title
         self.message = message
         self.iconName = iconName

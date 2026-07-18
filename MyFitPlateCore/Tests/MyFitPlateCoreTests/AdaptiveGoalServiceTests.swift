@@ -28,6 +28,8 @@ final class AdaptiveGoalServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.dataConfidence, .high)
         XCTAssertEqual(snapshot.validLogCount, 21)
         XCTAssertEqual(snapshot.recentWorkoutCount, 7)
+        XCTAssertTrue(snapshot.isActionable)
+        XCTAssertNil(snapshot.guardrailMessage)
     }
 
     func testExpenditureSnapshotConfidenceThresholds() throws {
@@ -39,6 +41,7 @@ final class AdaptiveGoalServiceTests: XCTestCase {
         ))
         XCTAssertEqual(medium.dataConfidence, .medium)
         assertOptionalEqual(medium.calculatedTDEE, 2_100)
+        XCTAssertTrue(medium.isActionable)
 
         let low = try XCTUnwrap(AdaptiveGoalService.expenditureSnapshot(
             weightHistory: weightHistory(count: 7, startingWeight: 180),
@@ -48,6 +51,8 @@ final class AdaptiveGoalServiceTests: XCTestCase {
         ))
         XCTAssertEqual(low.dataConfidence, .low)
         assertOptionalEqual(low.calculatedTDEE, 1_900)
+        XCTAssertFalse(low.isActionable)
+        XCTAssertNotNil(low.guardrailMessage)
     }
 
     func testExpenditureSnapshotReportsProgressWhenDataIsInsufficient() throws {
@@ -66,7 +71,7 @@ final class AdaptiveGoalServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.dataConfidence, .insufficient)
     }
 
-    func testExpenditureSnapshotIgnoresLowCalorieLogsAndClampsMinimumTDEE() throws {
+    func testExpenditureSnapshotRejectsLikelyPartialLowCalorieLogs() throws {
         let snapshot = try XCTUnwrap(AdaptiveGoalService.expenditureSnapshot(
             weightHistory: weightHistory(count: 7, startingWeight: 200),
             dailyLogs: dailyLogs(count: 10, calories: 400),
@@ -74,9 +79,12 @@ final class AdaptiveGoalServiceTests: XCTestCase {
             calendar: calendar
         ))
 
-        assertOptionalEqual(snapshot.last21DaysCalorieAverage, 0)
-        assertOptionalEqual(snapshot.calculatedTDEE, 1_000)
-        XCTAssertEqual(snapshot.dataConfidence, .low)
+        XCTAssertNil(snapshot.last21DaysCalorieAverage)
+        XCTAssertNil(snapshot.calculatedTDEE)
+        XCTAssertEqual(snapshot.dataConfidence, .insufficient)
+        XCTAssertEqual(snapshot.partialLogCount, 10)
+        XCTAssertFalse(snapshot.isActionable)
+        XCTAssertNotNil(snapshot.guardrailMessage)
     }
 
     func testExpenditureSnapshotRaisesTDEEWhenWeightIsFalling() throws {
@@ -93,7 +101,7 @@ final class AdaptiveGoalServiceTests: XCTestCase {
         XCTAssertGreaterThan(try XCTUnwrap(snapshot.calculatedTDEE), 2_000)
     }
 
-    func testExpenditureSnapshotClampsMaximumTDEE() throws {
+    func testExpenditureSnapshotWithholdsOutOfRangeTDEE() throws {
         let snapshot = try XCTUnwrap(AdaptiveGoalService.expenditureSnapshot(
             weightHistory: weightHistory(count: 21, startingWeight: 200),
             dailyLogs: dailyLogs(count: 21, calories: 8_000),
@@ -101,7 +109,25 @@ final class AdaptiveGoalServiceTests: XCTestCase {
             calendar: calendar
         ))
 
-        assertOptionalEqual(snapshot.calculatedTDEE, 5_000)
+        XCTAssertNil(snapshot.calculatedTDEE)
+        XCTAssertFalse(snapshot.isActionable)
+        XCTAssertNotNil(snapshot.guardrailMessage)
+    }
+
+    func testExpenditureSnapshotPausesWhenManyDaysArePartial() throws {
+        let calories = Array(repeating: 2_100.0, count: 14) + Array(repeating: 350.0, count: 7)
+        let snapshot = try XCTUnwrap(AdaptiveGoalService.expenditureSnapshot(
+            weightHistory: weightHistory(count: 21, startingWeight: 180),
+            dailyLogs: dailyLogs(caloriesByDay: calories),
+            today: today,
+            calendar: calendar
+        ))
+
+        XCTAssertEqual(snapshot.validLogCount, 14)
+        XCTAssertEqual(snapshot.partialLogCount, 7)
+        XCTAssertNil(snapshot.calculatedTDEE)
+        XCTAssertFalse(snapshot.isActionable)
+        XCTAssertTrue(snapshot.guardrailMessage?.contains("7 days") == true)
     }
 
     func testDataConfidenceColorNamesAreStableForUI() {
@@ -198,8 +224,12 @@ final class AdaptiveGoalServiceTests: XCTestCase {
     }
 
     private func dailyLogs(count: Int, calories: Double, workoutsEvery: Int? = nil) -> [DailyLog] {
-        (0..<count).map { index in
-            let daysAgo = count - 1 - index
+        dailyLogs(caloriesByDay: Array(repeating: calories, count: count), workoutsEvery: workoutsEvery)
+    }
+
+    private func dailyLogs(caloriesByDay: [Double], workoutsEvery: Int? = nil) -> [DailyLog] {
+        caloriesByDay.enumerated().map { index, calories in
+            let daysAgo = caloriesByDay.count - 1 - index
             let food = FoodItem(
                 id: "food-\(index)",
                 name: "Logged Day \(index)",

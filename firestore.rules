@@ -10,38 +10,62 @@ service cloud.firestore {
     }
 
     function requestAuthorIsUser() {
-      return request.resource.data.authorID == request.auth.uid ||
-        request.resource.data.authorId == request.auth.uid;
+      let data = request.resource.data;
+      return signedIn() &&
+        data.keys().hasAny(["authorID", "authorId"]) &&
+        data.get("authorID", request.auth.uid) == request.auth.uid &&
+        data.get("authorId", request.auth.uid) == request.auth.uid;
     }
 
     function resourceAuthorIsUser() {
-      return resource.data.authorID == request.auth.uid ||
-        resource.data.authorId == request.auth.uid;
+      let data = resource.data;
+      return signedIn() &&
+        data.keys().hasAny(["authorID", "authorId"]) &&
+        data.get("authorID", request.auth.uid) == request.auth.uid &&
+        data.get("authorId", request.auth.uid) == request.auth.uid;
     }
 
     function requestCreatorIsUser() {
-      return request.resource.data.creatorID == request.auth.uid ||
-        request.resource.data.creatorId == request.auth.uid;
+      let data = request.resource.data;
+      return signedIn() &&
+        data.keys().hasAny(["creatorID", "creatorId"]) &&
+        data.get("creatorID", request.auth.uid) == request.auth.uid &&
+        data.get("creatorId", request.auth.uid) == request.auth.uid;
     }
 
     function resourceCreatorIsUser() {
-      return resource.data.creatorID == request.auth.uid ||
-        resource.data.creatorId == request.auth.uid;
+      let data = resource.data;
+      return signedIn() &&
+        data.keys().hasAny(["creatorID", "creatorId"]) &&
+        data.get("creatorID", request.auth.uid) == request.auth.uid &&
+        data.get("creatorId", request.auth.uid) == request.auth.uid;
     }
 
     function requestMembershipIsUser() {
-      return request.resource.data.userID == request.auth.uid ||
-        request.resource.data.userId == request.auth.uid;
+      let data = request.resource.data;
+      return signedIn() &&
+        data.keys().hasAny(["userID", "userId"]) &&
+        data.get("userID", request.auth.uid) == request.auth.uid &&
+        data.get("userId", request.auth.uid) == request.auth.uid;
     }
 
     function resourceMembershipIsUser() {
-      return resource.data.userID == request.auth.uid ||
-        resource.data.userId == request.auth.uid;
+      let data = resource.data;
+      return signedIn() &&
+        data.keys().hasAny(["userID", "userId"]) &&
+        data.get("userID", request.auth.uid) == request.auth.uid &&
+        data.get("userId", request.auth.uid) == request.auth.uid;
     }
 
     function requestMembershipGroupIsValid() {
-      return (request.resource.data.groupID is string && request.resource.data.groupID.size() > 0) ||
-        (request.resource.data.groupId is string && request.resource.data.groupId.size() > 0);
+      let data = request.resource.data;
+      let keys = data.keys();
+      let uppercase = data.get("groupID", "");
+      let lowercase = data.get("groupId", "");
+      return keys.hasAny(["groupID", "groupId"]) &&
+        (!keys.hasAny(["groupID"]) || (uppercase is string && uppercase.size() > 0)) &&
+        (!keys.hasAny(["groupId"]) || (lowercase is string && lowercase.size() > 0)) &&
+        (!keys.hasAll(["groupID", "groupId"]) || uppercase == lowercase);
     }
 
     function validMembershipWrite() {
@@ -161,7 +185,8 @@ service cloud.firestore {
       // You can only create a post if you are the author
       allow create: if signedIn() && requestAuthorIsUser();
       // You can only edit or delete a post if you are the original author
-      allow update, delete: if signedIn() && resourceAuthorIsUser();
+      allow update: if resourceAuthorIsUser() && requestAuthorIsUser();
+      allow delete: if resourceAuthorIsUser();
     }
     
     // Groups Collection
@@ -171,15 +196,16 @@ service cloud.firestore {
       // Signed-in users can create groups they own
       allow create: if signedIn() && requestCreatorIsUser();
       // Only the creator can update the group details
-      allow update: if signedIn() && resourceCreatorIsUser();
-      allow delete: if signedIn() && resourceCreatorIsUser();
+      allow update: if resourceCreatorIsUser() && requestCreatorIsUser();
+      allow delete: if resourceCreatorIsUser();
     }
     
     // Group Memberships
     match /groupMemberships/{membershipId} {
       allow read: if signedIn() && resourceMembershipIsUser();
-      allow create, update: if validMembershipWrite();
-      allow delete: if signedIn() && resourceMembershipIsUser();
+      allow create: if validMembershipWrite();
+      allow update: if resourceMembershipIsUser() && validMembershipWrite();
+      allow delete: if resourceMembershipIsUser();
     }
     
     // Legacy one-owner barcode pool. Existing documents remain inaccessible during migration.

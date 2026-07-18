@@ -58,6 +58,60 @@ These events evaluate the replacement 2.2 loop before waiting for D7 retention:
 Calorie and macro values attached by older call sites are removed by the analytics privacy
 sanitizer. The dashboard measures whether a user acted, not the contents of their plan.
 
+## My Foods management indicators
+
+The 2.3 personal-library slice emits three privacy-safe events. These measure whether reusable
+food data is manageable without sending the food itself.
+
+| Behavior | Event and allowed parameters |
+|---|---|
+| Library exposure | `my_foods_library_viewed`: aggregate `saved_count`, `personal_match_count`, `needs_review_count`, and `duplicate_group_count` |
+| Filter use | `my_foods_library_filter`: enum `filter` only |
+| Persisted mutation outcome | `my_foods_library_action`: enum `action`, boolean `success`, and aggregate `item_count` |
+
+Never attach food names, serving text, barcodes, nutrition values, document IDs, search queries, or
+account identifiers. Treat an action as successful only after its custom-food write commits. The
+primary guardrail is failed mutation rate; deletion and merge counts are not engagement goals.
+
+## Living Day indicators
+
+Living Day is a deterministic view over existing data, not a new health score. Its events measure
+whether the hierarchy is understandable and whether users reach an existing workflow.
+
+| Behavior | Event and allowed parameters |
+|---|---|
+| Path exposure | `living_day_viewed`: aggregate `path_event_count`, boolean `has_training`, and enums `freshness`, `next_action_kind`, and `density` |
+| Path node opened | `living_day_event_opened`: enums `kind`, `state`, and `evidence` |
+| Current action opened | `living_day_action_opened`: enum `kind` |
+| Persisted transition shown | `living_day_transition_presented`: enum `kind` and boolean `matched_event` |
+| Maia context opened | `living_day_maia_annotation_opened`: enum `action_kind` only |
+| Density changed | `living_day_density_changed`: enum `density` only |
+| Share choices opened | `living_day_share_options_opened`: no additional payload |
+| Selected share committed | `living_day_share_opened`: booleans `includes_budget`, `includes_path`, `includes_trust`, and `includes_action`, plus aggregate `path_event_count` |
+
+The Maia annotation explains the already-selected deterministic action; this event is not evidence
+that Maia chose or changed the action. Share telemetry records only which coarse sections the user
+included. Never attach event titles, meal or workout names, serving text, nutrition values, Trust
+findings, account identifiers, routes, coordinates, timestamps, freeform Maia text, or raw Health
+samples.
+
+## Week in Motion indicators
+
+Week in Motion is an opening report story, not a score or a success event.
+
+| Behavior | Event and allowed parameters |
+|---|---|
+| Opening story available | `week_in_motion_viewed`: aggregate `days_logged`, `training_days`, `recovery_eligible`, `trust_eligible`, plus enums `observation_kind` and `observation_tone` |
+| Detailed report requested | `week_in_motion_detail_opened`: enums `observation_kind` and `observation_tone` only |
+| Existing share menu opened | `weekly_report_share_opened`: no additional payload |
+| Share choices opened | `weekly_report_share_options_opened`: no additional payload |
+| Selected share committed | `weekly_report_share_image_opened`: booleans `includes_rhythm`, `includes_evidence`, and `includes_observation` |
+
+Do not attach day-level timestamps, food or routine names, routes, coordinates, nutrition values,
+raw Health samples, observation prose, or account identifiers. Observation kind and tone are
+coarse UI states, not health classifications. Measure whether the detailed report is useful after
+exposure; do not optimize for attention-toned observations.
+
 ## Acquisition and custom product pages
 
 App Store Connect is authoritative for impressions, product-page views, downloads,
@@ -90,7 +144,7 @@ approved and the five URLs pass signed-in and signed-out physical-device testing
 | Diary write failures | `nonfatal_error_recorded` | `area=nutrition`, `operation=daily_log_mutation`; Crashlytics also carries safe `stage` | Treat repeated persistence failures as data-loss severity even when the UI shows an error. |
 | Barcode lookup health | `barcode_lookup_outcome` | `result`, winning `source`, `duration_ms`, `duration_bucket` | Watch hit rate and p50/p75 latency. A miss represents the complete provider chain, not one provider. |
 | AI response decoding | `nonfatal_error_recorded` | `area=ai`, decode operation | A repeated decoder operation means a feature contract is broken even if the model request succeeded. |
-| AI request success and latency | Server `aiUsage` documents and Functions logs | Day, model, outcome, latency | Investigate failure-rate or latency changes before increasing AI exposure. |
+| AI request success and latency | Server `aiUsage`, `aiUsageBreakdown`, and Functions logs | Day, workflow, model, outcome, latency | Investigate failure-rate or latency changes before increasing AI exposure. |
 | App Check validity | Firebase App Check metrics | Function, app version | Do not enable enforcement until valid 2.2+ traffic is consistently accepted and rollback is ready. |
 | Account deletion | Analytics + Functions logs | Started, completed, failed reason | Any server-data deletion failure is release-critical; never report success before server and Auth deletion finish. |
 | Community consensus health | Private `communityBarcodeMetrics` + Functions logs | Accepted submissions, published/insufficient/conflict/quarantined/disabled aggregate events | Keep public flag off through soak; investigate conflict, rejection, volume-limit, cost, or App Check anomalies before increasing exposure. |
@@ -100,13 +154,21 @@ an owner is actively investigating; it must never mean merely "a number moved."
 
 ## AI cost per active user
 
-The callable Function already keeps a private per-user/day quota document. Schema 1 now adds:
+The callable Function keeps a private per-user/day quota and aggregate document. Schema 3 includes:
 
 - `count`: valid requests admitted by the daily limiter.
 - `successfulCount` and `failedCount`.
 - `inputTokens`, `outputTokens`, and `totalTokens` from successful OpenAI responses.
-- `totalLatencyMs`, `lastLatencyMs`, `lastModel`, and `lastOutcome`.
+- Workflow-specific success, failure, token, and latency counters for general, meal-photo,
+  nutrition-label, menu-photo, receipt-photo, and recipe-photo requests.
+- `totalLatencyMs`, `lastLatencyMs`, `lastModel`, `lastRequestKind`, and `lastOutcome`.
 - `uid`, `day`, and `updatedAt` for quota enforcement and account deletion.
+
+The private `aiUsageBreakdown` collection keeps one schema-1 aggregate per
+account/day/workflow/model combination. It repeats only the safe counters above plus `requestKind`
+and `model`; it does not store an image, prompt, response, food identity, or analytics identifier.
+This split is the comparison source for the fixed camera benchmark because a model change within a
+UTC day cannot contaminate the previous model's totals. Account deletion removes both collections.
 
 Prompts and responses are never written to this document. These documents remain server-owned
 and are deleted by the existing account-deletion Function.
@@ -129,9 +191,16 @@ Peter must complete the console-side setup after the instrumented build produces
    `trust_level`, `action`, `evidence_class`, `serving_evidence`, `sanity_profile`,
    `correction_scope`, `resulting_sanity`, `resulting_review_status`, `phase`,
    `confirmation_path`, `notification_type`, `area`, `operation`, and deletion `reason`.
+   Before 2.3 analysis, also register `filter`, `observation_kind`, `observation_tone`,
+   `freshness`, `next_action_kind`, `density`, `action_kind`, `kind`, `state`, `evidence`,
+   `has_training`, `matched_event`, `includes_budget`, `includes_path`, `includes_trust`,
+   `includes_action`, `includes_rhythm`, `includes_evidence`, and `includes_observation`.
 2. Register numeric metrics where Firebase requires it: `elapsed_seconds`, `duration_ms`,
    `trust_score`, `cross_verified_count`, `sanity_finding_count`,
    `resulting_sanity_finding_count`, `item_count`, and operational import counts.
+   The 2.3 My Foods/Living Day/Week additions are `saved_count`, `personal_match_count`,
+   `needs_review_count`, `duplicate_group_count`, `days_logged`, `training_days`,
+   `recovery_eligible`, `trust_eligible`, and `path_event_count`.
 3. Mark `first_food_logged`, `first_workout_completed`,
    `nutrition_training_loop_completed`, and `mfp_import_completed` as key events.
 4. Build one Activation exploration and one Launch Health exploration from the definitions
@@ -142,12 +211,14 @@ Peter must complete the console-side setup after the instrumented build produces
    inside, Firebase's app-instance funnel.
 8. After 7-14 clean days, record the 2.2 baseline and set alert thresholds in this document.
 
-Console state on 2026-07-12: items 1-5 are configured. The property has 36 event-scoped
+Console state on 2026-07-12: items 1-5 are configured for the replacement 2.2 schema. The property has 36 event-scoped
 dimensions and 15 custom metrics, the four completion outcomes are key events, the `2.2
 Activation` and `2.2 Launch Health` explorations are saved, and Crashlytics fatal, non-fatal,
 regressed, trending, and velocity email alerts are enabled. Items 6-8 require signed build 3
 traffic or post-release acquisition data and remain operating follow-through rather than code
-gates.
+gates. The explicitly listed 2.3 My Foods, Living Day, and Week in Motion definitions are new and
+remain pending until an instrumented 2.3 build produces their parameters. Do not create those
+definitions from guessed values before DebugView or a signed build confirms the exact parameters.
 
 ## Ownership and rollout
 

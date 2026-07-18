@@ -21,6 +21,7 @@ final class AppStateTests: XCTestCase {
     }
 
     override func tearDown() {
+        SharedDataManager.shared.clearWidgetData()
         crash = nil
         analytics = nil
         database = nil
@@ -46,6 +47,38 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(crash.userIDs.last, "")
         XCTAssertNil(analytics.userIDs.last!)
         XCTAssertEqual(crash.customValues["is_logged_in"] as? String, "true")
+    }
+
+    func testLoadedDarkModePreferenceIsNotWrittenBackAsAUserChange() async {
+        auth.currentUserID = "user-1"
+        database.darkModePreference = true
+
+        let state = AppState()
+        await waitForAppStateTasks()
+
+        XCTAssertTrue(state.isDarkModeEnabled)
+        XCTAssertTrue(database.savedDarkModePreferences.isEmpty)
+    }
+
+    func testLateDarkModeLoadCannotCrossAnAccountSwitch() async {
+        auth.currentUserID = "user-1"
+        database.loadDarkModePreferenceHandler = { userID in
+            if userID == "user-1" {
+                try await Task.sleep(nanoseconds: 200_000_000)
+                return true
+            }
+            return false
+        }
+
+        let state = AppState()
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        auth.sendAuthState("user-2")
+        try? await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertTrue(state.isUserLoggedIn)
+        XCTAssertFalse(state.isDarkModeEnabled)
+        XCTAssertEqual(database.loadedDarkModeUserIDs, ["user-1", "user-2"])
+        XCTAssertTrue(database.savedDarkModePreferences.isEmpty)
     }
 
     func testInitWithNoAuthenticatedUserMarksLoggedOut() async {
@@ -115,11 +148,13 @@ final class AppStateTests: XCTestCase {
     }
 
     func testSignOutDelegatesToAuthService() {
+        XCTAssertTrue(SharedDataManager.shared.saveData(.previewData))
         let state = AppState()
 
         state.signOut()
 
         XCTAssertTrue(auth.signOutCalled)
+        XCTAssertNil(SharedDataManager.shared.loadData())
         XCTAssertEqual(crash.userIDs.last, "")
         XCTAssertNil(analytics.userIDs.last!)
     }

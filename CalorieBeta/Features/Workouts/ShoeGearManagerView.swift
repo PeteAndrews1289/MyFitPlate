@@ -4,34 +4,34 @@ import SwiftUI
 public struct ShoeGearManagerView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var shoeStore = RunningShoeStore()
-    @State private var showingAddShoeModal = false
+    @State private var showingAddShoeModal: Bool
     let runs: [Run]
     let onShoeSelected: ((RunningShoe) -> Void)?
 
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
 
-    public init(runs: [Run] = [], onShoeSelected: ((RunningShoe) -> Void)? = nil) {
+    public init(
+        runs: [Run] = [],
+        onShoeSelected: ((RunningShoe) -> Void)? = nil,
+        initiallyShowsAddShoe: Bool = false
+    ) {
         self.runs = runs
         self.onShoeSelected = onShoeSelected
+        _showingAddShoeModal = State(initialValue: initiallyShowsAddShoe)
     }
 
     public var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
                     Button {
                         HapticManager.instance.feedback(.light)
                         showingAddShoeModal = true
                     } label: {
                         Label("Add New Shoe", systemImage: "plus")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color.brandPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal)
+                    .buttonStyle(AppActionButtonStyle(.primary))
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
 
                     if shoeStore.shoes.isEmpty {
                         emptyStateView
@@ -44,20 +44,21 @@ public struct ShoeGearManagerView: View {
                                 shoeCard(for: shoe)
                             }
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, AppSpacing.screenHorizontal)
                     }
                 }
-                .padding(.vertical)
+                .padding(.vertical, AppSpacing.group)
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
-            .navigationTitle("Shoe Gear Manager")
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Shoe Gear")
             .navigationBarTitleDisplayMode(.inline)
+            .accessibilityIdentifier("shoe_gear_screen")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
-                    .appFont(size: 16, weight: .semibold)
+                    .appTextRole(.control)
                 }
             }
             .sheet(isPresented: $showingAddShoeModal) {
@@ -79,11 +80,11 @@ public struct ShoeGearManagerView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Image(systemName: "trophy.fill")
-                        .foregroundColor(.yellow)
+                        .foregroundColor(AppPalette.achievement)
                         .font(.system(size: 18))
                     Text("Shoe Performance Leaderboard")
-                        .appFont(size: 15, weight: .bold)
-                        .foregroundColor(.textPrimary)
+                        .appTextRole(.control)
+                        .foregroundColor(AppPalette.text)
                     Spacer()
                 }
 
@@ -93,16 +94,21 @@ public struct ShoeGearManagerView: View {
                     let longest = shoeStore.longestRunDistance(for: shoe.id, across: runs) ?? 0
 
                     HStack(spacing: 12) {
-                        Text(index == 0 ? "🥇" : (index == 1 ? "🥈" : (index == 2 ? "🥉" : "#\(index + 1)")))
-                            .font(.system(size: 18))
-                            .frame(width: 28)
+                        Text("\(index + 1)")
+                            .appTextRole(.caption)
+                            .foregroundStyle(index == 0 ? AppPalette.text : Color.secondary)
+                            .frame(width: 28, height: 28)
+                            .background(
+                                (index == 0 ? AppPalette.achievement : AppPalette.control),
+                                in: Circle()
+                            )
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("\(shoe.brand) \(shoe.name)")
-                                .appFont(size: 14, weight: .bold)
-                                .foregroundColor(.textPrimary)
+                                .appTextRole(.control)
+                                .foregroundColor(AppPalette.text)
                             Text("\(count) runs · Longest: \(RunFormat.distanceText(meters: longest, metric: useMetric))")
-                                .appFont(size: 11)
+                                .appTextRole(.caption)
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                         }
 
@@ -111,12 +117,12 @@ public struct ShoeGearManagerView: View {
                         VStack(alignment: .trailing, spacing: 2) {
                             if let paceStr = RunFormat.paceText(secondsPerKm: pace, metric: useMetric) {
                                 Text(paceStr)
-                                    .appFont(size: 15, weight: .bold)
-                                    .foregroundColor(index == 0 ? .yellow : .textPrimary)
+                                    .appTextRole(.control)
+                                    .foregroundColor(index == 0 ? AppPalette.achievement : AppPalette.text)
                                     .monospacedDigit()
                             }
                             Text("AVG PACE")
-                                .appFont(size: 9, weight: .bold)
+                                .appTextRole(.caption)
                                 .foregroundColor(Color(UIColor.tertiaryLabel))
                         }
                     }
@@ -126,8 +132,8 @@ public struct ShoeGearManagerView: View {
                     }
                 }
             }
-            .asCard()
-            .padding(.horizontal)
+            .appSurface(.emphasized)
+            .padding(.horizontal, AppSpacing.screenHorizontal)
         )
     }
 
@@ -137,17 +143,17 @@ public struct ShoeGearManagerView: View {
                 .font(.system(size: 36))
                 .foregroundColor(Color(UIColor.tertiaryLabel))
             Text("No shoes added yet")
-                .appFont(size: 16, weight: .bold)
-                .foregroundColor(.textPrimary)
+                .appTextRole(.sectionTitle)
+                .foregroundColor(AppPalette.text)
             Text("Track your gear mileage and get alerted when it's time for a replacement.")
-                .appFont(size: 13)
+                .appTextRole(.body)
                 .foregroundColor(Color(UIColor.secondaryLabel))
                 .multilineTextAlignment(.center)
         }
         .padding(32)
         .frame(maxWidth: .infinity)
-        .asCard()
-        .padding(.horizontal)
+        .appSurface(.emphasized)
+        .padding(.horizontal, AppSpacing.screenHorizontal)
     }
 
     private func shoeCard(for shoe: RunningShoe) -> some View {
@@ -161,29 +167,29 @@ public struct ShoeGearManagerView: View {
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "shoeprints.fill")
-                    .appFont(size: 20, weight: .bold)
-                    .foregroundColor(shoe.isRetired ? Color(UIColor.tertiaryLabel) : .accentProtein)
+                    .appTextRole(.sectionTitle)
+                    .foregroundColor(shoe.isRetired ? Color(UIColor.tertiaryLabel) : AppPalette.effort)
                     .frame(width: 42, height: 42)
-                    .background(Color(UIColor.secondarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text("\(shoe.brand) · \(shoe.name)")
-                            .appFont(size: 16, weight: .bold)
-                            .foregroundColor(shoe.isRetired ? Color(UIColor.secondaryLabel) : .textPrimary)
+                            .appTextRole(.control)
+                            .foregroundColor(shoe.isRetired ? Color(UIColor.secondaryLabel) : AppPalette.text)
 
                         if shoe.isDefault && !shoe.isRetired {
                             Text("Default")
-                                .appFont(size: 10, weight: .bold)
-                                .foregroundColor(.accentProtein)
+                                .appTextRole(.caption)
+                                .foregroundColor(AppPalette.brandText)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Color.accentProtein.opacity(0.15), in: Capsule())
+                                .background(AppPalette.brand.opacity(0.12), in: Capsule())
                         }
 
                         if shoe.isRetired {
                             Text("Retired")
-                                .appFont(size: 10, weight: .bold)
+                                .appTextRole(.caption)
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
@@ -192,7 +198,7 @@ public struct ShoeGearManagerView: View {
                     }
 
                     Text("\(distanceString) of \(maxDistanceString)")
-                        .appFont(size: 13, weight: .medium)
+                        .appTextRole(.secondary)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .monospacedDigit()
                 }
@@ -237,7 +243,7 @@ public struct ShoeGearManagerView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .appFont(size: 20, weight: .semibold)
+                        .appTextRole(.sectionTitle)
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .frame(width: 36, height: 36)
                 }
@@ -252,7 +258,7 @@ public struct ShoeGearManagerView: View {
                             .frame(height: 8)
 
                         Capsule()
-                            .fill(isWornOut ? Color.accentSignal : (shoe.isRetired ? Color(UIColor.secondaryLabel) : Color.brandPrimary))
+                            .fill(isWornOut ? AppPalette.caution : (shoe.isRetired ? Color(UIColor.secondaryLabel) : AppPalette.brand))
                             .frame(width: min(geometry.size.width * CGFloat(wear), geometry.size.width), height: 8)
                     }
                 }
@@ -261,11 +267,11 @@ public struct ShoeGearManagerView: View {
                 if isWornOut && !shoe.isRetired {
                     HStack(spacing: 4) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .appFont(size: 11, weight: .bold)
-                            .foregroundColor(.accentSignal)
-                        Text("Worn out — consider replacing to prevent injury")
-                            .appFont(size: 11, weight: .semibold)
-                            .foregroundColor(.accentSignal)
+                            .appTextRole(.caption)
+                            .foregroundColor(AppPalette.caution)
+                        Text("Worn out - consider replacing to prevent injury")
+                            .appTextRole(.caption)
+                            .foregroundColor(AppPalette.caution)
                     }
                     .padding(.top, 2)
                 }
@@ -282,14 +288,13 @@ public struct ShoeGearManagerView: View {
                             Label("Longest: \(RunFormat.distanceText(meters: longest, metric: useMetric))", systemImage: "arrow.left.and.right")
                         }
                     }
-                    .appFont(size: 11, weight: .semibold)
+                    .appTextRole(.caption)
                     .foregroundColor(Color(UIColor.secondaryLabel))
                     .padding(.top, 4)
                 }
             }
         }
-        .padding(16)
-        .background(Color.backgroundSecondary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .appSurface(.quiet)
         .contentShape(Rectangle())
         .onTapGesture {
             if let onShoeSelected = onShoeSelected {
@@ -307,55 +312,197 @@ private struct AddShoeModal: View {
     @State private var name = ""
     @State private var initialMileage = ""
     @State private var maxMileage = "350"
+    @State private var hasPreparedUnits = false
     @AppStorage("useMetricBodyUnits") private var useMetric: Bool = Locale.current.measurementSystem != .us
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var canSave: Bool {
+        !brand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var distanceUnit: String {
+        useMetric ? "km" : "mi"
+    }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("Shoe Details")) {
-                    TextField("Brand (e.g. Nike, Hoka, Brooks)", text: $brand)
-                        .appFont(size: 16)
-                    TextField("Model Name (e.g. Pegasus 40, Clifton 9)", text: $name)
-                        .appFont(size: 16)
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    shoeSetupHeader
 
-                Section(header: Text("Mileage Tracking (\(useMetric ? "km" : "miles"))"), footer: Text("Default recommended replacement limit is ~350 miles (560 km).")) {
-                    HStack {
-                        Text("Initial Mileage")
-                            .appFont(size: 16)
-                        Spacer()
-                        TextField("0", text: $initialMileage)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 100)
-                    }
-                    HStack {
-                        Text("Max Limit (\(useMetric ? "km" : "mi"))")
-                            .appFont(size: 16)
-                        Spacer()
-                        TextField("350", text: $maxMileage)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 100)
-                    }
+                    shoeDetailsSection
+                    mileageSection
                 }
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.group)
+                .padding(.bottom, AppSpacing.group)
             }
-            .navigationTitle("Add New Shoe")
+            .scrollDismissesKeyboard(.interactively)
+            .background(AppPalette.canvas.ignoresSafeArea())
+            .navigationTitle("Shoe Setup")
             .navigationBarTitleDisplayMode(.inline)
+            .accessibilityIdentifier("add_shoe_screen")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .appFont(size: 16)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        saveShoe()
-                    }
-                    .appFont(size: 16, weight: .bold)
-                    .disabled(brand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .tint(AppPalette.brand)
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                Button(action: saveShoe) {
+                    Label("Save Shoe", systemImage: "checkmark")
+                }
+                .buttonStyle(AppActionButtonStyle(.primary))
+                .disabled(!canSave)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.row)
+                .padding(.bottom, AppSpacing.compact)
+                .background(AppPalette.canvas.ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AppPalette.separator)
+                        .frame(height: 1)
+                }
+                .accessibilityIdentifier("add_shoe_save")
+            }
         }
+        .onAppear(perform: prepareUnitDefaults)
+    }
+
+    private var shoeSetupHeader: some View {
+        HStack(alignment: .top, spacing: AppSpacing.group) {
+            VStack(alignment: .leading, spacing: 4) {
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Text("RUNNING GEAR")
+                        .appFont(size: 11, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+
+                Text("Add a Shoe")
+                    .appFont(size: 28, weight: .bold)
+                    .foregroundStyle(AppPalette.text)
+
+                Text("Track mileage automatically and know when a pair is nearing its replacement range.")
+                    .appFont(size: 13, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: 0)
+
+            Image(systemName: "figure.run")
+                .appFont(size: 21, weight: .bold)
+                .foregroundStyle(AppPalette.effort)
+                .frame(width: 54, height: 54)
+                .background(
+                    AppPalette.effort.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: AppRadius.surface, style: .continuous)
+                )
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var shoeDetailsSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            ShoeSetupSectionHeader(
+                title: "Identity",
+                subtitle: "This is how the shoe will appear in run history."
+            )
+
+            ShoeSetupField(title: "Brand", icon: "building.2.fill") {
+                TextField("Nike, Hoka, Brooks", text: $brand)
+                    .textInputAutocapitalization(.words)
+                    .accessibilityIdentifier("add_shoe_brand")
+            }
+
+            ShoeSetupField(title: "Model", icon: "shoeprints.fill") {
+                TextField("Pegasus 40, Clifton 9", text: $name)
+                    .textInputAutocapitalization(.words)
+                    .accessibilityIdentifier("add_shoe_name")
+            }
+        }
+        .appSurface(.quiet)
+    }
+
+    private var mileageSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.row) {
+            ShoeSetupSectionHeader(
+                title: "Mileage Tracking",
+                subtitle: "Start from the distance already on this pair, then choose a replacement reminder."
+            )
+
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: AppSpacing.row) {
+                        mileageField(
+                            title: "Current Mileage",
+                            icon: "gauge.with.dots.needle.33percent",
+                            placeholder: "0",
+                            value: $initialMileage
+                        )
+                        mileageField(
+                            title: "Replacement Range",
+                            icon: "flag.checkered",
+                            placeholder: useMetric ? "560" : "350",
+                            value: $maxMileage
+                        )
+                    }
+                } else {
+                    HStack(alignment: .top, spacing: AppSpacing.row) {
+                        mileageField(
+                            title: "Current Mileage",
+                            icon: "gauge.with.dots.needle.33percent",
+                            placeholder: "0",
+                            value: $initialMileage
+                        )
+                        mileageField(
+                            title: "Replacement Range",
+                            icon: "flag.checkered",
+                            placeholder: useMetric ? "560" : "350",
+                            value: $maxMileage
+                        )
+                    }
+                }
+            }
+
+            Label(
+                "Most running shoes are replaced around 350 mi (560 km), but comfort and wear still matter.",
+                systemImage: "info.circle.fill"
+            )
+            .appFont(size: 11, weight: .semibold)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .appSurface(.quiet)
+    }
+
+    private func mileageField(
+        title: String,
+        icon: String,
+        placeholder: String,
+        value: Binding<String>
+    ) -> some View {
+        ShoeSetupField(title: title, icon: icon) {
+            HStack(spacing: AppSpacing.compact) {
+                TextField(placeholder, text: value)
+                    .keyboardType(.decimalPad)
+
+                Spacer()
+
+                Text(distanceUnit)
+                    .appFont(size: 11, weight: .semibold)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func prepareUnitDefaults() {
+        guard !hasPreparedUnits else { return }
+        hasPreparedUnits = true
+        maxMileage = useMetric ? "560" : "350"
     }
 
     private func saveShoe() {
@@ -381,5 +528,59 @@ private struct AddShoeModal: View {
         shoeStore.addShoe(newShoe)
         HapticManager.instance.notification(.success)
         dismiss()
+    }
+}
+
+private struct ShoeSetupField<Content: View>: View {
+    let title: String
+    let icon: String
+    private let content: Content
+
+    init(title: String, icon: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.icon = icon
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.compact) {
+            Label(title, systemImage: icon)
+                .appFont(size: 11, weight: .semibold)
+                .foregroundStyle(.secondary)
+
+            content
+                .appFont(size: 16)
+                .foregroundStyle(AppPalette.text)
+                .padding(.horizontal, AppSpacing.row)
+                .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+                .background(
+                    AppPalette.canvas,
+                    in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        .stroke(AppPalette.separator, lineWidth: 1)
+                }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ShoeSetupSectionHeader: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .appFont(size: 18, weight: .bold)
+                .foregroundStyle(AppPalette.text)
+
+            Text(subtitle)
+                .appFont(size: 13, weight: .medium)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

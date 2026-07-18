@@ -86,6 +86,30 @@ final class DailyNextActionTests: XCTestCase {
         XCTAssertEqual(action.deepLink, "myfitplate://trust")
     }
 
+    func testNutritionContradictionRoutesToTrustReview() {
+        let invalidFood = FoodItem(
+            name: "Broken label",
+            calories: 150,
+            protein: 2,
+            carbs: 20,
+            fats: 4,
+            saturatedFat: 12,
+            sourceMetadata: .database(.openFoodFacts, sourceName: "Open Food Facts", sourceID: "bad")
+        )
+        let log = DailyLog(date: date(hour: 16), meals: [Meal(name: "Snack", foodItems: [invalidFood])])
+
+        let action = DailyNextActionRules.makeAction(
+            plan: nil,
+            today: log,
+            goals: goals,
+            now: date(hour: 16),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(action.kind, .trustReview)
+        XCTAssertEqual(action.detail, "1 entry needs your review")
+    }
+
     func testMeaningfulProteinGapRoutesToFoodSearch() {
         let food = FoodItem(name: "Meal", calories: 1_400, protein: 75)
         let log = DailyLog(date: date(hour: 18), meals: [Meal(name: "Dinner", foodItems: [food])])
@@ -101,6 +125,20 @@ final class DailyNextActionTests: XCTestCase {
         XCTAssertEqual(action.kind, .proteinCatchUp)
         XCTAssertEqual(action.proteinGrams, 45)
         XCTAssertEqual(action.deepLink, "myfitplate://food-search")
+    }
+
+    func testFractionalProteinGapUsesNearestDisplayedGram() {
+        let action = DailyNextActionRules.makeAction(
+            plan: nil,
+            today: nil,
+            goals: TodayFuelPlanGoals(calories: 2_000, protein: 146.4, carbs: 240, fats: 70),
+            now: date(hour: 18),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(action.kind, .proteinCatchUp)
+        XCTAssertEqual(action.proteinGrams, 146)
+        XCTAssertEqual(action.detail, "146 g protein left today")
     }
 
     func testSmallGapAndInvalidDataFallBackToSteadyDay() {
@@ -124,6 +162,43 @@ final class DailyNextActionTests: XCTestCase {
             calendar: calendar
         )
         XCTAssertEqual(invalidAction.kind, .steadyDay)
+    }
+
+    func testMaiaAnnotationStaysBoundToEveryDeterministicAction() {
+        for kind in DailyNextAction.Kind.allCases {
+            let action = DailyNextAction(
+                kind: kind,
+                title: "Private presentation title",
+                detail: "Private presentation detail",
+                deepLink: "myfitplate://test/\(kind.rawValue)"
+            )
+
+            let annotation = DailyNextActionAnnotationRules.make(for: action)
+
+            XCTAssertEqual(annotation.actionKind, kind)
+            XCTAssertEqual(annotation.deepLink, action.deepLink)
+            XCTAssertFalse(annotation.text.isEmpty)
+            XCTAssertFalse(annotation.text.contains(action.title))
+            XCTAssertFalse(annotation.text.contains(action.detail))
+            XCTAssertLessThanOrEqual(annotation.text.count, 100)
+        }
+    }
+
+    func testMaiaAnnotationUsesHumanLanguageWithoutMakingNewClaims() {
+        let recovery = DailyNextAction(
+            kind: .recoveryMeal,
+            title: "Log recovery fuel",
+            detail: "25 g protein + 45 g carbs",
+            deepLink: "myfitplate://training-fuel"
+        )
+        let annotation = DailyNextActionAnnotationRules.make(for: recovery)
+
+        XCTAssertEqual(
+            annotation.text,
+            "You've done the work. This target keeps recovery inside what is left today."
+        )
+        XCTAssertFalse(annotation.text.contains("45"))
+        XCTAssertFalse(annotation.text.lowercased().contains("optimal"))
     }
 
     private func confirmedPlan(
