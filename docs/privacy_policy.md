@@ -1,6 +1,6 @@
 # MyFitPlate Privacy Policy
 
-**Effective date:** July 12, 2026
+**Effective date:** July 17, 2026
 
 MyFitPlate ("we," "our," or "us") provides nutrition, fitness, training, and wellness tools. This policy explains what information MyFitPlate handles, why it is used, when it is shared, and the choices available to you.
 
@@ -22,11 +22,14 @@ We do not sell personal information. We do not use HealthKit information for adv
 
 ## 3. AI Features and Explicit Consent
 
-MyFitPlate uses OpenAI models through a secured Firebase Cloud Function to provide Maia chat, photo and menu analysis, meal planning, recipe extraction, and workout insights.
+MyFitPlate can use OpenAI models through secured Firebase Cloud Functions to provide Maia chat,
+photo and menu analysis, meal planning, recipe extraction, workout insights, and the optional
+online Maia read-aloud voice.
 
 Before the first AI request, MyFitPlate asks for explicit permission to share data for AI processing. When you use an AI feature, the request may include:
 
 - Text or images you intentionally submit.
+- Maia response text you choose to read aloud with the online natural voice. If AI data sharing is off or the online service is unavailable, read-aloud stays on your device using an Apple system voice.
 - Nutrition goals, food logs, journal entries, cycle information, pantry items, meal history, or workout details needed for the requested feature.
 - Apple Health summaries such as steps, active energy, sleep, or recovery signals only when you separately enable the **Include Apple Health data** option.
 
@@ -41,7 +44,8 @@ MyFitPlate uses service providers only to operate app functions:
 - **Google Firebase:** Authentication, cloud database, server functions, configuration, analytics, and crash reporting.
 - **OpenAI:** AI processing after your explicit consent.
 - **Apple:** HealthKit, speech recognition, notifications, maps/location services, and platform services you enable.
-- **FatSecret, USDA FoodData Central, and Open Food Facts:** Food, serving, barcode, and nutrition lookup data.
+- **FatSecret, USDA FoodData Central, Open Food Facts, and Health Canada Canadian Nutrient File:** Food, serving, barcode, and nutrition lookup data. The Health Canada reference dataset is searched within MyFitPlate's secured backend rather than by sending each query to Health Canada.
+- **NIH Dietary Supplement Label Database:** Current manufacturer supplement-label data. A supplement search term or barcode is sent through MyFitPlate's secured backend when you explicitly search supplements or when ordinary food barcode sources do not find a match.
 
 These providers process information under their own terms and privacy policies. MyFitPlate limits requests to the information needed for the selected feature.
 
