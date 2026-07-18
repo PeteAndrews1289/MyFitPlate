@@ -25,16 +25,16 @@ most visually legible without personal data.
 
 ## Current deliverables
 
-- `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-39e3d1a2/Screenshots/iPhone/output/`
+- `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-6a5e535e/Screenshots/iPhone/output/`
   contains eight 1320x2868 and eight 1284x2778 RGB iPhone images.
 - The sibling `raw/` directory contains the eight unframed simulator captures used by the
   compositor.
-- `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-39e3d1a2/Screenshots/Watch/output/`
+- `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-6a5e535e/Screenshots/Watch/output/`
   contains the 416x496 RGB Watch capture.
 
 All current images use deterministic local demo data. They contain no personal account data and do
-not call production nutrition, HealthKit, or AI services. The July 17 set predates the accepted
-Food Detail addition; recapture and recompose shot 2 from the final merged 2.3 source before upload.
+not call production nutrition, HealthKit, or AI services. Food Detail image 2 was recaptured from
+the merged version 2.3 source on July 18 and visually approved at full resolution.
 
 ## Deterministic recapture
 

@@ -23,8 +23,8 @@ evidence, fast reviewable logging, training and recovery context, and coaching t
 
 | Ref | Purpose | State |
 | --- | --- | --- |
-| `main` | Release source | Local 2.3 merge complete; remote publication is tracked by PR #9 |
-| `codex/2.3-visual-unification` | Active 2.3 release branch | Includes the accepted Food Detail and Nutrient Profile work; final package refresh pending |
+| `main` | Release source | PR #9 is the pending publication path for the complete 2.3 source |
+| `codex/2.3-visual-unification` | Active 2.3 release branch | Includes the accepted Food Detail and Nutrient Profile work through `6a5e535e`; replacement signed package is ready |
 
 All accepted product work now belongs to version 2.3. Tag `v2.3` only after Apple accepts the build,
 then remove the 2.3 development branch when no longer needed.
@@ -32,7 +32,7 @@ then remove the 2.3 development branch when no longer needed.
 ## 2.3 Status
 
 Version 2.3 is feature-complete and physically accepted. The July 17 signed package predates the
-accepted Food Detail addition and is superseded; regenerate the final package before upload.
+accepted Food Detail addition and is superseded; the July 18 `6a5e535e` package replaces it.
 
 | Area | Status | Follow-up |
 | --- | --- | --- |
@@ -45,21 +45,21 @@ accepted Food Detail addition and is superseded; regenerate the final package be
 | Strength, running, Recovery Field | Complete and physically accepted | Production observation |
 | Maia | Context/actions and local voices accepted | Online speech awaits API model access |
 | Watch, widgets, Live Activities | Complete and physically accepted | Test processed build once |
-| Signed package | Refresh required after accepted Food Detail addition | Do not upload `39e3d1a2` |
+| Signed package | Replacement archive/export complete | Upload only `6a5e535e`; do not upload `39e3d1a2` |
 
-The final package audit found and fixed one release issue before submission: the USDA key existed
-in Xcode settings but was not reaching the processed Info.plist. Candidate `39e3d1a2` now injects
-it explicitly, verifies it in source and package checks, and keeps OpenAI/FatSecret credentials out
-of the exported app.
+The original package audit found and fixed one release issue before submission: the USDA key
+existed in Xcode settings but was not reaching the processed Info.plist. The replacement
+`6a5e535e` package preserves that explicit substitution, verifies it after export, and keeps
+OpenAI/FatSecret credentials out of the app.
 
 ## Release Gates
 
-### Gate 1 - Candidate Integrity: Reopened For Final Addition
+### Gate 1 - Candidate Integrity: Complete
 
 - [x] Classify the complete working tree and exclude generated/local-only state.
 - [x] Commit and push all intended app, backend, data, test, and release work.
-- [ ] Freeze the replacement app source after the accepted Food Detail merge. Deployed Functions
-  source remains `0aa44de9`.
+- [x] Freeze the replacement app source at `6a5e535e` after the accepted Food Detail merge.
+  Deployed Functions source remains `0aa44de9`.
 - [x] Confirm phone, widget, Live Activity, and Watch are all version 2.3 build 1.
 - [x] Inspect the final diff for secrets, disabled safeguards, debug fixtures, dormant prototypes,
   and release-only behavior changes.
@@ -95,18 +95,21 @@ Peter accepted sections 1-9 of `docs/physical-acceptance-2.3.md` on July 17, inc
 Preferred online Maia Natural speech remains unavailable to the current API project. The accepted
 local fallback ships without an online-quality claim.
 
-### Gate 4 - Local Release Package: Refresh Required
+### Gate 4 - Local Release Package: Complete
 
-- [x] Core: 1,220/1,220; 83.69% line coverage.
-- [x] App: 115/115 on exact candidate `39e3d1a2`.
-- [x] UI: 81/81 on the production-equivalent UI commit.
+- [x] Core: 1,223/1,223 on exact replacement source `6a5e535e`.
+- [x] App: 116/116 on exact replacement source `6a5e535e`.
+- [x] UI: accepted Food Detail 6/6; broad catalog 85/85 across the main run plus focused closure
+  reruns on the accepted Food Detail source.
 - [x] Address Sanitizer and Thread Sanitizer: 1,220/1,220 each.
 - [x] Functions 33/33; Firestore Rules 33/33; migrations 10/10.
-- [x] Strict lint, visual guard, privacy guard, dependency audits, Release build, and analysis.
-- [ ] Signed archive and App Store export from the replacement merged source.
-- [ ] Repeat deep signature, entitlements, profiles, architectures, Watch relationship, purpose strings,
+- [x] Strict lint, visual guard, privacy guard, dependency audits, exact-source Release build, and
+  exact-source static analysis.
+- [x] Signed archive and App Store export from the replacement merged source.
+- [x] Repeat deep signature, entitlements, profiles, architectures, Watch relationship, purpose strings,
   privacy manifests, release-key placement, and debug-hook inspection.
-- [x] Eight-image iPhone gallery at both Apple sizes plus a Watch image, all visually approved.
+- [x] Food Detail store image 2 refreshed; the eight-image iPhone gallery at both Apple sizes and
+  the existing Watch image are validated and staged under the replacement release artifact.
 - [x] Metadata, review notes, privacy answers, public support/legal links, custom product page plans,
   and featuring nomination prepared.
 

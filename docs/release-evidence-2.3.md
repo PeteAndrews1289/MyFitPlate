@@ -4,12 +4,100 @@ This is the reproducible release record for MyFitPlate 2.3. It separates source 
 evidence, signed-package evidence, production evidence, physical acceptance, and the small set of
 App Store Connect actions that still require Peter.
 
-Last verified: July 17, 2026
+Last verified: July 18, 2026
 
 > **Superseded package notice (July 18):** Peter accepted the nutrition-first Food Detail and full
 > Nutrient Profile for inclusion in version 2.3. The `39e3d1a2` archive and IPA below predate that
-> work and must not be uploaded. They remain documented as historical baseline evidence while a
-> replacement 2.3 package is generated from the merged release branch.
+> work and must not be uploaded. They remain documented as historical baseline evidence; the
+> replacement `6a5e535e` package is the only package approved below.
+
+## Replacement Source Candidate
+
+- App source commit: `6a5e535e705d66bf81f18ebd732adac99fda8a06`
+- Deployed Functions source commit: `0aa44de980025185e86800b353b3fba8064f0632`
+- Branch: `codex/2.3-visual-unification`
+- Version/build: 2.3 (1)
+- State: app source frozen and pushed; signed archive/export, deep package audit, and refreshed
+  gallery are complete
+
+The accepted Food Detail and Nutrient Profile work is now part of version 2.3. It presents macros
+first, keeps Food Trust compact with a full evidence receipt one tap away, exposes reported
+micronutrients without turning missing values into zero, and expands the correction workspace to
+the complete supported nutrient set.
+
+| Gate | Replacement result |
+| --- | --- |
+| MyFitPlateCore | 1,223/1,223 passed on exact source `6a5e535e` |
+| App unit tests | 116/116 passed, with zero failures or skips, on exact source `6a5e535e` |
+| Food Detail UI | 6/6 focused journeys passed on the accepted product source |
+| Broad UI catalog | All 85 journeys closed by the broad run plus two focused simulator-stability reruns |
+| Static checks | Strict SwiftLint, visual-system guard, privacy guard, structured metadata checks, and Release static analysis passed |
+| Release build | Passed on exact source `6a5e535e` for phone, widget, Live Activity, and Watch |
+| Package inspection | All products report 2.3 (1); Watch purpose strings/architectures and all 39 privacy manifests passed |
+
+Replacement evidence:
+
+- App tests:
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-AppTests-20260718.xcresult`
+- Core-test log:
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-Core-20260718.log`
+- App-test log:
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-AppTests-20260718.log`
+- Release build log:
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-Release-20260718.log`
+- Static-analysis log:
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-Analyze-20260718.log`
+- Unsigned inspected products:
+  `/Volumes/T7 Developer/MyFitPlate/CodexBuildData/Final23Merge-AppTests-20260718/Build/Products/Release-iphoneos`
+
+The replacement Release bundle contains no UI-test or screenshot-fixture marker. The phone app,
+widget, and Live Activity are arm64; the Watch app contains arm64_32 and arm64. Both Watch Health
+purpose strings are user-facing, the companion identifier is correct, and every embedded privacy
+manifest parses. These checks validate source/package structure but do not replace the final signed
+archive and exported-IPA audit.
+
+Replacement store images:
+
+- `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-6a5e535e/Screenshots`
+- iPhone: eight 1320x2868 and eight 1284x2778 opaque RGB PNGs.
+- Watch: one 416x496 opaque RGB PNG.
+
+Food Detail image 2 was recaptured from the merged Debug-only deterministic fixture, visually
+inspected at full resolution, and recomposed at both Apple sizes. The remaining seven approved
+captures and the Watch capture are unchanged; all 17 final outputs passed dimension, color-space,
+and alpha checks.
+
+### Replacement Signed App Store Package
+
+- Signed archive:
+  `/Volumes/T7 Developer/MyFitPlate/Xcode/Archives/2026-07-18/MyFitPlate 2.3 6a5e535e.xcarchive`
+- App Store export:
+  `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-6a5e535e/Export/MyFitPlate.ipa`
+- IPA SHA-256:
+  `947088d0f2fb5160e1dc9c34006d6c6c12ea0e5e78e11024bae8a7799fbef04c`
+- IPA size: 66,580,982 bytes (63 MiB on disk)
+- Complete package checksum manifest:
+  `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-6a5e535e/SHA256SUMS.txt`
+- Checksum-manifest SHA-256:
+  `eb804e39eccf415b2918186f625ab3c9de68acbd7b4020cda903c0f62ddbe92a`
+- Archive log:
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-Archive-20260718.log`
+- Export log:
+  `/Volumes/T7 Developer/MyFitPlate/TestResults/Final23Merge-6a5e535e-Export-20260718.log`
+
+The exported IPA passes deep strict code-sign verification. Every product uses an App Store
+distribution profile through June 24, 2027 and reports version 2.3 build 1. `get-task-allow` is
+false throughout; the phone app keeps production App Attest, HealthKit, and the shared app group.
+The Watch companion relationship, both Health purpose strings, and arm64_32/arm64 architectures
+are correct. All 39 privacy manifests parse, none declares tracking, the configured USDA release
+key is present, OpenAI/FatSecret credentials are absent, and non-exempt encryption is false. No
+UI-test or screenshot-fixture marker appears in the exported phone binary.
+
+Xcode's verbose packaging log prints nine non-fatal `Upload Symbols Failed` lines while processing
+prebuilt third-party frameworks, then completes the App Store export successfully. The same nine
+lines occur in the prior successful baseline export. The app, widget, Live Activity, and both Watch
+architectures each have an archive dSYM whose UUID exactly matches its executable, so MyFitPlate's
+first-party crash symbolication evidence is complete.
 
 ## Prior Candidate (Superseded)
 
