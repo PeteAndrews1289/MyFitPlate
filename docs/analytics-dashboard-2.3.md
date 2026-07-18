@@ -1,15 +1,15 @@
-# Replacement Version 2.2 Analytics and Launch-Health Contract
+# Version 2.3 Analytics and Launch-Health Contract
 
-This document is the source of truth for the replacement 2.2 acquisition, activation,
-retention, Trust, training, reliability, and AI-cost dashboards. Its filename and schema
-retain the internal 2.3 milestone label for stable cohorts. It defines what each number means
-before production data is used to make product decisions.
+This document is the source of truth for version 2.3 acquisition, activation, retention, Trust,
+training, reliability, and AI-cost dashboards. It defines what each number means before production
+data is used to make product decisions.
 
 ## Operating rules
 
 - Compare MyFitPlate with its previous stable production baseline. Exclude the withdrawn 2.2
   build 1 from launch comparisons. Do not invent an industry target.
-- Segment by app version and `analytics_schema`. Replacement 2.2 emits internal schema `2.3.2`.
+- Segment by app version and `analytics_schema`. Version 2.3 emits schema `2.3.3`; keep historical
+  schema `2.3.2` separate.
 - Use distinct users unless a metric explicitly says events or attempts.
 - Treat an event as evidence of the named behavior only. A screen view is not a success.
 - Keep App Store acquisition totals separate from Firebase product behavior, then compare
@@ -188,7 +188,7 @@ Peter must complete the console-side setup after the instrumented build produces
 
 1. Register useful custom dimensions: `analytics_schema`, `destination`, `entry_source`,
    `training_mode`, `result`, `source`, `outcome`, `duration_bucket`, `trust_model_version`,
-   `trust_level`, `action`, `evidence_class`, `serving_evidence`, `sanity_profile`,
+   `trust_level`, `action`, `panel_bucket`, `evidence_class`, `serving_evidence`, `sanity_profile`,
    `correction_scope`, `resulting_sanity`, `resulting_review_status`, `phase`,
    `confirmation_path`, `notification_type`, `area`, `operation`, and deletion `reason`.
    Before 2.3 analysis, also register `filter`, `observation_kind`, `observation_tone`,

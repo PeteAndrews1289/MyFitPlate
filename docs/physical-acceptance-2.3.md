@@ -1,10 +1,14 @@
 # Version 2.3 Physical Acceptance
 
-This is the retained hands-on release record for version 2.3 build 1. The accepted source candidate
-is `39e3d1a2`; record any later failure in `docs/feedback-triage-2.3.md` before changing code.
+This is the retained hands-on release record for version 2.3 build 1. Candidate `39e3d1a2` passed
+the broad device matrix but is superseded by the accepted Food Detail addition. Record any later
+failure in `docs/feedback-triage-2.3.md` before changing code.
 
 Peter physically validated the ordinary device journeys in sections 1 through 9 on July 17, 2026,
 then accepted the final-source upgrade and cross-tab smoke in section 10 on July 18.
+Peter also accepted all six nutrition-first Food Detail checks in
+`docs/food-detail-nutrient-profile-2.3.md` on July 18, including correction persistence, physical
+keyboard dismissal, dark mode, and large text.
 The comparative 25-image camera scorecard was not retained, so it remains a post-release
 calibration task rather than evidence for a 2.3 accuracy claim. The online Maia Natural service
 check and final App Store-processed candidate smoke also remain open because they require
@@ -17,8 +21,8 @@ misleading nutrition/training result.
 ## Setup
 
 - [x] Install 2.3 (1) on the primary iPhone and update the companion Watch app.
-- [x] Record app commit `39e3d1a2` and Functions commit `0aa44de9`. Confirm the deployed
-  `generateAIResponse` revision matches that release commit.
+- [x] Record baseline app commit `39e3d1a2` and Functions commit `0aa44de9`. The backend remains
+  unchanged; record the replacement app commit after the Food Detail merge and package refresh.
 - [x] Run the OpenAI model-access preflight against the Firebase secret. Record whether the run is
   testing GPT-5.6 or the `gpt-4o-mini` compatibility route. As of the July 17 physical pass,
   `gpt-5.6-terra` returns `model_not_found` and meal photos successfully use the compatibility

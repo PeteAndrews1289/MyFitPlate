@@ -1,7 +1,7 @@
 # App Store Screenshots - 2.3
 
 The 2.3 gallery expresses MyFitPlate's product model in order: signal, evidence, action.
-It leads with the food-and-training loop, proves the Trust Receipt, shows Maia's practical
+It leads with the food-and-training loop, proves nutrition-first Food Detail and Trust, shows Maia's practical
 next step, and then demonstrates reviewable logging, dining, live strength, muscle recovery,
 and measurable progress.
 
@@ -10,7 +10,7 @@ and measurable progress.
 | # | Screen | Headline | Subline |
 |---|--------|----------|---------|
 | 1 | Living Day | See your whole day in motion | Food, training, hydration, and one clear next step |
-| 2 | Trust Receipt | Know what you can trust | Field-level sources, checks, and corrections you control |
+| 2 | Food Detail and Evidence | See nutrition you can trust | Macros first, then micronutrients, sources, and checks |
 | 3 | Maia | Act on what matters next | Food and training context, turned into a practical next step |
 | 4 | Meal estimate review | Review before you log | Edit every estimate before anything enters your diary |
 | 5 | Fast Food Builder | Build the order you ate | Choose portions across 25 chains and watch macros update |
@@ -33,9 +33,8 @@ most visually legible without personal data.
   contains the 416x496 RGB Watch capture.
 
 All current images use deterministic local demo data. They contain no personal account data and do
-not call production nutrition, HealthKit, or AI services. They were freshly captured and visually
-approved on July 17 from the final 2.3 UI. Candidate `39e3d1a2` changes only release-key packaging
-after that UI commit, so the captures remain an exact visual representation of the submitted app.
+not call production nutrition, HealthKit, or AI services. The July 17 set predates the accepted
+Food Detail addition; recapture and recompose shot 2 from the final merged 2.3 source before upload.
 
 ## Deterministic recapture
 

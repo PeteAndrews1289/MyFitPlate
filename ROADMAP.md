@@ -24,16 +24,15 @@ evidence, fast reviewable logging, training and recovery context, and coaching t
 | Ref | Purpose | State |
 | --- | --- | --- |
 | `main` | Release source | Local 2.3 merge complete; remote publication is tracked by PR #9 |
-| `codex/2.3-visual-unification` | 2.3 release branch | Binary source frozen at `39e3d1a2`; retain until the remote main merge is confirmed |
-| `codex/2.4-food-detail` | Accepted 2.4 candidate | Source, simulator, and six-item physical acceptance complete |
+| `codex/2.3-visual-unification` | Active 2.3 release branch | Includes the accepted Food Detail and Nutrient Profile work; final package refresh pending |
 
-The exact 2.3 source remains isolated from active 2.4 work. Tag `v2.3` only after Apple accepts the
-build, then remove the 2.3 development branch when no longer needed. Keep 2.4 changes off `main`
-until their own release gates are complete.
+All accepted product work now belongs to version 2.3. Tag `v2.3` only after Apple accepts the build,
+then remove the 2.3 development branch when no longer needed.
 
 ## 2.3 Status
 
-Version 2.3 is feature-complete, physically accepted, signed, exported, and ready to upload.
+Version 2.3 is feature-complete and physically accepted. The July 17 signed package predates the
+accepted Food Detail addition and is superseded; regenerate the final package before upload.
 
 | Area | Status | Follow-up |
 | --- | --- | --- |
@@ -46,7 +45,7 @@ Version 2.3 is feature-complete, physically accepted, signed, exported, and read
 | Strength, running, Recovery Field | Complete and physically accepted | Production observation |
 | Maia | Context/actions and local voices accepted | Online speech awaits API model access |
 | Watch, widgets, Live Activities | Complete and physically accepted | Test processed build once |
-| Signed package | Complete at `39e3d1a2` | Upload and App Store processing |
+| Signed package | Refresh required after accepted Food Detail addition | Do not upload `39e3d1a2` |
 
 The final package audit found and fixed one release issue before submission: the USDA key existed
 in Xcode settings but was not reaching the processed Info.plist. Candidate `39e3d1a2` now injects
@@ -55,11 +54,12 @@ of the exported app.
 
 ## Release Gates
 
-### Gate 1 - Candidate Integrity: Complete
+### Gate 1 - Candidate Integrity: Reopened For Final Addition
 
 - [x] Classify the complete working tree and exclude generated/local-only state.
 - [x] Commit and push all intended app, backend, data, test, and release work.
-- [x] Freeze app source at `39e3d1a2` and deployed Functions source at `0aa44de9`.
+- [ ] Freeze the replacement app source after the accepted Food Detail merge. Deployed Functions
+  source remains `0aa44de9`.
 - [x] Confirm phone, widget, Live Activity, and Watch are all version 2.3 build 1.
 - [x] Inspect the final diff for secrets, disabled safeguards, debug fixtures, dormant prototypes,
   and release-only behavior changes.
@@ -95,7 +95,7 @@ Peter accepted sections 1-9 of `docs/physical-acceptance-2.3.md` on July 17, inc
 Preferred online Maia Natural speech remains unavailable to the current API project. The accepted
 local fallback ships without an online-quality claim.
 
-### Gate 4 - Local Release Package: Complete
+### Gate 4 - Local Release Package: Refresh Required
 
 - [x] Core: 1,220/1,220; 83.69% line coverage.
 - [x] App: 115/115 on exact candidate `39e3d1a2`.
@@ -103,8 +103,8 @@ local fallback ships without an online-quality claim.
 - [x] Address Sanitizer and Thread Sanitizer: 1,220/1,220 each.
 - [x] Functions 33/33; Firestore Rules 33/33; migrations 10/10.
 - [x] Strict lint, visual guard, privacy guard, dependency audits, Release build, and analysis.
-- [x] Signed archive and App Store export from `39e3d1a2`.
-- [x] Deep signature, entitlements, profiles, architectures, Watch relationship, purpose strings,
+- [ ] Signed archive and App Store export from the replacement merged source.
+- [ ] Repeat deep signature, entitlements, profiles, architectures, Watch relationship, purpose strings,
   privacy manifests, release-key placement, and debug-hook inspection.
 - [x] Eight-image iPhone gallery at both Apple sizes plus a Watch image, all visually approved.
 - [x] Metadata, review notes, privacy answers, public support/legal links, custom product page plans,
@@ -114,7 +114,8 @@ Exact artifacts, hashes, and caveats are in `docs/release-evidence-2.3.md`.
 
 ## Peter: Submission Steps
 
-1. Upload the `39e3d1a2` archive or IPA and wait for processing.
+1. Upload only the replacement archive or IPA from the final merged 2.3 source and wait for
+   processing. Do not upload `39e3d1a2`.
 2. The local final-source section-10 smoke is accepted. After processing, repeat its two-minute
    upgrade/tab/Watch check on the exact TestFlight binary.
 3. Check App Check validity, Crashlytics, and launch health. Keep enforcement off unless valid
@@ -138,12 +139,12 @@ Do not reopen 2.3 for these unless production reveals a release-blocking defect.
 6. Delete the obsolete unreferenced `us-east1` `testConnectivity` diagnostic in a separate operator
    cleanup.
 
-## 2.4 Candidate Direction
+## Final 2.3 Food Detail Addition
 
 The next product bet should deepen the moat rather than widen the feature list:
 
-1. **Food Detail and Nutrient Profile:** source and simulator work are complete on
-   `codex/2.4-food-detail`. Macros now lead the page, Food Trust is a compact evidence passport with
+**Food Detail and Nutrient Profile:** source, simulator, and physical acceptance are complete.
+   Macros now lead the page, Food Trust is a compact evidence passport with
    its full receipt one tap away, and micronutrients have an always-visible preview plus a complete
    vitamins/minerals explorer. Missing fields remain unknown rather than silently becoming zero.
    The correction workspace now supports total fat, saturated fat, fiber, and all 22 vitamin and
@@ -157,10 +158,12 @@ The next product bet should deepen the moat rather than widen the feature list:
    so Health Canada and NIH results cannot be confused with their visual Trust badges. The workout
    dashboard outlier passed unchanged and was classified as Xcode/simulator instability. The UI
    harness also stopped launching a redundant app session before every routed test.
-2. **Recovery Continuum:** connect regional training load, recovery evidence, nutrition timing, and
+## Post-2.3 Product Bets
+
+1. **Recovery Continuum:** connect regional training load, recovery evidence, nutrition timing, and
    the next practical action without turning uncertainty into a single magical score.
-3. **Voice logging:** reuse the review-before-write camera architecture for fast spoken meal entry.
-4. **Trust at scale:** improve community consensus and source calibration only from measured
+2. **Voice logging:** reuse the review-before-write camera architecture for fast spoken meal entry.
+3. **Trust at scale:** improve community consensus and source calibration only from measured
    production misses and corrections.
-5. **Cost-aware growth:** establish free-tier AI economics from real route/model usage before a
+4. **Cost-aware growth:** establish free-tier AI economics from real route/model usage before a
    marketing push.

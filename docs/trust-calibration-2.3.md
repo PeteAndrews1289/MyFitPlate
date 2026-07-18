@@ -1,8 +1,8 @@
-# Trust Calibration Report Contract for Replacement 2.2
+# Trust Calibration Report Contract for Version 2.3
 
-This is the reproducible analysis plan for Trust model calibration. Instrumentation is ready in
-internal analytics schema `2.3.2`; the report itself remains open until enough real
-replacement 2.2 behavior exists. The filename retains the internal milestone label.
+This is the reproducible analysis plan for Trust model calibration. Version 2.3 instrumentation
+uses analytics schema `2.3.3`; the report itself remains open until enough real behavior exists.
+Schema `2.3.2` remains a historical pre-release cohort and must be analyzed separately.
 The goal is to learn whether lower Trust bands predict later corrections, not to make scores look
 higher.
 
@@ -74,7 +74,7 @@ saves add `resulting_sanity`, `resulting_sanity_profile`, and `resulting_review_
 3. Register `cross_verified_count`, `sanity_finding_count`, and
    `resulting_sanity_finding_count` as numeric metrics. `trust_score` is already part of the 2.3
    dashboard contract.
-4. Filter every report to `analytics_schema=2.3.2` and one `trust_model_version`. Never merge
+4. Filter every version 2.3 report to `analytics_schema=2.3.3` and one `trust_model_version`. Never merge
    score semantics across model versions.
 
 ## Primary correction-rate query
@@ -95,7 +95,7 @@ WITH trust_events AS (
   FROM `PROJECT.analytics_DATASET.events_*`
   WHERE _TABLE_SUFFIX BETWEEN 'YYYYMMDD' AND 'YYYYMMDD'
     AND event_name IN ('food_trust_card_viewed', 'food_correction_action')
-    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.2'
+    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.3'
 )
 SELECT
   model_version,
@@ -130,7 +130,7 @@ WITH actions AS (
   FROM `PROJECT.analytics_DATASET.events_*`
   WHERE _TABLE_SUFFIX BETWEEN 'YYYYMMDD' AND 'YYYYMMDD'
     AND event_name = 'food_correction_action'
-    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.2'
+    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.3'
 )
 SELECT
   source,
@@ -163,7 +163,7 @@ WITH saves AS (
   WHERE _TABLE_SUFFIX BETWEEN 'YYYYMMDD' AND 'YYYYMMDD'
     AND event_name = 'food_correction_action'
     AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'action') = 'correction_saved'
-    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.2'
+    AND (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'analytics_schema') = '2.3.3'
   GROUP BY user_pseudo_id
 ), reuse AS (
   SELECT DISTINCT event.user_pseudo_id AS reuse_user_pseudo_id

@@ -1,4 +1,4 @@
-# Food Detail And Nutrient Profile 2.4
+# Food Detail And Nutrient Profile 2.3
 
 Status: source complete, simulator accepted, and physically accepted by Peter on July 18, 2026.
 
@@ -16,7 +16,7 @@ small disclosure group and were easy to miss even when useful data existed.
 
 ## Shipping Hierarchy
 
-The 2.4 candidate uses this hierarchy:
+The final 2.3 candidate uses this hierarchy:
 
 1. Food identity and serving.
 2. Calories, protein, carbohydrates, and total fat.
@@ -65,7 +65,7 @@ and saved-food reuse behavior.
 
 ## Analytics And Privacy
 
-Analytics schema `2.4.0` adds `food_nutrient_profile_action` for these coarse actions:
+Analytics schema `2.3.3` adds `food_nutrient_profile_action` for these coarse actions:
 
 - `profile_opened`
 - `label_scan_from_summary`

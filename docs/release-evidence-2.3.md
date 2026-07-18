@@ -6,7 +6,12 @@ App Store Connect actions that still require Peter.
 
 Last verified: July 17, 2026
 
-## Final Candidate
+> **Superseded package notice (July 18):** Peter accepted the nutrition-first Food Detail and full
+> Nutrient Profile for inclusion in version 2.3. The `39e3d1a2` archive and IPA below predate that
+> work and must not be uploaded. They remain documented as historical baseline evidence while a
+> replacement 2.3 package is generated from the merged release branch.
+
+## Prior Candidate (Superseded)
 
 - App source commit: `39e3d1a219029db16c7e0b9bc18f4be378adeea3`
 - Deployed Functions source commit: `0aa44de980025185e86800b353b3fba8064f0632`
@@ -14,10 +19,10 @@ Last verified: July 17, 2026
 - Version/build: 2.3 (1)
 - Clean verification worktree:
   `/Volumes/T7 Developer/MyFitPlate/ReleaseCandidate-2.3-0aa44de9`
-- State: committed, pushed, signed, exported, and locally validated; not yet uploaded
+- State: historically validated but superseded by the accepted Food Detail addition; do not upload
 
-Do not submit the older `a020e8d0` or `bea943c5` archive. Candidate `39e3d1a2` includes the final
-USDA Info.plist substitution found during exported-package inspection.
+Do not submit `a020e8d0`, `bea943c5`, or `39e3d1a2`. Candidate `39e3d1a2` remains the baseline that
+introduced the final USDA Info.plist substitution found during exported-package inspection.
 
 ## Automated Quality
 
@@ -171,7 +176,8 @@ immediately before submission.
 
 ## Remaining Owner Actions
 
-1. Upload the exact `39e3d1a2` archive/IPA and wait for App Store processing.
+1. Generate and upload the replacement archive/IPA from the final merged 2.3 source; do not upload
+   `39e3d1a2`.
 2. Repeat the accepted two-minute upgrade/tab/Watch smoke once on the App Store-processed
    TestFlight binary; the July 18 local final-source install already passed it.
 3. Check App Check validity and Crashlytics/launch health from that processed build. Keep App Check

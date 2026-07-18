@@ -47,6 +47,7 @@ SEE YOUR WHOLE DAY
 - Review your Week in Motion without turning every signal into a single score
 
 KNOW WHAT YOU CAN TRUST
+- See calories and macros first, then explore reported vitamins and minerals with general label % Daily Value
 - Open a Trust Receipt for source lineage, nutrition checks, evidence coverage, and review status
 - Search food data from USDA FoodData Central, Health Canada, FatSecret, Open Food Facts, and NIH supplement labels
 - See what was source-reported, cross-checked, estimated, missing, or corrected
@@ -88,7 +89,8 @@ MyFitPlate provides fitness and nutrition tools, not medical advice. Food data, 
 Version 2.3 brings food, training, hydration, and recovery into one clearer daily story.
 
 - Living Day shows what happened, what is planned, and what matters next.
-- Trust Receipt explains each food's sources, checks, evidence coverage, and corrections field by field.
+- Food Detail now puts calories and macros first, keeps Trust compact, and opens the complete Evidence receipt one tap away.
+- Nutrient Profile expands reported vitamins and minerals with label % Daily Value and keeps missing fields distinct from zero.
 - Maia now starts from today's real context and offers one practical, reviewable next step.
 - Meal, label, menu, receipt, and recipe estimates stay editable and do not enter your diary before confirmation.
 - Food search adds Health Canada nutrient data and NIH supplement labels with honest source language.
@@ -105,7 +107,7 @@ This update also includes accessibility, reliability, privacy, and data-integrit
 Use the eight-shot default sequence in `docs/app-store-screenshots.md`:
 
 1. Living Day
-2. Trust Receipt
+2. Nutrition-first Food Detail and Evidence
 3. Maia next action
 4. Review-before-log meal estimate
 5. Fast Food Builder
@@ -138,7 +140,7 @@ MyFitPlate 2.3 is a nutrition and training app. A review account is provided abo
 
 Suggested review path:
 1. Sign in and open Home. Living Day combines logged and planned nutrition, hydration, training, and one next action.
-2. Open any food from the timeline or use Quick Log > Search Food, then open its Trust Receipt. Source, checks, evidence coverage, review status, and corrections are shown separately.
+2. Open any food from the timeline or use Quick Log > Search Food. Calories and macros lead Food Detail, reported vitamins and minerals remain visible, and the compact Food Trust passport opens the complete Evidence receipt. Missing nutrient fields are not treated as zero.
 3. Use Quick Log > Describe a Meal. The estimate opens in Confirm Meal and nothing is written until Log Items is tapped. Every item can be edited or removed first.
 4. Open Quick Log > Fast Food Builder. Select a chain, change a portion, and confirm the totals update before review.
 5. Open Train to review programs and the workout player. Muscle Recovery opens the selectable Recovery Field and its supporting evidence.
@@ -179,7 +181,7 @@ from the 2.2 product.
 
 ### Trusted food data
 
-- **Lead:** Trust Receipt, review-before-log, Living Day, Fast Food Builder, Reports, Maia.
+- **Lead:** Nutrition-first Food Detail, Nutrient Profile, Trust Receipt, review-before-log, Living Day, Fast Food Builder, Reports, Maia.
 - **Promotional text:** See where food data came from, inspect field-level evidence, correct questionable values, and keep every estimate reviewable before it changes your day.
 - **Deep link:** `myfitplate://trust`
 - **Keyword intent:** food database, barcode scanner, nutrition label, food diary accuracy.
