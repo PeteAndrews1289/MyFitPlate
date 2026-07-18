@@ -3,10 +3,23 @@
 ## Status
 
 Not yet run. This document defines the fixed set and scoring record; it is not evidence of an
-accuracy improvement by itself.
+accuracy improvement by itself. Ordinary camera workflows and review-before-write safety were
+physically accepted for 2.3, but the product page makes no comparative camera-accuracy claim. The
+fixed set is therefore a post-release calibration gate, not a blocker for the current submission.
 
 Keep benchmark photos outside Git unless they are deliberately sanitized and approved for source
 control. Use the same files, in the same order, for every baseline and candidate run.
+
+Do not begin the scored run until all preconditions are recorded:
+
+- [x] The intended binary (`39e3d1a2`) and deployed Functions (`0aa44de9`) commits are recorded.
+- [x] Current `generateAIResponse` fallback and strict schemas are deployed.
+- [x] `npm run preflight:openai-models -- --firebase-project caloriebeta-d28de` records the models
+  available to the exact Firebase secret.
+- [x] One authenticated camera request proves either the preferred model or the compatibility
+  fallback succeeds with the current strict schema.
+- [ ] The 25 local photo references and known facts are filled in before any candidate output is
+  viewed.
 
 ## Fixed 25-Image Set
 
@@ -54,7 +67,8 @@ baseline and candidate.
 | Functions commit/deployment |  |  |
 | Device, OS, and network |  |  |
 | Firebase test UID |  |  |
-| Route/model table |  |  |
+| Route/model table, including fallback |  |  |
+| Models actually served |  |  |
 | Fixed-set revision | `camera-25-v1` | `camera-25-v1` |
 
 ## Per-Image Results
@@ -84,8 +98,26 @@ document. The document is aggregate-only and must contain no image, prompt, resp
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 |  |  |  |  |  |  |  |  |  |  |
 
-Mean latency is `totalLatencyMs / (successfulCount + failedCount)`. Use the OpenAI invoice as the
-cost source of truth; token totals explain the route contribution but do not replace billed cost.
+### Observed post-deployment route smoke
+
+This is a single authenticated July 17 route check, not the fixed-set accuracy scorecard. Preserve
+it only as proof of production model selection and fallback behavior.
+
+| Run | Workflow | Model | Success | Failure | Input tokens | Output tokens | Total tokens | Total latency ms | Mean latency ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| July 17 route smoke | Meal photo | `gpt-5.6-terra` | 0 | 1 | 0 | 0 | 0 | 528 | 528 |
+| July 17 route smoke | Meal photo | `gpt-4o-mini` | 1 | 0 | 26,025 | 179 | 26,204 | 3,323 | 3,323 |
+
+At the July 17, 2026 standard `gpt-4o-mini` rates of $0.15 per million input tokens and $0.60 per
+million output tokens, the successful request's calculated token charge is $0.004011. The OpenAI
+invoice remains the billing source of truth. The failed Terra availability check recorded no
+tokens, and the successful result must not be described as a Terra quality result.
+
+Mean latency is `totalLatencyMs / (successfulCount + failedCount)`. When a preferred model is
+unavailable, preserve both its failed-attempt row and the compatibility model's successful row.
+That evidence distinguishes model access from image-analysis quality. Use the OpenAI invoice as
+the cost source of truth; token totals explain the route contribution but do not replace billed
+cost.
 
 ## Release Decision
 

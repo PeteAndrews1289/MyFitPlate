@@ -25,18 +25,17 @@ most visually legible without personal data.
 
 ## Current deliverables
 
-- `tools/screenshots/output/appstore-01-1320x2868.png` through
-  `appstore-08-1320x2868.png`: 6.9-inch iPhone set.
-- `tools/screenshots/output/appstore-01-1284x2778.png` through
-  `appstore-08-1284x2778.png`: 6.5-inch iPhone set.
-- `tools/screenshots/raw/`: unframed simulator captures used by the compositor.
+- `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-39e3d1a2/Screenshots/iPhone/output/`
+  contains eight 1320x2868 and eight 1284x2778 RGB iPhone images.
+- The sibling `raw/` directory contains the eight unframed simulator captures used by the
+  compositor.
+- `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-39e3d1a2/Screenshots/Watch/output/`
+  contains the 416x496 RGB Watch capture.
 
-All current images use deterministic local demo data. They contain no personal account data
-and do not call production nutrition, HealthKit, or AI services. The release-draft gallery was
-generated from the definitive 2026-07-15 Gate 3 UI result, so it shows Living Day, Trust 3.0,
-review-before-write meal estimates, the expanded Fast Food Builder, the refined workout player,
-Recovery Field, and the evidence-led Reports design. Re-render the same fixtures after any
-release-blocking visual change; otherwise these captures are the reproducible Store sources.
+All current images use deterministic local demo data. They contain no personal account data and do
+not call production nutrition, HealthKit, or AI services. They were freshly captured and visually
+approved on July 17 from the final 2.3 UI. Candidate `39e3d1a2` changes only release-key packaging
+after that UI commit, so the captures remain an exact visual representation of the submitted app.
 
 ## Deterministic recapture
 
@@ -118,10 +117,9 @@ Captions and ordering live in `tools/screenshots/shots.json`. The compositor use
 Rounded, flattens simulator transparency onto white, adds the brand-green field, and
 writes RGB PNG files to `tools/screenshots/output/`.
 
-Before uploading, visually inspect all 16 outputs at full size and confirm the exact pixel
-dimensions. Upload the 6.9-inch set first; keep the 6.5-inch set available where App Store
-Connect requests it. The release gate remains open until the physical acceptance pass confirms
-that no blocking fix invalidates a captured surface.
+All 16 iPhone outputs were inspected at full size and verified as RGB PNGs without alpha. Upload the
+6.9-inch set first; keep the 6.5-inch set available where App Store Connect requests it. The Watch
+output is also RGB without alpha at 416x496.
 
 Default product-page copy, App Review notes, custom product page plans, and the featuring
 nomination are in `docs/app-store-metadata-2.3.md`.

@@ -12,18 +12,27 @@ micronutrients that are not visible.
 The app sends a narrow request kind and Firebase selects the model. A modified client cannot select
 an expensive model directly.
 
-| Workflow | Server model | Reasoning | Why |
-| --- | --- | --- | --- |
-| Meal photo | `gpt-5.6-terra` | Low | Food separation, identity, preparation, portion range, and uncertainty require judgment. |
-| Menu photo | `gpt-5.6-terra` | Low | Menu extraction plus realistic dish-level estimation is the other judgment-heavy image path. |
-| Nutrition label | `gpt-5.6-luna` | Low | Primarily structured visual extraction; missing nutrients must remain missing. |
-| Grocery receipt | `gpt-5.6-luna` | None | Bounded text extraction and normalization. |
-| Recipe photo | `gpt-5.6-luna` | Low | Structured ingredient/instruction extraction with limited ambiguity. |
-| General Maia calls | `gpt-4o-mini` | N/A | Keeps routine chat and generation cost unchanged for this release. |
+| Workflow | Preferred server model | Compatibility fallback | Reasoning | Why |
+| --- | --- | --- | --- | --- |
+| Meal photo | `gpt-5.6-terra` | `gpt-4o-mini` | Low | Food separation, identity, preparation, portion range, and uncertainty require judgment. |
+| Menu photo | `gpt-5.6-terra` | `gpt-4o-mini` | Low | Menu extraction plus realistic dish-level estimation is the other judgment-heavy image path. |
+| Nutrition label | `gpt-5.6-luna` | `gpt-4o-mini` | Low | Primarily structured visual extraction; missing nutrients must remain missing. |
+| Grocery receipt | `gpt-5.6-luna` | `gpt-4o-mini` | None | Bounded text extraction and normalization. |
+| Recipe photo | `gpt-5.6-luna` | `gpt-4o-mini` | Low | Structured ingredient/instruction extraction with limited ambiguity. |
+| General Maia calls | `gpt-4o-mini` | None | N/A | Keeps routine chat and generation cost unchanged for this release. |
 
-The existing Firebase `OPENAI_API_KEY` secret is sufficient. Do not create or ship a second key.
-The project behind that key must have billing and access to the selected models. Current model and
-pricing guidance is maintained by OpenAI and must be checked before changing the route table:
+The server retries a vision request on `gpt-4o-mini` only when the preferred model is unavailable
+to the OpenAI project (for example, a model-access denial or missing model). It does not hide quota,
+authentication, schema, or provider-service errors. An unavailable preferred model is skipped on
+that warm Function instance for 30 minutes, avoiding a failed preferred-model request on every
+photo while retaining automatic recovery when access becomes available.
+
+The existing Firebase `OPENAI_API_KEY` secret is sufficient for the compatibility route. The
+project behind that key must have billing and explicit access to use the preferred models. The July
+16 release preflight verified that the current production project exposes `gpt-4o-mini` but not the
+preferred GPT-5.6 models, and a live strict-schema compatibility probe passed. No key is shipped in
+the app. Current model and pricing guidance is maintained by OpenAI and must be checked before
+changing the route table:
 <https://developers.openai.com/api/docs/guides/latest-model>.
 
 ## Request Safeguards
@@ -54,6 +63,19 @@ The meal route uses a server-owned strict JSON schema. Each visible item returns
 
 The overall response can ask at most two high-impact questions. An unusable or non-food image must
 return no foods. Missing scale must remain `null`; it must not become a fabricated exact serving.
+
+The other four workflows also use complete server-owned strict JSON schemas:
+
+- nutrition labels require serving identity, calories/macros, and every supported detailed
+  nutrient key, while allowing unreadable optional values to remain `null`;
+- menus return bounded dish rows with name, serving, calories/macros, and an optional price;
+- receipts return bounded normalized grocery rows with name, quantity, unit, and category; and
+- pantry recipe photos return exactly three bounded recipe drafts with description and macros.
+
+Every object rejects undeclared properties and every field is represented in the schema's required
+set. This prevents partially shaped model responses from quietly reaching client decoders. A July
+17 content-free compatibility probe confirmed that `gpt-4o-mini` accepts and returns parseable
+output for all five schemas; it is protocol evidence, not camera-accuracy evidence.
 
 ## Food-Composition Grounding
 
@@ -99,11 +121,30 @@ the matching Remote Config control to remove the unavailable workflow from the c
 
 ## Deployment And Acceptance
 
-Deploy the changed callable before testing:
+As of July 17, the current `generateAIResponse` fallback and complete strict schemas are deployed.
+A real authenticated meal-photo request attempted `gpt-5.6-terra`, received `model_not_found`,
+then succeeded through `gpt-4o-mini`. The observed successful route used 26,025 input tokens, 179
+output tokens, and 3,323 ms. This proves deployment and fallback behavior only; it is not a fixed-
+set camera accuracy result or evidence of GPT-5.6 quality.
+
+No additional deployment is required for backend commit `0aa44de9` or binary candidate commit
+`39e3d1a2`; no Functions source changed after the deployed backend freeze. Redeploy this callable
+only if Functions source changes after that commit:
 
 ```bash
-firebase deploy --only functions
+firebase deploy --only functions:generateAIResponse
 ```
+
+Before changing the route table or running a future model comparison, check the models exposed to
+the exact Firebase secret without printing it:
+
+```bash
+cd functions
+npm run preflight:openai-models -- --firebase-project caloriebeta-d28de
+```
+
+The compatibility model is release-required. Missing preferred models are a visible warning and
+mean the benchmark is measuring the compatibility route, not the intended GPT-5.6 candidate.
 
 No new Firebase secret, Firestore Rules, index, or migration is required. The optional
 `internalConfig/aiRoutes` document is needed only when an operator wants to disable a route. Before
@@ -120,7 +161,10 @@ visible and hidden sauces/oils, beverages, poor lighting, and missing scale. Rec
 
 Use a dedicated temporary account for each fixed-set comparison and do not make unrelated AI calls
 with that account during the run. In Firestore, filter `aiUsageBreakdown` by its `uid` and `day`,
-then confirm the `requestKind`, `model`, success/failure counts, token totals, and total latency.
+then confirm the `requestKind`, `model`, success/failure counts, token totals, and total latency. A
+preferred-model availability failure followed by a fallback success will produce one row for each
+model; this is intentional and makes the compatibility path visible rather than silently blending
+it into the preferred route.
 Divide `totalLatencyMs` by successful plus failed calls for the mean server round-trip. Delete the
 temporary account after recording aggregate results; account deletion removes both usage stores.
 

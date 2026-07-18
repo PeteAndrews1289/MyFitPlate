@@ -3,7 +3,7 @@
 This is the paste-ready product-page and review package for version 2.3. It follows the
 current 2.3 positioning: **the food log you can trust, built for people who train**.
 
-Apple's current limits were rechecked on 2026-07-15: 30 characters for the subtitle,
+Apple's current limits were rechecked on 2026-07-17: 30 characters for the subtitle,
 170 for promotional text, 4,000 for the description, and 100 bytes for keywords.
 References: [platform version information](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information/),
 [app information](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information/),
@@ -25,10 +25,10 @@ Food Trust Meets Training
 See food and training as one living day. Review every source, correct estimates before logging, and let Maia turn today's context into one practical next step.
 ```
 
-**Keywords (97/100 bytes):**
+**Keywords (100/100 bytes):**
 
 ```text
-calorie counter,protein,food diary,meal planner,workout log,weight loss,barcode,hydration,running
+calorie,counter,protein,nutrition,meal,planner,workout,weight,loss,barcode,scanner,water,running,gym
 ```
 
 Do not add competitor names, `app`, the developer name, or repetitions of `MyFitPlate`,
@@ -113,9 +113,8 @@ Use the eight-shot default sequence in `docs/app-store-screenshots.md`:
 7. Recovery Field
 8. Reports
 
-Do not replace these deterministic fixtures with screenshots from a personal account. The final
-upload should come from `tools/screenshots/output/` after the exact release candidate passes the
-physical acceptance gate.
+Do not replace these deterministic fixtures with screenshots from a personal account. The approved
+upload set is in `/Volumes/T7 Developer/MyFitPlate/ReleaseArtifacts/2.3-39e3d1a2/Screenshots/`.
 
 ## App Review information
 
