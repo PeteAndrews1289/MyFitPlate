@@ -116,6 +116,20 @@ final class AnalyticsContractTests: XCTestCase {
         XCTAssertEqual(ProductAnalytics.durationBucket(milliseconds: 6_000), "over_4s")
     }
 
+    func testMockAnalyticsRecordsConcurrentEventsSafely() async {
+        let analytics = MockAnalyticsManager()
+
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<40 {
+                group.addTask {
+                    analytics.logEvent("concurrent_event_\(index)", parameters: nil)
+                }
+            }
+        }
+
+        XCTAssertEqual(Set(analytics.loggedEvents.map(\.name)).count, 40)
+    }
+
     func testActiveLoggerEventFiresOncePerLocalDay() throws {
         let suiteName = "analytics-contract-tests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
