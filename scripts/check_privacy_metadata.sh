@@ -92,6 +92,7 @@ require_project_overrides_match "$WATCH_INFO" NSHealthShareUsageDescription 2
 require_project_overrides_match "$WATCH_INFO" NSHealthUpdateUsageDescription 2
 require_value "$WATCH_INFO" WKCompanionAppBundleIdentifier MyFitPlate.CalorieBeta
 require_value "$APP_INFO" ITSAppUsesNonExemptEncryption false
+require_value "$APP_INFO" USDA_API_KEY '$(USDA_API_KEY)'
 require_value "$APP_PRIVACY" NSPrivacyTracking false
 require_value "$WATCH_PRIVACY" NSPrivacyTracking false
 
