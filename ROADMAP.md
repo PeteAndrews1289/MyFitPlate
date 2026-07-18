@@ -23,11 +23,12 @@ evidence, fast reviewable logging, training and recovery context, and coaching t
 
 | Ref | Purpose | State |
 | --- | --- | --- |
-| `main` | Published baseline | Live 2.2, tagged `v2.2` |
-| `codex/2.3-visual-unification` | 2.3 release candidate | Binary source frozen at `39e3d1a2`; later commits may update release records only |
+| `main` | Release source | 2.3 source ready for submission; the public Store remains on tagged 2.2 until approval |
+| `codex/2.3-visual-unification` | 2.3 release branch | Binary source frozen at `39e3d1a2`; retained until the main merge is confirmed |
 
-Only these long-lived branches should exist. After 2.3 is accepted, merge the exact accepted source
-to `main`, tag `v2.3`, and remove the development branch when no longer needed.
+Only these long-lived branches should exist during submission. The exact 2.3 source is being merged
+to `main` before upload at Peter's direction. Tag `v2.3` only after Apple accepts the build, then
+remove the development branch when no longer needed.
 
 ## 2.3 Status
 
@@ -113,14 +114,15 @@ Exact artifacts, hashes, and caveats are in `docs/release-evidence-2.3.md`.
 ## Peter: Submission Steps
 
 1. Upload the `39e3d1a2` archive or IPA and wait for processing.
-2. Install the processed TestFlight build over public 2.2 and run the short section-10 smoke in
-   `docs/physical-acceptance-2.3.md`.
+2. The local final-source section-10 smoke is accepted. After processing, repeat its two-minute
+   upgrade/tab/Watch check on the exact TestFlight binary.
 3. Check App Check validity, Crashlytics, and launch health. Keep enforcement off unless valid
    traffic is consistently clean.
 4. Verify the dedicated review account on a fresh install.
 5. Select the exact build, attach the approved screenshots, paste the prepared metadata/review
    notes, recheck privacy answers and public links, then submit.
-6. After acceptance, merge to `main`, tag `v2.3`, and monitor the first 24 hours and 7-14 days.
+6. The release source is merged to `main` before submission. After acceptance, tag `v2.3` and
+   monitor the first 24 hours and 7-14 days.
 
 ## Post-2.3 Evidence Queue
 

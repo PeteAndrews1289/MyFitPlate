@@ -3,7 +3,8 @@
 This is the retained hands-on release record for version 2.3 build 1. The accepted source candidate
 is `39e3d1a2`; record any later failure in `docs/feedback-triage-2.3.md` before changing code.
 
-Peter physically validated the ordinary device journeys in sections 1 through 9 on July 17, 2026.
+Peter physically validated the ordinary device journeys in sections 1 through 9 on July 17, 2026,
+then accepted the final-source upgrade and cross-tab smoke in section 10 on July 18.
 The comparative 25-image camera scorecard was not retained, so it remains a post-release
 calibration task rather than evidence for a 2.3 accuracy claim. The online Maia Natural service
 check and final App Store-processed candidate smoke also remain open because they require
@@ -193,11 +194,16 @@ misleading nutrition/training result.
 
 ## 10. Final Candidate Smoke
 
-- [ ] Install the TestFlight or App Store-processed candidate over the prior public version. Confirm
+- [x] Install the final 2.3 source over the prior public version on the primary iPhone. Confirm
   existing account data remains intact.
-- [ ] Open all five tabs, add one disposable Quick Log item, remove it, and confirm Watch context
+- [x] Open all five tabs, add one disposable Quick Log item, remove it, and confirm Watch context
   refreshes.
-- [ ] Check Firebase App Check metrics from this signed build. Keep enforcement off unless valid
-  requests are consistently clean and unexplained invalid/unknown traffic is understood.
-- [ ] Record pass/fail, device, OS, build, and any blocker. If app source changes, regenerate the
-  archive and any affected screenshots before upload.
+- [x] Record the July 18 physical result: final-source phone build passed without a reported blocker.
+- [ ] After App Store processing, install the exact TestFlight candidate and confirm the processed
+  binary still preserves the same upgrade and cross-tab behavior.
+- [ ] Check Firebase App Check metrics from that processed signed build. Keep enforcement off unless
+  valid requests are consistently clean and unexplained invalid/unknown traffic is understood.
+
+The two remaining checks validate Apple's processed package and production App Attest path, which a
+local Xcode installation cannot establish. If app source changes, regenerate the archive and any
+affected screenshots before upload.

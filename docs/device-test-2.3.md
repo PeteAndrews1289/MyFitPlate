@@ -122,7 +122,8 @@ sanitizer, Functions, Rules, migration, lint, privacy, Release build, and analys
 green. Xcode created and exported the signed 2.3 (1) archive. The final package restores direct
 USDA access, excludes provider secrets, validates all four product signatures and 39 privacy
 manifests, and has `get-task-allow=false`. Peter accepted the physical sections 1-9 on July 17.
-Only processed-build/App Store actions and deliberately post-release evidence remain.
+Peter accepted the final-source upgrade, five-tab, disposable-log, and Watch-refresh smoke on July
+18. Only processed-build/App Store console actions and deliberately post-release evidence remain.
 
 ## Version 2.3 Living Day owner gates
 

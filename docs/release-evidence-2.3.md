@@ -145,7 +145,8 @@ Peter accepted sections 1-9 of `docs/physical-acceptance-2.3.md` on July 17. Tha
 Living Day, Reports, Trust and corrections, ordinary camera safety, specialist sources, Meal Plan,
 Grocery, Fast Food Builder, Maia fallback voices, strength, Recovery Field, running, Watch,
 widgets, Live Activities, links, sharing, accessibility, denied permissions, resilience, and
-account deletion.
+account deletion. On July 18 he also installed the final source over the public version and accepted
+the section-10 data-preservation, five-tab, disposable-log, and Watch-refresh behavior.
 
 Two evidence items remain deliberately outside the 2.3 claim set:
 
@@ -171,13 +172,13 @@ immediately before submission.
 ## Remaining Owner Actions
 
 1. Upload the exact `39e3d1a2` archive/IPA and wait for App Store processing.
-2. Install the processed TestFlight build over public 2.2. Open all five tabs, add and remove one
-   disposable Quick Log item, and confirm Watch context refreshes without data loss.
+2. Repeat the accepted two-minute upgrade/tab/Watch smoke once on the App Store-processed
+   TestFlight binary; the July 18 local final-source install already passed it.
 3. Check App Check validity and Crashlytics/launch health from that processed build. Keep App Check
    enforcement off unless valid traffic is consistently clean.
 4. Verify the dedicated App Review account on a fresh install and enter its credentials only in
    App Store Connect.
 5. Select the processed build, paste the prepared metadata/review notes, attach the approved image
    set, recheck the 13 privacy answers and public links, and submit.
-6. After Apple accepts 2.3, merge the accepted source to `main`, tag `v2.3`, and run the short
-   post-release observation checklist.
+6. The accepted source is merged to `main` before submission at Peter's direction. After Apple
+   accepts 2.3, tag `v2.3` and run the short post-release observation checklist.
