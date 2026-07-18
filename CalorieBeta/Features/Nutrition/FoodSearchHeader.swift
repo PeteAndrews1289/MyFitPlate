@@ -19,12 +19,14 @@ struct FoodSearchHeader: View {
                     .accessibilityHidden(true)
             }
 
-            TextField(dynamicTypeSize.isAccessibilitySize ? "Search foods" : placeholder, text: $searchText)
+            TextField(dynamicTypeSize.isAccessibilitySize ? "Search" : placeholder, text: $searchText)
                 .appTextRole(.body)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? AppSpacing.row : 0)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.search)
                 .onSubmit(onSubmit)
+                .accessibilityLabel("Search foods")
                 .accessibilityIdentifier("food_search_field")
 
             if !searchText.isEmpty {
@@ -52,8 +54,7 @@ struct FoodSearchHeader: View {
             }
         }
         .padding(.horizontal, AppSpacing.row)
-        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? AppSpacing.compact : 0)
-        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 72 : 54)
+        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 104 : 54)
         .background(AppPalette.control, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)

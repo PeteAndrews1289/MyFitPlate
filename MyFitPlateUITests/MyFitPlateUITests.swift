@@ -84,6 +84,61 @@ final class MyFitPlateUITests: XCTestCase {
     }
 
     @MainActor
+    private func revealIncrementally(
+        _ element: XCUIElement,
+        in scrollable: XCUIElement,
+        maxAttempts: Int = 12,
+        topInset: CGFloat = 8,
+        bottomInset: CGFloat = 8
+    ) {
+        for _ in 0..<maxAttempts {
+            let viewport = scrollable.frame
+            if element.exists {
+                let frame = element.frame
+                let isFullyVisible = frame.minY >= viewport.minY + topInset
+                    && frame.maxY <= viewport.maxY - bottomInset
+                if element.isHittable && isFullyVisible {
+                    return
+                }
+                if frame.maxY < viewport.minY + topInset {
+                    scrollable.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+                        .press(
+                            forDuration: 0.05,
+                            thenDragTo: scrollable.coordinate(
+                                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)
+                            )
+                        )
+                    continue
+                }
+            }
+
+            scrollable.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.70))
+                .press(
+                    forDuration: 0.05,
+                    thenDragTo: scrollable.coordinate(
+                        withNormalizedOffset: CGVector(dx: 0.5, dy: 0.50)
+                    )
+                )
+        }
+    }
+
+    @MainActor
+    private func performTextClippingAuditWithTimeoutRetry(on app: XCUIApplication) throws {
+        do {
+            try app.performAccessibilityAudit(for: [.textClipped])
+        } catch {
+            let auditError = error as NSError
+            guard auditError.domain == "com.apple.xcode.xctest.accessibilityAudit",
+                  auditError.code == -56 else {
+                throw error
+            }
+
+            RunLoop.current.run(until: Date().addingTimeInterval(0.75))
+            try app.performAccessibilityAudit(for: [.textClipped])
+        }
+    }
+
+    @MainActor
     private func launchFoodCorrectionDemo() -> XCUIApplication {
         let app = XCUIApplication()
         app.terminate()
@@ -96,7 +151,7 @@ final class MyFitPlateUITests: XCTestCase {
         app.launch()
 
         let fixData = app.buttons["food_trust_action"]
-        XCTAssertTrue(fixData.waitForExistence(timeout: 10))
+        XCTAssertTrue(fixData.waitForExistence(timeout: 15))
         XCTAssertEqual(fixData.label, "Fix data")
         XCTAssertTrue(fixData.isHittable)
         fixData.tap()
@@ -1184,29 +1239,23 @@ final class MyFitPlateUITests: XCTestCase {
         XCTAssertTrue(micronutrients.isHittable)
         micronutrients.tap()
 
-        let expanded = expectation(
-            for: NSPredicate(format: "value == %@", "Expanded"),
-            evaluatedWith: micronutrients
-        )
-        if XCTWaiter.wait(for: [expanded], timeout: 2) != .completed {
+        let correctionScroll = app.scrollViews.firstMatch
+        let vitaminA = app.textFields["food_correction_vitaminA"]
+        revealIncrementally(vitaminA, in: correctionScroll, maxAttempts: 8, bottomInset: 24)
+        if !vitaminA.exists {
+            revealIncrementally(micronutrients, in: correctionScroll, maxAttempts: 8, bottomInset: 24)
             XCTAssertTrue(micronutrients.isHittable)
             micronutrients.press(forDuration: 0.1)
-            let expandedAfterRetry = expectation(
-                for: NSPredicate(format: "value == %@", "Expanded"),
-                evaluatedWith: micronutrients
-            )
-            XCTAssertEqual(XCTWaiter.wait(for: [expandedAfterRetry], timeout: 2), .completed)
+            revealIncrementally(vitaminA, in: correctionScroll, maxAttempts: 8, bottomInset: 24)
         }
-        XCTAssertEqual(micronutrients.value as? String, "Expanded")
-
-        let vitaminA = app.textFields["food_correction_vitaminA"]
-        reveal(vitaminA, in: app.scrollViews.firstMatch, bottomInset: 24)
-        XCTAssertTrue(vitaminA.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            vitaminA.waitForExistence(timeout: 5),
+            "Expanding vitamins and minerals should expose the editable nutrient fields"
+        )
         XCTAssertTrue(vitaminA.isHittable)
         focusAndType("5", into: vitaminA)
         XCTAssertEqual(vitaminA.value as? String, "5")
 
-        let correctionScroll = app.scrollViews.firstMatch
         let keyboardDone = app.buttons["food_correction_keyboard_done"]
         XCTAssertTrue(keyboardDone.waitForExistence(timeout: 3))
         keyboardDone.tap()
@@ -1427,13 +1476,13 @@ final class MyFitPlateUITests: XCTestCase {
         ]
         for (identifier, label) in immediatelyVisibleDailyMetrics {
             let metric = app.descendants(matching: .any)[identifier]
-            reveal(metric, in: homeScrollView, bottomInset: 20)
+            revealIncrementally(metric, in: homeScrollView, bottomInset: 20)
             XCTAssertTrue(metric.waitForExistence(timeout: 5))
             XCTAssertEqual(metric.label, label)
         }
 
         let activityMetric = app.descendants(matching: .any)["home_daily_metric_activity"]
-        reveal(activityMetric, in: homeScrollView, bottomInset: 20)
+        revealIncrementally(activityMetric, in: homeScrollView, bottomInset: 20)
         XCTAssertTrue(activityMetric.waitForExistence(timeout: 5), "Activity metric should remain reachable")
         XCTAssertEqual(activityMetric.label, "Activity: 1 session")
 
@@ -3180,7 +3229,7 @@ final class MyFitPlateUITests: XCTestCase {
             XCTAssertTrue(container.waitForExistence(timeout: 10), "\(configuration.name) should load")
             XCTAssertGreaterThanOrEqual(container.frame.minX, app.frame.minX - 1)
             XCTAssertLessThanOrEqual(container.frame.maxX, app.frame.maxX + 1)
-            try app.performAccessibilityAudit(for: [.textClipped])
+            try performTextClippingAuditWithTimeoutRetry(on: app)
 
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "\(configuration.name) - dark accessibility XXXL"

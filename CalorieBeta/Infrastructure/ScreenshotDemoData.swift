@@ -1159,6 +1159,8 @@ enum ScreenshotDemoData {
         adaptiveGoalService: AdaptiveGoalService,
         appState: AppState
     ) {
+        goalSettings.activateAccount(userID)
+        dailyLogService.activateAccount(userID)
         applyGoals(to: goalSettings)
         goalSettings.weightHistory = weightHistory()
         dailyLogService.activelyViewedDate = today

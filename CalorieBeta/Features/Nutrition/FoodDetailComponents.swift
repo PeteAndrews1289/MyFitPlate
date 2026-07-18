@@ -1021,35 +1021,52 @@ struct FoodDetailCorrectionSheet: View {
     }
 
     private var micronutrientFields: some View {
-        DisclosureGroup(isExpanded: $draft.isMicronutrientsExpanded) {
-            VStack(alignment: .leading, spacing: AppSpacing.group) {
-                Text("Leave a field blank when the source does not report it. Enter 0 only when the label explicitly reports zero.")
-                    .appTextRole(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                micronutrientCategoryFields(.vitamin)
-                micronutrientCategoryFields(.mineral)
-            }
-            .padding(.top, AppSpacing.row)
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
-                VStack(alignment: .leading, spacing: AppSpacing.compact) {
-                    AppSectionHeader(title: "Vitamins & minerals")
-                    Text("Optional detailed nutrition")
-                        .appTextRole(.secondary)
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(AppMotion.standard) {
+                    draft.isMicronutrientsExpanded.toggle()
                 }
-                Spacer(minLength: AppSpacing.compact)
-                Text("\(reportedMicronutrientFieldCount)/\(MicronutrientKey.vitaminAndMineralKeys.count)")
-                    .appTextRole(.caption)
-                    .foregroundStyle(.secondary)
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.row) {
+                    VStack(alignment: .leading, spacing: AppSpacing.compact) {
+                        AppSectionHeader(title: "Vitamins & minerals")
+                        Text("Optional detailed nutrition")
+                            .appTextRole(.secondary)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: AppSpacing.compact)
+                    Text("\(reportedMicronutrientFieldCount)/\(MicronutrientKey.vitaminAndMineralKeys.count)")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.down")
+                        .appTextRole(.control)
+                        .foregroundStyle(AppPalette.brandText)
+                        .rotationEffect(.degrees(draft.isMicronutrientsExpanded ? 180 : 0))
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("food_correction_micros")
+            .accessibilityLabel("Vitamins and minerals")
+            .accessibilityValue(draft.isMicronutrientsExpanded ? "Expanded" : "Collapsed")
+            .accessibilityHint("Shows optional detailed nutrition fields")
+
+            if draft.isMicronutrientsExpanded {
+                VStack(alignment: .leading, spacing: AppSpacing.group) {
+                    Text("Leave a field blank when the source does not report it. Enter 0 only when the label explicitly reports zero.")
+                        .appTextRole(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    micronutrientCategoryFields(.vitamin)
+                    micronutrientCategoryFields(.mineral)
+                }
+                .padding(.top, AppSpacing.row)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .tint(AppPalette.brand)
         .appSurface(.quiet)
-        .accessibilityIdentifier("food_correction_micros")
-        .accessibilityValue(draft.isMicronutrientsExpanded ? "Expanded" : "Collapsed")
     }
 
     private func micronutrientCategoryFields(_ category: MicronutrientCategory) -> some View {
