@@ -1,6 +1,6 @@
 # Food Detail And Nutrient Profile 2.4
 
-Status: source complete, simulator accepted, physical acceptance pending.
+Status: source complete, simulator accepted, and physically accepted by Peter on July 18, 2026.
 
 ## Product Intent
 
@@ -101,19 +101,19 @@ parameter keys.
 
 ## Physical Acceptance
 
-1. Open a richly sourced food. Confirm identity and macros appear before the compact Food Trust
-   passport, then open Evidence and inspect the complete receipt.
-2. Open a food with micronutrients. Confirm six useful rows appear and All, Vitamins, and Minerals
-   filters expose reported and missing fields correctly.
-3. Open a macro-only food. Confirm MyFitPlate says detailed nutrients were not reported and offers
-   Nutrition Label scanning without treating the fields as zero.
-4. Open a saved or barcode food that needs correction. Confirm an explicit fiber zero remains `0`,
-   repair saturated fat or total fat, edit one vitamin and one mineral, save, reopen, and confirm
-   both Trust and nutrient values update.
-5. While a numeric keyboard is visible in Fix food, use the top-bar keyboard button. Confirm it
-   hides the keyboard without dismissing the correction workspace, then Save normally.
-6. Repeat the first viewport and correction workspace in dark mode and a large text size. Confirm
-   labels wrap cleanly and the bottom log action remains reachable.
+Peter confirmed all six checks on physical hardware on July 18, 2026:
 
-Do not merge this branch on simulator evidence alone. Item 5 is especially important because iOS
-Simulator automation cannot fully prove the physical keyboard/presentation interaction.
+- [x] A richly sourced food shows identity and macros before the compact Food Trust passport; the
+  Evidence sheet exposes the complete receipt.
+- [x] A food with micronutrients shows useful summary rows, while All, Vitamins, and Minerals
+  expose reported and missing fields correctly.
+- [x] A macro-only food explains that detailed nutrients were not reported, offers Nutrition Label
+  scanning, and does not treat missing fields as zero.
+- [x] A saved or barcode food preserves an explicit fiber zero; macro, vitamin, and mineral edits
+  persist after saving and reopening, with Trust and nutrient values updated.
+- [x] The top-bar keyboard control hides the physical numeric keyboard without dismissing the
+  correction workspace, and Save completes normally.
+- [x] The first viewport and correction workspace remain readable in dark mode and large text, with
+  wrapping intact and the bottom log action reachable.
+
+The branch no longer has a physical-acceptance blocker.

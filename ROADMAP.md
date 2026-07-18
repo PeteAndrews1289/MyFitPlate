@@ -25,7 +25,7 @@ evidence, fast reviewable logging, training and recovery context, and coaching t
 | --- | --- | --- |
 | `main` | Release source | Local 2.3 merge complete; remote publication is tracked by PR #9 |
 | `codex/2.3-visual-unification` | 2.3 release branch | Binary source frozen at `39e3d1a2`; retain until the remote main merge is confirmed |
-| `codex/2.4-food-detail` | Active 2.4 development | Source and simulator closure complete; six-item device acceptance pending |
+| `codex/2.4-food-detail` | Accepted 2.4 candidate | Source, simulator, and six-item physical acceptance complete |
 
 The exact 2.3 source remains isolated from active 2.4 work. Tag `v2.3` only after Apple accepts the
 build, then remove the 2.3 development branch when no longer needed. Keep 2.4 changes off `main`
@@ -147,8 +147,9 @@ The next product bet should deepen the moat rather than widen the feature list:
    its full receipt one tap away, and micronutrients have an always-visible preview plus a complete
    vitamins/minerals explorer. Missing fields remain unknown rather than silently becoming zero.
    The correction workspace now supports total fat, saturated fat, fiber, and all 22 vitamin and
-   mineral fields. Complete the short physical checklist in
-   `docs/food-detail-nutrient-profile-2.4.md` before merging.
+   mineral fields. Peter accepted the complete six-item physical checklist on July 18, including
+   correction persistence, physical keyboard dismissal, dark mode, and large text. The branch has
+   no remaining Food Detail acceptance blocker.
 
    The July 18 nightly UI matrix executed 85 tests: 83 passed in the broad run, and both outliers
    then passed in focused closure runs. The specialist-source journey received one real fix: food

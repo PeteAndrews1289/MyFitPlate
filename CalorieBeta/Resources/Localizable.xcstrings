@@ -129,6 +129,16 @@
         }
       }
     },
+    "%@ %@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@, %3$@"
+          }
+        }
+      }
+    },
     "%@ • %@" : {
       "localizations" : {
         "en" : {
@@ -619,6 +629,16 @@
         }
       }
     },
+    "%lld of %lld fields reported" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld fields reported"
+          }
+        }
+      }
+    },
     "%lld of %lld items complete" : {
       "localizations" : {
         "en" : {
@@ -682,6 +702,9 @@
 
     },
     "%lld PRs" : {
+
+    },
+    "%lld reported" : {
 
     },
     "%lld review marker%@" : {
@@ -774,6 +797,26 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$lld:%2$lld (%3$lld-hour fast)"
+          }
+        }
+      }
+    },
+    "%lld/%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "%lld/%lld reported" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld reported"
           }
         }
       }
@@ -1194,7 +1237,7 @@
     "Barcode not found" : {
 
     },
-    "Base serving: %@" : {
+    "Base serving" : {
 
     },
     "Based on what I saw, here's what you can make." : {
@@ -1579,7 +1622,7 @@
     "Copy yesterday" : {
 
     },
-    "Correct barcode match" : {
+    "Correct food data" : {
 
     },
     "Could Not Add Recipe" : {
@@ -1982,6 +2025,9 @@
     "Everything Is Checked" : {
 
     },
+    "Evidence" : {
+
+    },
     "Evidence Fingerprint" : {
 
     },
@@ -2009,6 +2055,9 @@
     "Explore first" : {
 
     },
+    "Explore nutrient profile" : {
+
+    },
     "F" : {
 
     },
@@ -2033,7 +2082,7 @@
     "Fasting Schedule" : {
 
     },
-    "Fat and fiber" : {
+    "Fat breakdown and fiber" : {
 
     },
     "Female" : {
@@ -2106,6 +2155,12 @@
 
     },
     "Food name" : {
+
+    },
+    "Food Trust" : {
+
+    },
+    "Food Trust, %@" : {
 
     },
     "Food, hydration, activity, and edits for this day." : {
@@ -2229,6 +2284,9 @@
 
     },
     "Hide field evidence" : {
+
+    },
+    "Hide keyboard" : {
 
     },
     "Hide macro details" : {
@@ -2375,6 +2433,9 @@
 
     },
     "Lead Pattern" : {
+
+    },
+    "Leave a field blank when the source does not report it. Enter 0 only when the label explicitly reports zero." : {
 
     },
     "Level %lld" : {
@@ -2666,6 +2727,12 @@
     "min" : {
 
     },
+    "Missing means the source did not provide a value; MyFitPlate does not count it as zero. % Daily Value uses the general U.S. label reference." : {
+
+    },
+    "Missing values are unknown, not zero. % Daily Value is a general label reference, not a personal target." : {
+
+    },
     "Mixed" : {
 
     },
@@ -2771,6 +2838,9 @@
     "Nike, Hoka, Brooks" : {
 
     },
+    "No %@ were reported by this source." : {
+
+    },
     "No completed sets will be saved and your program progress will not advance." : {
 
     },
@@ -2816,9 +2886,6 @@
     "No menu matches" : {
 
     },
-    "No other serving sizes available." : {
-
-    },
     "No pantry context" : {
 
     },
@@ -2861,6 +2928,9 @@
     "No signal" : {
 
     },
+    "No vitamin or mineral detail reported" : {
+
+    },
     "No Workout History" : {
 
     },
@@ -2888,6 +2958,9 @@
     "Not recording" : {
 
     },
+    "Not reported" : {
+
+    },
     "Not selected" : {
 
     },
@@ -2909,10 +2982,10 @@
     "Now" : {
 
     },
-    "Number of servings" : {
+    "Nutrient category" : {
 
     },
-    "Nutrition" : {
+    "Nutrient profile" : {
 
     },
     "Nutrition built for people who train." : {
@@ -2990,6 +3063,9 @@
     "Opens the camera to scan a nutrition label." : {
 
     },
+    "Opens the complete evidence receipt" : {
+
+    },
     "Opens the current action" : {
 
     },
@@ -3009,6 +3085,9 @@
 
     },
     "Optional" : {
+
+    },
+    "Optional detailed nutrition" : {
 
     },
     "Optional item" : {
@@ -3387,6 +3466,9 @@
     "Report unavailable" : {
 
     },
+    "Reported values stay distinct from fields this source did not supply." : {
+
+    },
     "Reps" : {
 
     },
@@ -3636,6 +3718,9 @@
     "Scan nutrition label" : {
 
     },
+    "Scan Nutrition Label" : {
+
+    },
     "Scan Plate" : {
 
     },
@@ -3741,10 +3826,10 @@
     "Send message" : {
 
     },
-    "Serving" : {
+    "Serving size" : {
 
     },
-    "Serving size" : {
+    "Servings" : {
 
     },
     "Session Review" : {
@@ -4204,6 +4289,9 @@
     "This signs out on this iPhone and clears account details from widgets and Apple Watch. Your cloud data stays saved and returns when you sign in again." : {
 
     },
+    "This source supplied calories and macros only. MyFitPlate will not treat missing nutrients as zero." : {
+
+    },
     "Time" : {
 
     },
@@ -4415,9 +4503,6 @@
 
     },
     "View recipe" : {
-
-    },
-    "Vitamins and minerals" : {
 
     },
     "Voice search" : {
